@@ -1,0 +1,17 @@
+{
+  "extends": "tslint-config-airbnb",
+  "rules": {
+    "indent": [true, "spaces", 4],
+    "ter-indent": [true, 4],
+    "max-line-length": [true, 120],
+    "no-increment-decrement": false,
+    "no-parameter-reassignment": false,
+    "ter-prefer-arrow-callback": false
+  },
+  "linterOptions": {
+    "exclude": [
+      "cli",
+      "ui"
+    ]
+  }
+}

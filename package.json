@@ -1,0 +1,38 @@
+{
+  "name": "geesome-core",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "./node_modules/.bin/ts-node ./index.ts",
+    "test": "./node_modules/.bin/mocha -r ts-node/register 'test/**/*.test.ts'",
+    "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/es6-promise": "^3.3.0",
+    "axios": "^0.18.0",
+    "bcrypt": "^3.0.4",
+    "ethers": "^4.0.25",
+    "express-bearer-token": "^2.2.0",
+    "fs": "0.0.1-security",
+    "ipfs": "^0.35.0",
+    "lodash": "^4.17.11",
+    "mysql2": "^1.6.4",
+    "p-iteration": "^1.1.7",
+    "restana": "^2.7.0",
+    "sequelize": "^4.42.0",
+    "typedarray-to-buffer": "^3.1.5",
+    "web3": "^1.0.0-beta.37"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.5",
+    "chai": "^4.2.0",
+    "chai-http": "^4.2.1",
+    "mocha": "^5.2.0",
+    "ts-node": "^7.0.1",
+    "typings": "^2.1.1"
+  }
+}
