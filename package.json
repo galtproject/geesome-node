@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npm rebuild && ./node_modules/.bin/ts-node ./index.ts",
+    "start": "npm rebuild && npm run server",
+    "server": "./node_modules/.bin/ts-node ./index.ts",
     "test": "./node_modules/.bin/mocha -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
   },
