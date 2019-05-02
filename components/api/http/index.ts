@@ -80,8 +80,10 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/v1/download-ipfs/:ipfsHash', async (req, res) => {
-        console.log(res);
-        geesomeApp.getFileStream(req.params.ipfsHash).pipe(res);
+        console.log('res', res);
+        const filestream = geesomeApp.getFileStream(req.params.ipfsHash);
+        console.log('filestream', filestream);
+        filestream.pipe(res);
     });
     
     function handleError(res, e) {
