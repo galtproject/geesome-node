@@ -4153,6 +4153,10 @@ mime-types@^2.1.12, mime-types@^2.1.16, mime-types@^2.1.21, mime-types@~2.1.19, 
   dependencies:
     mime-db "1.40.0"
 
+mime@1.2.x:
+  version "1.2.11"
+  resolved "https://registry.yarnpkg.com/mime/-/mime-1.2.11.tgz#58203eed86e3a5ef17aed2b7d9ebd47f0a60dd10"
+
 mime@1.4.1:
   version "1.4.1"
   resolved "https://registry.yarnpkg.com/mime/-/mime-1.4.1.tgz#121f9ebc49e3766f311a76e1fa1c8003c4b03aa6"
@@ -4362,6 +4366,12 @@ multihashing-async@~0.5.1, multihashing-async@~0.5.2:
     multihashes "~0.4.13"
     murmurhash3js "^3.0.1"
     nodeify "^1.0.1"
+
+multipart@^0.1.5:
+  version "0.1.5"
+  resolved "https://registry.yarnpkg.com/multipart/-/multipart-0.1.5.tgz#6c950fc156b9072d4eb3705037697311524b176d"
+  dependencies:
+    mime "1.2.x"
 
 multistream-select@~0.14.4:
   version "0.14.4"
@@ -5219,7 +5229,7 @@ pull-write@^1.1.4:
     pull-cat "^1.1.11"
     pull-stream "^3.4.5"
 
-"pull-ws@github:hugomrdias/pull-ws#fix/bundle-size":
+pull-ws@hugomrdias/pull-ws#fix/bundle-size:
   version "3.3.1"
   resolved "https://codeload.github.com/hugomrdias/pull-ws/tar.gz/8e2ce0bb3b1cd6804828316e937fff8e0bef6225"
   dependencies:

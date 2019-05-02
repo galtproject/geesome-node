@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "./node_modules/.bin/ts-node ./index.ts",
+    "start": "npm rebuild && ./node_modules/.bin/ts-node ./index.ts",
     "test": "./node_modules/.bin/mocha -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
   },
@@ -19,6 +19,7 @@
     "fs": "0.0.1-security",
     "ipfs": "^0.35.0",
     "lodash": "^4.17.11",
+    "multipart": "^0.1.5",
     "mysql2": "^1.6.4",
     "p-iteration": "^1.1.7",
     "restana": "^2.7.0",
