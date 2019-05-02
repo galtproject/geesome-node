@@ -22,105 +22,11 @@ export default {
             headers: {'Authorization': 'unauthorized'}
         });
         
-        let $httpUnauthorized = axios.create({
-            baseURL: config.serverBaseUrl,
-            headers: {'Authorization': 'unauthorized'}
-        });
-
-        let accountAddress;
-        let currentSignature;
-        let currentMessage;
-        let web3NotSupported = false;
-        
-        let headersReady = false;
-        
-        Vue.prototype.$dcityTokenSale = {
-            setWeb3NotSupported(_web3NotSupported){
-                web3NotSupported = _web3NotSupported;
-                this.updateHeaders();
-            },
-            setAccountAddress(_accountAddress){
-                accountAddress = _accountAddress;
-                this.updateHeaders();
-            },
-            getCachedSignature: function(messageToSign) {
-                currentSignature = localStorage.getItem(accountAddress + ':' + messageToSign);
-                this.updateHeaders();
-                return currentSignature;
-            },
-            setCachedSignature: function(messageToSign, signature) {
-                currentSignature = signature;
-                localStorage.setItem(accountAddress + ':' + messageToSign, signature);
-                this.updateHeaders();
-            },
-            updateHeaders: function() {
-                let authorization = '';
-                if(web3NotSupported || !accountAddress || !currentSignature) {
-                    authorization = 'unauthorized';
-                } else {
-                    authorization = `account=${accountAddress}&signature=${currentSignature}`;
-                }
-                
-                // $http.defaults.headers.common['Authorization'] = authorization;
-
-                $http = axios.create({
-                    baseURL: config.serverBaseUrl,
-                    headers: {'Authorization': authorization}
-                });
-                
-                if(accountAddress && currentSignature) {
-                    const recoveredAddress = EthData.recoverSignatureAddress(currentMessage, currentSignature);
-                    headersReady = recoveredAddress.toLowerCase() === accountAddress.toLowerCase();
-                } else {
-                    headersReady = web3NotSupported;
-                }
-            },
-            onHeadersReady: async function() {
-                if(headersReady) {
-                    return;
-                } else {
-                    return new Promise((resolve, reject) => {
-                        const intervalId = setInterval(() => {
-                            if(headersReady) {
-                                resolve();
-                                clearInterval(intervalId);
-                            }
-                        }, 100);
-                    });
-                }
-            },
-            getAuthMessage: async function() {
-                const response: any = await $httpUnauthorized.get('v1/get-auth-message');
-                currentMessage = response.data.message;
-                return currentMessage;
-            },
-            isSignatureValid: async function(signature) {
-                const response = await $httpUnauthorized.post('v1/check-signature', {
-                    signature,
-                    accountAddress
-                });
-                return response.data.valid;
-            },
-            getExplorerTemplates: async function() {
-                const response = await $httpUnauthorized.get('v1/explorer-templates');
-                return response.data;
-            },
-            getTokensRate: async function() {
-                const response = await $httpUnauthorized.get('v1/tokens-rate');
-                return parseFloat(response.data.rate);
-            },
-            createOrder: async function(orderData) {
-                await this.onHeadersReady();
-                return $http.post('v1/create-order', orderData);
-            },
-            checkOrder: async function(orderId) {
-                await this.onHeadersReady();
-                return $http.get('v1/check-order/' + orderId);
-            },
-            getPrevOrders: async function() {
-                await this.onHeadersReady();
-                const response = await $http.get('v1/orders?accountAddress=' + accountAddress);
-                return response.data;
+        Vue.prototype.$serverApi = {
+            saveFile(file){
+                const formData = new FormData();
+                formData.append("file", file);
+                return $http.post('/v1/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } });
             }
         };
     }

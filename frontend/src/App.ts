@@ -26,11 +26,11 @@ import "@galtproject/frontend-core/filters";
 import PrettyHex from "@galtproject/frontend-core/directives/PrettyHex/PrettyHex";
 import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc";
 
-import dcityTokenSalePlugin from './services/dcityTokenSale.plugin';
+import serverApiPlugin from './services/serverApi.plugin';
 
 Vue.use(Notifications);
 
-Vue.use(dcityTokenSalePlugin);
+Vue.use(serverApiPlugin);
 Vue.use(httpPlugin);
 Vue.use(Vuex as any);
 Vue.use(storePlugin, {

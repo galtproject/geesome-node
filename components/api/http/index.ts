@@ -71,7 +71,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/save-file', async (req, res) => {
-        req.setBodyEncoding("binary");
+        // req.setBodyEncoding("binary");
 
         // Handle request as multipart
         const stream = new multipart.Stream(req);

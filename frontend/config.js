@@ -1,3 +1,3 @@
 module.exports = {
-    serverBaseUrl: 'https://yal-sell.galtproject.io/'
+    serverBaseUrl: 'http://159.69.176.78:7711/'
 };

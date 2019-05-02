@@ -21,17 +21,15 @@ export default {
     methods: {
         uploadFile(file) {
             this.uploading = true;
-            const formData = new FormData();
-            formData.append("file", file);
-            axios.post('/v1/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => {
+            this.$serverApi.saveFile(file).then(response => {
                 this.ipfsHash = response.data;
                 this.uploading = false;
-            });
+            })
         }
     },
     data() {
         return {
-            localeKey: 'exchange',
+            localeKey: 'main_page',
             uploading: false,
             ipfsHash: null
         };

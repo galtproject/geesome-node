@@ -1,7 +1,7 @@
 <div id="main-page" style="height: 100%;">
     <div class="dropbox">
         <input type="file" @change="uploadFile($event.target.files[0])" accept="json">
-        <p v-locale="localeKey + '.file.description'"></p>
+        <p v-locale="localeKey + '.file'"></p>
     </div>
 
     <md-progress-bar v-if="uploading" class="md-accent" md-mode="indeterminate"></md-progress-bar>
