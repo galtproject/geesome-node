@@ -14,4 +14,5 @@
 export interface IStorage {
     saveFileByPath(path): Promise<string>;
     saveFileByContent(content): Promise<string>;
+    getFileStream(filePath): any;
 }

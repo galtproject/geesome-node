@@ -14,4 +14,5 @@
 export interface IGeesomeApp {
     savePost(userId, postData);
     saveFile(fileStream);
+    getFileStream(filePath);
 }

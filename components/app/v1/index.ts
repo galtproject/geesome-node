@@ -48,4 +48,8 @@ class GeesomeApp implements IGeesomeApp {
     saveFile(fileStream) {
         return this.storage.saveFileByContent(fileStream)
     }
+    
+    getFileStream(filePath) {
+        return this.storage.getFileStream(filePath)
+    }
 }

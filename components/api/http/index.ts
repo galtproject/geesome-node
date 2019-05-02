@@ -78,6 +78,10 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         console.log(req);
         res.send(await geesomeApp.saveFile(req), 200);
     });
+
+    service.post('/v1/download-ipfs/:ipfsHash', async (req, res) => {
+        geesomeApp.getFileStream(req.params.ipfsHash).pipe(res);
+    });
     
     function handleError(res, e) {
         return res.send({

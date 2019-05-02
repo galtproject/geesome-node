@@ -57,4 +57,8 @@ class JsIpfsService implements IStorage {
     async saveFile(options) {
         return this.node.add([options]);
     }
+
+    getFileStream(filePath){
+        return this.node.getReadableStream(filePath);
+    }
 }
