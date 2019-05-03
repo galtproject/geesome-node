@@ -80,10 +80,21 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/v1/download-ipfs/:ipfsHash', async (req, res) => {
-        console.log('res', res);
+        // console.log('res', res);
         const filestream = geesomeApp.getFileStream(req.params.ipfsHash);
-        console.log('filestream', filestream);
-        filestream.pipe(res);
+        // console.log('filestream', filestream);
+        // filestream.pipe(res);
+        filestream.on('data', (file) => {
+            // write the file's path and contents to standard out
+            console.log(file.path);
+            console.log('file', file);
+            if(file.type !== 'dir') {
+                file.content.on('data', (data) => {
+                    console.log('data', data.toString());
+                });
+                file.content.resume()
+            }
+        })
     });
     
     function handleError(res, e) {
