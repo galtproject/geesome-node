@@ -88,7 +88,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         filestream.on('data', (file) => {
             // write the file's path and contents to standard out
             console.log(file.path);
-            console.log('file', file);
+            // console.log('file', file);
             if(file.type !== 'dir') {
                 file.content.pipe(res);
                 // .on('data', (data) => {
