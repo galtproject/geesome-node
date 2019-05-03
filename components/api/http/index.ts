@@ -15,7 +15,7 @@ import {IGeesomeApp} from "../../app/interface";
 
 const config = require('./config');
 
-const multipart = require("multipart");
+const busboy = require('connect-busboy');
 
 const service = require('restana')({
     ignoreTrailingSlash: true,
@@ -48,6 +48,8 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         return next();
     });
 
+    service.use(busboy());
+
     service.options("/*", function(req, res, next){
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS");
@@ -71,19 +73,18 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/save-file', async (req, res) => {
-        // req.setBodyEncoding("binary");
+        req.pipe(req.busboy);
+        req.busboy.on('file', async function (fieldname, file, filename) {
+            console.log("Uploading: " + filename);
 
-        // Handle request as multipart
-        // const stream = new multipart.Stream(req);
-        console.log(req);
-        res.send(await geesomeApp.saveFile(req), 200);
+            res.send(await geesomeApp.saveFile(file), 200);
+        });
     });
 
     service.get('/v1/download-ipfs/:ipfsHash', async (req, res) => {
         // console.log('res', res);
         const filestream = geesomeApp.getFileStream(req.params.ipfsHash);
         // console.log('filestream', filestream);
-        filestream
         filestream.on('data', (file) => {
             // write the file's path and contents to standard out
             console.log(file.path);
