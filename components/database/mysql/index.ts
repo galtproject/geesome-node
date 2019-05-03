@@ -46,32 +46,29 @@ class MysqlDatabase implements IDatabase {
     }
 
     async flushDatabase() {
-        await this.models.Order.destroy({ where: { } });
+        await this.models.Content.destroy({ where: { } });
+        await this.models.Post.destroy({ where: { } });
+        await this.models.GroupPermission.destroy({ where: { } });
+        await this.models.Group.destroy({ where: { } });
+        await this.models.User.destroy({ where: { } });
         await this.models.Value.destroy({ where: { } });
     }
 
-    async addOrder(order) {
-        if(order.chainAccountAddress) {
-            order.chainAccountAddress = order.chainAccountAddress.toLowerCase();
-        }
-        return this.models.Order.create(order);
+    async addContent(content) {
+        return this.models.Content.create(content);
     }
 
-    async updateOrder(id, updateData) {
-        if(updateData.chainAccountAddress) {
-            updateData.chainAccountAddress = updateData.chainAccountAddress.toLowerCase();
-        }
-        return this.models.Order.update(updateData, {where: { id } })
+    async updateContent(id, updateData) {
+        return this.models.Content.update(updateData, {where: { id } })
     }
 
-    async deleteOrder(id) {
-        return this.models.Order.destroy({where: { id } })
+    async deleteContent(id) {
+        return this.models.Content.destroy({where: { id } })
     }
 
-    async getOrders(chainAccountAddress, limit = 10, offset = 0) {
-        chainAccountAddress = chainAccountAddress.toLowerCase();
-        return this.models.Order.findAll({ 
-            where: { chainAccountAddress },
+    async getContentList(userId, limit?, offset?) {
+        return this.models.Content.findAll({ 
+            where: { userId },
             order: [
                 ['createdAt', 'DESC']
             ],
@@ -80,8 +77,32 @@ class MysqlDatabase implements IDatabase {
         });
     }
 
-    async getOrder(id) {
-        return this.models.Order.findOne({ where: { id } });
+    async getContent(id) {
+        return this.models.Content.findOne({ where: { id } });
+    }
+
+    async getUsersCount() {
+        return this.models.User.count();
+    }
+
+    async addUser(user) {
+        return this.models.User.create(user);
+    }
+
+    async getUserByName(name) {
+        return this.models.User.findOne({ where: { name } });
+    }
+
+    async getUser(id) {
+        return this.models.User.findOne({ where: { id } });
+    }
+
+    async getGroup(id) {
+        return this.models.Group.findOne({ where: { id } });
+    }
+
+    async addGroup(group) {
+        return this.models.Group.create(group);
     }
     
     async getValue(key: string) {

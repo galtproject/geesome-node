@@ -22,7 +22,7 @@ module.exports = async function (sequelize, models) {
         title: {
             type: Sequelize.STRING
         },
-        active: {
+        isActive: {
             type: Sequelize.BOOLEAN
         }
     } as any, {

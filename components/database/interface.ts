@@ -14,30 +14,45 @@
 export interface IDatabase {
     flushDatabase(): Promise<void>;
 
-    addOrder(order: IOrder): Promise<IOrder>;
-    updateOrder(id, updateData: any): Promise<void>;
-    deleteOrder(id): Promise<void>;
-    getOrders(accountAddress, limit?, offset?): Promise<IOrder[]>;
-    getOrder(id): Promise<IOrder>;
+    addContent(content: IContent): Promise<IContent>;
+    updateContent(id, updateData: any): Promise<void>;
+    deleteContent(id): Promise<void>;
+    getContentList(accountAddress, limit?, offset?): Promise<IContent[]>;
+    getContent(id): Promise<IContent>;
+    
+    getUsersCount(): Promise<number>;
+    addUser(user: IUser): Promise<IUser>;
+    getUserByName(name): Promise<IUser>;
+    getUser(id): Promise<IUser>;
+
+    getGroup(id): Promise<IGroup>;
+    addGroup(group): Promise<IGroup>;
 
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
     clearValue(key: string): Promise<void>;
 }
 
-export interface IOrder {
+export interface IContent {
     id?: number;
-    acquiringName: string;
-    acquiringOrderId?: string;
-    acquiringPaymentUrl?: string;
-    chainTxId?: string;
-    chainName: string;
-    chainAccountAddress: string;
-    tokensAddress: string;
-    tokensAmount: number;
-    fiatAmount: number;
-    acquiringStatus?: string;
-    acquiringError?: string;
-    chainStatus?: string;
-    chainError?: string;
+    name: string;
+    description?: string;
+    ipfsHash?: string;
+    isPublic?: boolean;
+    userId: number;
+    groupId: number;
+}
+
+export interface IUser {
+    id?: number;
+    name: string;
+    title: string;
+    passwordHash: string;
+}
+
+export interface IGroup {
+    id?: number;
+    name: string;
+    title: string;
+    isPublic: boolean;
 }

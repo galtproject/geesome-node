@@ -14,6 +14,7 @@
 import axios from 'axios';
 import EthData from "@galtproject/frontend-core/libs/EthData";
 const config = require('../../config');
+const _ = require('lodash');
 
 export default {
     install (Vue, options: any = {}) {
@@ -23,9 +24,12 @@ export default {
         });
         
         Vue.prototype.$serverApi = {
-            saveFile(file){
+            saveFile(file, params = {}){
                 const formData = new FormData();
                 formData.append("file", file);
+                _.forEach(params, (value, key) => {
+                    formData.append(key, value);
+                });
                 return $http.post('/v1/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } });
             }
         };

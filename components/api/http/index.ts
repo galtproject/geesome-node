@@ -27,8 +27,16 @@ const _ = require('lodash');
 module.exports = (geesomeApp: IGeesomeApp, port) => {
     require('./showEndpointsTable');
     service.use(bodyParser.json());
+
+    service.use(require('morgan')('combined'));
+    service.use(require('cookie-parser')());
+    service.use(require('body-parser').urlencoded({ extended: true }));
+    service.use(require('express-session')({ secret: 'keyboard cat', resave: false, saveUninitialized: false }));
+
+    // service.use(geesomeApp.authorization.initialize());
+    // service.use(geesomeApp.authorization.session());
     
-    service.use(async (req, res, next) => {
+    service.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS");
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
@@ -43,7 +51,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         }
         
         //TODO: fetch user id
-        req.userId = 1;
+        req.user = {id: 1};
         
         return next();
     });
@@ -77,24 +85,14 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         req.busboy.on('file', async function (fieldname, file, filename) {
             console.log("Uploading: " + filename);
 
-            res.send(await geesomeApp.saveFile(file), 200);
+            res.send(await geesomeApp.saveContent(file, filename, req.user.id, req.body.groupId), 200);
         });
     });
 
-    service.get('/v1/download-ipfs/:ipfsHash', async (req, res) => {
-        // console.log('res', res);
-        const filestream = geesomeApp.getFileStream(req.params.ipfsHash);
-        // console.log('filestream', filestream);
-        filestream.on('data', (file) => {
-            // write the file's path and contents to standard out
-            console.log(file.path);
-            // console.log('file', file);
+    service.get('/v1/get-content/:ipfsHash', async (req, res) => {
+        geesomeApp.getFileStream(req.params.ipfsHash).on('data', (file) => {
             if(file.type !== 'dir') {
                 file.content.pipe(res);
-                // .on('data', (data) => {
-                //     console.log('data', data.toString());
-                // });
-                // file.content.resume()
             }
         })
     });

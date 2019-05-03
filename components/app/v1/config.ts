@@ -17,5 +17,7 @@ module.exports = {
     storageModule: 'js-ipfs',
     storageConfig: {},
     apiModule: 'http',
-    apiConfig: {}
+    apiConfig: {},
+    authorizationModule: 'passport',
+    authorizationConfig: {}
 };

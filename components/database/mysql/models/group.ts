@@ -21,6 +21,9 @@ module.exports = async function (sequelize, models) {
         },
         title: {
             type: Sequelize.STRING
+        },
+        isPublic: {
+            type: Sequelize.BOOLEAN
         }
     } as any, {
         indexes: [

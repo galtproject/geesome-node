@@ -21,7 +21,9 @@ export default {
     methods: {
         uploadFile(file) {
             this.uploading = true;
-            this.$serverApi.saveFile(file).then(response => {
+            this.$serverApi.saveFile(file, {
+                groupId: 1
+            }).then(response => {
                 this.ipfsHash = response.data;
                 this.uploading = false;
             })

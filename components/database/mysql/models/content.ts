@@ -14,19 +14,19 @@
 module.exports = async function (sequelize, models) {
     const Sequelize = require('sequelize');
     
-    const Post = sequelize.define('post', {
+    const Content = sequelize.define('content', {
         // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+        name: {
+            type: Sequelize.STRING(200)
+        },
+        description: {
+            type: Sequelize.STRING
+        },
         ipfsHash: {
             type: Sequelize.STRING(200)
         },
-        status: {
-            type: Sequelize.STRING(200)
-        },
-        publishedAt: {
-            type: Sequelize.DATE
-        },
-        publishOn: {
-            type: Sequelize.DATE
+        isPublic: {
+            type: Sequelize.BOOLEAN
         }
     } as any, {
         indexes: [
@@ -37,11 +37,11 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Post.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.Group.hasMany(Post, { as: 'posts', foreignKey: 'groupId' });
+    Content.belongsTo(models.Group, { as: 'post', foreignKey: 'postId' });
+    models.Group.hasMany(Content, { as: 'contents', foreignKey: 'postId' });
 
-    Post.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(Post, { as: 'posts', foreignKey: 'userId' });
+    Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
+    models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
 
-    return Post.sync({});
+    return Content.sync({});
 };

@@ -11,8 +11,15 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import {IDatabase} from "../database/interface";
+import {IStorage} from "../storage/interface";
+
 export interface IGeesomeApp {
+    database: IDatabase;
+    storage: IStorage;
+    authorization: any;
+    
     savePost(userId, postData);
-    saveFile(fileStream);
+    saveContent(fileStream, fileName, userId, groupId);
     getFileStream(filePath);
 }

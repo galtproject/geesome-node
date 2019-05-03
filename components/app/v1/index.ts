@@ -18,13 +18,24 @@ import {IStorage} from "../../storage/interface";
 const config = require('./config');
 const _ = require('lodash');
 
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
+
 module.exports = async () => {
     const app = new GeesomeApp(config);
     
     console.log('Start database...');
-    app.database = await require('../../database/' + config.databaseModule)(config.databaseConfig);
+    app.database = await require('../../database/' + config.databaseModule)(app);
+    
+    if(await app.database.getUsersCount() === 0) {
+        console.log('Run seeds...');
+        app.runSeeds();
+    }
+    
     console.log('Start storage...');
-    app.storage = await require('../../storage/' + config.storageModule)(config.storageConfig);
+    app.storage = await require('../../storage/' + config.storageModule)(app);
+    
+    app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
     console.log('Start api...');
     require('../../api/' + config.apiModule)(app, 7711);
@@ -35,9 +46,10 @@ module.exports = async () => {
 class GeesomeApp implements IGeesomeApp {
     database: IDatabase;
     storage: IStorage;
+    authorization: any;
     
     constructor(
-        private config
+        public config
     ) {
     }
     
@@ -45,11 +57,37 @@ class GeesomeApp implements IGeesomeApp {
         
     }
 
-    saveFile(fileStream) {
-        return this.storage.saveFileByContent(fileStream)
+    async saveContent(fileStream, fileName, userId, groupId) {
+        const ipfsHash = await this.storage.saveFileByContent(fileStream);
+        const group = await this.database.getGroup(fileStream);
+        return this.database.addContent({
+            ipfsHash,
+            userId,
+            groupId,
+            name: fileName,
+            isPublic: group.isPublic
+        })
     }
     
     getFileStream(filePath) {
         return this.storage.getFileStream(filePath)
+    }
+
+    runSeeds() {
+        return new Promise((resolve, reject) => {
+            bcrypt.hash('admin', saltRounds, async (err, passwordHash) => {
+                const adminUser = await this.database.addUser({
+                    name: 'admin',
+                    title: 'Admin',
+                    passwordHash
+                });
+
+                const feedGroup = await this.database.addGroup({
+                    name: 'feed',
+                    title: 'Feed',
+                    isPublic: true
+                });
+            });
+        });
     }
 }
