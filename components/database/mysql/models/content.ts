@@ -40,8 +40,8 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Content.belongsTo(models.Group, { as: 'post', foreignKey: 'postId' });
-    models.Group.hasMany(Content, { as: 'contents', foreignKey: 'postId' });
+    Content.belongsTo(models.Post, { as: 'post', foreignKey: 'postId' });
+    models.Post.hasMany(Content, { as: 'contents', foreignKey: 'postId' });
 
     Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
