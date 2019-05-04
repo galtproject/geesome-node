@@ -26,10 +26,12 @@ export default {
         Vue.prototype.$serverApi = {
             saveFile(file, params = {}){
                 const formData = new FormData();
-                formData.append("file", file);
+                
                 _.forEach(params, (value, key) => {
                     formData.append(key, value);
                 });
+                
+                formData.append("file", file);
                 return $http.post('/v1/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } });
             }
         };
