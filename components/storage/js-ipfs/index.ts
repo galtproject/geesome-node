@@ -18,7 +18,7 @@ const IPFS = require('ipfs');
 module.exports = async () => {
     const node = new IPFS();
 
-    console.log('node', node);
+    // console.log('node', node);
     try {
         await new Promise((resolve, reject) => {
             node.on('ready', (err) => err ? reject(err) : resolve());
