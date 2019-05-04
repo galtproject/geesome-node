@@ -59,7 +59,7 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveContent(fileStream, fileName, userId, groupId) {
         const ipfsHash = await this.storage.saveFileByContent(fileStream);
-        const group = await this.database.getGroup(fileStream);
+        const group = await this.database.getGroup(groupId);
         return this.database.addContent({
             ipfsHash,
             userId,
