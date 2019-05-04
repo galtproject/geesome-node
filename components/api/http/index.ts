@@ -95,7 +95,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
                 stream: file
             };
         });
-        busboy.on('finish', async function() {
+        req.busboy.on('finish', async function() {
             res.send(await geesomeApp.saveContent(body['file'].stream, body['file'].name, req.user.id, body['groupId']), 200);
         });
     });
