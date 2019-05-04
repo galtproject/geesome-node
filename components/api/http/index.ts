@@ -89,7 +89,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
             console.log('field', body);
         });
         req.busboy.on('file', async function (fieldname, file, filename) {
-            res.send(await geesomeApp.saveContent(filename, file, req.user.id, body['groupId']), 200);
+            res.send(await geesomeApp.saveContent(file, filename, req.user.id, body['groupId']), 200);
         });
     });
 
