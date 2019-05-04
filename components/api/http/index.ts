@@ -83,10 +83,20 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     service.post('/v1/save-file', async (req, res) => {
         req.pipe(req.busboy);
         console.log(req.busboy);
-        req.busboy.on('file', async function (fieldname, file, filename) {
-            console.log("Uploading: " + filename);
+        
+        const body = {};
 
-            res.send(await geesomeApp.saveContent(file, filename, req.user.id, req.body.groupId), 200);
+        req.busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
+            body[fieldname] = val;
+        });
+        req.busboy.on('file', function (fieldname, file, filename) {
+            body['file'] = {
+                name: filename,
+                stream: file
+            };
+        });
+        busboy.on('finish', async function() {
+            res.send(await geesomeApp.saveContent(body['file'].stream, body['file'].name, req.user.id, body['groupId']), 200);
         });
     });
 
