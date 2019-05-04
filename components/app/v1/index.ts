@@ -27,7 +27,7 @@ module.exports = async () => {
     console.log('Start database...');
     app.database = await require('../../database/' + config.databaseModule)(app);
     
-    if(await app.database.getUsersCount() === 0) {
+    if((await app.database.getUsersCount()) === 0) {
         console.log('Run seeds...');
         app.runSeeds();
     }
