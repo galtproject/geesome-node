@@ -81,25 +81,16 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/save-file', async (req, res) => {
+        req.pipe(req.busboy);
+        
         const body = {};
-
         req.busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
             body[fieldname] = val;
             console.log('field', body);
         });
-        req.busboy.on('file', function (fieldname, file, filename) {
-            body['file'] = {
-                name: filename,
-                stream: file
-            };
-            console.log('file', body);
+        req.busboy.on('file', async function (fieldname, file, filename) {
+            res.send(await geesomeApp.saveContent(filename, file, req.user.id, body['groupId']), 200);
         });
-        req.busboy.on('finish', async function() {
-            console.log('finish', body);
-            res.send(await geesomeApp.saveContent(body['file'].stream, body['file'].name, req.user.id, body['groupId']), 200);
-        });
-        
-        req.pipe(req.busboy);
     });
 
     service.get('/v1/get-content/:ipfsHash', async (req, res) => {
