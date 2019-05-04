@@ -38,6 +38,7 @@ export interface IContent {
     name: string;
     description?: string;
     ipfsHash?: string;
+    size?: string;
     isPublic?: boolean;
     userId: number;
     groupId: number;

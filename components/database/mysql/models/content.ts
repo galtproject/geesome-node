@@ -25,6 +25,9 @@ module.exports = async function (sequelize, models) {
         ipfsHash: {
             type: Sequelize.STRING(200)
         },
+        size: {
+            type: Sequelize.INTEGER
+        },
         isPublic: {
             type: Sequelize.BOOLEAN
         }

@@ -12,7 +12,13 @@
  */
 
 export interface IStorage {
-    saveFileByPath(path): Promise<string>;
-    saveFileByContent(content): Promise<string>;
+    saveFileByPath(path): Promise<IResultFile>;
+    saveFileByContent(content): Promise<IResultFile>;
     getFileStream(filePath): any;
+}
+
+interface IResultFile {
+    path;
+    size;
+    hash;
 }
