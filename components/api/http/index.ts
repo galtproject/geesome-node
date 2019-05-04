@@ -82,7 +82,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
 
     service.post('/v1/save-file', async (req, res) => {
         req.pipe(req.busboy);
-        console.log(req.busboy);
+        // console.log(req.busboy);
         
         const body = {};
 
