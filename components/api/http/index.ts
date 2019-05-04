@@ -81,6 +81,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/save-file', async (req, res) => {
+        console.log(req);
         req.pipe(req.busboy);
         req.busboy.on('file', async function (fieldname, file, filename) {
             console.log("Uploading: " + filename);
