@@ -46,5 +46,8 @@ module.exports = async function (sequelize, models) {
     Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
 
+    Content.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
+    models.Group.hasMany(Content, { as: 'contents', foreignKey: 'groupId' });
+
     return Content.sync({});
 };
