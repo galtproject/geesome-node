@@ -30,7 +30,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
 
     service.use(require('morgan')('combined'));
     service.use(require('cookie-parser')());
-    service.use(require('body-parser').urlencoded({ extended: true }));
+    // service.use(require('body-parser').urlencoded({ extended: true }));
     service.use(require('express-session')({ secret: 'keyboard cat', resave: false, saveUninitialized: false }));
 
     // service.use(geesomeApp.authorization.initialize());
