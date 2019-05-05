@@ -15,7 +15,10 @@ module.exports = {
     databaseModule: 'mysql',
     databaseConfig: {},
     storageModule: 'js-ipfs',
-    storageConfig: {},
+    storageConfig: {
+        //TODO: get from .env
+        pass: 'my-pass'
+    },
     apiModule: 'http',
     apiConfig: {},
     authorizationModule: 'passport',

@@ -16,8 +16,8 @@ import {IStorage} from "../interface";
 const _ = require('lodash');
 const IPFS = require('ipfs');
 
-module.exports = async () => {
-    const node = new IPFS();
+module.exports = async (config) => {
+    const node = new IPFS(config);
 
     // console.log('node', node);
     try {
