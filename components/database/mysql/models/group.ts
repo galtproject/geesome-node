@@ -57,8 +57,7 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
-
-
+    
     const GroupAdministrators = sequelize.define('groupAdministrators', { } as any, { } as any);
     
     Group.belongsToMany(models.User, { as: 'Administrators', through: GroupAdministrators });

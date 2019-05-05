@@ -62,6 +62,9 @@ class JsIpfsService implements IStorage {
     }
 
     async saveFileByContent(content) {
+        if(_.isString(content)) {
+            content = Buffer.from(content, 'utf8');
+        }
         return this.saveFile({ content });
     }
 
