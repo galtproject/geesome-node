@@ -17,7 +17,7 @@ module.exports = {
     storageModule: 'js-ipfs',
     storageConfig: {
         //TODO: get from .env
-        pass: 'my-pass'
+        pass: 'traffic enough crater wear tissue term town have switch exhibit onion asset'
     },
     apiModule: 'http',
     apiConfig: {},
