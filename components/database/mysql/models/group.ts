@@ -58,11 +58,16 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Group.belongsToMany(models.User, { as: 'Administrators', through: 'groupAdministrators' });
-    models.User.belongsToMany(Group, { as: 'AdministratorInGroups', through: 'groupAdministrators' });
 
-    Group.belongsToMany(models.User, { as: 'Members', through: 'groupMembers' });
-    models.User.belongsToMany(Group, { as: 'MemberInGroups', through: 'groupMembers' });
+    const GroupAdministrators = sequelize.define('groupAdministrators', { } as any, { } as any);
+    
+    Group.belongsToMany(models.User, { as: 'Administrators', through: GroupAdministrators });
+    models.User.belongsToMany(Group, { as: 'AdministratorInGroups', through: GroupAdministrators });
+    
+    const GroupMembers = sequelize.define('groupMembers', { } as any, { } as any);
+
+    Group.belongsToMany(models.User, { as: 'Members', through: GroupMembers });
+    models.User.belongsToMany(Group, { as: 'MemberInGroups', through: GroupMembers });
 
     return Group.sync({});
 };
