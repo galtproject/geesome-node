@@ -20,6 +20,9 @@ const _ = require('lodash');
 
 module.exports = async () => {
     const app = new GeesomeApp(config);
+
+    console.log('Start storage...');
+    app.storage = await require('../../storage/' + config.storageModule)(app);
     
     console.log('Start database...');
     app.database = await require('../../database/' + config.databaseModule)(app);
@@ -28,9 +31,6 @@ module.exports = async () => {
         console.log('Run seeds...');
         await app.runSeeds();
     }
-    
-    console.log('Start storage...');
-    app.storage = await require('../../storage/' + config.storageModule)(app);
     
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 

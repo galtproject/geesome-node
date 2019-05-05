@@ -14,7 +14,7 @@
 const config = require('../../../config');
 
 export default {
-    template: require('./IpfsImage.html'),
+    template: require('./IpfsImg.html'),
     props: ['src'],
     async created() {
         
