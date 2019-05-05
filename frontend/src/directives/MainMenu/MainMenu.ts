@@ -12,8 +12,10 @@
  */
 
 export default {
+    name: 'main-menu',
     template: require('./MainMenu.html'),
     components: {  },
+    props: ['menuVisible', 'menuMinimized'],
     async created() {
         this.memberInGroups = await this.$serverApi.getMemberInGroups();
         this.adminInGroups = await this.$serverApi.getAdminInGroups();
@@ -28,19 +30,24 @@ export default {
             return this.$locale.get(this.localeKey + "." + key, options);
         },
         toggleMenu () {
-            this.menuVisible = !this.menuVisible;
-            if(!this.menuVisible) {
+            this.menuVisibleLocal = !this.menuVisibleLocal;
+            if(!this.menuVisibleLocal) {
                 setTimeout(() => {
-                    this.menuMinimized = true;
+                    this.menuMinimizedLocal = true;
                 }, 200)
             } else {
-                this.menuMinimized = false;
+                this.menuMinimizedLocal = false;
             }
         }
     },
 
     watch: {
-
+        menuVisibleLocal() {
+            this.$emit('update:menu-visible', this.menuVisibleLocal);
+        },
+        menuMinimizedLocal() {
+            this.$emit('update:menu-minimized', this.menuMinimizedLocal);
+        }
     },
 
     computed: {
@@ -51,8 +58,8 @@ export default {
     data() {
         return {
             localeKey: 'app_container.main_menu',
-            menuVisible: false,
-            menuMinimized: true,
+            menuVisibleLocal: false,
+            menuMinimizedLocal: true,
             memberInGroups: [],
             adminInGroups: []
         }

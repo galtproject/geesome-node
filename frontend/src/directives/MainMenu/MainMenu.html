@@ -1,13 +1,14 @@
-<md-app-drawer :md-active.sync="menuVisible" md-persistent="mini" :class="{'minimized': menuMinimized}">
-    <md-toolbar class="md-transparent" md-elevation="0">
-        <span v-if="menuVisible" v-locale="localeKey + '.title'"></span>
+<content>
 
-        <md-button class="md-icon-button show" @click="toggleMenu()" v-if="!menuVisible">
+    <md-toolbar class="md-transparent" md-elevation="0">
+        <span v-if="menuVisibleLocal" v-locale="localeKey + '.title'"></span>
+
+        <md-button class="md-icon-button show" @click="toggleMenu()" v-if="!menuVisibleLocal">
             <md-icon>menu</md-icon>
         </md-button>
 
         <div class="md-toolbar-section-end">
-            <md-button class="md-icon-button md-dense" @click="toggleMenu" v-if="menuVisible">
+            <md-button class="md-icon-button md-dense" @click="toggleMenu" v-if="menuVisibleLocal">
                 <md-icon>keyboard_arrow_left</md-icon>
             </md-button>
         </div>
@@ -50,5 +51,5 @@
             </md-button>
         </md-list-item>
     </md-list>
+</content>   
 
-</md-app-drawer>

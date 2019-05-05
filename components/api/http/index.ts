@@ -77,11 +77,11 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
     
     service.get('/v1/get-member-in-groups', async (req, res) => {
-        res.send(await geesomeApp.getMemberInGroups(this.user.id));
+        res.send(await geesomeApp.getMemberInGroups(req.user.id));
     });
     
     service.get('/v1/get-admin-in-groups', async (req, res) => {
-        res.send(await geesomeApp.getAdminInGroups(this.user.id));
+        res.send(await geesomeApp.getAdminInGroups(req.user.id));
     });
 
     service.post('/v1/save-post', async (req, res) => {

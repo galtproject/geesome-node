@@ -79,16 +79,6 @@ export default {
     methods: {
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
-        },
-        toggleMenu () {
-            this.menuVisible = !this.menuVisible;
-            if(!this.menuVisible) {
-                setTimeout(() => {
-                    this.menuMinimized = true;
-                }, 200)
-            } else {
-                this.menuMinimized = false;
-            }
         }
     },
     
@@ -101,6 +91,7 @@ export default {
             return this.$store.state.serverAddress;
         }
     },
+    
     data() {
         return {
             localeKey: 'app_container',

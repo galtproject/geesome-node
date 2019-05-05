@@ -6,7 +6,7 @@
 
     <notifications :duration="7000" position="bottom right"></notifications>
 
-    <md-app v-if="!loading">
+    <md-app>
         <md-app-toolbar class="md-accent" md-elevation="0">
             <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
             <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
@@ -22,8 +22,11 @@
                 </md-field>
             </span>
         </md-app-toolbar>
-
-        <main-menu></main-menu>
+        
+        
+        <md-app-drawer :md-active="menuVisible" md-persistent="mini" :class="{'minimized': menuMinimized}">
+            <main-menu :menu-visible.sync="menuVisible" :menu-minimized.sync="menuMinimized"></main-menu>
+        </md-app-drawer>
 
         <md-app-content>
             <router-view></router-view>
