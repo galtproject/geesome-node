@@ -53,7 +53,7 @@ class JsIpfsService implements IStorage {
     
     async saveFileByUrl(url) {
         const result = await this.node.addFromURL(url);
-        await this.node.pin.add(result.hash);
+        await this.node.pin.add(result[0].hash);
         return this.wrapIpfsItem(result[0]);
     }
 
@@ -67,7 +67,7 @@ class JsIpfsService implements IStorage {
 
     async saveFile(options) {
         const result = await this.node.add([options]);
-        await this.node.pin.add(result.hash);
+        await this.node.pin.add(result[0].hash);
         return this.wrapIpfsItem(result[0]);
     }
     
