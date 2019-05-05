@@ -20,6 +20,11 @@ export interface IDatabase {
     getContentList(accountAddress, limit?, offset?): Promise<IContent[]>;
     getContent(id): Promise<IContent>;
     
+    addPost(post: IPost): Promise<IPost>;
+    updatePost(id, updateData: any): Promise<IPost>;
+
+    setPostContents(postId, contentsIds): Promise<void>;
+    
     getUsersCount(): Promise<number>;
     addUser(user: IUser): Promise<IUser>;
     getUserByName(name): Promise<IUser>;
@@ -27,6 +32,10 @@ export interface IDatabase {
 
     getGroup(id): Promise<IGroup>;
     addGroup(group): Promise<IGroup>;
+    addMemberToGroup(userId, groupId): Promise<void>;
+    getMemberInGroups(userId): Promise<IGroup[]>;
+    addAdminToGroup(userId, groupId): Promise<void>;
+    getAdminInGroups(userId): Promise<IGroup[]>;
 
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
@@ -35,13 +44,44 @@ export interface IDatabase {
 
 export interface IContent {
     id?: number;
+    type: ContentType;
     name: string;
     description?: string;
-    ipfsHash?: string;
     size?: string;
     isPublic?: boolean;
     userId: number;
     groupId: number;
+    storageId?: string;
+    staticStorageId?: string;
+    storageAccountId?: string;
+}
+
+export enum ContentType {
+    Unknown = 'unknown',
+    Text = 'text',
+    TextHtml = 'text/html',
+    TextMarkdown = 'text/md',
+    ImagePng = 'image/png',
+    ImageJpg = 'image/jpg'
+}
+
+export interface IPost {
+    id?: number;
+    status: PostStatus;
+    publishedAt?;
+    publishOn?;
+    storageId?;
+    staticStorageId?;
+    storageAccountId?;
+    groupId;
+    userId;
+}
+
+export enum PostStatus {
+    Queue = 'queue',
+    Published = 'published',
+    Draft = 'draft',
+    Deleted = 'deleted'
 }
 
 export interface IUser {
@@ -49,11 +89,35 @@ export interface IUser {
     name: string;
     title: string;
     passwordHash: string;
+    storageAccountId?: string;
 }
 
 export interface IGroup {
     id?: number;
+    
     name: string;
     title: string;
+    type: GroupType;
+    view: GroupView;
     isPublic: boolean;
+    
+    description?: string;
+    avatarImage?: string;
+    coverImage?: string;
+    storageId?: string;
+    staticStorageId?: string;
+    storageAccountId?: string;
+}
+
+export enum GroupType {
+    Channel = 'channel',
+    Chat = 'chat'
+}
+
+export enum GroupView {
+    Tiles = 'tiles',
+    Grid = 'grid',
+    FullList = 'full-list',
+    MiniList = 'mini-list',
+    ListWithEditor = 'list-with-editor'
 }

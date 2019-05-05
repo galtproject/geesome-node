@@ -75,6 +75,14 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
             + "</html>";
         res.send(html, 200);
     });
+    
+    service.get('/v1/get-member-in-groups', async (req, res) => {
+        res.send(await geesomeApp.getMemberInGroups(this.user.id));
+    });
+    
+    service.get('/v1/get-admin-in-groups', async (req, res) => {
+        res.send(await geesomeApp.getAdminInGroups(this.user.id));
+    });
 
     service.post('/v1/save-post', async (req, res) => {
         res.send(await geesomeApp.savePost(req.userId, res.body), 200);
@@ -93,8 +101,8 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         });
     });
 
-    service.get('/v1/get-content/:ipfsHash', async (req, res) => {
-        geesomeApp.getFileStream(req.params.ipfsHash).on('data', (file) => {
+    service.get('/v1/get-content/:storageId', async (req, res) => {
+        geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
             if(file.type !== 'dir') {
                 file.content.pipe(res);
             }

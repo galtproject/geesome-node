@@ -15,6 +15,7 @@ import {IDatabase} from "../interface";
 
 const _ = require("lodash");
 const Sequelize = require("sequelize");
+const pIteration = require("p-iteration");
 const Op = Sequelize.Op;
 
 const config = require('./config');
@@ -103,6 +104,43 @@ class MysqlDatabase implements IDatabase {
 
     async addGroup(group) {
         return this.models.Group.create(group);
+    }
+
+    async addMemberToGroup(userId, groupId) {
+        return (await this.getGroup(groupId)).addMembers([await this.getUser(userId)]);
+    }
+    
+    async getMemberInGroups(userId) {
+        return (await this.getUser(userId)).getMemberInGroups();
+    }
+
+    async addAdminToGroup(userId, groupId) {
+        return (await this.getGroup(groupId)).addAdministrators([await this.getUser(userId)]);
+    }
+
+    async getAdminInGroups(userId) {
+        return (await this.getUser(userId)).getAdministratorInGroups();
+    }
+    
+    async addPost(post) {
+        return this.models.Post.create(post);
+    }
+
+    async updatePost(id, updateData) {
+        return this.models.Post.update(updateData, {where: { id } });
+    }
+
+    async getPost(id) {
+        return this.models.Post.findOne({ where: { id } });
+    }
+
+    async setPostContents(postId, contentsIds) {
+        const contents = await pIteration.map(contentsIds, async (contentId, position) => {
+            const contentObj: any = this.getContent(contentId);
+            contentObj.PostsContents = { position };
+            return contentObj;
+        });
+        return (await this.getPost(postId)).setContents(contents);
     }
     
     async getValue(key: string) {

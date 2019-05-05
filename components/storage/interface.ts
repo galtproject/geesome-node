@@ -14,11 +14,14 @@
 export interface IStorage {
     saveFileByPath(path): Promise<IResultFile>;
     saveFileByContent(content): Promise<IResultFile>;
+    saveFileByUrl(url): Promise<IResultFile>;
     getFileStream(filePath): any;
+    getCurrentAccountId(): Promise<string>;
 }
 
 interface IResultFile {
     path;
     size;
-    hash;
+    id;
+    storageAccountId;
 }

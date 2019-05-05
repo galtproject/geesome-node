@@ -8,6 +8,7 @@ const UIThread = Object.assign({}, coreConfig({
     copy: [
         {from: "./assets", to: "./assets"},
         {from: "./locale", to: "./locale"},
+        {from: "./node_modules/font-awesome/webfonts", to: "./build/webfonts"},
         // {from: "./node_modules/@galtproject/space-renderer/public/model-assets/", to: "./model-assets/"},
     ]
 }), {

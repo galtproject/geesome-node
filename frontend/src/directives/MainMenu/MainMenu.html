@@ -1,0 +1,54 @@
+<md-app-drawer :md-active.sync="menuVisible" md-persistent="mini" :class="{'minimized': menuMinimized}">
+    <md-toolbar class="md-transparent" md-elevation="0">
+        <span v-if="menuVisible" v-locale="localeKey + '.title'"></span>
+
+        <md-button class="md-icon-button show" @click="toggleMenu()" v-if="!menuVisible">
+            <md-icon>menu</md-icon>
+        </md-button>
+
+        <div class="md-toolbar-section-end">
+            <md-button class="md-icon-button md-dense" @click="toggleMenu" v-if="menuVisible">
+                <md-icon>keyboard_arrow_left</md-icon>
+            </md-button>
+        </div>
+    </md-toolbar>
+
+    <md-list>
+        <md-list-item>
+            <md-icon class="fas fa-users-cog"></md-icon>
+            <span class="md-list-item-text" v-locale="localeKey + '.administration_groups'"></span>
+        </md-list-item>
+
+        <md-divider class="md-inset"></md-divider>
+
+        <md-list-item v-for="group in adminInGroups">
+            <md-avatar><img :src="group.avatarImage"></md-avatar>
+
+            <span class="md-list-item-text">{{group.title}}</span>
+
+            <md-button class="md-icon-button md-list-action">
+                <md-icon class="md-primary fas fa-th-list"></md-icon>
+            </md-button>
+        </md-list-item>
+
+        <md-divider class="md-inset"></md-divider>
+
+        <md-list-item>
+            <md-icon class="fas fa-user-friends"></md-icon>
+            <span class="md-list-item-text" v-locale="localeKey + '.followed_groups'"></span>
+        </md-list-item>
+
+        <md-divider class="md-inset"></md-divider>
+
+        <md-list-item v-for="group in memberInGroups">
+            <md-avatar><img :src="group.avatarImage"></md-avatar>
+
+            <span class="md-list-item-text">{{group.title}}</span>
+
+            <md-button class="md-icon-button md-list-action">
+                <md-icon class="md-primary fas fa-th-list"></md-icon>
+            </md-button>
+        </md-list-item>
+    </md-list>
+
+</md-app-drawer>

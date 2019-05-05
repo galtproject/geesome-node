@@ -19,17 +19,26 @@ module.exports = async function (sequelize, models) {
         name: {
             type: Sequelize.STRING(200)
         },
+        type: {
+            type: Sequelize.STRING(200)
+        },
         description: {
             type: Sequelize.STRING
-        },
-        ipfsHash: {
-            type: Sequelize.STRING(200)
         },
         size: {
             type: Sequelize.INTEGER
         },
         isPublic: {
             type: Sequelize.BOOLEAN
+        },
+        storageId: {
+            type: Sequelize.STRING(200)
+        },
+        staticStorageId: {
+            type: Sequelize.STRING(200)
+        },
+        storageAccountId: {
+            type: Sequelize.STRING(200)
         }
     } as any, {
         indexes: [
@@ -40,14 +49,18 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Content.belongsTo(models.Post, { as: 'post', foreignKey: 'postId' });
-    models.Post.hasMany(Content, { as: 'contents', foreignKey: 'postId' });
+    Content.belongsTo(models.User, { as: 'User', foreignKey: 'userId' });
+    models.User.hasMany(Content, { as: 'Contents', foreignKey: 'userId' });
 
-    Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
+    Content.belongsTo(models.Group, { as: 'Group', foreignKey: 'groupId' });
+    models.Group.hasMany(Content, { as: 'Contents', foreignKey: 'groupId' });
 
-    Content.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.Group.hasMany(Content, { as: 'contents', foreignKey: 'groupId' });
+    const PostsContents = sequelize.define('postsContents', {
+        position: { type: Sequelize.INTEGER },
+    } as any, { } as any);
+
+    Content.belongsToMany(models.Post, { as: 'Posts', through: PostsContents });
+    models.Post.belongsToMany(Content, { as: 'Contents', through: PostsContents });
 
     return Content.sync({});
 };

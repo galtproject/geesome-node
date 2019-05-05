@@ -15,11 +15,20 @@
 //@import "~font-awesome/web-fonts-with-css/scss/fa-solid";
 //@import "fonts";
 
+$fa-font-path: "webfonts";
+@import "~font-awesome/scss/solid";
+@import "~font-awesome/scss/fontawesome";
+
 @import '~vue-material/dist/vue-material.min.css';
 @import '~@galtproject/frontend-core/styles/main-with-theme.scss';
 @import '~@galtproject/frontend-core/modals/AsyncModal/modal.css';
 
-
-.test {
-  
+.fas:before {
+  position: relative;
+  top: 2px;
+  right: 1px;
 }
+.md-icon-button .fas.md-icon {
+  font-size: 22px!important;
+}
+

@@ -11,31 +11,35 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-
-const config = require('../../config');
-const axios = require('axios');
+const config = require('../../../config');
 
 export default {
-    template: require('./MainPage.html'),
+    template: require('./IpfsImage.html'),
+    props: ['src'],
+    async created() {
+        
+    },
+
+    async mounted() {
+
+    },
+
     methods: {
-        uploadFile(file) {
-            this.uploading = true;
-            this.$serverApi.saveFile(file, {
-                groupId: 1
-            }).then(data => {
-                this.storageId = data;
-                this.uploading = false;
-            })
+        
+    },
+
+    watch: {
+
+    },
+
+    computed: {
+        imgSrc() {
+            return config.serverBaseUrl + 'v1/get-content/' + this.src;
         }
     },
     data() {
         return {
-            localeKey: 'main_page',
-            uploading: false,
-            storageId: null
-        };
+            
+        }
     },
-    computed: {
-        
-    }
 }

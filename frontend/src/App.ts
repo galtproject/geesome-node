@@ -27,6 +27,10 @@ import PrettyHex from "@galtproject/frontend-core/directives/PrettyHex/PrettyHex
 import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc";
 
 import serverApiPlugin from './services/serverApi.plugin';
+import MainMenu from "./directives/MainMenu/MainMenu";
+import IpfsImg from "./directives/IpfsImg/IpfsImg";
+
+const config = require('../config');
 
 Vue.use(Notifications);
 
@@ -35,13 +39,15 @@ Vue.use(httpPlugin);
 Vue.use(Vuex as any);
 Vue.use(storePlugin, {
     locale: null,
-    locale_loaded: null
+    locale_loaded: null,
+    serverAddress: config.serverBaseUrl
 });
 Vue.use(localePlugin);
 
 Vue.component('modal', Modal);
 Vue.component('pretty-hex', PrettyHex);
 Vue.component('pretty-doc', PrettyDoc);
+Vue.component('ipfs-img', IpfsImg);
 
 // https://github.com/vuematerial/vue-material/issues/1977
 Vue.use(VueRouter);
@@ -52,9 +58,8 @@ Vue.component('router-view', Vue['options'].components.RouterView);
 Vue.use(VueMaterial);
 
 export default {
-    name: 'app',
     template: require('./App.html'),
-    components: {  },//,ConsoleLog
+    components: { MainMenu },//,ConsoleLog
     async created() {
         this.$locale.init(this.$store, '/locale/').then(() => {
             this.$store.commit('locale_loaded', true);
@@ -74,6 +79,16 @@ export default {
     methods: {
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
+        },
+        toggleMenu () {
+            this.menuVisible = !this.menuVisible;
+            if(!this.menuVisible) {
+                setTimeout(() => {
+                    this.menuMinimized = true;
+                }, 200)
+            } else {
+                this.menuMinimized = false;
+            }
         }
     },
     
@@ -82,11 +97,16 @@ export default {
     },
     
     computed: {
-        
+        serverAddress() {
+            return this.$store.state.serverAddress;
+        }
     },
     data() {
         return {
-            
+            localeKey: 'app_container',
+            version: '0.01',
+            menuVisible: false,
+            menuMinimized: true
         }
     },
 }

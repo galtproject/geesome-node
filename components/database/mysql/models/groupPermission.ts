@@ -34,11 +34,11 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    GroupPermission.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.Group.hasMany(GroupPermission, { as: 'permissions', foreignKey: 'groupId' });
+    GroupPermission.belongsTo(models.Group, { as: 'Group', foreignKey: 'groupId' });
+    models.Group.hasMany(GroupPermission, { as: 'Permissions', foreignKey: 'groupId' });
 
-    GroupPermission.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(GroupPermission, { as: 'permissions', foreignKey: 'userId' });
+    GroupPermission.belongsTo(models.User, { as: 'User', foreignKey: 'userId' });
+    models.User.hasMany(GroupPermission, { as: 'Permissions', foreignKey: 'userId' });
 
     return GroupPermission.sync({});
 };

@@ -22,8 +22,32 @@ module.exports = async function (sequelize, models) {
         title: {
             type: Sequelize.STRING
         },
+        description: {
+            type: Sequelize.STRING
+        },
+        avatarImage: {
+            type: Sequelize.STRING(200)
+        },
+        coverImage: {
+            type: Sequelize.STRING(200)
+        },
         isPublic: {
             type: Sequelize.BOOLEAN
+        },
+        type: {
+            type: Sequelize.STRING(200)
+        },
+        view: {
+            type: Sequelize.STRING(200)
+        },
+        storageId: {
+            type: Sequelize.STRING(200)
+        },
+        staticStorageId: {
+            type: Sequelize.STRING(200)
+        },
+        storageAccountId: {
+            type: Sequelize.STRING(200)
         }
     } as any, {
         indexes: [
@@ -33,6 +57,12 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
+
+    Group.belongsToMany(models.User, { as: 'Administrators', through: 'groupAdministrators' });
+    models.User.belongsToMany(Group, { as: 'AdministratorInGroups', through: 'groupAdministrators' });
+
+    Group.belongsToMany(models.User, { as: 'Members', through: 'groupMembers' });
+    models.User.belongsToMany(Group, { as: 'MemberInGroups', through: 'groupMembers' });
 
     return Group.sync({});
 };

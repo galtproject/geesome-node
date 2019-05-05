@@ -11,15 +11,12 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase} from "../../database/interface";
+import {IDatabase, GroupType, GroupView, ContentType, PostStatus} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 
 const config = require('./config');
 const _ = require('lodash');
-
-const bcrypt = require('bcrypt');
-const saltRounds = 10;
 
 module.exports = async () => {
     const app = new GeesomeApp(config);
@@ -29,7 +26,7 @@ module.exports = async () => {
     
     if((await app.database.getUsersCount()) === 0) {
         console.log('Run seeds...');
-        app.runSeeds();
+        await app.runSeeds();
     }
     
     console.log('Start storage...');
@@ -60,10 +57,28 @@ class GeesomeApp implements IGeesomeApp {
     async saveContent(fileStream, fileName, userId, groupId) {
         const ipfsFile = await this.storage.saveFileByContent(fileStream);
         const group = await this.database.getGroup(groupId);
+        const ext = _.end(fileName.split('.')).toLowerCase();
+        
+        let type: any = ContentType.Unknown;
+        if(_.includes(['jpg', 'jpeg', 'png', 'gif'], ext)) {
+            type = 'image/' + ext;
+        }
+        if(_.includes(['html', 'htm'], ext)) {
+            type = 'text/' + ext;
+        }
+        if(_.includes(['md'], ext)) {
+            type = 'text/' + ext;
+        }
+        if(_.includes(['txt'], ext)) {
+            type = 'text';
+        }
+        
         return this.database.addContent({
             userId,
             groupId,
-            ipfsHash: ipfsFile.hash,
+            type,
+            storageId: ipfsFile.id,
+            storageAccountId: ipfsFile.storageAccountId,
             size: ipfsFile.size,
             name: fileName,
             isPublic: group.isPublic
@@ -74,21 +89,15 @@ class GeesomeApp implements IGeesomeApp {
         return this.storage.getFileStream(filePath)
     }
 
-    runSeeds() {
-        return new Promise((resolve, reject) => {
-            bcrypt.hash('admin', saltRounds, async (err, passwordHash) => {
-                const adminUser = await this.database.addUser({
-                    name: 'admin',
-                    title: 'Admin',
-                    passwordHash
-                });
+    getMemberInGroups(userId) {
+        return this.database.getMemberInGroups(userId)
+    }
 
-                const feedGroup = await this.database.addGroup({
-                    name: 'feed',
-                    title: 'Feed',
-                    isPublic: true
-                });
-            });
-        });
+    getAdminInGroups(userId) {
+        return this.database.getAdminInGroups(userId)
+    }
+
+    runSeeds() {
+        return require('./seeds')(this);
     }
 }

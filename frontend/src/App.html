@@ -1,16 +1,32 @@
 <div style="height: 100%;">
-  <modal ref="modal"></modal>
-  <modal ref="sub_modal"></modal>
-  
-  <!--<wait-screen></wait-screen>-->
+    <modal ref="modal"></modal>
+    <modal ref="sub_modal"></modal>
 
-  <notifications :duration="7000" position="bottom right"></notifications>
+    <!--<wait-screen></wait-screen>-->
 
-  <md-app>
-    <md-app-content>
-      <router-view></router-view>
+    <notifications :duration="7000" position="bottom right"></notifications>
 
-      <!--<console-log></console-log>-->
-    </md-app-content>
-  </md-app>
+    <md-app v-if="!loading">
+        <md-app-toolbar class="md-accent" md-elevation="0">
+            <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
+            <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
+
+            <span flex style="flex: 1"></span>
+
+            <span>
+                <md-field>
+                    <label v-locale="localeKey + '.server_address'"></label>
+                    <md-select v-model="serverAddress" :md-disabled="true">
+                        <md-option :value="serverAddress">{{serverAddress}}</md-option>
+                    </md-select>
+                </md-field>
+            </span>
+        </md-app-toolbar>
+
+        <main-menu></main-menu>
+
+        <md-app-content>
+            <router-view></router-view>
+        </md-app-content>
+    </md-app>
 </div>

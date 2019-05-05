@@ -24,6 +24,9 @@ module.exports = async function (sequelize, models) {
         },
         passwordHash: {
             type: Sequelize.STRING(200)
+        },
+        storageAccountId: {
+            type: Sequelize.STRING(200)
         }
     } as any, {
         indexes: [

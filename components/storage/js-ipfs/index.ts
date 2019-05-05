@@ -13,6 +13,7 @@
 
 import {IStorage} from "../interface";
 
+const _ = require('lodash');
 const IPFS = require('ipfs');
 
 module.exports = async () => {
@@ -40,10 +41,19 @@ class JsIpfsService implements IStorage {
         this.node = node;
     }
     
+    private async wrapIpfsItem(ipfsItem) {
+        return {
+            id: ipfsItem.hash,
+            path: ipfsItem.path,
+            size: ipfsItem.size,
+            storageAccountId: await this.getCurrentAccountId()
+        }
+    }
+    
     async saveFileByUrl(url) {
-        // const request = require('request');
-        // const readStream = request('https://dummydomain.com/some-very-large-file');
-        // readStream.pipe(request.post('https://dummydomain.com/some-destination'));
+        const result = await this.node.addFromURL(url);
+        await this.node.pin.add(result.hash);
+        return this.wrapIpfsItem(result[0]);
     }
 
     async saveFileByPath(path) {
@@ -56,7 +66,17 @@ class JsIpfsService implements IStorage {
 
     async saveFile(options) {
         const result = await this.node.add([options]);
-        return result[0];
+        await this.node.pin.add(result.hash);
+        return this.wrapIpfsItem(result[0]);
+    }
+    
+    async getPeerId(name) {
+        const keys = await this.node.key.list();
+        return (_.find(keys, { name }) || {}).id;
+    }
+    
+    async getCurrentAccountId() {
+        return this.getPeerId('self');
     }
 
     getFileStream(filePath){

@@ -16,9 +16,6 @@ module.exports = async function (sequelize, models) {
     
     const Post = sequelize.define('post', {
         // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-        ipfsHash: {
-            type: Sequelize.STRING(200)
-        },
         status: {
             type: Sequelize.STRING(200)
         },
@@ -27,6 +24,15 @@ module.exports = async function (sequelize, models) {
         },
         publishOn: {
             type: Sequelize.DATE
+        },
+        storageId: {
+            type: Sequelize.STRING(200)
+        },
+        staticStorageId: {
+            type: Sequelize.STRING(200)
+        },
+        storageAccountId: {
+            type: Sequelize.STRING(200)
         }
     } as any, {
         indexes: [
@@ -37,11 +43,11 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Post.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.Group.hasMany(Post, { as: 'posts', foreignKey: 'groupId' });
+    Post.belongsTo(models.Group, { as: 'Group', foreignKey: 'groupId' });
+    models.Group.hasMany(Post, { as: 'Posts', foreignKey: 'groupId' });
 
-    Post.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(Post, { as: 'posts', foreignKey: 'userId' });
+    Post.belongsTo(models.User, { as: 'User', foreignKey: 'userId' });
+    models.User.hasMany(Post, { as: 'Posts', foreignKey: 'userId' });
 
     return Post.sync({});
 };
