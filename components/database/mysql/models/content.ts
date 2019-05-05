@@ -64,7 +64,7 @@ module.exports = async function (sequelize, models) {
 
     await Content.sync({});
     
-    await PostsContents;
+    await PostsContents.sync({});
     
     return Content;
 };
