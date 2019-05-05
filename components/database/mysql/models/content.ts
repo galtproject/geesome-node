@@ -62,5 +62,9 @@ module.exports = async function (sequelize, models) {
     Content.belongsToMany(models.Post, { as: 'Posts', through: PostsContents });
     models.Post.belongsToMany(Content, { as: 'Contents', through: PostsContents });
 
-    return Content.sync({});
+    await Content.sync({});
+    
+    await PostsContents;
+    
+    return Content;
 };
