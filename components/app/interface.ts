@@ -15,6 +15,7 @@ import {IDatabase, IGroup} from "../database/interface";
 import {IStorage} from "../storage/interface";
 
 export interface IGeesomeApp {
+    config: any;
     database: IDatabase;
     storage: IStorage;
     authorization: any;

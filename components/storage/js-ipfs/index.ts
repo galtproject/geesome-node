@@ -12,12 +12,13 @@
  */
 
 import {IStorage} from "../interface";
+import {IGeesomeApp} from "../../app/interface";
 
 const _ = require('lodash');
 const IPFS = require('ipfs');
 
-module.exports = async (config) => {
-    const node = new IPFS(config);
+module.exports = async (app: IGeesomeApp) => {
+    const node = new IPFS(app.config.storageConfig);
 
     // console.log('node', node);
     try {
