@@ -139,9 +139,9 @@ class MysqlDatabase implements IDatabase {
         return this.models.Post.findAll({ 
             where: { groupId },
             include: [{ model: this.models.Content, as: 'contents'}],
-            order: [['publishedAt', sortDir.toUpperCase()]],
-            limit,
-            offset
+            // order: [['publishedAt', sortDir.toUpperCase()]],
+            // limit,
+            // offset
         });
     }
     
