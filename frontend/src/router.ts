@@ -12,8 +12,8 @@
  */
 import Vue from 'vue';
 import Router from 'vue-router';
-import MainPage from "./MainPage/MainPage";
-import GroupPage from "./directives/GroupPage/GroupPage";
+import MainPage from "./pages/MainPage/MainPage";
+import GroupPage from "./pages/GroupPage/GroupPage";
 
 Vue.use(Router);
 

@@ -11,23 +11,36 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+const config = require('../../../config');
+const _ = require('lodash');
+
 export default {
-    template: require('./GroupPage.html'),
+    template: require('./PostItem.html'),
+    props: ['value'],
     async created() {
-        this.posts = this.$serverApi.getGroupPosts(this.$route.params.groupId, 10, 0);
-        this.loading = false;
+
     },
+
+    async mounted() {
+
+    },
+
     methods: {
         
     },
-    computed: {
 
+    watch: {
+        
+    },
+
+    computed: {
+        contentsList() {
+            return _.orderBy(this.value.contents, ['position'], ['asc']);
+        }
     },
     data() {
         return {
-            localeKey: 'main_page',
-            posts: [],
-            loading: true
-        };
-    }
+            content: ''
+        }
+    },
 }

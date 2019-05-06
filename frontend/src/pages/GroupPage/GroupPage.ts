@@ -11,51 +11,36 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const config = require('../../../config');
-const _ = require('lodash');
+import PostItem from "../../directives/PostItem/PostItem";
 
 export default {
-    template: require('./ContentElement.html'),
-    props: ['src'],
+    template: require('./GroupPage.html'),
+    components: {PostItem},
     async created() {
-        
+        this.getPosts();
     },
-
-    async mounted() {
-
-    },
-
     methods: {
-        
-    },
-
-    watch: {
-        async isText() {
-            if(!this.isText) {
-                return;
-            }
-            this.textContent = await this.$serverApi.getContent(this.src.storageId);
-        },
-        async isImg() {
-            if(!this.isImg) {
-                return;
-            }
-            this.imgSrc = config.serverBaseUrl + 'v1/get-content/' + this.src.storageId;
+        async getPosts() {
+            this.loading = true;
+            this.posts = await this.$serverApi.getGroupPosts(this.groupId, 10, 0);
+            this.loading = false;
         }
     },
-
+    watch: {
+        groupId() {
+            this.getPosts();
+        }
+    },
     computed: {
-        isImg() {
-            return _.startsWith(this.src.type, 'image');
-        },
-        isText() {
-            return _.startsWith(this.src.type, 'text');
+        groupId() {
+            return this.$route.params.groupId;
         }
     },
     data() {
         return {
-            textContent: '',
-            imgSrc: ''
-        }
-    },
+            localeKey: 'main_page',
+            posts: [],
+            loading: true
+        };
+    }
 }
