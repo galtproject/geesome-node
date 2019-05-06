@@ -136,13 +136,9 @@ class MysqlDatabase implements IDatabase {
         sortDir = sortDir || 'DESC';
         limit = limit || 10;
         offset = offset || 0;
-        return (await this.getGroup(groupId)).getPosts({
-            include: [ {
-                model: this.models.PostsContents,
-                include: [
-                    { model: this.models.Content }
-                ]
-            }],
+        return this.models.Post.findAll({ 
+            where: { groupId },
+            include: [{ model: this.models.Content, as: 'contents'}],
             order: [['publishedAt', sortDir.toUpperCase()]],
             limit,
             offset
