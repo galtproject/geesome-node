@@ -134,14 +134,14 @@ class MysqlDatabase implements IDatabase {
 
     async getGroupPosts(groupId, sortDir, limit, offset) {
         sortDir = sortDir || 'DESC';
-        limit = limit || 10;
-        offset = offset || 0;
+        limit = parseInt(limit) || 10;
+        offset = parseInt(offset) || 0;
         return this.models.Post.findAll({ 
             where: { groupId },
             include: [{ model: this.models.Content, as: 'contents'}],
             order: [['publishedAt', sortDir.toUpperCase()]],
-            // limit,
-            // offset
+            limit,
+            offset
         });
     }
     
