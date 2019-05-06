@@ -113,8 +113,8 @@ class MysqlDatabase implements IDatabase {
     async getMemberInGroups(userId) {
         return (await this.getUser(userId)).getMemberInGroups({
             include: [
-                { association: this.models.Content, as: 'avatarImage'},
-                { association: this.models.Content, as: 'coverImage'}
+                { model: this.models.Content, as: 'avatarImage'},
+                { model: this.models.Content, as: 'coverImage'}
             ]
         });
     }
@@ -126,8 +126,8 @@ class MysqlDatabase implements IDatabase {
     async getAdminInGroups(userId) {
         return (await this.getUser(userId)).getAdministratorInGroups({
             include: [
-                { association: this.models.Content, as: 'avatarImage'},
-                { association: this.models.Content, as: 'coverImage'}
+                { model: this.models.Content, as: 'avatarImage'},
+                { model: this.models.Content, as: 'coverImage'}
             ]
         });
     }
