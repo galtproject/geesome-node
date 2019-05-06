@@ -137,7 +137,12 @@ class MysqlDatabase implements IDatabase {
         limit = limit || 10;
         offset = offset || 0;
         return (await this.getGroup(groupId)).getPosts({
-            include: [{ model: this.models.Content, as: 'contents'}],
+            include: [ {
+                model: this.models.PostsContents,
+                include: [
+                    { model: this.models.Content }
+                ]
+            }],
             order: [['publishedAt', sortDir.toUpperCase()]],
             limit,
             offset

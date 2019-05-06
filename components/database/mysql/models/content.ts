@@ -64,16 +64,16 @@ module.exports = async function (sequelize, models) {
 
     models.User.belongsTo(Content, { as: 'avatarImage', foreignKey: 'avatarImageId'});
 
-    const PostsContents = sequelize.define('postsContents', {
+    models.PostsContents = sequelize.define('postsContents', {
         position: { type: Sequelize.INTEGER },
     } as any, { } as any);
 
-    Content.belongsToMany(models.Post, { as: 'posts', through: PostsContents });
-    models.Post.belongsToMany(Content, { as: 'contents', through: PostsContents });
+    Content.belongsToMany(models.Post, { as: 'posts', through: models.PostsContents });
+    models.Post.belongsToMany(Content, { as: 'contents', through: models.PostsContents });
 
     await Content.sync({});
     
-    await PostsContents.sync({});
+    await models.PostsContents.sync({});
     
     return Content;
 };
