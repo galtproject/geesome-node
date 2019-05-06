@@ -97,6 +97,10 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.getAdminInGroups(userId)
     }
 
+    getGroupPosts(groupId, sortDir, limit, offset) {
+        return this.database.getGroupPosts(groupId, sortDir, limit, offset)
+    }
+
     runSeeds() {
         return require('./seeds')(this);
     }

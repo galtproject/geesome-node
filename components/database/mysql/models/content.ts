@@ -49,18 +49,27 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Content.belongsTo(models.User, { as: 'User', foreignKey: 'userId' });
-    models.User.hasMany(Content, { as: 'Contents', foreignKey: 'userId' });
 
-    Content.belongsTo(models.Group, { as: 'Group', foreignKey: 'groupId' });
-    models.Group.hasMany(Content, { as: 'Contents', foreignKey: 'groupId' });
+    Content.belongsTo(models.Folder, { as: 'folder', foreignKey: 'folderId' });
+    models.Folder.hasMany(Content, { as: 'contents', foreignKey: 'folderId' });
+
+    Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
+    models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
+
+    Content.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
+    models.Group.hasMany(Content, { as: 'contents', foreignKey: 'groupId' });
+
+    models.Group.belongsTo(Content, { as: 'avatarImage', foreignKey: 'avatarImageId'});
+    models.Group.belongsTo(Content, { as: 'coverImage', foreignKey: 'coverImageId'});
+
+    models.User.belongsTo(Content, { as: 'avatarImage', foreignKey: 'avatarImageId'});
 
     const PostsContents = sequelize.define('postsContents', {
         position: { type: Sequelize.INTEGER },
     } as any, { } as any);
 
-    Content.belongsToMany(models.Post, { as: 'Posts', through: PostsContents });
-    models.Post.belongsToMany(Content, { as: 'Contents', through: PostsContents });
+    Content.belongsToMany(models.Post, { as: 'posts', through: PostsContents });
+    models.Post.belongsToMany(Content, { as: 'contents', through: PostsContents });
 
     await Content.sync({});
     

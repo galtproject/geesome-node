@@ -22,8 +22,8 @@
 
         <md-divider class="md-inset"></md-divider>
 
-        <md-list-item v-for="group in adminInGroups">
-            <md-avatar><ipfs-img :src="group.avatarImage"></md-avatar>
+        <md-list-item v-for="group in adminInGroups" :to="{name: 'group-page', params: { groupId: group.id }}">
+            <md-avatar><content-element :src="group.avatarImage"></content-element></md-avatar>
 
             <span class="md-list-item-text">{{group.title}}</span>
 
@@ -41,8 +41,8 @@
 
         <md-divider class="md-inset"></md-divider>
 
-        <md-list-item v-for="group in memberInGroups">
-            <md-avatar><ipfs-img :src="group.avatarImage"></md-avatar>
+        <md-list-item v-for="group in memberInGroups" :to="{name: 'group-page', params: { groupId: group.id }}">
+            <md-avatar><content-element :src="group.avatarImage"></content-element></md-avatar>
 
             <span class="md-list-item-text">{{group.title}}</span>
 

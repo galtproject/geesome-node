@@ -18,6 +18,7 @@ module.exports = async function(sequelize) {
     models.Group = await require('./group')(sequelize, models);
     models.GroupPermission = await require('./groupPermission')(sequelize, models);
     models.Post = await require('./post')(sequelize, models);
+    models.Folder = await require('./folder')(sequelize, models);
     models.Content = await require('./content')(sequelize, models);
     models.Value = await require('./value')(sequelize, models);
 

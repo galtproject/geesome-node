@@ -10,28 +10,28 @@
  * Galt•Space Society Construction and Terraforming Company by 
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
-import Vue from 'vue';
-import Router from 'vue-router';
-import MainPage from "./MainPage/MainPage";
-import GroupPage from "./directives/GroupPage/GroupPage";
 
-Vue.use(Router);
 
-export default new Router({
-    //mode: 'history',
-    routes: [
-        {
-            path: '',
-            name: 'main-page',
-            component: MainPage
-        },
-        {
-            path: '/group/:groupId',
-            name: 'group-page',
-            component: GroupPage
-        },
-        {
-            path: '*', redirect: '/'
-        }
-    ]
-})
+const config = require('../../config');
+const axios = require('axios');
+
+export default {
+    template: require('./GroupPage.html'),
+    async created() {
+        this.posts = this.$serverApi.getGroupPosts(this.$route.params.groupId, 10, 0);
+        this.loading = false;
+    },
+    methods: {
+        
+    },
+    computed: {
+
+    },
+    data() {
+        return {
+            localeKey: 'main_page',
+            posts: [],
+            loading: true
+        };
+    }
+}

@@ -84,6 +84,10 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         res.send(await geesomeApp.getAdminInGroups(req.user.id));
     });
 
+    service.get('/v1/get-group-posts/:groupId', async (req, res) => {
+        res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
+    });
+
     service.post('/v1/save-post', async (req, res) => {
         res.send(await geesomeApp.savePost(req.userId, res.body), 200);
     });

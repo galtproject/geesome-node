@@ -28,7 +28,7 @@ import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc
 
 import serverApiPlugin from './services/serverApi.plugin';
 import MainMenu from "./directives/MainMenu/MainMenu";
-import IpfsImg from "./directives/IpfsImg/IpfsImg";
+import ContentElement from "./directives/ContentElement/ContentElement";
 
 const config = require('../config');
 
@@ -47,7 +47,7 @@ Vue.use(localePlugin);
 Vue.component('modal', Modal);
 Vue.component('pretty-hex', PrettyHex);
 Vue.component('pretty-doc', PrettyDoc);
-Vue.component('ipfs-img', IpfsImg);
+Vue.component('content-element', ContentElement);
 
 // https://github.com/vuematerial/vue-material/issues/1977
 Vue.use(VueRouter);

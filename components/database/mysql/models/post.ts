@@ -43,11 +43,11 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Post.belongsTo(models.Group, { as: 'Group', foreignKey: 'groupId' });
-    models.Group.hasMany(Post, { as: 'Posts', foreignKey: 'groupId' });
+    Post.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
+    models.Group.hasMany(Post, { as: 'posts', foreignKey: 'groupId' });
 
-    Post.belongsTo(models.User, { as: 'User', foreignKey: 'userId' });
-    models.User.hasMany(Post, { as: 'Posts', foreignKey: 'userId' });
+    Post.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
+    models.User.hasMany(Post, { as: 'posts', foreignKey: 'userId' });
 
     return Post.sync({});
 };

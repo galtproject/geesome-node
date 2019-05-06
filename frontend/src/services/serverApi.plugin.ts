@@ -39,6 +39,9 @@ export default {
             },
             getAdminInGroups(){
                 return $http.get('/v1/get-admin-in-groups').then(response => response.data);
+            },
+            getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
+                return $http.get('/v1/get-group-posts/' + groupId, { params: { limit, offset } }).then(response => response.data);
             }
         };
     }

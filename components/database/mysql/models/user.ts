@@ -27,6 +27,9 @@ module.exports = async function (sequelize, models) {
         },
         storageAccountId: {
             type: Sequelize.STRING(200)
+        },
+        avatarImageId: {
+            type: Sequelize.INTEGER
         }
     } as any, {
         indexes: [

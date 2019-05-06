@@ -37,6 +37,8 @@ export interface IDatabase {
     addAdminToGroup(userId, groupId): Promise<void>;
     getAdminInGroups(userId): Promise<IGroup[]>;
 
+    getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
+
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
     clearValue(key: string): Promise<void>;
@@ -50,7 +52,7 @@ export interface IContent {
     size?: string;
     isPublic?: boolean;
     userId: number;
-    groupId: number;
+    groupId?: number;
     storageId?: string;
     staticStorageId?: string;
     storageAccountId?: string;

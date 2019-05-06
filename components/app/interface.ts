@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase, IGroup} from "../database/interface";
+import {IDatabase, IGroup, IPost} from "../database/interface";
 import {IStorage} from "../storage/interface";
 
 export interface IGeesomeApp {
@@ -26,4 +26,6 @@ export interface IGeesomeApp {
     
     getMemberInGroups(userId): Promise<IGroup[]>;
     getAdminInGroups(userId): Promise<IGroup[]>;
+
+    getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
 }

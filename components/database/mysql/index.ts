@@ -111,7 +111,12 @@ class MysqlDatabase implements IDatabase {
     }
     
     async getMemberInGroups(userId) {
-        return (await this.getUser(userId)).getMemberInGroups();
+        return (await this.getUser(userId)).getMemberInGroups({
+            include: [
+                { association: this.models.Content, as: 'avatarImage'},
+                { association: this.models.Content, as: 'coverImage'}
+            ]
+        });
     }
 
     async addAdminToGroup(userId, groupId) {
@@ -119,7 +124,24 @@ class MysqlDatabase implements IDatabase {
     }
 
     async getAdminInGroups(userId) {
-        return (await this.getUser(userId)).getAdministratorInGroups();
+        return (await this.getUser(userId)).getAdministratorInGroups({
+            include: [
+                { association: this.models.Content, as: 'avatarImage'},
+                { association: this.models.Content, as: 'coverImage'}
+            ]
+        });
+    }
+
+    async getGroupPosts(groupId, sortDir, limit, offset) {
+        sortDir = sortDir || 'DESC';
+        limit = limit || 10;
+        offset = offset || 0;
+        return (await this.getGroup(groupId)).getPosts({
+            include: [this.models.Content],
+            order: [['publishedAt', sortDir.toUpperCase()]],
+            limit,
+            offset
+        });
     }
     
     async addPost(post) {

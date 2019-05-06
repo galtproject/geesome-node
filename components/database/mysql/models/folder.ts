@@ -14,40 +14,19 @@
 module.exports = async function (sequelize, models) {
     const Sequelize = require('sequelize');
     
-    const Group = sequelize.define('group', {
+    const Folder = sequelize.define('folder', {
         // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
         name: {
-            type: Sequelize.STRING(200)
-        },
-        title: {
-            type: Sequelize.STRING
-        },
-        description: {
-            type: Sequelize.STRING
-        },
-        avatarImageId: {
-            type: Sequelize.INTEGER
-        },
-        coverImageId: {
-            type: Sequelize.INTEGER
-        },
-        isPublic: {
-            type: Sequelize.BOOLEAN
-        },
-        type: {
             type: Sequelize.STRING(200)
         },
         view: {
             type: Sequelize.STRING(200)
         },
-        storageId: {
-            type: Sequelize.STRING(200)
+        description: {
+            type: Sequelize.STRING
         },
-        staticStorageId: {
-            type: Sequelize.STRING(200)
-        },
-        storageAccountId: {
-            type: Sequelize.STRING(200)
+        size: {
+            type: Sequelize.INTEGER
         }
     } as any, {
         indexes: [
@@ -57,22 +36,6 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
-    
-    const GroupAdministrators = sequelize.define('groupAdministrators', { } as any, { } as any);
-    
-    Group.belongsToMany(models.User, { as: 'administrators', through: GroupAdministrators });
-    models.User.belongsToMany(Group, { as: 'administratorInGroups', through: GroupAdministrators });
-    
-    const GroupMembers = sequelize.define('groupMembers', { } as any, { } as any);
 
-    Group.belongsToMany(models.User, { as: 'members', through: GroupMembers });
-    models.User.belongsToMany(Group, { as: 'memberInGroups', through: GroupMembers });
-
-    await Group.sync({});
-
-    await GroupAdministrators.sync({});
-    
-    await GroupMembers.sync({});
-    
-    return Group;
+    return Folder;
 };
