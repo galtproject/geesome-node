@@ -49,5 +49,8 @@ module.exports = async function (sequelize, models) {
     Post.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(Post, { as: 'posts', foreignKey: 'userId' });
 
+    Post.belongsTo(Post, { as: 'sourcePost', foreignKey: 'sourcePostId' });
+    Post.hasMany(Post, { as: 'rePosts', foreignKey: 'sourcePostId' });
+
     return Post.sync({});
 };

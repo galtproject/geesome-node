@@ -36,6 +36,9 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
+    
+    Folder.belongsTo(Folder, { as: 'parentFolder', foreignKey: 'parentFolderId' });
+    Folder.hasMany(Folder, { as: 'childrenFolders', foreignKey: 'parentFolderId' });
 
     return Folder;
 };

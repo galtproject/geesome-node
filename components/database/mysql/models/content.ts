@@ -50,8 +50,8 @@ module.exports = async function (sequelize, models) {
     } as any);
 
 
-    Content.belongsTo(models.Folder, { as: 'folder', foreignKey: 'folderId' });
-    models.Folder.hasMany(Content, { as: 'contents', foreignKey: 'folderId' });
+    // Content.belongsTo(models.Folder, { as: 'folder', foreignKey: 'folderId' });
+    // models.Folder.hasMany(Content, { as: 'contents', foreignKey: 'folderId' });
 
     Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
