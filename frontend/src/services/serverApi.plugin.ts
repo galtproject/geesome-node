@@ -34,6 +34,9 @@ export default {
                 formData.append("file", file);
                 return $http.post('/v1/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
             },
+            getContent(storageId){
+                return $http.get('/v1/get-content/' + storageId).then(response => response.data);
+            },
             getMemberInGroups(){
                 return $http.get('/v1/get-member-in-groups').then(response => response.data);
             },

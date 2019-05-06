@@ -6,5 +6,7 @@
 
     <md-progress-bar v-if="uploading" class="md-accent" md-mode="indeterminate"></md-progress-bar>
 
-    <div v-for=""></div>
+    <div v-for="post in posts">
+        <div v-for="content in post.contents"><content-element :src="content"></content-element></div>
+    </div>
 </div>

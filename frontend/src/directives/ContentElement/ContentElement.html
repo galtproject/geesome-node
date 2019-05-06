@@ -1,1 +1,4 @@
-<img :src="imgSrc">
+<content>
+    <img v-if="isImg" :src="imgSrc">
+    <span v-if="isText" v-html="textContent"></span>
+</content>

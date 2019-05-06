@@ -12,6 +12,7 @@
  */
 
 const config = require('../../../config');
+const _ = require('lodash');
 
 export default {
     template: require('./ContentElement.html'),
@@ -29,17 +30,32 @@ export default {
     },
 
     watch: {
-
+        async isText() {
+            if(!this.isText) {
+                return;
+            }
+            this.textContent = await this.$serverApi.getContent(this.src.storageId);
+        },
+        async isImg() {
+            if(!this.isImg) {
+                return;
+            }
+            this.imgSrc = config.serverBaseUrl + 'v1/get-content/' + this.src.storageId;
+        }
     },
 
     computed: {
-        imgSrc() {
-            return config.serverBaseUrl + 'v1/get-content/' + this.src;
+        isImg() {
+            return _.startsWith(this.src.type, 'image');
+        },
+        isText() {
+            return _.startsWith(this.src.type, 'text');
         }
     },
     data() {
         return {
-            
+            textContent: '',
+            imgSrc: ''
         }
     },
 }
