@@ -77,6 +77,8 @@ export interface IPost {
     storageAccountId?;
     groupId;
     userId;
+    view?;
+    type?;
 }
 
 export enum PostStatus {
@@ -92,6 +94,8 @@ export interface IUser {
     title: string;
     passwordHash: string;
     storageAccountId?: string;
+    avatarImageId?: number;
+    avatarImage?: IContent;
 }
 
 export interface IGroup {
@@ -104,8 +108,10 @@ export interface IGroup {
     isPublic: boolean;
     
     description?: string;
-    avatarImage?: string;
-    coverImage?: string;
+    avatarImageId?: number;
+    avatarImage?: IContent;
+    coverImageId?: number;
+    coverImage?: IContent;
     storageId?: string;
     staticStorageId?: string;
     storageAccountId?: string;

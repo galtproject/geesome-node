@@ -25,6 +25,12 @@ module.exports = async function (sequelize, models) {
         publishOn: {
             type: Sequelize.DATE
         },
+        type: {
+            type: Sequelize.STRING(200)
+        },
+        view: {
+            type: Sequelize.STRING(200)
+        },
         storageId: {
             type: Sequelize.STRING(200)
         },
