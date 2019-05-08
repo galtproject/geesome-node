@@ -99,7 +99,13 @@ class MysqlDatabase implements IDatabase {
     }
 
     async getGroup(id) {
-        return this.models.Group.findOne({ where: { id } });
+        return this.models.Group.findOne({ 
+            where: { id },
+            include: [
+                { model: this.models.Content, as: 'avatarImage'},
+                { model: this.models.Content, as: 'coverImage'}
+            ]
+        });
     }
 
     async addGroup(group) {

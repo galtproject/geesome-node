@@ -13,10 +13,11 @@
 
 import PostItem from "../../directives/PostItem/PostItem";
 import UploadContent from "../../directives/UploadContent/UploadContent";
+import GroupHeader from "./GroupHeader/GroupHeader";
 
 export default {
     template: require('./GroupPage.html'),
-    components: {PostItem, UploadContent},
+    components: {PostItem, UploadContent, GroupHeader},
     async created() {
         this.group = await this.$serverApi.getGroup(this.groupId);
         this.getPosts();
