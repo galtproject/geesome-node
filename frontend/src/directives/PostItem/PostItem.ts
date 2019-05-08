@@ -18,7 +18,7 @@ export default {
     template: require('./PostItem.html'),
     props: ['value'],
     async created() {
-
+        this.getGroup();
     },
 
     async mounted() {
@@ -26,11 +26,19 @@ export default {
     },
 
     methods: {
-        
+        async getGroup() {
+            if(!this.value.groupId) {
+                this.group = null;
+                return;
+            }
+            this.group = await this.$serverApi.getGroup(this.value.groupId);
+        }
     },
 
     watch: {
-        
+        value() {
+            this.getGroup();
+        }
     },
 
     computed: {
@@ -40,6 +48,7 @@ export default {
     },
     data() {
         return {
+            group: null,
             content: ''
         }
     },

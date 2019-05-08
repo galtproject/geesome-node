@@ -19,10 +19,13 @@ export default {
     template: require('./GroupPage.html'),
     components: {PostItem, UploadContent, GroupHeader},
     async created() {
-        this.group = await this.$serverApi.getGroup(this.groupId);
+        this.getGroup();
         this.getPosts();
     },
     methods: {
+        async getGroup() {
+            this.group = await this.$serverApi.getGroup(this.groupId);
+        },
         async getPosts() {
             this.loading = true;
             this.posts = await this.$serverApi.getGroupPosts(this.groupId, 10, 0);
@@ -31,6 +34,7 @@ export default {
     },
     watch: {
         groupId() {
+            this.getGroup();
             this.getPosts();
         }
     },
@@ -43,6 +47,7 @@ export default {
         return {
             localeKey: 'group_page',
             posts: [],
+            group: null,
             loading: true
         };
     }

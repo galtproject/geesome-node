@@ -13,7 +13,7 @@ module.exports = (app: IGeesomeApp) => {
             
             const userId = adminUser.id;
 
-            const avatar1Image = await app.storage.saveFileByUrl('https://placeimg.com/40/40/nature/5');
+            const avatar1Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/5');
             const avatar1ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar1Image.id, size: avatar1Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
 
             const cover1Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/3');
@@ -23,7 +23,7 @@ module.exports = (app: IGeesomeApp) => {
 
             await app.database.addAdminToGroup(adminUser.id, feedGroup.id);
 
-            const avatar2Image = await app.storage.saveFileByUrl('https://placeimg.com/40/40/nature/6');
+            const avatar2Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/6');
             const avatar2ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar2Image.id, size: avatar2Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
 
             const cover2Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/4');
@@ -33,7 +33,7 @@ module.exports = (app: IGeesomeApp) => {
 
             await app.database.addAdminToGroup(adminUser.id, savedGroup.id);
 
-            const avatar3Image = await app.storage.saveFileByUrl('https://placeimg.com/40/40/nature/7');
+            const avatar3Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/7');
             const avatar3ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar3Image.id, size: avatar3Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
 
             const cover3Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/8');

@@ -31,9 +31,15 @@ export default {
 
     computed: {
         coverImage() {
+            if(!this.group) {
+                return '';
+            }
             return this.$serverApi.getImageLink(this.group.coverImage.storageId);
         },
         avatarImage() {
+            if(!this.group) {
+                return '';
+            }
             return this.$serverApi.getImageLink(this.group.avatarImage.storageId);
         }
     },

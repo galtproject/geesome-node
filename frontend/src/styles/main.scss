@@ -59,9 +59,46 @@ $fa-font-path: "webfonts";
 }
 
 .group-header {
+  z-index: 10;
+  position: relative;
+
   height: 200px;
   width: 100%;
+  
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  
+  .group-header-title {
+    font-weight: 700;
+    font-size: 22px;
+  }
+  
+  .group-header-avatar {
+    width: 80px;
+    height: 80px;
+    position: relative;
+    top: 30px;
+    img {
+      width: 100%;
+      height: 100%;
+      border-radius: 15%;
+      border: 2px solid #424242;
+    }
+  }
 }
+
+.md-app-content {
+  .new-post-card {
+    margin-right: 0;
+  }
+  
+  .post-card {
+    margin-right: 0;
+  }
+}
+
 
 .upload-content {
   .md-layout {
@@ -83,8 +120,4 @@ $fa-font-path: "webfonts";
       color: #E0E0E0;
     }
   }
-}
-
-.md-app-content .post-card {
-  margin-right: 0;
 }

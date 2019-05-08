@@ -1,12 +1,15 @@
 <posts-container mode="tight">
     <group-header v-if="group" :group="group"></group-header>
-    
-    <div>
-        <h4 v-locale="localeKey + '.new_post'"></h4>
-        <div>
+
+    <md-card class="new-post-card">
+        <md-card-header>
+            <div class="md-subhead" v-locale="localeKey + '.new_post'"></div>
+        </md-card-header>
+
+        <md-card-content>
             <upload-content></upload-content>
-        </div>
-    </div>
+        </md-card-content>
+    </md-card>
     
     <post-item v-for="post in posts" v-model="post"></post-item>
 </posts-container>

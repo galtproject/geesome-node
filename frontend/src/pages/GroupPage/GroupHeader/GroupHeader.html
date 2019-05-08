@@ -1,3 +1,4 @@
-<div :style="{'background': coverImage}" class="group-header">
-    
+<div :style="{'background': 'url(' + coverImage + ')'}" class="group-header" v-if="group">
+    <div class="group-header-title">{{group.title}}</div>
+    <div class="group-header-avatar"><img :src="avatarImage"></div>
 </div>
