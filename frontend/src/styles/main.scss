@@ -32,3 +32,59 @@ $fa-font-path: "webfonts";
   font-size: 22px!important;
 }
 
+.huge-button {
+  height: 100px;
+  width: 99%;
+  
+  .md-button-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+    height: 100%;
+    & > * {
+      margin: initial;
+    }
+  }
+}
+
+.tight-content {
+  flex: initial;
+  width: 625px;
+}
+
+.wide-content {
+  flex: initial;
+  width: 90%;
+}
+
+.group-header {
+  height: 200px;
+  width: 100%;
+}
+
+.upload-content {
+  .md-layout {
+    justify-content: center;
+    .md-layout-item {
+      width: 33.3%;
+      padding: 5px;
+      .md-button {
+        margin: 0;
+      }
+    }
+  }
+  .text-editor .quillWrapper {
+    background: #19161C;
+    .ql-snow .ql-stroke {
+      stroke: #E0E0E0;
+    }
+    .ql-snow .ql-picker-label:before {
+      color: #E0E0E0;
+    }
+  }
+}
+
+.md-app-content .post-card {
+  margin-right: 0;
+}

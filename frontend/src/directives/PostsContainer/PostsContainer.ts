@@ -12,8 +12,8 @@
  */
 
 export default {
-    template: require('./UploadContent.html'),
-    props: ['contentId'],
+    template: require('./PostsContainer.html'),
+    props: ['mode'],
     async created() {
 
     },
@@ -23,9 +23,7 @@ export default {
     },
 
     methods: {
-        setMode(modeName) {
-            this.mode = modeName;
-        }
+        
     },
 
     watch: {
@@ -33,14 +31,11 @@ export default {
     },
 
     computed: {
-        contentsList() {
-            // return _.orderBy(this.value.contents, ['position'], ['asc']);
-        }
+        
     },
     data() {
         return {
-            mode: '',
-            localValue: ''
+            
         }
     },
 }

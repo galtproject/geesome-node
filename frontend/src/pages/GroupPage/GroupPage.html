@@ -1,6 +1,12 @@
-<div id="main-page" style="height: 100%;">
+<posts-container mode="tight">
+    <group-header v-if="group" :group="group"></group-header>
+    
     <div>
-        <upload-content></upload-content>
+        <h4 v-locale="localeKey + '.new_post'"></h4>
+        <div>
+            <upload-content></upload-content>
+        </div>
     </div>
+    
     <post-item v-for="post in posts" v-model="post"></post-item>
-</div>
+</posts-container>

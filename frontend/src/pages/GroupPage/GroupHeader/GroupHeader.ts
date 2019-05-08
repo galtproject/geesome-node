@@ -12,10 +12,9 @@
  */
 
 export default {
-    template: require('./UploadContent.html'),
-    props: ['contentId'],
+    template: require('./GroupHeader.html'),
+    props: ['group'],
     async created() {
-
     },
 
     async mounted() {
@@ -23,9 +22,7 @@ export default {
     },
 
     methods: {
-        setMode(modeName) {
-            this.mode = modeName;
-        }
+        
     },
 
     watch: {
@@ -33,14 +30,16 @@ export default {
     },
 
     computed: {
-        contentsList() {
-            // return _.orderBy(this.value.contents, ['position'], ['asc']);
+        coverImage() {
+            return this.$serverApi.getImageLink(this.group.coverImage.storageId);
+        },
+        avatarImage() {
+            return this.$serverApi.getImageLink(this.group.avatarImage.storageId);
         }
     },
     data() {
         return {
-            mode: '',
-            localValue: ''
+            content: ''
         }
     },
 }

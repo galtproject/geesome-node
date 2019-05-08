@@ -31,7 +31,7 @@ export default {
                 this.content = await this.$serverApi.getContent(this.src.storageId);
             }
             if(this.type == 'image' || this.type == 'file') {
-                this.content = config.serverBaseUrl + 'v1/get-content/' + this.src.storageId;
+                this.content = this.$serverApi.getImageLink(this.src.storageId);
             }
         }
     },

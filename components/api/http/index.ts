@@ -114,6 +114,11 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         });
     });
 
+
+    service.get('/v1/group/:groupId', async (req, res) => {
+        res.send(await geesomeApp.getGroup(req.params.groupId));
+    });
+    
     service.get('/v1/group/:groupId/posts', async (req, res) => {
         res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
     });

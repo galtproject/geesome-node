@@ -1,11 +1,29 @@
-<div class="md-layout">
-    <div class="md-layout-item-size-30">
-        <md-button class="md-raised">Enter Text</md-button>
+<div class="upload-content">
+    <div class="md-layout" v-if="!mode">
+        <div class="md-layout-item">
+            <md-button class="md-raised huge-button md-accent" @click="setMode('enter_text')">
+                <md-icon class="fas fa-edit"></md-icon>
+
+                <div>Enter Text</div>
+            </md-button>
+        </div>
+        <div class="md-layout-item">
+            <md-button class="md-raised huge-button md-accent" @click="setMode('upload_new')">
+                <md-icon class="fas fa-upload"></md-icon>
+
+                <div>Upload new</div>
+            </md-button>
+        </div>
+        <div class="md-layout-item">
+            <md-button class="md-raised huge-button md-accent" @click="setMode('choose_content')">
+                <md-icon class="fas fa-cloud"></md-icon>
+
+                <div>Choose uploaded</div>
+            </md-button>
+        </div>
     </div>
-    <div class="md-layout-item-size-30">
-        <md-button class="md-raised">Upload</md-button>
-    </div>
-    <div class="md-layout-item-size-30">
-        <md-button class="md-raised">Attach existing</md-button>
+    
+    <div v-if="mode === 'enter_text'" class="text-editor">
+        <vue-editor v-model="localValue"></vue-editor>
     </div>
 </div>

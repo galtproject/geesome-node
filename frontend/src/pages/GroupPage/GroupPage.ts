@@ -12,11 +12,13 @@
  */
 
 import PostItem from "../../directives/PostItem/PostItem";
+import UploadContent from "../../directives/UploadContent/UploadContent";
 
 export default {
     template: require('./GroupPage.html'),
-    components: {PostItem},
+    components: {PostItem, UploadContent},
     async created() {
+        this.group = await this.$serverApi.getGroup(this.groupId);
         this.getPosts();
     },
     methods: {
@@ -38,7 +40,7 @@ export default {
     },
     data() {
         return {
-            localeKey: 'main_page',
+            localeKey: 'group_page',
             posts: [],
             loading: true
         };

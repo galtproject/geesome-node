@@ -124,6 +124,10 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.getAdminInGroups(userId)
     }
 
+    getGroup(groupId) {
+        return this.database.getGroup(groupId);
+    }
+
     getGroupPosts(groupId, sortDir, limit, offset) {
         return this.database.getGroupPosts(groupId, sortDir, limit, offset)
     }

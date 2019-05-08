@@ -43,6 +43,7 @@
     "vue-notification": "^1.3.4",
     "vue-router": "^3.0.1",
     "vue-template-compiler": "^2.5.13",
+    "vue2-editor": "^2.6.6",
     "vuex": "^3.0.1",
     "web3": "1.0.0-beta.51"
   },

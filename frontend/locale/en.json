@@ -1,6 +1,6 @@
 {
   "app_container": {
-    "navbar_title": "Geesome CMS",
+    "navbar_title": "Geesome Node",
     "server_address": "Server",
     "main_menu": {
       "title": "Menu",
@@ -10,5 +10,8 @@
   },
   "main_page": {
     "file": "Upload file"
+  },
+  "group_page": {
+    "new_post": "New post"
   }
 }

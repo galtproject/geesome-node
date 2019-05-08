@@ -34,6 +34,9 @@ export default {
                 formData.append("file", file);
                 return $http.post('/v1/user/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
             },
+            getImageLink(storageId) {
+                return config.serverBaseUrl + 'v1/content/' + storageId;
+            },
             getContent(storageId){
                 return $http.get('/v1/content/' + storageId).then(response => response.data);
             },
@@ -42,6 +45,9 @@ export default {
             },
             getAdminInGroups(){
                 return $http.get('/v1/user/admin-in-groups').then(response => response.data);
+            },
+            getGroup(groupId){
+                return $http.get(`/v1/group/${groupId}`).then(response => response.data);
             },
             getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
                 return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
