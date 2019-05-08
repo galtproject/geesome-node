@@ -32,20 +32,23 @@ export default {
                 });
                 
                 formData.append("file", file);
-                return $http.post('/v1/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
+                return $http.post('/v1/user/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
             },
             getContent(storageId){
-                return $http.get('/v1/get-content/' + storageId).then(response => response.data);
+                return $http.get('/v1/content/' + storageId).then(response => response.data);
             },
             getMemberInGroups(){
-                return $http.get('/v1/get-member-in-groups').then(response => response.data);
+                return $http.get('/v1/user/member-in-groups').then(response => response.data);
             },
             getAdminInGroups(){
-                return $http.get('/v1/get-admin-in-groups').then(response => response.data);
+                return $http.get('/v1/user/admin-in-groups').then(response => response.data);
             },
             getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
-                return $http.get('/v1/get-group-posts/' + groupId, { params: { limit, offset } }).then(response => response.data);
-            }
+                return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
+            },
+            getCanCreatePost(groupId){
+                return $http.get(`/v1/user/group/${groupId}/can-create-post`).then(response => response.data);
+            },
         };
     }
 }

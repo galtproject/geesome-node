@@ -132,6 +132,20 @@ class MysqlDatabase implements IDatabase {
         });
     }
 
+    async isAdminInGroup(userId, groupId) {
+        const result = await (await this.getUser(userId)).getAdministratorInGroups({
+            where: {id: groupId}
+        });
+        return result.length > 0;
+    }
+
+    async isMemberInGroup(userId, groupId) {
+        const result = await (await this.getUser(userId)).getMemberInGroups({
+            where: {id: groupId}
+        });
+        return result.length > 0;
+    }
+
     async getGroupPosts(groupId, sortDir, limit, offset) {
         sortDir = sortDir || 'DESC';
         limit = parseInt(limit) || 10;
@@ -144,6 +158,13 @@ class MysqlDatabase implements IDatabase {
             offset
         });
     }
+
+    async getPost(id) {
+        return this.models.Post.findOne({
+            where: { id },
+            include: [{ model: this.models.Content, as: 'contents'}]
+        });
+    }
     
     async addPost(post) {
         return this.models.Post.create(post);
@@ -151,10 +172,6 @@ class MysqlDatabase implements IDatabase {
 
     async updatePost(id, updateData) {
         return this.models.Post.update(updateData, {where: { id } });
-    }
-
-    async getPost(id) {
-        return this.models.Post.findOne({ where: { id } });
     }
 
     async setPostContents(postId, contentsIds) {

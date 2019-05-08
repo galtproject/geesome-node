@@ -19,8 +19,11 @@ export interface IGeesomeApp {
     database: IDatabase;
     storage: IStorage;
     authorization: any;
-    
-    savePost(userId, postData);
+
+    canCreatePostInGroup(userId, groupId);
+
+    createPost(userId, postData);
+    updatePost(userId, postId, postData);
     saveContent(fileStream, fileName, userId, groupId);
     getFileStream(filePath);
     

@@ -37,7 +37,11 @@ export interface IDatabase {
     addAdminToGroup(userId, groupId): Promise<void>;
     getAdminInGroups(userId): Promise<IGroup[]>;
 
+    isAdminInGroup(userId, groupId): Promise<boolean>;
+    isMemberInGroup(userId, groupId): Promise<boolean>;
+
     getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
+    getPost(postId): Promise<IPost>;
 
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
@@ -79,6 +83,7 @@ export interface IPost {
     userId;
     view?;
     type?;
+    contents?: IContent[];
 }
 
 export enum PostStatus {

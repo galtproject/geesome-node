@@ -75,41 +75,58 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
             + "</html>";
         res.send(html, 200);
     });
-    
-    service.get('/v1/get-member-in-groups', async (req, res) => {
+
+    service.get('/v1/user/member-in-groups', async (req, res) => {
         res.send(await geesomeApp.getMemberInGroups(req.user.id));
     });
-    
-    service.get('/v1/get-admin-in-groups', async (req, res) => {
+
+    service.get('/v1/user/admin-in-groups', async (req, res) => {
         res.send(await geesomeApp.getAdminInGroups(req.user.id));
     });
-
-    service.get('/v1/get-group-posts/:groupId', async (req, res) => {
-        res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
+    
+    service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
+        res.send(await geesomeApp.canCreatePostInGroup(req.user.id, req.user.groupId));
+    });
+    
+    service.post('/v1/user/group/:groupId/create-post', async (req, res) => {
+        if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.user.groupId)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.createPost(req.userId, res.body), 200);
     });
 
-    service.post('/v1/save-post', async (req, res) => {
-        res.send(await geesomeApp.savePost(req.userId, res.body), 200);
+    service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
+        if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.user.groupId)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.updatePost(req.userId, req.params.postId, res.body), 200);
     });
 
-    service.post('/v1/save-file', async (req, res) => {
+    service.post('/v1/user/save-file', async (req, res) => {
         req.pipe(req.busboy);
-        
+
         const body = {};
         req.busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
             body[fieldname] = val;
-            console.log('field', body);
         });
         req.busboy.on('file', async function (fieldname, file, filename) {
             res.send(await geesomeApp.saveContent(file, filename, req.user.id, body['groupId']), 200);
         });
     });
 
-    service.get('/v1/get-content/:storageId', async (req, res) => {
+    service.get('/v1/group/:groupId/posts', async (req, res) => {
+        res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
+    });
+
+    service.get('/v1/content/:storageId', async (req, res) => {
         geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
-            if(file.type !== 'dir') {
-                file.content.pipe(res);
-            }
+            if(file.type !== 'dir') { file.content.pipe(res); }
+        })
+    });
+
+    service.get('/ipfs/:storageId', async (req, res) => {
+        geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
+            if(file.type !== 'dir') { file.content.pipe(res); }
         })
     });
     

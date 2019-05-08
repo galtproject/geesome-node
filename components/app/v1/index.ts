@@ -50,8 +50,35 @@ class GeesomeApp implements IGeesomeApp {
     ) {
     }
     
-    savePost(userId, postData) {
+    async canCreatePostInGroup(userId, groupId) {
+        return this.database.isAdminInGroup(userId, groupId);
+    }
+
+    async createPost(userId, postData) {
+        const storageAccountId = await this.storage.getCurrentAccountId();
+
+        postData.userId = userId;
+        postData.storageAccountId = storageAccountId;
         
+        const contentsIds = postData.contentsIds;
+        delete postData.contentsIds;
+        
+        const post = await this.database.addPost(postData);
+
+        await this.database.setPostContents(post.id, contentsIds);
+
+        return this.database.getPost(post.id);
+    }
+
+    async updatePost(userId, postId, postData) {
+        const contentsIds = postData.contentsIds;
+        delete postData.contentsIds;
+
+        await this.database.setPostContents(postId, contentsIds);
+
+        await this.database.updatePost(postId, postData);
+        
+        return this.database.getPost(postId);
     }
 
     async saveContent(fileStream, fileName, userId, groupId) {
