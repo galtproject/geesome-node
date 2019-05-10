@@ -14,6 +14,7 @@
 import {IDatabase, GroupType, GroupView, ContentType, PostStatus} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
+import {IRender} from "../../render/interface";
 
 const config = require('./config');
 const _ = require('lodash');
@@ -43,6 +44,7 @@ module.exports = async () => {
 class GeesomeApp implements IGeesomeApp {
     database: IDatabase;
     storage: IStorage;
+    render: IRender;
     authorization: any;
     
     constructor(
@@ -81,8 +83,8 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.getPost(postId);
     }
 
-    async saveContent(fileStream, fileName, userId, groupId) {
-        const ipfsFile = await this.storage.saveFileByContent(fileStream);
+    async saveData(fileStream, fileName, userId, groupId) {
+        const storageFile = await this.storage.saveFileByContent(fileStream);
         const group = await this.database.getGroup(groupId);
         const ext = _.end(fileName.split('.')).toLowerCase();
         
@@ -100,16 +102,25 @@ class GeesomeApp implements IGeesomeApp {
             type = 'text';
         }
         
-        return this.database.addContent({
+        const content = await this.database.addContent({
             userId,
             groupId,
             type,
-            storageId: ipfsFile.id,
-            storageAccountId: ipfsFile.storageAccountId,
-            size: ipfsFile.size,
+            storageId: storageFile.id,
+            storageAccountId: storageFile.storageAccountId,
+            size: storageFile.size,
             name: fileName,
             isPublic: group.isPublic
-        })
+        });
+        
+        const manifestContent = await this.render.generateContent('content-manifest', content);
+        const storageManifestFile = await this.storage.saveFileByContent(manifestContent);
+
+        await this.database.updateContent(content.id, {
+            manifestStorageId: storageManifestFile.id
+        });
+        
+        return content;
     }
     
     getFileStream(filePath) {
@@ -130,6 +141,10 @@ class GeesomeApp implements IGeesomeApp {
 
     getGroupPosts(groupId, sortDir, limit, offset) {
         return this.database.getGroupPosts(groupId, sortDir, limit, offset)
+    }
+
+    getContent(contentId) {
+        return this.database.getContent(contentId);
     }
 
     runSeeds() {

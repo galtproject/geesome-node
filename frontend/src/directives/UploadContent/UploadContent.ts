@@ -13,7 +13,7 @@
 
 export default {
     template: require('./UploadContent.html'),
-    props: ['contentId'],
+    props: ['contentId', 'groupId'],
     async created() {
 
     },
@@ -25,6 +25,12 @@ export default {
     methods: {
         setMode(modeName) {
             this.mode = modeName;
+        },
+        saveText() {
+            this.saving = true;
+            this.$serverApi.saveContentData(this.localValue, {groupId: this.groupId}).then(contentObj => {
+                this.$emit('update:content-id', contentObj.id)
+            })
         }
     },
 
@@ -40,7 +46,8 @@ export default {
     data() {
         return {
             mode: '',
-            localValue: ''
+            localValue: '',
+            saving: false
         }
     },
 }

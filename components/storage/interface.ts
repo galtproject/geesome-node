@@ -16,7 +16,18 @@ export interface IStorage {
     saveFileByContent(content): Promise<IResultFile>;
     saveFileByUrl(url): Promise<IResultFile>;
     getFileStream(filePath): any;
+
+    getAccountIdByName(name): Promise<string>;
     getCurrentAccountId(): Promise<string>;
+    createAccountIfNotExists(name): Promise<string>;
+    removeAccountIfExists(name): Promise<void>;
+
+    saveObject(objData: any): Promise<string>;
+    getObject(storageId: string): Promise<any>;
+    getObjectProp(storageId: string, propName: string): Promise<any>;
+
+    bindToStaticId(storageId, accountName): Promise<string>;
+    resolveStaticId(staticStorageId): Promise<string>;
 }
 
 interface IResultFile {

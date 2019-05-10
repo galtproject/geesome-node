@@ -11,22 +11,22 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDCityDatabase} from "../database/interface";
+import {IDatabase} from "../components/database/interface";
 
 const assert = require('assert');
 
 describe("databaseValues", function () {
     const debugDatabase = false;
-    const databaseName = 'test_geo_explorer';
+    const databaseName = 'test_geesome_core';
     
-    let database: IDCityDatabase;
+    let database: IDatabase;
 
     const databases = ['mysql'];
 
     databases.forEach((databaseService) => {
         describe(databaseService + ' database', () => {
             before(async () => {
-                database = await require('../database/' + databaseService)({ name: databaseName, options: {logging: debugDatabase} });
+                database = await require('../components/database/' + databaseService)({ name: databaseName, options: {logging: debugDatabase} });
             });
 
             after(async () => {

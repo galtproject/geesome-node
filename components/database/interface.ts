@@ -51,6 +51,7 @@ export interface IDatabase {
 export interface IContent {
     id?: number;
     type: ContentType;
+    view: ContentView;
     name: string;
     description?: string;
     size?: string;
@@ -60,6 +61,8 @@ export interface IContent {
     storageId?: string;
     staticStorageId?: string;
     storageAccountId?: string;
+    manifestStorageId?: string;
+    manifestStaticStorageId?: string;
 }
 
 export enum ContentType {
@@ -69,6 +72,11 @@ export enum ContentType {
     TextMarkdown = 'text/md',
     ImagePng = 'image/png',
     ImageJpg = 'image/jpg'
+}
+
+export enum ContentView {
+    Slider = 'slider',
+    List = 'list'
 }
 
 export interface IPost {
@@ -84,6 +92,8 @@ export interface IPost {
     view?;
     type?;
     contents?: IContent[];
+    manifestStorageId?: string;
+    manifestStaticStorageId?: string;
 }
 
 export enum PostStatus {
@@ -120,6 +130,8 @@ export interface IGroup {
     storageId?: string;
     staticStorageId?: string;
     storageAccountId?: string;
+    manifestStorageId?: string;
+    manifestStaticStorageId?: string;
 }
 
 export enum GroupType {

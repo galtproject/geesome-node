@@ -11,26 +11,13 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IStorage} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 import {JsIpfsService} from "../JsIpfsService";
 
-const IPFS = require('ipfs');
+const IPFS = require('ipfs-http-client');
 
 module.exports = async (app: IGeesomeApp) => {
-    const node = new IPFS(app.config.storageConfig);
-
-    // console.log('node', node);
-    try {
-        await new Promise((resolve, reject) => {
-            node.on('ready', (err) => err ? reject(err) : resolve());
-            node.on('error', (err) => reject(err))
-        });
-        
-        console.log('🎁 IPFS node have started');
-    } catch (e) {
-        console.error('❌ IPFS not started', e);
-    }
+    const node = new IPFS({ host: 'ipfs.infura.io', port: '5001', protocol: 'https' });
     
     return new JsIpfsService(node);
 };

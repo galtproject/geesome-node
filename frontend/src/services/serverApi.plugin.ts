@@ -34,11 +34,17 @@ export default {
                 formData.append("file", file);
                 return $http.post('/v1/user/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
             },
-            getImageLink(storageId) {
-                return config.serverBaseUrl + 'v1/content/' + storageId;
+            saveContentData(content, params = {}){
+                return $http.post('/v1/user/save-content-data', _.extend({content}, params)).then(response => response.data);
             },
-            getContent(storageId){
-                return $http.get('/v1/content/' + storageId).then(response => response.data);
+            getImageLink(storageId) {
+                return config.serverBaseUrl + 'v1/content-data/' + storageId;
+            },
+            getContentData(storageId){
+                return $http.get('/v1/content-data/' + storageId).then(response => response.data);
+            },
+            getContent(contentId){
+                return $http.get('/v1/content/' + contentId).then(response => response.data);
             },
             getMemberInGroups(){
                 return $http.get('/v1/user/member-in-groups').then(response => response.data);

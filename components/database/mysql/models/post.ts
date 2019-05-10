@@ -39,6 +39,12 @@ module.exports = async function (sequelize, models) {
         },
         storageAccountId: {
             type: Sequelize.STRING(200)
+        },
+        manifestStorageId: {
+            type: Sequelize.STRING(200)
+        },
+        manifestStaticStorageId: {
+            type: Sequelize.STRING(200)
         }
     } as any, {
         indexes: [

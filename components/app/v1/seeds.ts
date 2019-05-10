@@ -19,9 +19,9 @@ module.exports = (app: IGeesomeApp) => {
             const cover1Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/3');
             const cover1ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: cover1Image.id, size: cover1Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
 
-            const feedGroup = await app.database.addGroup({ storageAccountId, name: 'feed', title: 'Feed', avatarImageId: avatar1ImageContent.id, coverImageId: cover1ImageContent.id, isPublic: true, type: GroupType.Channel, view: GroupView.FullList });
+            const myBlogGroup = await app.database.addGroup({ storageAccountId, name: 'my_blog', title: 'My blog', avatarImageId: avatar1ImageContent.id, coverImageId: cover1ImageContent.id, isPublic: true, type: GroupType.Channel, view: GroupView.FullList });
 
-            await app.database.addAdminToGroup(adminUser.id, feedGroup.id);
+            await app.database.addAdminToGroup(adminUser.id, myBlogGroup.id);
 
             const avatar2Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/6');
             const avatar2ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar2Image.id, size: avatar2Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});

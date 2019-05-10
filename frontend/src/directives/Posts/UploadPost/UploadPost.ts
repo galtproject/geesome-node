@@ -11,14 +11,14 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const config = require('../../../config');
-const _ = require('lodash');
+import UploadContent from "../../UploadContent/UploadContent";
 
 export default {
-    template: require('./ContentItem.html'),
-    props: ['src'],
+    template: require('./UploadPost.html'),
+    props: ['contentId', 'groupId'],
+    components: {UploadContent},
     async created() {
-        this.setContent();
+
     },
 
     async mounted() {
@@ -26,36 +26,30 @@ export default {
     },
 
     methods: {
-        async setContent() {
-            if(this.type == 'text') {
-                this.content = await this.$serverApi.getContent(this.src.storageId);
-            }
-            if(this.type == 'image' || this.type == 'file') {
-                this.content = this.$serverApi.getImageLink(this.src.storageId);
-            }
+        getContents() {
+            
         }
     },
 
     watch: {
-        type() {
-            this.setContent();
+        newContentId() {
+            if(!this.newContentId) {
+                return;
+            }
+            
+            this.contentsIds.push(this.newContentId);
+            this.newContentId = null;
         }
     },
 
     computed: {
-        type() {
-            if(_.startsWith(this.src.type, 'image')) {
-                return 'image';
-            }
-            if(_.startsWith(this.src.type, 'text')) {
-                return 'text';
-            }
-            return 'file';
-        }
+        
     },
     data() {
         return {
-            content: ''
+            newContentId: null,
+            contentsIds: [],
+            saving: false
         }
     },
 }

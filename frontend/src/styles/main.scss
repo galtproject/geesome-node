@@ -119,5 +119,23 @@ $fa-font-path: "webfonts";
     .ql-snow .ql-picker-label:before {
       color: #E0E0E0;
     }
+    .ql-editor {
+      background: #EEEEEE;
+      color: black;
+    }
+  }
+}
+
+.quillWrapper.disabled {
+  position: relative;
+  &:after {
+    content: " ";
+    position: absolute;
+    background: gray;
+    opacity: 0.2;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: 0;
   }
 }

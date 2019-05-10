@@ -22,6 +22,9 @@ module.exports = async function (sequelize, models) {
         type: {
             type: Sequelize.STRING(200)
         },
+        view: {
+            type: Sequelize.STRING(200)
+        },
         description: {
             type: Sequelize.STRING
         },
@@ -38,6 +41,12 @@ module.exports = async function (sequelize, models) {
             type: Sequelize.STRING(200)
         },
         storageAccountId: {
+            type: Sequelize.STRING(200)
+        },
+        manifestStorageId: {
+            type: Sequelize.STRING(200)
+        },
+        manifestStaticStorageId: {
             type: Sequelize.STRING(200)
         }
     } as any, {

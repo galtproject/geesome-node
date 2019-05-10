@@ -28,7 +28,7 @@ import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc
 
 import serverApiPlugin from './services/serverApi.plugin';
 import MainMenu from "./directives/MainMenu/MainMenu";
-import ContentItem from "./directives/ContentItem/ContentItem";
+import ContentItem from "./directives/ContentManifestItem/ContentItem";
 import PostsContainer from "./directives/PostsContainer/PostsContainer";
 
 import { VueEditor, Quill } from 'vue2-editor'

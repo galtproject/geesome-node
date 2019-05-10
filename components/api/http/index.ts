@@ -110,8 +110,12 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
             body[fieldname] = val;
         });
         req.busboy.on('file', async function (fieldname, file, filename) {
-            res.send(await geesomeApp.saveContent(file, filename, req.user.id, body['groupId']), 200);
+            res.send(await geesomeApp.saveData(file, filename, req.user.id, body['groupId']), 200);
         });
+    });
+
+    service.post('/v1/user/save-data', async (req, res) => {
+        res.send(await geesomeApp.saveData(req.body['content'], 'index.html', req.user.id, req.body['groupId']), 200);
     });
 
 
@@ -123,7 +127,11 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
     });
 
-    service.get('/v1/content/:storageId', async (req, res) => {
+    service.get('/v1/content/:contentId', async (req, res) => {
+        res.send(await geesomeApp.getContent(req.params.contentId));
+    });
+
+    service.get('/v1/content-data/:storageId', async (req, res) => {
         geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
             if(file.type !== 'dir') { file.content.pipe(res); }
         })
