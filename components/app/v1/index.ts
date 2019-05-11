@@ -165,8 +165,7 @@ class GeesomeApp implements IGeesomeApp {
     
     private async generateAndSaveManifest(entityName, entityObj) {
         const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
-        const storageManifestFile = await this.storage.saveFileByData(manifestContent);
-        return storageManifestFile.id
+        return this.storage.saveObject(manifestContent);
     }
     
     getFileStream(filePath) {
