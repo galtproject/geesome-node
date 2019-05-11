@@ -31,41 +31,41 @@ class EntityJsonManifest implements IRender {
     async generateContent(name, data, options?) {
         if(name === 'group-manifest') {
             const group: IGroup = data;
-            const groupScheme = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description']);
+            const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description']);
 
-            groupScheme.ipns = group.manifestStaticStorageId;
+            groupManifest.ipns = group.manifestStaticStorageId;
             
-            groupScheme.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
-            groupScheme.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
+            groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
+            groupManifest.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
 
-            groupScheme.posts = {
+            groupManifest.posts = {
                 1: 223,
                 2: 343,
                 3: 234
             };
             
             (await this.app.database.getGroupPosts(group.id, 'desc', 0, 100)).forEach((post: IPost) => {
-                treeLib.setNode(groupScheme.posts, post.id, this.getStorageRef(post.manifestStorageId));
+                treeLib.setNode(groupManifest.posts, post.id, this.getStorageRef(post.manifestStorageId));
             });
             
-            return groupScheme;
+            return groupManifest;
         } else if(name === 'post-manifest') {
             const post: IPost = data;
-            const postScheme = _.pick(post, ['status', 'publishedAt', 'view', 'type']);
+            const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type']);
 
-            postScheme.contents = postScheme.contents.map((content: IContent) => {
+            postManifest.contents = post.contents.map((content: IContent) => {
                 return this.getStorageRef(content.manifestStorageId);
             });
-            postScheme.size = _.sumBy(postScheme.contents, 'size');
+            postManifest.size = _.sumBy(postManifest.contents, 'size');
 
-            return postScheme;
+            return postManifest;
         } else if(name === 'content-manifest') {
             const content: IContent = data;
-            const contentScheme = _.pick(content, ['type', 'view', 'size']);
+            const contentManifest = _.pick(content, ['type', 'view', 'size']);
 
-            contentScheme.content = data.storageId;
+            contentManifest.content = data.storageId;
 
-            return contentScheme;
+            return contentManifest;
         }
         return '';
     }
