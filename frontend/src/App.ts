@@ -28,8 +28,8 @@ import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc
 
 import serverApiPlugin from './services/serverApi.plugin';
 import MainMenu from "./directives/MainMenu/MainMenu";
-import ContentItem from "./directives/ContentManifestItem/ContentItem";
-import PostsContainer from "./directives/PostsContainer/PostsContainer";
+import ContentManifestItem from "./directives/ContentManifestItem/ContentManifestItem";
+import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
 
 import { VueEditor, Quill } from 'vue2-editor'
 
@@ -51,7 +51,7 @@ Vue.component('vue-editor', VueEditor);
 Vue.component('modal', Modal);
 Vue.component('pretty-hex', PrettyHex);
 Vue.component('pretty-doc', PrettyDoc);
-Vue.component('content-item', ContentItem);
+Vue.component('content-manifest-item', ContentManifestItem);
 Vue.component('posts-container', PostsContainer);
 
 // https://github.com/vuematerial/vue-material/issues/1977

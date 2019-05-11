@@ -11,13 +11,10 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const _ = require('lodash');
-
 export default {
-    template: require('./PostItem.html'),
-    props: ['value'],
+    template: require('./GroupInfo.html'),
+    props: ['group'],
     async created() {
-        this.getGroup();
     },
 
     async mounted() {
@@ -25,29 +22,29 @@ export default {
     },
 
     methods: {
-        async getGroup() {
-            if(!this.value.groupId) {
-                this.group = null;
-                return;
-            }
-            this.group = await this.$serverApi.getGroup(this.value.groupId);
-        }
+        
     },
 
     watch: {
-        value() {
-            this.getGroup();
-        }
+        
     },
 
     computed: {
-        contentsList() {
-            return _.orderBy(this.value.contents, ['position'], ['asc']);
+        coverImage() {
+            if(!this.group) {
+                return '';
+            }
+            return this.$serverApi.getImageLink(this.group.coverImage.storageId);
+        },
+        avatarImage() {
+            if(!this.group) {
+                return '';
+            }
+            return this.$serverApi.getImageLink(this.group.avatarImage.storageId);
         }
     },
     data() {
         return {
-            group: null,
             content: ''
         }
     },

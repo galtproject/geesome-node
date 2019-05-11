@@ -51,16 +51,29 @@ $fa-font-path: "webfonts";
 .tight-content {
   flex: initial;
   width: 625px;
+  position: relative;
 }
 
 .wide-content {
   flex: initial;
-  width: 90%;
+  width: 1200px;
+}
+
+.group-info-container {
+  position: absolute;
+  top: 0;
+  left: -350px;
+}
+.group-info {
+  width: 300px;
 }
 
 .group-header {
   z-index: 10;
   position: relative;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 
   height: 200px;
   width: 100%;

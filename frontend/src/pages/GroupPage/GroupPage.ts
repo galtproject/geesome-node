@@ -11,13 +11,14 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import PostItem from "../../directives/PostItem/PostItem";
+import PostItem from "../../directives/Posts/PostItem/PostItem";
 import UploadContent from "../../directives/UploadContent/UploadContent";
 import GroupHeader from "./GroupHeader/GroupHeader";
+import GroupInfo from "./GroupInfo/GroupInfo";
 
 export default {
     template: require('./GroupPage.html'),
-    components: {PostItem, UploadContent, GroupHeader},
+    components: {PostItem, UploadContent, GroupHeader, GroupInfo},
     async created() {
         this.getGroup();
         this.getPosts();

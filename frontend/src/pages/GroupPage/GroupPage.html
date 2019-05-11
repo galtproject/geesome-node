@@ -1,4 +1,8 @@
 <posts-container mode="tight">
+    <div class="group-info-container">
+        <group-info v-if="group" :group="group"></group-info>
+    </div>
+    
     <group-header v-if="group" :group="group"></group-header>
 
     <md-card class="new-post-card">
@@ -11,5 +15,5 @@
         </md-card-content>
     </md-card>
     
-    <post-item v-for="post in posts" v-model="post"></post-item>
+    <post-item v-for="(post, index) in posts" v-model="posts[index]"></post-item>
 </posts-container>
