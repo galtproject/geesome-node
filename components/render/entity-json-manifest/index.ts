@@ -20,10 +20,10 @@ const treeLib = require('../../../libs/tree');
 
 module.exports = async (app: IGeesomeApp) => {
     
-    return new EntityJsonScheme(app);
+    return new EntityJsonManifest(app);
 };
 
-class EntityJsonScheme implements IRender {
+class EntityJsonManifest implements IRender {
     constructor(public app: IGeesomeApp) {
 
     }

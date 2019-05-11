@@ -22,5 +22,7 @@ module.exports = {
     apiModule: 'http',
     apiConfig: {},
     authorizationModule: 'passport',
-    authorizationConfig: {}
+    authorizationConfig: {},
+    renderModule: 'entity-json-manifest',
+    renderConfig: {}
 };

@@ -32,6 +32,8 @@ module.exports = async () => {
         console.log('Run seeds...');
         await app.runSeeds();
     }
+
+    app.render = await require('../../render/' + config.authorizationModule)(app);
     
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
