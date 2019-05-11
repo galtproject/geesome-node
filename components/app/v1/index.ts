@@ -33,7 +33,7 @@ module.exports = async () => {
         await app.runSeeds();
     }
 
-    app.render = await require('../../render/' + config.authorizationModule)(app);
+    app.render = await require('../../render/' + config.renderModule)(app);
     
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
