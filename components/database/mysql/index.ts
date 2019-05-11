@@ -113,7 +113,7 @@ class MysqlDatabase implements IDatabase {
     }
     
     async updateGroup(id, updateData) {
-        return this.models.Content.update(updateData, {where: { id } });
+        return this.models.Group.update(updateData, {where: { id } });
     }
 
     async addMemberToGroup(userId, groupId) {
