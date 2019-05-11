@@ -35,8 +35,12 @@ class EntityJsonManifest implements IRender {
 
             groupManifest.ipns = group.manifestStaticStorageId;
             
-            groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
-            groupManifest.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
+            if(group.avatarImage) {
+                groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
+            }
+            if(group.coverImage) {
+                groupManifest.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
+            }
 
             groupManifest.posts = {
                 1: 223,
