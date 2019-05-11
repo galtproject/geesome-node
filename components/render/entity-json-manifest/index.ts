@@ -16,7 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {ContentType, GroupType, GroupView, IContent, IGroup, IPost, PostStatus} from "../../database/interface";
 
 const _ = require('lodash');
-const treeLib = require('../../../libs/tree');
+const treeLib = require('../../../libs/trie');
 
 module.exports = async (app: IGeesomeApp) => {
     
