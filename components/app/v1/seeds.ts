@@ -12,56 +12,33 @@ module.exports = (app: IGeesomeApp) => {
             const adminUser = await app.database.addUser({ storageAccountId, name: 'admin', title: 'Admin', passwordHash });
             
             const userId = adminUser.id;
-
-            const avatar1Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/5');
-            const avatar1ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar1Image.id, size: avatar1Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const cover1Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/3');
-            const cover1ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: cover1Image.id, size: cover1Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const myBlogGroup = await app.database.addGroup({ storageAccountId, name: 'my_blog', title: 'My blog', avatarImageId: avatar1ImageContent.id, coverImageId: cover1ImageContent.id, isPublic: true, type: GroupType.Channel, view: GroupView.FullList });
-
+            
+            const myBlogGroup = await app.database.addGroup({ storageAccountId, name: 'my_blog', title: 'My blog', isPublic: true, type: GroupType.Channel, view: GroupView.FullList });
+            const avatar1ImageContent = await app.saveDataByUrl('https://placeimg.com/80/80/nature/img.jpg', userId, myBlogGroup.id);
+            const cover1ImageContent = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, myBlogGroup.id);
+            await app.database.updateGroup(myBlogGroup.id, {avatarImageId: avatar1ImageContent.id, coverImageId: cover1ImageContent.id});
             await app.database.addAdminToGroup(adminUser.id, myBlogGroup.id);
 
-            const avatar2Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/6');
-            const avatar2ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar2Image.id, size: avatar2Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const cover2Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/4');
-            const cover2ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: cover2Image.id, size: cover2Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const savedGroup = await app.database.addGroup({ storageAccountId, name: 'favorites', title: 'Favorites', avatarImageId: avatar2ImageContent.id, coverImageId: cover2ImageContent.id, isPublic: false, type: GroupType.Channel, view: GroupView.Grid });
-
-            await app.database.addAdminToGroup(adminUser.id, savedGroup.id);
-
-            const avatar3Image = await app.storage.saveFileByUrl('https://placeimg.com/80/80/nature/7');
-            const avatar3ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: avatar3Image.id, size: avatar3Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const cover3Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/8');
-            const cover3ImageContent = await app.database.addContent({ userId, storageAccountId, storageId: cover3Image.id, size: cover3Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const testGroup = await app.database.addGroup({ storageAccountId, name: 'test', title: 'Test', avatarImageId: avatar3ImageContent.id, coverImageId: cover3ImageContent.id, isPublic: true, type: GroupType.Channel, view: GroupView.Grid});
-
+            const favoritesGroup = await app.database.addGroup({ storageAccountId, name: 'favorites', title: 'Favorites', isPublic: false, type: GroupType.Channel, view: GroupView.Grid });
+            const avatar2ImageContent = await app.saveDataByUrl('https://placeimg.com/80/80/nature/img.jpg', userId, favoritesGroup.id);
+            const cover2ImageContent = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, favoritesGroup.id);
+            await app.database.updateGroup(favoritesGroup.id, {avatarImageId: avatar2ImageContent.id, coverImageId: cover2ImageContent.id});
+            await app.database.addAdminToGroup(adminUser.id, favoritesGroup.id);
+            
+            const testGroup = await app.database.addGroup({ storageAccountId, name: 'test', title: 'Test', isPublic: true, type: GroupType.Channel, view: GroupView.Grid});
+            const avatar3ImageContent = await app.saveDataByUrl('https://placeimg.com/80/80/nature/img.jpg', userId, testGroup.id);
+            const cover3ImageContent = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, testGroup.id);
+            await app.database.updateGroup(testGroup.id, {avatarImageId: avatar3ImageContent.id, coverImageId: cover3ImageContent.id});
             await app.database.addMemberToGroup(adminUser.id, testGroup.id);
 
-            const post1Text = await app.storage.saveFileByContent('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.');
-            const post1Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/1');
+            const post1Content1 = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, testGroup.id);
+            const post1Content2 = await app.saveData('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'lorem.txt', userId, testGroup.id);
+            await app.createPost(userId, { groupId: testGroup.id, status: PostStatus.Published, publishedAt: new Date(), contentsIds: [post1Content1.id, post1Content2.id]});
 
-            const post1Content1 = await app.database.addContent({ userId, storageAccountId, groupId: testGroup.id, storageId: post1Text.id, size: post1Text.size, name: '', isPublic: true, type: ContentType.Text});
-            const post1Content2 = await app.database.addContent({userId, storageAccountId, groupId: testGroup.id, storageId: post1Image.id, size: post1Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-
-            const post1 = await app.database.addPost({userId, storageAccountId, groupId: testGroup.id, status: PostStatus.Published, publishedAt: new Date()});
-
-            await app.database.setPostContents(post1.id, [post1Content1.id, post1Content2.id]);
-
-            const post2Text = await app.storage.saveFileByContent('Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat');
-            const post2Image = await app.storage.saveFileByUrl('https://placeimg.com/1000/340/nature/2');
-
-            const post2Content1 = await app.database.addContent({userId, storageAccountId, groupId: testGroup.id, storageId: post2Image.id, size: post2Image.size, name: '', isPublic: true, type: ContentType.ImageJpg});
-            const post2Content2 = await app.database.addContent({ userId, storageAccountId, groupId: testGroup.id, storageId: post2Text.id, size: post2Text.size, name: '', isPublic: true, type: ContentType.Text});
-
-            const post2 = await app.database.addPost({userId, storageAccountId, groupId: testGroup.id, status: PostStatus.Published, publishedAt: new Date()});
-
-            await app.database.setPostContents(post2.id, [post2Content1.id, post2Content2.id]);
+            const post2Content1 = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, testGroup.id);
+            const post2Content2 = await app.saveData('Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat', 'lorem.txt', userId, testGroup.id);
+            await app.createPost(userId, { groupId: testGroup.id, status: PostStatus.Published, publishedAt: new Date(), contentsIds: [post2Content1.id, post2Content2.id]});
+            
             resolve();
         });
     });

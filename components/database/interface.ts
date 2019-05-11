@@ -32,6 +32,7 @@ export interface IDatabase {
 
     getGroup(id): Promise<IGroup>;
     addGroup(group): Promise<IGroup>;
+    updateGroup(id, updateData): Promise<void>;
     addMemberToGroup(userId, groupId): Promise<void>;
     getMemberInGroups(userId): Promise<IGroup[]>;
     addAdminToGroup(userId, groupId): Promise<void>;
@@ -51,16 +52,16 @@ export interface IDatabase {
 export interface IContent {
     id?: number;
     type: ContentType;
-    view: ContentView;
-    name: string;
+    view?: ContentView;
+    name?: string;
     description?: string;
     size?: string;
     isPublic?: boolean;
     userId: number;
     groupId?: number;
+    localId?: number;
     storageId?: string;
     staticStorageId?: string;
-    storageAccountId?: string;
     manifestStorageId?: string;
     manifestStaticStorageId?: string;
 }
@@ -84,14 +85,14 @@ export interface IPost {
     status: PostStatus;
     publishedAt?;
     publishOn?;
-    storageId?;
-    staticStorageId?;
-    storageAccountId?;
     groupId;
     userId;
     view?;
     type?;
     contents?: IContent[];
+    localId?;
+    storageId?;
+    staticStorageId?;
     manifestStorageId?: string;
     manifestStaticStorageId?: string;
 }
@@ -129,7 +130,6 @@ export interface IGroup {
     coverImage?: IContent;
     storageId?: string;
     staticStorageId?: string;
-    storageAccountId?: string;
     manifestStorageId?: string;
     manifestStaticStorageId?: string;
 }

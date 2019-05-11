@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase, GroupType, GroupView, ContentType, PostStatus} from "../../database/interface";
+import {IDatabase, GroupType, GroupView, ContentType, PostStatus, ContentView} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
@@ -68,6 +68,7 @@ class GeesomeApp implements IGeesomeApp {
         const post = await this.database.addPost(postData);
 
         await this.database.setPostContents(post.id, contentsIds);
+        await this.updatePostManifest(post.id);
 
         return this.database.getPost(post.id);
     }
@@ -79,15 +80,71 @@ class GeesomeApp implements IGeesomeApp {
         await this.database.setPostContents(postId, contentsIds);
 
         await this.database.updatePost(postId, postData);
+        await this.updatePostManifest(postId);
         
         return this.database.getPost(postId);
     }
 
     async saveData(fileStream, fileName, userId, groupId) {
-        const storageFile = await this.storage.saveFileByContent(fileStream);
+        const storageFile = await this.storage.saveFileByData(fileStream);
         const group = await this.database.getGroup(groupId);
-        const ext = _.end(fileName.split('.')).toLowerCase();
         
+        const content = await this.database.addContent({
+            userId,
+            groupId,
+            type: this.detectType(storageFile.id, fileName),
+            view: ContentView.List,
+            storageId: storageFile.id,
+            size: storageFile.size,
+            name: fileName,
+            isPublic: group.isPublic
+        });
+        await this.updateContentManifest(content.id);
+        
+        return content;
+    }
+
+    async saveDataByUrl(url, userId, groupId) {
+        const storageFile = await this.storage.saveFileByUrl(url);
+        const group = await this.database.getGroup(groupId);
+
+        const name = _.end(url.split('/'));
+        const content = await this.database.addContent({
+            userId,
+            groupId,
+            type: this.detectType(storageFile.id, name),
+            view: ContentView.List,
+            storageId: storageFile.id,
+            size: storageFile.size,
+            name: name,
+            isPublic: group.isPublic
+        });
+        await this.updateContentManifest(content.id);
+
+        return content;
+    }
+    
+    async updatePostManifest(postId) {
+        const post = await this.database.getPost(postId);
+        
+        await this.database.updatePost(postId, {
+            manifestStorageId: await this.generateAndSaveManifest('post', post)
+        });
+        
+        return this.database.updateGroup(post.groupId, {
+            manifestStorageId: await this.generateAndSaveManifest('group', await this.database.getGroup(post.groupId))
+        });
+    }
+
+    async updateContentManifest(contentId) {
+        return this.database.updateContent(contentId, {
+            manifestStorageId: await this.generateAndSaveManifest('content', await this.database.getContent(contentId))
+        });
+    }
+    
+    private detectType(storageId, fileName) {
+        const ext = _.end(fileName.split('.')).toLowerCase();
+
         let type: any = ContentType.Unknown;
         if(_.includes(['jpg', 'jpeg', 'png', 'gif'], ext)) {
             type = 'image/' + ext;
@@ -101,26 +158,13 @@ class GeesomeApp implements IGeesomeApp {
         if(_.includes(['txt'], ext)) {
             type = 'text';
         }
-        
-        const content = await this.database.addContent({
-            userId,
-            groupId,
-            type,
-            storageId: storageFile.id,
-            storageAccountId: storageFile.storageAccountId,
-            size: storageFile.size,
-            name: fileName,
-            isPublic: group.isPublic
-        });
-        
-        const manifestContent = await this.render.generateContent('content-manifest', content);
-        const storageManifestFile = await this.storage.saveFileByContent(manifestContent);
-
-        await this.database.updateContent(content.id, {
-            manifestStorageId: storageManifestFile.id
-        });
-        
-        return content;
+        return type;
+    }
+    
+    private async generateAndSaveManifest(entityName, entityObj) {
+        const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
+        const storageManifestFile = await this.storage.saveFileByData(manifestContent);
+        return storageManifestFile.id
     }
     
     getFileStream(filePath) {
@@ -145,6 +189,10 @@ class GeesomeApp implements IGeesomeApp {
 
     getContent(contentId) {
         return this.database.getContent(contentId);
+    }
+
+    getDataStructure(dataId) {
+        return this.storage.getObject(dataId);
     }
 
     runSeeds() {

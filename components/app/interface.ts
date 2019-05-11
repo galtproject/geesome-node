@@ -25,7 +25,10 @@ export interface IGeesomeApp {
     createPost(userId, postData);
     updatePost(userId, postId, postData);
     saveData(fileStream, fileName, userId, groupId);
+    saveDataByUrl(url, userId, groupId);
     getFileStream(filePath);
+
+    getDataStructure(dataId);
     
     getMemberInGroups(userId): Promise<IGroup[]>;
     getAdminInGroups(userId): Promise<IGroup[]>;

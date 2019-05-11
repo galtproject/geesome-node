@@ -111,6 +111,10 @@ class MysqlDatabase implements IDatabase {
     async addGroup(group) {
         return this.models.Group.create(group);
     }
+    
+    async updateGroup(id, updateData) {
+        return this.models.Content.update(updateData, {where: { id } });
+    }
 
     async addMemberToGroup(userId, groupId) {
         return (await this.getGroup(groupId)).addMembers([await this.getUser(userId)]);

@@ -16,6 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {ContentType, GroupType, GroupView, IContent, IGroup, IPost, PostStatus} from "../../database/interface";
 
 const _ = require('lodash');
+const treeLib = require('../../../libs/tree');
 
 module.exports = async (app: IGeesomeApp) => {
     
@@ -28,21 +29,27 @@ class EntityJsonScheme implements IRender {
     }
 
     async generateContent(name, data, options?) {
-        if(name === 'group') {
+        if(name === 'group-manifest') {
             const group: IGroup = data;
             const groupScheme = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description']);
 
-            groupScheme.ipns = group.storageAccountId;
+            groupScheme.ipns = group.manifestStaticStorageId;
             
             groupScheme.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
             groupScheme.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
 
-            groupScheme.posts = (await this.app.database.getGroupPosts(group.id, 'desc', 0, 100)).map((post: IPost) => {
-                return this.getStorageRef(post.manifestStorageId);
+            groupScheme.posts = {
+                1: 223,
+                2: 343,
+                3: 234
+            };
+            
+            (await this.app.database.getGroupPosts(group.id, 'desc', 0, 100)).forEach((post: IPost) => {
+                treeLib.setNode(groupScheme.posts, post.id, this.getStorageRef(post.manifestStorageId));
             });
             
             return groupScheme;
-        } else if(name === 'post') {
+        } else if(name === 'post-manifest') {
             const post: IPost = data;
             const postScheme = _.pick(post, ['status', 'publishedAt', 'view', 'type']);
 
@@ -52,11 +59,11 @@ class EntityJsonScheme implements IRender {
             postScheme.size = _.sumBy(postScheme.contents, 'size');
 
             return postScheme;
-        } else if(name === 'content') {
+        } else if(name === 'content-manifest') {
             const content: IContent = data;
             const contentScheme = _.pick(content, ['type', 'view', 'size']);
 
-            contentScheme.content = data.manifestStorageId;
+            contentScheme.content = data.storageId;
 
             return contentScheme;
         }

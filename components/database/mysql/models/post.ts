@@ -31,13 +31,13 @@ module.exports = async function (sequelize, models) {
         view: {
             type: Sequelize.STRING(200)
         },
+        localId: {
+            type: Sequelize.INTEGER
+        },
         storageId: {
             type: Sequelize.STRING(200)
         },
         staticStorageId: {
-            type: Sequelize.STRING(200)
-        },
-        storageAccountId: {
             type: Sequelize.STRING(200)
         },
         manifestStorageId: {

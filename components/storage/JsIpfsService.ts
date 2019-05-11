@@ -29,7 +29,7 @@ export class JsIpfsService implements IStorage {
         return this.saveFile({path});
     }
 
-    async saveFileByContent(content) {
+    async saveFileByData(content) {
         if (_.isString(content)) {
             content = Buffer.from(content, 'utf8');
         }
