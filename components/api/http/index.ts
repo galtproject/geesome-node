@@ -144,9 +144,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/ipld/:storageId', async (req, res) => {
-        geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
-            if(file.type !== 'dir') { file.content.pipe(res); }
-        })
+        geesomeApp.getDataStructure(req.params.storageId).then(res.send.bind(res));
     });
     
     function handleError(res, e) {
