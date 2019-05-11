@@ -108,7 +108,7 @@ class GeesomeApp implements IGeesomeApp {
         const storageFile = await this.storage.saveFileByUrl(url);
         const group = await this.database.getGroup(groupId);
 
-        const name = _.end(url.split('/'));
+        const name = _.last(url.split('/'));
         const content = await this.database.addContent({
             userId,
             groupId,
@@ -143,7 +143,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     
     private detectType(storageId, fileName) {
-        const ext = _.end(fileName.split('.')).toLowerCase();
+        const ext = _.last(fileName.split('.')).toLowerCase();
 
         let type: any = ContentType.Unknown;
         if(_.includes(['jpg', 'jpeg', 'png', 'gif'], ext)) {
