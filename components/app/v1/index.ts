@@ -27,13 +27,13 @@ module.exports = async () => {
     
     console.log('Start database...');
     app.database = await require('../../database/' + config.databaseModule)(app);
+
+    app.render = await require('../../render/' + config.renderModule)(app);
     
     if((await app.database.getUsersCount()) === 0) {
         console.log('Run seeds...');
         await app.runSeeds();
     }
-
-    app.render = await require('../../render/' + config.renderModule)(app);
     
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
