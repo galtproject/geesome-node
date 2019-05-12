@@ -80,7 +80,7 @@ export default {
                     limit = postsCount - offset;
                 }
                 const postsPath = groupId + '/posts/';
-                return pIteration.map(_.range(offset + 1, offset + limit), (postNumber) => {
+                return pIteration.map(_.range(offset + 1, offset + limit + 1), (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
                     return this.getIpld(postsPath + postNumberPath);
                 });
