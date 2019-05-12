@@ -47,6 +47,11 @@ export class JsIpfsService implements IStorage {
         return (_.find(keys, {name}) || {}).id || null;
     }
 
+    async getAccountNameById(id) {
+        const keys = await this.node.key.list();
+        return (_.find(keys, {id}) || {}).name || null;
+    }
+
     async getCurrentAccountId() {
         return this.getAccountIdByName('self');
     }
@@ -92,6 +97,9 @@ export class JsIpfsService implements IStorage {
     }
 
     async bindToStaticId(storageId, accountKey) {
+        if(_.startsWith('Qm', accountKey)) {
+            accountKey = await this.getAccountNameById(accountKey);
+        }
         return this.node.name.publish(`${storageId}`, {
             key: accountKey
         }).then(response => response.name);
