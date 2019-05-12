@@ -83,10 +83,10 @@ export class JsIpfsService implements IStorage {
         objectData = _.isObject(objectData) ? JSON.stringify(objectData) : objectData;
         console.log('put', objectData);
         const savedObj = await this.node.dag.put(objectData);
-        console.log('pin', ipfsHelper.cidToHash(savedObj));
-        await this.node.pin.add(ipfsHelper.cidToHash(savedObj));
-        console.log('ipfsHelper.cidToHash', savedObj);
-        return ipfsHelper.cidToHash(savedObj);
+        const ipldHash = ipfsHelper.cidToHash(savedObj);
+        console.log('pin', ipldHash);
+        await this.node.pin.add(ipldHash);
+        return ipldHash;
     }
 
     async getObject(storageId) {
