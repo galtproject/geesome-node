@@ -31,11 +31,14 @@ export default {
 
     methods: {
         async setContentByDbId(){
+            this.loading = true;
+            this.manifestObj = null;
             const dbContent = await this.$coreApi.getDbContent(this.dbId);
-            this.manifestObj =  await this.$coreApi.getIpld(dbContent.manifestStorageId);
+            this.manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
             this.setContent();
         },
         async setContent() {
+            this.loading = true;
             if(ipfsHelper.isIpldHash(this.manifest)) {
                 this.manifestObj = await this.$coreApi.getIpld(this.manifest);
             } else if(this.manifest) {
@@ -47,6 +50,7 @@ export default {
             if(this.type == 'image' || this.type == 'file') {
                 this.content = await this.$coreApi.getImageLink(this.manifestObj.content);
             }
+            this.loading = false;
         }
     },
 
@@ -55,7 +59,7 @@ export default {
             this.setContent();
         },
         dbId() {
-            
+            this.setContentByDbId();
         }
     },
 
@@ -71,12 +75,16 @@ export default {
                 return 'text';
             }
             return 'file';
+        },
+        showCloseButton() {
+            return !!this.$listeners.close;
         }
     },
     data() {
         return {
             manifestObj: null,
-            content: ''
+            content: '',
+            loading: true
         }
     },
 }

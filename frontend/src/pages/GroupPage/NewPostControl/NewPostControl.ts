@@ -36,7 +36,18 @@ export default {
         },
         handleUpload(contentId) {
             this.postContentsDbIds.push(contentId);
-        }
+        },
+        deleteContent(index) {
+            this.postContentsDbIds.splice(index, 1);
+        },
+        publishPost() {
+            this.postContentsDbIds = [];
+            this.saving = true;
+            this.$coreApi.createPost(this.postContentsDbIds, {groupId: this.group.id}).then(() => {
+                this.saving = false;
+                this.$emit('new-post');
+            })
+        },
     },
 
     watch: {
@@ -52,6 +63,7 @@ export default {
         return {
             localeKey: 'group_page',
             canCreatePosts: false,
+            saving: false,
             postContentsDbIds: []
         }
     },

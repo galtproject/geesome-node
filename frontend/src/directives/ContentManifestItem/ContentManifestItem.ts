@@ -44,6 +44,9 @@ export default {
     watch: {
         type() {
             this.setContent();
+        },
+        manifest() {
+            this.setContent();
         }
     },
 

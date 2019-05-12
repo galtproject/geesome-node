@@ -5,7 +5,7 @@
     
     <group-header v-if="group" :group="group"></group-header>
 
-    <new-post-control v-if="group" :group="group"></new-post-control>
+    <new-post-control v-if="group" :group="group" @new-post="getPosts()"></new-post-control>
     
     <div class="posts-list">
         <post-item v-for="(post, index) in posts" v-model="posts[index]"></post-item>

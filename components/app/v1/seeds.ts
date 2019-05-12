@@ -33,11 +33,11 @@ module.exports = (app: IGeesomeApp) => {
 
             const post1Content1 = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, testGroup.id);
             const post1Content2 = await app.saveData('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'lorem.txt', userId, testGroup.id);
-            await app.createPost(userId, { groupId: testGroup.id, status: PostStatus.Published, publishedAt: new Date(), contentsIds: [post1Content1.id, post1Content2.id]});
+            await app.createPost(userId, { groupId: testGroup.id, status: PostStatus.Published, contentsIds: [post1Content1.id, post1Content2.id]});
 
             const post2Content1 = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, testGroup.id);
             const post2Content2 = await app.saveData('Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat', 'lorem.txt', userId, testGroup.id);
-            await app.createPost(userId, { groupId: testGroup.id, status: PostStatus.Published, publishedAt: new Date(), contentsIds: [post2Content1.id, post2Content2.id]});
+            await app.createPost(userId, { groupId: testGroup.id, status: PostStatus.Published, contentsIds: [post2Content1.id, post2Content2.id]});
             
             resolve();
         });

@@ -45,6 +45,9 @@ export default {
             saveContentData(content, params = {}){
                 return $http.post('/v1/user/save-data', _.extend({content}, params)).then(response => response.data);
             },
+            createPost(contestsIds, params: any = {}){
+                return $http.post(`/v1/user/group/${params.groupId}/create-post`, _.extend({contestsIds}, params)).then(response => response.data);
+            },
             getContentData(storageId){
                 return $http.get('/v1/content-data/' + storageId).then(response => response.data);
             },

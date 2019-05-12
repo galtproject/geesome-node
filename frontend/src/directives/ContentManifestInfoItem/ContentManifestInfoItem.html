@@ -1,10 +1,19 @@
-<div class="md-layout" v-if="manifestObj">
-    <div class="md-layout-item md-size-30">
-        <content-manifest-item :manifest="manifestObj"></content-manifest-item>
-    </div>
-    <div class="md-layout-item md-size-70">
-        Type: {{manifestObj.type}}<br>
-        Size: {{manifestObj.size}} bytes<br>
-        Ipfs hash: <pretty-hex :hex="manifestObj.content"></pretty-hex>
+<div>
+    <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"></md-progress-bar>
+    
+    <div class="md-layout" v-if="manifestObj">
+        <div class="md-layout-item md-size-30">
+            <content-manifest-item :manifest="manifestObj"></content-manifest-item>
+        </div>
+        <div class="md-layout-item md-size-70" style="position: relative;">
+            <div>
+                Type: {{manifestObj.type}}<br>
+                Size: {{manifestObj.size}} bytes<br>
+                Ipfs hash: <pretty-hex :hex="manifestObj.content"></pretty-hex>
+            </div>
+            <md-button v-if="showCloseButton" class="md-accent md-icon-button" @click="$emit('close')" style="position: absolute; top: 0; right: 0;">
+                <md-icon class="fas fa-times"></md-icon>
+            </md-button>
+        </div>
     </div>
 </div>

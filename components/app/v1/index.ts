@@ -100,6 +100,7 @@ class GeesomeApp implements IGeesomeApp {
 
         if(postData.status === PostStatus.Published) {
             postData.localId = await this.getPostLocalId(postData);
+            postData.publishedAt = new Date();
         }
         
         const contentsIds = postData.contentsIds;

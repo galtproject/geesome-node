@@ -38,11 +38,17 @@
         <md-button class="md-accent" @click="setMode(null)" :disabled="saving">
             <md-icon class="fas fa-times"></md-icon> Cancel
         </md-button>
-
         
         <md-button class="md-raised md-accent" @click="saveText()" :disabled="saving">
             <md-icon class="fas fa-save"></md-icon> Save text
         </md-button>
+    </div>
+
+    <div v-if="mode === 'upload_new'" class="file-upload">
+        <div class="dropbox">
+            <input type="file" @change="uploadFile($event.target.files[0])">
+            <p>Drop or choose file</p>
+        </div>
     </div>
 
     <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="saving"></md-progress-bar>

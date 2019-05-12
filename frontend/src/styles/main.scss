@@ -143,6 +143,12 @@ $fa-font-path: "webfonts";
   }
 }
 
+.publish-post-container {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 0;
+}
+
 .quillWrapper.disabled {
   position: relative;
   &:after {

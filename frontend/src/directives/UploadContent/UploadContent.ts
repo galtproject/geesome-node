@@ -28,13 +28,18 @@ export default {
         },
         saveText() {
             this.saving = true;
-            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId}).then(contentObj => {
-                this.$emit('update:content-id', contentObj.id);
-                this.$emit('uploaded', contentObj.id);
-                this.setMode(null);
-                this.localValue = '';
-                this.saving = false;
-            })
+            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId}).then(this.contentUploaded.bind(this))
+        },
+        uploadFile(file) {
+            this.saving = true;
+            this.$coreApi.saveFile(file, {groupId: this.groupId}).then(this.contentUploaded.bind(this))
+        },
+        contentUploaded(contentObj) {
+            this.$emit('update:content-id', contentObj.id);
+            this.$emit('uploaded', contentObj.id);
+            this.setMode(null);
+            this.localValue = '';
+            this.saving = false;
         }
     },
 
