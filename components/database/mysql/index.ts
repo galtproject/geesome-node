@@ -110,7 +110,7 @@ class MysqlDatabase implements IDatabase {
     
     async getGroupByManifestId(id) {
         return this.models.Group.findOne({
-            where: { $or: [{manifestStorageId: id}, {manifestStaticStorageId: id}]},
+            where: { [Op.or]: [{manifestStorageId: id}, {manifestStaticStorageId: id}]},
             include: [
                 { model: this.models.Content, as: 'avatarImage'},
                 { model: this.models.Content, as: 'coverImage'}
