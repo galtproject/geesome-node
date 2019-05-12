@@ -94,14 +94,17 @@ export default {
                 return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
             },
             async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
-                const postsCount = parseInt(await this.getIpld(groupId + '/postsCount'));
+                const group = await this.getIpld(groupId);
+                const postsCount = parseInt(group.postsCount);
                 if(offset + limit > postsCount) {
                     limit = postsCount - offset;
                 }
                 const postsPath = groupId + '/posts/';
-                return pIteration.map(_.range(offset + 1, offset + limit + 1), (postNumber) => {
+                return pIteration.map(_.range(offset + 1, offset + limit + 1), async (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
-                    return this.getIpld(postsPath + postNumberPath);
+                    const post = await this.getIpld(postsPath + postNumberPath);
+                    post.group = group;
+                    return post;
                 });
                 // return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
             },
