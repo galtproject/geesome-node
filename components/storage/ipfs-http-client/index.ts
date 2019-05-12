@@ -17,7 +17,7 @@ import {JsIpfsService} from "../JsIpfsService";
 const IPFS = require('ipfs-http-client');
 
 module.exports = async (app: IGeesomeApp) => {
-    const node = new IPFS({ host: 'ipfs.infura.io', port: '5001', protocol: 'https' });
+    const node = new IPFS(app.config.storageConfig.goNode);
     
     return new JsIpfsService(node);
 };

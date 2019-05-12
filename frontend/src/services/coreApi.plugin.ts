@@ -12,13 +12,18 @@
  */
 
 import axios from 'axios';
-import EthData from "@galtproject/frontend-core/libs/EthData";
 const config = require('../../config');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('../../../libs/ipfsHelper');
 const trie = require('../../../libs/trie');
+import {JsIpfsService} from "../../../components/storage/JsIpfsService";
 
+const IPFS = require('ipfs-http-client');
+
+const node = new IPFS({ host: config.serverBaseUrl.split('://')[1], port: '5001', protocol: config.serverBaseUrl.split('://')[0] });
+const ipfsService = new JsIpfsService(node);
+    
 export default {
     install (Vue, options: any = {}) {
         let $http = axios.create({
@@ -59,6 +64,9 @@ export default {
                 });
             },
             async getGroup(groupId){
+                if(ipfsHelper.isIpfsHash(groupId)) {
+                    groupId = await ipfsService.resolveStaticId(groupId);
+                }
                 const groupObj = await this.getIpld(groupId);
                 
                 await this.fetchIpldFields(groupObj, ['avatarImage', 'coverImage']);

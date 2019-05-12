@@ -2,6 +2,12 @@ const CID = require('cids');
 const _ = require('lodash');
 
 module.exports = {
+    isIpfsHash(value) {
+        if(!value) {
+            return false;
+        }
+        return _.startsWith(value, 'Qm');
+    },
     isIpldHash(value) {
         if(!value) {
             return false;

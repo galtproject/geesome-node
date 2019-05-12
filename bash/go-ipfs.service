@@ -1,0 +1,11 @@
+[Unit]
+Description=IPFS Daemon Client
+[Service]
+ExecStart=/usr/local/bin/ipfs daemon
+Restart=always
+RestartSec=30
+Type=simple
+User=root
+Group=root
+[Install]
+WantedBy=multi-user.target

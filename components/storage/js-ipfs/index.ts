@@ -11,14 +11,13 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IStorage} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 import {JsIpfsService} from "../JsIpfsService";
 
 const IPFS = require('ipfs');
 
 module.exports = async (app: IGeesomeApp) => {
-    const node = new IPFS(app.config.storageConfig);
+    const node = new IPFS(app.config.storageConfig.jsNode);
 
     // console.log('node', node);
     try {

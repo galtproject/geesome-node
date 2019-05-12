@@ -13,7 +13,7 @@
 
 import {IRender} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
-import {ContentType, GroupType, GroupView, IContent, IGroup, IPost, PostStatus} from "../../database/interface";
+import {IContent, IGroup, IPost} from "../../database/interface";
 
 const _ = require('lodash');
 const treeLib = require('../../../libs/trie');
@@ -68,7 +68,7 @@ class EntityJsonManifest implements IRender {
             const content: IContent = data;
             const contentManifest = _.pick(content, ['type', 'view', 'size']);
 
-            contentManifest.content = data.storageId;
+            contentManifest.content = content.storageId;
 
             return contentManifest;
         }

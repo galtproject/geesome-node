@@ -14,10 +14,16 @@
 module.exports = {
     databaseModule: 'mysql',
     databaseConfig: {},
-    storageModule: 'js-ipfs',
+    storageModule: 'ipfs-http-client',
     storageConfig: {
-        //TODO: get from .env
-        pass: 'traffic enough crater wear tissue term town have switch exhibit onion asset'
+        jsNode: {
+            //TODO: get from .env
+            pass: 'traffic enough crater wear tissue term town have switch exhibit onion asset'
+        },
+        goNode: {
+            // host: 'ipfs.infura.io', port: '5001', protocol: 'https'
+            host: 'localhost', port: '5001', protocol: 'http'
+        }
     },
     apiModule: 'http',
     apiConfig: {},
