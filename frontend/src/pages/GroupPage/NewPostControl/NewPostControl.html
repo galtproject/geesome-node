@@ -1,11 +1,14 @@
 <div v-if="canCreatePosts">
+    <div v-for="id in postContentsDbIds">
+        <content-manifest-info-item :db-id="id"></content-manifest-info-item>
+    </div>
     <md-card class="new-post-card">
         <md-card-header>
             <div class="md-subhead" v-locale="localeKey + '.new_post'"></div>
         </md-card-header>
 
         <md-card-content>
-            <upload-content></upload-content>
+            <upload-content @uploaded="handleUpload" :group-id="group.id"></upload-content>
         </md-card-content>
     </md-card>
 </div>

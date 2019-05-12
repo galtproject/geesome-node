@@ -29,7 +29,8 @@ export default {
         saveText() {
             this.saving = true;
             this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId}).then(contentObj => {
-                this.$emit('update:content-id', contentObj.id)
+                this.$emit('update:content-id', contentObj.id);
+                this.$emit('uploaded', contentObj.id);
             })
         }
     },

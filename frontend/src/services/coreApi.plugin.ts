@@ -43,13 +43,13 @@ export default {
                 return $http.post('/v1/user/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
             },
             saveContentData(content, params = {}){
-                return $http.post('/v1/user/save-content-data', _.extend({content}, params)).then(response => response.data);
+                return $http.post('/v1/user/save-data', _.extend({content}, params)).then(response => response.data);
             },
             getContentData(storageId){
                 return $http.get('/v1/content-data/' + storageId).then(response => response.data);
             },
-            getContent(contentId){
-                return $http.get('/v1/content/' + contentId).then(response => response.data);
+            getDbContent(dbId){
+                return $http.get('/v1/content/' + dbId).then(response => response.data);
             },
             getMemberInGroups(){
                 //TODO: get groups list directly from ipld

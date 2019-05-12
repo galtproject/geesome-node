@@ -12,14 +12,13 @@
  */
 
 import PostItem from "../../directives/Posts/PostItem/PostItem";
-import UploadContent from "../../directives/UploadContent/UploadContent";
 import GroupHeader from "./GroupHeader/GroupHeader";
 import GroupInfo from "./GroupInfo/GroupInfo";
 import NewPostControl from "./NewPostControl/NewPostControl";
 
 export default {
     template: require('./GroupPage.html'),
-    components: {PostItem, UploadContent, GroupHeader, GroupInfo, NewPostControl},
+    components: {PostItem, GroupHeader, GroupInfo, NewPostControl},
     async created() {
         this.getGroup();
         this.getPosts();

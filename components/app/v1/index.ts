@@ -96,6 +96,7 @@ class GeesomeApp implements IGeesomeApp {
 
     async createPost(userId, postData) {
         postData.userId = userId;
+        postData.groupId = await this.checkGroupId(postData.groupId);
 
         if(postData.status === PostStatus.Published) {
             postData.localId = await this.getPostLocalId(postData);
@@ -142,6 +143,7 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveData(fileStream, fileName, userId, groupId) {
         const storageFile = await this.storage.saveFileByData(fileStream);
+        groupId = await this.checkGroupId(groupId);
         const group = await this.database.getGroup(groupId);
         
         const content = await this.database.addContent({
@@ -161,6 +163,7 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveDataByUrl(url, userId, groupId) {
         const storageFile = await this.storage.saveFileByUrl(url);
+        groupId = await this.checkGroupId(groupId);
         const group = await this.database.getGroup(groupId);
 
         const name = _.last(url.split('/'));
