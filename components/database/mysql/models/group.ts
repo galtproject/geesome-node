@@ -54,7 +54,11 @@ module.exports = async function (sequelize, models) {
         },
         manifestStaticStorageId: {
             type: Sequelize.STRING(200)
-        }
+        },
+        publishedPostsCount: {
+            type: Sequelize.INTEGER,
+            defaultValue: 0
+        },
     } as any, {
         indexes: [
             // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

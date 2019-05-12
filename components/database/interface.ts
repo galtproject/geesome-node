@@ -132,6 +132,7 @@ export interface IGroup {
     staticStorageId?: string;
     manifestStorageId?: string;
     manifestStaticStorageId?: string;
+    publishedPostsCount?: number;
 }
 
 export enum GroupType {

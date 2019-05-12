@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase, GroupType, GroupView, ContentType, PostStatus, ContentView} from "../../database/interface";
+import {IDatabase, GroupType, GroupView, ContentType, PostStatus, ContentView, IPost} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
@@ -72,6 +72,10 @@ class GeesomeApp implements IGeesomeApp {
 
     async createPost(userId, postData) {
         postData.userId = userId;
+
+        if(postData.status === PostStatus.Published) {
+            postData.localId = this.getPostLocalId(postData);
+        }
         
         const contentsIds = postData.contentsIds;
         delete postData.contentsIds;
@@ -87,6 +91,12 @@ class GeesomeApp implements IGeesomeApp {
     async updatePost(userId, postId, postData) {
         const contentsIds = postData.contentsIds;
         delete postData.contentsIds;
+        
+        const oldPost = await this.database.getPost(postId);
+        
+        if(postData.status === PostStatus.Published && !oldPost.localId) {
+            postData.localId = this.getPostLocalId(postData);
+        }
 
         await this.database.setPostContents(postId, contentsIds);
 
@@ -94,6 +104,16 @@ class GeesomeApp implements IGeesomeApp {
         await this.updatePostManifest(postId);
         
         return this.database.getPost(postId);
+    }
+    
+    async getPostLocalId(post: IPost) {
+        if(!post.groupId) {
+            return null;
+        }
+        const group = await this.database.getGroup(post.groupId);
+        group.publishedPostsCount++;
+        await this.database.updateGroup(group.id, {publishedPostsCount: group.publishedPostsCount});
+        return group.publishedPostsCount;
     }
 
     async saveData(fileStream, fileName, userId, groupId) {
