@@ -92,14 +92,14 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
             return res.send(403);
         }
-        res.send(await geesomeApp.createPost(req.userId, res.body), 200);
+        res.send(await geesomeApp.createPost(req.userId, req.body), 200);
     });
 
     service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
         if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
             return res.send(403);
         }
-        res.send(await geesomeApp.updatePost(req.userId, req.params.postId, res.body), 200);
+        res.send(await geesomeApp.updatePost(req.userId, req.params.postId, req.body), 200);
     });
 
     service.post('/v1/user/save-file', async (req, res) => {
