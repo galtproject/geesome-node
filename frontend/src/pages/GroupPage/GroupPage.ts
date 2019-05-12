@@ -29,6 +29,7 @@ export default {
             this.group = await this.$coreApi.getGroup(this.groupId);
         },
         async getPosts() {
+            this.posts = [];
             this.loading = true;
             this.posts = await this.$coreApi.getGroupPosts(this.groupId, 10, 0);
             this.loading = false;
