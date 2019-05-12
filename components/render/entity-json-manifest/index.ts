@@ -47,6 +47,9 @@ class EntityJsonManifest implements IRender {
             
             const groupPosts = await this.app.database.getGroupPosts(group.id, 'desc', 100, 0);
             groupPosts.forEach((post: IPost) => {
+                if(!post.manifestStorageId) {
+                    return;
+                }
                 treeLib.setNode(groupManifest.posts, post.localId, this.getStorageRef(post.manifestStorageId));
             });
             

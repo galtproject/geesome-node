@@ -196,6 +196,7 @@ class GeesomeApp implements IGeesomeApp {
 
     async updateGroupManifest(groupId) {
         const group = await this.database.getGroup(groupId);
+        
         const manifestStorageId = await this.generateAndSaveManifest('group', group);
 
         console.log('bindToStaticId', manifestStorageId, group.manifestStaticStorageId);
