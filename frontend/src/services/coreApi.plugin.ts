@@ -75,6 +75,10 @@ export default {
                 return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
             },
             async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
+                const postsCount = parseInt(await this.getIpld(groupId + '/postsCount'));
+                if(offset + limit > postsCount) {
+                    limit = postsCount - offset;
+                }
                 const postsPath = groupId + '/posts/';
                 return pIteration.map(_.range(offset, offset + limit), (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
