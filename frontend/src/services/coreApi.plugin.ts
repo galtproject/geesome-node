@@ -120,9 +120,11 @@ export default {
                 return pIteration.map(_.range(offset + 1, offset + limit + 1), async (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
                     const post = await this.getIpld(postsPath + postNumberPath);
-                    post.group = group;
+                    if(post) {
+                        post.group = group;
+                    }
                     return post;
-                });
+                }).filter(post => post);
                 // return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
             },
             getCanCreatePost(groupId){
