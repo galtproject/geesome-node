@@ -97,7 +97,7 @@ export class JsIpfsService implements IStorage {
     }
 
     async bindToStaticId(storageId, accountKey) {
-        if(_.startsWith('Qm', accountKey)) {
+        if(_.startsWith(accountKey, 'Qm')) {
             accountKey = await this.getAccountNameById(accountKey);
         }
         return this.node.name.publish(`${storageId}`, {
