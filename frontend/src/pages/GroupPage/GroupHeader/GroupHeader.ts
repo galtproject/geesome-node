@@ -15,6 +15,7 @@ export default {
     template: require('./GroupHeader.html'),
     props: ['group'],
     async created() {
+        this.fetchData();
     },
 
     async mounted() {
@@ -22,30 +23,23 @@ export default {
     },
 
     methods: {
-        
+        async fetchData() {
+            this.coverImageSrc = await this.$coreApi.getImageLink(this.group.coverImage);
+        }
     },
 
     watch: {
-        
+        group() {
+            this.fetchData();
+        }
     },
 
     computed: {
-        coverImage() {
-            if(!this.group) {
-                return '';
-            }
-            return this.$coreApi.getImageLink(this.group.coverImage.storageId);
-        },
-        avatarImage() {
-            if(!this.group) {
-                return '';
-            }
-            return this.$coreApi.getImageLink(this.group.avatarImage.storageId);
-        }
+        
     },
     data() {
         return {
-            content: ''
+            coverImageSrc: null
         }
     },
 }

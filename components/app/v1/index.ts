@@ -70,6 +70,14 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.getGroup(group.id);
     }
 
+    async updateGroup(groupId, updateData) {
+        const group = await this.database.updateGroup(groupId, updateData);
+
+        await this.updateGroupManifest(groupId);
+
+        return this.database.getGroup(groupId);
+    }
+
     async createPost(userId, postData) {
         postData.userId = userId;
 

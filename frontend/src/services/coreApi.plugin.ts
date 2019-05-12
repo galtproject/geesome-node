@@ -40,9 +40,6 @@ export default {
             saveContentData(content, params = {}){
                 return $http.post('/v1/user/save-content-data', _.extend({content}, params)).then(response => response.data);
             },
-            getImageLink(storageId) {
-                return config.serverBaseUrl + 'v1/content-data/' + storageId;
-            },
             getContentData(storageId){
                 return $http.get('/v1/content-data/' + storageId).then(response => response.data);
             },
@@ -50,10 +47,16 @@ export default {
                 return $http.get('/v1/content/' + contentId).then(response => response.data);
             },
             getMemberInGroups(){
-                return $http.get('/v1/user/member-in-groups').then(response => response.data);
+                //TODO: get groups list directly from ipld
+                return $http.get('/v1/user/member-in-groups').then(response => response.data).then(groups => {
+                    return pIteration.map(groups, (group) => this.getGroup(group.manifestStorageId))
+                });
             },
             getAdminInGroups(){
-                return $http.get('/v1/user/admin-in-groups').then(response => response.data);
+                //TODO: get groups list directly from ipld
+                return $http.get('/v1/user/admin-in-groups').then(response => response.data).then(groups => {
+                    return pIteration.map(groups, (group) => this.getGroup(group.manifestStorageId))
+                });
             },
             async getGroup(groupId){
                 const groupObj = await this.getIpld(groupId);
@@ -67,6 +70,22 @@ export default {
                 await pIteration.forEach(fieldsNamesArr, async (fieldName) => {
                     _.set(obj, fieldName, await this.getIpld(_.get(obj, fieldName)));
                 })
+            },
+            async getImageLink(image) {
+                if(!image) {
+                    return null;
+                }
+                let storageId;
+                if(image.content) {
+                    storageId = image.content;
+                } 
+                if(ipfsHelper.isIpldHash(storageId)) {
+                    storageId = (await this.getIpld(storageId)).content;
+                }
+                if(!storageId) {
+                    storageId = image;
+                }
+                return config.serverBaseUrl + 'v1/content-data/' + storageId;
             },
             getIpld(ipldHash) {
                 if(ipldHash.multihash || ipldHash.hash) {

@@ -36,7 +36,7 @@ export default {
                 this.content = await this.$coreApi.getContentData(this.manifestObj.content);
             }
             if(this.type == 'image' || this.type == 'file') {
-                this.content = this.$coreApi.getImageLink(this.manifestObj.content);
+                this.content = await this.$coreApi.getImageLink(this.manifestObj.content);
             }
         }
     },
