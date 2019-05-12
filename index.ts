@@ -28,3 +28,8 @@ import {IGeesomeApp} from "./components/app/interface";
     
     const app: IGeesomeApp = await require('./components/app/v1')(databaseConfig);
 })();
+
+process.on('uncaughtException', (err) => {
+    console.error('There was an uncaught error', err);
+    // process.exit(1) //mandatory (as per the Node docs)
+});
