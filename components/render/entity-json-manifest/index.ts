@@ -33,6 +33,7 @@ class EntityJsonManifest implements IRender {
             const group: IGroup = data;
             const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description']);
 
+            groupManifest.postsCount = group.publishedPostsCount;
             groupManifest.ipns = group.manifestStaticStorageId;
             
             if(group.avatarImage) {
