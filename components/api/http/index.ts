@@ -152,7 +152,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         console.log('ipldPath', ipldPath);
         geesomeApp.getDataStructure(ipldPath).then(result => {
             res.send(_.isNumber(result) ? result.toString() : result);
-        });
+        }).catch(() => {res.send(null, 200)});
     });
     
     function handleError(res, e) {
