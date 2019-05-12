@@ -111,6 +111,7 @@ class GeesomeApp implements IGeesomeApp {
         await this.database.setPostContents(post.id, contentsIds);
         await this.updatePostManifest(post.id);
 
+        console.log('this.database.getPost')
         return this.database.getPost(post.id);
     }
 
