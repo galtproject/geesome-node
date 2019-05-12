@@ -16,6 +16,7 @@ import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 
+const commonHelper = require('../../../libs/common');
 const config = require('./config');
 const _ = require('lodash');
 
@@ -54,7 +55,19 @@ class GeesomeApp implements IGeesomeApp {
     ) {
     }
     
+    async checkGroupId(groupId) {
+        if(!commonHelper.isNumber(groupId)) {
+            const group = await this.database.getGroupByManifestId(groupId);
+            if(!group) {
+                return false;
+            }
+            groupId = group.id;
+        }
+        return groupId;
+    }
+    
     async canCreatePostInGroup(userId, groupId) {
+        groupId = await this.checkGroupId(groupId);
         return this.database.isAdminInGroup(userId, groupId);
     }
 
@@ -231,6 +244,10 @@ class GeesomeApp implements IGeesomeApp {
 
     getGroup(groupId) {
         return this.database.getGroup(groupId);
+    }
+
+    getGroupByManifestId(groupId) {
+        return this.database.getGroupByManifestId(groupId);
     }
 
     getGroupPosts(groupId, sortDir, limit, offset) {

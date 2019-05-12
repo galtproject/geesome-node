@@ -5,15 +5,9 @@
     
     <group-header v-if="group" :group="group"></group-header>
 
-    <md-card class="new-post-card">
-        <md-card-header>
-            <div class="md-subhead" v-locale="localeKey + '.new_post'"></div>
-        </md-card-header>
-
-        <md-card-content>
-            <upload-content></upload-content>
-        </md-card-content>
-    </md-card>
+    <new-post-control v-if="group" :group="group"></new-post-control>
     
-    <post-item v-for="(post, index) in posts" v-model="posts[index]"></post-item>
+    <div class="posts-list">
+        <post-item v-for="(post, index) in posts" v-model="posts[index]"></post-item>
+    </div>
 </posts-container>

@@ -31,6 +31,7 @@ export interface IDatabase {
     getUser(id): Promise<IUser>;
 
     getGroup(id): Promise<IGroup>;
+    getGroupByManifestId(manifestId): Promise<IGroup>;
     addGroup(group): Promise<IGroup>;
     updateGroup(id, updateData): Promise<void>;
     addMemberToGroup(userId, groupId): Promise<void>;

@@ -1,0 +1,11 @@
+<div v-if="canCreatePosts">
+    <md-card class="new-post-card">
+        <md-card-header>
+            <div class="md-subhead" v-locale="localeKey + '.new_post'"></div>
+        </md-card-header>
+
+        <md-card-content>
+            <upload-content></upload-content>
+        </md-card-content>
+    </md-card>
+</div>
