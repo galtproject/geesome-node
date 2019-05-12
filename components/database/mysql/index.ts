@@ -160,13 +160,6 @@ class MysqlDatabase implements IDatabase {
         sortDir = sortDir || 'DESC';
         limit = parseInt(limit) || 10;
         offset = parseInt(offset) || 0;
-        console.log({
-            where: { groupId },
-            include: [{ model: this.models.Content, as: 'contents'}],
-            order: [['publishedAt', sortDir.toUpperCase()]],
-            limit,
-            offset
-        });
         return this.models.Post.findAll({ 
             where: { groupId },
             include: [{ model: this.models.Content, as: 'contents'}],
