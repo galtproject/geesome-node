@@ -41,9 +41,10 @@ export default {
             this.postContentsDbIds.splice(index, 1);
         },
         publishPost() {
+            const postContentsDbIds = this.postContentsDbIds;
             this.postContentsDbIds = [];
             this.saving = true;
-            this.$coreApi.createPost(this.postContentsDbIds, {groupId: this.group.id}).then(() => {
+            this.$coreApi.createPost(postContentsDbIds, {groupId: this.group.id, status: 'published'}).then(() => {
                 this.saving = false;
                 this.$emit('new-post');
             })
