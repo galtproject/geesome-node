@@ -71,7 +71,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     async updateGroup(groupId, updateData) {
-        const group = await this.database.updateGroup(groupId, updateData);
+        await this.database.updateGroup(groupId, updateData);
 
         await this.updateGroupManifest(groupId);
 
