@@ -75,6 +75,7 @@ export default {
     },
     data() {
         return {
+            manifestObj: null,
             content: ''
         }
     },

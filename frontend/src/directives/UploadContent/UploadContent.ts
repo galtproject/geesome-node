@@ -31,6 +31,9 @@ export default {
             this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId}).then(contentObj => {
                 this.$emit('update:content-id', contentObj.id);
                 this.$emit('uploaded', contentObj.id);
+                this.setMode(null);
+                this.localValue = '';
+                this.saving = false;
             })
         }
     },
