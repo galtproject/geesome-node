@@ -17,12 +17,12 @@ const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('../../../libs/ipfsHelper');
 const trie = require('../../../libs/trie');
-import {JsIpfsService} from "../../../components/storage/JsIpfsService";
-
-const IPFS = require('ipfs-http-client');
-
-const node = new IPFS({ host: config.serverBaseUrl.split('://')[1], port: '5001', protocol: config.serverBaseUrl.split('://')[0] });
-const ipfsService = new JsIpfsService(node);
+// import {JsIpfsService} from "../../../components/storage/JsIpfsService";
+//
+// const IPFS = require('ipfs-http-client');
+//
+// const node = new IPFS({ host: config.serverBaseUrl.split('://')[1], port: '5001', protocol: config.serverBaseUrl.split('://')[0] });
+// const ipfsService = new JsIpfsService(node);
     
 export default {
     install (Vue, options: any = {}) {
@@ -65,7 +65,7 @@ export default {
             },
             async getGroup(groupId){
                 if(ipfsHelper.isIpfsHash(groupId)) {
-                    groupId = await ipfsService.resolveStaticId(groupId);
+                    groupId = await this.resolveIpns(groupId);
                 }
                 const groupObj = await this.getIpld(groupId);
                 
@@ -118,6 +118,9 @@ export default {
             },
             getCanCreatePost(groupId){
                 return $http.get(`/v1/user/group/${groupId}/can-create-post`).then(response => response.data);
+            },
+            resolveIpns(ipns){
+                return $http.get(`/resolve/${ipns}`).then(response => response.data);
             },
         };
     }

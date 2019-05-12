@@ -14,7 +14,7 @@
 module.exports = {
     databaseModule: 'mysql',
     databaseConfig: {},
-    storageModule: 'ipfs-http-client',
+    storageModule: 'js-ipfs',
     storageConfig: {
         jsNode: {
             //TODO: get from .env

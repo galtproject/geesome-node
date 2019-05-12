@@ -143,6 +143,10 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         })
     });
 
+    service.get('/resolve/:storageId', async (req, res) => {
+        geesomeApp.storage.resolveStaticId(req.params.storageId).then(res.send.bind(res))
+    });
+
     service.get('/ipld/*', async (req, res) => {
         const ipldPath = req.url.replace('/ipld/', '');
         console.log('ipldPath', ipldPath);

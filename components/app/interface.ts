@@ -29,6 +29,7 @@ export interface IGeesomeApp {
     getFileStream(filePath);
 
     getDataStructure(dataId);
+    getDataStructure(dataId);
     
     getMemberInGroups(userId): Promise<IGroup[]>;
     getAdminInGroups(userId): Promise<IGroup[]>;
