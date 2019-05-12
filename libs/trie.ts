@@ -2,7 +2,6 @@ const base58 = require('./base58');
 
 const trieLib = {
     setNode(tree, id, node) {
-        console.log(tree, id, node);
         id = base58.encode(id);
         const treePath = trieLib.getTreePath(id);
         console.log(treePath.join('/'));
