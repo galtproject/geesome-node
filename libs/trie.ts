@@ -1,12 +1,13 @@
 const base58 = require('./base58');
 
-const treeLib = {
-    setNode(trie, id, node) {
+const trieLib = {
+    setNode(tree, id, node) {
+        console.log(tree, id, node);
         id = base58.encode(id);
-        const treePath = treeLib.getTreePath(id);
+        const treePath = trieLib.getTreePath(id);
         console.log(treePath.join('/'));
 
-        let parentNode = trie;
+        let parentNode = tree;
         treePath.forEach((treePathItem) => {
             if(treePathItem.indexOf('_') == -1) {
                 parentNode[treePathItem] = node;
@@ -21,7 +22,7 @@ const treeLib = {
     
     getNode(tree, id) {
         id = base58.encode(id);
-        const treePath = treeLib.getTreePath(id);
+        const treePath = trieLib.getTreePath(id);
         let curNode = tree;
         for(let i = 0; i < treePath.length; i++) {
             curNode = curNode[treePath[i]];
@@ -43,4 +44,4 @@ const treeLib = {
     }
 };
 
-module.exports = treeLib;
+module.exports = trieLib;
