@@ -6,10 +6,10 @@ module.exports = {
         if(!value) {
             return false;
         }
-        return value.multihash || (_.isString(value) && _.startsWith(value, 'zd'));
+        return _.startsWith(value.codec, 'dag-') || (_.isString(value) && _.startsWith(value, 'zd'));
     },
     cidToHash(cid) {
-        const cidsResult = new CID(1, 'dag-cbor', cid.multihash);
+        const cidsResult = new CID(1, 'dag-cbor', cid.multihash || cid.hash);
         return cidsResult.toBaseEncodedString();
     }
 };

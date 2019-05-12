@@ -69,7 +69,7 @@ export default {
                 })
             },
             getIpld(ipldHash) {
-                if(ipldHash.multihash) {
+                if(ipldHash.multihash || ipldHash.hash) {
                     ipldHash = ipfsHelper.cidToHash(ipldHash);
                 }
                 return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
