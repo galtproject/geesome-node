@@ -144,7 +144,9 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/ipld/*', async (req, res) => {
-        geesomeApp.getDataStructure(req.url.replace('/ipld/')).then(res.send.bind(res));
+        const ipldPath = req.url.replace('/ipld/');
+        console.log('ipldPath', ipldPath);
+        geesomeApp.getDataStructure(ipldPath).then(res.send.bind(res));
     });
     
     function handleError(res, e) {
