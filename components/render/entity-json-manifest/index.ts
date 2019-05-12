@@ -42,11 +42,7 @@ class EntityJsonManifest implements IRender {
                 groupManifest.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
             }
 
-            groupManifest.posts = {
-                1: 223,
-                2: 343,
-                3: 234
-            };
+            groupManifest.posts = {};
             
             (await this.app.database.getGroupPosts(group.id, 'desc', 0, 100)).forEach((post: IPost) => {
                 treeLib.setNode(groupManifest.posts, post.id, this.getStorageRef(post.manifestStorageId));
