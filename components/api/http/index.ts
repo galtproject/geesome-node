@@ -143,8 +143,8 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         })
     });
 
-    service.get('/ipld/:storageId', async (req, res) => {
-        geesomeApp.getDataStructure(req.params.storageId).then(res.send.bind(res));
+    service.get('/ipld/*', async (req, res) => {
+        geesomeApp.getDataStructure(req.url.replace('/ipld/')).then(res.send.bind(res));
     });
     
     function handleError(res, e) {
