@@ -147,7 +147,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         const ipldPath = req.url.replace('/ipld/', '');
         console.log('ipldPath', ipldPath);
         geesomeApp.getDataStructure(ipldPath).then(result => {
-            res.send(result.toString());
+            res.send(_.isNumber(result) ? result.toString() : result);
         });
     });
     
