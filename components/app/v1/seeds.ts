@@ -13,19 +13,19 @@ module.exports = (app: IGeesomeApp) => {
             
             const userId = adminUser.id;
             
-            const myBlogGroup = await app.database.addGroup({ storageAccountId, name: 'my_blog', title: 'My blog', isPublic: true, type: GroupType.Channel, view: GroupView.FullList });
+            const myBlogGroup = await app.createGroup(userId, { name: 'my_blog', title: 'My blog', isPublic: true, type: GroupType.Channel, view: GroupView.FullList });
             const avatar1ImageContent = await app.saveDataByUrl('https://placeimg.com/80/80/nature/img.jpg', userId, myBlogGroup.id);
             const cover1ImageContent = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, myBlogGroup.id);
             await app.database.updateGroup(myBlogGroup.id, {avatarImageId: avatar1ImageContent.id, coverImageId: cover1ImageContent.id});
             await app.database.addAdminToGroup(adminUser.id, myBlogGroup.id);
 
-            const favoritesGroup = await app.database.addGroup({ storageAccountId, name: 'favorites', title: 'Favorites', isPublic: false, type: GroupType.Channel, view: GroupView.Grid });
+            const favoritesGroup = await app.createGroup(userId, { name: 'favorites', title: 'Favorites', isPublic: false, type: GroupType.Channel, view: GroupView.Grid });
             const avatar2ImageContent = await app.saveDataByUrl('https://placeimg.com/80/80/nature/img.jpg', userId, favoritesGroup.id);
             const cover2ImageContent = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, favoritesGroup.id);
             await app.database.updateGroup(favoritesGroup.id, {avatarImageId: avatar2ImageContent.id, coverImageId: cover2ImageContent.id});
             await app.database.addAdminToGroup(adminUser.id, favoritesGroup.id);
             
-            const testGroup = await app.database.addGroup({ storageAccountId, name: 'test', title: 'Test', isPublic: true, type: GroupType.Channel, view: GroupView.Grid});
+            const testGroup = await app.createGroup(userId, { name: 'test', title: 'Test', isPublic: true, type: GroupType.Channel, view: GroupView.Grid});
             const avatar3ImageContent = await app.saveDataByUrl('https://placeimg.com/80/80/nature/img.jpg', userId, testGroup.id);
             const cover3ImageContent = await app.saveDataByUrl('https://placeimg.com/1000/340/nature/img.jpg', userId, testGroup.id);
             await app.database.updateGroup(testGroup.id, {avatarImageId: avatar3ImageContent.id, coverImageId: cover3ImageContent.id});

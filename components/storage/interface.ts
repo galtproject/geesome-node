@@ -26,7 +26,7 @@ export interface IStorage {
     getObject(storageId: string): Promise<any>;
     getObjectProp(storageId: string, propName: string): Promise<any>;
 
-    bindToStaticId(storageId, accountName): Promise<string>;
+    bindToStaticId(storageId, accountKey): Promise<string>;
     resolveStaticId(staticStorageId): Promise<string>;
 }
 

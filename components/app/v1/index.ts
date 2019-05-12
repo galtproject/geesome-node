@@ -58,11 +58,20 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.isAdminInGroup(userId, groupId);
     }
 
-    async createPost(userId, postData) {
-        const storageAccountId = await this.storage.getCurrentAccountId();
+    async createGroup(userId, groupData) {
+        groupData.userId = userId;
+        groupData.storageAccountId = await this.storage.createAccountIfNotExists(groupData['name']);
+        groupData.manifestStaticStorageId = groupData.storageAccountId;
 
+        const group = await this.database.addGroup(groupData);
+
+        await this.updateGroupManifest(group.id);
+
+        return this.database.getGroup(group.id);
+    }
+
+    async createPost(userId, postData) {
         postData.userId = userId;
-        postData.storageAccountId = storageAccountId;
         
         const contentsIds = postData.contentsIds;
         delete postData.contentsIds;
@@ -133,8 +142,17 @@ class GeesomeApp implements IGeesomeApp {
             manifestStorageId: await this.generateAndSaveManifest('post', post)
         });
         
-        return this.database.updateGroup(post.groupId, {
-            manifestStorageId: await this.generateAndSaveManifest('group', await this.database.getGroup(post.groupId))
+        return this.updateGroupManifest(post.groupId);
+    }
+
+    async updateGroupManifest(groupId) {
+        const group = await this.database.getGroup(groupId);
+        const manifestStorageId = await this.generateAndSaveManifest('group', group);
+
+        await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
+        
+        return this.database.updateGroup(groupId, {
+            manifestStorageId
         });
     }
 

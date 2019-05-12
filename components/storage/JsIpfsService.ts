@@ -91,9 +91,9 @@ export class JsIpfsService implements IStorage {
         return this.node.dag.get(storageId + '/' + propName).then(response => response.value);
     }
 
-    async bindToStaticId(storageId, accountName) {
+    async bindToStaticId(storageId, accountKey) {
         return this.node.name.publish(`${storageId}`, {
-            key: accountName
+            key: accountKey
         }).then(response => response.name);
     }
 
