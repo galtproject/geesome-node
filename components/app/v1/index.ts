@@ -74,7 +74,7 @@ class GeesomeApp implements IGeesomeApp {
         postData.userId = userId;
 
         if(postData.status === PostStatus.Published) {
-            postData.localId = this.getPostLocalId(postData);
+            postData.localId = await this.getPostLocalId(postData);
         }
         
         const contentsIds = postData.contentsIds;
@@ -95,7 +95,7 @@ class GeesomeApp implements IGeesomeApp {
         const oldPost = await this.database.getPost(postId);
         
         if(postData.status === PostStatus.Published && !oldPost.localId) {
-            postData.localId = this.getPostLocalId(postData);
+            postData.localId = await this.getPostLocalId(postData);
         }
 
         await this.database.setPostContents(postId, contentsIds);
