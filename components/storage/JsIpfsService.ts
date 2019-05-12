@@ -80,7 +80,7 @@ export class JsIpfsService implements IStorage {
     }
 
     async saveObject(objectData) {
-        const savedObj = await this.node.dag.put(objectData);
+        const savedObj = await this.node.dag.put(JSON.parse(objectData));
         await this.node.pin.add(savedObj);
         return ipfsHelper.cidToHash(savedObj);
     }
