@@ -25,6 +25,7 @@ export default {
     },
     methods: {
         async getGroup() {
+            this.group = null;
             this.group = await this.$coreApi.getGroup(this.groupId);
         },
         async getPosts() {

@@ -67,7 +67,9 @@ export default {
                 if(ipfsHelper.isIpfsHash(groupId)) {
                     groupId = await this.resolveIpns(groupId);
                 }
+                
                 const groupObj = await this.getIpld(groupId);
+                groupObj.id = groupId
                 
                 await this.fetchIpldFields(groupObj, ['avatarImage', 'coverImage']);
                 
@@ -95,7 +97,7 @@ export default {
                 }
                 return config.serverBaseUrl + 'v1/content-data/' + storageId;
             },
-            getIpld(ipldHash) {
+            async getIpld(ipldHash) {
                 if(ipldHash.multihash || ipldHash.hash) {
                     ipldHash = ipfsHelper.cidToHash(ipldHash);
                 }
@@ -105,12 +107,13 @@ export default {
                 return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
             },
             async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
-                const group = await this.getIpld(groupId);
+                const group = await this.getGroup(groupId);
                 const postsCount = parseInt(group.postsCount);
                 if(offset + limit > postsCount) {
                     limit = postsCount - offset;
                 }
-                const postsPath = groupId + '/posts/';
+                
+                const postsPath = group.id + '/posts/';
                 return pIteration.map(_.range(offset + 1, offset + limit + 1), async (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
                     const post = await this.getIpld(postsPath + postNumberPath);
