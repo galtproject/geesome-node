@@ -26,7 +26,7 @@ import "@galtproject/frontend-core/filters";
 import PrettyHex from "@galtproject/frontend-core/directives/PrettyHex/PrettyHex";
 import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc";
 
-import serverApiPlugin from './services/serverApi.plugin';
+import coreApiPlugin from './services/coreApi.plugin';
 import MainMenu from "./directives/MainMenu/MainMenu";
 import ContentManifestItem from "./directives/ContentManifestItem/ContentManifestItem";
 import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
@@ -37,7 +37,7 @@ const config = require('../config');
 
 Vue.use(Notifications);
 
-Vue.use(serverApiPlugin);
+Vue.use(coreApiPlugin);
 Vue.use(httpPlugin);
 Vue.use(Vuex as any);
 Vue.use(storePlugin, {

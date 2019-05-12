@@ -15,6 +15,9 @@ import axios from 'axios';
 import EthData from "@galtproject/frontend-core/libs/EthData";
 const config = require('../../config');
 const _ = require('lodash');
+const pIteration = require('p-iteration');
+const ipfsHelper = require('../../../libs/ipfsHelper');
+const trie = require('../../../libs/trie');
 
 export default {
     install (Vue, options: any = {}) {
@@ -23,7 +26,7 @@ export default {
             headers: {'Authorization': 'unauthorized'}
         });
         
-        Vue.prototype.$serverApi = {
+        Vue.prototype.$coreApi = {
             saveFile(file, params = {}){
                 const formData = new FormData();
                 
@@ -52,11 +55,32 @@ export default {
             getAdminInGroups(){
                 return $http.get('/v1/user/admin-in-groups').then(response => response.data);
             },
-            getGroup(groupId){
-                return $http.get(`/v1/group/${groupId}`).then(response => response.data);
+            async getGroup(groupId){
+                const groupObj = await this.getIpld(groupId);
+                
+                await this.fetchIpldFields(groupObj, ['avatarImage', 'coverImage']);
+                
+                return groupObj;
+                // return $http.get(`/v1/group/${groupId}`).then(response => response.data);
             },
-            getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
-                return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
+            async fetchIpldFields(obj, fieldsNamesArr) {
+                await pIteration.forEach(fieldsNamesArr, async (fieldName) => {
+                    _.set(obj, fieldName, await this.getIpld(_.get(obj, fieldName)));
+                })
+            },
+            getIpld(ipldHash) {
+                if(ipldHash.multihash) {
+                    ipldHash = ipfsHelper.cidToHash(ipldHash);
+                }
+                return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
+            },
+            async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
+                const postsPath = groupId + '/posts/';
+                return pIteration.map(_.range(offset, offset + limit), (postNumber) => {
+                    const postNumberPath = trie.getTreePath(postNumber).join('/');
+                    return this.getIpld(postsPath + postNumberPath);
+                });
+                // return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
             },
             getCanCreatePost(groupId){
                 return $http.get(`/v1/user/group/${groupId}/can-create-post`).then(response => response.data);

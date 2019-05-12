@@ -17,8 +17,8 @@ export default {
     components: {  },
     props: ['menuVisible', 'menuMinimized'],
     async created() {
-        this.memberInGroups = await this.$serverApi.getMemberInGroups();
-        this.adminInGroups = await this.$serverApi.getAdminInGroups();
+        this.memberInGroups = await this.$coreApi.getMemberInGroups();
+        this.adminInGroups = await this.$coreApi.getAdminInGroups();
     },
 
     async mounted() {

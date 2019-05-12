@@ -26,11 +26,15 @@ export default {
 
     methods: {
         async getGroup() {
+            if(this.value.group) {
+                this.group = this.value.group;
+                return;
+            }
             if(!this.value.groupId) {
                 this.group = null;
                 return;
             }
-            this.group = await this.$serverApi.getGroup(this.value.groupId);
+            this.group = await this.$coreApi.getGroup(this.value.groupId);
         }
     },
 

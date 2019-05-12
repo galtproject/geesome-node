@@ -34,13 +34,13 @@ export default {
             if(!this.group) {
                 return '';
             }
-            return this.$serverApi.getImageLink(this.group.coverImage.storageId);
+            return this.$coreApi.getImageLink(this.group.coverImage.storageId);
         },
         avatarImage() {
             if(!this.group) {
                 return '';
             }
-            return this.$serverApi.getImageLink(this.group.avatarImage.storageId);
+            return this.$coreApi.getImageLink(this.group.avatarImage.storageId);
         }
     },
     data() {

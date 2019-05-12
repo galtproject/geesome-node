@@ -1,6 +1,6 @@
 import {IStorage} from "./interface";
 
-const CID = require('cids');
+const ipfsHelper = require('../../libs/ipfsHelper');
 const _ = require('lodash');
 
 export class JsIpfsService implements IStorage {
@@ -82,10 +82,7 @@ export class JsIpfsService implements IStorage {
     async saveObject(objectData) {
         const savedObj = await this.node.dag.put(objectData);
         await this.node.pin.add(savedObj);
-
-        //passing multihash buffer to CID object to convert multihash to a readable format
-        const cidsResult = new CID(1, 'dag-cbor', savedObj.multihash);
-        return cidsResult.toBaseEncodedString();
+        return ipfsHelper.cidToHash(savedObj);
     }
 
     async getObject(storageId) {
@@ -101,7 +98,8 @@ export class JsIpfsService implements IStorage {
             accountKey = await this.getAccountNameById(accountKey);
         }
         return this.node.name.publish(`${storageId}`, {
-            key: accountKey
+            key: accountKey,
+            lifetime: '175200h'
         }).then(response => response.name);
     }
 

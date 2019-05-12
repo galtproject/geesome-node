@@ -16,7 +16,7 @@ export default {
     methods: {
         uploadFile(file) {
             this.uploading = true;
-            this.$serverApi.saveFile(file, {
+            this.$coreApi.saveFile(file, {
                 groupId: 1
             }).then(data => {
                 this.storageId = data;

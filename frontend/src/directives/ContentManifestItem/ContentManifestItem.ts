@@ -11,8 +11,8 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const config = require('../../../config');
 const _ = require('lodash');
+const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestItem.html'),
@@ -27,11 +27,16 @@ export default {
 
     methods: {
         async setContent() {
+            if(ipfsHelper.isIpldHash(this.manifest)) {
+                this.manifestObj = await this.$coreApi.getIpld(this.manifest);
+            } else {
+                this.manifestObj = this.manifest;
+            }
             if(this.type == 'text') {
-                this.content = await this.$serverApi.getContentData(this.manifest.storageId);
+                this.content = await this.$coreApi.getContentData(this.manifestObj.content);
             }
             if(this.type == 'image' || this.type == 'file') {
-                this.content = this.$serverApi.getImageLink(this.manifest.storageId);
+                this.content = this.$coreApi.getImageLink(this.manifestObj.content);
             }
         }
     },
@@ -44,10 +49,13 @@ export default {
 
     computed: {
         type() {
-            if(_.startsWith(this.manifest.type, 'image')) {
+            if(!this.manifestObj) {
+                return null;
+            }
+            if(_.startsWith(this.manifestObj.type, 'image')) {
                 return 'image';
             }
-            if(_.startsWith(this.manifest.type, 'text')) {
+            if(_.startsWith(this.manifestObj.type, 'text')) {
                 return 'text';
             }
             return 'file';
@@ -55,6 +63,7 @@ export default {
     },
     data() {
         return {
+            manifestObj: null,
             content: ''
         }
     },

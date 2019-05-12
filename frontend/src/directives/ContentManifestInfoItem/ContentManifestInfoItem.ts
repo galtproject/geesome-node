@@ -28,10 +28,10 @@ export default {
     methods: {
         async setContent() {
             if(this.type == 'text') {
-                this.content = await this.$serverApi.getContentData(this.manifest.storageId);
+                this.content = await this.$coreApi.getContentData(this.manifest.storageId);
             }
             if(this.type == 'image' || this.type == 'file') {
-                this.content = this.$serverApi.getImageLink(this.manifest.storageId);
+                this.content = this.$coreApi.getImageLink(this.manifest.storageId);
             }
         }
     },

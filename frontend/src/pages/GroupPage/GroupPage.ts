@@ -25,11 +25,11 @@ export default {
     },
     methods: {
         async getGroup() {
-            this.group = await this.$serverApi.getGroup(this.groupId);
+            this.group = await this.$coreApi.getGroup(this.groupId);
         },
         async getPosts() {
             this.loading = true;
-            this.posts = await this.$serverApi.getGroupPosts(this.groupId, 10, 0);
+            this.posts = await this.$coreApi.getGroupPosts(this.groupId, 10, 0);
             this.loading = false;
         }
     },

@@ -28,7 +28,7 @@ export default {
         },
         saveText() {
             this.saving = true;
-            this.$serverApi.saveContentData(this.localValue, {groupId: this.groupId}).then(contentObj => {
+            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId}).then(contentObj => {
                 this.$emit('update:content-id', contentObj.id)
             })
         }
