@@ -123,7 +123,7 @@ export default {
                 // return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
             },
             getCanCreatePost(groupId){
-                return $http.get(`/v1/user/group/${groupId}/can-create-post`).then(response => response.data);
+                return $http.get(`/v1/user/group/${groupId}/can-create-post`).then(response => response.data.valid);
             },
             resolveIpns(ipns){
                 return $http.get(`/resolve/${ipns}`).then(response => response.data);

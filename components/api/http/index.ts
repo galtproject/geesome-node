@@ -85,7 +85,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
     
     service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
-        res.send(await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId));
+        res.send({ valid: await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)});
     });
     
     service.post('/v1/user/group/:groupId/create-post', async (req, res) => {
