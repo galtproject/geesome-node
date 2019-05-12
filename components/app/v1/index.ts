@@ -67,6 +67,9 @@ class GeesomeApp implements IGeesomeApp {
     }
     
     async canCreatePostInGroup(userId, groupId) {
+        if(!groupId) {
+            return false;
+        }
         groupId = await this.checkGroupId(groupId);
         return this.database.isAdminInGroup(userId, groupId);
     }

@@ -85,18 +85,18 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
     
     service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
-        res.send(await geesomeApp.canCreatePostInGroup(req.user.id, req.user.groupId));
+        res.send(await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId));
     });
     
     service.post('/v1/user/group/:groupId/create-post', async (req, res) => {
-        if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.user.groupId)) {
+        if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
             return res.send(403);
         }
         res.send(await geesomeApp.createPost(req.userId, res.body), 200);
     });
 
     service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
-        if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.user.groupId)) {
+        if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
             return res.send(403);
         }
         res.send(await geesomeApp.updatePost(req.userId, req.params.postId, res.body), 200);
