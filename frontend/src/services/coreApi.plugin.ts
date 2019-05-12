@@ -99,6 +99,9 @@ export default {
                 if(ipldHash.multihash || ipldHash.hash) {
                     ipldHash = ipfsHelper.cidToHash(ipldHash);
                 }
+                if(ipldHash['/']) {
+                    ipldHash = ipldHash['/'];
+                }
                 return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
             },
             async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
