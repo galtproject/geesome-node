@@ -147,7 +147,7 @@ class GeesomeApp implements IGeesomeApp {
         return group.publishedPostsCount;
     }
 
-    async saveData(fileStream, fileName, userId, groupId) {
+    async saveData(fileStream, fileName, options) {
         const storageFile = await this.storage.saveFileByData(fileStream);
         
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -155,18 +155,23 @@ class GeesomeApp implements IGeesomeApp {
             return existsContent;
         }
         
-        groupId = await this.checkGroupId(groupId);
+        const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
 
         const type = this.detectType(storageFile.id, fileName);
-        const previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type, {userId, groupId});
+        let previewStorageId;
+        let previewType;
+        if(!options.preview) {
+            previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type, {userId: options.userId, groupId});
+            previewType = type;
+        }
         
         const content = await this.database.addContent({
-            userId,
             groupId,
             type,
             previewStorageId,
-            previewType: type,
+            previewType,
+            userId: options.userId,
             view: ContentView.List,
             storageId: storageFile.id,
             size: storageFile.size,

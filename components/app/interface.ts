@@ -24,7 +24,7 @@ export interface IGeesomeApp {
 
     createPost(userId, postData);
     updatePost(userId, postId, postData);
-    saveData(fileStream, fileName, userId, groupId);
+    saveData(fileStream, fileName, options);
     saveDataByUrl(url, userId, groupId);
     getFileStream(filePath);
 

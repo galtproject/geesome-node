@@ -110,12 +110,12 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
             body[fieldname] = val;
         });
         req.busboy.on('file', async function (fieldname, file, filename) {
-            res.send(await geesomeApp.saveData(file, filename, req.user.id, body['groupId']), 200);
+            res.send(await geesomeApp.saveData(file, filename, {userId: req.user.id, groupId: body['groupId']}), 200);
         });
     });
 
     service.post('/v1/user/save-data', async (req, res) => {
-        res.send(await geesomeApp.saveData(req.body['content'], 'index.html', req.user.id, req.body['groupId']), 200);
+        res.send(await geesomeApp.saveData(req.body['content'], 'index.html', {userId: req.user.id, groupId: req.body['groupId']}), 200);
     });
 
 

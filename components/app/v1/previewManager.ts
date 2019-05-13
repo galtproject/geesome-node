@@ -5,6 +5,8 @@ const sharp = require('sharp');
 module.exports = (app: IGeesomeApp) => {
     return {
         async getPreviewStorageId(storageId, type, data) {
+            const saveDataOptions = {userId: data.userId, groupId: data.groupId, preview: true};
+            
             if(_.startsWith(type, 'image')) {
                 const ext = type.split('/')[1] || 'jpg';
                 const stream = app.storage.getFileStream(storageId);
@@ -19,7 +21,7 @@ module.exports = (app: IGeesomeApp) => {
                         .toFormat(ext);
                 console.log('resizerStream', resizerStream);
 
-                const storageFile = await app.saveData(resizerStream, 'preview', data.userId, data.groupId)
+                const storageFile = await app.saveData(resizerStream, 'preview.' + ext, saveDataOptions);
                 return storageFile.id;
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;
@@ -54,7 +56,7 @@ module.exports = (app: IGeesomeApp) => {
                     }
                 }));
 
-                const storageFile = await app.saveData(previewText, 'preview', data.userId, data.groupId);
+                const storageFile = await app.saveData(previewText, 'preview', saveDataOptions);
                 return storageFile.id;
             }
             return null;
