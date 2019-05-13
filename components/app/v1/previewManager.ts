@@ -26,22 +26,24 @@ module.exports = (app: IGeesomeApp) => {
                 const previewText = await (new Promise((resolve, reject) => {
                     let resolved = false;
                     const stream = app.storage.getFileStream(storageId);
-                    
                     let string = '';
-                    stream.on('readable',function(buffer){
-                        string += buffer.read().toString();
-                        if(string.length > previewTextLength) {
-                            stream.destroy();
-                            resolve(getStringPreview());
-                            resolved = true;
-                        }
-                    });
+                    
+                    stream.on('data', (file) => {
+                        file.on('readable',function(buffer){
+                            string += buffer.read().toString();
+                            if(string.length > previewTextLength) {
+                                file.destroy();
+                                resolve(getStringPreview());
+                                resolved = true;
+                            }
+                        });
 
-                    stream.on('end',function(){
-                        if(!resolved) {
-                            resolve(getStringPreview());
-                            resolved = true;
-                        }
+                        file.on('end',function(){
+                            if(!resolved) {
+                                resolve(getStringPreview());
+                                resolved = true;
+                            }
+                        });
                     });
                     
                     function getStringPreview() {
