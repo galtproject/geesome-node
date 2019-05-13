@@ -14,10 +14,10 @@ module.exports = (app: IGeesomeApp) => {
                 const resizerStream =
                     sharp()
                         .resize({ height: 800, withoutEnlargement: true })
-                        // .composite([{
-                        //     input: stream,
-                        //     blend: 'dest-in'
-                        // }])
+                        .composite([{
+                            input: stream,
+                            blend: 'dest-in'
+                        }])
                         .toFormat(ext).toBuffer();
                 console.log('resizerStream', resizerStream);
 
