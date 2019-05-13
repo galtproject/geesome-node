@@ -14,10 +14,10 @@ module.exports = (app: IGeesomeApp) => {
                 const resizerStream =
                     sharp(stream)
                         .resize({ height: 800, withoutEnlargement: true })
-                        // .composite([{
-                        //     input: stream,
-                        //     blend: 'dest-in'
-                        // }])
+                        .composite([{
+                            input: stream,
+                            blend: 'dest-in'
+                        }])
                         .toFormat(ext).toBuffer();
                 console.log('resizerStream', resizerStream);
 
@@ -36,24 +36,24 @@ module.exports = (app: IGeesomeApp) => {
                     let string = '';
                     
                     console.log('stream', stream);
-                    stream.on('data', (file) => {
-                        console.log('file', file);
-                        file.on('readable',function(buffer){
+                    // stream.on('data', (file) => {
+                    //     console.log('file', file);
+                    stream.on('readable',function(buffer){
                             string += buffer.read().toString();
                             if(string.length > previewTextLength) {
-                                file.destroy();
+                                stream.destroy();
                                 resolve(getStringPreview());
                                 resolved = true;
                             }
                         });
 
-                        file.on('end',function(){
+                    stream.on('end',function(){
                             if(!resolved) {
                                 resolve(getStringPreview());
                                 resolved = true;
                             }
                         });
-                    });
+                    // });
                     
                     function getStringPreview() {
                         return string.replace(/(<([^>]+)>)/ig,"").slice(0, previewTextLength);
