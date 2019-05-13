@@ -12,7 +12,7 @@ module.exports = (app: IGeesomeApp) => {
                 const stream = app.storage.getFileStream(storageId);
 
                 const resizerStream =
-                    sharp(stream)
+                    sharp()
                         .resize({ height: 800, withoutEnlargement: true })
                         .composite([{
                             input: stream,
