@@ -78,7 +78,7 @@ export class JsIpfsService implements IStorage {
     getFileStream(filePath) {
         return new Promise((resolve, reject) => {
             this.node.getReadableStream(filePath).on('data', (file) => {
-                resolve(file);
+                resolve(file.content);
             });
         });
     }
