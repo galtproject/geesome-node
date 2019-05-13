@@ -18,7 +18,7 @@ module.exports = (app: IGeesomeApp) => {
                         //     input: stream,
                         //     blend: 'dest-in'
                         // }])
-                        .toFormat(ext);
+                        .toFormat(ext).toBuffer();
                 console.log('resizerStream', resizerStream);
 
                 const storageFile = await app.saveData(stream.pipe(resizerStream), 'preview.' + ext, saveDataOptions);
