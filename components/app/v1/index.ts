@@ -31,10 +31,13 @@ module.exports = async () => {
 
     app.render = await require('../../render/' + config.renderModule)(app);
     
+    app.previewManager = await require('./previewManager')(app);
+    
     if((await app.database.getUsersCount()) === 0) {
         console.log('Run seeds...');
         await app.runSeeds();
     }
+    
     
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
@@ -49,6 +52,7 @@ class GeesomeApp implements IGeesomeApp {
     storage: IStorage;
     render: IRender;
     authorization: any;
+    previewManager: any;
     
     constructor(
         public config
@@ -145,13 +149,24 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveData(fileStream, fileName, userId, groupId) {
         const storageFile = await this.storage.saveFileByData(fileStream);
+        
+        const existsContent = await this.database.getContentByStorageId(storageFile.id);
+        if(existsContent) {
+            return existsContent;
+        }
+        
         groupId = await this.checkGroupId(groupId);
         const group = await this.database.getGroup(groupId);
+
+        const type = this.detectType(storageFile.id, fileName);
+        const previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type, {userId, groupId});
         
         const content = await this.database.addContent({
             userId,
             groupId,
-            type: this.detectType(storageFile.id, fileName),
+            type,
+            previewStorageId,
+            previewType: type,
             view: ContentView.List,
             storageId: storageFile.id,
             size: storageFile.size,
@@ -165,14 +180,24 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveDataByUrl(url, userId, groupId) {
         const storageFile = await this.storage.saveFileByUrl(url);
+
+        const existsContent = await this.database.getContentByStorageId(storageFile.id);
+        if(existsContent) {
+            return existsContent;
+        }
+        
         groupId = await this.checkGroupId(groupId);
         const group = await this.database.getGroup(groupId);
-
         const name = _.last(url.split('/'));
+        const type = this.detectType(storageFile.id, name);
+        const previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type, {userId, groupId});
+
         const content = await this.database.addContent({
             userId,
             groupId,
-            type: this.detectType(storageFile.id, name),
+            previewStorageId,
+            type,
+            previewType: type,
             view: ContentView.List,
             storageId: storageFile.id,
             size: storageFile.size,

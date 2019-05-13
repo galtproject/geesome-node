@@ -81,6 +81,9 @@ class MysqlDatabase implements IDatabase {
     async getContent(id) {
         return this.models.Content.findOne({ where: { id } });
     }
+    async getContentByStorageId(storageId) {
+        return this.models.Content.findOne({ where: { storageId } });
+    }
 
     async getUsersCount() {
         return this.models.User.count();

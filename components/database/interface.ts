@@ -19,6 +19,7 @@ export interface IDatabase {
     deleteContent(id): Promise<void>;
     getContentList(accountAddress, limit?, offset?): Promise<IContent[]>;
     getContent(id): Promise<IContent>;
+    getContentByStorageId(storageId): Promise<IContent>;
     
     addPost(post: IPost): Promise<IPost>;
     updatePost(id, updateData: any): Promise<IPost>;
@@ -61,6 +62,8 @@ export interface IContent {
     userId: number;
     groupId?: number;
     localId?: number;
+    previewStorageId?: string;
+    previewType?: ContentType;
     storageId?: string;
     staticStorageId?: string;
     manifestStorageId?: string;

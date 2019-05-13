@@ -16,7 +16,7 @@ const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestItem.html'),
-    props: ['manifest'],
+    props: ['manifest', 'previewMode'],
     async created() {
         this.setContent();
     },
@@ -33,10 +33,10 @@ export default {
                 this.manifestObj = this.manifest;
             }
             if(this.type == 'text') {
-                this.content = await this.$coreApi.getContentData(this.manifestObj.content);
+                this.content = await this.$coreApi.getContentData(this.contentId);
             }
             if(this.type == 'image' || this.type == 'file') {
-                this.content = await this.$coreApi.getImageLink(this.manifestObj.content);
+                this.content = await this.$coreApi.getImageLink(this.contentId);
             }
         }
     },
@@ -55,13 +55,19 @@ export default {
             if(!this.manifestObj) {
                 return null;
             }
-            if(_.startsWith(this.manifestObj.type, 'image')) {
+            if(_.startsWith(this.contentType, 'image')) {
                 return 'image';
             }
-            if(_.startsWith(this.manifestObj.type, 'text')) {
+            if(_.startsWith(this.contentType, 'text')) {
                 return 'text';
             }
             return 'file';
+        },
+        contentType() {
+            return this.previewMode && this.manifestObj.preview ? this.manifestObj.previewType : this.manifestObj.type;
+        },
+        contentId() {
+            return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview : this.manifestObj.content;
         }
     },
     data() {
