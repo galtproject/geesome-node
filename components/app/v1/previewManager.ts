@@ -10,8 +10,8 @@ module.exports = (app: IGeesomeApp) => {
             if(_.startsWith(type, 'image')) {
                 const ext = type.split('/')[1] || 'jpg';
                 const stream = await app.storage.getFileStream(storageId);
+                console.log('stream', stream);
                 
-
                 const resizerStream =
                     sharp()
                         .resize({ height: 800, withoutEnlargement: true })
