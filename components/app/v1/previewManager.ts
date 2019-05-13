@@ -21,6 +21,10 @@ module.exports = (app: IGeesomeApp) => {
                         .toFormat(ext).toBuffer();
                 console.log('resizerStream', resizerStream);
 
+                resizerStream.then((buffer) => {
+                    console.log('resizerStream buffer', buffer);
+
+                });
                 const storageFile = await app.saveData(await resizerStream, 'preview.' + ext, saveDataOptions);
                 return storageFile.id;
             } else if(_.startsWith(type, 'text')) {
