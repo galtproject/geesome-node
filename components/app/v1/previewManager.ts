@@ -21,7 +21,7 @@ module.exports = (app: IGeesomeApp) => {
                         .toFormat(ext).toBuffer();
                 console.log('resizerStream', resizerStream);
 
-                const storageFile = await app.saveData(stream.pipe(resizerStream), 'preview.' + ext, saveDataOptions);
+                const storageFile = await app.saveData(await resizerStream, 'preview.' + ext, saveDataOptions);
                 return storageFile.id;
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;
