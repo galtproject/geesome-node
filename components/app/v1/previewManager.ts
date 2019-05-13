@@ -28,7 +28,9 @@ module.exports = (app: IGeesomeApp) => {
                     const stream = app.storage.getFileStream(storageId);
                     let string = '';
                     
+                    console.log('stream', stream);
                     stream.on('data', (file) => {
+                        console.log('file', file);
                         file.on('readable',function(buffer){
                             string += buffer.read().toString();
                             if(string.length > previewTextLength) {
