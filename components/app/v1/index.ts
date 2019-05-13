@@ -149,6 +149,7 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveData(fileStream, fileName, options) {
         const storageFile = await this.storage.saveFileByData(fileStream);
+        console.log('storageFile', storageFile);
         
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
         if(existsContent) {
