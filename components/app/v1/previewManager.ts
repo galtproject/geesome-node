@@ -14,14 +14,14 @@ module.exports = (app: IGeesomeApp) => {
                 const resizerStream =
                     sharp()
                         .resize({ height: 800, withoutEnlargement: true })
-                        .composite([{
-                            input: stream,
-                            blend: 'dest-in'
-                        }])
+                        // .composite([{
+                        //     input: stream,
+                        //     blend: 'dest-in'
+                        // }])
                         .toFormat(ext);
                 console.log('resizerStream', resizerStream);
 
-                const storageFile = await app.saveData(resizerStream, 'preview.' + ext, saveDataOptions);
+                const storageFile = await app.saveData(stream.pipe(resizerStream), 'preview.' + ext, saveDataOptions);
                 return storageFile.id;
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;
