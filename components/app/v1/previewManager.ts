@@ -9,7 +9,8 @@ module.exports = (app: IGeesomeApp) => {
             
             if(_.startsWith(type, 'image')) {
                 const ext = type.split('/')[1] || 'jpg';
-                const stream = app.storage.getFileStream(storageId);
+                const stream = await app.storage.getFileStream(storageId);
+                
 
                 const resizerStream =
                     sharp()
@@ -30,9 +31,9 @@ module.exports = (app: IGeesomeApp) => {
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;
                 
-                const previewText = await (new Promise((resolve, reject) => {
+                const previewText = await (new Promise(async (resolve, reject) => {
                     let resolved = false;
-                    const stream = app.storage.getFileStream(storageId);
+                    const stream = await app.storage.getFileStream(storageId);
                     let string = '';
                     
                     console.log('stream', stream);

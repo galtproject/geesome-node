@@ -15,7 +15,7 @@ export interface IStorage {
     saveFileByPath(path): Promise<IResultFile>;
     saveFileByData(content): Promise<IResultFile>;
     saveFileByUrl(url): Promise<IResultFile>;
-    getFileStream(filePath): any;
+    getFileStream(filePath): Promise<any>;
 
     getAccountIdByName(name): Promise<string>;
     getCurrentAccountId(): Promise<string>;
