@@ -3,6 +3,8 @@ import {DriverInput, IDriver} from "../interface";
 import {Stream} from "stream";
 
 const youtubedl = require('youtube-dl');
+const fs = require('fs');
+const _ = require('lodash');
 
 export class YoutubeThumbnailPreviewDriver implements IDriver{
     supportedInputs = [DriverInput.Source];
@@ -19,9 +21,19 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
                     throw err;
                 console.log('thumbnail file downloaded:', files);
                 resolve({
-                    path: '/tmp/' + files[0].replace(/(\s+)/g, '\\$1'),
+                    path: decodeURIComponent('/tmp/' + files[0]),
                     type: 'image/jpg'
                 })
+                // const oldPath = decodeURIComponent('/tmp/' + files[0]);
+                // const newPath = '/tmp/' + _.last(url.split('/'));
+                // fs.rename(oldPath, newPath, (err) => {
+                //     if (err) throw err;
+                //     resolve({
+                //         path: newPath,
+                //         type: 'image/jpg'
+                //     })
+                // });
+                
             });
         })
     }

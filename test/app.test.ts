@@ -14,6 +14,7 @@
 import {IGeesomeApp} from "../components/app/interface";
 
 const assert = require('assert');
+const fs = require('fs');
 
 describe("app", function () {
     const databaseConfig = { name: 'test_geesome_core', options: {logging: true} };
@@ -41,6 +42,18 @@ describe("app", function () {
 
             it.only("should initialized successfully", async () => {
                 assert.notEqual(await app.database.getUsersCount(), 0);
+                
+                await new Promise((resolve, reject) => {
+                    fs.writeFile('/tmp/test', 'test', resolve);
+                });
+                const resultFile = await app.storage.saveFileByPath('/tmp/test');
+                
+                assert.notEqual(resultFile.storageAccountId, null);
+                
+                // const contentObj = await app.saveDataByUrl('https://www.youtube.com/watch?v=rxGnonKB7TY', {userId: 1, groupId: 1, driver: 'youtube-video'});
+                // console.log('contentObj', contentObj);
+                //
+                // assert.notEqual(contentObj.storageAccountId, null);
             });
         });
     });
