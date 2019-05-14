@@ -163,7 +163,7 @@ class GeesomeApp implements IGeesomeApp {
         let previewStorageId;
         let previewType;
         if(!options.preview) {
-            previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type, {userId: options.userId, groupId});
+            previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type);
             previewType = type;
         }
         
@@ -196,7 +196,7 @@ class GeesomeApp implements IGeesomeApp {
         const group = await this.database.getGroup(groupId);
         const name = _.last(url.split('/'));
         const type = this.detectType(storageFile.id, name);
-        const previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type, {userId, groupId});
+        const previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type);
 
         const content = await this.database.addContent({
             userId,
