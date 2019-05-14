@@ -182,8 +182,15 @@ class GeesomeApp implements IGeesomeApp {
                 previewType: type
             };
         } else if(previewDriver.supportedInputs[0] === DriverInput.Source) {
-            const {content: resultData, type} = await previewDriver.processBySource(source, {});
-            const storageFile = await this.storage.saveFileByData(resultData);
+            const {content: resultData, path, type} = await previewDriver.processBySource(source, {});
+            
+            let storageFile;
+            if(path) {
+                storageFile = await this.storage.saveFileByPath(path);
+            } else {
+                storageFile = await this.storage.saveFileByData(resultData);
+            }
+            
             return {
                 previewStorageId: storageFile.id,
                 previewType: type

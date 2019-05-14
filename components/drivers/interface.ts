@@ -29,5 +29,6 @@ export enum DriverInput {
 export interface IDriverResponse {
     stream?: Stream;
     content?: any;
+    path?: string;
     type?: string;
 }

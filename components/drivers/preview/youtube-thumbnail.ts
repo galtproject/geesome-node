@@ -9,20 +9,20 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
 
     async processBySource(url, options: any = {}) {
         return new Promise((resolve, reject) => {
-            const youtubedlres = youtubedl.getThumbs(url, {
+            youtubedl.getThumbs(url, {
                 // Downloads available thumbnail.
                 all: false,
                 // The directory to save the downloaded files in.
                 cwd: __dirname,
             }, function(err, files) {
-                if (err) throw err;
+                if (err) 
+                    throw err;
                 console.log('thumbnail file downloaded:', files);
                 resolve({
-                    stream: files[0],
+                    path: __dirname + files[0],
                     type: 'image/jpg'
                 })
             });
-            console.log('youtubedlres', youtubedlres);
         })
     }
 }
