@@ -18,10 +18,12 @@ import {IRender} from "../../render/interface";
 import {DriverInput, IDriver} from "../../drivers/interface";
 
 const commonHelper = require('../../../libs/common');
-const config = require('./config');
+let config = require('./config');
 const _ = require('lodash');
 
-module.exports = async () => {
+module.exports = async (extendConfig) => {
+    config = _.merge(config, extendConfig || {});
+    console.log(config);
     const app = new GeesomeApp(config);
 
     console.log('Start storage...');

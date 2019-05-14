@@ -67,22 +67,22 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
-    
-    const GroupAdministrators = sequelize.define('groupAdministrators', { } as any, { } as any);
-    
-    Group.belongsToMany(models.User, { as: 'administrators', through: GroupAdministrators });
-    models.User.belongsToMany(Group, { as: 'administratorInGroups', through: GroupAdministrators });
-    
-    const GroupMembers = sequelize.define('groupMembers', { } as any, { } as any);
 
-    Group.belongsToMany(models.User, { as: 'members', through: GroupMembers });
-    models.User.belongsToMany(Group, { as: 'memberInGroups', through: GroupMembers });
+    models.GroupAdministrators = sequelize.define('groupAdministrators', { } as any, { } as any);
+    
+    Group.belongsToMany(models.User, { as: 'administrators', through: models.GroupAdministrators });
+    models.User.belongsToMany(Group, { as: 'administratorInGroups', through: models.GroupAdministrators });
+
+    models.GroupMembers = sequelize.define('groupMembers', { } as any, { } as any);
+
+    Group.belongsToMany(models.User, { as: 'members', through: models.GroupMembers });
+    models.User.belongsToMany(Group, { as: 'memberInGroups', through: models.GroupMembers });
 
     await Group.sync({});
 
-    await GroupAdministrators.sync({});
+    await models.GroupAdministrators.sync({});
     
-    await GroupMembers.sync({});
+    await models.GroupMembers.sync({});
     
     return Group;
 };

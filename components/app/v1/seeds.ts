@@ -9,7 +9,7 @@ module.exports = (app: IGeesomeApp) => {
         bcrypt.hash('admin', saltRounds, async (err, passwordHash) => {
             const storageAccountId = await app.storage.getCurrentAccountId();
             
-            const adminUser = await app.database.addUser({ storageAccountId, name: 'admin', title: 'Admin', passwordHash });
+            const adminUser = await app.database.addUser({ storageAccountId, passwordHash, name: 'admin', title: 'Admin' });
             
             const userId = adminUser.id;
             

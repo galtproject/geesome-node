@@ -12,18 +12,21 @@
  */
 
 import {IDatabase} from "../interface";
+import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
 const Sequelize = require("sequelize");
 const pIteration = require("p-iteration");
 const Op = Sequelize.Op;
 
-const config = require('./config');
+let config = require('./config');
 
-module.exports = async function(extendConfig?: any) {
-    const extendedConfig = _.merge({}, config, extendConfig || {});
+module.exports = async function(app: IGeesomeApp) {
+    console.log('extendConfig.databaseConfig', app.config.databaseConfig);
+    config = _.merge(config, app.config.databaseConfig || {});
+    console.log('config', config);
     
-    let sequelize = new Sequelize(extendedConfig.name, extendedConfig.user, extendedConfig.password, extendedConfig.options);
+    let sequelize = new Sequelize(config.name, config.user, config.password, config.options);
     
     let models;
     try {
@@ -32,7 +35,7 @@ module.exports = async function(extendConfig?: any) {
         return console.error('Error', e);
     }
     
-    return new MysqlDatabase(sequelize, models, extendedConfig);
+    return new MysqlDatabase(sequelize, models, config);
 };
 
 class MysqlDatabase implements IDatabase {
@@ -48,8 +51,12 @@ class MysqlDatabase implements IDatabase {
 
     async flushDatabase() {
         await this.models.Content.destroy({ where: { } });
+        await this.models.PostsContents.destroy({ where: { } });
+        await this.models.Folder.destroy({ where: { } });
         await this.models.Post.destroy({ where: { } });
         await this.models.GroupPermission.destroy({ where: { } });
+        await this.models.GroupAdministrators.destroy({ where: { } });
+        await this.models.GroupMembers.destroy({ where: { } });
         await this.models.Group.destroy({ where: { } });
         await this.models.User.destroy({ where: { } });
         await this.models.Value.destroy({ where: { } });

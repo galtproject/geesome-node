@@ -16,8 +16,7 @@ import {IDatabase} from "../components/database/interface";
 const assert = require('assert');
 
 describe("databaseValues", function () {
-    const debugDatabase = false;
-    const databaseName = 'test_geesome_core';
+    const databaseConfig = { name: 'test_geesome_core', options: {logging: true} };
     
     let database: IDatabase;
 
@@ -26,7 +25,7 @@ describe("databaseValues", function () {
     databases.forEach((databaseService) => {
         describe(databaseService + ' database', () => {
             before(async () => {
-                database = await require('../components/database/' + databaseService)({ name: databaseName, options: {logging: debugDatabase} });
+                database = await require('../components/database/' + databaseService)({ config: {databaseConfig}});
             });
 
             after(async () => {
