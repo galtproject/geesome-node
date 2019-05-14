@@ -34,6 +34,10 @@ export default {
             this.saving = true;
             this.$coreApi.saveFile(file, {groupId: this.groupId}).then(this.contentUploaded.bind(this))
         },
+        saveLink() {
+            this.saving = true;
+            this.$coreApi.saveDataByUrl(this.localValue, {groupId: this.groupId, driver: this.driver}).then(this.contentUploaded.bind(this))
+        },
         contentUploaded(contentObj) {
             this.$emit('update:content-id', contentObj.id);
             this.$emit('uploaded', contentObj.id);
@@ -44,7 +48,13 @@ export default {
     },
 
     watch: {
-        
+        localValue() {
+            if(this.mode === 'upload_link') {
+                if(_.includes(this.localValue, 'youtube.com')) {
+                    this.driver = 'youtube';
+                }
+            }
+        }
     },
 
     computed: {
@@ -56,7 +66,8 @@ export default {
         return {
             mode: '',
             localValue: '',
-            saving: false
+            saving: false,
+            driver: 'none'
         }
     },
 }

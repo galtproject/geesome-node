@@ -119,7 +119,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/user/save-data-by-url', async (req, res) => {
-        res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, groupId: req.body['groupId']}), 200);
+        res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, groupId: req.body['groupId'], driver: req.body['driver']}), 200);
     });
 
 

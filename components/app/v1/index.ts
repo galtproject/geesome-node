@@ -209,7 +209,15 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     async saveDataByUrl(url, options) {
-        const storageFile = await this.storage.saveFileByUrl(url);
+        options = options || {};
+        
+        let storageFile;
+        if(options.driver && options.driver != 'none') {
+            const dataToSave = await this.handleContentByDriver(url, options.driver);
+            storageFile = await this.storage.saveFileByData(dataToSave);
+        } else {
+            storageFile = await this.storage.saveFileByUrl(url);
+        }
 
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
         if(existsContent) {
@@ -237,6 +245,17 @@ class GeesomeApp implements IGeesomeApp {
         await this.updateContentManifest(content.id);
 
         return content;
+    }
+    
+    async handleContentByDriver(content, driver) {
+        const previewDriver = this.drivers.upload[driver] as IDriver;
+        if(!previewDriver) {
+            throw driver + "_upload_driver_not_found";
+        }
+        if(!_.includes(previewDriver.supportedInputs, DriverInput.Content)) {
+            throw driver + "_upload_driver_input_not_correct";
+        }
+        return previewDriver.processByContent(content, {});
     }
     
     async updatePostManifest(postId) {

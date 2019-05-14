@@ -39,7 +39,7 @@ describe("app", function () {
                 }
             });
 
-            it("should initialized successfully", async () => {
+            it.only("should initialized successfully", async () => {
                 assert.notEqual(await app.database.getUsersCount(), 0);
             });
         });

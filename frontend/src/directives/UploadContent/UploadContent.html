@@ -55,29 +55,33 @@
         </md-button>
     </div>
 
-    <div v-if="mode === 'upload_new'" class="file-upload">
-        <div class="dropbox">
-            <input type="file" @change="uploadFile($event.target.files[0])">
-            <p>Drop or choose file</p>
+    <div v-if="mode === 'upload_link'" class="file-upload">
+        <div class="md-layout">
+            <div class="md-layout-item md-size-60">
+                <md-field>
+                    <label>Url</label>
+                    <md-input v-model="localValue"></md-input>
+                </md-field>
+            </div>
+            <div class="md-layout-item md-size-5">
+            </div>
+            <div class="md-layout-item md-size-35">
+                <md-field>
+                    <label>Resource type</label>
+                    <md-select v-model="driver">
+                        <md-option value="none">Link to file</md-option>
+                        <md-option value="youtube">Youtube video</md-option>
+                    </md-select>
+                </md-field>
+            </div>
         </div>
 
         <md-button class="md-accent" @click="setMode(null)" :disabled="saving">
             <md-icon class="fas fa-times"></md-icon> Cancel
         </md-button>
-    </div>
 
-    <div v-if="mode === 'upload_link'" class="file-upload">
-        <div class="md-layout">
-            <div class="md-layout-item md-size-60">
-                
-            </div>
-            <div class="md-layout-item md-size-40">
-                
-            </div>
-        </div>
-
-        <md-button class="md-accent" @click="setMode(null)" :disabled="saving">
-            <md-icon class="fas fa-times"></md-icon> Cancel
+        <md-button class="md-raised md-accent" @click="saveLink()" :disabled="saving">
+            <md-icon class="fas fa-save"></md-icon> Save
         </md-button>
     </div>
 
