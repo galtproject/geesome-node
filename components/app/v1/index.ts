@@ -214,6 +214,7 @@ class GeesomeApp implements IGeesomeApp {
         let storageFile;
         if(options.driver && options.driver != 'none') {
             const dataToSave = await this.handleContentByDriver(url, options.driver);
+            console.log('options.driver', options.driver, 'dataToSave', dataToSave)
             storageFile = await this.storage.saveFileByData(dataToSave);
         } else {
             storageFile = await this.storage.saveFileByUrl(url);

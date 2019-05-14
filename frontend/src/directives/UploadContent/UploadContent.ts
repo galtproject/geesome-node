@@ -11,6 +11,8 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+const _ = require('lodash');
+
 export default {
     template: require('./UploadContent.html'),
     props: ['contentId', 'groupId'],
