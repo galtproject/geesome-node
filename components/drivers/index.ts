@@ -1,9 +1,10 @@
+
 module.exports = {
     preview: {
-        image: require('./preview/image'),
-        text: require('./preview/text')
+        image: new (require('./preview/image') as any),
+        text: new (require('./preview/text') as any)
     },
     upload: {
-        youtube: require('./upload/youtube')
+        youtube: new (require('./upload/youtube') as any)
     }
 };
