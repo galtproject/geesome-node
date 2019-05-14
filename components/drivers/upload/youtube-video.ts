@@ -4,10 +4,10 @@ import {Stream} from "stream";
 
 const youtubedl = require('youtube-dl');
 
-export class YoutubeUploadDriver implements IDriver{
-    supportedInputs = [DriverInput.Content];
+export class YoutubeVideoUploadDriver implements IDriver{
+    supportedInputs = [DriverInput.Source];
 
-    async processByContent(url, options: any = {}) {
+    async processBySource(url, options: any = {}) {
         const stream = youtubedl(url,
             // Optional arguments passed to youtube-dl.
             ['--format=18'],

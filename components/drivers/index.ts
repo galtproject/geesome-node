@@ -1,13 +1,15 @@
 import {ImagePreviewDriver} from "./preview/image";
 import {TextPreviewDriver} from "./preview/text";
-import {YoutubeUploadDriver} from "./upload/youtube";
+import {YoutubeVideoUploadDriver} from "./upload/youtube-video";
+import {YoutubeThumbnailPreviewDriver} from "./preview/youtube-thumbnail";
 
 module.exports = {
     preview: {
         image: new ImagePreviewDriver(),
-        text: new TextPreviewDriver()
+        text: new TextPreviewDriver(),
+        'youtube-thumbnail': new YoutubeThumbnailPreviewDriver()
     },
     upload: {
-        youtube: new YoutubeUploadDriver()
+        'youtube-video': new YoutubeVideoUploadDriver()
     }
 };

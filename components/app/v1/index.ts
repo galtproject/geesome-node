@@ -18,6 +18,7 @@ import {IRender} from "../../render/interface";
 import {DriverInput, IDriver} from "../../drivers/interface";
 
 const commonHelper = require('../../../libs/common');
+const detecterHelper = require('../../../libs/detecter');
 let config = require('./config');
 const _ = require('lodash');
 
@@ -148,13 +149,21 @@ class GeesomeApp implements IGeesomeApp {
         return group.publishedPostsCount;
     }
 
-    async getPreview(storageId, fullType) {
-        const type = fullType.split('/')[0];
+    async getPreview(storageId, fullType, source?) {
+        let type;
+        if(source) {
+            if(detecterHelper.isYoutubeUrl(source)) {
+                type = 'youtube-thumbnail';
+            }
+        }
+        if(!type) {
+            type = fullType.split('/')[0];
+        }
         const extension = fullType.split('/')[1];
         
         const previewDriver = this.drivers.preview[type] as IDriver;
         if(!previewDriver) {
-            throw type + "_preview_driver_not_found";
+            return {};
         }
         if(previewDriver.supportedInputs[0] === DriverInput.Stream) {
             const inputStream = await this.storage.getFileStream(storageId);
@@ -167,6 +176,13 @@ class GeesomeApp implements IGeesomeApp {
         } else if(previewDriver.supportedInputs[0] === DriverInput.Content) {
             const data = await this.storage.getFileData(storageId);
             const {content: resultData, type} = await previewDriver.processByContent(data, {extension});
+            const storageFile = await this.storage.saveFileByData(resultData);
+            return {
+                previewStorageId: storageFile.id,
+                previewType: type
+            };
+        } else if(previewDriver.supportedInputs[0] === DriverInput.Source) {
+            const {content: resultData, type} = await previewDriver.processBySource(source, {});
             const storageFile = await this.storage.saveFileByData(resultData);
             return {
                 previewStorageId: storageFile.id,
@@ -216,8 +232,7 @@ class GeesomeApp implements IGeesomeApp {
         
         let storageFile;
         if(options.driver && options.driver != 'none') {
-            const dataToSave = await this.handleContentByDriver(url, options.driver);
-            console.log('options.driver', options.driver, 'dataToSave', dataToSave);
+            const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
             storageFile = await this.storage.saveFileByData(dataToSave.stream);
             type = dataToSave.type;
         } else {
@@ -232,7 +247,7 @@ class GeesomeApp implements IGeesomeApp {
         
         const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
-        let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
+        let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type, url);
 
         const content = await this.database.addContent({
             groupId,
@@ -251,15 +266,15 @@ class GeesomeApp implements IGeesomeApp {
         return content;
     }
     
-    async handleContentByDriver(content, driver) {
+    async handleSourceByUploadDriver(sourceLink, driver) {
         const previewDriver = this.drivers.upload[driver] as IDriver;
         if(!previewDriver) {
             throw driver + "_upload_driver_not_found";
         }
-        if(!_.includes(previewDriver.supportedInputs, DriverInput.Content)) {
+        if(!_.includes(previewDriver.supportedInputs, DriverInput.Source)) {
             throw driver + "_upload_driver_input_not_correct";
         }
-        return previewDriver.processByContent(content, {});
+        return previewDriver.processBySource(sourceLink, {});
     }
     
     async updatePostManifest(postId) {

@@ -17,11 +17,13 @@ export interface IDriver {
     supportedInputs: string[];
     processByStream?(inputSteam: Stream, options?): Promise<IDriverResponse>;
     processByContent?(inputContent: any, options?): Promise<IDriverResponse>;
+    processBySource?(sourceLink: any, options?): Promise<IDriverResponse>;
 }
 
 export enum DriverInput {
     Stream = 'stream',
-    Content = 'content'
+    Content = 'content',
+    Source = 'source'
 }
 
 export interface IDriverResponse {

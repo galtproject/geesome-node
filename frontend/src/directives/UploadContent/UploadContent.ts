@@ -12,6 +12,7 @@
  */
 
 const _ = require('lodash');
+const detecterLib = require('../../../../libs/detecter');
 
 export default {
     template: require('./UploadContent.html'),
@@ -52,8 +53,8 @@ export default {
     watch: {
         localValue() {
             if(this.mode === 'upload_link') {
-                if(_.includes(this.localValue, 'youtube.com')) {
-                    this.driver = 'youtube';
+                if(detecterLib.isYoutubeUrl(this.localValue)) {
+                    this.driver = 'youtube-video';
                 }
             }
         }
