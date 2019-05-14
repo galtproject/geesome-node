@@ -9,7 +9,7 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
 
     async processBySource(url, options: any = {}) {
         return new Promise((resolve, reject) => {
-            youtubedl.getThumbs(url, {
+            const youtubedlres = youtubedl.getThumbs(url, {
                 // Downloads available thumbnail.
                 all: false,
                 // The directory to save the downloaded files in.
@@ -22,6 +22,7 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
                     type: 'image/jpg'
                 })
             });
+            console.log('youtubedlres', youtubedlres);
         })
     }
 }
