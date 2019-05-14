@@ -19,7 +19,7 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
                     throw err;
                 console.log('thumbnail file downloaded:', files);
                 resolve({
-                    path: '/tmp/' + files[0],
+                    path: '/tmp/' + files[0].replace(/(\s+)/g, '\\$1'),
                     type: 'image/jpg'
                 })
             });
