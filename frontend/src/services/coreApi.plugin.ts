@@ -45,6 +45,9 @@ export default {
             saveContentData(content, params = {}){
                 return $http.post('/v1/user/save-data', _.extend({content}, params)).then(response => response.data);
             },
+            saveDataByUrl(url, params = {}){
+                return $http.post('/v1/user/save-data-by-url', _.extend({url}, params)).then(response => response.data);
+            },
             createPost(contentsIds, params: any = {}){
                 return $http.post(`/v1/user/group/${params.groupId}/create-post`, _.extend({contentsIds}, params)).then(response => response.data);
             },

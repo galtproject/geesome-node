@@ -15,6 +15,7 @@ import {IDatabase, GroupType, GroupView, ContentType, PostStatus, ContentView, I
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
+import {DriverInput, IDriver} from "../../drivers/interface";
 
 const commonHelper = require('../../../libs/common');
 const config = require('./config');
@@ -31,13 +32,12 @@ module.exports = async () => {
 
     app.render = await require('../../render/' + config.renderModule)(app);
     
-    app.previewManager = await require('./previewManager')(app);
+    app.drivers = require('../../drivers');
     
     if((await app.database.getUsersCount()) === 0) {
         console.log('Run seeds...');
         await app.runSeeds();
     }
-    
     
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
@@ -52,7 +52,7 @@ class GeesomeApp implements IGeesomeApp {
     storage: IStorage;
     render: IRender;
     authorization: any;
-    previewManager: any;
+    drivers: any;
     
     constructor(
         public config
@@ -115,7 +115,6 @@ class GeesomeApp implements IGeesomeApp {
         await this.database.setPostContents(post.id, contentsIds);
         await this.updatePostManifest(post.id);
 
-        console.log('this.database.getPost')
         return this.database.getPost(post.id);
     }
 
@@ -147,6 +146,35 @@ class GeesomeApp implements IGeesomeApp {
         return group.publishedPostsCount;
     }
 
+    async getPreview(storageId, fullType) {
+        const type = fullType.split('/')[0];
+        const extension = fullType.split('/')[1];
+        
+        const previewDriver = this.drivers.preview[type] as IDriver;
+        if(!previewDriver) {
+            throw type + "_preview_driver_not_found";
+        }
+        if(previewDriver.supportedInputs[0] === DriverInput.Stream) {
+            const inputStream = await this.storage.getFileStream(storageId);
+            const {stream: resultStream, type} = await previewDriver.processByStream(inputStream, {extension});
+            const storageFile = await this.storage.saveFileByData(resultStream);
+            return {
+                previewStorageId: storageFile.id,
+                previewType: type
+            };
+        } else if(previewDriver.supportedInputs[0] === DriverInput.Content) {
+            const data = await this.storage.getFileData(storageId);
+            const {content: resultData, type} = await previewDriver.processByContent(data, {extension});
+            const storageFile = await this.storage.saveFileByData(resultData);
+            return {
+                previewStorageId: storageFile.id,
+                previewType: type
+            };
+        } else {
+            throw type + "_preview_driver_input_not_found";
+        }
+    }
+
     async saveData(fileStream, fileName, options) {
         const storageFile = await this.storage.saveFileByData(fileStream);
         
@@ -159,14 +187,13 @@ class GeesomeApp implements IGeesomeApp {
         const group = await this.database.getGroup(groupId);
 
         const type = this.detectType(storageFile.id, fileName);
-        let previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type);
-        let previewType = type;
-        
+        let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
+
         const content = await this.database.addContent({
             groupId,
             type,
             previewStorageId,
-            previewType,
+            previewType: previewType as any,
             userId: options.userId,
             view: ContentView.List,
             storageId: storageFile.id,
@@ -179,7 +206,7 @@ class GeesomeApp implements IGeesomeApp {
         return content;
     }
 
-    async saveDataByUrl(url, userId, groupId) {
+    async saveDataByUrl(url, options) {
         const storageFile = await this.storage.saveFileByUrl(url);
 
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -187,18 +214,18 @@ class GeesomeApp implements IGeesomeApp {
             return existsContent;
         }
         
-        groupId = await this.checkGroupId(groupId);
+        const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
         const name = _.last(url.split('/'));
         const type = this.detectType(storageFile.id, name);
-        const previewStorageId = await this.previewManager.getPreviewStorageId(storageFile.id, type);
+        let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
 
         const content = await this.database.addContent({
-            userId,
             groupId,
-            previewStorageId,
             type,
-            previewType: type,
+            previewStorageId,
+            previewType: previewType as any,
+            userId: options.userId,
             view: ContentView.List,
             storageId: storageFile.id,
             size: storageFile.size,
