@@ -39,9 +39,9 @@ module.exports = (app: IGeesomeApp) => {
                     console.log('stream', stream);
                     // stream.on('data', (file) => {
                     //     console.log('file', file);
-                    stream.setEncoding('utf8');
+                    // stream.setEncoding('utf8');
                     stream.on('data',function(chunk){
-                            string += chunk;
+                            string += chunk.toString('utf8');
                             if(string.length > previewTextLength) {
                                 stream.destroy();
                                 resolve(getStringPreview());
