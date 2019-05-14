@@ -13,13 +13,13 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
                 // Downloads available thumbnail.
                 all: false,
                 // The directory to save the downloaded files in.
-                cwd: __dirname,
+                cwd: '/tmp/',
             }, function(err, files) {
                 if (err) 
                     throw err;
                 console.log('thumbnail file downloaded:', files);
                 resolve({
-                    path: __dirname + files[0],
+                    path: '/tmp/' + files[0],
                     type: 'image/jpg'
                 })
             });
