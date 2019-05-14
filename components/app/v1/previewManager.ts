@@ -19,14 +19,14 @@ module.exports = (app: IGeesomeApp) => {
                             input: stream,
                             blend: 'dest-in'
                         }])
-                        .toFormat(ext).toBuffer();
+                        .toFormat(ext);//.toBuffer()
                 console.log('resizerStream', resizerStream);
 
-                resizerStream.then((buffer) => {
-                    console.log('resizerStream buffer', buffer);
-
-                });
-                const storageFile = await app.saveData(await resizerStream, 'preview.' + ext, saveDataOptions);
+                // resizerStream.then((buffer) => {
+                //     console.log('resizerStream buffer', buffer);
+                //
+                // });
+                const storageFile = await app.saveData(resizerStream, 'preview.' + ext, saveDataOptions);
                 return storageFile.id;
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;

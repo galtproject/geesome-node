@@ -132,14 +132,14 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/v1/content-data/:storageId', async (req, res) => {
-        geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
-            if(file.type !== 'dir') { file.content.pipe(res); }
+        geesomeApp.getFileStream(req.params.storageId).then((stream) => {
+             stream.pipe(res);
         })
     });
 
     service.get('/ipfs/:storageId', async (req, res) => {
-        geesomeApp.getFileStream(req.params.storageId).on('data', (file) => {
-            if(file.type !== 'dir') { file.content.pipe(res); }
+        geesomeApp.getFileStream(req.params.storageId).then((stream) => {
+            stream.pipe(res);
         })
     });
 
