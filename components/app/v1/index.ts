@@ -210,14 +210,19 @@ class GeesomeApp implements IGeesomeApp {
 
     async saveDataByUrl(url, options) {
         options = options || {};
+
+        const name = _.last(url.split('/'));
+        let type;
         
         let storageFile;
         if(options.driver && options.driver != 'none') {
             const dataToSave = await this.handleContentByDriver(url, options.driver);
-            console.log('options.driver', options.driver, 'dataToSave', dataToSave)
-            storageFile = await this.storage.saveFileByData(dataToSave);
+            console.log('options.driver', options.driver, 'dataToSave', dataToSave);
+            storageFile = await this.storage.saveFileByData(dataToSave.stream);
+            type = dataToSave.type;
         } else {
             storageFile = await this.storage.saveFileByUrl(url);
+            type = this.detectType(storageFile.id, name);
         }
 
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -227,8 +232,6 @@ class GeesomeApp implements IGeesomeApp {
         
         const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
-        const name = _.last(url.split('/'));
-        const type = this.detectType(storageFile.id, name);
         let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
 
         const content = await this.database.addContent({
