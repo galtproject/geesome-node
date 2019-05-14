@@ -26,7 +26,7 @@ module.exports = (app: IGeesomeApp) => {
                 //     console.log('resizerStream buffer', buffer);
                 //
                 // });
-                const storageFile = await app.saveData(stream.pipe(resizerStream), 'preview.' + ext, saveDataOptions);
+                const storageFile = await app.storage.saveFileByData(stream.pipe(resizerStream));
                 return storageFile.id;
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;
@@ -34,7 +34,7 @@ module.exports = (app: IGeesomeApp) => {
                 const data = await app.storage.getFileData(storageId);
                 let previewString = data.toString('utf8').replace(/(<([^>]+)>)/ig,"").slice(0, previewTextLength);
 
-                const storageFile = await app.saveData(previewString, 'preview', saveDataOptions);
+                const storageFile = await app.storage.saveFileByData(previewString);
                 return storageFile.id;
             }
             return null;
