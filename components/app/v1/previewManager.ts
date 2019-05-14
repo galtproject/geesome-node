@@ -31,38 +31,10 @@ module.exports = (app: IGeesomeApp) => {
             } else if(_.startsWith(type, 'text')) {
                 const previewTextLength = 50;
                 
-                const previewText = await (new Promise(async (resolve, reject) => {
-                    let resolved = false;
-                    const stream = await app.storage.getFileStream(storageId);
-                    let string = '';
-                    
-                    console.log('stream', stream);
-                    // stream.on('data', (file) => {
-                    //     console.log('file', file);
-                    // stream.setEncoding('utf8');
-                    stream.on('data',function(chunk){
-                            string += chunk.toString('utf8');
-                            if(string.length > previewTextLength) {
-                                stream.destroy();
-                                resolve(getStringPreview());
-                                resolved = true;
-                            }
-                        });
+                const data = await app.storage.getFileData(storageId);
+                let previewString = data.toString('utf8').replace(/(<([^>]+)>)/ig,"").slice(0, previewTextLength);
 
-                    stream.on('end',function(){
-                            if(!resolved) {
-                                resolve(getStringPreview());
-                                resolved = true;
-                            }
-                        });
-                    // });
-                    
-                    function getStringPreview() {
-                        return string.replace(/(<([^>]+)>)/ig,"").slice(0, previewTextLength);
-                    }
-                }));
-
-                const storageFile = await app.saveData(previewText, 'preview', saveDataOptions);
+                const storageFile = await app.saveData(previewString, 'preview', saveDataOptions);
                 return storageFile.id;
             }
             return null;

@@ -83,6 +83,10 @@ export class JsIpfsService implements IStorage {
         });
     }
 
+    getFileData(filePath) {
+        return this.node.cat(filePath).then((result) => result.content);
+    }
+
     async saveObject(objectData) {
         // objectData = _.isObject(objectData) ? JSON.stringify(objectData) : objectData;
         const savedObj = await this.node.dag.put(objectData);
