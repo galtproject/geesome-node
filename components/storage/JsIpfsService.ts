@@ -2,6 +2,7 @@ import {IStorage} from "./interface";
 
 const ipfsHelper = require('../../libs/ipfsHelper');
 const _ = require('lodash');
+const fs = require('fs');
 
 export class JsIpfsService implements IStorage {
     node;
@@ -26,11 +27,7 @@ export class JsIpfsService implements IStorage {
     }
 
     async saveFileByPath(path) {
-        console.log('saveFileByPath', path);
-        const result = await this.node.addFromFs(path);
-        console.log('result', result);
-        await this.node.pin.add(result[0].hash);
-        return this.wrapIpfsItem(result[0]);
+        return this.saveFile({content: fs.createReadStream(path)});
     }
 
     async saveFileByData(content) {
