@@ -12,6 +12,7 @@
  */
 
 const _ = require('lodash');
+const fileSaver = require('file-saver');
 const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
@@ -39,18 +40,25 @@ export default {
         },
         async setContent() {
             this.loading = true;
+            
             if(ipfsHelper.isIpldHash(this.manifest)) {
                 this.manifestObj = await this.$coreApi.getIpld(this.manifest);
             } else if(this.manifest) {
                 this.manifestObj = this.manifest;
             }
+
+            this.srcLink = await this.$coreApi.getImageLink(this.manifestObj.content);
+            
             if(this.type == 'text') {
                 this.content = await this.$coreApi.getContentData(this.manifestObj.content);
             }
             if(this.type == 'image' || this.type == 'file') {
-                this.content = await this.$coreApi.getImageLink(this.manifestObj.content);
+                this.content = this.srcLink;
             }
             this.loading = false;
+        },
+        download() {
+            fileSaver.saveAs(this.srcLink, this.filename);
         }
     },
 
@@ -64,6 +72,9 @@ export default {
     },
 
     computed: {
+        filename() {
+            return _.last(this.srcLink.split('/')) + '.' + this.extension;
+        },
         type() {
             if(!this.manifestObj) {
                 return null;
@@ -76,6 +87,22 @@ export default {
             }
             return 'file';
         },
+        extension() {
+            if(!this.manifestObj) {
+                return null;
+            }
+            const split = this.manifestObj.type.split('/');
+            if(split[1]) {
+                return split[1];
+            } else if(this.type === 'video') {
+                return 'mp4';
+            } else if(this.type === 'image') {
+                return 'jpg';
+            } else if(this.type === 'text') {
+                return 'txt';
+            }
+            return '';
+        },
         showCloseButton() {
             return !!this.$listeners.close;
         }
@@ -84,6 +111,7 @@ export default {
         return {
             manifestObj: null,
             content: '',
+            srcLink: '',
             loading: true
         }
     },

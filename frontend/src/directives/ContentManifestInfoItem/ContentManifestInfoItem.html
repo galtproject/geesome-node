@@ -10,7 +10,8 @@
                 Type: {{manifestObj.type}}<br>
                 Size: {{manifestObj.size}} bytes<br>
                 Ipfs hash: <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
-                Preview ipfs hash: <pretty-hex :hex="manifestObj.preview"></pretty-hex>
+                Preview ipfs hash: <pretty-hex :hex="manifestObj.preview"></pretty-hex><br>
+                <a :href="srcLink" @click.prevent="download">Download</a>
             </div>
             <md-button v-if="showCloseButton" class="md-accent md-icon-button" @click="$emit('close')" style="position: absolute; top: 0; right: 0;">
                 <md-icon class="fas fa-times"></md-icon>

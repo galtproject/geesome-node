@@ -36,10 +36,13 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     // service.use(geesomeApp.authorization.initialize());
     // service.use(geesomeApp.authorization.session());
     
-    service.use((req, res, next) => {
+    function setHeaders(res) {
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS");
+        res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    }
+    service.use((req, res, next) => {
+        setHeaders(res);
 
         req.query = {};
         if(_.includes(req.url, '?')) {
@@ -59,9 +62,11 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
     service.use(busboy());
 
     service.options("/*", function(req, res, next){
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS");
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+        setHeaders(res);
+        res.send(200);
+    });
+    service.head("/*", function(req, res, next){ 
+        setHeaders(res);
         res.send(200);
     });
 
