@@ -47,18 +47,11 @@ class MysqlDatabase implements IDatabase {
     }
 
     getSessionStore() {
-        const session = require('express-session');
-        const MySQLStore = require('express-mysql-session')(session);
-
-        const options = {
-            host: this.config.options.host,
-            port: this.config.options.port,
-            user: this.config.user,
-            password: this.config.password,
-            database: this.config.name
-        };
-
-        return new MySQLStore(options);
+        const expressSession = require('express-session');
+        const SessionStore = require('express-session-sequelize')(expressSession.Store);
+        return new SessionStore({
+            db: this.sequelize,
+        });
     }
 
     async flushDatabase() {
