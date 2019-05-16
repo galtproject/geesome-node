@@ -88,6 +88,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/v1/current-user', async (req, res) => {
+        if(!req.user || !req.user.id) {
+            return res.send(req.user, 401);
+        }
         res.send(req.user, 200);
     });
 
