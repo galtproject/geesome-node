@@ -17,8 +17,8 @@ module.exports = {
     storageModule: 'js-ipfs',
     storageConfig: {
         jsNode: {
-            //TODO: get from .env
-            pass: 'traffic enough crater wear tissue term town have switch exhibit onion asset'
+            // getting by getSecretKey
+            pass: ''
         },
         goNode: {
             // host: 'ipfs.infura.io', port: '5001', protocol: 'https'

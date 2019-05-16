@@ -21,12 +21,16 @@ const commonHelper = require('../../../libs/common');
 const detecterHelper = require('../../../libs/detecter');
 let config = require('./config');
 const _ = require('lodash');
+const fs = require('fs');
+const xkcdPassword = require('xkcd-password')();
 
 module.exports = async (extendConfig) => {
     config = _.merge(config, extendConfig || {});
     console.log(config);
     const app = new GeesomeApp(config);
 
+    app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs');
+    
     console.log('Start storage...');
     app.storage = await require('../../storage/' + config.storageModule)(app);
     
@@ -60,6 +64,20 @@ class GeesomeApp implements IGeesomeApp {
     constructor(
         public config
     ) {
+    }
+    
+    async getSecretKey(keyName) {
+        const keyPath = `${__dirname}/${keyName}.key`;
+        let secretKey = fs.readFileSync(keyPath).toString();
+        if(secretKey) {
+            return secretKey;
+        }
+        
+        secretKey = await xkcdPassword.generate({numWords: 8, minLength: 5, maxLength: 8});
+        await new Promise((resolve, reject) => {
+            fs.writeFile(keyPath, secretKey, resolve);
+        });
+        return secretKey;
     }
     
     async checkGroupId(groupId) {

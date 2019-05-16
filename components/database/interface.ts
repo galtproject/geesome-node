@@ -12,6 +12,7 @@
  */
 
 export interface IDatabase {
+    getSessionStore(): any;
     flushDatabase(): Promise<void>;
 
     addContent(content: IContent): Promise<IContent>;

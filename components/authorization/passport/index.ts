@@ -38,6 +38,10 @@ module.exports = async (app: IGeesomeApp) => {
     passport.deserializeUser(function(id, cb) {
         app.database.getUser(id).then(user => cb(null, user)).catch(cb);
     });
+
+    passport.handleAuth = () => {
+        return passport.authenticate('local');//, { failureRedirect: '/login' }
+    };
     
     return passport;
 };

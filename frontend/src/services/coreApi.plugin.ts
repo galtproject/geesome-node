@@ -32,6 +32,12 @@ export default {
         });
         
         Vue.prototype.$coreApi = {
+            getCurrentUser(){
+                return $http.get('/v1/current-user').then(response => response.data);
+            },
+            login(username, password){
+                return $http.post('/v1/login', {username, password}).then(response => response.data);
+            },
             saveFile(file, params = {}){
                 const formData = new FormData();
                 

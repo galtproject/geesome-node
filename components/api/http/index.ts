@@ -24,17 +24,36 @@ const service = require('restana')({
 const bodyParser = require('body-parser');
 const _ = require('lodash');
 
-module.exports = (geesomeApp: IGeesomeApp, port) => {
+const session = require('express-session');
+const MySQLStore = require('express-mysql-session')(session);
+
+const options = {
+    host: 'localhost',
+    port: 3306,
+    user: 'session_test',
+    password: 'password',
+    database: 'session_test'
+};
+
+
+
+module.exports = async (geesomeApp: IGeesomeApp, port) => {
     require('./showEndpointsTable');
     service.use(bodyParser.json());
 
     service.use(require('morgan')('combined'));
     service.use(require('cookie-parser')());
     // service.use(require('body-parser').urlencoded({ extended: true }));
-    service.use(require('express-session')({ secret: 'keyboard cat', resave: false, saveUninitialized: false }));
+    service.use(require('express-session')({
+        key: 'session_cookie',
+        secret: await geesomeApp.getSecretKey('session'),
+        store: geesomeApp.database.getSessionStore(),
+        resave: false,
+        saveUninitialized: false
+    }));
 
-    // service.use(geesomeApp.authorization.initialize());
-    // service.use(geesomeApp.authorization.session());
+    service.use(geesomeApp.authorization.initialize());
+    service.use(geesomeApp.authorization.session());
     
     function setHeaders(res) {
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -54,7 +73,7 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
         }
         
         //TODO: fetch user id
-        req.user = {id: 1};
+        // req.user = {id: 1};
         
         return next();
     });
@@ -79,6 +98,14 @@ module.exports = (geesomeApp: IGeesomeApp, port) => {
                 .join('<br><br>') 
             + "</html>";
         res.send(html, 200);
+    });
+
+    service.get('/v1/current-user', async (req, res) => {
+        res.send(req.user, 200);
+    });
+
+    service.post('/v1/login', geesomeApp.authorization.handleAuth(), async (req, res) => {
+        res.send(req.user, 200);
     });
 
     service.get('/v1/user/member-in-groups', async (req, res) => {

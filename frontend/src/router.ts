@@ -14,6 +14,7 @@ import Vue from 'vue';
 import Router from 'vue-router';
 import MainPage from "./pages/MainPage/MainPage";
 import GroupPage from "./pages/GroupPage/GroupPage";
+import LoginPage from "./pages/LoginPage/LoginPage";
 
 Vue.use(Router);
 
@@ -24,6 +25,11 @@ export default new Router({
             path: '',
             name: 'main-page',
             component: MainPage
+        },
+        {
+            path: 'login',
+            name: 'login',
+            component: LoginPage
         },
         {
             path: '/group/:groupId',

@@ -41,6 +41,7 @@ Vue.use(coreApiPlugin);
 Vue.use(httpPlugin);
 Vue.use(Vuex as any);
 Vue.use(storePlugin, {
+    user: null,
     locale: null,
     locale_loaded: null,
     serverAddress: config.serverBaseUrl
@@ -74,6 +75,14 @@ export default {
             this.$store.commit('locale_loaded', true);
             this.language = this.$locale.lang;
         });
+        
+        this.$coreApi.getCurrentUser().then((user) => {
+            this.$store.commit('user', user);
+            this.loading = false;
+        }).catch(() => {
+            this.$router.push({name: 'login'});
+            this.loading = false;
+        })
     },
 
     async mounted() {
@@ -88,7 +97,9 @@ export default {
     },
     
     watch: {
-        
+        user() {
+            return this.$store.state.user;
+        }
     },
     
     computed: {
@@ -102,7 +113,8 @@ export default {
             localeKey: 'app_container',
             version: '0.01',
             menuVisible: false,
-            menuMinimized: true
+            menuMinimized: true,
+            loading: true
         }
     },
 }

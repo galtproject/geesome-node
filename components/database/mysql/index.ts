@@ -49,6 +49,21 @@ class MysqlDatabase implements IDatabase {
         this.config = _config;
     }
 
+    getSessionStore() {
+        const session = require('express-session');
+        const MySQLStore = require('express-mysql-session')(session);
+
+        const options = {
+            host: this.config.options.host,
+            port: this.config.options.port,
+            user: this.config.user,
+            password: this.config.password,
+            database: this.config.name
+        };
+
+        return new MySQLStore(options);
+    }
+
     async flushDatabase() {
         await this.models.Content.destroy({ where: { } });
         await this.models.PostsContents.destroy({ where: { } });
