@@ -40,7 +40,13 @@ module.exports = async (app: IGeesomeApp) => {
     });
 
     passport.handleAuth = () => {
-        return passport.authenticate('local');//, { failureRedirect: '/login' }
+        return (req, res, next) => {
+            console.log('return (req, res, next)', req, res, next);
+            return passport.authenticate('local')(req, res, () => {
+                console.log('passport.authenticate');
+                next();
+            });
+        }//, { failureRedirect: '/login' }
     };
     
     return passport;
