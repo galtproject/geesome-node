@@ -12,10 +12,12 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
+import * as path from "path";
 
 const config = require('./config');
 
 const busboy = require('connect-busboy');
+const serveStatic = require('serve-static');
 
 const service = require('restana')({
     ignoreTrailingSlash: true,
@@ -44,6 +46,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     service.use(geesomeApp.authorization.initialize());
     service.use(geesomeApp.authorization.session());
+
+    service.use(serveStatic(path.join(__dirname, 'frontend/dist')));
     
     function setHeaders(res) {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
