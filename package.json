@@ -20,6 +20,7 @@
     "cookie-parser": "^1.4.4",
     "ethers": "^4.0.25",
     "express-bearer-token": "^2.2.0",
+    "express-mysql-session": "^2.1.0",
     "express-session": "^1.16.1",
     "fs": "0.0.1-security",
     "ipfs": "^0.35.0",

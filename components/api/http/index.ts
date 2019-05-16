@@ -24,19 +24,6 @@ const service = require('restana')({
 const bodyParser = require('body-parser');
 const _ = require('lodash');
 
-const session = require('express-session');
-const MySQLStore = require('express-mysql-session')(session);
-
-const options = {
-    host: 'localhost',
-    port: 3306,
-    user: 'session_test',
-    password: 'password',
-    database: 'session_test'
-};
-
-
-
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
     require('./showEndpointsTable');
     service.use(bodyParser.json());
