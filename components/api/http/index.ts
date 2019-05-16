@@ -88,16 +88,13 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/v1/current-user', async (req, res) => {
-        console.log('req.user', req.user);
         if(!req.user || !req.user.id) {
-            console.log('res.send(401)');
             return res.send(401);
         }
         res.send(req.user, 200);
     });
 
     service.post('/v1/login', geesomeApp.authorization.handleAuth(), async (req, res) => {
-        console.log(this, req, res);
         res.send(req.user, 200);
     });
 
