@@ -68,15 +68,20 @@ class GeesomeApp implements IGeesomeApp {
     
     async getSecretKey(keyName) {
         const keyPath = `${__dirname}/${keyName}.key`;
-        let secretKey = fs.readFileSync(keyPath).toString();
-        if(secretKey) {
-            return secretKey;
+        let secretKey;
+        try {
+            secretKey = fs.readFileSync(keyPath).toString();
+            if(secretKey) {
+                return secretKey;
+            }
+        } catch (e) {
+            
         }
-        
         secretKey = await xkcdPassword.generate({numWords: 8, minLength: 5, maxLength: 8});
         await new Promise((resolve, reject) => {
             fs.writeFile(keyPath, secretKey, resolve);
         });
+        
         return secretKey;
     }
     
