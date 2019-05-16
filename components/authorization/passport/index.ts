@@ -44,7 +44,7 @@ module.exports = async (app: IGeesomeApp) => {
             console.log('return (req, res, next)', req, res, next);
             return passport.authenticate('local')(req, res, () => {
                 console.log('passport.authenticate');
-                next();
+                next(req, res);
             });
         }//, { failureRedirect: '/login' }
     };
