@@ -31,7 +31,7 @@
         <md-app-content>
             <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading" style="margin-top: 100px;"></md-progress-bar>
 
-            <router-view></router-view>
+            <router-view v-if="!loading"></router-view>
         </md-app-content>
     </md-app>
 </div>
