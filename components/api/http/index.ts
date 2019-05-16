@@ -36,7 +36,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         secret: await geesomeApp.getSecretKey('session'),
         store: geesomeApp.database.getSessionStore(),
         resave: false,
-        saveUninitialized: false
+        saveUninitialized: false,
+        cookie: {
+            secure: false
+        }
     }));
 
     service.use(geesomeApp.authorization.initialize());
