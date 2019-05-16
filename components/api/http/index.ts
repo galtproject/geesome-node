@@ -62,6 +62,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             }
         }
         
+        console.log('req.session.userId', req.session.userId);
+        
         //TODO: fetch user id
         // req.user = {id: 1};
         
