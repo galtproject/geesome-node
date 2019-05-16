@@ -27,10 +27,10 @@ const _ = require('lodash');
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
     require('./showEndpointsTable');
     service.use(bodyParser.json());
+    service.use(bodyParser.urlencoded({ extended: true }));
 
     service.use(require('morgan')('combined'));
     service.use(require('cookie-parser')());
-    // service.use(require('body-parser').urlencoded({ extended: true }));
     service.use(require('express-session')({
         key: 'session_cookie',
         secret: await geesomeApp.getSecretKey('session'),
