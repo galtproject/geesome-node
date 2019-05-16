@@ -33,7 +33,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.use(require('cookie-parser')());
     service.use(require('express-session')({
         key: 'session_cookie',
-        secret: await geesomeApp.getSecretKey('session'),
+        secret: 'lala',
         store: geesomeApp.database.getSessionStore(),
         resave: false,
         saveUninitialized: false,
