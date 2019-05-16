@@ -13,6 +13,7 @@ module.exports = async (app: IGeesomeApp) => {
     // will be set at `req.user` in route handlers after authentication.
     passport.use(new Strategy(
         function(username, password, cb) {
+            console.log('passport.use(new Strategy(', username, password);
             app.database.getUserByName(username).then((user) => {
                 if (!user) { 
                     return cb(null, false); 
@@ -32,10 +33,12 @@ module.exports = async (app: IGeesomeApp) => {
     // serializing, and querying the user record by ID from the database when
     // deserializing.
     passport.serializeUser(function(user, cb) {
+        console.log('serializeUser', user);
         cb(null, user.id);
     });
 
     passport.deserializeUser(function(id, cb) {
+        console.log('deserializeUser', id);
         app.database.getUser(id).then(user => cb(null, user)).catch(cb);
     });
 
