@@ -34,6 +34,7 @@ module.exports = async (extendConfig) => {
     app.storage = await require('../../storage/' + config.storageModule)(app);
     
     const frontendPath = __dirname + '/frontend/dist';
+    console.log('fs.existsSync', frontendPath);
     if(fs.existsSync(frontendPath)) {
         const directory = await app.storage.saveDirectory(frontendPath);
         app.frontendStorageId = directory.id;
