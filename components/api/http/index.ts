@@ -50,6 +50,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     // service.use(serveStatic(path.join(__dirname, 'frontend/dist')));
     
     function setHeaders(res) {
+        res.setHeader('Strict-Transport-Security', 'max-age=0');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
