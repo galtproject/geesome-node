@@ -29,7 +29,8 @@ export default {
         let $http = axios.create({
             baseURL: config.serverBaseUrl,
             // headers: {'Authorization': 'unauthorized'},
-            withCredentials: true
+            withCredentials: true,
+            // mode: 'no-cors',
         });
         
         Vue.prototype.$coreApi = {
