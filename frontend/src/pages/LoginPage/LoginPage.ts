@@ -27,7 +27,7 @@ export default {
     data() {
         return {
             localeKey: 'login_page',
-            username: false,
+            username: null,
             password: null,
             error: null
         };

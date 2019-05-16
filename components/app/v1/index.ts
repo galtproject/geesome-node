@@ -26,7 +26,6 @@ const xkcdPassword = require('xkcd-password')();
 
 module.exports = async (extendConfig) => {
     config = _.merge(config, extendConfig || {});
-    console.log(config);
     const app = new GeesomeApp(config);
 
     app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs');

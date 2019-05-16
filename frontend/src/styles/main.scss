@@ -162,3 +162,25 @@ $fa-font-path: "webfonts";
     left: 0;
   }
 }
+
+.md-field {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-transition-delay: 9999s;
+    -webkit-transition: color 9999s ease-out, background-color 9999s ease-out;
+  }
+  
+  input:-internal-autofill-previewed, 
+  input:-internal-autofill-selected, 
+  textarea:-internal-autofill-previewed, 
+  textarea:-internal-autofill-selected, 
+  select:-internal-autofill-previewed, 
+  select:-internal-autofill-selected {
+    background-color: transparent;
+  }
+}
+//.md-field.md-theme-default.md-has-value .md-input {
+//  -webkit-text-fill-color: black;
+//}

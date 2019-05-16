@@ -97,6 +97,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/login', geesomeApp.authorization.handleAuth(), async (req, res) => {
+        console.log(req, res);
         res.send(req.user, 200);
     });
 
