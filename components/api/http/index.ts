@@ -47,7 +47,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.use(geesomeApp.authorization.initialize());
     service.use(geesomeApp.authorization.session());
 
-    service.use(serveStatic(path.join(__dirname, 'frontend/dist')));
+    // service.use(serveStatic(path.join(__dirname, 'frontend/dist')));
     
     function setHeaders(res) {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -192,6 +192,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             res.send(_.isNumber(result) ? result.toString() : result);
         }).catch(() => {res.send(null, 200)});
     });
+    
+    if(geesomeApp.frontendStorageId) {
+        service.get('/node/*', async (req, res) => {
+            let path = req.url.replace('/node', '');
+            if(!path || path === '/') {
+                path = '/index.html';
+            }
+            geesomeApp.getFileStream(geesomeApp.frontendStorageId + path).then((stream) => {
+                stream.pipe(res);
+            })
+        });
+    }
     
     function handleError(res, e) {
         return res.send({

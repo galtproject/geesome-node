@@ -12,6 +12,7 @@
  */
 
 export interface IStorage {
+    saveDirectory(path): Promise<IResultFile>;
     saveFileByPath(path): Promise<IResultFile>;
     saveFileByData(content): Promise<IResultFile>;
     saveFileByUrl(url): Promise<IResultFile>;

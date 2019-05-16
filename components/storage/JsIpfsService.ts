@@ -26,6 +26,13 @@ export class JsIpfsService implements IStorage {
         return this.wrapIpfsItem(result[0]);
     }
 
+    async saveDirectory(path) {
+        const result = await this.node.addFromFs(path, { recursive: true , ignore: []});
+        console.log('saveDirectory result', result);
+        await this.node.pin.add(result[0].hash);
+        return this.wrapIpfsItem(result[0]);
+    }
+
     async saveFileByPath(path) {
         return this.saveFile({content: fs.createReadStream(path)});
     }

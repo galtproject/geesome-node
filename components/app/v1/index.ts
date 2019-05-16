@@ -33,6 +33,12 @@ module.exports = async (extendConfig) => {
     console.log('Start storage...');
     app.storage = await require('../../storage/' + config.storageModule)(app);
     
+    const frontendPath = __dirname + '/frontend/dist';
+    if(fs.existsSync(frontendPath)) {
+        const directory = await app.storage.saveDirectory(frontendPath);
+        app.frontendStorageId = directory.id;
+    }
+    
     console.log('Start database...');
     app.database = await require('../../database/' + config.databaseModule)(app);
 
@@ -59,6 +65,8 @@ class GeesomeApp implements IGeesomeApp {
     render: IRender;
     authorization: any;
     drivers: any;
+    
+    frontendStorageId;
     
     constructor(
         public config

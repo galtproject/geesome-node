@@ -20,6 +20,8 @@ export interface IGeesomeApp {
     storage: IStorage;
     authorization: any;
 
+    frontendStorageId;
+
     getSecretKey(keyName): Promise<string>;
     canCreatePostInGroup(userId, groupId);
 
