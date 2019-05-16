@@ -90,7 +90,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.get('/v1/current-user', async (req, res) => {
         console.log('req.user', req.user);
         if(!req.user || !req.user.id) {
-            return res.send(req.user, 401);
+            console.log('res.send(401)');
+            return res.send(401);
         }
         res.send(req.user, 200);
     });

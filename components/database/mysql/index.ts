@@ -22,10 +22,7 @@ const Op = Sequelize.Op;
 let config = require('./config');
 
 module.exports = async function(app: IGeesomeApp) {
-    console.log('extendConfig.databaseConfig', app.config.databaseConfig);
     config = _.merge(config, app.config.databaseConfig || {});
-    console.log('config', config);
-    
     let sequelize = new Sequelize(config.name, config.user, config.password, config.options);
     
     let models;
