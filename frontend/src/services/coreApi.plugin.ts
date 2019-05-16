@@ -28,7 +28,8 @@ export default {
     install (Vue, options: any = {}) {
         let $http = axios.create({
             baseURL: config.serverBaseUrl,
-            headers: {'Authorization': 'unauthorized'}
+            // headers: {'Authorization': 'unauthorized'},
+            withCredentials: true
         });
         
         Vue.prototype.$coreApi = {

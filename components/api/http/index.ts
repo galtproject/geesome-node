@@ -33,7 +33,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.use(require('cookie-parser')());
     service.use(require('express-session')({
         key: 'session_cookie',
-        secret: 'lala',
+        secret: await geesomeApp.getSecretKey('session'),
         store: geesomeApp.database.getSessionStore(),
         resave: false,
         saveUninitialized: false,
@@ -46,6 +46,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.use(geesomeApp.authorization.session());
     
     function setHeaders(res) {
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
