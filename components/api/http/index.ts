@@ -61,13 +61,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
                 req.query[key.value] = searchParams.get(key.value);
             }
         }
-        
-        console.log('req.session.userId', req.session.userId);
-        
-        //TODO: fetch user id
-        // req.user = {id: 1};
-        
-        return next();
+
+        req.session.reload(function(err) {
+            console.log('req.session.userId', req.session.userId);
+
+            //TODO: fetch user id
+            // req.user = {id: 1};
+
+            return next();
+        });
     });
 
     service.use(busboy());
