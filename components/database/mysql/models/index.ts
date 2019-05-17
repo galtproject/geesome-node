@@ -15,6 +15,7 @@ module.exports = async function(sequelize) {
     const models: any = {};
 
     models.User = await require('./user')(sequelize, models);
+    models.UserApiKey = await require('./userApiKey')(sequelize, models);
     models.Group = await require('./group')(sequelize, models);
     models.GroupPermission = await require('./groupPermission')(sequelize, models);
     models.Post = await require('./post')(sequelize, models);

@@ -15,6 +15,9 @@ export interface IDatabase {
     getSessionStore(): any;
     flushDatabase(): Promise<void>;
 
+    addApiKey(apiKey): Promise<IUserApiKey>;
+    getApiKeyByHash(valueHash: string): Promise<IUserApiKey>;
+
     addContent(content: IContent): Promise<IContent>;
     updateContent(id, updateData: any): Promise<void>;
     deleteContent(id): Promise<void>;
@@ -50,6 +53,14 @@ export interface IDatabase {
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
     clearValue(key: string): Promise<void>;
+}
+
+export interface IUserApiKey {
+    id?: number;
+    title?: string;
+    userId: number;
+    valueHash: string;
+    expiredOn?: Date;
 }
 
 export interface IContent {

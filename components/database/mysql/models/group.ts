@@ -40,6 +40,9 @@ module.exports = async function (sequelize, models) {
         view: {
             type: Sequelize.STRING(200)
         },
+        size: {
+            type: Sequelize.INTEGER
+        },
         storageId: {
             type: Sequelize.STRING(200)
         },

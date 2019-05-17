@@ -23,6 +23,7 @@ let config = require('./config');
 const _ = require('lodash');
 const fs = require('fs');
 const xkcdPassword = require('xkcd-password')();
+const uuidAPIKey = require('uuid-apikey');
 
 module.exports = async (extendConfig) => {
     config = _.merge(config, extendConfig || {});
@@ -33,12 +34,11 @@ module.exports = async (extendConfig) => {
     console.log('Start storage...');
     app.storage = await require('../../storage/' + config.storageModule)(app);
     
-    // const frontendPath = __dirname + '/../../../frontend/dist';
-    // console.log('fs.existsSync', frontendPath);
-    // if(fs.existsSync(frontendPath)) {
-    //     const directory = await app.storage.saveDirectory(frontendPath);
-    //     app.frontendStorageId = directory.id;
-    // }
+    const frontendPath = __dirname + '/../../../frontend/dist';
+    if(fs.existsSync(frontendPath)) {
+        const directory = await app.storage.saveDirectory(frontendPath);
+        app.frontendStorageId = directory.id;
+    }
     
     console.log('Start database...');
     app.database = await require('../../database/' + config.databaseModule)(app);
@@ -91,6 +91,29 @@ class GeesomeApp implements IGeesomeApp {
         });
         
         return secretKey;
+    }
+    
+    async generateUserApiKey(userId, type?) {
+        const generated = uuidAPIKey.create();
+        
+        await this.database.addApiKey({
+            type,
+            userId,
+            valueHash: generated.uuid
+        });
+        
+        return generated.apiKey;
+    }
+
+    async getUserByApiKey(apiKey) {
+        const valueHash = uuidAPIKey.toUUID(apiKey);
+
+        const keyObj = await this.database.getApiKeyByHash(valueHash);
+        if(!keyObj) {
+            return null;
+        }
+        
+        return this.database.getUser(keyObj.userId);
     }
     
     async checkGroupId(groupId) {

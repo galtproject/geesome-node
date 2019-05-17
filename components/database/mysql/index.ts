@@ -46,6 +46,14 @@ class MysqlDatabase implements IDatabase {
         this.config = _config;
     }
 
+    async addApiKey(apiKey) {
+        return this.models.UserApiKey.create(apiKey);
+    }
+
+    async getApiKeyByHash(valueHash) {
+        return this.models.UserApiKey.findOne({ where: { valueHash } });
+    }
+
     getSessionStore() {
         const expressSession = require('express-session');
         const SessionStore = require('express-session-sequelize')(expressSession.Store);

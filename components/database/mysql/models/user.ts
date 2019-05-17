@@ -19,6 +19,9 @@ module.exports = async function (sequelize, models) {
         name: {
             type: Sequelize.STRING(200)
         },
+        email: {
+            type: Sequelize.STRING(200)
+        },
         title: {
             type: Sequelize.STRING
         },

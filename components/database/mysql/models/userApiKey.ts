@@ -14,41 +14,23 @@
 module.exports = async function (sequelize, models) {
     const Sequelize = require('sequelize');
     
-    const Post = sequelize.define('post', {
+    const UserApiKey = sequelize.define('userApiKey', {
         // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-        status: {
+        title: {
+            type: Sequelize.STRING
+        },
+        valueHash: {
             type: Sequelize.STRING(200)
-        },
-        publishedAt: {
-            type: Sequelize.DATE
-        },
-        publishOn: {
-            type: Sequelize.DATE
         },
         type: {
             type: Sequelize.STRING(200)
         },
-        view: {
-            type: Sequelize.STRING(200)
+        permissions: {
+            type: Sequelize.STRING
         },
-        localId: {
-            type: Sequelize.INTEGER
+        expiredOn: {
+            type: Sequelize.DATE
         },
-        size: {
-            type: Sequelize.INTEGER
-        },
-        storageId: {
-            type: Sequelize.STRING(200)
-        },
-        staticStorageId: {
-            type: Sequelize.STRING(200)
-        },
-        manifestStorageId: {
-            type: Sequelize.STRING(200)
-        },
-        manifestStaticStorageId: {
-            type: Sequelize.STRING(200)
-        }
     } as any, {
         indexes: [
             // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
@@ -58,14 +40,8 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    Post.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.Group.hasMany(Post, { as: 'posts', foreignKey: 'groupId' });
+    UserApiKey.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
+    models.User.hasMany(UserApiKey, { as: 'apiKeys', foreignKey: 'userId' });
 
-    Post.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(Post, { as: 'posts', foreignKey: 'userId' });
-
-    Post.belongsTo(Post, { as: 'sourcePost', foreignKey: 'sourcePostId' });
-    Post.hasMany(Post, { as: 'rePosts', foreignKey: 'sourcePostId' });
-
-    return Post.sync({});
+    return UserApiKey.sync({});
 };

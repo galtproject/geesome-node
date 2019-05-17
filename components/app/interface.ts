@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IContent, IDatabase, IGroup, IPost} from "../database/interface";
+import {IContent, IDatabase, IGroup, IPost, IUser} from "../database/interface";
 import {IStorage} from "../storage/interface";
 
 export interface IGeesomeApp {
@@ -24,6 +24,8 @@ export interface IGeesomeApp {
 
     getSecretKey(keyName): Promise<string>;
     canCreatePostInGroup(userId, groupId);
+    generateUserApiKey(userId, type?): Promise<string>;
+    getUserByApiKey(apiKey): Promise<IUser>;
 
     createPost(userId, postData);
     updatePost(userId, postId, postData);

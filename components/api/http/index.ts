@@ -17,7 +17,7 @@ import {IGeesomeApp} from "../../app/interface";
 const config = require('./config');
 
 const busboy = require('connect-busboy');
-// const mime = require('mime');
+const mime = require('mime');
 
 const service = require('restana')({
     ignoreTrailingSlash: true,
@@ -25,27 +25,30 @@ const service = require('restana')({
 });
 const bodyParser = require('body-parser');
 const _ = require('lodash');
+const bcrypt = require('bcrypt');
+const bearerToken = require('express-bearer-token');
 
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
     require('./showEndpointsTable');
     service.use(bodyParser.json());
     service.use(bodyParser.urlencoded({ extended: true }));
+    service.use(bearerToken());
 
     service.use(require('morgan')('combined'));
-    service.use(require('cookie-parser')());
-    service.use(require('express-session')({
-        key: 'session_cookie',
-        secret: await geesomeApp.getSecretKey('session'),
-        store: geesomeApp.database.getSessionStore(),
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-            secure: false
-        }
-    }));
-
-    service.use(geesomeApp.authorization.initialize());
-    service.use(geesomeApp.authorization.session());
+    // service.use(require('cookie-parser')());
+    // service.use(require('express-session')({
+    //     key: 'session_cookie',
+    //     secret: await geesomeApp.getSecretKey('session'),
+    //     store: geesomeApp.database.getSessionStore(),
+    //     resave: false,
+    //     saveUninitialized: false,
+    //     cookie: {
+    //         secure: false
+    //     }
+    // }));
+    //
+    // service.use(geesomeApp.authorization.initialize());
+    // service.use(geesomeApp.authorization.session());
 
     // service.use(serveStatic(path.join(__dirname, 'frontend/dist')));
     
@@ -56,7 +59,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
     }
-    service.use((req, res, next) => {
+    service.use(async (req, res, next) => {
         setHeaders(res);
 
         req.query = {};
@@ -74,14 +77,34 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             });
         };
 
-        req.session.reload(function(err) {
-            console.log('req.session.userId', req.session.userId);
+        if(!_.startsWith(req.url, '/v1/login') && req.method !== 'POST') {
+            if(!req.token) {
+                return res.send({
+                    error: "Need authorization token",
+                    errorCode: 1
+                }, 401);
+            }
 
-            //TODO: fetch user id
-            // req.user = {id: 1};
+            req.user = await geesomeApp.getUserByApiKey(req.token);
 
-            return next();
-        });
+            if(!req.user) {
+                return res.send({
+                    error: "Incorrect api token",
+                    errorCode: 2
+                }, 403);
+            }
+        }
+
+        // req.session.reload(function(err) {
+        //     console.log('req.session.userId', req.session.userId);
+        //
+        //     //TODO: fetch user id
+        //     // req.user = {id: 1};
+        //
+        //     return next();
+        // });
+
+        next();
     });
 
     service.use(busboy());
@@ -113,8 +136,19 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(req.user, 200);
     });
 
-    service.post('/v1/login', geesomeApp.authorization.handleAuth(), async (req, res) => {
-        res.send(req.user, 200);
+    service.post('/v1/login', async (req, res) => {
+        geesomeApp.database.getUserByName(req.body.username).then((user) => {
+            if (!user) {
+                return res.send(403);
+            }
+            bcrypt.compare(req.body.password, user.passwordHash, async function(err, res) {
+                if(!res) {
+                    return res.send(403);
+                }
+                
+                return res.send({ user, apiKey: await geesomeApp.generateUserApiKey(user.id) }, 200);
+            });
+        }).catch(() => res.send(403))
     });
 
     service.get('/v1/user/member-in-groups', async (req, res) => {
@@ -200,21 +234,21 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         }).catch(() => {res.send(null, 200)});
     });
     
-    // if(geesomeApp.frontendStorageId) {
-    //     service.get('/node*', async (req, res) => {
-    //         if(req.url === '/node') {
-    //             return res.redirect('/node/');
-    //         }
-    //         let path = req.url.replace('/node', '');
-    //         if(!path || path === '/') {
-    //             path = '/index.html';
-    //         }
-    //         res.setHeader('Content-Type', mime.getType(path));
-    //         geesomeApp.getFileStream(geesomeApp.frontendStorageId + path).then((stream) => {
-    //             stream.pipe(res);
-    //         })
-    //     });
-    // }
+    if(geesomeApp.frontendStorageId) {
+        service.get('/node*', async (req, res) => {
+            if(req.url === '/node') {
+                return res.redirect('/node/');
+            }
+            let path = req.url.replace('/node', '');
+            if(!path || path === '/') {
+                path = '/index.html';
+            }
+            res.setHeader('Content-Type', mime.getType(path));
+            geesomeApp.getFileStream(geesomeApp.frontendStorageId + path).then((stream) => {
+                stream.pipe(res);
+            })
+        });
+    }
     
     function handleError(res, e) {
         return res.send({

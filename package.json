@@ -19,7 +19,7 @@
     "connect-busboy": "^0.0.2",
     "cookie-parser": "^1.4.4",
     "ethers": "^4.0.25",
-    "express-bearer-token": "^2.2.0",
+    "express-bearer-token": "^2.4.0",
     "express-mysql-session": "^2.1.0",
     "express-session": "^1.16.1",
     "express-session-sequelize": "^2.0.0",
@@ -38,6 +38,7 @@
     "serve-static": "^1.14.1",
     "sharp": "^0.22.1",
     "typedarray-to-buffer": "^3.1.5",
+    "uuid-apikey": "^1.4.3",
     "web3": "^1.0.0-beta.37",
     "xkcd-password": "^2.0.0",
     "youtube-dl": "^1.13.1"

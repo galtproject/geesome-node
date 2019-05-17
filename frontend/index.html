@@ -7,9 +7,9 @@
 
   <title>Geesome</title>
   <script>
-    if(window.location.protocol != 'https:' && location.href.indexOf('http://localhost') !== 0 && location.href.indexOf('http://127.0.0.1') !== 0) {
-        location.href = location.href.replace("http://", "https://");
-      }
+    // if(window.location.protocol != 'https:' && location.href.indexOf('http://localhost') !== 0 && location.href.indexOf('http://127.0.0.1') !== 0) {
+    //     location.href = location.href.replace("http://", "https://");
+    //   }
     // if(window.location.protocol != 'http:' && location.href.indexOf('http://localhost') !== 0 && location.href.indexOf('http://127.0.0.1') !== 0) {
     //     location.href = location.href.replace("https://", "http://");
     // }
@@ -137,7 +137,7 @@
     }
 
   </style>
-  <link rel="stylesheet" href="build/app.css?<%= htmlWebpackPlugin.options.hash %>">
+  <link rel="stylesheet" href="build/app.css">
 </head>
 
 <body onload="checkScriptLoaded()">
@@ -155,9 +155,9 @@
     </div>
   </div>
 
-  <script onload="scriptLoaded=true;" src="build/modernizr-custom.js?<%= htmlWebpackPlugin.options.hash %>"></script>
-  <script onload="scriptLoaded=true;" src="build/vendors.js?<%= htmlWebpackPlugin.options.hash %>"></script>
-  <script onload="scriptLoaded=true;" src="build/app.js?<%= htmlWebpackPlugin.options.hash %>"></script>
+  <script onload="scriptLoaded=true;" src="build/modernizr-custom.js"></script>
+  <script onload="scriptLoaded=true;" src="build/vendors.js"></script>
+  <script onload="scriptLoaded=true;" src="build/app.js"></script>
   <!-- built files will be auto injected -->
 
 </body>
