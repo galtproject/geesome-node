@@ -1734,6 +1734,15 @@ chrome-trace-event@^1.0.0:
   dependencies:
     tslib "^1.9.0"
 
+cids@^0.7.1:
+  version "0.7.1"
+  resolved "https://registry.yarnpkg.com/cids/-/cids-0.7.1.tgz#d8bba49a35a0e82110879b5001abf1039c62347f"
+  dependencies:
+    class-is "^1.1.0"
+    multibase "~0.6.0"
+    multicodec "~0.5.1"
+    multihashes "~0.4.14"
+
 cids@~0.5.6:
   version "0.5.8"
   resolved "https://registry.yarnpkg.com/cids/-/cids-0.5.8.tgz#3d5000c3856a2d3c00967b21265aa57142611aa0"
@@ -4949,6 +4958,12 @@ multicast-dns@^6.0.1:
 multicodec@~0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/multicodec/-/multicodec-0.5.0.tgz#5605267226ed02fc3a0a7b041947c19641737b7f"
+  dependencies:
+    varint "^5.0.0"
+
+multicodec@~0.5.1:
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/multicodec/-/multicodec-0.5.1.tgz#fa4d6fbb99abdf3cec0f207a022ce20ad3813fd5"
   dependencies:
     varint "^5.0.0"
 
