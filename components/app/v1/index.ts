@@ -55,7 +55,7 @@ module.exports = async (extendConfig) => {
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
     console.log('Start api...');
-    require('../../api/' + config.apiModule)(app, 7711);
+    require('../../api/' + config.apiModule)(app, 80);
     
     return app;
 };
