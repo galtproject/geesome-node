@@ -17,7 +17,7 @@ const UIThread = Object.assign({}, coreConfig({
     //https://github.com/vuematerial/vue-material/issues/1182#issuecomment-345764031
     entry: {
         'babel-polyfill': 'babel-polyfill',
-        'app.ts': './src/main.ts',
+        'app.js': './src/main.ts',
         // 'changelog.temp': './CHANGELOG.MD'
     },
     output: {
