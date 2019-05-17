@@ -195,7 +195,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
     
     if(geesomeApp.frontendStorageId) {
-        service.get('/node/*', async (req, res) => {
+        service.get('/node*', async (req, res) => {
             let path = req.url.replace('/node', '');
             if(!path || path === '/') {
                 path = '/index.html';
