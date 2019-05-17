@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#05cad12",
+    "@galtproject/frontend-core": "git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#99af409",
     "@galtproject/utils": "git://github.com/galtspace/galtproject-utils-js.git",
     "@sentry/browser": "^4.4.2",
     "async": "^2.5.0",

@@ -33,12 +33,12 @@ module.exports = async (extendConfig) => {
     console.log('Start storage...');
     app.storage = await require('../../storage/' + config.storageModule)(app);
     
-    const frontendPath = __dirname + '/../../../frontend/dist';
-    console.log('fs.existsSync', frontendPath);
-    if(fs.existsSync(frontendPath)) {
-        const directory = await app.storage.saveDirectory(frontendPath);
-        app.frontendStorageId = directory.id;
-    }
+    // const frontendPath = __dirname + '/../../../frontend/dist';
+    // console.log('fs.existsSync', frontendPath);
+    // if(fs.existsSync(frontendPath)) {
+    //     const directory = await app.storage.saveDirectory(frontendPath);
+    //     app.frontendStorageId = directory.id;
+    // }
     
     console.log('Start database...');
     app.database = await require('../../database/' + config.databaseModule)(app);
@@ -55,7 +55,7 @@ module.exports = async (extendConfig) => {
     app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
     console.log('Start api...');
-    require('../../api/' + config.apiModule)(app, 80);
+    require('../../api/' + config.apiModule)(app, process.env.PORT || 7711);
     
     return app;
 };
@@ -85,7 +85,7 @@ class GeesomeApp implements IGeesomeApp {
         } catch (e) {
             
         }
-        secretKey = await xkcdPassword.generate({numWords: 8, minLength: 5, maxLength: 8});
+        secretKey = (await xkcdPassword.generate({numWords: 8, minLength: 5, maxLength: 8})).join(' ');
         await new Promise((resolve, reject) => {
             fs.writeFile(keyPath, secretKey, resolve);
         });

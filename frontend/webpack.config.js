@@ -4,7 +4,8 @@ const coreConfig = require('@galtproject/frontend-core/webpack.config');
 
 const UIThread = Object.assign({}, coreConfig({
     path: __dirname,
-    domainLock: ['localhost', '127.0.0.1'],
+    disableObfuscator: true,
+    // domainLock: ['localhost', '127.0.0.1'],
     copy: [
         {from: "./assets", to: "./assets"},
         {from: "./locale", to: "./locale"},

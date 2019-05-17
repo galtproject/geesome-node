@@ -12,12 +12,12 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
-import * as path from "path";
+// import * as path from "path";
 
 const config = require('./config');
 
 const busboy = require('connect-busboy');
-const serveStatic = require('serve-static');
+// const mime = require('mime');
 
 const service = require('restana')({
     ignoreTrailingSlash: true,
@@ -67,6 +67,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
                 req.query[key.value] = searchParams.get(key.value);
             }
         }
+        res.redirect = (url) => {
+            //https://github.com/jkyberneees/ana/issues/16
+            res.send('', 301, {
+                Location: encodeURI(url)
+            });
+        };
 
         req.session.reload(function(err) {
             console.log('req.session.userId', req.session.userId);
@@ -194,17 +200,21 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         }).catch(() => {res.send(null, 200)});
     });
     
-    if(geesomeApp.frontendStorageId) {
-        service.get('/node*', async (req, res) => {
-            let path = req.url.replace('/node', '');
-            if(!path || path === '/') {
-                path = '/index.html';
-            }
-            geesomeApp.getFileStream(geesomeApp.frontendStorageId + path).then((stream) => {
-                stream.pipe(res);
-            })
-        });
-    }
+    // if(geesomeApp.frontendStorageId) {
+    //     service.get('/node*', async (req, res) => {
+    //         if(req.url === '/node') {
+    //             return res.redirect('/node/');
+    //         }
+    //         let path = req.url.replace('/node', '');
+    //         if(!path || path === '/') {
+    //             path = '/index.html';
+    //         }
+    //         res.setHeader('Content-Type', mime.getType(path));
+    //         geesomeApp.getFileStream(geesomeApp.frontendStorageId + path).then((stream) => {
+    //             stream.pipe(res);
+    //         })
+    //     });
+    // }
     
     function handleError(res, e) {
         return res.send({
