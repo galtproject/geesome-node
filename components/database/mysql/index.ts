@@ -117,6 +117,12 @@ class MysqlDatabase implements IDatabase {
         return this.models.User.findOne({ where: { name } });
     }
 
+    async getUserByNameOrEmail(nameOrEmail) {
+        return this.models.User.findOne({ where: { 
+            [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}]}
+         });
+    }
+
     async getUser(id) {
         return this.models.User.findOne({ where: { id } });
     }
@@ -224,6 +230,91 @@ class MysqlDatabase implements IDatabase {
             return contentObj;
         });
         return (await this.getPost(postId)).setContents(contents);
+    }
+
+    async getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor) {
+        return this.models.FileCatalogItem.findOne({
+            where: { userId, defaultFolderFor }
+        });
+    }
+    
+    async getFileCatalogItems(userId, parentItemId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+        return this.models.FileCatalogItem.findAll({
+            where: { userId, parentItemId, type },
+            order: [[sortField, sortDir.toUpperCase()]],
+            include: [{ model: this.models.Content, as: 'content'}],
+            limit,
+            offset
+        });
+    }
+
+    async getFileCatalogItemsCount(userId, parentItemId, type = undefined) {
+        return this.models.FileCatalogItem.count({
+            where: { userId, parentItemId, type }
+        });
+    }
+
+    async getFileCatalogItemsBreadcrumbs(childItemId) {
+        const breadcrumbs = [];
+        if(!childItemId) {
+            return breadcrumbs;
+        }
+        const maxNesting = 20;
+        
+        let currentItemId = childItemId;
+        while(currentItemId) {
+            const currentItem = await this.getFileCatalogItem(currentItemId);
+            breadcrumbs.push(currentItem);
+            currentItemId = currentItem.parentItemId;
+            
+            if(breadcrumbs.length >= maxNesting || !currentItemId) {
+                return _.reverse(breadcrumbs);
+            }
+        }
+        return _.reverse(breadcrumbs);
+    }
+
+    async getFileCatalogItem(id) {
+        return this.models.FileCatalogItem.findOne({ where: { id } });
+    }
+
+    async addFileCatalogItem(item) {
+        return this.models.FileCatalogItem.create(item);
+    }
+
+    async updateFileCatalogItem(id, updateData) {
+        return this.models.FileCatalogItem.update(updateData, {where: { id } });
+    }
+
+    async getContentsIdsByFileCatalogIds(catalogIds) {
+        const links = await this.models.FileCatalogItem.findAll({
+            attributes: ['id', 'linkOfId'],
+            where: {id: {[Op.in]: catalogIds}, linkOfId: {[Op.ne]: null}}
+        });
+        
+        let allCatalogIds = _.difference(catalogIds, links.map((link) => link.id));
+        allCatalogIds = allCatalogIds.concat(links.map((link) => link.linkOfId));
+        
+        const folders = await this.models.FileCatalogItem.findAll({
+            attributes: ['id'],
+            where: {id: {[Op.in]: allCatalogIds}, type: 'folder'}
+        });
+
+        allCatalogIds = _.difference(allCatalogIds, folders.map((folder) => folder.id));
+        
+        await pIteration.forEachSeries(folders, async (folder) => {
+            const files = await this.models.FileCatalogItem.findAll({
+                attributes: ['id'],
+                where: {parentItemId: folder.id, type: 'file'}
+            });
+
+            allCatalogIds = allCatalogIds.concat(files.map(f => f.id));
+        });
+        
+        return (await this.models.FileCatalogItem.findAll({
+            attributes: ['contentId'],
+            where: { id: { [Op.in]: allCatalogIds } }
+        })).map(f => f.contentId);
     }
     
     async getValue(key: string) {

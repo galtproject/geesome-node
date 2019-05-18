@@ -13,5 +13,10 @@
   },
   "group_page": {
     "new_post": "New post"
+  },
+  "choose_contents_ids_modal": {
+    "title": "Add contents by explorer",
+    "cancel": "Cancel",
+    "ok": "Ok"
   }
 }

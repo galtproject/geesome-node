@@ -64,7 +64,7 @@ export default {
             return 'file';
         },
         contentType() {
-            return this.previewMode && this.manifestObj.preview ? this.manifestObj.previewType : this.manifestObj.type;
+            return this.previewMode && this.manifestObj.preview ? this.manifestObj.previewMimeType : this.manifestObj.mimeType;
         },
         contentId() {
             return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview : this.manifestObj.content;

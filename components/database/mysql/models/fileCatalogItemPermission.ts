@@ -14,19 +14,16 @@
 module.exports = async function (sequelize, models) {
     const Sequelize = require('sequelize');
     
-    const Folder = sequelize.define('folder', {
+    const FileCatalogItemPermission = sequelize.define('fileCatalogItemPermission', {
         // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
         name: {
             type: Sequelize.STRING(200)
         },
-        view: {
-            type: Sequelize.STRING(200)
-        },
-        description: {
+        title: {
             type: Sequelize.STRING
         },
-        size: {
-            type: Sequelize.INTEGER
+        isActive: {
+            type: Sequelize.BOOLEAN
         }
     } as any, {
         indexes: [
@@ -36,9 +33,12 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
-    
-    Folder.belongsTo(Folder, { as: 'parentFolder', foreignKey: 'parentFolderId' });
-    Folder.hasMany(Folder, { as: 'childrenFolders', foreignKey: 'parentFolderId' });
 
-    return Folder.sync({});
+    FileCatalogItemPermission.belongsTo(models.FileCatalogItem, { as: 'fileCatalogItem', foreignKey: 'itemId' });
+    models.FileCatalogItem.hasMany(FileCatalogItemPermission, { as: 'permissions', foreignKey: 'itemId' });
+
+    FileCatalogItemPermission.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
+    models.User.hasMany(FileCatalogItemPermission, { as: 'fileCatalogPermissions', foreignKey: 'userId' });
+
+    return FileCatalogItemPermission.sync({});
 };

@@ -11,6 +11,8 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import ChooseContentsIdsModal from "../../modals/ChooseContentsIdsModal/ChooseContentsIdsModal";
+
 const _ = require('lodash');
 const detecterLib = require('../../../../libs/detecter');
 
@@ -47,6 +49,20 @@ export default {
             this.setMode(null);
             this.localValue = '';
             this.saving = false;
+        },
+        chooseUploaded() {
+            this.$root.$asyncModal.open({
+                id: 'choose-contents-ids-modal',
+                component: ChooseContentsIdsModal,
+                onClose: (selected) => {
+                    if(!selected) {
+                        return;
+                    }
+                    selected.forEach((id) => {
+                        this.$emit('uploaded', id);
+                    });
+                }
+            });
         }
     },
 

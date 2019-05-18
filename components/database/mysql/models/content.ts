@@ -19,7 +19,7 @@ module.exports = async function (sequelize, models) {
         name: {
             type: Sequelize.STRING(200)
         },
-        type: {
+        mimeType: {
             type: Sequelize.STRING(200)
         },
         view: {
@@ -40,7 +40,7 @@ module.exports = async function (sequelize, models) {
         previewStorageId: {
             type: Sequelize.STRING(200)
         },
-        previewType: {
+        previewMimeType: {
             type: Sequelize.STRING(200)
         },
         staticStorageId: {
@@ -63,10 +63,6 @@ module.exports = async function (sequelize, models) {
             // { fields: ['tokensAddress', 'chainAccountAddress'] }
         ]
     } as any);
-
-
-    // Content.belongsTo(models.Folder, { as: 'folder', foreignKey: 'folderId' });
-    // models.Folder.hasMany(Content, { as: 'contents', foreignKey: 'folderId' });
 
     Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });

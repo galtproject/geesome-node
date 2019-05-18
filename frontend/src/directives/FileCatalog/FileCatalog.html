@@ -1,0 +1,21 @@
+<div class="file-catalog">
+    <div class="file-catalog-breadcrumbs">
+        <span @click="openFolder({})">Home > </span><span v-for="breadcrumb in breadcrumbs">{{breadcrumb.name}} > </span>
+    </div>
+    
+    <div class="md-subhead">Folders</div>
+    
+    <div class="file-catalog-folders md-layout">
+        <div class="md-layout-item md-size-25 md-elevation-3" v-for="folder in folders" @click="openFolder(folder)">
+            {{folder.name}}
+        </div>
+    </div>
+    
+    <div class="md-subhead">Files</div>
+    
+    <div class="file-catalog-files md-layout">
+        <div class="md-layout-item md-size-25 md-elevation-3" v-for="file in files">
+            <md-checkbox v-model="localSelectedIds" :value="file.id">{{file.name}}</md-checkbox>
+        </div>
+    </div>
+</div>

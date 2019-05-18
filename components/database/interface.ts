@@ -33,6 +33,7 @@ export interface IDatabase {
     getUsersCount(): Promise<number>;
     addUser(user: IUser): Promise<IUser>;
     getUserByName(name): Promise<IUser>;
+    getUserByNameOrEmail(nameOrEmail): Promise<IUser>;
     getUser(id): Promise<IUser>;
 
     getGroup(id): Promise<IGroup>;
@@ -50,6 +51,15 @@ export interface IDatabase {
     getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
     getPost(postId): Promise<IPost>;
 
+    getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
+    getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
+    getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+    getFileCatalogItemsBreadcrumbs(itemId): Promise<IFileCatalogItem[]>;
+    getFileCatalogItemsCount(userId, parentItemId, type?): Promise<number>;
+    getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
+    addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;
+    updateFileCatalogItem(id, updateData): Promise<void>;
+
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
     clearValue(key: string): Promise<void>;
@@ -65,7 +75,7 @@ export interface IUserApiKey {
 
 export interface IContent {
     id?: number;
-    type: ContentType;
+    mimeType: ContentMimeType;
     view?: ContentView;
     name?: string;
     description?: string;
@@ -75,14 +85,14 @@ export interface IContent {
     groupId?: number;
     localId?: number;
     previewStorageId?: string;
-    previewType?: ContentType;
+    previewMimeType?: ContentMimeType;
     storageId?: string;
     staticStorageId?: string;
     manifestStorageId?: string;
     manifestStaticStorageId?: string;
 }
 
-export enum ContentType {
+export enum ContentMimeType {
     Unknown = 'unknown',
     Text = 'text',
     TextHtml = 'text/html',
@@ -123,8 +133,9 @@ export enum PostStatus {
 export interface IUser {
     id?: number;
     name: string;
-    title: string;
+    email: string;
     passwordHash: string;
+    title?: string;
     storageAccountId?: string;
     avatarImageId?: number;
     avatarImage?: IContent;
@@ -162,4 +173,21 @@ export enum GroupView {
     FullList = 'full-list',
     MiniList = 'mini-list',
     ListWithEditor = 'list-with-editor'
+}
+
+export interface IFileCatalogItem {
+    id?: number;
+    name: string;
+    type: IFileCatalogItemType;
+    position: number;
+    userId: number;
+    defaultFolderFor?: string;
+    linkOfId?: number;
+    parentItemId?: number;
+    contentId?: number;
+}
+
+export enum IFileCatalogItemType {
+    Folder = 'folder',
+    File = 'file'
 }

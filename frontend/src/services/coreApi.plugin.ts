@@ -99,7 +99,7 @@ export default {
                 }
                 
                 const groupObj = await this.getIpld(groupId);
-                groupObj.id = groupId
+                groupObj.id = groupId;
                 
                 await this.fetchIpldFields(groupObj, ['avatarImage', 'coverImage']);
                 
@@ -160,6 +160,15 @@ export default {
             resolveIpns(ipns){
                 return $http.get(`/resolve/${ipns}`).then(response => response.data);
             },
+            getFileCatalogItems(parentItemId, type?, sortField?, sortDir?, limit?, offset?){
+                return $http.get(`/v1/user/file-catalog/`, {params: {parentItemId, type, sortField, sortDir, limit, offset}}).then(response => response.data);
+            },
+            getFileCatalogBreadcrumbs(itemId){
+                return $http.get(`/v1/user/file-catalog/breadcrumbs/${itemId}`).then(response => response.data);
+            },
+            getContentsIdsByFileCatalogIds(fileCatalogIds) {
+                return $http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds).then(response => response.data);
+            }
         };
     }
 }

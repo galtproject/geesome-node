@@ -11,7 +11,16 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase, GroupType, GroupView, ContentType, PostStatus, ContentView, IPost} from "../../database/interface";
+import {
+    IDatabase,
+    GroupType,
+    GroupView,
+    ContentMimeType,
+    PostStatus,
+    ContentView,
+    IPost,
+    IFileCatalogItemType, IContent, IUser
+} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
@@ -24,6 +33,8 @@ const _ = require('lodash');
 const fs = require('fs');
 const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
     config = _.merge(config, extendConfig || {});
@@ -91,6 +102,41 @@ class GeesomeApp implements IGeesomeApp {
         });
         
         return secretKey;
+    }
+
+    async registerUser(email, name, password): Promise<any> {
+        const existUserWithName = await this.database.getUserByName(name);
+        if(existUserWithName) {
+            throw "username_already_exists";
+        }
+        
+        const storageAccountId = await this.storage.createAccountIfNotExists(name);
+        
+        return new Promise((resolve, reject) => {
+            bcrypt.hash(password, saltRounds, async (err, passwordHash) => {
+                const newUser = await this.database.addUser({
+                    storageAccountId,
+                    passwordHash,
+                    name,
+                    email
+                });
+                resolve(newUser as any);
+            });
+        });
+    }
+
+    async loginUser(usernameOrEmail, password): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
+                console.log('user', user);
+                if (!user) {
+                    return null;
+                }
+                bcrypt.compare(password, user.passwordHash, async function(err, result) {
+                    resolve(result ? user : null);
+                });
+            }).catch(reject)
+        });
     }
     
     async generateUserApiKey(userId, type?) {
@@ -268,11 +314,11 @@ class GeesomeApp implements IGeesomeApp {
         const type = this.detectType(storageFile.id, fileName);
         let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
 
-        const content = await this.database.addContent({
+        const content = await this.addContent({
             groupId,
-            type,
             previewStorageId,
-            previewType: previewType as any,
+            mimeType: type,
+            previewMimeType: previewType as any,
             userId: options.userId,
             view: ContentView.List,
             storageId: storageFile.id,
@@ -310,11 +356,11 @@ class GeesomeApp implements IGeesomeApp {
         const group = await this.database.getGroup(groupId);
         let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type, url);
 
-        const content = await this.database.addContent({
+        const content = await this.addContent({
             groupId,
-            type,
             previewStorageId,
-            previewType: previewType as any,
+            mimeType: type,
+            previewMimeType: previewType as any,
             userId: options.userId,
             view: ContentView.List,
             storageId: storageFile.id,
@@ -324,6 +370,33 @@ class GeesomeApp implements IGeesomeApp {
         });
         await this.updateContentManifest(content.id);
 
+        return content;
+    }
+
+    private async addContent(contentData: IContent) {
+        const content = await this.database.addContent(contentData);
+        const baseType = _.first(content.mimeType.split('/'));
+        let folder = await this.database.getFileCatalogItemByDefaultFolderFor(content.userId, baseType);
+        
+        if(!folder) {
+            folder = await this.database.addFileCatalogItem({
+                name: _.upperFirst(baseType) + " Uploads",
+                type: IFileCatalogItemType.Folder,
+                position: (await this.database.getFileCatalogItemsCount(content.userId, null)) + 1,
+                userId: content.userId,
+                defaultFolderFor: baseType
+            });
+        }
+
+        await this.database.addFileCatalogItem({
+            name: content.name || "Unnamed",
+            type: IFileCatalogItemType.File,
+            position: (await this.database.getFileCatalogItemsCount(content.userId, folder.id)) + 1,
+            parentItemId: folder.id,
+            contentId: content.id,
+            userId: content.userId
+        });
+        
         return content;
     }
     
@@ -371,7 +444,7 @@ class GeesomeApp implements IGeesomeApp {
     private detectType(storageId, fileName) {
         const ext = _.last(fileName.split('.')).toLowerCase();
 
-        let type: any = ContentType.Unknown;
+        let type: any = ContentMimeType.Unknown;
         if(_.includes(['jpg', 'jpeg', 'png', 'gif'], ext)) {
             type = 'image/' + ext;
         }
@@ -423,6 +496,39 @@ class GeesomeApp implements IGeesomeApp {
 
     getDataStructure(dataId) {
         return this.storage.getObject(dataId);
+    }
+
+
+    async getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?) {
+        if(!parentItemId) {
+            parentItemId = null;
+        }
+        if(!sortField) {
+            sortField = 'createdAt';
+        }
+        if(!sortDir) {
+            sortDir = 'desc';
+        }
+        if(!limit) {
+            limit = 20;
+        }
+        if(!offset) {
+            offset = 0;
+        }
+        return this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset);
+    }
+    
+    async getFileCatalogItemsBreadcrumbs(userId, itemId) {
+        const item = await this.database.getFileCatalogItem(itemId);
+        if(item.userId != userId) {
+            throw "not_permitted";
+        }
+        
+        return this.database.getFileCatalogItemsBreadcrumbs(itemId);
+    }
+    
+    async getContentsIdsByFileCatalogIds(catalogIds) {
+        return this.database.getContentsIdsByFileCatalogIds(catalogIds);
     }
 
     runSeeds() {

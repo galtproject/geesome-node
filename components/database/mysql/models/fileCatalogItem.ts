@@ -14,16 +14,19 @@
 module.exports = async function (sequelize, models) {
     const Sequelize = require('sequelize');
     
-    const GroupPermission = sequelize.define('groupPermission', {
+    const FileCatalogItem = sequelize.define('fileCatalogItem', {
         // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
         name: {
             type: Sequelize.STRING(200)
         },
-        title: {
-            type: Sequelize.STRING
+        type: {
+            type: Sequelize.STRING(200)
         },
-        isActive: {
-            type: Sequelize.BOOLEAN
+        defaultFolderFor: {
+            type: Sequelize.STRING(200)
+        },
+        position: {
+            type: Sequelize.INTEGER
         }
     } as any, {
         indexes: [
@@ -34,11 +37,17 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
-    GroupPermission.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.Group.hasMany(GroupPermission, { as: 'permissions', foreignKey: 'groupId' });
+    FileCatalogItem.belongsTo(FileCatalogItem, { as: 'linkOf', foreignKey: 'linkOfId' });
+    FileCatalogItem.hasMany(FileCatalogItem, { as: 'linkedItems', foreignKey: 'linkOfId' });
+    
+    FileCatalogItem.belongsTo(FileCatalogItem, { as: 'parentItem', foreignKey: 'parentItemId' });
+    FileCatalogItem.hasMany(FileCatalogItem, { as: 'childrenItems', foreignKey: 'parentItemId' });
 
-    GroupPermission.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(GroupPermission, { as: 'groupPermissions', foreignKey: 'userId' });
+    FileCatalogItem.belongsTo(models.Content, { as: 'content', foreignKey: 'contentId' });
+    models.Content.hasMany(FileCatalogItem, { as: 'fileCatalogItems', foreignKey: 'contentId' });
+    
+    FileCatalogItem.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
+    models.User.hasMany(FileCatalogItem, { as: 'fileCatalogItems', foreignKey: 'userId' });
 
-    return GroupPermission.sync({});
+    return FileCatalogItem.sync({});
 };

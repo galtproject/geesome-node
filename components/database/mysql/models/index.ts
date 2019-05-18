@@ -16,11 +16,15 @@ module.exports = async function(sequelize) {
 
     models.User = await require('./user')(sequelize, models);
     models.UserApiKey = await require('./userApiKey')(sequelize, models);
+    
     models.Group = await require('./group')(sequelize, models);
     models.GroupPermission = await require('./groupPermission')(sequelize, models);
     models.Post = await require('./post')(sequelize, models);
-    models.Folder = await require('./folder')(sequelize, models);
     models.Content = await require('./content')(sequelize, models);
+    
+    models.FileCatalogItem = await require('./fileCatalogItem')(sequelize, models);
+    models.FileCatalogItemPermission = await require('./fileCatalogItemPermission')(sequelize, models);
+    
     models.Value = await require('./value')(sequelize, models);
 
     return models;

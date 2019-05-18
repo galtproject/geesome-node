@@ -79,10 +79,10 @@ export default {
             if(!this.manifestObj) {
                 return null;
             }
-            if(_.startsWith(this.manifestObj.type, 'image')) {
+            if(_.startsWith(this.manifestObj.mimeType, 'image')) {
                 return 'image';
             }
-            if(_.startsWith(this.manifestObj.type, 'text')) {
+            if(_.startsWith(this.manifestObj.mimeType, 'text')) {
                 return 'text';
             }
             return 'file';
@@ -91,7 +91,7 @@ export default {
             if(!this.manifestObj) {
                 return null;
             }
-            const split = this.manifestObj.type.split('/');
+            const split = this.manifestObj.mimeType.split('/');
             if(split[1]) {
                 return split[1];
             } else if(this.type === 'video') {

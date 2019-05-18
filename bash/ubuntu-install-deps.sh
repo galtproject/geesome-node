@@ -1,6 +1,6 @@
 sudo apt-get update
 sudo apt-get install python build-essential libssl-dev mysql-server
-mysql -uroot -proot -e "create database geesome_core;"
+mysql -uroot -proot -e "create database geesome_core; ALTER DATABASE geesome_core CHARACTER SET utf8 COLLATE utf8_general_ci;"
 mysql -uroot -proot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'"
 
 #wget https://dist.ipfs.io/go-ipfs/v0.4.20/go-ipfs_v0.4.20_linux-amd64.tar.gz

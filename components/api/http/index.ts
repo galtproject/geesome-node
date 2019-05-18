@@ -12,21 +12,20 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
-// import * as path from "path";
 
 const config = require('./config');
 
-const busboy = require('connect-busboy');
+const _ = require('lodash');
 const mime = require('mime');
+
+const bodyParser = require('body-parser');
+const busboy = require('connect-busboy');
+const bearerToken = require('express-bearer-token');
 
 const service = require('restana')({
     ignoreTrailingSlash: true,
     maxParamLength: 2000
 });
-const bodyParser = require('body-parser');
-const _ = require('lodash');
-const bcrypt = require('bcrypt');
-const bearerToken = require('express-bearer-token');
 
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
     require('./showEndpointsTable');
@@ -35,30 +34,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.use(bearerToken());
 
     service.use(require('morgan')('combined'));
-    // service.use(require('cookie-parser')());
-    // service.use(require('express-session')({
-    //     key: 'session_cookie',
-    //     secret: await geesomeApp.getSecretKey('session'),
-    //     store: geesomeApp.database.getSessionStore(),
-    //     resave: false,
-    //     saveUninitialized: false,
-    //     cookie: {
-    //         secure: false
-    //     }
-    // }));
-    //
-    // service.use(geesomeApp.authorization.initialize());
-    // service.use(geesomeApp.authorization.session());
-
-    // service.use(serveStatic(path.join(__dirname, 'frontend/dist')));
     
-    function setHeaders(res) {
-        res.setHeader('Strict-Transport-Security', 'max-age=0');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
-    }
     service.use(async (req, res, next) => {
         setHeaders(res);
 
@@ -99,15 +75,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             }
         }
 
-        // req.session.reload(function(err) {
-        //     console.log('req.session.userId', req.session.userId);
-        //
-        //     //TODO: fetch user id
-        //     // req.user = {id: 1};
-        //
-        //     return next();
-        // });
-
         next();
     });
 
@@ -133,29 +100,21 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(html, 200);
     });
 
+    service.post('/v1/login', async (req, res) => {
+        geesomeApp.loginUser(req.body.username, req.body.password).then(async user => {
+            if(user) {
+                return res.send({ user, apiKey: await geesomeApp.generateUserApiKey(user.id) }, 200);
+            } else {
+                return res.send(403);
+            }
+        }).catch((err) => {console.error(err); res.send(403)});
+    });
+
     service.get('/v1/user', async (req, res) => {
         if(!req.user || !req.user.id) {
             return res.send(401);
         }
         res.send(req.user, 200);
-    });
-
-    service.post('/v1/login', async (req, res) => {
-        geesomeApp.database.getUserByName(req.body.username).then((user) => {
-            console.log('user', user);
-            if (!user) {
-                return res.send(403);
-            }
-            console.log('req.body.password, user.passwordHash', req.body.password, user.passwordHash);
-            bcrypt.compare(req.body.password, user.passwordHash, async function(err, result) {
-                console.log('result', result);
-                if(!result) {
-                    return res.send(403);
-                }
-                
-                return res.send({ user, apiKey: await geesomeApp.generateUserApiKey(user.id) }, 200);
-            });
-        }).catch((err) => {console.error(err); res.send(403)})
     });
 
     service.get('/v1/user/member-in-groups', async (req, res) => {
@@ -202,6 +161,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     service.post('/v1/user/save-data-by-url', async (req, res) => {
         res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, groupId: req.body['groupId'], driver: req.body['driver']}), 200);
+    });
+
+
+    service.get('/v1/user/file-catalog/', async (req, res) => {
+        res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    });
+    service.get('/v1/user/file-catalog/breadcrumbs/:itemId', async (req, res) => {
+        res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
+    });
+    
+    service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {
+        res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
     });
 
 
@@ -262,6 +233,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             error: e.message || e,
             errorCode: -1
         }, 400);
+    }
+
+    function setHeaders(res) {
+        res.setHeader('Strict-Transport-Security', 'max-age=0');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
     }
     
     console.log('🚀 Start api on port', port);

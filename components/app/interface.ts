@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IContent, IDatabase, IGroup, IPost, IUser} from "../database/interface";
+import {IContent, IDatabase, IFileCatalogItem, IGroup, IPost, IUser} from "../database/interface";
 import {IStorage} from "../storage/interface";
 
 export interface IGeesomeApp {
@@ -23,6 +23,8 @@ export interface IGeesomeApp {
     frontendStorageId;
 
     getSecretKey(keyName): Promise<string>;
+    registerUser(email, name, password): Promise<IUser>;
+    loginUser(usernameOrEmail, password): Promise<IUser>;
     canCreatePostInGroup(userId, groupId);
     generateUserApiKey(userId, type?): Promise<string>;
     getUserByApiKey(apiKey): Promise<IUser>;
@@ -43,6 +45,11 @@ export interface IGeesomeApp {
     updateGroup(id, updateData): Promise<IGroup>;
     getGroup(groupId): Promise<IGroup>;
     getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
+    
+    getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+    getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+    getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+    getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
 
     getContent(contentId): Promise<IContent>;
 }
