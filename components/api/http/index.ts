@@ -138,11 +138,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     service.post('/v1/login', async (req, res) => {
         geesomeApp.database.getUserByName(req.body.username).then((user) => {
+            console.log('user', user);
             if (!user) {
                 return res.send(403);
             }
-            bcrypt.compare(req.body.password, user.passwordHash, async function(err, res) {
-                if(!res) {
+            console.log('req.body.password, user.passwordHash', req.body.password, user.passwordHash);
+            bcrypt.compare(req.body.password, user.passwordHash, async function(err, result) {
+                console.log('result', result);
+                if(!result) {
                     return res.send(403);
                 }
                 
