@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#99af409",
+    "@galtproject/frontend-core": "git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#04d785b",
     "file-saver": "^2.0.2",
     "url-search-params-polyfill": "^5.1.0",
     "vue2-editor": "^2.6.6",
