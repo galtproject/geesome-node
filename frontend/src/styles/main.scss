@@ -184,3 +184,28 @@ $fa-font-path: "webfonts";
 //.md-field.md-theme-default.md-has-value .md-input {
 //  -webkit-text-fill-color: black;
 //}
+
+.file-catalog {
+  background: #757575;
+  //background-color: #eeeeee;
+  padding: 10px;
+  .file-catalog-breadcrumbs {
+    font-weight: bold;
+    margin-bottom: 20px;
+  }
+  .md-subhead {
+    font-weight: bold;
+    font-size: 15px;
+    margin-bottom: 5px;
+  }
+  .file-catalog-files, .file-catalog-folders {
+    .file-item, .folder-item {
+      padding: 10px;
+      margin: 10px;
+      cursor: pointer;
+      &:hover {
+        background: gray;
+      }
+    }
+  }
+}

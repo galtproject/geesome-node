@@ -11,10 +11,12 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import ContentManifestInfoItem from "../ContentManifestInfoItem/ContentManifestInfoItem";
+
 export default {
     name: 'file-catalog',
     template: require('./FileCatalog.html'),
-    components: {  },
+    components: { ContentManifestInfoItem },
     props: ['selectedIds'],
     async created() {
         this.getItems();
@@ -33,6 +35,10 @@ export default {
             this.loading = false;
         },
         async getBreadcrumbs() {
+            if(!this.parentItemId) {
+                this.breadcrumbs = [];
+                return;
+            }
             this.breadcrumbs = await this.$coreApi.getFileCatalogBreadcrumbs(this.parentItemId);
         },
         openFolder (item) {
