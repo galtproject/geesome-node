@@ -21,6 +21,6 @@ module.exports = {
         'dialect': 'mysql',
         'operatorsAliases': false,
         'pool': { 'max': 5, 'min': 0, 'acquire': 30000, 'idle': 10000 },
-        'dialectOptions': { 'multipleStatements': true, charset: 'utf8mb4'}
+        'dialectOptions': { 'multipleStatements': true, charset: 'utf8mb4', collate: 'utf8_general_ci'}
     }
 };
