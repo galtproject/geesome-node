@@ -77,7 +77,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             });
         };
 
-        if(!_.startsWith(req.url, '/v1/login') && req.method !== 'POST') {
+        if(!_.startsWith(req.url, '/v1/login') && req.method !== 'GET') {
             if(!req.token) {
                 return res.send({
                     error: "Need authorization token",
