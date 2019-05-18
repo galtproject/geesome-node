@@ -32,7 +32,7 @@ describe("databaseValues", function () {
                 await database.flushDatabase();
             });
             
-            it("should set and get values correctly", async () => {
+            it.only("should set and get values correctly", async () => {
                 assert.strictEqual(await database.getValue('test1'), null);
                 
                 await database.setValue('test1', 'test1Value');
@@ -58,6 +58,8 @@ describe("databaseValues", function () {
                 await database.clearValue('test2');
                 
                 assert.strictEqual(await database.getValue('test2'), null);
+                
+                await database.setValue('1 — копия.jpeg', '1 — копия.jpeg');
             });
         });
     });

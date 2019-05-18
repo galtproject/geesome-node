@@ -40,7 +40,7 @@ describe("app", function () {
                 }
             });
 
-            it.only("should initialized successfully", async () => {
+            it("should initialized successfully", async () => {
                 assert.notEqual(await app.database.getUsersCount(), 0);
                 
                 await new Promise((resolve, reject) => {
