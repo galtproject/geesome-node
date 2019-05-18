@@ -151,7 +151,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
                 
                 return res.send({ user, apiKey: await geesomeApp.generateUserApiKey(user.id) }, 200);
             });
-        }).catch(() => res.send(403))
+        }).catch((err) => {console.error(err); res.send(403)})
     });
 
     service.get('/v1/user/member-in-groups', async (req, res) => {
