@@ -77,7 +77,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             });
         };
 
-        if(!_.startsWith(req.url, '/v1/login') && req.method !== 'GET') {
+        if(
+            (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group'))
+            && !_.startsWith(req.url, '/v1/login')
+            && req.method !== 'OPTIONS' && req.method !== 'HEAD'
+        ) {
             if(!req.token) {
                 return res.send({
                     error: "Need authorization token",
@@ -129,7 +133,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(html, 200);
     });
 
-    service.get('/v1/current-user', async (req, res) => {
+    service.get('/v1/user', async (req, res) => {
         if(!req.user || !req.user.id) {
             return res.send(401);
         }

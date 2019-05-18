@@ -17,8 +17,7 @@ export default {
     components: {  },
     props: ['menuVisible', 'menuMinimized'],
     async created() {
-        this.memberInGroups = await this.$coreApi.getMemberInGroups();
-        this.adminInGroups = await this.$coreApi.getAdminInGroups();
+        this.getData();
     },
 
     async mounted() {
@@ -26,6 +25,10 @@ export default {
     },
 
     methods: {
+        async getData() {
+            this.memberInGroups = await this.$coreApi.getMemberInGroups();
+            this.adminInGroups = await this.$coreApi.getAdminInGroups();
+        },
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
         },
@@ -47,12 +50,18 @@ export default {
         },
         menuMinimizedLocal() {
             this.$emit('update:menu-minimized', this.menuMinimizedLocal);
+        },
+        user() {
+            this.getData();
         }
     },
 
     computed: {
         serverAddress() {
             return this.$store.state.serverAddress;
+        },
+        user() {
+            return this.$store.state.user;
         }
     },
     data() {

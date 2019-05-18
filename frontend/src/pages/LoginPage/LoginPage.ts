@@ -15,8 +15,8 @@ export default {
     template: require('./LoginPage.html'),
     methods: {
         login() {
-            this.$coreApi.login(this.username, this.password).then((user) => {
-                this.$store.commit('user', user);
+            this.$coreApi.login(this.username, this.password).then((data) => {
+                this.$store.commit('user', data.user);
                 this.$router.push({name: 'main-page'});
                 this.error = null;
             }).catch(() => {

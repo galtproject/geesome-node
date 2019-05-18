@@ -29,16 +29,32 @@ export default {
         let $http = axios.create({
             baseURL: config.serverBaseUrl,
             // headers: {'Authorization': 'unauthorized'},
-            withCredentials: true,
+            // withCredentials: true,
             // mode: 'no-cors',
         });
+
+        getApiKey();
+        
+        function setApiKey(apiKey) {
+            localStorage.setItem('geesome-api-key', apiKey);
+            $http.defaults.headers.post['Authorization'] = 'Bearer ' + apiKey;
+            $http.defaults.headers.get['Authorization'] = 'Bearer ' + apiKey;
+        }
+        function getApiKey() {
+            const apiKey = localStorage.getItem('geesome-api-key');
+            $http.defaults.headers.post['Authorization'] = 'Bearer ' + apiKey;
+            $http.defaults.headers.get['Authorization'] = 'Bearer ' + apiKey;
+        }
         
         Vue.prototype.$coreApi = {
             getCurrentUser(){
                 return $http.get('/v1/current-user').then(response => response.data);
             },
             login(username, password){
-                return $http.post('/v1/login', {username, password}).then(response => response.data);
+                return $http.post('/v1/login', {username, password}).then(response => {
+                    setApiKey(response.data.apiKey);
+                    return response.data;
+                });
             },
             saveFile(file, params = {}){
                 const formData = new FormData();
