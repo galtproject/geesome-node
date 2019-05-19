@@ -17,6 +17,7 @@ sudo add-apt-repository ppa:certbot/certbot
 sudo apt-get update
 sudo apt-get install certbot python-certbot-nginx 
 
+sudo mkdir /var/www/$appDomain/
 sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email $userEmail --agree-tos -d $appDomain
 
 sudo cp bash/nginx.conf /etc/nginx/geesome.conf
