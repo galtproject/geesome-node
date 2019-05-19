@@ -24,7 +24,7 @@ certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email
 
 echo "$certbotOutput";
 
-if [[ $certbotOutput == *"Congratulations"* ]]; then
+if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet due for renewal"*) ]]; then
     sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
     
     sudo sed -i -e "s~\%app_domain\%~$appDomain~g" /etc/nginx/sites-enabled/default
