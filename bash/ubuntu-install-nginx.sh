@@ -19,14 +19,16 @@ sudo apt-get install certbot python-certbot-nginx  -y
 
 sudo mkdir /var/www/$appDomain/
 sudo chown -R www-data:www-data /var/www/
-sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email $userEmail --agree-tos -d $appDomain -n
 
-sudo cp bash/nginx.conf /etc/nginx/geesome.conf
+certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email $userEmail --agree-tos -d $appDomain -n 2>&1 )
 
-sudo sed -i -e "s~\%app_domain\%~$appDomain~g" /etc/nginx/sites-enabled/default
-sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
-
-sudo service nginx restart
-
-(sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
-(sudo crontab -l 2>/dev/null; echo "0 1 * * * dpkg --list 'linux-image*'|awk '{ if ($1=="ii") print $2}'|grep -v `uname -r` | xargs apt-get purge $1 -y") | sudo crontab -
+if [[ $certbotOutput == *"Congratulations"* ]]; then
+    sudo cp bash/nginx.conf /etc/nginx/geesome.conf
+    
+    sudo sed -i -e "s~\%app_domain\%~$appDomain~g" /etc/nginx/sites-enabled/default
+    sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
+    
+    sudo service nginx restart
+    
+    (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
+fi
