@@ -1,9 +1,9 @@
 sudo apt-get update
 
-sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password root'
-sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
+sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password password root'
+sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password_again password root'
 
-sudo apt-get install python build-essential libssl-dev mysql-server -y
+sudo apt-get install python build-essential libssl-dev mysql-server-5.7 -y
 mysql -uroot -proot -e "create database geesome_core; ALTER DATABASE geesome_core CHARACTER SET utf8 COLLATE utf8_general_ci;"
 mysql -uroot -proot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'"
 
