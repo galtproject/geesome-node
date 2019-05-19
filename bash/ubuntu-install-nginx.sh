@@ -3,9 +3,21 @@ sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
 read -p "Enter Your Domain: "  appDomain
-appDir="$(pwd)/frontend/dist"
+rootDir=`pwd`
+parentDir=`dirname "$rootDir"`
+appDir="$rootDir/frontend/dist"
 
 read -p "Enter Your Email: "  userEmail
+
+sudo chown www-data:$USER $parentDir
+sudo chmod g+r $parentDir
+sudo chown www-data:$USER $rootDir
+sudo chmod g+r $rootDir
+sudo chown www-data:$USER $rootDir/frontend
+sudo chmod g+r $rootDir/frontend
+
+sudo chown -R www-data:www-data $rootDir/frontend/dist
+sudo chmod -R 755 $rootDir/frontend/dist
 
 sudo sed -i -e "s~\%app_domain\%~$appDomain~g" /etc/nginx/sites-enabled/default
 sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
