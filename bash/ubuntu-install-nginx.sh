@@ -22,6 +22,8 @@ sudo chown -R www-data:www-data /var/www/
 
 certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email $userEmail --agree-tos -d $appDomain -n 2>&1 )
 
+echo "Done.11";
+
 if [[ $certbotOutput == *"Congratulations"* ]]; then
     sudo cp bash/nginx.conf /etc/nginx/geesome.conf
     
