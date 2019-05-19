@@ -1,5 +1,5 @@
-sudo apt-get update
-sudo apt-get install -f nginx software-properties-common
+sudo apt-get update -y
+sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/geesome.conf
 
 read -p "Enter Your Domain: "  appDomain
