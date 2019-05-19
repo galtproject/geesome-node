@@ -3,7 +3,7 @@ sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/geesome.conf
 
 read -p "Enter Your Domain: "  appDomain
-appDir=$(pwd)
+appDir="$(pwd)"
 
 read -p "Enter Your Email: "  userEmail
 
