@@ -1,6 +1,6 @@
 sudo apt-get update -y
 sudo apt-get install nginx software-properties-common -y
-sudo cp bash/uncert-nginx.conf /etc/nginx/geesome.conf
+sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
 read -p "Enter Your Domain: "  appDomain
 appDir=`pwd`
