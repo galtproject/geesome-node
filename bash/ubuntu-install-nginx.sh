@@ -7,8 +7,8 @@ appDir=`pwd`
 
 read -p "Enter Your Email: "  userEmail
 
-sudo sed -ie "s~\%app_domain\%~$appDomain~g" /etc/nginx/geesome.conf
-sudo sed -ie "s~\%app_dir\%~$appDir~g" /etc/nginx/geesome.conf
+sudo sed -ie "s~\%app_domain\%~$appDomain~g" /etc/sites-enabled/default
+sudo sed -ie "s~\%app_dir\%~$appDir~g" /etc/sites-enabled/default
 
 sudo service nginx restart
 
@@ -18,12 +18,13 @@ sudo apt-get update -y
 sudo apt-get install certbot python-certbot-nginx  -y
 
 sudo mkdir /var/www/$appDomain/
+sudo chmod -R www-data:www-data /var/www/
 sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email $userEmail --agree-tos -d $appDomain -n
 
 sudo cp bash/nginx.conf /etc/nginx/geesome.conf
 
-sudo sed -ie "s~\%app_domain\%~$appDomain~g" /etc/nginx/geesome.conf
-sudo sed -ie "s~\%app_dir\%~$appDir~g" /etc/nginx/geesome.conf
+sudo sed -ie "s~\%app_domain\%~$appDomain~g" /etc/sites-enabled/default
+sudo sed -ie "s~\%app_dir\%~$appDir~g" /etc/sites-enabled/default
 
 sudo service nginx restart
 
