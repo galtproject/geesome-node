@@ -17,7 +17,7 @@ const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestInfoItem.html'),
-    props: ['manifest', 'dbId'],
+    props: ['manifest', 'dbId', 'verticalMode'],
     async created() {
         if(this.dbId) {
             this.setContentByDbId();

@@ -201,11 +201,65 @@ $fa-font-path: "webfonts";
   .file-catalog-files, .file-catalog-folders {
     .file-item, .folder-item {
       padding: 10px;
-      margin: 10px;
       cursor: pointer;
-      &:hover {
-        background: gray;
+      display: flex;
+      align-items: stretch;
+      height: 100%;
+      min-height: 65px;
+      & > *:first-child {
+        width: 27%;
+      }
+      & > *:last-child {
+        width: 73%;
+      }
+      .file-checkbox-container, .file-name-container {
+        &, &:before {
+          background: #424242;
+        }
+        &:hover {
+          &, &:before {
+            background: #616161;
+          }
+        }
+      }
+      .md-elevation-3 {
+        height: 100%;
       }
     }
+
+    .folder-item .file-name-container {
+      position: relative;
+      &:before {
+        content: " ";
+        position: absolute;
+        width: 46%;
+        height: 11px;
+        top: -6px;
+        left: 0;
+        border-radius: 3px;
+      }
+    }
+    
+    .file-checkbox-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      .md-checkbox {
+        margin: 0;
+      }
+    }
+    .file-name-container {
+      margin-left: 5px;
+      padding: 5px;
+      line-height: 1.2;
+      font-size: 13px;
+    }
+  }
+}
+
+
+@media (min-width: 1100px) {
+  .large-modal .modal-dialog {
+    width: 1000px;
   }
 }

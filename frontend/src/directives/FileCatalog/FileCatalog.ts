@@ -43,8 +43,13 @@ export default {
         },
         openFolder (item) {
             this.parentItemId = item.id;
+            this.currentFile = null;
             this.getItems();
             this.getBreadcrumbs();
+        },
+        showFile(file) {
+            this.currentFile = file;
+            console.log('this.currentFile', this.currentFile);
         },
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
@@ -70,7 +75,8 @@ export default {
             breadcrumbs: [],
             folders: [],
             files: [],
-            localSelectedIds: []
+            localSelectedIds: [],
+            currentFile: null
         }
     },
 }

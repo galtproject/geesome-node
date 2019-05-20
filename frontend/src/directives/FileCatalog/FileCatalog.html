@@ -10,14 +10,18 @@
             <div class="md-subhead" v-if="folders.length">Folders</div>
 
             <div class="file-catalog-folders md-layout">
-                <div class="md-layout-item md-size-25" v-for="folder in folders" @click="openFolder(folder)">
-                    <div class="md-elevation-3 folder-item md-layout">
-                        <div class="md-layout-item md-size-25">
-                            <md-checkbox v-model="localSelectedIds" :value="folder.id"></md-checkbox>
+                <div class="md-layout-item md-size-25" v-for="folder in folders">
+                    <div class="folder-item">
+                        <div>
+                            <div class="md-elevation-3 file-checkbox-container">
+                                <md-checkbox v-model="localSelectedIds" :value="folder.id"></md-checkbox>
+                            </div>
                         </div>
 
-                        <div class="md-layout-item md-size-75">
-                            {{folder.name}}
+                        <div @click="openFolder(folder)">
+                            <div class="md-elevation-3 file-name-container">
+                                {{folder.name}}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -27,21 +31,25 @@
 
             <div class="file-catalog-files md-layout">
                 <div class="md-layout-item md-size-25" v-for="file in files">
-                    <div class="md-elevation-3 file-item md-layout">
-                        <div class="md-layout-item md-size-25">
-                            <md-checkbox v-model="localSelectedIds" :value="file.id"></md-checkbox>
+                    <div class="file-item">
+                        <div>
+                            <div class="md-elevation-3 file-checkbox-container">
+                                <md-checkbox v-model="localSelectedIds" :value="file.id"></md-checkbox>
+                            </div>
                         </div>
                         
-                        <div class="md-layout-item md-size-75">
-                            {{file.name}}
+                        <div @click="showFile(file)">
+                            <div class="md-elevation-3 file-name-container">
+                                {{file.name}}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
             
         </div>
-        <div class="md-layout-item md-size-20">
-            <!--<content-manifest-info-item :manifest=""></content-manifest-info-item>-->
+        <div class="md-layout-item md-size-20" v-if="currentFile">
+            <content-manifest-info-item :db-id="currentFile.content.id" :vertical-mode="true"></content-manifest-info-item>
         </div>
     </div>
 </div>

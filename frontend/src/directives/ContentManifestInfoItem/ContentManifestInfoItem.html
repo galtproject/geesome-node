@@ -2,10 +2,10 @@
     <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"></md-progress-bar>
     
     <div class="md-layout" v-if="manifestObj">
-        <div class="md-layout-item md-size-30">
+        <div :class="{'md-layout-item': true, 'md-size-30': !verticalMode, 'md-size-100': verticalMode}">
             <content-manifest-item :manifest="manifestObj" :preview-mode="true"></content-manifest-item>
         </div>
-        <div class="md-layout-item md-size-70" style="position: relative;">
+        <div :class="{'md-layout-item': true, 'md-size-70': !verticalMode, 'md-size-100': verticalMode}" style="position: relative;">
             <div>
                 Type: {{manifestObj.mimeType}}<br>
                 Size: {{manifestObj.size}} bytes<br>
