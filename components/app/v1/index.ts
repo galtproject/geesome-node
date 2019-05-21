@@ -30,10 +30,12 @@ const commonHelper = require('../../../libs/common');
 const detecterHelper = require('../../../libs/detecter');
 let config = require('./config');
 const _ = require('lodash');
+const http = require('http');
 const fs = require('fs');
 const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
+const mime = require('mime');
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
@@ -301,7 +303,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     async saveData(fileStream, fileName, options) {
-        const storageFile = await this.storage.saveFileByData(fileStream);
+        const {resultFile: storageFile, resultMimeType: type} = await this.saveFileByStream(fileStream, mime.getType(fileName));
         
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
         if(existsContent) {
@@ -311,7 +313,6 @@ class GeesomeApp implements IGeesomeApp {
         const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
 
-        const type = this.detectType(storageFile.id, fileName);
         let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
 
         const content = await this.addContent({
@@ -340,11 +341,23 @@ class GeesomeApp implements IGeesomeApp {
         let storageFile;
         if(options.driver && options.driver != 'none') {
             const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
-            storageFile = await this.storage.saveFileByData(dataToSave.stream);
             type = dataToSave.type;
+            const {resultFile, resultMimeType} = await this.saveFileByStream(dataToSave.stream, type);
+            type = resultMimeType;
+            storageFile = resultFile;
         } else {
-            storageFile = await this.storage.saveFileByUrl(url);
-            type = this.detectType(storageFile.id, name);
+            const {resultFile, resultMimeType} = await new Promise((resolve, reject) => {
+                http.get(url, (responseStream) => {
+                    const { statusCode } = responseStream;
+                    if (statusCode !== 200) {
+                        return reject();
+                    }
+                    const contentType = responseStream.headers['content-type'];
+                    resolve(this.saveFileByStream(responseStream, contentType || mime.getType(name)))
+                })
+            }) as any;
+            type = resultMimeType;
+            storageFile = resultFile;
         }
 
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -371,6 +384,20 @@ class GeesomeApp implements IGeesomeApp {
         await this.updateContentManifest(content.id);
 
         return content;
+    }
+    
+    private async saveFileByStream(stream, mimeType) {
+        //TODO: find out best approach to stream videos
+        // if(_.startsWith(mimeType, 'video')) {
+        //     stream = this.drivers.convert['video-to-streamable'].processByStream(stream, {
+        //         extension: _.last(mimeType.split('/'))
+        //     });
+        //     mimeType = 'application/vnd.apple.mpegurl';
+        // }
+        return {
+            resultFile: await this.storage.saveFileByData(stream),
+            resultMimeType: mimeType
+        };
     }
 
     private async addContent(contentData: IContent) {
@@ -442,22 +469,8 @@ class GeesomeApp implements IGeesomeApp {
     }
     
     private detectType(storageId, fileName) {
-        const ext = _.last(fileName.split('.')).toLowerCase();
-
-        let type: any = ContentMimeType.Unknown;
-        if(_.includes(['jpg', 'jpeg', 'png', 'gif'], ext)) {
-            type = 'image/' + ext;
-        }
-        if(_.includes(['html', 'htm'], ext)) {
-            type = 'text/' + ext;
-        }
-        if(_.includes(['md'], ext)) {
-            type = 'text/' + ext;
-        }
-        if(_.includes(['txt'], ext)) {
-            type = 'text';
-        }
-        return type;
+        // const ext = _.last(fileName.split('.')).toLowerCase();
+        return mime.getType(fileName) || ContentMimeType.Unknown;
     }
     
     private async generateAndSaveManifest(entityName, entityObj) {

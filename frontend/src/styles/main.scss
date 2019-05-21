@@ -23,6 +23,8 @@ $fa-font-path: "webfonts";
 @import '~@galtproject/frontend-core/styles/main-with-theme.scss';
 @import '~@galtproject/frontend-core/modals/AsyncModal/modal.css';
 
+@import "media-element";
+
 .fas:before {
   position: relative;
   top: 2px;

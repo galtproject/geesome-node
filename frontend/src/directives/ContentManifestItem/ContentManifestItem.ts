@@ -11,12 +11,15 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import MediaElement from "../MediaElement/MediaElement";
+
 const _ = require('lodash');
 const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestItem.html'),
     props: ['manifest', 'previewMode'],
+    components: {MediaElement},
     async created() {
         this.setContent();
     },
@@ -35,7 +38,7 @@ export default {
             if(this.type == 'text') {
                 this.content = await this.$coreApi.getContentData(this.contentId);
             }
-            if(this.type == 'image' || this.type == 'file') {
+            if(this.type == 'image' || this.type == 'video' || this.type == 'audio' || this.type == 'file') {
                 this.content = await this.$coreApi.getImageLink(this.contentId);
             }
         }
@@ -60,6 +63,12 @@ export default {
             }
             if(_.startsWith(this.contentType, 'text')) {
                 return 'text';
+            }
+            if(_.startsWith(this.contentType, 'video')) {
+                return 'video';
+            }
+            if(_.startsWith(this.contentType, 'audio')) {
+                return 'audio';
             }
             return 'file';
         },

@@ -195,6 +195,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/ipfs/:storageId', async (req, res) => {
+        //TODO: https://gist.github.com/padenot/1324734
         geesomeApp.getFileStream(req.params.storageId).then((stream) => {
             stream.pipe(res);
         })

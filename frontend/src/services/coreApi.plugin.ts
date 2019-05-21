@@ -12,7 +12,7 @@
  */
 
 import axios from 'axios';
-const config = require('../../config');
+// const config = require('../../config');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('../../../libs/ipfsHelper');
@@ -27,11 +27,13 @@ const trie = require('../../../libs/trie');
 export default {
     install (Vue, options: any = {}) {
         let $http = axios.create({
-            baseURL: config.serverBaseUrl,
+            // baseURL: config.serverBaseUrl,
             // headers: {'Authorization': 'unauthorized'},
             // withCredentials: true,
             // mode: 'no-cors',
         });
+        
+        let current
 
         getApiKey();
         
@@ -47,6 +49,9 @@ export default {
         }
         
         Vue.prototype.$coreApi = {
+            init(store) {
+                $http.defaults.baseURL = store.state.serverAddress;
+            },
             getCurrentUser(){
                 return $http.get('/v1/user').then(response => response.data);
             },
@@ -125,7 +130,7 @@ export default {
                 if(!storageId) {
                     storageId = image;
                 }
-                return config.serverBaseUrl + 'v1/content-data/' + storageId;
+                return $http.defaults.baseURL + '/v1/content-data/' + storageId;
             },
             async getIpld(ipldHash) {
                 if(ipldHash.multihash || ipldHash.hash) {

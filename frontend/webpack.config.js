@@ -10,6 +10,8 @@ const UIThread = Object.assign({}, coreConfig({
         {from: "./assets", to: "./assets"},
         {from: "./locale", to: "./locale"},
         {from: "./node_modules/font-awesome/webfonts", to: "./build/webfonts"},
+        //TODO: exclude .js files from mediaelement
+        {from: "./node_modules/mediaelement/build", to: "./build"},
         // {from: "./node_modules/@galtproject/space-renderer/public/model-assets/", to: "./model-assets/"},
     ]
 }), {

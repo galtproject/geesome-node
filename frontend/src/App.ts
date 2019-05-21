@@ -44,7 +44,7 @@ Vue.use(storePlugin, {
     user: null,
     locale: null,
     locale_loaded: null,
-    serverAddress: config.serverBaseUrl
+    serverAddress: null
 });
 Vue.use(localePlugin);
 
@@ -75,6 +75,14 @@ export default {
             this.$store.commit('locale_loaded', true);
             this.language = this.$locale.lang;
         });
+
+        let port = 7722;
+        if(document.location.hostname === 'localhost' || document.location.hostname === '127.0.0.1') {
+            port = 7711;
+        }
+        this.$store.commit('serverAddress', document.location.protocol + "//" + document.location.hostname + ":" + port);
+        
+        this.$coreApi.init(this.$store);
         
         this.$coreApi.getCurrentUser().then((user) => {
             this.$store.commit('user', user);
@@ -82,7 +90,7 @@ export default {
         }).catch(() => {
             this.$router.push({name: 'login'});
             this.loading = false;
-        })
+        });
     },
 
     async mounted() {
