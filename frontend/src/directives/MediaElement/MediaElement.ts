@@ -9,6 +9,11 @@ export default {
             required: true,
             default: ''
         },
+        preview: {
+            type: String,
+            required: false,
+            default: ''
+        },
         width: {
             type: String,
             required: false,
@@ -61,6 +66,7 @@ export default {
             pluginPath: 'build/',
             shimScriptAccess: 'always',
             forceLive: this.forceLive,
+            poster: this.preview,
             // (by default, this is set as `sameDomain`)
             // shimScriptAccess: 'always',
             success: (mediaElement, originalNode, instance) => {

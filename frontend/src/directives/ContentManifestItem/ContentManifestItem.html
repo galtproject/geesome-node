@@ -1,5 +1,5 @@
 <content>
     <img v-if="type === 'image' && content" :src="content">
-    <media-element v-if="type === 'video' && content" :source="content"></media-element>
+    <media-element v-if="type === 'video' && content" :source="content" :preview="previewSrcLink"></media-element>
     <span v-if="type === 'text' && content" v-html="content"></span>
 </content>

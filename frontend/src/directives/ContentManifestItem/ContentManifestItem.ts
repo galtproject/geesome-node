@@ -35,11 +35,15 @@ export default {
             } else {
                 this.manifestObj = this.manifest;
             }
+            
+            this.srcLink = await this.$coreApi.getImageLink(this.manifestObj.content);
+            this.previewSrcLink = await this.$coreApi.getImageLink(this.manifestObj.preview);
+            
             if(this.type == 'text') {
                 this.content = await this.$coreApi.getContentData(this.contentId);
             }
             if(this.type == 'image' || this.type == 'video' || this.type == 'audio' || this.type == 'file') {
-                this.content = await this.$coreApi.getImageLink(this.contentId);
+                this.content = this.srcLink;
             }
         }
     },
@@ -82,7 +86,9 @@ export default {
     data() {
         return {
             manifestObj: null,
-            content: ''
+            content: '',
+            previewSrcLink: null,
+            srcLink: null
         }
     },
 }
