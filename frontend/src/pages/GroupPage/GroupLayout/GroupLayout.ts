@@ -11,29 +11,25 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import PostItem from "../../directives/Posts/PostItem/PostItem";
-import GroupHeader from "./GroupHeader/GroupHeader";
-import GroupInfo from "./GroupInfo/GroupInfo";
-import NewPostControl from "./NewPostControl/NewPostControl";
+import PostItem from "../../../directives/Posts/PostItem/PostItem";
+import GroupHeader from "../GroupHeader/GroupHeader";
+import GroupInfo from "../GroupInfo/GroupInfo";
 
 export default {
-    template: require('./GroupPage.html'),
-    components: {PostItem, NewPostControl},
-    props: ['group'],
+    template: require('./GroupLayout.html'),
+    components: {GroupHeader, GroupInfo},
     async created() {
-        this.getPosts();
+        this.getGroup();
     },
     methods: {
-        async getPosts() {
-            this.posts = [];
-            this.loading = true;
-            this.posts = await this.$coreApi.getGroupPosts(this.groupId, 10, 0);
-            this.loading = false;
+        async getGroup() {
+            this.group = null;
+            this.group = await this.$coreApi.getGroup(this.groupId);
         }
     },
     watch: {
         groupId() {
-            this.getPosts();
+            this.getGroup();
         }
     },
     computed: {
@@ -45,6 +41,7 @@ export default {
         return {
             localeKey: 'group_page',
             posts: [],
+            group: null,
             loading: true
         };
     }

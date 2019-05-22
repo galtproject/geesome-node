@@ -1,5 +1,7 @@
 <content>
-    <a href @click.prevent="openImage"><img v-if="type === 'image' && content" :src="previewSrcLink || srcLink"></a>
+    <img v-if="type === 'image' && previewMode" :src="previewSrcLink">
+    <a v-if="type === 'image' && !previewMode" href @click.prevent="openImage"><img :src="previewSrcLink || srcLink"></a>
+    
     <media-element v-if="type === 'video' && content" :source="content" :preview="previewSrcLink"></media-element>
     <span v-if="type === 'text' && content" v-html="content"></span>
    

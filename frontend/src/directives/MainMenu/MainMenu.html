@@ -23,7 +23,7 @@
         <md-divider class="md-inset"></md-divider>
 
         <md-list-item v-for="group in adminInGroups" :to="{name: 'group-page', params: { groupId: group.ipns }}">
-            <md-avatar><content-manifest-item :manifest="group.avatarImage"></content-manifest-item></md-avatar>
+            <md-avatar><content-manifest-item :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item></md-avatar>
 
             <span class="md-list-item-text">{{group.title}}</span>
 
@@ -42,7 +42,7 @@
         <md-divider class="md-inset"></md-divider>
 
         <md-list-item v-for="group in memberInGroups" :to="{name: 'group-page', params: { groupId: group.ipns }}">
-            <md-avatar><content-manifest-item :manifest="group.avatarImage"></content-manifest-item></md-avatar>
+            <md-avatar><content-manifest-item :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item></md-avatar>
 
             <span class="md-list-item-text">{{group.title}}</span>
 

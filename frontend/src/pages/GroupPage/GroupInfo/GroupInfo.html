@@ -1,12 +1,12 @@
 <md-card class="group-info">
     <md-card-header>
         <md-card-header-text>
-            <div class="md-title">@{{group.name}}</div>
+            <div class="md-title"><router-link :to="{'name': 'group-page', params: {groupId: group.id}}" style="text-decoration: none;">@{{group.name}}</router-link></div>
             <div class="md-subhead"><pretty-hex :hex="group.ipns"></pretty-hex></div>
         </md-card-header-text>
 
         <md-card-media>
-            <content-manifest-item :manifest="group.avatarImage"></content-manifest-item>
+            <content-manifest-item :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item>
         </md-card-media>
     </md-card-header>
 

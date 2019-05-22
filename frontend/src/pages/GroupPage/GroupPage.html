@@ -1,13 +1,7 @@
-<posts-container mode="tight">
-    <div class="group-info-container">
-        <group-info v-if="group" :group="group"></group-info>
-    </div>
-    
-    <group-header v-if="group" :group="group"></group-header>
-
+<div>
     <new-post-control v-if="group" :group="group" @new-post="getPosts()"></new-post-control>
     
     <div class="posts-list">
         <post-item v-for="(post, index) in posts" v-model="posts[index]"></post-item>
     </div>
-</posts-container>
+</div>

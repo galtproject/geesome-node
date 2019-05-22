@@ -58,7 +58,8 @@ export default {
             this.$root.$asyncModal.open({
                 id: 'image-modal',
                 component: ImageModal,
-                props: {'images': [this.srcLink]}
+                props: {'images': [this.srcLink]}, 
+                options: {closeOnBackdrop: true}
             });
         }
     },

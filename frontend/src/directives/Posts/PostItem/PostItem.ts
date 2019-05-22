@@ -12,6 +12,7 @@
  */
 
 const _ = require('lodash');
+const moment = require('moment');
 
 export default {
     template: require('./PostItem.html'),
@@ -47,6 +48,9 @@ export default {
     computed: {
         contentsList() {
             return _.orderBy(this.value.contents, ['position'], ['asc']);
+        },
+        date() {
+            return moment(this.value.publishedAt).format('DD.MM.YYYY h:mm:ss');
         }
     },
     data() {
