@@ -20,9 +20,11 @@ export class YoutubeThumbnailPreviewDriver implements IDriver{
                 if (err) 
                     throw err;
                 console.log('thumbnail file downloaded:', files);
+                //TODO: find out better approach for get previews od youtube, without tmp files
                 resolve({
                     path: decodeURIComponent('/tmp/' + files[0]),
-                    type: 'image/jpg'
+                    type: 'image/jpg',
+                    extension: 'jpg'
                 })
                 // const oldPath = decodeURIComponent('/tmp/' + files[0]);
                 // const newPath = '/tmp/' + _.last(url.split('/'));

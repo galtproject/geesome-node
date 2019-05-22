@@ -30,7 +30,7 @@ const commonHelper = require('../../../libs/common');
 const detecterHelper = require('../../../libs/detecter');
 let config = require('./config');
 const _ = require('lodash');
-const http = require('http');
+const request = require('request');
 const fs = require('fs');
 const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
@@ -269,22 +269,24 @@ class GeesomeApp implements IGeesomeApp {
         }
         if(previewDriver.supportedInputs[0] === DriverInput.Stream) {
             const inputStream = await this.storage.getFileStream(storageId);
-            const {stream: resultStream, type} = await previewDriver.processByStream(inputStream, {extension});
+            const {stream: resultStream, type, extension: resultExtension} = await previewDriver.processByStream(inputStream, {extension});
             const storageFile = await this.storage.saveFileByData(resultStream);
             return {
                 previewStorageId: storageFile.id,
-                previewType: type
+                previewType: type,
+                previewExtension: resultExtension
             };
         } else if(previewDriver.supportedInputs[0] === DriverInput.Content) {
             const data = await this.storage.getFileData(storageId);
-            const {content: resultData, type} = await previewDriver.processByContent(data, {extension});
+            const {content: resultData, type, extension: resultExtension} = await previewDriver.processByContent(data, {extension});
             const storageFile = await this.storage.saveFileByData(resultData);
             return {
                 previewStorageId: storageFile.id,
-                previewType: type
+                previewType: type,
+                previewExtension: resultExtension
             };
         } else if(previewDriver.supportedInputs[0] === DriverInput.Source) {
-            const {content: resultData, path, type} = await previewDriver.processBySource(source, {});
+            const {content: resultData, path, extension: resultExtension, type} = await previewDriver.processBySource(source, {});
             console.log('path', path);
             let storageFile;
             if(path) {
@@ -295,7 +297,8 @@ class GeesomeApp implements IGeesomeApp {
             
             return {
                 previewStorageId: storageFile.id,
-                previewType: type
+                previewType: type,
+                previewExtension: resultExtension
             };
         } else {
             throw type + "_preview_driver_input_not_found";
@@ -303,7 +306,8 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     async saveData(fileStream, fileName, options) {
-        const {resultFile: storageFile, resultMimeType: type} = await this.saveFileByStream(fileStream, mime.getType(fileName));
+        const extension = fileName.split('.').length > 1 ? _.last(fileName.split('.')): null;
+        const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(fileStream, mime.getType(fileName), extension);
         
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
         if(existsContent) {
@@ -313,11 +317,13 @@ class GeesomeApp implements IGeesomeApp {
         const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
 
-        let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type);
+        let {previewStorageId, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
 
         const content = await this.addContent({
             groupId,
             previewStorageId,
+            previewExtension,
+            extension: resultExtension,
             mimeType: type,
             previewMimeType: previewType as any,
             userId: options.userId,
@@ -336,28 +342,31 @@ class GeesomeApp implements IGeesomeApp {
         options = options || {};
 
         const name = _.last(url.split('/'));
+        let extension = name.split('.').length > 1 ? _.last(name.split('.')): null;
         let type;
         
         let storageFile;
         if(options.driver && options.driver != 'none') {
             const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
             type = dataToSave.type;
-            const {resultFile, resultMimeType} = await this.saveFileByStream(dataToSave.stream, type);
+            const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(dataToSave.stream, type, extension);
             type = resultMimeType;
             storageFile = resultFile;
+            extension = resultExtension;
         } else {
-            const {resultFile, resultMimeType} = await new Promise((resolve, reject) => {
-                http.get(url, (responseStream) => {
+            const {resultFile, resultMimeType, resultExtension} = await new Promise((resolve, reject) => {
+                request.get(url).on('response', (responseStream) => {
                     const { statusCode } = responseStream;
                     if (statusCode !== 200) {
                         return reject();
                     }
                     const contentType = responseStream.headers['content-type'];
-                    resolve(this.saveFileByStream(responseStream, contentType || mime.getType(name)))
+                    resolve(this.saveFileByStream(responseStream, contentType || mime.getType(name), extension))
                 })
             }) as any;
             type = resultMimeType;
             storageFile = resultFile;
+            extension = resultExtension;
         }
 
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -367,11 +376,13 @@ class GeesomeApp implements IGeesomeApp {
         
         const groupId = await this.checkGroupId(options.groupId);
         const group = await this.database.getGroup(groupId);
-        let {previewStorageId, previewType} = await this.getPreview(storageFile.id, type, url);
+        let {previewStorageId, previewType, previewExtension} = await this.getPreview(storageFile.id, type, url);
 
         const content = await this.addContent({
             groupId,
             previewStorageId,
+            extension,
+            previewExtension,
             mimeType: type,
             previewMimeType: previewType as any,
             userId: options.userId,
@@ -386,7 +397,7 @@ class GeesomeApp implements IGeesomeApp {
         return content;
     }
     
-    private async saveFileByStream(stream, mimeType) {
+    private async saveFileByStream(stream, mimeType, extension?) {
         //TODO: find out best approach to stream videos
         // if(_.startsWith(mimeType, 'video')) {
         //     stream = this.drivers.convert['video-to-streamable'].processByStream(stream, {
@@ -396,7 +407,8 @@ class GeesomeApp implements IGeesomeApp {
         // }
         return {
             resultFile: await this.storage.saveFileByData(stream),
-            resultMimeType: mimeType
+            resultMimeType: mimeType,
+            resultExtension: extension
         };
     }
 

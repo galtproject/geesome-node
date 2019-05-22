@@ -7,7 +7,8 @@ export class TextPreviewDriver implements IDriver{
         const previewTextLength = 50;
         return {
             content: content.toString('utf8').replace(/(<([^>]+)>)/ig,"").slice(0, previewTextLength),
-            type: 'text'
+            type: 'text/plain',
+            extension: 'txt'
         };
     }
 }

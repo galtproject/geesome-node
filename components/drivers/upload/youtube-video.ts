@@ -15,7 +15,8 @@ export class YoutubeVideoUploadDriver implements IDriver{
             { cwd: __dirname });
         return {
             stream,
-            type: 'video/mp4'
+            type: 'video/mp4',
+            extension: 'mp4'
         }
     }
 }

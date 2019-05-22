@@ -12,14 +12,19 @@
  */
 
 import MediaElement from "../MediaElement/MediaElement";
+import PrettyName from "../PrettyName/PrettyName";
+import ImageModal from "../../modals/ImageModal/ImageModal";
+import ChooseContentsIdsModal from "../../modals/ChooseContentsIdsModal/ChooseContentsIdsModal";
 
+const fileSaver = require('file-saver');
+const mime = require('mime/lite');
 const _ = require('lodash');
 const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestItem.html'),
     props: ['manifest', 'previewMode'],
-    components: {MediaElement},
+    components: {MediaElement, PrettyName, ImageModal},
     async created() {
         this.setContent();
     },
@@ -45,6 +50,16 @@ export default {
             if(this.type == 'image' || this.type == 'video' || this.type == 'audio' || this.type == 'file') {
                 this.content = this.srcLink;
             }
+        },
+        download() {
+            fileSaver.saveAs(this.srcLink, this.filename);
+        },
+        openImage() {
+            this.$root.$asyncModal.open({
+                id: 'image-modal',
+                component: ImageModal,
+                props: {'images': [this.srcLink]}
+            });
         }
     },
 
@@ -58,6 +73,15 @@ export default {
     },
 
     computed: {
+        filename() {
+            return _.last(this.srcLink.split('/')) + '.' + this.extension;
+        },
+        extension() {
+            if(!this.manifestObj) {
+                return null;
+            }
+            return this.manifestObj.extension || mime.getExtension(this.manifestObj.mimeType) || '';
+        },
         type() {
             if(!this.manifestObj) {
                 return null;

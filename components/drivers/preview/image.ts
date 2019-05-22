@@ -16,7 +16,8 @@ export class ImagePreviewDriver implements IDriver{
 
         return {
             stream: inputStream.pipe(resizerStream) as Stream,
-            type: 'image/' + extension
+            type: 'image/' + extension,
+            extension: extension
         };
     }
 }

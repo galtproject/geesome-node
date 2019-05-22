@@ -69,7 +69,7 @@ class EntityJsonManifest implements IRender {
             return postManifest;
         } else if(name === 'content-manifest') {
             const content: IContent = data;
-            const contentManifest = _.pick(content, ['mimeType', 'previewMimeType', 'view', 'size']);
+            const contentManifest = _.pick(content, ['name', 'mimeType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 
             contentManifest.content = content.storageId;
             contentManifest.preview = content.previewStorageId;

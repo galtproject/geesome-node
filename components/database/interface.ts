@@ -76,6 +76,7 @@ export interface IUserApiKey {
 export interface IContent {
     id?: number;
     mimeType: ContentMimeType;
+    extension?: string;
     view?: ContentView;
     name?: string;
     description?: string;
@@ -86,6 +87,7 @@ export interface IContent {
     localId?: number;
     previewStorageId?: string;
     previewMimeType?: ContentMimeType;
+    previewExtension?: string;
     storageId?: string;
     staticStorageId?: string;
     manifestStorageId?: string;

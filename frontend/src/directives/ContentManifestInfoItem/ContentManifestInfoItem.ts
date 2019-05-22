@@ -11,13 +11,17 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import PrettyName from "../PrettyName/PrettyName";
+
 const _ = require('lodash');
+const mime = require('mime/lite');
 const fileSaver = require('file-saver');
 const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestInfoItem.html'),
     props: ['manifest', 'dbId', 'verticalMode'],
+    components: {PrettyName},
     async created() {
         if(this.dbId) {
             this.setContentByDbId();
@@ -91,17 +95,7 @@ export default {
             if(!this.manifestObj) {
                 return null;
             }
-            const split = this.manifestObj.mimeType.split('/');
-            if(split[1]) {
-                return split[1];
-            } else if(this.type === 'video') {
-                return 'mp4';
-            } else if(this.type === 'image') {
-                return 'jpg';
-            } else if(this.type === 'text') {
-                return 'txt';
-            }
-            return '';
+            return this.manifestObj.extension || mime.getExtension(this.manifestObj.mimeType) || '';
         },
         showCloseButton() {
             return !!this.$listeners.close;

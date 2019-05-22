@@ -22,6 +22,9 @@ module.exports = async function (sequelize, models) {
         mimeType: {
             type: Sequelize.STRING(200)
         },
+        extension: {
+            type: Sequelize.STRING(200)
+        },
         view: {
             type: Sequelize.STRING(200)
         },
@@ -41,6 +44,9 @@ module.exports = async function (sequelize, models) {
             type: Sequelize.STRING(200)
         },
         previewMimeType: {
+            type: Sequelize.STRING(200)
+        },
+        previewExtension: {
             type: Sequelize.STRING(200)
         },
         staticStorageId: {

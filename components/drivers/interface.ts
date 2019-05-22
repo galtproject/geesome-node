@@ -31,4 +31,5 @@ export interface IDriverResponse {
     content?: any;
     path?: string;
     type?: string;
+    extension?: string;
 }

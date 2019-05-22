@@ -7,6 +7,7 @@
         </div>
         <div :class="{'md-layout-item': true, 'md-size-70': !verticalMode, 'md-size-100': verticalMode}" style="position: relative;">
             <div>
+                Name: <pretty-name :name="manifestObj.name"></pretty-name><br>
                 Type: {{manifestObj.mimeType}}<br>
                 Size: {{manifestObj.size}} bytes<br>
                 Ipfs hash: <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
