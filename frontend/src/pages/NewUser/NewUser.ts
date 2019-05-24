@@ -11,18 +11,25 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import CreatedForAdminOverview from "./Widgets/CreatedForAdminOverview/CreatedForAdminOverview";
-import WelcomeToGeesome from "./Widgets/WelcomeToGeesome/WelcomeToGeesome";
-
 export default {
-    template: require('./MainPage.html'),
-    components: {CreatedForAdminOverview, WelcomeToGeesome},
+    template: require('./NewUser.html'),
     methods: {
-        
+        login() {
+            this.$coreApi.login(this.username, this.password).then((data) => {
+                this.$store.commit('user', data.user);
+                this.$router.push({name: 'main-page'});
+                this.error = null;
+            }).catch(() => {
+                this.error = 'failed';
+            })
+        }
     },
     data() {
         return {
-            localeKey: 'main_page'
+            localeKey: 'login_page',
+            username: null,
+            password: null,
+            error: null
         };
     },
     computed: {

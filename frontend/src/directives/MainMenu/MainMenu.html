@@ -15,6 +15,11 @@
     </md-toolbar>
 
     <md-list>
+        <md-list-item :to="'/'">
+            <md-icon class="fas fa-home"></md-icon>
+            <span class="md-list-item-text" v-locale="localeKey + '.home'"></span>
+        </md-list-item>
+        
         <md-list-item>
             <md-icon class="fas fa-users-cog"></md-icon>
             <span class="md-list-item-text" v-locale="localeKey + '.administration_groups'"></span>
@@ -23,7 +28,10 @@
         <md-divider class="md-inset"></md-divider>
 
         <md-list-item v-for="group in adminInGroups" :to="{name: 'group-page', params: { groupId: group.ipns }}">
-            <md-avatar><content-manifest-item :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item></md-avatar>
+            <md-avatar>
+                <content-manifest-item v-if="group.avatarImage" :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item>
+                <span v-else>{{group.title.slice(0, 2)}}</span>
+            </md-avatar>
 
             <span class="md-list-item-text">{{group.title}}</span>
 
@@ -42,7 +50,10 @@
         <md-divider class="md-inset"></md-divider>
 
         <md-list-item v-for="group in memberInGroups" :to="{name: 'group-page', params: { groupId: group.ipns }}">
-            <md-avatar><content-manifest-item :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item></md-avatar>
+            <md-avatar>
+                <content-manifest-item v-if="group.avatarImage" :manifest="group.avatarImage" :preview-mode="true"></content-manifest-item>
+                <span v-else>{{group.title.slice(0, 2)}}</span>
+            </md-avatar>
 
             <span class="md-list-item-text">{{group.title}}</span>
 

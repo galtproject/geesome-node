@@ -33,7 +33,7 @@ import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
 
 import { VueEditor, Quill } from 'vue2-editor'
 
-const config = require('../config');
+const _ = require('lodash');
 
 Vue.use(Notifications);
 
@@ -63,6 +63,23 @@ Vue.component('router-view', Vue['options'].components.RouterView);
 
 Vue.use(VueMaterial);
 
+Vue.filter('prettySize', function (bytesSize) {
+    bytesSize = parseInt(bytesSize);
+    function round(number) {
+        return Math.round(number * 1000) / 1000;
+    }
+    if(bytesSize < 1024 * 100) {
+        return round(bytesSize / 1024) + ' Kb';
+    }
+    if(bytesSize < 1024 ** 2 * 100) {
+        return round(bytesSize / (1024 ** 2)) + ' Mb';
+    }
+    if(bytesSize < 1024 ** 3 * 100) {
+        return round(bytesSize / (1024 ** 3)) + ' Gb';
+    }
+    return round(bytesSize / (1024 ** 4)) + ' Tb';
+});
+
 export default {
     template: require('./App.html'),
     components: { MainMenu },//,ConsoleLog
@@ -77,7 +94,7 @@ export default {
         });
 
         let port = 7722;
-        if(document.location.hostname === 'localhost' || document.location.hostname === '127.0.0.1') {
+        if(document.location.hostname === 'localhost' || document.location.hostname === '127.0.0.1' || _.startsWith(document.location.pathname, '/node')) {
             port = 7711;
         }
         this.$store.commit('serverAddress', document.location.protocol + "//" + document.location.hostname + ":" + port);

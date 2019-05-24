@@ -259,9 +259,22 @@ $fa-font-path: "webfonts";
   }
 }
 
+.new-group-features-list {
+  padding-left: 0;
+  list-style-type:none;
+  margin-left: 5px;
+  li {
+    margin-bottom: 20px;
+    margin-left: 0;
+    & > span {
+      margin-left: 10px;
+    }
+  }
+}
 
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;
   }
 }
+

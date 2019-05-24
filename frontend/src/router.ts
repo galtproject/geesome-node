@@ -17,6 +17,8 @@ import GroupPage from "./pages/GroupPage/GroupPage";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import GroupLayout from "./pages/GroupPage/GroupLayout/GroupLayout";
 import GroupPostPage from "./pages/GroupPage/GroupPostPage/GroupPostPage";
+import NewGroup from "./pages/GroupPage/NewGroup/NewGroup";
+import NewUser from "./pages/NewUser/NewUser";
 
 Vue.use(Router);
 
@@ -29,9 +31,19 @@ export default new Router({
             component: MainPage
         },
         {
-            path: 'login',
+            path: '/login',
             name: 'login',
             component: LoginPage
+        },
+        {
+            path: '/new-user',
+            name: 'new-user',
+            component: NewUser
+        },
+        {
+            path: '/new-group',
+            name: 'new-group',
+            component: NewGroup
         },
         {
             path: '/group/',

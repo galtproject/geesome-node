@@ -45,6 +45,10 @@ export interface IDatabase {
     addAdminToGroup(userId, groupId): Promise<void>;
     getAdminInGroups(userId): Promise<IGroup[]>;
 
+    addCorePermission(userId, permissionName): Promise<void>;
+    removeCorePermission(userId, permissionName): Promise<void>;
+    isHaveCorePermission(userId, permissionName): Promise<boolean>;
+
     isAdminInGroup(userId, groupId): Promise<boolean>;
     isMemberInGroup(userId, groupId): Promise<boolean>;
 
@@ -59,6 +63,10 @@ export interface IDatabase {
     getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
     addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;
     updateFileCatalogItem(id, updateData): Promise<void>;
+
+    getAllUserList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
+    getAllContentList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
+    getAllGroupList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
 
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
@@ -170,11 +178,10 @@ export enum GroupType {
 }
 
 export enum GroupView {
-    Tiles = 'tiles',
-    Grid = 'grid',
-    FullList = 'full-list',
-    MiniList = 'mini-list',
-    ListWithEditor = 'list-with-editor'
+    PinterestLike = 'pinterest-like',
+    InstagramLike = 'instagram-like',
+    TumblrLike = 'tumblr-like',
+    TelegramLike = 'telegram-like'
 }
 
 export interface IFileCatalogItem {

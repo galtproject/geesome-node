@@ -1,0 +1,36 @@
+<div>
+    <md-card>
+        <md-card-header>
+            <div class="md-title">Welcome to Geesome!</div>
+        </md-card-header>
+        
+        <md-card-content>
+            <p>Here you can publish content, make public pages (like in social networks), invite and share to friends!</p>
+        </md-card-content>
+
+        <md-card-content>
+            <div class="md-layout" v-if="!mode">
+                <div class="md-layout-item md-size-30" style="padding: 5px;">
+                    <md-button class="md-raised huge-button md-accent" :to="{name: 'new-group'}">
+                        <md-icon class="fas fa-users-cog"></md-icon>
+                        <div>Create public page</div>
+                    </md-button>
+                </div>
+                
+                <div class="md-layout-item md-size-30" style="padding: 5px;">
+                    <md-button class="md-raised huge-button md-accent" :to="{name: 'new-user'}">
+                        <md-icon class="fas fa-user-plus"></md-icon>
+                        <div>Add user</div>
+                    </md-button>
+                </div>
+
+                <div class="md-layout-item md-size-30" style="padding: 5px;">
+                    <md-button class="md-raised huge-button md-accent" :to="{name: 'new-user'}">
+                        <md-icon class="fas fa-upload"></md-icon>
+                        <div>Upload content</div>
+                    </md-button>
+                </div>
+            </div>
+        </md-card-content>
+    </md-card>
+</div>

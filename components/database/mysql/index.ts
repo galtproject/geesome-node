@@ -317,6 +317,54 @@ class MysqlDatabase implements IDatabase {
         })).map(f => f.contentId);
     }
     
+    async addCorePermission(userId, permissionName) {
+        return this.models.CorePermission.create({ userId, name: permissionName });
+    }
+
+    async removeCorePermission(userId, permissionName) {
+        return this.models.CorePermission.destroy({where: { userId, name: permissionName  } })
+    }
+    async isHaveCorePermission(userId, permissionName) {
+        return this.models.CorePermission.findOne({ where: {  userId, name: permissionName } });
+    }
+
+    async getAllUserList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+        let where = {};
+        if(searchString) {
+            where = {[Op.or]: [{name: searchString}, {email: searchString}]};
+        }
+        return this.models.User.findAll({
+            where,
+            order: [[sortField, sortDir.toUpperCase()]],
+            limit,
+            offset
+        });
+    }
+    async getAllContentList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+        let where = {};
+        if(searchString) {
+            where = {name: searchString};
+        }
+        return this.models.Content.findAll({
+            where,
+            order: [[sortField, sortDir.toUpperCase()]],
+            limit,
+            offset
+        });
+    }
+    async getAllGroupList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+        let where = {};
+        if(searchString) {
+            where = {[Op.or]: [{name: searchString}, {title: searchString}]};
+        }
+        return this.models.Group.findAll({
+            where,
+            order: [[sortField, sortDir.toUpperCase()]],
+            limit,
+            offset
+        });
+    }
+    
     async getValue(key: string) {
         const valueObj = await this.models.Value.findOne({ where: { key } });
         return valueObj ? valueObj.content : null;

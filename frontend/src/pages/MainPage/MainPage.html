@@ -1,10 +1,10 @@
 <div id="main-page" style="height: 100%;">
-    <div class="dropbox">
-        <input type="file" @change="uploadFile($event.target.files[0])" accept="json">
-        <p v-locale="localeKey + '.file'"></p>
+    <div class="md-layout">
+        <div class="md-layout-item md-size-50">
+            <welcome-to-geesome></welcome-to-geesome>
+        </div>
+        <div class="md-layout-item md-size-50">
+            <created-for-admin-overview></created-for-admin-overview>
+        </div>
     </div>
-
-    <md-progress-bar v-if="uploading" class="md-accent" md-mode="indeterminate"></md-progress-bar>
-
-    <h3>{{storageId}}</h3>
 </div>

@@ -9,7 +9,7 @@
             <div>
                 Name: <pretty-name :name="manifestObj.name"></pretty-name><br>
                 Type: {{manifestObj.mimeType}}<br>
-                Size: {{manifestObj.size}} bytes<br>
+                Size: {{manifestObj.size| prettySize}}<br>
                 Ipfs hash: <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
                 Preview ipfs hash: <pretty-hex :hex="manifestObj.preview"></pretty-hex><br>
                 <a :href="srcLink" @click.prevent="download">Download</a>

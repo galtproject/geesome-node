@@ -54,7 +54,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         };
 
         if(
-            (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group'))
+            (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin'))
             && !_.startsWith(req.url, '/v1/login')
             && req.method !== 'OPTIONS' && req.method !== 'HEAD'
         ) {
@@ -117,6 +117,24 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(req.user, 200);
     });
 
+    service.get('/v1/user/permissions/core/is-have/:permissionName', async (req, res) => {
+        res.send({ valid: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
+    });
+
+    service.get('/v1/admin/all-users', async (req, res) => {
+        res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    });
+    service.get('/v1/admin/all-content', async (req, res) => {
+        res.send(await geesomeApp.getAllContentList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    });
+    service.get('/v1/admin/all-groups', async (req, res) => {
+        res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    });
+
+    service.post('/v1/user/create-group', async (req, res) => {
+        res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
+    });
+    
     service.get('/v1/user/member-in-groups', async (req, res) => {
         res.send(await geesomeApp.getMemberInGroups(req.user.id));
     });
@@ -133,14 +151,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
             return res.send(403);
         }
-        res.send(await geesomeApp.createPost(req.userId, req.body), 200);
+        res.send(await geesomeApp.createPost(req.user.id, req.body), 200);
     });
 
     service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
         if(!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
             return res.send(403);
         }
-        res.send(await geesomeApp.updatePost(req.userId, req.params.postId, req.body), 200);
+        res.send(await geesomeApp.updatePost(req.user.id, req.params.postId, req.body), 200);
     });
 
     service.post('/v1/user/save-file', async (req, res) => {
@@ -156,7 +174,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.post('/v1/user/save-data', async (req, res) => {
-        res.send(await geesomeApp.saveData(req.body['content'], 'index.html', {userId: req.user.id, groupId: req.body['groupId']}), 200);
+        res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'], {userId: req.user.id, groupId: req.body['groupId']}), 200);
     });
 
     service.post('/v1/user/save-data-by-url', async (req, res) => {

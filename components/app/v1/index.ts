@@ -187,8 +187,10 @@ class GeesomeApp implements IGeesomeApp {
         groupData.userId = userId;
         groupData.storageAccountId = await this.storage.createAccountIfNotExists(groupData['name']);
         groupData.manifestStaticStorageId = groupData.storageAccountId;
-
+        
         const group = await this.database.addGroup(groupData);
+        
+        await this.database.addAdminToGroup(userId, group.id);
 
         await this.updateGroupManifest(group.id);
 
@@ -525,21 +527,16 @@ class GeesomeApp implements IGeesomeApp {
 
 
     async getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?) {
-        if(!parentItemId) {
+        if(!parentItemId)
             parentItemId = null;
-        }
-        if(!sortField) {
+        if(!sortField)
             sortField = 'createdAt';
-        }
-        if(!sortDir) {
+        if(!sortDir)
             sortDir = 'desc';
-        }
-        if(!limit) {
+        if(!limit)
             limit = 20;
-        }
-        if(!offset) {
+        if(!offset)
             offset = 0;
-        }
         return this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset);
     }
     
@@ -554,6 +551,49 @@ class GeesomeApp implements IGeesomeApp {
     
     async getContentsIdsByFileCatalogIds(catalogIds) {
         return this.database.getContentsIdsByFileCatalogIds(catalogIds);
+    }
+
+    async getAllUserList(userId, searchString?, sortField?, sortDir?, limit?, offset?) {
+        if(!await this.database.isHaveCorePermission(userId, 'admin:read')) {
+            throw "not_permitted"
+        }
+        if(!sortField)
+            sortField = 'createdAt';
+        if(!sortDir)
+            sortDir = 'desc';
+        if(!limit)
+            limit = 20;
+        if(!offset)
+            offset = 0;
+        return this.database.getAllUserList(searchString, sortField, sortDir, limit, offset);
+    }
+    async getAllGroupList(userId, searchString?, sortField?, sortDir?, limit?, offset?) {
+        if(!await this.database.isHaveCorePermission(userId, 'admin:read')) {
+            throw "not_permitted"
+        }
+        if(!sortField)
+            sortField = 'createdAt';
+        if(!sortDir)
+            sortDir = 'desc';
+        if(!limit)
+            limit = 20;
+        if(!offset)
+            offset = 0;
+        return this.database.getAllGroupList(searchString, sortField, sortDir, limit, offset);
+    }
+    async getAllContentList(userId, searchString?, sortField?, sortDir?, limit?, offset?) {
+        if(!await this.database.isHaveCorePermission(userId, 'admin:read')) {
+            throw "not_permitted"
+        }
+        if(!sortField)
+            sortField = 'createdAt';
+        if(!sortDir)
+            sortDir = 'desc';
+        if(!limit)
+            limit = 20;
+        if(!offset)
+            offset = 0;
+        return this.database.getAllContentList(searchString, sortField, sortDir, limit, offset);
     }
 
     runSeeds() {

@@ -31,10 +31,15 @@ export default {
                 return '';
             }
             const dotIndex = _.lastIndexOf(this.name, '.');
-            if(dotIndex <= 20) {
+            let cutContentLength = 10;
+            let endChars = 4;
+            if(dotIndex <= cutContentLength) {
                 return this.name;
             }
-            return this.name.slice(0, 20) + "..." + this.name.slice(dotIndex - 4);
+            if(this.name.length < cutContentLength + endChars) {
+                cutContentLength = cutContentLength - endChars;
+            }
+            return this.name.slice(0, cutContentLength) + "..." + this.name.slice(dotIndex - endChars);
         }
     },
     data() {

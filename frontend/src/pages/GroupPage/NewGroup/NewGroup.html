@@ -1,0 +1,76 @@
+<posts-container :mode="'wide'">
+    <div class="md-layout">
+        <div class="md-layout-item md-size-50">
+            <md-card>
+                <md-card-header>
+                    <div class="md-title">New Group</div>
+                </md-card-header>
+
+                <md-card-content>
+
+                    <md-field>
+                        <label>@Username</label>
+                        <md-input v-model="group.name"></md-input>
+                    </md-field>
+
+                    <md-field>
+                        <label>Title</label>
+                        <md-input v-model="group.title"></md-input>
+                    </md-field>
+
+                    <md-field>
+                        <label>Type</label>
+                        <md-select v-model="group.type">
+                            <md-option value="channel">Channel</md-option>
+                            <md-option value="chat">Chat</md-option>
+                        </md-select>
+                    </md-field>
+
+                    <md-field>
+                        <label>View</label>
+                        <md-select v-model="group.view">
+                            <md-option value="tumblr-like">Like in Tumblr</md-option>
+                            <md-option value="instagram-like">Like in Instagram</md-option>
+                            <md-option value="evernote-like">Like in Evernote</md-option>
+                        </md-select>
+                    </md-field>
+
+                    <md-checkbox v-model="group.isPublic">Public group</md-checkbox>
+
+                    <div>
+                        <md-button class="md-raised md-accent" @click="create()" :disabled="creationDisabled">
+                            Create
+                        </md-button>
+                    </div>
+
+                    <div style="margin-top: 20px" class="md-error" v-if="error">Creation failed, please check fields for further data</div>
+                </md-card-content>
+            </md-card>
+        </div>
+        <div class="md-layout-item md-size-50">
+            <p>You can use Geesome Groups as:</p>
+            <ul class="new-group-features-list">
+                <li>
+                    <md-icon class="fas fa-bullhorn"></md-icon> 
+                    <span>Public page (like in Instagram, Telegram, Twitter or Youtube)</span>
+                </li>
+                <li>
+                    <md-icon class="fas fa-bookmark"></md-icon>
+                    <span>Private channel (like Saved messages in Telegram or favorites in Instagram)</span>
+                </li>
+                <li>
+                    <md-icon class="fas fa-sticky-note"></md-icon>
+                    <span>Notebook (like Evernote)</span>
+                </li>
+                <li>
+                    <md-icon class="fas fa-comments"></md-icon>
+                    <span>Public or private chat</span>
+                </li>
+                <li>
+                    <md-icon class="fas fa-music"></md-icon>
+                    <span>Audio or video list (like Audio in Vkontakte or Youtube playlist)</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</posts-container>

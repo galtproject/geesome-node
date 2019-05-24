@@ -33,7 +33,8 @@ export default {
         },
         saveText() {
             this.saving = true;
-            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId}).then(this.contentUploaded.bind(this))
+            const fileName = this.localValue.replace(/(<([^>]+)>)/ig,"").slice(0, 50) + '.html';
+            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId, fileName}).then(this.contentUploaded.bind(this))
         },
         uploadFile(file) {
             this.saving = true;

@@ -11,21 +11,13 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import CreatedForAdminOverview from "./Widgets/CreatedForAdminOverview/CreatedForAdminOverview";
-import WelcomeToGeesome from "./Widgets/WelcomeToGeesome/WelcomeToGeesome";
+import Vue from 'vue';
 
-export default {
-    template: require('./MainPage.html'),
-    components: {CreatedForAdminOverview, WelcomeToGeesome},
-    methods: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'main_page'
-        };
-    },
-    computed: {
-        
-    }
+export const EventBus = new Vue();
+
+export const UPDATE_MEMBER_GROUPS = 'update-member-groups';
+export const UPDATE_ADMIN_GROUPS = 'update-admin-groups';
+
+export function GetEventName(eventName, componentName) {
+    return eventName + (componentName == 'main' ? '' : '-' + componentName);
 }

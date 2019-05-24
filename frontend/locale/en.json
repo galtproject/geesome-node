@@ -4,7 +4,8 @@
     "server_address": "Server",
     "main_menu": {
       "title": "Menu",
-      "administration_groups": "Administrate groups",
+      "home": "Administrate groups",
+      "administration_groups": "Home",
       "followed_groups": "Followed groups"
     }
   },

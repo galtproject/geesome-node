@@ -11,6 +11,8 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import {EventBus, UPDATE_ADMIN_GROUPS, UPDATE_MEMBER_GROUPS} from "../../services/events";
+
 export default {
     name: 'main-menu',
     template: require('./MainMenu.html'),
@@ -18,6 +20,8 @@ export default {
     props: ['menuVisible', 'menuMinimized'],
     async created() {
         this.getData();
+        EventBus.$on(UPDATE_MEMBER_GROUPS, this.getData.bind(this));
+        EventBus.$on(UPDATE_ADMIN_GROUPS, this.getData.bind(this));
     },
 
     async mounted() {
