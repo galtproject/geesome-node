@@ -42,7 +42,8 @@ if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet d
     sudo sed -i -e "s~\%app_domain\%~$appDomain~g" /etc/nginx/sites-enabled/default
     sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
     
-    sudo service nginx restart
-    
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
+    
+    echo "service nginx restart";
+    sudo service nginx restart
 fi
