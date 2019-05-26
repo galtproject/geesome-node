@@ -210,10 +210,16 @@ class MysqlDatabase implements IDatabase {
     }
 
     async getPost(id) {
-        return this.models.Post.findOne({
+        const post = await this.models.Post.findOne({
             where: { id },
             include: [{ model: this.models.Content, as: 'contents'}]
         });
+
+        post.contents = _.orderBy(post.contents, [(content) => {
+            return content.postsContents.position;
+        }], ['asc']);
+        
+        return post;
     }
     
     async addPost(post) {
@@ -226,8 +232,8 @@ class MysqlDatabase implements IDatabase {
 
     async setPostContents(postId, contentsIds) {
         const contents = await pIteration.map(contentsIds, async (contentId, position) => {
-            const contentObj: any = this.getContent(contentId);
-            contentObj.PostsContents = { position };
+            const contentObj: any = await this.getContent(contentId);
+            contentObj.postsContents = { position };
             return contentObj;
         });
         return (await this.getPost(postId)).setContents(contents);

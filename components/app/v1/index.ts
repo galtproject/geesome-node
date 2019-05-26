@@ -233,7 +233,9 @@ class GeesomeApp implements IGeesomeApp {
         await this.database.setPostContents(post.id, contentsIds);
         await this.updatePostManifest(post.id);
 
-        return this.database.getPost(post.id);
+        const resultPost = await this.database.getPost(post.id);
+        console.log('resultPost.contents', resultPost.contents);
+        return resultPost;
     }
 
     async updatePost(userId, postId, postData) {
@@ -539,14 +541,11 @@ class GeesomeApp implements IGeesomeApp {
         const group = await this.database.getGroup(groupId);
 
         group.size = await this.database.getGroupSizeSum(groupId);
-        console.log('group', group, group.size);
         await this.database.updateGroup(groupId, {size: group.size});
         
         const manifestStorageId = await this.generateAndSaveManifest('group', group);
 
-        console.log('bindToStaticId', manifestStorageId, group.manifestStaticStorageId);
         await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
-        console.log('updateGroup', groupId);
         
         return this.database.updateGroup(groupId, {
             manifestStorageId
