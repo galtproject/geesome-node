@@ -19,6 +19,9 @@ module.exports = async function (sequelize, models) {
         name: {
             type: Sequelize.STRING(200)
         },
+        storageType: {
+            type: Sequelize.STRING(200)
+        },
         mimeType: {
             type: Sequelize.STRING(200)
         },
@@ -26,6 +29,9 @@ module.exports = async function (sequelize, models) {
             type: Sequelize.STRING(200)
         },
         view: {
+            type: Sequelize.STRING(200)
+        },
+        server: {
             type: Sequelize.STRING(200)
         },
         description: {
@@ -36,6 +42,12 @@ module.exports = async function (sequelize, models) {
         },
         isPublic: {
             type: Sequelize.BOOLEAN
+        },
+        isPinned: {
+            type: Sequelize.BOOLEAN
+        },
+        peersCount: {
+            type: Sequelize.INTEGER
         },
         storageId: {
             type: Sequelize.STRING(200)
@@ -70,9 +82,11 @@ module.exports = async function (sequelize, models) {
         ]
     } as any);
 
+    // who uploaded
     Content.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(Content, { as: 'contents', foreignKey: 'userId' });
 
+    // to what group uploaded
     Content.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
     models.Group.hasMany(Content, { as: 'contents', foreignKey: 'groupId' });
 

@@ -63,16 +63,13 @@ class MysqlDatabase implements IDatabase {
     }
 
     async flushDatabase() {
-        await this.models.Content.destroy({ where: { } });
-        await this.models.PostsContents.destroy({ where: { } });
-        await this.models.Folder.destroy({ where: { } });
-        await this.models.Post.destroy({ where: { } });
-        await this.models.GroupPermission.destroy({ where: { } });
-        await this.models.GroupAdministrators.destroy({ where: { } });
-        await this.models.GroupMembers.destroy({ where: { } });
-        await this.models.Group.destroy({ where: { } });
-        await this.models.User.destroy({ where: { } });
-        await this.models.Value.destroy({ where: { } });
+        await pIteration.forEachSeries([
+            'FileCatalogItemPermission', 'FileCatalogItem', 'Category', 'CorePermission',
+            'UserContentAction', 'UserLimit', 'AutoTag', 'Tag', 'Content', 'PostsContents', 'Post', 'GroupPermission',
+            'GroupAdministrators', 'GroupMembers', 'Group', 'User', 'Value'
+        ], (modelName) => {
+            return this.models[modelName].destroy({ where: { } });
+        });
     }
 
     async addContent(content) {
@@ -207,6 +204,10 @@ class MysqlDatabase implements IDatabase {
             offset
         });
     }
+    
+    async getGroupSizeSum(id) {
+        return (await this.models.Post.sum('size', { where: { groupId: id } })) || 0;
+    }
 
     async getPost(id) {
         return this.models.Post.findOne({
@@ -230,6 +231,11 @@ class MysqlDatabase implements IDatabase {
             return contentObj;
         });
         return (await this.getPost(postId)).setContents(contents);
+    }
+
+    async getPostSizeSum(id) {
+        const post = await this.getPost(id);
+        return _.sumBy(post.contents, 'size');
     }
 
     async getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor) {
@@ -365,6 +371,33 @@ class MysqlDatabase implements IDatabase {
         });
     }
     
+    async addUserContentAction(userContentActionData) {
+        return this.models.UserContentAction.create(userContentActionData);
+    }
+    
+    async getUserContentActionsSizeSum(userId, name, periodTimestamp?) {
+        const where: any = { userId, name };
+        
+        if(periodTimestamp) {
+            let from = new Date(new Date().getTime() - periodTimestamp * 1000);
+            where.createdAt = {[Op.gte]: from };
+        }
+        
+        return (await this.models.UserContentAction.sum('size', { where })) || 0;
+    }
+
+    async addUserLimit(userLimitData) {
+        return this.models.UserLimit.create(userLimitData);
+    }
+
+    async updateUserLimit(id, updateData) {
+        return this.models.UserLimit.update(updateData, {where: { id } });
+    }
+
+    async getUserLimit(userId, name) {
+        return this.models.UserLimit.findOne({ where: {userId, name}});
+    }
+
     async getValue(key: string) {
         const valueObj = await this.models.Value.findOne({ where: { key } });
         return valueObj ? valueObj.content : null;

@@ -31,7 +31,7 @@ class EntityJsonManifest implements IRender {
     async generateContent(name, data, options?) {
         if(name === 'group-manifest') {
             const group: IGroup = data;
-            const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description']);
+            const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
 
             groupManifest.postsCount = group.publishedPostsCount;
             groupManifest.ipns = group.manifestStaticStorageId;
@@ -52,11 +52,13 @@ class EntityJsonManifest implements IRender {
                 }
                 treeLib.setNode(groupManifest.posts, post.localId, this.getStorageRef(post.manifestStorageId));
             });
+
+            this.setManifestVersion(groupManifest, name);
             
             return groupManifest;
         } else if(name === 'post-manifest') {
             const post: IPost = data;
-            const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type']);
+            const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type', 'size']);
 
             const group = await this.app.database.getGroup(post.groupId);
             postManifest.group = group.manifestStaticStorageId;
@@ -64,16 +66,19 @@ class EntityJsonManifest implements IRender {
             postManifest.contents = post.contents.map((content: IContent) => {
                 return this.getStorageRef(content.manifestStorageId);
             });
-            postManifest.size = _.sumBy(postManifest.contents, 'size');
 
+            this.setManifestVersion(postManifest, name);
+            
             return postManifest;
         } else if(name === 'content-manifest') {
             const content: IContent = data;
-            const contentManifest = _.pick(content, ['name', 'mimeType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
+            const contentManifest = _.pick(content, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 
             contentManifest.content = content.storageId;
             contentManifest.preview = content.previewStorageId;
 
+            this.setManifestVersion(contentManifest, name);
+            
             return contentManifest;
         }
         return '';
@@ -83,5 +88,12 @@ class EntityJsonManifest implements IRender {
         return {
             '/' : storageId
         }
+    }
+    
+    setManifestVersion(manifest, type) {
+        manifest._version = "0.1";
+        manifest._source = "geesome-core";
+        manifest._protocol = "geesome-ipsp";
+        manifest._type = type;
     }
 }

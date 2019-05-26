@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IContent, IDatabase, IFileCatalogItem, IGroup, IPost, IUser} from "../database/interface";
+import {IContent, IDatabase, IFileCatalogItem, IGroup, IPost, IUser, IUserLimit} from "../database/interface";
 import {IStorage} from "../storage/interface";
 
 export interface IGeesomeApp {
@@ -28,6 +28,8 @@ export interface IGeesomeApp {
     canCreatePostInGroup(userId, groupId);
     generateUserApiKey(userId, type?): Promise<string>;
     getUserByApiKey(apiKey): Promise<IUser>;
+    
+    setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
 
     createPost(userId, postData);
     updatePost(userId, postId, postData);
@@ -51,9 +53,10 @@ export interface IGeesomeApp {
     getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
     getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
 
-    getAllUserList(userId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
-    getAllContentList(userId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
-    getAllGroupList(userId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
+    getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
+    getAllContentList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
+    getAllGroupList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
+    getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
 
     getContent(contentId): Promise<IContent>;
 }

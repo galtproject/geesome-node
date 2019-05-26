@@ -27,6 +27,7 @@ export interface IDatabase {
     
     addPost(post: IPost): Promise<IPost>;
     updatePost(id, updateData: any): Promise<IPost>;
+    getPostSizeSum(id): Promise<number>;
 
     setPostContents(postId, contentsIds): Promise<void>;
     
@@ -44,6 +45,8 @@ export interface IDatabase {
     getMemberInGroups(userId): Promise<IGroup[]>;
     addAdminToGroup(userId, groupId): Promise<void>;
     getAdminInGroups(userId): Promise<IGroup[]>;
+    
+    getGroupSizeSum(id): Promise<number>;
 
     addCorePermission(userId, permissionName): Promise<void>;
     removeCorePermission(userId, permissionName): Promise<void>;
@@ -67,6 +70,13 @@ export interface IDatabase {
     getAllUserList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
     getAllContentList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
     getAllGroupList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
+    
+    addUserContentAction(userContentActionData): Promise<IUserContentAction>;
+    getUserContentActionsSizeSum(userId, name, periodTimestamp?): Promise<number>;
+    
+    addUserLimit(limitData): Promise<IUserLimit>;
+    updateUserLimit(limitId, limitData): Promise<void>;
+    getUserLimit(userId, name): Promise<IUserLimit>;
 
     getValue(key: string): Promise<string>;
     setValue(key: string, content: string): Promise<void>;
@@ -83,13 +93,17 @@ export interface IUserApiKey {
 
 export interface IContent {
     id?: number;
+    storageType: ContentStorageType;
     mimeType: ContentMimeType;
     extension?: string;
     view?: ContentView;
     name?: string;
     description?: string;
     size?: string;
+    server?: string;
     isPublic?: boolean;
+    isPinned?: boolean;
+    peersCount?: number;
     userId: number;
     groupId?: number;
     localId?: number;
@@ -100,6 +114,11 @@ export interface IContent {
     staticStorageId?: string;
     manifestStorageId?: string;
     manifestStaticStorageId?: string;
+}
+
+export enum ContentStorageType {
+    IPFS = 'ipfs',
+    IPLD = 'ipld'
 }
 
 export enum ContentMimeType {
@@ -126,6 +145,11 @@ export interface IPost {
     view?;
     type?;
     contents?: IContent[];
+    size?;
+    isPinned?: boolean;
+    isFullyPinned?: boolean;
+    peersCount?: number;
+    fullyPeersCount?: number;
     localId?;
     storageId?;
     staticStorageId?;
@@ -165,6 +189,11 @@ export interface IGroup {
     avatarImage?: IContent;
     coverImageId?: number;
     coverImage?: IContent;
+    size?: number;
+    isPinned?: boolean;
+    isFullyPinned?: boolean;
+    peersCount?: number;
+    fullyPeersCount?: number;
     storageId?: string;
     staticStorageId?: string;
     manifestStorageId?: string;
@@ -199,4 +228,40 @@ export interface IFileCatalogItem {
 export enum IFileCatalogItemType {
     Folder = 'folder',
     File = 'file'
+}
+
+export interface IUserContentAction {
+    id?: number;
+    name: UserContentActionName;
+    size: number;
+    userId: number;
+    userApiKeyId?: number;
+    contentId?: number;
+}
+
+export enum UserContentActionName {
+    Upload = 'upload',
+    Pin = 'pin'
+}
+
+export interface IUserLimit {
+    id?: number;
+    name: UserLimitName;
+    value: number;
+    userId: number;
+    adminId: number;
+    periodTimestamp: number;
+    isActive: boolean;
+}
+
+
+export enum UserLimitName {
+    SaveContentSize = 'save_content:size'
+}
+
+export enum CorePermissionName {
+    AdminRead = 'admin:read',
+    AdminAddUser = 'admin:add_user',
+    AdminSetUserLimit = 'admin:set_user_limit',
+    AdminAddUserApiKey = 'admin:add_user_api_key'
 }

@@ -19,7 +19,14 @@ import {
     PostStatus,
     ContentView,
     IPost,
-    IFileCatalogItemType, IContent, IUser
+    IFileCatalogItemType,
+    IContent,
+    IUser,
+    ContentStorageType,
+    UserContentActionName,
+    UserLimitName,
+    IUserLimit,
+    CorePermissionName
 } from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
@@ -36,6 +43,7 @@ const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
+const Transform = require('stream').Transform;
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
@@ -109,7 +117,7 @@ class GeesomeApp implements IGeesomeApp {
     async registerUser(email, name, password): Promise<any> {
         const existUserWithName = await this.database.getUserByName(name);
         if(existUserWithName) {
-            throw "username_already_exists";
+            throw new Error("username_already_exists");
         }
         
         const storageAccountId = await this.storage.createAccountIfNotExists(name);
@@ -219,6 +227,9 @@ class GeesomeApp implements IGeesomeApp {
         
         const post = await this.database.addPost(postData);
 
+        let size = await this.database.getPostSizeSum(post.id);
+        await this.database.updatePost(post.id, {size});
+
         await this.database.setPostContents(post.id, contentsIds);
         await this.updatePostManifest(post.id);
 
@@ -237,6 +248,8 @@ class GeesomeApp implements IGeesomeApp {
 
         await this.database.setPostContents(postId, contentsIds);
 
+        postData.size = await this.database.getPostSizeSum(postId);
+        
         await this.database.updatePost(postId, postData);
         await this.updatePostManifest(postId);
         
@@ -303,28 +316,26 @@ class GeesomeApp implements IGeesomeApp {
                 previewExtension: resultExtension
             };
         } else {
-            throw type + "_preview_driver_input_not_found";
+            throw new Error(type + "_preview_driver_input_not_found");
         }
     }
 
-    async saveData(fileStream, fileName, options) {
+    async saveData(fileStream, fileName, options: {userId, groupId, apiKey?}) {
         const extension = fileName.split('.').length > 1 ? _.last(fileName.split('.')): null;
-        const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(fileStream, mime.getType(fileName), extension);
+        const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, mime.getType(fileName), extension);
         
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
         if(existsContent) {
+            await this.addContentToUserFileCatalog(options.userId, existsContent);
             return existsContent;
         }
         
-        const groupId = await this.checkGroupId(options.groupId);
-        const group = await this.database.getGroup(groupId);
-
         let {previewStorageId, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
-
-        const content = await this.addContent({
-            groupId,
+        
+        return this.addContent({
             previewStorageId,
             previewExtension,
+            storageType: ContentStorageType.IPFS,
             extension: resultExtension,
             mimeType: type,
             previewMimeType: previewType as any,
@@ -333,16 +344,10 @@ class GeesomeApp implements IGeesomeApp {
             storageId: storageFile.id,
             size: storageFile.size,
             name: fileName,
-            isPublic: group.isPublic
-        });
-        await this.updateContentManifest(content.id);
-        
-        return content;
+        }, options);
     }
 
-    async saveDataByUrl(url, options) {
-        options = options || {};
-
+    async saveDataByUrl(url, options: {userId, groupId, driver?, apiKey?}) {
         const name = _.last(url.split('/'));
         let extension = name.split('.').length > 1 ? _.last(name.split('.')): null;
         let type;
@@ -351,7 +356,7 @@ class GeesomeApp implements IGeesomeApp {
         if(options.driver && options.driver != 'none') {
             const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
             type = dataToSave.type;
-            const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(dataToSave.stream, type, extension);
+            const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, extension);
             type = resultMimeType;
             storageFile = resultFile;
             extension = resultExtension;
@@ -363,7 +368,7 @@ class GeesomeApp implements IGeesomeApp {
                         return reject();
                     }
                     const contentType = responseStream.headers['content-type'];
-                    resolve(this.saveFileByStream(responseStream, contentType || mime.getType(name), extension))
+                    resolve(this.saveFileByStream(options.userId, responseStream.client, contentType || mime.getType(name), extension))
                 })
             }) as any;
             type = resultMimeType;
@@ -373,33 +378,29 @@ class GeesomeApp implements IGeesomeApp {
 
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
         if(existsContent) {
+            await this.addContentToUserFileCatalog(options.userId, existsContent);
             return existsContent;
         }
-        
-        const groupId = await this.checkGroupId(options.groupId);
-        const group = await this.database.getGroup(groupId);
+
         let {previewStorageId, previewType, previewExtension} = await this.getPreview(storageFile.id, type, url);
 
-        const content = await this.addContent({
-            groupId,
+        return this.addContent({
             previewStorageId,
             extension,
             previewExtension,
+            storageType: ContentStorageType.IPFS,
             mimeType: type,
             previewMimeType: previewType as any,
             userId: options.userId,
             view: ContentView.List,
             storageId: storageFile.id,
             size: storageFile.size,
-            name: name,
-            isPublic: group.isPublic
-        });
-        await this.updateContentManifest(content.id);
-
-        return content;
+            name: name
+        }, options);
     }
     
-    private async saveFileByStream(stream, mimeType, extension?) {
+    private async saveFileByStream(userId, stream, mimeType, extension?) {
+        console.log('saveFileByStream', userId, stream, mimeType, extension);
         //TODO: find out best approach to stream videos
         // if(_.startsWith(mimeType, 'video')) {
         //     stream = this.drivers.convert['video-to-streamable'].processByStream(stream, {
@@ -407,47 +408,119 @@ class GeesomeApp implements IGeesomeApp {
         //     });
         //     mimeType = 'application/vnd.apple.mpegurl';
         // }
+        
+        const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
+        
+        if(sizeRemained !== null) {
+            console.log('sizeRemained', sizeRemained);
+            let streamSize = 0;
+            const sizeCheckStream = new Transform({
+                transform: function (chunk, encoding, callback){
+                    streamSize += chunk.length;
+                    console.log('streamSize', streamSize);
+                    if(streamSize > sizeRemained) {
+                        console.error("limit_reached for user", userId);
+                        callback("limit_reached", null)
+                    } else {
+                        callback(false, chunk);
+                    }
+                }
+            });
+            stream = stream.pipe(sizeCheckStream);
+        }
+        
+        // console.log('stream.pipe(sizeCheckStream)', stream.pipe(sizeCheckStream));
+        // console.log('sizeCheckStream.pipe(stream)', sizeCheckStream.pipe(stream));
+        
         return {
             resultFile: await this.storage.saveFileByData(stream),
             resultMimeType: mimeType,
             resultExtension: extension
         };
     }
-
-    private async addContent(contentData: IContent) {
-        const content = await this.database.addContent(contentData);
-        const baseType = _.first(content.mimeType.split('/'));
-        let folder = await this.database.getFileCatalogItemByDefaultFolderFor(content.userId, baseType);
+    
+    private async getUserLimitRemained(userId, limitName: UserLimitName) {
+        const limit = await this.database.getUserLimit(userId, limitName);
+        console.log('limit', limit);
+        if(!limit || !limit.isActive) {
+            return null;
+        }
+        if(limitName === UserLimitName.SaveContentSize) {
+            const uploadSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp);
+            const pinSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp);
+            console.log('uploadSize', uploadSize);
+            console.log('pinSize', pinSize);
+            return limit.value - uploadSize - pinSize;
+        } else {
+            throw new Error("Unknown limit");
+        }
+    }
+    
+    public async setUserLimit(adminId, limitData: IUserLimit) {
+        limitData.adminId = adminId;
         
+        const existLimit = await this.database.getUserLimit(limitData.userId, limitData.name);
+        if(existLimit) {
+            await this.database.updateUserLimit(existLimit.id, limitData);
+            return this.database.getUserLimit(limitData.userId, limitData.name);
+        } else {
+            return this.database.addUserLimit(limitData);
+        }
+    }
+
+    private async addContent(contentData: IContent, options: {groupId, apiKey?}) {
+        contentData.groupId = await this.checkGroupId(options.groupId);
+        const group = await this.database.getGroup(contentData.groupId);
+        contentData.isPublic = group.isPublic;
+        
+        const content = await this.database.addContent(contentData);
+        
+        await this.addContentToUserFileCatalog(content.userId, content);
+        
+        await this.database.addUserContentAction({
+            name: UserContentActionName.Upload,
+            userId: content.userId,
+            size: content.size,
+            contentId: content.id,
+            apiKey: options.apiKey
+        });
+
+        await this.updateContentManifest(content.id);
+        
+        return content;
+    }
+    
+    private async addContentToUserFileCatalog(userId, content: IContent) {
+        const baseType = _.first(content.mimeType.split('/'));
+        let folder = await this.database.getFileCatalogItemByDefaultFolderFor(userId, baseType);
+
         if(!folder) {
             folder = await this.database.addFileCatalogItem({
                 name: _.upperFirst(baseType) + " Uploads",
                 type: IFileCatalogItemType.Folder,
-                position: (await this.database.getFileCatalogItemsCount(content.userId, null)) + 1,
-                userId: content.userId,
-                defaultFolderFor: baseType
+                position: (await this.database.getFileCatalogItemsCount(userId, null)) + 1,
+                defaultFolderFor: baseType,
+                userId
             });
         }
 
-        await this.database.addFileCatalogItem({
+        return this.database.addFileCatalogItem({
             name: content.name || "Unnamed",
             type: IFileCatalogItemType.File,
-            position: (await this.database.getFileCatalogItemsCount(content.userId, folder.id)) + 1,
+            position: (await this.database.getFileCatalogItemsCount(userId, folder.id)) + 1,
             parentItemId: folder.id,
             contentId: content.id,
-            userId: content.userId
+            userId
         });
-        
-        return content;
     }
     
     async handleSourceByUploadDriver(sourceLink, driver) {
         const previewDriver = this.drivers.upload[driver] as IDriver;
         if(!previewDriver) {
-            throw driver + "_upload_driver_not_found";
+            throw new Error(driver + "_upload_driver_not_found");
         }
         if(!_.includes(previewDriver.supportedInputs, DriverInput.Source)) {
-            throw driver + "_upload_driver_input_not_correct";
+            throw new Error(driver + "_upload_driver_input_not_correct");
         }
         return previewDriver.processBySource(sourceLink, {});
     }
@@ -464,6 +537,10 @@ class GeesomeApp implements IGeesomeApp {
 
     async updateGroupManifest(groupId) {
         const group = await this.database.getGroup(groupId);
+
+        group.size = await this.database.getGroupSizeSum(groupId);
+        console.log('group', group, group.size);
+        await this.database.updateGroup(groupId, {size: group.size});
         
         const manifestStorageId = await this.generateAndSaveManifest('group', group);
 
@@ -543,7 +620,7 @@ class GeesomeApp implements IGeesomeApp {
     async getFileCatalogItemsBreadcrumbs(userId, itemId) {
         const item = await this.database.getFileCatalogItem(itemId);
         if(item.userId != userId) {
-            throw "not_permitted";
+            throw new Error("not_permitted");
         }
         
         return this.database.getFileCatalogItemsBreadcrumbs(itemId);
@@ -553,9 +630,9 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.getContentsIdsByFileCatalogIds(catalogIds);
     }
 
-    async getAllUserList(userId, searchString?, sortField?, sortDir?, limit?, offset?) {
-        if(!await this.database.isHaveCorePermission(userId, 'admin:read')) {
-            throw "not_permitted"
+    async getAllUserList(adminId, searchString?, sortField?, sortDir?, limit?, offset?) {
+        if(!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
+            throw new Error("not_permitted");
         }
         if(!sortField)
             sortField = 'createdAt';
@@ -567,9 +644,9 @@ class GeesomeApp implements IGeesomeApp {
             offset = 0;
         return this.database.getAllUserList(searchString, sortField, sortDir, limit, offset);
     }
-    async getAllGroupList(userId, searchString?, sortField?, sortDir?, limit?, offset?) {
-        if(!await this.database.isHaveCorePermission(userId, 'admin:read')) {
-            throw "not_permitted"
+    async getAllGroupList(adminId, searchString?, sortField?, sortDir?, limit?, offset?) {
+        if(!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
+            throw new Error("not_permitted");
         }
         if(!sortField)
             sortField = 'createdAt';
@@ -581,9 +658,9 @@ class GeesomeApp implements IGeesomeApp {
             offset = 0;
         return this.database.getAllGroupList(searchString, sortField, sortDir, limit, offset);
     }
-    async getAllContentList(userId, searchString?, sortField?, sortDir?, limit?, offset?) {
-        if(!await this.database.isHaveCorePermission(userId, 'admin:read')) {
-            throw "not_permitted"
+    async getAllContentList(adminId, searchString?, sortField?, sortDir?, limit?, offset?) {
+        if(!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
+            throw new Error("not_permitted");
         }
         if(!sortField)
             sortField = 'createdAt';
@@ -594,6 +671,12 @@ class GeesomeApp implements IGeesomeApp {
         if(!offset)
             offset = 0;
         return this.database.getAllContentList(searchString, sortField, sortDir, limit, offset);
+    }
+    async getUserLimit(adminId, userId, limitName) {
+        if(!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
+            throw new Error("not_permitted");
+        }
+        return this.database.getUserLimit(userId, limitName);
     }
 
     runSeeds() {

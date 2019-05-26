@@ -19,5 +19,8 @@
     "title": "Add contents by explorer",
     "cancel": "Cancel",
     "ok": "Ok"
+  },
+  "new_user": {
+    "limit_period": "Limit for each period"
   }
 }

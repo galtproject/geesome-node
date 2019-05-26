@@ -12,6 +12,7 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
+import {CorePermissionName} from "../../database/interface";
 
 const config = require('./config');
 
@@ -103,7 +104,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.post('/v1/login', async (req, res) => {
         geesomeApp.loginUser(req.body.username, req.body.password).then(async user => {
             if(user) {
-                return res.send({ user, apiKey: await geesomeApp.generateUserApiKey(user.id) }, 200);
+                return res.send({ user, apiKey: await geesomeApp.generateUserApiKey(user.id, "password_auth") }, 200);
             } else {
                 return res.send(403);
             }
@@ -116,11 +117,30 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         }
         res.send(req.user, 200);
     });
-
+    
     service.get('/v1/user/permissions/core/is-have/:permissionName', async (req, res) => {
         res.send({ valid: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
     });
 
+    service.post('/v1/admin/add-user', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.registerUser(req.body.email, req.body.name, req.body.password));
+    });
+    service.post('/v1/admin/add-user-api-key', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.generateUserApiKey(req.body.userId, 'admin_manual'));
+    });
+    service.post('/v1/admin/set-user-limit', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetUserLimit)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.setUserLimit(req.user.id, req.body));
+    });
+    
     service.get('/v1/admin/all-users', async (req, res) => {
         res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
     });
@@ -131,6 +151,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
     });
 
+    service.get('/v1/admin/get-user/:userId/limit/:limitName', async (req, res) => {
+        res.send(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName));
+    });
+    
     service.post('/v1/user/create-group', async (req, res) => {
         res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
     });
@@ -169,16 +193,16 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             body[fieldname] = val;
         });
         req.busboy.on('file', async function (fieldname, file, filename) {
-            res.send(await geesomeApp.saveData(file, filename, {userId: req.user.id, groupId: body['groupId']}), 200);
+            res.send(await geesomeApp.saveData(file, filename, {userId: req.user.id, apiKey: req.token, groupId: body['groupId']}), 200);
         });
     });
 
     service.post('/v1/user/save-data', async (req, res) => {
-        res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'], {userId: req.user.id, groupId: req.body['groupId']}), 200);
+        res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'], {userId: req.user.id, apiKey: req.token, groupId: req.body['groupId']}), 200);
     });
 
     service.post('/v1/user/save-data-by-url', async (req, res) => {
-        res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, groupId: req.body['groupId'], driver: req.body['driver']}), 200);
+        res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, apiKey: req.token, groupId: req.body['groupId'], driver: req.body['driver']}), 200);
     });
 
 

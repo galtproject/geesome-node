@@ -32,7 +32,7 @@ describe("databaseValues", function () {
                 await database.flushDatabase();
             });
             
-            it.only("should set and get values correctly", async () => {
+            it("should set and get values correctly", async () => {
                 assert.strictEqual(await database.getValue('test1'), null);
                 
                 await database.setValue('test1', 'test1Value');

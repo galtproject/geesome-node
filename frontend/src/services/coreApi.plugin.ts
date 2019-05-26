@@ -33,9 +33,15 @@ export default {
             // mode: 'no-cors',
         });
         
-        let current
+        let current;
 
         getApiKey();
+        
+        function wrap(httPromise) {
+            return httPromise.then(response => response.data).catch(data => {
+                throw (data.response.data);
+            });
+        }
         
         function setApiKey(apiKey) {
             localStorage.setItem('geesome-api-key', apiKey);
@@ -53,16 +59,16 @@ export default {
                 $http.defaults.baseURL = store.state.serverAddress;
             },
             getCurrentUser(){
-                return $http.get('/v1/user').then(response => response.data);
+                return wrap($http.get('/v1/user'));
             },
             login(username, password){
-                return $http.post('/v1/login', {username, password}).then(response => {
-                    setApiKey(response.data.apiKey);
-                    return response.data;
+                return wrap($http.post('/v1/login', {username, password})).then(data => {
+                    setApiKey(data.apiKey);
+                    return data;
                 });
             },
             createGroup(groupData){
-                return $http.post(`/v1/user/create-group`, groupData).then(response => response.data);
+                return wrap($http.post(`/v1/user/create-group`, groupData));
             },
             saveFile(file, params = {}){
                 const formData = new FormData();
@@ -72,32 +78,32 @@ export default {
                 });
                 
                 formData.append("file", file);
-                return $http.post('/v1/user/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }).then(response => response.data);
+                return wrap($http.post('/v1/user/save-file', formData, {  headers: { 'Content-Type': 'multipart/form-data' } }));
             },
             saveContentData(content, params = {}){
-                return $http.post('/v1/user/save-data', _.extend({content}, params)).then(response => response.data);
+                return wrap($http.post('/v1/user/save-data', _.extend({content}, params)));
             },
             saveDataByUrl(url, params = {}){
-                return $http.post('/v1/user/save-data-by-url', _.extend({url}, params)).then(response => response.data);
+                return wrap($http.post('/v1/user/save-data-by-url', _.extend({url}, params)));
             },
             createPost(contentsIds, params: any = {}){
-                return $http.post(`/v1/user/group/${params.groupId}/create-post`, _.extend({contentsIds}, params)).then(response => response.data);
+                return wrap($http.post(`/v1/user/group/${params.groupId}/create-post`, _.extend({contentsIds}, params)));
             },
             getContentData(storageId){
-                return $http.get('/v1/content-data/' + storageId).then(response => response.data);
+                return wrap($http.get('/v1/content-data/' + storageId));
             },
             getDbContent(dbId){
-                return $http.get('/v1/content/' + dbId).then(response => response.data);
+                return wrap($http.get('/v1/content/' + dbId));
             },
             getMemberInGroups(){
                 //TODO: get groups list directly from ipld
-                return $http.get('/v1/user/member-in-groups').then(response => response.data).then(groups => {
+                return wrap($http.get('/v1/user/member-in-groups')).then(groups => {
                     return pIteration.map(groups, (group) => this.getGroup(group.manifestStorageId))
                 });
             },
             getAdminInGroups(){
                 //TODO: get groups list directly from ipld
-                return $http.get('/v1/user/admin-in-groups').then(response => response.data).then(groups => {
+                return wrap($http.get('/v1/user/admin-in-groups')).then(groups => {
                     return pIteration.map(groups, (group) => this.getGroup(group.manifestStorageId))
                 });
             },
@@ -145,7 +151,7 @@ export default {
                 if(ipldHash['/']) {
                     ipldHash = ipldHash['/'];
                 }
-                return $http.get(`/ipld/${ipldHash}`).then(response => response.data);
+                return wrap($http.get(`/ipld/${ipldHash}`));
             },
             async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
                 const group = await this.getGroup(groupId);
@@ -178,23 +184,32 @@ export default {
                 return post;
             },
             getCanCreatePost(groupId){
-                return $http.get(`/v1/user/group/${groupId}/can-create-post`).then(response => response.data.valid);
+                return wrap($http.get(`/v1/user/group/${groupId}/can-create-post`)).then(data => data.valid);
             },
             resolveIpns(ipns){
-                return $http.get(`/resolve/${ipns}`).then(response => response.data);
+                return wrap($http.get(`/resolve/${ipns}`));
             },
             getFileCatalogItems(parentItemId, type?, sortBy?, sortDir?, limit?, offset?){
-                return $http.get(`/v1/user/file-catalog/`, {params: {parentItemId, type, sortField: sortBy, sortDir, limit, offset}}).then(response => response.data);
+                return wrap($http.get(`/v1/user/file-catalog/`, {params: {parentItemId, type, sortField: sortBy, sortDir, limit, offset}}));
             },
             getFileCatalogBreadcrumbs(itemId){
-                return $http.get(`/v1/user/file-catalog/breadcrumbs/${itemId}`).then(response => response.data);
+                return wrap($http.get(`/v1/user/file-catalog/breadcrumbs/${itemId}`));
             },
             getContentsIdsByFileCatalogIds(fileCatalogIds) {
-                return $http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds).then(response => response.data);
+                return wrap($http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds));
             },
             getAllItems(itemsName, search?, sortField?, sortDir?, limit?, offset?) {
-                return $http.get(`/v1/admin/all-` + itemsName, { params: {search, sortField, sortDir, limit, offset}}).then(response => response.data);
-            }
+                return wrap($http.get(`/v1/admin/all-` + itemsName, { params: {search, sortField, sortDir, limit, offset}}));
+            },
+            adminCreateUser(userData){
+                return wrap($http.post(`/v1/admin/add-user`, userData));
+            },
+            adminSetUserLimit(limitData){
+                return wrap($http.post(`/v1/admin/set-user-limit`, limitData));
+            },
+            adminAddUserAPiKey(userId){
+                return wrap($http.post(`/v1/admin/add-user-api-key`, { userId }));
+            },
         };
     }
 }

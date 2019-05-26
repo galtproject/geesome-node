@@ -37,6 +37,18 @@ module.exports = async function (sequelize, models) {
         size: {
             type: Sequelize.INTEGER
         },
+        isPinned: {
+            type: Sequelize.BOOLEAN
+        },
+        isFullyPinned: {
+            type: Sequelize.BOOLEAN
+        },
+        peersCount: {
+            type: Sequelize.INTEGER
+        },
+        fullyPeersCount: {
+            type: Sequelize.INTEGER
+        },
         storageId: {
             type: Sequelize.STRING(200)
         },

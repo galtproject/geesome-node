@@ -12,7 +12,7 @@ module.exports = {
         if(!value) {
             return false;
         }
-        return _.startsWith(value.codec, 'dag-') || (_.isString(value) && _.startsWith(value, 'zd'));
+        return _.startsWith(value.codec, 'dag-') || (_.isString(value) && (_.startsWith(value, 'zd') || _.startsWith(value, 'ba')));
     },
     cidToHash(cid) {
         const cidsResult = new CID(1, 'dag-cbor', cid.multihash || Buffer.from(cid.hash.data));
