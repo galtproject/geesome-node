@@ -5,7 +5,7 @@ sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 read -p "Enter Your Domain: "  appDomain
 rootDir=`pwd`
 parentDir=`dirname "$rootDir"`
-appDir="$rootDir/frontend/dist"
+appDir="$rootDir/frontend/dist/"
 
 read -p "Enter Your Email: "  userEmail
 
