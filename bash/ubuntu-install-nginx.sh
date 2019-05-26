@@ -45,9 +45,9 @@ then
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     
-    echo "\nDomain certificate successfully received! Your Geesome node now available by domain: $appDomain";
+    printf "\nDomain certificate successfully received! Your Geesome node now available by domain: $appDomain";
     sudo service nginx restart
 else
-    echo "\nError on get certificate. Your Geesome node available without certificate anyway: $appDomain";
-    echo "\nYou can check DNS settings of domain and run ./bash/ubuntu-install-nginx.hs again after the DNS settings are correct";
+    printf "\nError on get certificate. Your Geesome node available without certificate anyway: $appDomain";
+    printf "\nYou can check DNS settings of domain and run ./bash/ubuntu-install-nginx.hs again after the DNS settings are correct";
 fi
