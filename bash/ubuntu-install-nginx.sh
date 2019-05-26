@@ -36,7 +36,8 @@ certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$appDomain/ --email
 
 echo "$certbotOutput";
 
-if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet due for renewal"*) ]]; then
+if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet due for renewal"*) ]]; 
+then
     sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
     
     sudo sed -i -e "s~\%app_domain\%~$appDomain~g" /etc/nginx/sites-enabled/default
@@ -44,6 +45,9 @@ if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet d
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     
-    echo "service nginx restart";
+    echo "\nDomain certificate successfully received! Your Geesome node now available by domain: $appDomain";
     sudo service nginx restart
+else
+    echo "\nError on get certificate. Your Geesome node available without certificate anyway: $appDomain";
+    echo "\nYou can check DNS settings of domain and run ./bash/ubuntu-install-nginx.hs again after the DNS settings are correct";
 fi
