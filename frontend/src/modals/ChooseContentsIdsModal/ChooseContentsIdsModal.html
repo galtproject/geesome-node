@@ -9,7 +9,7 @@
   </template>
 
   <div class="modal-body" slot="body">
-    <file-catalog :selected-ids.sync="fileCatalogItemsIds"></file-catalog>
+    <file-catalog :select-mode="true" :selected-ids.sync="fileCatalogItemsIds"></file-catalog>
   </div>
 
   <template slot="footer">

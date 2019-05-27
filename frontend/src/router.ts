@@ -19,6 +19,7 @@ import GroupLayout from "./pages/GroupPage/GroupLayout/GroupLayout";
 import GroupPostPage from "./pages/GroupPage/GroupPostPage/GroupPostPage";
 import NewGroup from "./pages/GroupPage/NewGroup/NewGroup";
 import NewUser from "./pages/NewUser/NewUser";
+import FileExplorerPage from "./pages/FileExplorerPage/FileExplorerPage";
 
 Vue.use(Router);
 
@@ -34,6 +35,11 @@ export default new Router({
             path: '/login',
             name: 'login',
             component: LoginPage
+        },
+        {
+            path: '/file-explorer',
+            name: 'file-explorer',
+            component: FileExplorerPage
         },
         {
             path: '/new-user',

@@ -7,12 +7,15 @@
                 <span v-for="breadcrumb in breadcrumbs"><a href @click.prevent="openFolder({parentItemId: breadcrumb.id})">{{breadcrumb.name}}</a> > </span>
             </div>
 
-            <div class="md-subhead" v-if="folders.length">Folders</div>
+            <div class="file-catalog-header md-subhead">
+              <span>Folders</span>
+              <a class="link-with-icon" href @click.prevent="addFolder()"><md-icon class="fas fa-plus"></md-icon>Add folder</a>
+            </div>
 
-            <div class="file-catalog-folders md-layout">
+            <div class="file-catalog-folders md-layout" v-if="folders.length">
                 <div class="md-layout-item md-size-25" v-for="folder in folders">
                     <div class="folder-item">
-                        <div>
+                        <div v-if="selectMode">
                             <div class="md-elevation-3 file-checkbox-container">
                                 <md-checkbox v-model="localSelectedIds" :value="folder.id"></md-checkbox>
                             </div>
@@ -26,13 +29,17 @@
                     </div>
                 </div>
             </div>
+            <div class="file-catalog-not-found" v-else>Folders not found</div>
 
-            <div class="md-subhead" v-if="files.length">Files</div>
+            <div class="file-catalog-header md-subhead">
+                <span>Files</span>
+                <a class="link-with-icon" href @click.prevent="uploadFile()"><md-icon class="fas fa-plus"></md-icon>Upload file</a>
+            </div>
 
-            <div class="file-catalog-files md-layout">
+            <div class="file-catalog-files md-layout" v-if="files.length">
                 <div class="md-layout-item md-size-25" v-for="file in files">
                     <div class="file-item">
-                        <div>
+                        <div v-if="selectMode">
                             <div class="md-elevation-3 file-checkbox-container">
                                 <md-checkbox v-model="localSelectedIds" :value="file.id"></md-checkbox>
                             </div>
@@ -46,6 +53,7 @@
                     </div>
                 </div>
             </div>
+          <div class="file-catalog-not-found" v-else>Files not found</div>
             
         </div>
         <div class="md-layout-item md-size-20" v-if="currentFile">

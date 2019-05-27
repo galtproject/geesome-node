@@ -20,6 +20,11 @@
             <span class="md-list-item-text" v-locale="localeKey + '.home'"></span>
         </md-list-item>
         
+        <md-list-item :to="{name: 'file-explorer'}">
+            <md-icon class="fas fa-hdd"></md-icon>
+            <span class="md-list-item-text" v-locale="localeKey + '.file_explorer'"></span>
+        </md-list-item>
+        
         <md-list-item>
             <md-icon class="fas fa-users-cog"></md-icon>
             <span class="md-list-item-text" v-locale="localeKey + '.administration_groups'"></span>

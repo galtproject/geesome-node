@@ -3,15 +3,16 @@
     
     <div class="md-layout" v-if="manifestObj">
         <div :class="{'md-layout-item': true, 'md-size-30': !verticalMode, 'md-size-100': verticalMode}">
+            <b>Preview:</b><br>
             <content-manifest-item :manifest="manifestObj" :preview-mode="true"></content-manifest-item>
         </div>
-        <div :class="{'md-layout-item': true, 'md-size-70': !verticalMode, 'md-size-100': verticalMode}" style="position: relative;">
+        <div :class="{'md-layout-item': true, 'md-size-70': !verticalMode, 'md-size-100 margin-top': verticalMode}" style="position: relative;">
             <div>
-                Name: <pretty-name :name="manifestObj.name"></pretty-name><br>
-                Type: {{manifestObj.mimeType}}<br>
-                Size: {{manifestObj.size| prettySize}}<br>
-                Ipfs hash: <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
-                Preview ipfs hash: <pretty-hex :hex="manifestObj.preview"></pretty-hex><br>
+                <b>Name:</b> <pretty-name :name="manifestObj.name"></pretty-name><br>
+                <b>Type:</b> {{manifestObj.mimeType}}<br>
+                <b>Size:</b> {{manifestObj.size| prettySize}}<br>
+                <b>Ipfs hash:</b> <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
+                <b>Preview ipfs hash:</b> <pretty-hex :hex="manifestObj.preview"></pretty-hex><br>
                 <a :href="srcLink" @click.prevent="download">Download</a>
             </div>
             <md-button v-if="showCloseButton" class="md-accent md-icon-button" @click="$emit('close')" style="position: absolute; top: 0; right: 0;">

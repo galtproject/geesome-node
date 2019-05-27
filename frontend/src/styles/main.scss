@@ -272,9 +272,38 @@ $fa-font-path: "webfonts";
   }
 }
 
+#file-explorer-page {
+  padding-top: 50px;
+  max-width: 900px;
+  margin: auto;
+}
+
+.margin-top {
+  margin-top: 15px;
+}
+
+.link-with-icon {
+  .md-icon {
+    width: 10px;
+    min-width: 10px;
+    height: 10px;
+    font-size: 10px!important;
+    position: relative;
+    bottom: 3px;
+    margin-right: 3px;
+  }
+}
+.file-catalog-header {
+  margin: 15px;
+  .link-with-icon {
+    margin-left: 10px;
+  }
+}
+.file-catalog-not-found {
+  margin: 10px 15px;
+}
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;
   }
 }
-

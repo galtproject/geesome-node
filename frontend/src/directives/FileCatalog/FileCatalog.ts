@@ -17,7 +17,7 @@ export default {
     name: 'file-catalog',
     template: require('./FileCatalog.html'),
     components: { ContentManifestInfoItem },
-    props: ['selectedIds'],
+    props: ['selectMode', 'selectedIds'],
     async created() {
         this.getItems();
         this.localSelectedIds = this.selectedIds || [];
@@ -50,6 +50,12 @@ export default {
         showFile(file) {
             this.currentFile = file;
             console.log('this.currentFile', this.currentFile);
+        },
+        addFolder() {
+
+        },
+        uploadFile() {
+
         },
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
