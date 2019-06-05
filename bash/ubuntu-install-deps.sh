@@ -1,3 +1,5 @@
+#!/bin/sh
+
 sudo apt-get update
 
 sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password password root'
