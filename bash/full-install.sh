@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 bash/ubuntu-install-deps.sh
 bash/init-app.sh
