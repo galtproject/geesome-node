@@ -2,19 +2,13 @@ sudo apt-get update -y
 sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
-if [ -z "$domain" ]
-then
-    read -p "Enter Your Domain: "  domain
-fi
+[ -z "$domain" ] && read -p "Enter Your Domain: "  domain
 
 rootDir=`pwd`
 parentDir=`dirname "$rootDir"`
 appDir="$rootDir/frontend/dist/"
 
-if [ -z "$email" ]
-then
-    read -p "Enter Your Email: "  email
-fi
+[ -z "$email" ] && read -p "Enter Your Email: "  email
 
 sudo chown www-data:$USER $parentDir
 sudo chmod g+r $parentDir
