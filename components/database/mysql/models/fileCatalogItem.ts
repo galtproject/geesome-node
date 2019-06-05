@@ -25,15 +25,23 @@ module.exports = async function (sequelize, models) {
         defaultFolderFor: {
             type: Sequelize.STRING(200)
         },
+        size: {
+            type: Sequelize.INTEGER
+        },
         position: {
             type: Sequelize.INTEGER
+        },
+        isDeleted: {
+            type: Sequelize.BOOLEAN,
+            defaultValue: false
         }
     } as any, {
         indexes: [
             // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
             // { fields: ['chainAccountAddress'] },
             // { fields: ['tokensAddress'] },
-            // { fields: ['tokensAddress', 'chainAccountAddress'] }
+            // { fields: ['parentItemId', 'userId', 'name'], unique: true, where: { isDeleted: false } },
+            // { fields: ['userId', 'name'], unique: true, where: { parentItemId: null, isDeleted: false } }
         ]
     } as any);
 
@@ -48,6 +56,9 @@ module.exports = async function (sequelize, models) {
     
     FileCatalogItem.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
     models.User.hasMany(FileCatalogItem, { as: 'fileCatalogItems', foreignKey: 'userId' });
+
+    FileCatalogItem.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
+    models.Group.hasMany(FileCatalogItem, { as: 'fileCatalogItems', foreignKey: 'groupId' });
 
     return FileCatalogItem.sync({});
 };

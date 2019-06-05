@@ -193,16 +193,16 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
             body[fieldname] = val;
         });
         req.busboy.on('file', async function (fieldname, file, filename) {
-            res.send(await geesomeApp.saveData(file, filename, {userId: req.user.id, apiKey: req.token, groupId: body['groupId']}), 200);
+            res.send(await geesomeApp.saveData(file, filename, {userId: req.user.id, apiKey: req.token, groupId: body['groupId'], folderId: body['folderId']}), 200);
         });
     });
 
     service.post('/v1/user/save-data', async (req, res) => {
-        res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'], {userId: req.user.id, apiKey: req.token, groupId: req.body['groupId']}), 200);
+        res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'], {userId: req.user.id, apiKey: req.token, groupId: req.body['groupId'], folderId: req.body['folderId']}), 200);
     });
 
     service.post('/v1/user/save-data-by-url', async (req, res) => {
-        res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, apiKey: req.token, groupId: req.body['groupId'], driver: req.body['driver']}), 200);
+        res.send(await geesomeApp.saveDataByUrl(req.body['url'], {userId: req.user.id, apiKey: req.token, groupId: req.body['groupId'], driver: req.body['driver'], folderId: req.body['folderId']}), 200);
     });
 
 
@@ -212,11 +212,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.get('/v1/user/file-catalog/breadcrumbs/:itemId', async (req, res) => {
         res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
     });
+
+    service.post('/v1/user/file-catalog/create-folder', async (req, res) => {
+        res.send(await geesomeApp.createUserFolder(req.user.id, req.body.parentItemId, req.body.name));
+    });
+    service.post('/v1/user/file-catalog/add-content-to-folder', async (req, res) => {
+        res.send(await geesomeApp.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
+    });
     
     service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {
         res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
     });
-
+    
 
     service.get('/v1/group/:groupId', async (req, res) => {
         res.send(await geesomeApp.getGroup(req.params.groupId));

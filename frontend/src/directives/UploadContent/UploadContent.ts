@@ -17,8 +17,9 @@ const _ = require('lodash');
 const detecterLib = require('../../../../libs/detecter');
 
 export default {
+    name: 'upload-content',
     template: require('./UploadContent.html'),
-    props: ['contentId', 'groupId'],
+    props: ['contentId', 'groupId', 'folderId'],
     async created() {
 
     },
@@ -34,19 +35,22 @@ export default {
         saveText() {
             this.saving = true;
             const fileName = this.localValue.replace(/(<([^>]+)>)/ig,"").slice(0, 50) + '.html';
-            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId, fileName}).then(this.contentUploaded.bind(this))
+            this.$coreApi.saveContentData(this.localValue, {groupId: this.groupId, fileName, folderId: this.folderId}).then(this.contentUploaded.bind(this))
         },
         uploadFile(file) {
             this.saving = true;
-            this.$coreApi.saveFile(file, {groupId: this.groupId}).then(this.contentUploaded.bind(this))
+            this.$coreApi.saveFile(file, {groupId: this.groupId, folderId: this.folderId}).then(this.contentUploaded.bind(this))
         },
         saveLink() {
             this.saving = true;
-            this.$coreApi.saveDataByUrl(this.localValue, {groupId: this.groupId, driver: this.driver}).then(this.contentUploaded.bind(this))
+            this.$coreApi.saveDataByUrl(this.localValue, {groupId: this.groupId, driver: this.driver, folderId: this.folderId}).then(this.contentUploaded.bind(this))
         },
         contentUploaded(contentObj) {
             this.$emit('update:content-id', contentObj.id);
-            this.$emit('uploaded', contentObj.id);
+            this.$emit('uploaded', {
+                method: this.mode,
+                id: contentObj.id
+            });
             this.setMode(null);
             this.localValue = '';
             this.saving = false;
@@ -60,7 +64,10 @@ export default {
                         return;
                     }
                     selected.forEach((id) => {
-                        this.$emit('uploaded', id);
+                        this.$emit('uploaded', {
+                            method: 'choose-uploaded',
+                            id
+                        });
                     });
                 }
             });

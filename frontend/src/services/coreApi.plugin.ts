@@ -190,10 +190,22 @@ export default {
                 return wrap($http.get(`/resolve/${ipns}`));
             },
             getFileCatalogItems(parentItemId, type?, sortBy?, sortDir?, limit?, offset?){
+                if(!sortBy) {
+                    sortBy = 'updatedAt';
+                }
+                if(!sortDir) {
+                    sortDir = 'desc';
+                }
                 return wrap($http.get(`/v1/user/file-catalog/`, {params: {parentItemId, type, sortField: sortBy, sortDir, limit, offset}}));
             },
             getFileCatalogBreadcrumbs(itemId){
                 return wrap($http.get(`/v1/user/file-catalog/breadcrumbs/${itemId}`));
+            },
+            createFolder(parentItemId, name) {
+                return wrap($http.post(`/v1/user/file-catalog/create-folder`, {parentItemId, name}));
+            },
+            addContentIdToFolderId(contentId, folderId) {
+                return wrap($http.post(`/v1/user/file-catalog/add-content-to-folder`, { contentId, folderId }));
             },
             getContentsIdsByFileCatalogIds(fileCatalogIds) {
                 return wrap($http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds));

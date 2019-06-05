@@ -16,7 +16,7 @@ import ContentManifestInfoItem from "../ContentManifestInfoItem/ContentManifestI
 export default {
     name: 'file-catalog',
     template: require('./FileCatalog.html'),
-    components: { ContentManifestInfoItem },
+    components: {ContentManifestInfoItem},//UploadContent, 
     props: ['selectMode', 'selectedIds'],
     async created() {
         this.getItems();
@@ -52,10 +52,35 @@ export default {
             console.log('this.currentFile', this.currentFile);
         },
         addFolder() {
-
+            this.showNewFolder = !this.showNewFolder;
+        },
+        saveFolder() {
+            this.$coreApi.createFolder(this.parentItemId, this.newFolder.name).then(() => {
+                this.getItems();
+                this.$notify({
+                    type: 'success',
+                    title: "Success"
+                });
+                this.showNewFolder = false;
+            }).catch(() => {
+                this.$notify({
+                    type: 'error',
+                    title: "Error",
+                    text: "Maybe already exist item with same name in same folder"
+                });
+            })
         },
         uploadFile() {
-
+            this.showNewFile = !this.showNewFile;
+        },
+        fileUploaded(data) {
+            if(data.method === 'choose-uploaded') {
+                this.$coreApi.addContentIdToFolderId(data.id, this.parentItemId).then(() => {
+                    this.getItems();
+                })
+            } else {
+                this.getItems();
+            }
         },
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
@@ -82,7 +107,12 @@ export default {
             folders: [],
             files: [],
             localSelectedIds: [],
-            currentFile: null
+            currentFile: null,
+            showNewFolder: false,
+            newFolder: {
+                name: ''
+            },
+            showNewFile: false
         }
     },
 }

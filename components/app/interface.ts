@@ -52,6 +52,8 @@ export interface IGeesomeApp {
     getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
     getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
     getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
+    createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
+    addContentToFolder(userId, contentId, folderId): Promise<any>;
 
     getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
     getAllContentList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;

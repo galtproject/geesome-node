@@ -252,9 +252,18 @@ class MysqlDatabase implements IDatabase {
     
     async getFileCatalogItems(userId, parentItemId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
         return this.models.FileCatalogItem.findAll({
-            where: { userId, parentItemId, type },
+            where: { userId, parentItemId, type, isDeleted: false },
             order: [[sortField, sortDir.toUpperCase()]],
             include: [{ model: this.models.Content, as: 'content'}],
+            limit,
+            offset
+        });
+    }
+
+    async getFileCatalogItemsByContent(userId, contentId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+        return this.models.FileCatalogItem.findAll({
+            where: { userId, contentId, type },
+            order: [[sortField, sortDir.toUpperCase()]],
             limit,
             offset
         });
@@ -296,6 +305,12 @@ class MysqlDatabase implements IDatabase {
 
     async updateFileCatalogItem(id, updateData) {
         return this.models.FileCatalogItem.update(updateData, {where: { id } });
+    }
+    
+    async getFileCatalogItemsSizeSum(parentItemId) {
+        return this.models.FileCatalogItem.sum('size', {
+            where: { parentItemId }
+        });
     }
 
     async getContentsIdsByFileCatalogIds(catalogIds) {

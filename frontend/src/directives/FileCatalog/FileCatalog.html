@@ -1,63 +1,86 @@
 <div class="file-catalog">
-    <div class="md-layout">
-        <div class="md-layout-item md-size-80">
-            
-            <div class="file-catalog-breadcrumbs">
-                <span><a href @click.prevent="openFolder({parentItemId: null})">Home</a> > </span>
-                <span v-for="breadcrumb in breadcrumbs"><a href @click.prevent="openFolder({parentItemId: breadcrumb.id})">{{breadcrumb.name}}</a> > </span>
+  <div class="md-layout">
+    <div class="md-layout-item md-size-80">
+
+      <div class="file-catalog-breadcrumbs">
+        <span><a href @click.prevent="openFolder({parentItemId: null})">Home</a> > </span>
+        <span v-for="breadcrumb in breadcrumbs"><a href @click.prevent="openFolder({parentItemId: breadcrumb.id})">{{breadcrumb.name}}</a> > </span>
+      </div>
+
+      <div class="file-catalog-header md-subhead">
+        <span>Folders</span>
+        <a class="link-with-icon" href @click.prevent="addFolder()">
+          <md-icon :class="{'fas': true, 'fa-caret-up': !showNewFolder, 'fa-caret-down': showNewFolder}"></md-icon>
+          Add folder
+        </a>
+      </div>
+      
+      <md-card class="file-catalog-new-folder" v-if="showNewFolder">
+        <md-card-content>
+          <md-field>
+            <label>New folder name</label>
+            <md-input v-model="newFolder.name"></md-input>
+          </md-field>
+
+          <md-button class="md-raised md-accent" @click="saveFolder()" :disabled="!newFolder.name">Create</md-button>
+        </md-card-content>
+      </md-card>
+
+      <div class="file-catalog-folders md-layout" v-if="folders.length">
+        <div class="md-layout-item md-size-25" v-for="folder in folders">
+          <div class="folder-item">
+            <div v-if="selectMode">
+              <div class="md-elevation-3 file-checkbox-container">
+                <md-checkbox v-model="localSelectedIds" :value="folder.id"></md-checkbox>
+              </div>
             </div>
 
-            <div class="file-catalog-header md-subhead">
-              <span>Folders</span>
-              <a class="link-with-icon" href @click.prevent="addFolder()"><md-icon class="fas fa-plus"></md-icon>Add folder</a>
+            <div @click="openFolder(folder)">
+              <div class="md-elevation-3 file-name-container">
+                {{folder.name}}
+              </div>
             </div>
-
-            <div class="file-catalog-folders md-layout" v-if="folders.length">
-                <div class="md-layout-item md-size-25" v-for="folder in folders">
-                    <div class="folder-item">
-                        <div v-if="selectMode">
-                            <div class="md-elevation-3 file-checkbox-container">
-                                <md-checkbox v-model="localSelectedIds" :value="folder.id"></md-checkbox>
-                            </div>
-                        </div>
-
-                        <div @click="openFolder(folder)">
-                            <div class="md-elevation-3 file-name-container">
-                                {{folder.name}}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="file-catalog-not-found" v-else>Folders not found</div>
-
-            <div class="file-catalog-header md-subhead">
-                <span>Files</span>
-                <a class="link-with-icon" href @click.prevent="uploadFile()"><md-icon class="fas fa-plus"></md-icon>Upload file</a>
-            </div>
-
-            <div class="file-catalog-files md-layout" v-if="files.length">
-                <div class="md-layout-item md-size-25" v-for="file in files">
-                    <div class="file-item">
-                        <div v-if="selectMode">
-                            <div class="md-elevation-3 file-checkbox-container">
-                                <md-checkbox v-model="localSelectedIds" :value="file.id"></md-checkbox>
-                            </div>
-                        </div>
-                        
-                        <div @click="showFile(file)">
-                            <div class="md-elevation-3 file-name-container">
-                                {{file.name}}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-          <div class="file-catalog-not-found" v-else>Files not found</div>
-            
+          </div>
         </div>
-        <div class="md-layout-item md-size-20" v-if="currentFile">
-            <content-manifest-info-item :db-id="currentFile.content.id" :vertical-mode="true"></content-manifest-info-item>
+      </div>
+      <div class="file-catalog-not-found" v-else>Folders not found</div>
+
+      <div class="file-catalog-header md-subhead">
+        <span>Files</span>
+        <a class="link-with-icon" href @click.prevent="uploadFile()">
+          <md-icon :class="{'fas': true, 'fa-caret-up': !showNewFile, 'fa-caret-down': showNewFile}"></md-icon>
+          Upload file
+        </a>
+      </div>
+
+      <md-card class="file-catalog-new-file" v-if="showNewFile">
+        <md-card-content>
+          <upload-content :folder-id="parentItemId" @uploaded="fileUploaded"></upload-content>
+        </md-card-content>
+      </md-card>
+
+      <div class="file-catalog-files md-layout" v-if="files.length">
+        <div class="md-layout-item md-size-25" v-for="file in files">
+          <div class="file-item">
+            <div v-if="selectMode">
+              <div class="md-elevation-3 file-checkbox-container">
+                <md-checkbox v-model="localSelectedIds" :value="file.id"></md-checkbox>
+              </div>
+            </div>
+
+            <div @click="showFile(file)">
+              <div class="md-elevation-3 file-name-container">
+                {{file.name}}
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+      <div class="file-catalog-not-found" v-else>Files not found</div>
+
     </div>
+    <div class="md-layout-item md-size-20" v-if="currentFile">
+      <content-manifest-info-item :db-id="currentFile.content.id" :vertical-mode="true"></content-manifest-info-item>
+    </div>
+  </div>
 </div>

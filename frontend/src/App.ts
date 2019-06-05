@@ -32,6 +32,7 @@ import ContentManifestItem from "./directives/ContentManifestItem/ContentManifes
 import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
 
 import { VueEditor, Quill } from 'vue2-editor'
+import UploadContent from "./directives/UploadContent/UploadContent";
 
 const _ = require('lodash');
 
@@ -54,6 +55,7 @@ Vue.component('pretty-hex', PrettyHex);
 Vue.component('pretty-doc', PrettyDoc);
 Vue.component('content-manifest-item', ContentManifestItem);
 Vue.component('posts-container', PostsContainer);
+Vue.component('upload-content', UploadContent);
 
 // https://github.com/vuematerial/vue-material/issues/1977
 Vue.use(VueRouter);

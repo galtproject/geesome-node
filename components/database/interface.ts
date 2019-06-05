@@ -61,11 +61,13 @@ export interface IDatabase {
     getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
     getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
     getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+    getFileCatalogItemsByContent(userId, contentId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
     getFileCatalogItemsBreadcrumbs(itemId): Promise<IFileCatalogItem[]>;
     getFileCatalogItemsCount(userId, parentItemId, type?): Promise<number>;
     getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
     addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;
     updateFileCatalogItem(id, updateData): Promise<void>;
+    getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
 
     getAllUserList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
     getAllContentList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
@@ -99,7 +101,7 @@ export interface IContent {
     view?: ContentView;
     name?: string;
     description?: string;
-    size?: string;
+    size?: number;
     server?: string;
     isPublic?: boolean;
     isPinned?: boolean;
@@ -223,6 +225,8 @@ export interface IFileCatalogItem {
     linkOfId?: number;
     parentItemId?: number;
     contentId?: number;
+    groupId?: number;
+    size?: number;
 }
 
 export enum IFileCatalogItemType {
