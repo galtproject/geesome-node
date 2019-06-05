@@ -140,7 +140,21 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         }
         res.send(await geesomeApp.setUserLimit(req.user.id, req.body));
     });
-    
+
+    service.post('/v1/admin/permissions/core/add_permission', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.database.addCorePermission(req.body.userId, req.body.permissionName));
+    });
+
+    service.post('/v1/admin/permissions/core/remove_permission', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.database.removeCorePermission(req.body.userId, req.body.permissionName));
+    });
+
     service.get('/v1/admin/all-users', async (req, res) => {
         res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
     });

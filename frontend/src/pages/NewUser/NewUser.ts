@@ -13,6 +13,7 @@
 
 import PeriodInput from "@galtproject/frontend-core/directives/PeriodInput/PeriodInput";
 import EthData from "@galtproject/frontend-core/libs/EthData";
+const pIteration = require('p-iteration');
 
 export default {
     template: require('./NewUser.html'),
@@ -26,6 +27,12 @@ export default {
                 }
                 if(this.userLimit.isActive) {
                     await this.$coreApi.adminSetUserLimit(this.user);
+                }
+                if(this.isAdmin) {
+                    const permissions = ['admin:read', 'admin:add_user', 'admin:set_permissions', 'admin:set_user_limit', 'admin:add_user_api_key'];
+                    await pIteration.forEach(permissions, (permissionName) => {
+                        return this.$coreApi.adminAddCorePermission(createdUser.id, permissionName)
+                    });
                 }
                 this.created = true;
                 this.error = null;
@@ -48,6 +55,7 @@ export default {
                 title: '',
                 email: ''
             },
+            isAdmin: false,
             passwordAuth: true,
             userLimit: {
                 isActive: false,

@@ -48,6 +48,10 @@
               </div>
             </div>
           </div>
+
+          <div>
+            <md-checkbox v-model="isAdmin" :disabled="creation">Admin user</md-checkbox>
+          </div>
           
           <md-button class="md-raised md-accent" @click="create()" :disabled="creation || creationDisabled">Create user</md-button>
 

@@ -219,6 +219,12 @@ export default {
             adminSetUserLimit(limitData){
                 return wrap($http.post(`/v1/admin/set-user-limit`, limitData));
             },
+            adminAddCorePermission(userId, permissionName){
+                return wrap($http.post(`/v1/admin/permissions/core/add_permission`, {userId, permissionName}));
+            },
+            adminRemoveCorePermission(userId, permissionName){
+                return wrap($http.post(`/v1/admin/permissions/core/remove_permission`, {userId, permissionName}));
+            },
             adminAddUserAPiKey(userId){
                 return wrap($http.post(`/v1/admin/add-user-api-key`, { userId }));
             },

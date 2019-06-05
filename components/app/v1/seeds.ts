@@ -9,6 +9,7 @@ module.exports = async (app: IGeesomeApp) => {
         await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminAddUser);
         await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminSetUserLimit);
         await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminAddUserApiKey);
+        await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminSetPermissions);
 
         const testUser = await app.registerUser('test@galtproject.io', 'test', 'test');
         
