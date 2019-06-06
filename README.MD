@@ -22,3 +22,4 @@ export domain="geesome.galtproject.io" email="info@galtproject.io"; ./bash/full-
 - Node 10.x
 - Mysql Server 5.7
 - ffmpeg
+- Cerbot(Letsencrypt)
