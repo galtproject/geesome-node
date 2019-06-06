@@ -1,4 +1,4 @@
-<div>
+<div class="content-manifest-info-item">
     <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"></md-progress-bar>
     
     <div class="md-layout" v-if="manifestObj">
@@ -13,7 +13,9 @@
                 <b>Size:</b> {{manifestObj.size| prettySize}}<br>
                 <b>Ipfs hash:</b> <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
                 <b>Preview ipfs hash:</b> <pretty-hex :hex="manifestObj.preview"></pretty-hex><br>
-                <a :href="srcLink" @click.prevent="download">Download</a>
+                <b>Manifest ipld hash:</b> <pretty-hex :hex="manifestObj.id"></pretty-hex><br>
+                <a class="icon-link" :href="srcLink" @click.prevent="download"><md-icon class="fas fa-file-download"></md-icon></a>
+                <router-link class="icon-link" :to="{name: 'content-page', params: {contentId: manifestObj.id}}"><md-icon class="fas fa-share"></md-icon></router-link>
             </div>
             <md-button v-if="showCloseButton" class="md-accent md-icon-button" @click="$emit('close')" style="position: absolute; top: 0; right: 0;">
                 <md-icon class="fas fa-times"></md-icon>

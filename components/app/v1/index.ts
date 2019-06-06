@@ -512,7 +512,7 @@ class GeesomeApp implements IGeesomeApp {
         const baseType = _.first(content.mimeType.split('/'));
         
         let parentItemId = options.folderId;
-        if(_.isUndefined(parentItemId)) {
+        if(_.isUndefined(parentItemId) || parentItemId === 'undefined') {
             const contentFiles = await this.database.getFileCatalogItemsByContent(userId, content.id, IFileCatalogItemType.File);
             if(contentFiles.length) {
                 return content;

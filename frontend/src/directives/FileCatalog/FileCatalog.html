@@ -55,7 +55,7 @@
 
       <md-card class="file-catalog-new-file" v-if="showNewFile">
         <md-card-content>
-          <upload-content :folder-id="parentItemId" @uploaded="fileUploaded"></upload-content>
+          <upload-content :folder-id="parentItemId" @uploaded="fileUploaded" :hide-methods="hideMethods"></upload-content>
         </md-card-content>
       </md-card>
 

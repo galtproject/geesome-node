@@ -113,7 +113,6 @@ export default {
                 }
                 
                 const groupObj = await this.getIpld(groupId);
-                groupObj.id = groupId;
                 
                 await this.fetchIpldFields(groupObj, ['avatarImage', 'coverImage']);
                 
@@ -151,7 +150,10 @@ export default {
                 if(ipldHash['/']) {
                     ipldHash = ipldHash['/'];
                 }
-                return wrap($http.get(`/ipld/${ipldHash}`));
+                return wrap($http.get(`/ipld/${ipldHash}`)).then(ipldData => {
+                    ipldData.id = ipldHash;
+                    return ipldData;
+                });
             },
             async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc'){
                 const group = await this.getGroup(groupId);
@@ -164,7 +166,6 @@ export default {
                 return (await pIteration.map(_.range(postsCount - offset, postsCount - offset - limit), async (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
                     const post = await this.getIpld(postsPath + postNumberPath);
-                    post.id = postNumber;
                     post.groupId = groupId;
                     if(post) {
                         post.group = group;
@@ -178,7 +179,6 @@ export default {
                 const postsPath = group.id + '/posts/';
                 const postNumberPath = trie.getTreePath(postId).join('/');
                 const post = await this.getIpld(postsPath + postNumberPath);
-                post.id = postId;
                 post.groupId = groupId;
                 post.group = group;
                 return post;

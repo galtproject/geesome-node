@@ -33,6 +33,15 @@ $fa-font-path: "webfonts";
 .md-icon-button .fas.md-icon {
   font-size: 22px!important;
 }
+a.md-icon-button .fas.md-icon {
+  position: relative;
+  left: 5px;
+}
+a.icon-link {
+  display: inline-block;
+  padding: 5px;
+  text-align: center;
+}
 
 .huge-button {
   height: 100px;
@@ -272,10 +281,14 @@ $fa-font-path: "webfonts";
   }
 }
 
-#file-explorer-page {
+#file-explorer-page, #content-page {
   padding-top: 50px;
   max-width: 900px;
   margin: auto;
+}
+
+#content-page .content-manifest-info-item > .md-layout > * {
+  padding: 0 15px;
 }
 
 .margin-top {

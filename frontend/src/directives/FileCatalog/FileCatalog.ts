@@ -17,7 +17,7 @@ export default {
     name: 'file-catalog',
     template: require('./FileCatalog.html'),
     components: {ContentManifestInfoItem},//UploadContent, 
-    props: ['selectMode', 'selectedIds'],
+    props: ['selectMode', 'selectedIds', 'hideMethods'],
     async created() {
         this.getItems();
         this.localSelectedIds = this.selectedIds || [];

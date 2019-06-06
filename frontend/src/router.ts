@@ -20,6 +20,7 @@ import GroupPostPage from "./pages/GroupPage/GroupPostPage/GroupPostPage";
 import NewGroup from "./pages/GroupPage/NewGroup/NewGroup";
 import NewUser from "./pages/NewUser/NewUser";
 import FileExplorerPage from "./pages/FileExplorerPage/FileExplorerPage";
+import ContentPage from "./pages/ContentPage/ContentPage";
 
 Vue.use(Router);
 
@@ -50,6 +51,11 @@ export default new Router({
             path: '/new-group',
             name: 'new-group',
             component: NewGroup
+        },
+        {
+            path: '/content/:contentId',
+            name: 'content-page',
+            component: ContentPage
         },
         {
             path: '/group/',

@@ -11,13 +11,12 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import UploadContent from "../../../directives/UploadContent/UploadContent";
 import ContentManifestInfoItem from "../../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
 
 export default {
     template: require('./NewPostControl.html'),
     props: ['group'],
-    components: {UploadContent, ContentManifestInfoItem},
+    components: {ContentManifestInfoItem},
     async created() {
         this.fetchData();
     },
@@ -34,8 +33,8 @@ export default {
             }
             this.canCreatePosts = await this.$coreApi.getCanCreatePost(this.group.id);
         },
-        handleUpload(contentId) {
-            this.postContentsDbIds.push(contentId);
+        handleUpload(data) {
+            this.postContentsDbIds.push(data.id);
         },
         deleteContent(index) {
             this.postContentsDbIds.splice(index, 1);

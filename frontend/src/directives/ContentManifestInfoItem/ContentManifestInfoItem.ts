@@ -99,6 +99,9 @@ export default {
         },
         showCloseButton() {
             return !!this.$listeners.close;
+        },
+        slashesSrcLink() {
+            return this.srcLink.replace('http:', '').replace('https:', '');
         }
     },
     data() {
