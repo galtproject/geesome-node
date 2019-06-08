@@ -70,6 +70,9 @@ export default {
             createGroup(groupData){
                 return wrap($http.post(`/v1/user/create-group`, groupData));
             },
+            updateGroup(groupData){
+                return wrap($http.post(`/v1/user/group/${groupData.id}/update`, groupData));
+            },
             saveFile(file, params = {}){
                 const formData = new FormData();
                 
@@ -106,6 +109,9 @@ export default {
                 return wrap($http.get('/v1/user/admin-in-groups')).then(groups => {
                     return pIteration.map(groups, (group) => this.getGroup(group.manifestStorageId))
                 });
+            },
+            async getDbGroup(groupId){
+                return wrap($http.get(`/v1/group/${groupId}`));
             },
             async getGroup(groupId){
                 if(ipfsHelper.isIpfsHash(groupId)) {
@@ -186,6 +192,9 @@ export default {
             },
             getCanCreatePost(groupId){
                 return wrap($http.get(`/v1/user/group/${groupId}/can-create-post`)).then(data => data.valid);
+            },
+            getCanEditGroup(groupId){
+                return wrap($http.get(`/v1/user/group/${groupId}/can-edit`)).then(data => data.valid);
             },
             resolveIpns(ipns){
                 return wrap($http.get(`/resolve/${ipns}`));

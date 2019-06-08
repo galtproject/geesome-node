@@ -33,6 +33,13 @@ module.exports = async function (sequelize, models) {
         },
         avatarImageId: {
             type: Sequelize.INTEGER
+        },
+        manifestStorageId: {
+            type: Sequelize.STRING(200)
+        },
+        manifestStaticStorageId: {
+            type: Sequelize.STRING(200),
+            unique: true
         }
     } as any, {
         indexes: [

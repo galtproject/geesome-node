@@ -68,7 +68,8 @@ module.exports = async function (sequelize, models) {
             type: Sequelize.STRING(200)
         },
         manifestStaticStorageId: {
-            type: Sequelize.STRING(200)
+            type: Sequelize.STRING(200), 
+            unique: true
         },
         publishedPostsCount: {
             type: Sequelize.INTEGER,

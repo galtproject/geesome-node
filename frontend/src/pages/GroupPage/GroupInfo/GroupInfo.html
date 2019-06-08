@@ -11,7 +11,7 @@
     </md-card-header>
 
     <md-card-actions>
-        <md-button>Action</md-button>
-        <md-button>Action</md-button>
+        <md-button v-if="isCanEditGroup" :to="{'name': 'edit-group', params: {groupId: group.id}}">Edit</md-button>
+        <!--<md-button>Action</md-button>-->
     </md-card-actions>
 </md-card>

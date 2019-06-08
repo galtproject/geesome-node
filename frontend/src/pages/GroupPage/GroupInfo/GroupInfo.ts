@@ -16,6 +16,7 @@ export default {
     props: ['group'],
     async created() {
         this.fetchData();
+        this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
     },
 
     async mounted() {
@@ -39,7 +40,7 @@ export default {
     },
     data() {
         return {
-            
+            isCanEditGroup: true
         }
     },
 }

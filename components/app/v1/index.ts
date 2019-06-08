@@ -220,6 +220,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     async updateGroup(userId, groupId, updateData) {
+        groupId = await this.checkGroupId(groupId);
         if(!(await this.canEditGroup(userId, groupId))) {
             throw new Error("not_permitted");
         }
@@ -644,7 +645,8 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.getAdminInGroups(userId)
     }
 
-    getGroup(groupId) {
+    async getGroup(groupId) {
+        groupId = await this.checkGroupId(groupId);
         return this.database.getGroup(groupId);
     }
 

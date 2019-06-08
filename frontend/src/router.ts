@@ -21,6 +21,7 @@ import NewGroup from "./pages/GroupPage/NewGroup/NewGroup";
 import NewUser from "./pages/NewUser/NewUser";
 import FileExplorerPage from "./pages/FileExplorerPage/FileExplorerPage";
 import ContentPage from "./pages/ContentPage/ContentPage";
+import EditGroup from "./pages/GroupPage/EditGroup/EditGroup";
 
 Vue.use(Router);
 
@@ -51,6 +52,11 @@ export default new Router({
             path: '/new-group',
             name: 'new-group',
             component: NewGroup
+        },
+        {
+            path: '/edit-group/:groupId',
+            name: 'edit-group',
+            component: EditGroup
         },
         {
             path: '/content/:contentId',

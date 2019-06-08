@@ -26,6 +26,7 @@ export interface IGeesomeApp {
     registerUser(email, name, password): Promise<IUser>;
     loginUser(usernameOrEmail, password): Promise<IUser>;
     canCreatePostInGroup(userId, groupId);
+    canEditGroup(userId, groupId);
     generateUserApiKey(userId, type?): Promise<string>;
     getUserByApiKey(apiKey): Promise<IUser>;
     
