@@ -44,7 +44,7 @@ export interface IGeesomeApp {
     getAdminInGroups(userId): Promise<IGroup[]>;
 
     createGroup(userId, groupData): Promise<IGroup>;
-    updateGroup(id, updateData): Promise<IGroup>;
+    updateGroup(userId, id, updateData): Promise<IGroup>;
     getGroup(groupId): Promise<IGroup>;
     getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
     

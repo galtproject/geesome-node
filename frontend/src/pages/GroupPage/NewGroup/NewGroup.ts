@@ -12,13 +12,12 @@
  */
 
 import {EventBus, UPDATE_ADMIN_GROUPS} from "../../../services/events";
-import ContentManifestInfoItem from "../../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
-import ChooseFileContentsIdsModal from "../../../modals/ChooseFileContentsIdsModal/ChooseFileContentsIdsModal";
 import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
+import GroupForm from "../GroupForm/GroupForm";
 
 export default {
     template: require('./NewGroup.html'),
-    components: {ContentManifestItem},
+    components: {ContentManifestItem, GroupForm},
     methods: {
         create() {
             this.$coreApi.createGroup(this.group).then((createdGroup) => {
@@ -27,24 +26,10 @@ export default {
             }).catch(() => {
                 this.error = 'failed';
             })
-        },
-        chooseImage(fieldName) {
-            this.$root.$asyncModal.open({
-                id: 'choose-file-contents-ids-modal',
-                component: ChooseFileContentsIdsModal,
-                onClose: (selected) => {
-                    if(!selected || !selected.length) {
-                        return;
-                    }
-                    this.group[fieldName] = selected[0];
-                }
-            });
         }
     },
     computed: {
-        creationDisabled() {
-            return !this.group.name || !this.group.title;
-        }
+        
     },
     data() {
         return {
@@ -58,7 +43,8 @@ export default {
                 avatarImageId: null,
                 coverImageId: null
             },
-            error: null
+            error: null,
+            invalidInputs: true
         };
     }
 }

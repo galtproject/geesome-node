@@ -172,6 +172,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     service.post('/v1/user/create-group', async (req, res) => {
         res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
     });
+    service.post('/v1/user/group/:groupId/update', async (req, res) => {
+        res.send(await geesomeApp.updateGroup(req.user.id, req.params.groupId, req.body), 200);
+    });
     
     service.get('/v1/user/member-in-groups', async (req, res) => {
         res.send(await geesomeApp.getMemberInGroups(req.user.id));
