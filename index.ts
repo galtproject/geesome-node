@@ -31,7 +31,7 @@ import {IGeesomeApp} from "./components/app/interface";
         storageConfig.repo = process.env.STORAGE_REPO;
     }
     
-    const app: IGeesomeApp = await require('./components/app/v1')({databaseConfig, jsNode: storageConfig, goNode: storageConfig});
+    const app: IGeesomeApp = await require('./components/app/v1')({databaseConfig, storageConfig: {jsNode: storageConfig, goNode: storageConfig}});
 })();
 
 process.on('uncaughtException', (err) => {
