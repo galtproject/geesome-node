@@ -11,11 +11,11 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
+// import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
 
 export default {
     template: require('./ContentPage.html'),
-    components: {ContentManifestInfoItem},
+    // components: {ContentManifestInfoItem},
     props: [],
     async created() {
         this.inputContentId = this.contentId;

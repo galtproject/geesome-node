@@ -14,7 +14,6 @@
 import MediaElement from "../MediaElement/MediaElement";
 import PrettyName from "../PrettyName/PrettyName";
 import ImageModal from "../../modals/ImageModal/ImageModal";
-import ChooseContentsIdsModal from "../../modals/ChooseContentsIdsModal/ChooseContentsIdsModal";
 
 const fileSaver = require('file-saver');
 const mime = require('mime/lite');
