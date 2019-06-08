@@ -15,7 +15,7 @@ There is additional parameters that can be used in export:
 
 | Parameter | Description |
 |-----|-------------|
-| DATABASE_NAME | Database name to store app data |
+| DATABASE_NAME | Database name to store app data. Default: ~/.jsipfs |
 | STORAGE_REPO | Directory to store IPFS content  |
 
 3. Enter your domain with login/password: admin/admin
