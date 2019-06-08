@@ -1,0 +1,13 @@
+<div id="content-page">
+    <div class="content-input">
+        <md-field>
+            <label>Content manifest id</label>
+            <md-input v-model="inputContentId" v-on:keyup="setContentIdRoute()"></md-input>
+        </md-field>
+    </div>
+    <div class="content-container">
+        <h3>Content view</h3>
+        <content-manifest-info-item v-if="contentId" :manifest="contentId"></content-manifest-info-item>
+        <div v-else>Please input content id to view</div>
+    </div>
+</div>
