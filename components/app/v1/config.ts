@@ -22,7 +22,9 @@ module.exports = {
         },
         goNode: {
             // host: 'ipfs.infura.io', port: '5001', protocol: 'https'
-            host: 'localhost', port: '5001', protocol: 'http'
+            host: 'localhost', 
+            port: '5001', 
+            protocol: 'http'
         }
     },
     apiModule: 'http',

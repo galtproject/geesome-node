@@ -9,8 +9,15 @@ git clone https://github.com/galtspace/geesome-core.git
 3. Run script with parameters: domain and email for letsencrypt
 ```
 cd geesome-core
-export domain="geesome.galtproject.io" email="info@galtproject.io"; ./bash/full-install.sh 
+export DOMAIN="geesome.galtproject.io" EMAIL="info@galtproject.io"; ./bash/full-install.sh 
 ```
+There is additional parameters that can be used in export:
+
+| Parameter | Description |
+|-----|-------------|
+| DATABASE_NAME | Database name to store app data |
+| STORAGE_REPO | Directory to store IPFS content  |
+
 3. Enter your domain with login/password: admin/admin
 
 ## Minimal requirements

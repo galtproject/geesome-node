@@ -26,7 +26,12 @@ import {IGeesomeApp} from "./components/app/interface";
         databaseConfig.name = process.env.DATABASE_NAME;
     }
     
-    const app: IGeesomeApp = await require('./components/app/v1')(databaseConfig);
+    const storageConfig: any = {};
+    if(process.env.STORAGE_REPO) {
+        storageConfig.repo = process.env.STORAGE_REPO;
+    }
+    
+    const app: IGeesomeApp = await require('./components/app/v1')({databaseConfig, storageConfig});
 })();
 
 process.on('uncaughtException', (err) => {
