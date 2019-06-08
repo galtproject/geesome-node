@@ -166,6 +166,7 @@ export default {
                 return (await pIteration.map(_.range(postsCount - offset, postsCount - offset - limit), async (postNumber) => {
                     const postNumberPath = trie.getTreePath(postNumber).join('/');
                     const post = await this.getIpld(postsPath + postNumberPath);
+                    post.id = postNumber;
                     post.groupId = groupId;
                     if(post) {
                         post.group = group;

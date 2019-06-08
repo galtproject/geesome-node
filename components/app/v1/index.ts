@@ -409,7 +409,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     
     private async saveFileByStream(userId, stream, mimeType, extension?) {
-        console.log('saveFileByStream', userId, stream, mimeType, extension);
+        // console.log('saveFileByStream', userId, stream, mimeType, extension);
         //TODO: find out best approach to stream videos
         // if(_.startsWith(mimeType, 'video')) {
         //     stream = this.drivers.convert['video-to-streamable'].processByStream(stream, {

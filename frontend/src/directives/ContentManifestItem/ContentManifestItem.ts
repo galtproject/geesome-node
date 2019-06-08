@@ -23,7 +23,7 @@ const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestItem.html'),
-    props: ['manifest', 'previewMode'],
+    props: ['manifest', 'dbId', 'previewMode'],
     components: {MediaElement, PrettyName, ImageModal},
     async created() {
         this.setContent();
@@ -34,8 +34,24 @@ export default {
     },
 
     methods: {
-        async setContent() {
-            if(ipfsHelper.isIpldHash(this.manifest)) {
+        setContent() {
+            if(this.dbId) {
+                this.setContentByDbId();
+            } else {
+                this.setContentByManifest();
+            }
+        },
+        async setContentByDbId(){
+            this.loading = true;
+            const dbContent = await this.$coreApi.getDbContent(this.dbId);
+            const manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
+            this.setContentByManifest(manifestObj);
+        },
+        async setContentByManifest(manifestObj) {
+            this.loading = true;
+            if(manifestObj) {
+                this.manifestObj = manifestObj;
+            } else if(ipfsHelper.isIpldHash(this.manifest)) {
                 this.manifestObj = await this.$coreApi.getIpld(this.manifest);
             } else {
                 this.manifestObj = this.manifest;
@@ -50,6 +66,7 @@ export default {
             if(this.type == 'image' || this.type == 'video' || this.type == 'audio' || this.type == 'file') {
                 this.content = this.srcLink;
             }
+            this.loading = false;
         },
         download() {
             fileSaver.saveAs(this.srcLink, this.filename);
@@ -70,6 +87,9 @@ export default {
         },
         manifest() {
             this.setContent();
+        },
+        dbId() {
+            this.setContentByDbId();
         }
     },
 

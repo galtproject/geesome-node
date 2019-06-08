@@ -5,7 +5,7 @@
         </md-card-header>
 
         <md-card-content v-for="(id, index) in postContentsDbIds" class="contents-list">
-            <content-manifest-info-item :db-id="id" @close="deleteContent(index)"></content-manifest-info-item>
+            <content-manifest-info-item :db-id="id" @close="deleteContent(index)" :mini="true"></content-manifest-info-item>
         </md-card-content>
 
         <md-card-content class="publish-post-container" v-if="postContentsDbIds.length">

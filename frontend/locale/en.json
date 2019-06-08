@@ -21,6 +21,11 @@
     "cancel": "Cancel",
     "ok": "Ok"
   },
+  "choose_file_contents_ids_modal": {
+    "title": "Choose file",
+    "cancel": "Cancel",
+    "ok": "Ok"
+  },
   "new_user": {
     "limit_period": "Limit for each period"
   }

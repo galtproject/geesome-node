@@ -20,14 +20,10 @@ const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentManifestInfoItem.html'),
-    props: ['manifest', 'dbId', 'verticalMode'],
+    props: ['manifest', 'dbId', 'verticalMode', 'mini'],
     components: {PrettyName},
     async created() {
-        if(this.dbId) {
-            this.setContentByDbId();
-        } else {
-            this.setContent();
-        }
+        this.setContent();
     },
 
     async mounted() {
@@ -35,20 +31,31 @@ export default {
     },
 
     methods: {
+        setContent() {
+            if(this.dbId) {
+                this.setContentByDbId();
+            } else {
+                this.setContentByManifest();
+            }
+        },
         async setContentByDbId(){
             this.loading = true;
-            this.manifestObj = null;
             const dbContent = await this.$coreApi.getDbContent(this.dbId);
-            this.manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
-            this.setContent();
+            const manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
+            this.setContentByManifest(manifestObj);
         },
-        async setContent() {
+        async setContentByManifest(manifestObj) {
             this.loading = true;
             
-            if(ipfsHelper.isIpldHash(this.manifest)) {
+            if(manifestObj) {
+                this.manifestObj = manifestObj;
+            } else if(ipfsHelper.isIpldHash(this.manifest)) {
                 this.manifestObj = await this.$coreApi.getIpld(this.manifest);
             } else if(this.manifest) {
                 this.manifestObj = this.manifest;
+            }
+            if(!this.manifestObj) {
+                return;
             }
 
             this.srcLink = await this.$coreApi.getImageLink(this.manifestObj.content);

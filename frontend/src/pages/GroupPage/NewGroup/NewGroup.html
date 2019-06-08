@@ -36,6 +36,24 @@
                     </md-field>
 
                     <md-checkbox v-model="group.isPublic">Public group</md-checkbox>
+                    
+                    <div class="md-layout" style="margin: 15px 0;">
+                        <div class="md-layout-item md-size-50" v-if="group.avatarImageId">
+                            <content-manifest-item :db-id="group.avatarImageId" :vertical-mode="true"></content-manifest-item>
+                        </div>
+                        <div class="md-layout-item md-size-50">
+                            <md-button class="md-primary" @click="chooseImage('avatarImageId')">Set avatar image</md-button>
+                        </div>
+                    </div>
+
+                    <div class="md-layout" style="margin: 15px 0;">
+                        <div class="md-layout-item md-size-50" v-if="group.coverImageId">
+                            <content-manifest-item :db-id="group.coverImageId" :vertical-mode="true"></content-manifest-item>
+                        </div>
+                        <div class="md-layout-item md-size-50">
+                            <md-button class="md-primary" @click="chooseImage('coverImageId')">Set cover image</md-button>
+                        </div>
+                    </div>
 
                     <div>
                         <md-button class="md-raised md-accent" @click="create()" :disabled="creationDisabled">

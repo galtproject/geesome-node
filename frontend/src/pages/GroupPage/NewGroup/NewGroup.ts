@@ -12,9 +12,13 @@
  */
 
 import {EventBus, UPDATE_ADMIN_GROUPS} from "../../../services/events";
+import ContentManifestInfoItem from "../../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
+import ChooseFileContentsIdsModal from "../../../modals/ChooseFileContentsIdsModal/ChooseFileContentsIdsModal";
+import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
 
 export default {
     template: require('./NewGroup.html'),
+    components: {ContentManifestItem},
     methods: {
         create() {
             this.$coreApi.createGroup(this.group).then((createdGroup) => {
@@ -23,6 +27,18 @@ export default {
             }).catch(() => {
                 this.error = 'failed';
             })
+        },
+        chooseImage(fieldName) {
+            this.$root.$asyncModal.open({
+                id: 'choose-file-contents-ids-modal',
+                component: ChooseFileContentsIdsModal,
+                onClose: (selected) => {
+                    if(!selected || !selected.length) {
+                        return;
+                    }
+                    this.group[fieldName] = selected[0];
+                }
+            });
         }
     },
     computed: {
@@ -38,7 +54,9 @@ export default {
                 title: '',
                 type: 'channel',
                 view: 'tumblr-like',
-                isPublic: true
+                isPublic: true,
+                avatarImageId: null,
+                coverImageId: null
             },
             error: null
         };

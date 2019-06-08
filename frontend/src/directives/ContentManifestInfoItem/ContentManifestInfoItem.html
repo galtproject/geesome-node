@@ -1,4 +1,4 @@
-<div class="content-manifest-info-item">
+<div :class="{'content-manifest-info-item': true, 'mini-manifest-info': mini}">
     <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"></md-progress-bar>
     
     <div class="md-layout" v-if="manifestObj">

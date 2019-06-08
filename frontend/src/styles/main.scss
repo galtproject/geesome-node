@@ -197,7 +197,7 @@ a.icon-link {
 //}
 
 .file-catalog {
-  background: #757575;
+  background: #19161C;
   //background-color: #eeeeee;
   padding: 10px;
   .file-catalog-breadcrumbs {
@@ -287,10 +287,6 @@ a.icon-link {
   margin: auto;
 }
 
-#content-page .content-manifest-info-item > .md-layout > * {
-  padding: 0 15px;
-}
-
 .margin-top {
   margin-top: 15px;
 }
@@ -315,6 +311,17 @@ a.icon-link {
 .file-catalog-not-found {
   margin: 10px 15px;
 }
+
+.content-manifest-info-item {
+  & > .md-layout > * {
+    padding: 0 15px;
+  }
+  &.mini-manifest-info {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+}
+
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;
