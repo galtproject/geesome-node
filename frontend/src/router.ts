@@ -59,7 +59,7 @@ export default new Router({
             component: EditGroup
         },
         {
-            path: '/content/:contentId',
+            path: '/content/:contentId?',
             name: 'content-page',
             component: ContentPage
         },

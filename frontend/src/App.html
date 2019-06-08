@@ -14,12 +14,13 @@
             <span flex style="flex: 1"></span>
 
             <span>
-                <md-field>
-                    <label v-locale="localeKey + '.server_address'"></label>
-                    <md-select v-model="serverAddress" :md-disabled="true">
-                        <md-option :value="serverAddress">{{serverAddress}}</md-option>
-                    </md-select>
-                </md-field>
+              <div v-locale="localeKey + '.server_address'"></div>
+              <small>{{serverAddress}}</small>
+              
+              <div>
+                <a v-if="user" href @click.prevent="logout()">Logout</a>
+                <router-link v-else :to="{name: 'login'}">Login</router-link>
+              </div>
             </span>
         </md-app-toolbar>
         

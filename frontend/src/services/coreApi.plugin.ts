@@ -53,19 +53,45 @@ export default {
             $http.defaults.headers.post['Authorization'] = 'Bearer ' + apiKey;
             $http.defaults.headers.get['Authorization'] = 'Bearer ' + apiKey;
         }
+    
+        function changeServer(server) {
+            localStorage.setItem('geesome-server', server);
+            appStore.commit('serverAddress', server);
+
+            $http.defaults.baseURL = appStore.state.serverAddress;
+        }
+        
+        let appStore;
         
         Vue.prototype.$coreApi = {
             init(store) {
-                $http.defaults.baseURL = store.state.serverAddress;
+                appStore = store;
+                
+                let server = localStorage.getItem('geesome-server');
+                if(!server) {
+                    let port = 7722;
+                    if(document.location.hostname === 'localhost' || document.location.hostname === '127.0.0.1' || _.startsWith(document.location.pathname, '/node')) {
+                        port = 7711;
+                    }
+                    server = document.location.protocol + "//" + document.location.hostname + ":" + port;
+                }
+                
+                changeServer(server);
             },
             getCurrentUser(){
                 return wrap($http.get('/v1/user'));
             },
-            login(username, password){
+            changeServer: changeServer,
+            login(server, username, password){
+                changeServer(server);
                 return wrap($http.post('/v1/login', {username, password})).then(data => {
                     setApiKey(data.apiKey);
                     return data;
                 });
+            },
+            async logout(){
+                //TODO: send request to server for disable api key
+                localStorage.setItem('geesome-api-key', null);
             },
             createGroup(groupData){
                 return wrap($http.post(`/v1/user/create-group`, groupData));

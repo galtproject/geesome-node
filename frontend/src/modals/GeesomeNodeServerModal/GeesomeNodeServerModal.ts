@@ -11,34 +11,35 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
+import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 
 export default {
-    template: require('./ContentPage.html'),
-    components: {ContentManifestInfoItem},
+    template: require('./GeesomeNodeServerModal.html'),
     props: [],
-    async created() {
-        this.inputContentId = this.contentId;
+    components: {
+        ModalItem
+    },
+    created() {
+        this.serverAddress = this.currentServerAddress;
     },
     methods: {
-        setContentIdRoute() {
-            this.$router.push({params: {contentId: this.inputContentId}})
+        async ok() {
+            this.$coreApi.changeServer(this.serverAddress);
+            this.$root.$asyncModal.close('geesome-node-server-modal');
+        },
+        async cancel() {
+            this.$root.$asyncModal.close('geesome-node-server-modal');
         }
     },
-    watch: {
-        contentId() {
-            this.inputContentId = this.contentId;
-        }
-    },
+    watch: {},
     computed: {
-        contentId() {
-            return this.$route.params.contentId;
+        currentServerAddress() {
+            return this.$store.state.serverAddress;
         }
     },
-    data() {
+    data: function () {
         return {
-            localeKey: 'content_page',
-            inputContentId: ''
-        };
+            serverAddress: ''
+        }
     }
 }

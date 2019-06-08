@@ -94,12 +94,6 @@ export default {
             this.$store.commit('locale_loaded', true);
             this.language = this.$locale.lang;
         });
-
-        let port = 7722;
-        if(document.location.hostname === 'localhost' || document.location.hostname === '127.0.0.1' || _.startsWith(document.location.pathname, '/node')) {
-            port = 7711;
-        }
-        this.$store.commit('serverAddress', document.location.protocol + "//" + document.location.hostname + ":" + port);
         
         this.$coreApi.init(this.$store);
         
@@ -107,7 +101,8 @@ export default {
             this.$store.commit('user', user);
             this.loading = false;
         }).catch(() => {
-            this.$router.push({name: 'login'});
+            this.$store.commit('user', null);
+            // this.$router.push({name: 'login'});
             this.loading = false;
         });
     },
@@ -118,20 +113,25 @@ export default {
     },
 
     methods: {
+        async logout() {
+            await this.$coreApi.logout();
+            location.reload();
+        },
         getLocale(key, options?) {
             return this.$locale.get(this.localeKey + "." + key, options);
         }
     },
     
     watch: {
-        user() {
-            return this.$store.state.user;
-        }
+        
     },
     
     computed: {
         serverAddress() {
             return this.$store.state.serverAddress;
+        },
+        user() {
+            return this.$store.state.user;
         }
     },
     

@@ -11,6 +11,8 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import GeesomeNodeServerModal from "../../../../modals/GeesomeNodeServerModal/GeesomeNodeServerModal";
+
 export default {
     template: require('./WelcomeToGeesome.html'),
     components: {},
@@ -19,13 +21,20 @@ export default {
         
     },
     methods: {
-        
+        connectToNode() {
+            this.$root.$asyncModal.open({
+                id: 'geesome-node-server-modal',
+                component: GeesomeNodeServerModal
+            });
+        }
     },
     watch: {
         
     },
     computed: {
-        
+        user() {
+            return this.$store.state.user;
+        }
     },
     data() {
         return {
