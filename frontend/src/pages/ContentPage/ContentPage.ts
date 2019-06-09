@@ -12,33 +12,61 @@
  */
 
 import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
+import EthData from "@galtproject/frontend-core/libs/EthData";
+import GroupItem from "../GroupsList/GroupItem/GroupItem";
+
+const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentPage.html'),
-    components: {ContentManifestInfoItem},
+    components: {ContentManifestInfoItem, GroupItem},
     props: [],
-    async created() {
-        this.inputContentId = this.contentId;
+    created() {
+        this.inputManifestId = this.manifestId;
+        this.type = this.$route.query.type || 'content';
+        if(this.manifestId) {
+            this.getManifest();
+        }
     },
     methods: {
-        setContentIdRoute() {
-            this.$router.push({params: {contentId: this.inputContentId}})
+        setManifestIdRoute() {
+            this.$router.push({params: {manifestId: this.inputManifestId}});
+        },
+        async getManifest() {
+            this.loading = true;
+            let manifestId = this.manifestId;
+            if(ipfsHelper.isIpfsHash(manifestId)) {
+                manifestId = await this.$coreApi.resolveIpns(manifestId);
+            }
+            this.manifest = await this.$coreApi.getIpld(manifestId);
+            this.type = this.manifest._type.split('-')[0];
+            if(this.type === 'group') {
+                await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
+            }
+            this.loading = false;
         }
     },
     watch: {
-        contentId() {
-            this.inputContentId = this.contentId;
+        async manifestId() {
+            this.inputManifestId = this.manifestId;
+            this.getManifest();
         }
     },
     computed: {
-        contentId() {
-            return this.$route.params.contentId;
+        manifestId() {
+            return this.$route.params.manifestId;
+        },
+        humanReadableType() {
+            return EthData.humanizeKey(this.type);
         }
     },
     data() {
         return {
             localeKey: 'content_page',
-            inputContentId: ''
+            inputManifestId: '',
+            manifest: null,
+            type: '',
+            loading: false
         };
     }
 }

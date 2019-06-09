@@ -281,7 +281,7 @@ a.icon-link {
   }
 }
 
-#file-explorer-page, #content-page {
+#file-explorer-page, #content-page, #joined-groups {
   padding-top: 50px;
   max-width: 900px;
   margin: auto;
@@ -329,6 +329,13 @@ a.icon-link {
     .md-title {
       font-size: 19px;
     }
+  }
+}
+
+#joined-groups {
+  .md-title {
+    display: flex;
+    align-items: center;
   }
 }
 

@@ -11,6 +11,8 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import {EventBus, UPDATE_MEMBER_GROUPS} from "../../../services/events";
+
 export default {
     template: require('./GroupInfo.html'),
     props: ['group'],
@@ -32,6 +34,7 @@ export default {
         },
         async updateIsJoined() {
             this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+            EventBus.$emit(UPDATE_MEMBER_GROUPS);
         },
         joinGroup() {
             this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())

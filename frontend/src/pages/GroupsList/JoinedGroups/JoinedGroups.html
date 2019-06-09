@@ -1,7 +1,10 @@
-<div id="content-page">
+<div id="joined-groups">
     <div class="md-layout">
         <div class="md-layout-item md-size-75">
-            <div class="md-title">Followed groups</div>
+            <div class="md-title">
+                <span>Followed groups</span>
+                <md-button class="md-icon-button md-primary" :to="{name: 'content-page', query: { type: 'group'}}"><md-icon>add</md-icon></md-button>
+            </div>
             
             <div class="md-layout" style="margin-top: 20px;">
                 <div class="md-layout-item md-size-30" v-for="group in memberInGroups">

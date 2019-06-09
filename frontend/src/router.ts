@@ -60,7 +60,7 @@ export default new Router({
             component: EditGroup
         },
         {
-            path: '/content/:contentId?',
+            path: '/content/:manifestId?',
             name: 'content-page',
             component: ContentPage
         },
