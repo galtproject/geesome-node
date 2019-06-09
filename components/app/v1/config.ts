@@ -18,7 +18,11 @@ module.exports = {
     storageConfig: {
         jsNode: {
             // getting by getSecretKey
-            pass: ''
+            pass: '',
+            EXPERIMENTAL: {
+                pubsub: true,
+                ipnsPubsub: true
+            }
         },
         goNode: {
             // host: 'ipfs.infura.io', port: '5001', protocol: 'https'

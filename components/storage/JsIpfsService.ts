@@ -141,12 +141,18 @@ export class JsIpfsService implements IStorage {
     }
 
     async addBootNode(address): Promise<any[]> {
+        await new Promise((resolve, reject) => {
+            this.node.swarm.connect(address, (err, res) => err ? reject(err) : resolve());
+        }) as any;
         return new Promise((resolve, reject) => {
-            this.node.bootstrap.add(address, (err, res) => err ? reject(err) : resolve(res.Peers))
+            this.node.bootstrap.add(address, (err, res) => err ? reject(err) : resolve(res.Peers));
         }) as any;
     }
 
     async removeBootNode(address): Promise<any[]> {
+        await new Promise((resolve, reject) => {
+            this.node.swarm.disconnect(address, (err, res) => err ? reject(err) : resolve());
+        }) as any;
         return new Promise((resolve, reject) => {
             this.node.bootstrap.rm(address, (err, res) => err ? reject(err) : resolve(res.Peers))
         }) as any;
