@@ -16,7 +16,7 @@
 import GroupItem from "../GroupItem/GroupItem";
 
 export default {
-    template: require('./JoinedGroups.html'),
+    template: require('./AdminedGroups.html'),
     components: {GroupItem},
     props: [],
     async created() {
@@ -24,7 +24,7 @@ export default {
     },
     methods: {
         async getGroups() {
-            this.memberInGroups = await this.$coreApi.getMemberInGroups();
+            this.adminInGroups = await this.$coreApi.getAdminInGroups();
         }
     },
     watch: {
@@ -36,7 +36,7 @@ export default {
     data() {
         return {
             localeKey: 'content_page',
-            memberInGroups: []
+            adminInGroups: []
         };
     }
 }

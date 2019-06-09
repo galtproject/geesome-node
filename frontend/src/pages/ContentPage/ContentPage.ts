@@ -14,12 +14,13 @@
 import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
 import EthData from "@galtproject/frontend-core/libs/EthData";
 import GroupItem from "../GroupsList/GroupItem/GroupItem";
+import PostItem from "../../directives/Posts/PostItem/PostItem";
 
 const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
     template: require('./ContentPage.html'),
-    components: {ContentManifestInfoItem, GroupItem},
+    components: {ContentManifestInfoItem, GroupItem, PostItem},
     props: [],
     created() {
         this.inputManifestId = this.manifestId;
@@ -42,6 +43,7 @@ export default {
             this.type = this.manifest._type.split('-')[0];
             if(this.type === 'group') {
                 await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
+                this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
             }
             this.loading = false;
         }
@@ -65,6 +67,7 @@ export default {
             localeKey: 'content_page',
             inputManifestId: '',
             manifest: null,
+            subManifests: [],
             type: '',
             loading: false
         };

@@ -21,7 +21,7 @@
         <div v-if="loading">
             <md-progress-bar class="md-accent" md-mode="indeterminate"></md-progress-bar>
         </div>
-        <div v-else>
+        <div>
             <div v-if="manifest">
                 <content-manifest-info-item v-if="type === 'content'" :manifest="manifest"></content-manifest-info-item>
                 
@@ -30,11 +30,11 @@
                         <group-item :group="manifest"></group-item>
                     </div>
                     <div class="md-layout-item md-size-70">
-                        <!-- TODO: posts preview -->
+                        <post-item v-for="(post, index) in subManifests" v-model="subManifests[index]"></post-item>
                     </div>
                 </div>
             </div>
-            <div v-else>Please input {{humanReadableType}} id to view</div>
+            <div v-else-if="!loading">Please input {{humanReadableType}} id to view</div>
         </div>
     </div>
 </div>

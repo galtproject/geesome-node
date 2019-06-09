@@ -25,7 +25,7 @@
             <span class="md-list-item-text" v-locale="localeKey + '.file_explorer'"></span>
         </md-list-item>
         
-        <md-list-item v-if="user">
+        <md-list-item v-if="user" :to="{name: 'admined-groups'}">
             <md-icon class="fas fa-users-cog"></md-icon>
             <span class="md-list-item-text" v-locale="localeKey + '.administration_groups'"></span>
         </md-list-item>

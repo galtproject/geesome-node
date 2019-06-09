@@ -25,9 +25,9 @@ export class ClientStorage {
     }
     static isMemberOfGroup(groupId) {
         const groupsIds = this.joinedGroups();
-        return groupsIds.indexOf(groupId) === -1;
+        return groupsIds.indexOf(groupId) !== -1;
     }
     static joinedGroups() {
-        return this.get('joined-groups');
+        return this.get('joined-groups') || [];
     }
 }

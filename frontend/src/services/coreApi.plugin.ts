@@ -151,11 +151,15 @@ export default {
             getDbContent(dbId){
                 return wrap($http.get('/v1/content/' + dbId));
             },
-            getMemberInGroups(){
-                //TODO: get groups list directly from ipld
-                return wrap($http.get('/v1/user/member-in-groups')).then(groups => {
-                    return pIteration.map(groups, (group) => this.getGroup(group.manifestStorageId))
-                });
+            async getMemberInGroups(){
+                let groupsIds;
+                if(serverLessMode) {
+                    groupsIds = ClientStorage.joinedGroups();
+                } else {
+                    //TODO: get groups list directly from ipld
+                    groupsIds = await wrap($http.get('/v1/user/member-in-groups')).then(groups => groups.map(g => g.manifestStaticStorageId));
+                }
+                return pIteration.map(groupsIds, (groupId) => this.getGroup(groupId));
             },
             getAdminInGroups(){
                 //TODO: get groups list directly from ipld

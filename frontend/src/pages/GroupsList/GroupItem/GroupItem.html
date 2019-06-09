@@ -8,8 +8,11 @@
         <div class="md-subhead">@{{group.name}}</div>
     </md-card-header>
     
-    <md-card-actions md-alignment="space-between" v-if="isJoined !== null">
-        <md-button class="md-accent" v-if="isJoined" @click="leaveGroup">Unsubscribe</md-button>
-        <md-button class="md-primary" v-else @click="joinGroup">Subscribe</md-button>
+    <md-card-actions md-alignment="space-between">
+        <md-button v-if="isCanEditGroup" :to="{'name': 'edit-group', params: {groupId: group.id}}">Edit</md-button>
+        <div v-else-if="isJoined !== null">
+            <md-button class="md-accent" v-if="isJoined" @click="leaveGroup">Unsubscribe</md-button>
+            <md-button class="md-primary" v-else @click="joinGroup">Subscribe</md-button>
+        </div>
     </md-card-actions>
 </md-card>

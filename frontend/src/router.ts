@@ -23,6 +23,7 @@ import FileExplorerPage from "./pages/FileExplorerPage/FileExplorerPage";
 import ContentPage from "./pages/ContentPage/ContentPage";
 import EditGroup from "./pages/GroupPage/EditGroup/EditGroup";
 import JoinedGroups from "./pages/GroupsList/JoinedGroups/JoinedGroups";
+import AdminedGroups from "./pages/GroupsList/AdminedGroups/AdminedGroups";
 
 Vue.use(Router);
 
@@ -68,6 +69,11 @@ export default new Router({
             path: '/joined-groups',
             name: 'joined-groups',
             component: JoinedGroups
+        },
+        {
+            path: '/admined-groups',
+            name: 'admined-groups',
+            component: AdminedGroups
         },
         {
             path: '/group/',
