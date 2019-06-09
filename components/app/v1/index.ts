@@ -220,6 +220,42 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.isAdminInGroup(userId, groupId);
     }
 
+    async isMemberInGroup(userId, groupId) {
+        if(!groupId) {
+            return false;
+        }
+        groupId = await this.checkGroupId(groupId);
+        return this.database.isMemberInGroup(userId, groupId);
+    }
+
+    async isAdminInGroup(userId, groupId) {
+        if(!groupId) {
+            return false;
+        }
+        groupId = await this.checkGroupId(groupId);
+        return this.database.isAdminInGroup(userId, groupId);
+    }
+
+    async addMemberToGroup(userId, groupId) {
+        groupId = await this.checkGroupId(groupId);
+        await this.database.addMemberToGroup(userId, groupId);
+    }
+
+    async removeMemberFromGroup(userId, groupId) {
+        groupId = await this.checkGroupId(groupId);
+        await this.database.removeMemberFromGroup(userId, groupId);
+    }
+
+    async addAdminToGroup(userId, groupId) {
+        groupId = await this.checkGroupId(groupId);
+        await this.database.addAdminToGroup(userId, groupId);
+    }
+
+    async removeAdminFromGroup(userId, groupId) {
+        groupId = await this.checkGroupId(groupId);
+        await this.database.removeAdminFromGroup(userId, groupId);
+    }
+
     async updateGroup(userId, groupId, updateData) {
         groupId = await this.checkGroupId(groupId);
         if(!(await this.canEditGroup(userId, groupId))) {

@@ -16,9 +16,9 @@ const moment = require('moment');
 
 export default {
     template: require('./GroupItem.html'),
-    props: ['value'],
+    props: ['group'],
     async created() {
-        
+        this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
     },
 
     async mounted() {
@@ -26,7 +26,16 @@ export default {
     },
 
     methods: {
-        
+        async updateIsJoined() {
+            this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+            this.$emit('change');
+        },
+        joinGroup() {
+            this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())
+        },
+        leaveGroup() {
+            this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
+        }
     },
 
     watch: {
@@ -40,7 +49,7 @@ export default {
     },
     data() {
         return {
-            
+            isJoined: null
         }
     },
 }

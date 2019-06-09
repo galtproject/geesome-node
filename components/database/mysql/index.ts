@@ -155,6 +155,9 @@ class MysqlDatabase implements IDatabase {
     async addMemberToGroup(userId, groupId) {
         return (await this.getGroup(groupId)).addMembers([await this.getUser(userId)]);
     }
+    async removeMemberFromGroup(userId, groupId) {
+        return (await this.getGroup(groupId)).removeMembers([await this.getUser(userId)]);
+    }
     
     async getMemberInGroups(userId) {
         return (await this.getUser(userId)).getMemberInGroups({
@@ -167,6 +170,9 @@ class MysqlDatabase implements IDatabase {
 
     async addAdminToGroup(userId, groupId) {
         return (await this.getGroup(groupId)).addAdministrators([await this.getUser(userId)]);
+    }
+    async removeAdminFromGroup(userId, groupId) {
+        return (await this.getGroup(groupId)).removeAdministrators([await this.getUser(userId)]);
     }
 
     async getAdminInGroups(userId) {

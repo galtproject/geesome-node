@@ -2,6 +2,12 @@
     <div class="md-layout">
         <div class="md-layout-item md-size-75">
             <div class="md-title">Followed groups</div>
+            
+            <div class="md-layout" style="margin-top: 20px;">
+                <div class="md-layout-item md-size-30" v-for="group in memberInGroups">
+                    <group-item :group="group" @change="getGroups()"></group-item>
+                </div>
+            </div>
         </div>
         <div class="md-layout-item md-size-25">
             <div class="md-title">Recommend to follow</div>

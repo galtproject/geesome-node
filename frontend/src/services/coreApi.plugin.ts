@@ -12,6 +12,7 @@
  */
 
 import axios from 'axios';
+import {ClientStorage} from "./clientStorage";
 // const config = require('../../config');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
@@ -63,6 +64,8 @@ export default {
         
         let appStore;
         
+        let serverLessMode = false;
+        
         Vue.prototype.$coreApi = {
             init(store) {
                 appStore = store;
@@ -79,7 +82,13 @@ export default {
                 changeServer(server);
             },
             getCurrentUser(){
-                return wrap($http.get('/v1/user'));
+                return wrap($http.get('/v1/user')).then(user => {
+                    serverLessMode = false;
+                    return user;
+                }).catch((err) => {
+                    serverLessMode = true;
+                    throw (err);
+                });
             },
             changeServer: changeServer,
             login(server, username, password){
@@ -98,6 +107,24 @@ export default {
             },
             updateGroup(groupData){
                 return wrap($http.post(`/v1/user/group/${groupData.id}/update`, groupData));
+            },
+            async joinGroup(groupId){
+                if(serverLessMode) {
+                    return ClientStorage.joinToGroup(groupId);
+                }
+                return wrap($http.post(`/v1/user/group/${groupId}/join`));
+            },
+            async leaveGroup(groupId){
+                if(serverLessMode) {
+                    return ClientStorage.leaveGroup(groupId);
+                }
+                return wrap($http.post(`/v1/user/group/${groupId}/leave`));
+            },
+            async isMemberOfGroup(groupId){
+                if(serverLessMode) {
+                    return ClientStorage.isMemberOfGroup(groupId);
+                }
+                return wrap($http.post(`/v1/user/group/${groupId}/is-member`)).then(data => data.result);
             },
             saveFile(file, params = {}){
                 const formData = new FormData();

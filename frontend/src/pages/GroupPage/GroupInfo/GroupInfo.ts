@@ -17,6 +17,9 @@ export default {
     async created() {
         this.fetchData();
         this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
+        if(!this.isCanEditGroup) {
+            this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+        }
     },
 
     async mounted() {
@@ -26,6 +29,15 @@ export default {
     methods: {
         async fetchData() {
             // this.avatarImageSrc = await this.$coreApi.getImageLink(this.group.avatarImage);
+        },
+        async updateIsJoined() {
+            this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+        },
+        joinGroup() {
+            this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())
+        },
+        leaveGroup() {
+            this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
         }
     },
 
@@ -40,7 +52,8 @@ export default {
     },
     data() {
         return {
-            isCanEditGroup: true
+            isCanEditGroup: false,
+            isJoined: null
         }
     },
 }

@@ -1,17 +1,15 @@
-<md-card class="post-card">
+<md-card class="group-item-card">
+    <md-card-media v-if="group.coverImage">
+        <content-manifest-item :manifest="group.coverImage" :preview-mode="true"></content-manifest-item>
+    </md-card-media>
+    
     <md-card-header>
-        <div class="md-layout" style="justify-content: space-between;">
-            <div class="md-subhead">{{group ? '@' + group.name : '...'}}</div>
-            <router-link :to="{name: 'group-post-page', params: {postId: value.id, groupId: value.groupId}}">{{date}}</router-link>
-        </div>
+        <div class="md-title"><router-link :to="{name: 'group-page', params: {groupId: group.id}}">{{group.title}}</router-link></div>
+        <div class="md-subhead">@{{group.name}}</div>
     </md-card-header>
-
-    <md-card-content v-for="content in contentsList">
-        <content-manifest-item :manifest="content"></content-manifest-item>
-    </md-card-content>
-
-    <!--<md-card-actions>-->
-    <!--<md-button>Action</md-button>-->
-    <!--<md-button>Action</md-button>-->
-    <!--</md-card-actions>-->
+    
+    <md-card-actions md-alignment="space-between" v-if="isJoined !== null">
+        <md-button class="md-accent" v-if="isJoined" @click="leaveGroup">Unsubscribe</md-button>
+        <md-button class="md-primary" v-else @click="joinGroup">Subscribe</md-button>
+    </md-card-actions>
 </md-card>

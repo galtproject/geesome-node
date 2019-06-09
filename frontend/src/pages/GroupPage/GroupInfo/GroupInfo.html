@@ -12,6 +12,10 @@
 
     <md-card-actions>
         <md-button v-if="isCanEditGroup" :to="{'name': 'edit-group', params: {groupId: group.id}}">Edit</md-button>
+        <div v-else>
+            <md-button class="md-accent" v-if="isJoined" @click="leaveGroup">Unsubscribe</md-button>
+            <md-button class="md-primary" v-else @click="joinGroup">Subscribe</md-button>
+        </div>
         <!--<md-button>Action</md-button>-->
     </md-card-actions>
 </md-card>

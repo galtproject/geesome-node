@@ -206,6 +206,19 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(await geesomeApp.updatePost(req.user.id, req.params.postId, req.body), 200);
     });
 
+    service.post('/v1/user/group/:groupId/is-member', async (req, res) => {
+        res.send({result: await geesomeApp.isMemberInGroup(req.user.id, req.params.groupId)}, 200);
+    });
+    
+    service.post('/v1/user/group/:groupId/join', async (req, res) => {
+        //TODO: check for private group
+        res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId), 200);
+    });
+
+    service.post('/v1/user/group/:groupId/leave', async (req, res) => {
+        res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
+    });
+
     service.post('/v1/user/save-file', async (req, res) => {
         req.pipe(req.busboy);
 

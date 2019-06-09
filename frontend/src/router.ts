@@ -22,6 +22,7 @@ import NewUser from "./pages/NewUser/NewUser";
 import FileExplorerPage from "./pages/FileExplorerPage/FileExplorerPage";
 import ContentPage from "./pages/ContentPage/ContentPage";
 import EditGroup from "./pages/GroupPage/EditGroup/EditGroup";
+import JoinedGroups from "./pages/GroupsList/JoinedGroups/JoinedGroups";
 
 Vue.use(Router);
 
@@ -62,6 +63,11 @@ export default new Router({
             path: '/content/:contentId?',
             name: 'content-page',
             component: ContentPage
+        },
+        {
+            path: '/joined-groups',
+            name: 'joined-groups',
+            component: JoinedGroups
         },
         {
             path: '/group/',

@@ -13,22 +13,22 @@
 
 // import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
 
+import GroupItem from "../GroupItem/GroupItem";
+
 export default {
-    template: require('./ContentPage.html'),
-    // components: {ContentManifestInfoItem},
+    template: require('./JoinedGroups.html'),
+    components: {GroupItem},
     props: [],
     async created() {
-        this.inputContentId = this.contentId;
+        this.getGroups();
     },
     methods: {
-        setContentIdRoute() {
-            this.$router.push({params: {contentId: this.inputContentId}})
+        async getGroups() {
+            this.memberInGroups = await this.$coreApi.getMemberInGroups();
         }
     },
     watch: {
-        contentId() {
-            this.inputContentId = this.contentId;
-        }
+        
     },
     computed: {
         contentId() {
@@ -38,7 +38,7 @@ export default {
     data() {
         return {
             localeKey: 'content_page',
-            inputContentId: ''
+            memberInGroups: []
         };
     }
 }

@@ -322,6 +322,16 @@ a.icon-link {
   }
 }
 
+.group-item-card {
+  .md-card-header {
+    padding-top: 10px;
+    padding-bottom: 0;
+    .md-title {
+      font-size: 19px;
+    }
+  }
+}
+
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;

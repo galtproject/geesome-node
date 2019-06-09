@@ -42,8 +42,10 @@ export interface IDatabase {
     addGroup(group): Promise<IGroup>;
     updateGroup(id, updateData): Promise<void>;
     addMemberToGroup(userId, groupId): Promise<void>;
+    removeMemberFromGroup(userId, groupId): Promise<void>;
     getMemberInGroups(userId): Promise<IGroup[]>;
     addAdminToGroup(userId, groupId): Promise<void>;
+    removeAdminFromGroup(userId, groupId): Promise<void>;
     getAdminInGroups(userId): Promise<IGroup[]>;
     
     getGroupSizeSum(id): Promise<number>;

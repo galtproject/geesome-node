@@ -25,8 +25,18 @@ export interface IGeesomeApp {
     getSecretKey(keyName): Promise<string>;
     registerUser(email, name, password): Promise<IUser>;
     loginUser(usernameOrEmail, password): Promise<IUser>;
+    
     canCreatePostInGroup(userId, groupId);
     canEditGroup(userId, groupId);
+    isAdminInGroup(userId, groupId): Promise<boolean>;
+    isMemberInGroup(userId, groupId): Promise<boolean>;
+    
+    addMemberToGroup(userId, groupId): Promise<void>;
+    removeMemberFromGroup(userId, groupId): Promise<void>;
+    
+    addAdminToGroup(userId, groupId): Promise<void>;
+    removeAdminFromGroup(userId, groupId): Promise<void>;
+    
     generateUserApiKey(userId, type?): Promise<string>;
     getUserByApiKey(apiKey): Promise<IUser>;
     
