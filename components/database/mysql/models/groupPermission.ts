@@ -24,7 +24,7 @@ module.exports = async function (sequelize, models) {
         },
         isActive: {
             type: Sequelize.BOOLEAN
-        }
+        },
     } as any, {
         indexes: [
             // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

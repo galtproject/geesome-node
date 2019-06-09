@@ -27,6 +27,9 @@ module.exports = async function (sequelize, models) {
         },
         isActive: {
             type: Sequelize.BOOLEAN
+        },
+        deactivateOn: {
+            type: Sequelize.DATE
         }
     } as any, {
         indexes: [
