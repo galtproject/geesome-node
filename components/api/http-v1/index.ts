@@ -308,7 +308,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
 
     service.get('/resolve/:storageId', async (req, res) => {
-        geesomeApp.storage.resolveStaticId(req.params.storageId).then(res.send.bind(res))
+        geesomeApp.storage.resolveStaticId(req.params.storageId).then(res.send.bind(res)).catch((err) => {
+            res.send(err.message, 500)
+        })
     });
 
     service.get('/ipld/*', async (req, res) => {

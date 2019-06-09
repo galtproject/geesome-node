@@ -36,14 +36,20 @@ export default {
         async getManifest() {
             this.loading = true;
             let manifestId = this.manifestId;
-            if(ipfsHelper.isIpfsHash(manifestId)) {
-                manifestId = await this.$coreApi.resolveIpns(manifestId);
-            }
-            this.manifest = await this.$coreApi.getIpld(manifestId);
-            this.type = this.manifest._type.split('-')[0];
-            if(this.type === 'group') {
-                await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-                this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
+            this.manifest = null;
+            this.subManifests = [];
+            try {
+                if(ipfsHelper.isIpfsHash(manifestId)) {
+                    manifestId = await this.$coreApi.resolveIpns(manifestId);
+                }
+                this.manifest = await this.$coreApi.getIpld(manifestId);
+                this.type = this.manifest._type.split('-')[0];
+                if(this.type === 'group') {
+                    await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
+                    this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
+                }
+            } catch (e) {
+                
             }
             this.loading = false;
         }
