@@ -11,11 +11,10 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import ChooseFileContentsIdsModal from "../../modals/ChooseFileContentsIdsModal/ChooseFileContentsIdsModal";
 import AddBootNodeModal from "../../modals/AddBootNodeModal/AddBootNodeModal";
 
 export default {
-    template: require('./BootnodesPage.html'),
+    template: require('./BootNodesPage.html'),
     components: {},
     props: [],
     async created() {
