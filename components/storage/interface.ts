@@ -30,6 +30,11 @@ export interface IStorage {
 
     bindToStaticId(storageId, accountKey): Promise<string>;
     resolveStaticId(staticStorageId): Promise<string>;
+
+    getBootNodeList(): Promise<string[]>;
+    addBootNode(address): Promise<string[]>;
+    removeBootNode(address): Promise<string[]>;
+    nodeAddressList(): Promise<string[]>;
 }
 
 interface IResultFile {

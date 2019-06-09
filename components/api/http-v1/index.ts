@@ -118,10 +118,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(req.user, 200);
     });
     
-    service.get('/v1/user/permissions/core/is-have/:permissionName', async (req, res) => {
-        res.send({ valid: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
-    });
-
     service.post('/v1/admin/add-user', async (req, res) => {
         if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
             return res.send(403);
@@ -141,6 +137,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         res.send(await geesomeApp.setUserLimit(req.user.id, req.body));
     });
 
+    service.get('/v1/user/permissions/core/is-have/:permissionName', async (req, res) => {
+        res.send({ result: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
+    });
+
+    
     service.post('/v1/admin/permissions/core/add_permission', async (req, res) => {
         if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
             return res.send(403);
@@ -163,6 +164,28 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
     service.get('/v1/admin/all-groups', async (req, res) => {
         res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    });
+    
+    service.get('/v1/admin/boot-nodes', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.storage.getBootNodeList());
+    });
+    service.post('/v1/admin/boot-nodes/add', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddBootNode)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.storage.addBootNode(req.body.address));
+    });
+    service.post('/v1/admin/boot-nodes/remove', async (req, res) => {
+        if(!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRemoveBootNode)) {
+            return res.send(403);
+        }
+        res.send(await geesomeApp.storage.removeBootNode(req.body.address));
+    });
+    service.get('/v1/node-address-list', async (req, res) => {
+        res.send({result: await geesomeApp.storage.nodeAddressList()});
     });
 
     service.get('/v1/admin/get-user/:userId/limit/:limitName', async (req, res) => {

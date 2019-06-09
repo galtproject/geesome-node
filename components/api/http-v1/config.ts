@@ -13,9 +13,6 @@
 
 module.exports = {
     endpointsInfo: [
-        {uri: '/v1/create-order', body: '{accountAddress,tokensAmount}', response: '{id,acquiringName,acquiringOrderId,acquiringPaymentUrl,chainAccountAddress,chainName,tokensAddress,acquiringStatus,tokensAmount,fiatAmount,createdAt,updatedAt}', header: 'None'},
-        {uri: '/v1/check-order/{orderId}', body: 'None', response: '{changed, oldStatus, newStatus, order}', header: 'None'},
-        {uri: '/v1/orders', body: 'None', response: '[{}]', header: 'None'},
-        {uri: '/v1/orders/{orderId}', body: 'None', response: '{}', header: 'None'}
+        
     ]
 };

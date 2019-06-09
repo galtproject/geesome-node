@@ -27,7 +27,7 @@ module.exports = {
             protocol: 'http'
         }
     },
-    apiModule: 'http',
+    apiModule: 'http-v1',
     apiConfig: {},
     authorizationModule: 'passport',
     authorizationConfig: {},

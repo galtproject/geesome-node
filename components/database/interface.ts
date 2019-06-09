@@ -270,5 +270,7 @@ export enum CorePermissionName {
     AdminAddUser = 'admin:add_user',
     AdminSetPermissions = 'admin:set_permissions',
     AdminSetUserLimit = 'admin:set_user_limit',
-    AdminAddUserApiKey = 'admin:add_user_api_key'
+    AdminAddUserApiKey = 'admin:add_user_api_key',
+    AdminAddBootNode = 'admin:add_boot_node',
+    AdminRemoveBootNode = 'admin:remove_boot_node'
 }

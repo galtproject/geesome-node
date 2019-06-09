@@ -286,6 +286,9 @@ export default {
             adminSetUserLimit(limitData){
                 return wrap($http.post(`/v1/admin/set-user-limit`, limitData));
             },
+            adminIsHaveCorePermission(permissionName){
+                return wrap($http.get(`v1/user/permissions/core/is-have/${permissionName}`)).then(data => data.result);
+            },
             adminAddCorePermission(userId, permissionName){
                 return wrap($http.post(`/v1/admin/permissions/core/add_permission`, {userId, permissionName}));
             },
@@ -295,6 +298,18 @@ export default {
             adminAddUserAPiKey(userId){
                 return wrap($http.post(`/v1/admin/add-user-api-key`, { userId }));
             },
+            adminGetBootNodes(){
+                return wrap($http.get(`/v1/admin/boot-nodes`));
+            },
+            adminAddBootNode(address) {
+                return wrap($http.post(`/v1/admin/boot-nodes/add`, { address }));
+            },
+            adminRemoveBootNode(address) {
+                return wrap($http.post(`/v1/admin/boot-nodes/remove`, { address }));
+            },
+            getNodeAddressList() {
+                return wrap($http.get(`/v1/node-address-list`)).then(data => data.result);
+            }
         };
     }
 }

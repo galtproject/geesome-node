@@ -358,7 +358,7 @@ class MysqlDatabase implements IDatabase {
         return this.models.CorePermission.destroy({where: { userId, name: permissionName  } })
     }
     async isHaveCorePermission(userId, permissionName) {
-        return this.models.CorePermission.findOne({ where: {  userId, name: permissionName } });
+        return this.models.CorePermission.findOne({ where: { userId, name: permissionName } });
     }
 
     async getAllUserList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {

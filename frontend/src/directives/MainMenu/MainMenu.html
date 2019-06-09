@@ -24,6 +24,11 @@
             <md-icon class="fas fa-hdd"></md-icon>
             <span class="md-list-item-text" v-locale="localeKey + '.file_explorer'"></span>
         </md-list-item>
+
+        <md-list-item :to="{name: 'boot-nodes'}" v-if="haveAdminReadPermission">
+            <md-icon class="fas fa-server"></md-icon>
+            <span class="md-list-item-text" v-locale="localeKey + '.boot_nodes'"></span>
+        </md-list-item>
         
         <md-list-item v-if="user" :to="{name: 'admined-groups'}">
             <md-icon class="fas fa-users-cog"></md-icon>

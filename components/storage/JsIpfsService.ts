@@ -133,4 +133,46 @@ export class JsIpfsService implements IStorage {
             return response.path.replace('/ipfs/', '')
         });
     }
+
+    async getBootNodeList(): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            this.node.bootstrap.list((err, res) => err ? reject(err) : resolve(res.Peers))
+        }) as any;
+    }
+
+    async addBootNode(address): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            this.node.bootstrap.add(address, (err, res) => err ? reject(err) : resolve(res.Peers))
+        }) as any;
+    }
+
+    async removeBootNode(address): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            this.node.bootstrap.rm(address, (err, res) => err ? reject(err) : resolve(res.Peers))
+        }) as any;
+    }
+    
+    async nodeAddressList(): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            this.node.swarm.localAddrs((err, res) => {
+                if(err) {
+                    return reject(err);
+                }
+                let addresses = _.chain(JSON.parse(JSON.stringify(res)))
+                    .filter(_.isString)
+                    .filter(address => !_.includes(address, '127.0.0.1'))
+                    .orderBy([address => {
+                        if(_.includes(address, '192.168')) {
+                            return -2;
+                        }
+                        if(_.includes(address, '/p2p-circuit/ipfs/')) {
+                            return -1;
+                        }
+                        return 0;
+                    }], ['desc'])
+                    .value();
+                resolve(addresses);
+            })
+        }) as any;
+    }
 }

@@ -24,6 +24,7 @@ import ContentPage from "./pages/ContentPage/ContentPage";
 import EditGroup from "./pages/GroupPage/EditGroup/EditGroup";
 import JoinedGroups from "./pages/GroupsList/JoinedGroups/JoinedGroups";
 import AdminedGroups from "./pages/GroupsList/AdminedGroups/AdminedGroups";
+import BootNodesPage from "./pages/BootNodesPage/BootNodesPage";
 
 Vue.use(Router);
 
@@ -44,6 +45,11 @@ export default new Router({
             path: '/file-explorer',
             name: 'file-explorer',
             component: FileExplorerPage
+        },
+        {
+            path: '/boot-nodes',
+            name: 'boot-nodes',
+            component: BootNodesPage
         },
         {
             path: '/new-user',

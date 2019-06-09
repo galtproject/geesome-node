@@ -1,15 +1,14 @@
 import {CorePermissionName, GroupType, GroupView, PostStatus} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 const fs = require('fs');
+const pIteration = require('p-iteration');
 
 module.exports = async (app: IGeesomeApp) => {
         const adminUser = await app.registerUser('info@galtproject.io', 'admin', 'admin');
         
-        await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminRead);
-        await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminAddUser);
-        await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminSetUserLimit);
-        await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminAddUserApiKey);
-        await app.database.addCorePermission(adminUser.id, CorePermissionName.AdminSetPermissions);
+        await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
+                return app.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
+        });
 
         const testUser = await app.registerUser('test@galtproject.io', 'test', 'test');
         
