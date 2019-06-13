@@ -14,12 +14,18 @@
 import PostItem from "../../../directives/Posts/PostItem/PostItem";
 import GroupHeader from "../GroupHeader/GroupHeader";
 import GroupInfo from "../GroupInfo/GroupInfo";
+import {EventBus, UPDATE_GROUP} from "../../../services/events";
 
 export default {
     template: require('./GroupLayout.html'),
     components: {GroupHeader, GroupInfo},
     async created() {
         this.getGroup();
+        EventBus.$on(UPDATE_GROUP, (groupId) => {
+            if(groupId === this.group.id) {
+                this.getGroup();
+            }
+        })
     },
     methods: {
         async getGroup() {

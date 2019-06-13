@@ -12,6 +12,7 @@
  */
 
 import ContentManifestInfoItem from "../../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
+import {EventBus, UPDATE_GROUP} from "../../../services/events";
 
 export default {
     template: require('./NewPostControl.html'),
@@ -46,6 +47,7 @@ export default {
             this.$coreApi.createPost(postContentsDbIds, {groupId: this.group.id, status: 'published'}).then(() => {
                 this.saving = false;
                 this.$emit('new-post');
+                EventBus.$emit(UPDATE_GROUP, this.group.id);
             })
         },
     },
