@@ -24,6 +24,7 @@ export interface IDatabase {
     getContentList(accountAddress, limit?, offset?): Promise<IContent[]>;
     getContent(id): Promise<IContent>;
     getContentByStorageId(storageId): Promise<IContent>;
+    getContentByManifestId(manifestId): Promise<IContent>;
     
     addPost(post: IPost): Promise<IPost>;
     updatePost(id, updateData: any): Promise<IPost>;
@@ -187,6 +188,7 @@ export interface IGroup {
     type: GroupType;
     view: GroupView;
     isPublic: boolean;
+    isRemote: boolean;
     
     description?: string;
     avatarImageId?: number;

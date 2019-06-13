@@ -26,7 +26,7 @@ import {
     UserContentActionName,
     UserLimitName,
     IUserLimit,
-    CorePermissionName
+    CorePermissionName, IGroup
 } from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
@@ -34,6 +34,7 @@ import {IRender} from "../../render/interface";
 import {DriverInput, IDriver} from "../../drivers/interface";
 
 const commonHelper = require('../../../libs/common');
+const ipfsHelper = require('../../../libs/ipfsHelper');
 const detecterHelper = require('../../../libs/detecter');
 let config = require('./config');
 const _ = require('lodash');
@@ -181,9 +182,10 @@ class GeesomeApp implements IGeesomeApp {
             return null;
         }
         if(!commonHelper.isNumber(groupId)) {
-            const group = await this.database.getGroupByManifestId(groupId);
+            let group = await this.database.getGroupByManifestId(groupId);
             if(!group) {
-                return null;
+                group = await this.createGroupByRemoteStorageId(groupId);
+                return group.id;
             }
             groupId = group.id;
         }
@@ -210,6 +212,59 @@ class GeesomeApp implements IGeesomeApp {
         await this.updateGroupManifest(group.id);
 
         return this.database.getGroup(group.id);
+    }
+
+    async createGroupByRemoteStorageId(manifestStorageId) {
+        if(ipfsHelper.isIpfsHash(manifestStorageId)) {
+            manifestStorageId = await this.storage.resolveStaticId(manifestStorageId);
+        }
+        
+        let dbGroup = await this.database.getGroupByManifestId(manifestStorageId);
+        if(dbGroup) {
+            //TODO: update group if necessary
+            return dbGroup;
+        }
+        const groupObject: IGroup = await this.render.manifestIdToDbObject(manifestStorageId);
+        return this.createGroupByObject(groupObject);
+    }
+
+    async createGroupByObject(groupObject) {
+        let dbAvatar = await this.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
+        if(!dbAvatar) {
+            dbAvatar = await this.createContentByObject(groupObject.avatarImage);
+        }
+        let dbCover = await this.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
+        if(!dbCover) {
+            dbCover = await this.createContentByObject(groupObject.coverImage);
+        }
+        const dbGroup = await this.database.addGroup({
+            manifestStaticStorageId: groupObject.manifestStaticStorageId,
+            manifestStorageId: groupObject.manifestStorageId,
+            name: groupObject.name,
+            title: groupObject.title,
+            type: groupObject.type,
+            view: groupObject.view,
+            isPublic: groupObject.isPublic,
+            description: groupObject.description,
+            size: groupObject.size,
+            avatarImageId: dbAvatar ? dbAvatar.id : null,
+            coverImageId: dbCover ? dbCover.id : null
+        });
+        return dbGroup;
+    }
+
+    async createContentByObject(contentObject) {
+        let dbContent = await this.database.getContentByStorageId(contentObject.manifestStaticStorageId);
+        if(dbContent) {
+            return dbContent;
+        }
+    }
+
+    checkStorageId(storageId) {
+        if(ipfsHelper.isCid(storageId)) {
+            storageId = ipfsHelper.cidToHash(storageId);
+        }
+        return storageId;
     }
 
     async canEditGroup(userId, groupId) {

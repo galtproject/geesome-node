@@ -13,9 +13,17 @@
             <md-input v-model="user.name" :disabled="creation"></md-input>
           </md-field>
 
+          <!--<md-field>-->
+            <!--<label>Email</label>-->
+            <!--<md-input v-model="user.email" :disabled="creation"></md-input>-->
+          <!--</md-field>-->
+
           <md-field>
-            <label>Email</label>
-            <md-input v-model="user.email" :disabled="creation"></md-input>
+            <label>Key store method</label>
+            <md-select v-model="user.keyStoreMethod">
+              <md-option value="local">Local (in extension)</md-option>
+              <md-option value="node">In node</md-option>
+            </md-select>
           </md-field>
 
           <md-switch v-model="passwordAuth">

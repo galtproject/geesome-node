@@ -20,7 +20,11 @@ export default {
     template: require('./GroupItem.html'),
     props: ['group'],
     async created() {
-        this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
+        try {
+            this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
+        } catch (e) {
+            // do nothing
+        }
         if(!this.isCanEditGroup) {
             this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
         }

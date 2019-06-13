@@ -157,7 +157,7 @@ export default {
                     groupsIds = ClientStorage.joinedGroups();
                 } else {
                     //TODO: get groups list directly from ipld
-                    groupsIds = await wrap($http.get('/v1/user/member-in-groups')).then(groups => groups.map(g => g.manifestStaticStorageId));
+                    groupsIds = await wrap($http.get('/v1/user/member-in-groups')).then(groups => groups.map(g => g.manifestStorageId));
                 }
                 return pIteration.map(groupsIds, (groupId) => this.getGroup(groupId));
             },

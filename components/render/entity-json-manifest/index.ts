@@ -84,6 +84,38 @@ class EntityJsonManifest implements IRender {
         return '';
     }
     
+    async manifestIdToDbObject(manifestId) {
+        manifestId = this.app.checkStorageId(manifestId);
+        const manifest = await this.app.storage.getObject(manifestId);
+        
+        if(manifest._type === 'group-manifest') {
+            const group: IGroup = _.pick(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
+            group.isRemote = true;
+            group.manifestStorageId = manifestId;
+            
+            if(manifest.avatarImage) {
+                group.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage)) as any;
+            }
+            if(manifest.coverImage) {
+                group.coverImage = (await this.manifestIdToDbObject(manifest.coverImage)) as any;
+            }
+
+            group.publishedPostsCount = manifest.postsCount;
+            group.manifestStaticStorageId = manifest.ipns;
+
+            //TODO: import posts too
+            return group;
+        } else if(manifest._type === 'content-manifest') {
+            const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
+
+            content.storageId = manifest.content;
+            content.previewStorageId = manifest.preview;
+            content.manifestStorageId = manifestId;
+
+            return content;
+        }
+    }
+    
     getStorageRef(storageId) {
         return {
             '/' : storageId

@@ -53,7 +53,8 @@ export default {
             user: {
                 name: '',
                 title: '',
-                email: ''
+                email: '',
+                keyStoreMethod: ''
             },
             isAdmin: false,
             passwordAuth: true,

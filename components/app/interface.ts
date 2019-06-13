@@ -48,6 +48,8 @@ export interface IGeesomeApp {
     saveDataByUrl(url, options);
     getFileStream(filePath);
 
+    checkStorageId(storageId): string;
+    
     getDataStructure(dataId);
     getDataStructure(dataId);
     

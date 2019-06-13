@@ -111,6 +111,11 @@ export class JsIpfsService implements IStorage {
     }
 
     async getObject(storageId) {
+        console.log('getObject', storageId);
+        if(ipfsHelper.isCid(storageId)) {
+            storageId = ipfsHelper.cidToHash(storageId);
+            console.log('cidToHash', storageId);
+        }
         return this.node.dag.get(storageId).then(response => response.value);
     }
 
