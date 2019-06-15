@@ -31,7 +31,7 @@ import MainMenu from "./directives/MainMenu/MainMenu";
 import ContentManifestItem from "./directives/ContentManifestItem/ContentManifestItem";
 import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
 
-import { VueEditor, Quill } from 'vue2-editor'
+import {VueEditor, Quill} from 'vue2-editor'
 import UploadContent from "./directives/UploadContent/UploadContent";
 
 const _ = require('lodash');
@@ -42,10 +42,11 @@ Vue.use(coreApiPlugin);
 Vue.use(httpPlugin);
 Vue.use(Vuex as any);
 Vue.use(storePlugin, {
-    user: null,
-    locale: null,
-    locale_loaded: null,
-    serverAddress: null
+  user: null,
+  locale: null,
+  locale_loaded: null,
+  serverAddress: null,
+  cybActive: false
 });
 Vue.use(localePlugin);
 
@@ -66,82 +67,86 @@ Vue.component('router-view', Vue['options'].components.RouterView);
 Vue.use(VueMaterial);
 
 Vue.filter('prettySize', function (bytesSize) {
-    bytesSize = parseInt(bytesSize);
-    function round(number) {
-        return Math.round(number * 1000) / 1000;
-    }
-    if(bytesSize < 1024 * 100) {
-        return round(bytesSize / 1024) + ' Kb';
-    }
-    if(bytesSize < 1024 ** 2 * 100) {
-        return round(bytesSize / (1024 ** 2)) + ' Mb';
-    }
-    if(bytesSize < 1024 ** 3 * 100) {
-        return round(bytesSize / (1024 ** 3)) + ' Gb';
-    }
-    return round(bytesSize / (1024 ** 4)) + ' Tb';
+  bytesSize = parseInt(bytesSize);
+
+  function round(number) {
+    return Math.round(number * 1000) / 1000;
+  }
+
+  if (bytesSize < 1024 * 100) {
+    return round(bytesSize / 1024) + ' Kb';
+  }
+  if (bytesSize < 1024 ** 2 * 100) {
+    return round(bytesSize / (1024 ** 2)) + ' Mb';
+  }
+  if (bytesSize < 1024 ** 3 * 100) {
+    return round(bytesSize / (1024 ** 3)) + ' Gb';
+  }
+  return round(bytesSize / (1024 ** 4)) + ' Tb';
 });
 
 export default {
-    template: require('./App.html'),
-    components: { MainMenu },//,ConsoleLog
-    async created() {
-        this.$locale.init(this.$store, '/locale/').then(() => {
-            this.$store.commit('locale_loaded', true);
-            this.language = this.$locale.lang;
-        });
-        this.$locale.onLoad(() => {
-            this.$store.commit('locale_loaded', true);
-            this.language = this.$locale.lang;
-        });
-        
-        this.$coreApi.init(this.$store);
-        
-        this.$coreApi.getCurrentUser().then((user) => {
-            this.$store.commit('user', user);
-            this.loading = false;
-        }).catch(() => {
-            this.$store.commit('user', null);
-            // this.$router.push({name: 'login'});
-            this.loading = false;
-        });
-    },
+  template: require('./App.html'),
+  components: {MainMenu},//,ConsoleLog
+  async created() {
+    this.$locale.init(this.$store, '/locale/').then(() => {
+      this.$store.commit('locale_loaded', true);
+      this.language = this.$locale.lang;
+    });
+    this.$locale.onLoad(() => {
+      this.$store.commit('locale_loaded', true);
+      this.language = this.$locale.lang;
+    });
 
-    async mounted() {
-        this.$root.$asyncModal = this.$refs.modal;
-        this.$root.$asyncSubModal = this.$refs.sub_modal;
-    },
+    this.$coreApi.init(this.$store);
 
-    methods: {
-        async logout() {
-            await this.$coreApi.logout();
-            location.reload();
-        },
-        getLocale(key, options?) {
-            return this.$locale.get(this.localeKey + "." + key, options);
-        }
+    this.$coreApi.getCurrentUser().then((user) => {
+      this.$store.commit('user', user);
+      this.loading = false;
+    }).catch(() => {
+      this.$store.commit('user', null);
+      // this.$router.push({name: 'login'});
+      this.loading = false;
+    });
+
+    document.addEventListener("cyb:init", (data) => {
+      this.$store.commit('cybActive', true);
+    });
+  },
+
+  async mounted() {
+    this.$root.$asyncModal = this.$refs.modal;
+    this.$root.$asyncSubModal = this.$refs.sub_modal;
+  },
+
+  methods: {
+    async logout() {
+      await this.$coreApi.logout();
+      location.reload();
     },
-    
-    watch: {
-        
+    getLocale(key, options?) {
+      return this.$locale.get(this.localeKey + "." + key, options);
+    }
+  },
+
+  watch: {},
+
+  computed: {
+    serverAddress() {
+      return this.$store.state.serverAddress;
     },
-    
-    computed: {
-        serverAddress() {
-            return this.$store.state.serverAddress;
-        },
-        user() {
-            return this.$store.state.user;
-        }
-    },
-    
-    data() {
-        return {
-            localeKey: 'app_container',
-            version: '0.01',
-            menuVisible: false,
-            menuMinimized: true,
-            loading: true
-        }
-    },
+    user() {
+      return this.$store.state.user;
+    }
+  },
+
+  data() {
+    return {
+      localeKey: 'app_container',
+      version: '0.01',
+      menuVisible: false,
+      menuMinimized: true,
+      loading: true
+    }
+  },
 }
