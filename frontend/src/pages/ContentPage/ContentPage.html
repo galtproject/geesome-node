@@ -23,6 +23,8 @@
         </div>
         <div>
             <div v-if="manifest">
+                <post-item v-if="type === 'post'" :value="manifest"></post-item>
+                
                 <content-manifest-info-item v-if="type === 'content'" :manifest="manifest"></content-manifest-info-item>
                 
                 <div class="md-layout" v-if="type === 'group'">

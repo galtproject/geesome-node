@@ -19,63 +19,67 @@ import PostItem from "../../directives/Posts/PostItem/PostItem";
 const ipfsHelper = require('../../../../libs/ipfsHelper');
 
 export default {
-    template: require('./ContentPage.html'),
-    components: {ContentManifestInfoItem, GroupItem, PostItem},
-    props: [],
-    created() {
-        this.inputManifestId = this.manifestId;
-        this.type = this.$route.query.type || 'content';
-        if(this.manifestId) {
-            this.getManifest();
-        }
-    },
-    methods: {
-        setManifestIdRoute() {
-            this.$router.push({params: {manifestId: this.inputManifestId}});
-        },
-        async getManifest() {
-            this.loading = true;
-            let manifestId = this.manifestId;
-            this.manifest = null;
-            this.subManifests = [];
-            try {
-                if(ipfsHelper.isIpfsHash(manifestId)) {
-                    manifestId = await this.$coreApi.resolveIpns(manifestId);
-                }
-                this.manifest = await this.$coreApi.getIpld(manifestId);
-                this.type = this.manifest._type.split('-')[0];
-                if(this.type === 'group') {
-                    await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-                    this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
-                }
-            } catch (e) {
-                
-            }
-            this.loading = false;
-        }
-    },
-    watch: {
-        async manifestId() {
-            this.inputManifestId = this.manifestId;
-            this.getManifest();
-        }
-    },
-    computed: {
-        manifestId() {
-            return this.$route.params.manifestId;
-        },
-        humanReadableType() {
-            return EthData.humanizeKey(this.type);
-        }
-    },
-    data() {
-        return {
-            localeKey: 'content_page',
-            inputManifestId: '',
-            manifest: null,
-            subManifests: [],
-            type: '',
-            loading: false
-        };
+  template: require('./ContentPage.html'),
+  components: {ContentManifestInfoItem, GroupItem, PostItem},
+  props: [],
+  created() {
+    this.inputManifestId = this.manifestId;
+    this.type = this.$route.query.type || 'content';
+    if (this.manifestId) {
+      this.getManifest();
     }
+  },
+  methods: {
+    setManifestIdRoute() {
+      this.$router.push({params: {manifestId: this.inputManifestId}});
+    },
+    async getManifest() {
+      this.loading = true;
+      let manifestId = this.manifestId;
+      this.manifest = null;
+      this.subManifests = [];
+      try {
+        if (ipfsHelper.isIpfsHash(manifestId)) {
+          manifestId = await this.$coreApi.resolveIpns(manifestId);
+        }
+        this.manifest = await this.$coreApi.getIpld(manifestId);
+        this.type = this.manifest._type.split('-')[0];
+        if (this.type === 'group') {
+          await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
+          this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
+        }
+        if (this.type === 'post') {
+          this.manifest.groupId = this.manifest.group;
+          this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupId);
+        }
+      } catch (e) {
+
+      }
+      this.loading = false;
+    }
+  },
+  watch: {
+    async manifestId() {
+      this.inputManifestId = this.manifestId;
+      this.getManifest();
+    }
+  },
+  computed: {
+    manifestId() {
+      return this.$route.params.manifestId;
+    },
+    humanReadableType() {
+      return EthData.humanizeKey(this.type);
+    }
+  },
+  data() {
+    return {
+      localeKey: 'content_page',
+      inputManifestId: '',
+      manifest: null,
+      subManifests: [],
+      type: '',
+      loading: false
+    };
+  }
 }

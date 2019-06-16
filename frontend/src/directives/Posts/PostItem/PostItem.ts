@@ -41,13 +41,11 @@ export default {
       this.group = await this.$coreApi.getGroup(this.value.groupId);
     },
     link() {
-      this.$coreApi.saveObject(this.value.sourceIpld).then(postHash => {
-        this.$root.$asyncModal.open({
-          id: 'cyb-link-keywords-modal',
-          component: CybLinkKeywordsModal,
-          props: {'contentHash': postHash},
-          options: {closeOnBackdrop: true}
-        });
+      this.$root.$asyncModal.open({
+        id: 'cyb-link-keywords-modal',
+        component: CybLinkKeywordsModal,
+        props: {'contentHash': this.value.manifestId},
+        options: {closeOnBackdrop: true}
       });
       // const event = document.createEvent('Event');
       // event.initEvent('cyb:link');
@@ -57,7 +55,7 @@ export default {
   },
 
   watch: {
-    value() {
+    'value.group'() {
       this.getGroup();
     }
   },

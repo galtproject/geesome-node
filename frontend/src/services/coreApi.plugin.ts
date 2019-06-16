@@ -234,6 +234,7 @@ export default {
           const postNumberPath = trie.getTreePath(postNumber).join('/');
           const post = await this.getIpld(postsPath + postNumberPath);
           post.id = postNumber;
+          post.manifestId = ipfsHelper.cidToHash(trie.getNode(group.posts, postNumber));
           post.groupId = groupId;
           if (post) {
             post.group = group;
@@ -247,7 +248,9 @@ export default {
         const postsPath = group.id + '/posts/';
         const postNumberPath = trie.getTreePath(postId).join('/');
         const post = await this.getIpld(postsPath + postNumberPath);
-        post.sourceIpld = _.clone(post);
+        post.id = postId;
+        post.manifestId = ipfsHelper.cidToHash(trie.getNode(group.posts, postId));
+        // post.sourceIpld = _.clone(post);
         post.groupId = groupId;
         post.group = group;
         return post;
