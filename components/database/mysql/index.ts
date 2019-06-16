@@ -260,6 +260,8 @@ class MysqlDatabase implements IDatabase {
     }
     
     async getFileCatalogItems(userId, parentItemId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+      limit = parseInt(limit as any) || 10;
+      offset = parseInt(offset as any) || 0;
         return this.models.FileCatalogItem.findAll({
             where: { userId, parentItemId, type, isDeleted: false },
             order: [[sortField, sortDir.toUpperCase()]],
@@ -270,6 +272,8 @@ class MysqlDatabase implements IDatabase {
     }
 
     async getFileCatalogItemsByContent(userId, contentId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+      limit = parseInt(limit as any) || 10;
+      offset = parseInt(offset as any) || 0;
         return this.models.FileCatalogItem.findAll({
             where: { userId, contentId, type },
             order: [[sortField, sortDir.toUpperCase()]],
@@ -389,6 +393,8 @@ class MysqlDatabase implements IDatabase {
         });
     }
     async getAllGroupList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+      limit = parseInt(limit as any) || 10;
+      offset = parseInt(offset as any) || 0;
         let where = {};
         if(searchString) {
             where = {[Op.or]: [{name: searchString}, {title: searchString}]};
