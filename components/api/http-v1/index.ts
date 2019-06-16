@@ -263,7 +263,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/user/save-data', async (req, res) => {
-    res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'], {
+    res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'] || req.body['name'], {
       userId: req.user.id,
       apiKey: req.token,
       groupId: req.body['groupId'],

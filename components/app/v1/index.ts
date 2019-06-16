@@ -434,7 +434,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     async saveData(fileStream, fileName, options: {userId, groupId, apiKey?, folderId?}) {
-        const extension = fileName.split('.').length > 1 ? _.last(fileName.split('.')): null;
+        const extension = (fileName || '').split('.').length > 1 ? _.last(fileName.split('.')): null;
         const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, mime.getType(fileName), extension);
         
         const existsContent = await this.database.getContentByStorageId(storageFile.id);
