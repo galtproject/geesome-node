@@ -339,6 +339,14 @@ a.icon-link {
   }
 }
 
+.md-theme-default .md-subhead a:not(.md-button) {
+  color: #fff;
+  text-decoration: none !important;
+  &:hover {
+    text-decoration: underline !important;
+  }
+}
+
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;

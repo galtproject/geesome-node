@@ -245,11 +245,18 @@ export default {
       },
       async getGroupPost(groupId, postId) {
         const group = await this.getGroup(groupId);
-        const postsPath = group.id + '/posts/';
-        const postNumberPath = trie.getTreePath(postId).join('/');
-        const post = await this.getIpld(postsPath + postNumberPath);
+        let post;
+        if(ipfsHelper.isIpldHash(postId)) {
+          post = await this.getIpld(postId);
+          post.manifestId = postId;
+        } else {
+          const postsPath = group.id + '/posts/';
+          const postNumberPath = trie.getTreePath(postId).join('/');
+          post = await this.getIpld(postsPath + postNumberPath);
+          post.manifestId = ipfsHelper.cidToHash(trie.getNode(group.posts, postId));
+        }
+        
         post.id = postId;
-        post.manifestId = ipfsHelper.cidToHash(trie.getNode(group.posts, postId));
         // post.sourceIpld = _.clone(post);
         post.groupId = groupId;
         post.group = group;
