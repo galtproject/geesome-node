@@ -17,7 +17,7 @@ import {ClientStorage} from "./clientStorage";
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('../../../libs/ipfsHelper');
-const trie = require('../../../libs/trie');
+const trie = require('../../../libs/base36Trie');
 // import {JsIpfsService} from "../../../components/storage/JsIpfsService";
 //
 // const IPFS = require('ipfs-http-client');

@@ -16,7 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {IContent, IGroup, IPost} from "../../database/interface";
 
 const _ = require('lodash');
-const treeLib = require('../../../libs/trie');
+const treeLib = require('../../../libs/base36Trie');
 
 module.exports = async (app: IGeesomeApp) => {
     
@@ -30,6 +30,7 @@ class EntityJsonManifest implements IRender {
 
     async generateContent(name, data, options?) {
         if(name === 'group-manifest') {
+            //TODO: size => postsSize
             const group: IGroup = data;
             const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
 
@@ -58,6 +59,8 @@ class EntityJsonManifest implements IRender {
             return groupManifest;
         } else if(name === 'post-manifest') {
             const post: IPost = data;
+            //TODO: fix size, view and type
+            //TODO: add groupNumber
             const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type', 'size']);
 
             const group = await this.app.database.getGroup(post.groupId);
@@ -71,6 +74,7 @@ class EntityJsonManifest implements IRender {
             
             return postManifest;
         } else if(name === 'content-manifest') {
+            //TODO: add preview size
             const content: IContent = data;
             const contentManifest = _.pick(content, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 

@@ -1,7 +1,7 @@
-const alphabet = "0123456789abcdefghijkmnopqrstuvwxyz";
-const base = alphabet.length; // base is the length of the alphabet (58 in this case)
+const alphabet = "0123456789ABCDEFGHIJKMNOPQRSTUVWXYZ";
+const base = alphabet.length; // base is the length of the alphabet (36 in this case)
 
-// utility function to convert base 10 integer to base 58 string
+// utility function to convert base 10 integer to base 36 string
 function encode(num) {
     let encoded = '';
     while (num){
@@ -12,7 +12,7 @@ function encode(num) {
     return encoded;
 }
 
-// utility function to convert a base 58 string to base 10 integer
+// utility function to convert a base 36 string to base 10 integer
 function decode(str) {
     let decoded = 0;
     while (str){

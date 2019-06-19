@@ -1,8 +1,5 @@
-const base35 = require('./base35');
-
 const trieLib = {
     setNode(tree, id, node) {
-        id = base35.encode(id);
         const treePath = trieLib.getTreePath(id);
         console.log(treePath.join('/'));
 
@@ -20,7 +17,6 @@ const trieLib = {
     },
     
     getNode(tree, id) {
-        id = base35.encode(id);
         const treePath = trieLib.getTreePath(id);
         let curNode = tree;
         for(let i = 0; i < treePath.length; i++) {
