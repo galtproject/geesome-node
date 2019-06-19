@@ -1,5 +1,15 @@
 # Geesome Inter Planetary Social Protocol - A new open protocol for unstopable social networking and communication on IPFS
 
+## About
+GeeSome is a protocol that, on top of IPFS, defines the structure of social network data and provides a UI for storing and accessing this data. With the help of GeeSome Node, anyone can create an instance of a decentralized social network, with groups like in YouTube, Instagram or Telegram but with content preservation and no locks or censorship thanks to the concept of personal GeeSome Node using IPFS Node to store content, access data and receive updates by libp2p.
+
+GeeSome Node can be used:
+- to create and maintain your blog
+- to save important content like Saved messages in telegrams and / or in the form of a file structure as in Google Drive
+- as a media platform for adding and viewing / listening to audio and video content, creating playlists
+- to share the uploaded content in any form (blog, playlist, file, folder)
+- to create chat groups
+
 ## Install with domain
 1. Set DNS settings for domain: ip address of server
 2. Clone repo to server that bound to domain
