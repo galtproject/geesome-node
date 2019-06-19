@@ -171,3 +171,5 @@ If posts will have more then 100 count node 1_ will expands to another groups of
    ...
 }
 ```
+
+But for optimization - GeeSome protocol used 36base ids for posts.
