@@ -22,7 +22,7 @@ Content using for describing of IPFS file: type, size, name, extension and in fu
 ```
 
 ## Post
-Post using for agregate contents by list of IPLD hashes to content's manifests.
+Post using for agregate contents by list of IPLD hashes, that points to content's manifests.
 Also post have information about total size of contents, group's IPNS and published info.
 ```
 {
