@@ -1,4 +1,4 @@
-# Geesome Inter Planetary Community Protocol - A new open protocol for unstopable social networking and communication on IPFS
+# Geesome Inter Planetary Social Protocol - A new open protocol for unstopable social networking and communication on IPFS
 
 ## Install with domain
 1. Set DNS settings for domain: ip address of server
