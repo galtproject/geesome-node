@@ -40,3 +40,6 @@ There is additional parameters that can be used in export:
 - Mysql Server 5.7
 - ffmpeg
 - Cerbot(Letsencrypt)
+
+## Links
+- [Manifests example](./docs/manifests-example.md)
