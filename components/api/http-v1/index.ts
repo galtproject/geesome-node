@@ -18,6 +18,7 @@ const config = require('./config');
 
 const _ = require('lodash');
 const mime = require('mime');
+const pIteration = require('p-iteration');
 
 const bodyParser = require('body-parser');
 const busboy = require('connect-busboy');
@@ -28,9 +29,11 @@ const service = require('restana')({
   maxParamLength: 2000
 });
 
+const maxBodySizeMb = 2000;
+
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
   require('./showEndpointsTable');
-  service.use(bodyParser.json({limit: '2000mb'}));
+  service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
   service.use(bodyParser.urlencoded({extended: true}));
   service.use(bearerToken());
 
@@ -99,6 +102,22 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         .join('<br><br>')
       + "</html>";
     res.send(html, 200);
+  });
+
+  service.get('/v1/is-empty', async (req, res) => {
+    res.send({
+      result: (await geesomeApp.database.getUsersCount()) === 0
+    }, 200);
+  });
+
+  service.post('/v1/setup', async (req, res) => {
+    const adminUser = await geesomeApp.registerUser(req.body.email, req.body.name, req.body.password);
+
+    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
+      return geesomeApp.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
+    });
+    
+    res.send(adminUser, 200);
   });
 
   service.post('/v1/login', async (req, res) => {

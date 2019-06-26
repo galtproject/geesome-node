@@ -11,6 +11,7 @@ export class ImagePreviewDriver implements IDriver{
         const extension = options.extension || 'jpg';
         const resizerStream =
             sharp()
+                // TODO: get height by settings
                 .resize({ height: 800, withoutEnlargement: true })
                 .toFormat(extension);
 

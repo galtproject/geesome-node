@@ -76,7 +76,7 @@ class EntityJsonManifest implements IRender {
         } else if(name === 'content-manifest') {
             //TODO: add preview size
             const content: IContent = data;
-            const contentManifest = _.pick(content, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
+            const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension', 'updatedAt', 'createdAt']);
 
             contentManifest.content = content.storageId;
             contentManifest.preview = content.previewStorageId;
