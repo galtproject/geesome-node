@@ -56,7 +56,7 @@ export interface IDatabase {
 
   getGroupByManifestId(manifestId): Promise<IGroup>;
 
-  getGroupWhereStaticOutdated(): Promise<IGroup[]>;
+  getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
   addGroup(group): Promise<IGroup>;
 

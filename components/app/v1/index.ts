@@ -704,14 +704,19 @@ class GeesomeApp implements IGeesomeApp {
 
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
     let storageUpdatedAt = group.storageUpdatedAt;
+    let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
     
     if(manifestStorageId != group.manifestStorageId) {
       storageUpdatedAt = new Date();
+      staticStorageUpdatedAt = new Date();
+      
+      await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
     }
 
     return this.database.updateGroup(groupId, {
       manifestStorageId,
-      storageUpdatedAt
+      storageUpdatedAt,
+      staticStorageUpdatedAt
     });
   }
 

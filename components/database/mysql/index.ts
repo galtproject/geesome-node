@@ -151,9 +151,9 @@ class MysqlDatabase implements IDatabase {
     });
   }
     
-  async getGroupWhereStaticOutdated() {
+  async getGroupWhereStaticOutdated(outdatedForHours) {
     return this.models.Group.findAll({
-      where: { staticStorageUpdatedAt: { $lt: this.sequelize.col('storageUpdatedAt') } }
+      where: { staticStorageUpdatedAt: { $lt: new Date(Math.round(new Date().getTime() / 1000) - outdatedForHours * 60 * 60) } }
     });
   }
 

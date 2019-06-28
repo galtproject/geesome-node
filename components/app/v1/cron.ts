@@ -10,7 +10,7 @@ module.exports = (geesomeApp) => {
   async function updateStaticIdsOfGroups() {
     console.log('updateStaticIdsOfGroups');
     
-    const groupsToUpdateStatic = await geesomeApp.database.getGroupWhereStaticOutdated();
+    const groupsToUpdateStatic = await geesomeApp.database.getGroupWhereStaticOutdated(1);
     await pIteration.forEach(groupsToUpdateStatic, async (group) => {
       console.log('bindToStaticId group', group.name);
       await geesomeApp.storage.bindToStaticId(group.manifestStorageId, group.manifestStaticStorageId, 1);
