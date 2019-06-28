@@ -3,7 +3,7 @@ const pIteration = require('p-iteration');
 
 module.exports = (geesomeApp) => {
   
-  cron.schedule('0 * * * *', () => {
+  cron.schedule('* * * * *', () => {
     updateStaticIdsOfGroups();
   });
   

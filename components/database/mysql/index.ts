@@ -18,6 +18,7 @@ const _ = require("lodash");
 const Sequelize = require("sequelize");
 const pIteration = require("p-iteration");
 const Op = Sequelize.Op;
+const commonHelpers = require('../../../libs/common');
 
 let config = require('./config');
 
@@ -150,10 +151,14 @@ class MysqlDatabase implements IDatabase {
       ]
     });
   }
-    
+
   async getGroupWhereStaticOutdated(outdatedForHours) {
     return this.models.Group.findAll({
-      where: { staticStorageUpdatedAt: { $lt: new Date(Math.round(new Date().getTime() / 1000) - outdatedForHours * 60 * 60) } }
+      where: {
+        staticStorageUpdatedAt: {
+          [Op.lt]: commonHelpers.moveDate(- parseFloat(outdatedForHours), 'hour')
+        }
+      }
     });
   }
 
