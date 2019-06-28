@@ -32,6 +32,7 @@
     "mime": "^2.4.3",
     "morgan": "^1.9.1",
     "mysql2": "^1.6.4",
+    "node-cron": "^2.0.3",
     "p-iteration": "^1.1.7",
     "passport": "^0.4.0",
     "passport-local": "^1.0.0",

@@ -123,13 +123,13 @@ export class JsIpfsService implements IStorage {
         return this.node.dag.get(storageId + '/' + propName).then(response => response.value);
     }
 
-    async bindToStaticId(storageId, accountKey) {
+    async bindToStaticId(storageId, accountKey, hours = 1) {
         if(_.startsWith(accountKey, 'Qm')) {
             accountKey = await this.getAccountNameById(accountKey);
         }
         return this.node.name.publish(`${storageId}`, {
             key: accountKey,
-            lifetime: '175200h'
+            lifetime: hours + 'h'
         }).then(response => response.name);
     }
 
