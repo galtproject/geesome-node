@@ -103,6 +103,12 @@ export default {
         //TODO: send request to server for disable api key
         localStorage.setItem('geesome-api-key', null);
       },
+      setup(setupData) {
+        return wrap($http.post(`/v1/setup`, setupData)).then(data => {
+          setApiKey(data.apiKey);
+          return data;
+        });
+      },
       createGroup(groupData) {
         return wrap($http.post(`/v1/user/create-group`, groupData));
       },

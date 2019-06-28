@@ -121,6 +121,9 @@ class EntityJsonManifest implements IRender {
     }
     
     getStorageRef(storageId) {
+        if(!storageId) {
+            return null;
+        }
         return {
             '/' : storageId
         }

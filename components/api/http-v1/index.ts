@@ -111,13 +111,16 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/setup', async (req, res) => {
+    if((await geesomeApp.database.getUsersCount()) > 0) {
+      return res.send(403);
+    }
     const adminUser = await geesomeApp.registerUser(req.body.email, req.body.name, req.body.password);
 
     await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
       return geesomeApp.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
     
-    res.send(adminUser, 200);
+    res.send({user: adminUser, apiKey: await geesomeApp.generateUserApiKey(adminUser.id, "password_auth")}, 200);
   });
 
   service.post('/v1/login', async (req, res) => {

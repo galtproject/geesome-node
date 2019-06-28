@@ -70,10 +70,10 @@ module.exports = async (extendConfig) => {
 
   app.drivers = require('../../drivers');
 
-  if ((await app.database.getUsersCount()) === 0) {
-    console.log('Run seeds...');
-    await app.runSeeds();
-  }
+  // if ((await app.database.getUsersCount()) === 0) {
+  //   console.log('Run seeds...');
+  //   await app.runSeeds();
+  // }
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
@@ -174,8 +174,8 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUser(keyObj.userId);
   }
 
-  async checkGroupId(groupId) {
-    if (groupId == 'null') {
+  async checkGroupId(groupId, createIfNotExist = true) {
+    if (groupId == 'null' || groupId == 'undefined') {
       return null;
     }
     if (!groupId || _.isUndefined(groupId)) {
@@ -183,7 +183,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     if (!commonHelper.isNumber(groupId)) {
       let group = await this.database.getGroupByManifestId(groupId);
-      if (!group) {
+      if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
         return group.id;
       }
