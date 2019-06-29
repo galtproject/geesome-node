@@ -19,7 +19,7 @@ git clone https://github.com/galtspace/geesome-core.git
 3. Run script with parameters: domain and email for letsencrypt
 ```
 cd geesome-core
-export DOMAIN="geesome.galtproject.io" EMAIL="info@galtproject.io"; ./bash/full-install.sh 
+export DOMAIN="your-site.com" EMAIL="info@your-site.com"; ./bash/full-install.sh 
 ```
 There is additional parameters that can be used in export:
 
@@ -28,7 +28,7 @@ There is additional parameters that can be used in export:
 | DATABASE_NAME | Database name to store app data. Default: ~/.jsipfs |
 | STORAGE_REPO | Directory to store IPFS content  |
 
-3. Enter your domain with login/password: admin/admin
+4. Open your-site.com/#/setup and create first admin user
 
 ## Minimal requirements
 - System: Ubuntu 16.04
@@ -43,3 +43,5 @@ There is additional parameters that can be used in export:
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)
+- [API](./components/api/http-v1/index.ts)
+- [Libs repo](https://github.com/galtspace/geesome-libs)
