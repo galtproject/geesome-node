@@ -37,6 +37,7 @@ const commonHelper = require('../../../libs/common');
 const ipfsHelper = require('../../../libs/ipfsHelper');
 const detecterHelper = require('../../../libs/detecter');
 let config = require('./config');
+const appCron = require('./cron');
 const _ = require('lodash');
 const request = require('request');
 const fs = require('fs');
@@ -76,6 +77,8 @@ module.exports = async (extendConfig) => {
   // }
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
+  
+  await appCron(app);
 
   console.log('Start api...');
   require('../../api/' + config.apiModule)(app, process.env.PORT || 7711);
@@ -700,11 +703,20 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.updateGroup(groupId, {size: group.size});
 
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
-
-    await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
+    let storageUpdatedAt = group.storageUpdatedAt;
+    let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
+    
+    if(manifestStorageId != group.manifestStorageId) {
+      storageUpdatedAt = new Date();
+      staticStorageUpdatedAt = new Date();
+      
+      await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
+    }
 
     return this.database.updateGroup(groupId, {
-      manifestStorageId
+      manifestStorageId,
+      storageUpdatedAt,
+      staticStorageUpdatedAt
     });
   }
 
