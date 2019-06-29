@@ -15,7 +15,7 @@ module.exports = (geesomeApp) => {
       console.log('bindToStaticId group', group.name);
       await geesomeApp.storage.bindToStaticId(group.manifestStorageId, group.manifestStaticStorageId, 1);
       
-      await this.database.updateGroup(group.id, {
+      await geesomeApp.database.updateGroup(group.id, {
         staticStorageUpdatedAt: new Date()
       });
     });
