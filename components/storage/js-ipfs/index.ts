@@ -12,7 +12,7 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
-import {JsIpfsService} from "../JsIpfsService";
+const JsIpfsServiceNode = require("@galtproject/geesome-libs/src/JsIpfsServiceNode");
 
 const IPFS = require('ipfs');
 
@@ -31,5 +31,5 @@ module.exports = async (app: IGeesomeApp) => {
         console.error('❌ IPFS not started', e);
     }
     
-    return new JsIpfsService(node);
+    return new JsIpfsServiceNode(node);
 };

@@ -15,7 +15,7 @@ import ChooseContentsIdsModal from "../../modals/ChooseContentsIdsModal/ChooseCo
 
 const _ = require('lodash');
 const pIteration = require('p-iteration');
-const detecterLib = require('../../../../libs/detecter');
+const detecterLib = require('@galtproject/geesome-libs/src/detecter');
 
 export default {
     name: 'upload-content',

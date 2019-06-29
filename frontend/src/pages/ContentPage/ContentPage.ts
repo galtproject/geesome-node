@@ -16,7 +16,7 @@ import EthData from "@galtproject/frontend-core/libs/EthData";
 import GroupItem from "../GroupsList/GroupItem/GroupItem";
 import PostItem from "../../directives/Posts/PostItem/PostItem";
 
-const ipfsHelper = require('../../../../libs/ipfsHelper');
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentPage.html'),

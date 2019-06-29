@@ -33,9 +33,9 @@ import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, IDriver} from "../../drivers/interface";
 
-const commonHelper = require('../../../libs/common');
-const ipfsHelper = require('../../../libs/ipfsHelper');
-const detecterHelper = require('../../../libs/detecter');
+const commonHelper = require('@galtproject/geesome-libs/src/common');
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
 let config = require('./config');
 const appCron = require('./cron');
 const _ = require('lodash');
