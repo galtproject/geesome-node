@@ -16,7 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {IContent, IGroup, IPost} from "../../database/interface";
 
 const _ = require('lodash');
-const treeLib = require('../../../libs/base36Trie');
+const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
 
 module.exports = async (app: IGeesomeApp) => {
     

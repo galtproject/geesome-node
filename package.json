@@ -12,6 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#bd69ed4",
+    "@microlink/youtube-dl": "^2.0.0",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.18.0",
     "bcrypt": "^3.0.6",
@@ -45,8 +47,7 @@
     "uuid": "^3.3.2",
     "uuid-apikey": "^1.4.3",
     "web3": "^1.0.0-beta.37",
-    "xkcd-password": "^2.0.0",
-    "youtube-dl": "^1.13.1"
+    "xkcd-password": "^2.0.0"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",

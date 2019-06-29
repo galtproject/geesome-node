@@ -1,6 +1,6 @@
 import {IStorage} from "./interface";
 
-const ipfsHelper = require('../../libs/ipfsHelper');
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
 const fs = require('fs');
 
