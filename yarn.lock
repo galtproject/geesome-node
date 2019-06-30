@@ -8,12 +8,15 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#bd69ed4":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#813eb01":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#bd69ed415b98108af02bac83f722542dcfe03761"
+  resolved "git://github.com/galtspace/geesome-libs.git#813eb01bd115c2742f770247807d05c5066415ad"
   dependencies:
     cids "^0.7.1"
+    ipfs "^0.35.0"
+    ipns "^0.5.2"
     lodash "^4.17.11"
+    peer-id "^0.12.2"
 
 "@microlink/youtube-dl@^2.0.0":
   version "2.0.0"
@@ -2874,7 +2877,7 @@ ipld@~0.21.1:
     pull-stream "^3.6.9"
     pull-traverse "^1.0.3"
 
-ipns@~0.5.0:
+ipns@^0.5.2, ipns@~0.5.0:
   version "0.5.2"
   resolved "https://registry.yarnpkg.com/ipns/-/ipns-0.5.2.tgz#e5cf1699bdd28e984fa6da88c3d63a5eb467c9d8"
   dependencies:

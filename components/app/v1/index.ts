@@ -32,12 +32,15 @@ import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, IDriver} from "../../drivers/interface";
+import {GeesomeEmitter} from "./events";
 
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
 let config = require('./config');
 const appCron = require('./cron');
+const appEvents = require('./events');
+const appListener = require('./listener');
 const _ = require('lodash');
 const request = require('request');
 const fs = require('fs');
@@ -79,6 +82,8 @@ module.exports = async (extendConfig) => {
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
   
   await appCron(app);
+  await appListener(app);
+  app.events = appEvents(app);
 
   console.log('Start api...');
   require('../../api/' + config.apiModule)(app, process.env.PORT || 7711);
@@ -92,6 +97,7 @@ class GeesomeApp implements IGeesomeApp {
   render: IRender;
   authorization: any;
   drivers: any;
+  events: GeesomeEmitter;
 
   frontendStorageId;
 

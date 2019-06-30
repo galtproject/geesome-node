@@ -58,6 +58,8 @@ export interface IDatabase {
 
   getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
+  getRemoteGroups(): Promise<IGroup[]>;
+
   addGroup(group): Promise<IGroup>;
 
   updateGroup(id, updateData): Promise<void>;

@@ -161,6 +161,14 @@ class MysqlDatabase implements IDatabase {
       }
     });
   }
+  
+  async getRemoteGroups() {
+    return this.models.Group.findAll({
+      where: {
+        isRemote: true
+      }
+    });
+  }
 
   async addGroup(group) {
     return this.models.Group.create(group);
