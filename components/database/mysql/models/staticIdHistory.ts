@@ -36,7 +36,7 @@ module.exports = async function (sequelize, models) {
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
       // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      { fields: ['staticId', 'dynamicId'], unique: true }
     ]
   } as any);
 

@@ -5,6 +5,8 @@ export {};
 
 module.exports = (geesomeApp: IGeesomeApp) => {
   
+  console.log('geesomeApp.storage[\'node\']._ipns.cache', );
+  
   geesomeApp.database.getRemoteGroups().then(remoteGroups => {
     // console.log('remoteGroups', remoteGroups);
     remoteGroups.forEach(subscribeForGroupUpdates)
@@ -22,6 +24,14 @@ module.exports = (geesomeApp: IGeesomeApp) => {
   function handleIpnsUpdate(ipnsId, message) {
     console.log('handleIpnsUpdate');
     console.log('ipnsId', ipnsId);
-    console.log('message.data.valueStr', message.data.valueStr);
+    console.log('message.data', message.data);
+    geesomeApp.database.addStaticIdHistoryItem({
+      staticId: ipnsId,
+      dynamicId: message.data.valueStr.replace('/ipfs/', ''),
+      periodTimestamp: message.data.ttl,
+      isActive: true,
+      boundAt: message.data.validity.toString('utf8')
+    });
+    // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
   }
 };

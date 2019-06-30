@@ -128,6 +128,9 @@ export interface IDatabase {
 
   getUserLimit(userId, name): Promise<IUserLimit>;
 
+  addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
+  getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
+
   getValue(key: string): Promise<string>;
 
   setValue(key: string, content: string): Promise<void>;
@@ -310,6 +313,15 @@ export interface IUserLimit {
   adminId: number;
   periodTimestamp: number;
   isActive: boolean;
+}
+
+export interface IStaticIdHistoryItem {
+  id?: number;
+  staticId: string;
+  dynamicId: string;
+  periodTimestamp: number;
+  isActive: boolean;
+  boundAt: Date;
 }
 
 

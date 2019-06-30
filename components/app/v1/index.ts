@@ -894,4 +894,28 @@ class GeesomeApp implements IGeesomeApp {
     }
     return this.getIpnsPeers(ipnsId);
   }
+  
+  async resolveStaticId(staticId) {
+    return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
+      try {
+        await this.database.addStaticIdHistoryItem({
+          staticId: staticId,
+          dynamicId: dynamicId,
+          isActive: true,
+          boundAt: new Date()
+        });
+        return dynamicId;
+      } catch (e) {
+        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+        return staticIdItem.staticId
+      }
+    }).catch(async (err) => {
+      const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+      if(staticIdItem) {
+        return staticIdItem.dynamicId;
+      } else {
+        throw (err);
+      }
+    })
+  }
 }

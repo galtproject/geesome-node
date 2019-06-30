@@ -462,6 +462,14 @@ class MysqlDatabase implements IDatabase {
     return this.models.UserLimit.findOne({where: {userId, name}});
   }
 
+  async addStaticIdHistoryItem(staticIdItem) {
+    return this.models.StaticIdHistory.create(staticIdItem);
+  }
+
+  async getActualStaticIdItem(staticId) {
+    return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
+  }
+
   async getValue(key: string) {
     const valueObj = await this.models.Value.findOne({where: {key}});
     return valueObj ? valueObj.content : null;

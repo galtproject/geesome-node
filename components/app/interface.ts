@@ -110,4 +110,6 @@ export interface IGeesomeApp {
   
   //TODO: define structure
   getGroupPeers(groupId): Promise<any>;
+
+  resolveStaticId(staticId): Promise<string>;
 }
