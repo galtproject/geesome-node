@@ -339,6 +339,9 @@ export default {
       },
       getNodeAddressList() {
         return wrap($http.get(`/v1/node-address-list`)).then(data => data.result);
+      },
+      getGroupPeers(ipnsId) {
+        return wrap($http.get(`/v1/group/${ipnsId}/peers`));
       }
     };
   }

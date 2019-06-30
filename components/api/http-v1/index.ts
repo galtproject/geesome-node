@@ -331,6 +331,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
   });
 
+  service.get('/v1/group/:groupId/peers', async (req, res) => {
+    res.send(await geesomeApp.getGroupPeers(req.params.groupId));
+  });
+  
   service.get('/v1/content/:contentId', async (req, res) => {
     res.send(await geesomeApp.getContent(req.params.contentId));
   });

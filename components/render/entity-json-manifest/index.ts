@@ -94,7 +94,6 @@ class EntityJsonManifest implements IRender {
         
         if(manifest._type === 'group-manifest') {
             const group: IGroup = _.pick(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
-            group.isRemote = true;
             group.manifestStorageId = manifestId;
             
             if(manifest.avatarImage) {

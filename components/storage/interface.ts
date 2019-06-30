@@ -51,6 +51,9 @@ export interface IStorage {
   nodeAddressList(): Promise<string[]>;
 
   subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
+
+  getIpnsPeers(ipnsId): Promise<string[]>;
+  getPeers(topic): Promise<string[]>;
 }
 
 interface IResultFile {

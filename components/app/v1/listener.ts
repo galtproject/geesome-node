@@ -6,6 +6,7 @@ export {};
 module.exports = (geesomeApp: IGeesomeApp) => {
   
   geesomeApp.database.getRemoteGroups().then(remoteGroups => {
+    // console.log('remoteGroups', remoteGroups);
     remoteGroups.forEach(subscribeForGroupUpdates)
   });
   

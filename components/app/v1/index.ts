@@ -81,9 +81,10 @@ module.exports = async (extendConfig) => {
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
   
+  app.events = appEvents(app);
+  
   await appCron(app);
   await appListener(app);
-  app.events = appEvents(app);
 
   console.log('Start api...');
   require('../../api/' + config.apiModule)(app, process.env.PORT || 7711);
@@ -234,6 +235,7 @@ class GeesomeApp implements IGeesomeApp {
       return dbGroup;
     }
     const groupObject: IGroup = await this.render.manifestIdToDbObject(manifestStorageId);
+    groupObject.isRemote = true;
     return this.createGroupByObject(groupObject);
   }
 
@@ -254,11 +256,16 @@ class GeesomeApp implements IGeesomeApp {
       type: groupObject.type,
       view: groupObject.view,
       isPublic: groupObject.isPublic,
+      isRemote: groupObject.isRemote,
       description: groupObject.description,
       size: groupObject.size,
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
     });
+    
+    if(dbGroup.isRemote) {
+      this.events.emit(this.events.NewRemoteGroup, dbGroup);
+    }
     return dbGroup;
   }
 
@@ -859,5 +866,32 @@ class GeesomeApp implements IGeesomeApp {
 
   runSeeds() {
     return require('./seeds')(this);
+  }
+
+  async getPeers(topic) {
+    const peers = await this.storage.getPeers(topic);
+    return {
+      count: peers.length,
+      list: peers
+    }
+  }
+
+  async getIpnsPeers(ipnsId) {
+    const peers = await this.storage.getIpnsPeers(ipnsId);
+    return {
+      count: peers.length,
+      list: peers
+    }
+  }
+
+  async getGroupPeers(groupId) {
+    let ipnsId;
+    if(ipfsHelper.isIpfsHash(groupId)) {
+      ipnsId = groupId;
+    } else {
+      const group = await this.database.getGroup(groupId);
+      ipnsId = group.manifestStaticStorageId;
+    }
+    return this.getIpnsPeers(ipnsId);
   }
 }
