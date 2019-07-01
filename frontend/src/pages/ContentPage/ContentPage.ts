@@ -46,7 +46,7 @@ export default {
         this.type = this.manifest._type.split('-')[0];
         if (this.type === 'group') {
           await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-          this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
+          this.subManifests = await this.$coreApi.getGroupPostsAsync(manifestId)
         }
         if (this.type === 'post') {
           this.manifest.groupId = this.manifest.group;
