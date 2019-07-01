@@ -907,7 +907,7 @@ class GeesomeApp implements IGeesomeApp {
         return dynamicId;
       } catch (e) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-        return staticIdItem.staticId
+        return staticIdItem.dynamicId
       }
     }).catch(async (err) => {
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);

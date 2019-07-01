@@ -15,37 +15,42 @@ import PostItem from "../../directives/Posts/PostItem/PostItem";
 import GroupHeader from "./GroupHeader/GroupHeader";
 import GroupInfo from "./GroupInfo/GroupInfo";
 import NewPostControl from "./NewPostControl/NewPostControl";
+const _ = require('lodash');
 
 export default {
-    template: require('./GroupPage.html'),
-    components: {PostItem, NewPostControl},
-    props: ['group'],
-    async created() {
-        this.getPosts();
-    },
-    methods: {
-        async getPosts() {
-            this.posts = [];
-            this.loading = true;
-            this.posts = await this.$coreApi.getGroupPosts(this.groupId, 10, 0);
-            this.loading = false;
-        }
-    },
-    watch: {
-        groupId() {
-            this.getPosts();
-        }
-    },
-    computed: {
-        groupId() {
-            return this.$route.params.groupId;
-        }
-    },
-    data() {
-        return {
-            localeKey: 'group_page',
-            posts: [],
-            loading: true
-        };
+  template: require('./GroupPage.html'),
+  components: {PostItem, NewPostControl},
+  props: ['group'],
+  async created() {
+    this.getPosts();
+  },
+  methods: {
+    async getPosts() {
+      this.posts = [];
+      this.loading = true;
+      await this.$coreApi.getGroupPostsAsync(this.groupId, {limit: 10, offset: 0}, (posts) => {
+        this.posts = _.clone(posts);
+      }, (posts) => {
+        this.posts = _.clone(posts);
+        this.loading = false;
+      });
     }
+  },
+  watch: {
+    groupId() {
+      this.getPosts();
+    }
+  },
+  computed: {
+    groupId() {
+      return this.$route.params.groupId;
+    }
+  },
+  data() {
+    return {
+      localeKey: 'group_page',
+      posts: [],
+      loading: true
+    };
+  }
 }
