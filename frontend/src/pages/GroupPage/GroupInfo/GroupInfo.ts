@@ -14,49 +14,49 @@
 import {EventBus, UPDATE_MEMBER_GROUPS} from "../../../services/events";
 
 export default {
-    template: require('./GroupInfo.html'),
-    props: ['group'],
-    async created() {
-        this.fetchData();
-        this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
-        if(!this.isCanEditGroup) {
-            this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
-        }
-    },
+  template: require('./GroupInfo.html'),
+  props: ['group'],
+  async created() {
+    this.fetchData();
+    this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
+    if (!this.isCanEditGroup) {
+      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+    }
+  },
 
-    async mounted() {
+  async mounted() {
 
-    },
+  },
 
-    methods: {
-        async fetchData() {
-            // this.avatarImageSrc = await this.$coreApi.getImageLink(this.group.avatarImage);
-        },
-        async updateIsJoined() {
-            this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
-            EventBus.$emit(UPDATE_MEMBER_GROUPS);
-        },
-        joinGroup() {
-            this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())
-        },
-        leaveGroup() {
-            this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
-        }
+  methods: {
+    async fetchData() {
+      // this.avatarImageSrc = await this.$coreApi.getImageLink(this.group.avatarImage);
+      this.peers = await this.$coreApi.getGroupPeers(this.group.ipns);
     },
+    async updateIsJoined() {
+      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+      EventBus.$emit(UPDATE_MEMBER_GROUPS);
+    },
+    joinGroup() {
+      this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())
+    },
+    leaveGroup() {
+      this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
+    }
+  },
 
-    watch: {
-        group() {
-            this.fetchData();
-        }
-    },
+  watch: {
+    group() {
+      this.fetchData();
+    }
+  },
 
-    computed: {
-        
-    },
-    data() {
-        return {
-            isCanEditGroup: false,
-            isJoined: null
-        }
-    },
+  computed: {},
+  data() {
+    return {
+      isCanEditGroup: false,
+      isJoined: null,
+      peers: null
+    }
+  },
 }

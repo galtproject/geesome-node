@@ -13,65 +13,103 @@
 
 import {IContent, IDatabase, IFileCatalogItem, IGroup, IPost, IUser, IUserLimit} from "../database/interface";
 import {IStorage} from "../storage/interface";
+import {GeesomeEmitter} from "./v1/events";
 
 export interface IGeesomeApp {
-    config: any;
-    database: IDatabase;
-    storage: IStorage;
-    authorization: any;
+  config: any;
+  database: IDatabase;
+  storage: IStorage;
+  events: GeesomeEmitter;
+  authorization: any;
 
-    frontendStorageId;
+  frontendStorageId;
 
-    getSecretKey(keyName): Promise<string>;
-    registerUser(email, name, password): Promise<IUser>;
-    loginUser(usernameOrEmail, password): Promise<IUser>;
-    
-    canCreatePostInGroup(userId, groupId);
-    canEditGroup(userId, groupId);
-    isAdminInGroup(userId, groupId): Promise<boolean>;
-    isMemberInGroup(userId, groupId): Promise<boolean>;
-    
-    addMemberToGroup(userId, groupId): Promise<void>;
-    removeMemberFromGroup(userId, groupId): Promise<void>;
-    
-    addAdminToGroup(userId, groupId): Promise<void>;
-    removeAdminFromGroup(userId, groupId): Promise<void>;
-    
-    generateUserApiKey(userId, type?): Promise<string>;
-    getUserByApiKey(apiKey): Promise<IUser>;
-    
-    setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
+  getSecretKey(keyName): Promise<string>;
 
-    createPost(userId, postData);
-    updatePost(userId, postId, postData);
-    saveData(fileStream, fileName, options);
-    saveDataByUrl(url, options);
-    getFileStream(filePath);
+  registerUser(email, name, password): Promise<IUser>;
 
-    checkStorageId(storageId): string;
-    
-    getDataStructure(dataId);
-    getDataStructure(dataId);
-    
-    getMemberInGroups(userId): Promise<IGroup[]>;
-    getAdminInGroups(userId): Promise<IGroup[]>;
+  loginUser(usernameOrEmail, password): Promise<IUser>;
 
-    createGroup(userId, groupData): Promise<IGroup>;
-    updateGroup(userId, id, updateData): Promise<IGroup>;
-    getGroup(groupId): Promise<IGroup>;
-    getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
-    
-    getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
-    getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
-    getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
-    getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
-    createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
-    addContentToFolder(userId, contentId, folderId): Promise<any>;
+  canCreatePostInGroup(userId, groupId);
 
-    getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
-    getAllContentList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
-    getAllGroupList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
-    getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
+  canEditGroup(userId, groupId);
 
-    getContent(contentId): Promise<IContent>;
+  isAdminInGroup(userId, groupId): Promise<boolean>;
+
+  isMemberInGroup(userId, groupId): Promise<boolean>;
+
+  addMemberToGroup(userId, groupId): Promise<void>;
+
+  removeMemberFromGroup(userId, groupId): Promise<void>;
+
+  addAdminToGroup(userId, groupId): Promise<void>;
+
+  removeAdminFromGroup(userId, groupId): Promise<void>;
+
+  generateUserApiKey(userId, type?): Promise<string>;
+
+  getUserByApiKey(apiKey): Promise<IUser>;
+
+  setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
+
+  createPost(userId, postData);
+
+  updatePost(userId, postId, postData);
+
+  saveData(fileStream, fileName, options);
+
+  saveDataByUrl(url, options);
+
+  getFileStream(filePath);
+
+  checkStorageId(storageId): string;
+
+  getDataStructure(dataId);
+
+  getDataStructure(dataId);
+
+  getMemberInGroups(userId): Promise<IGroup[]>;
+
+  getAdminInGroups(userId): Promise<IGroup[]>;
+
+  createGroup(userId, groupData): Promise<IGroup>;
+
+  updateGroup(userId, id, updateData): Promise<IGroup>;
+
+  getGroup(groupId): Promise<IGroup>;
+
+  getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
+
+  getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+
+  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+
+  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+
+  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
+
+  createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
+
+  addContentToFolder(userId, contentId, folderId): Promise<any>;
+
+  getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
+
+  getAllContentList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
+
+  getAllGroupList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
+
+  getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
+
+  getContent(contentId): Promise<IContent>;
+
+  //TODO: define structure
+  getPeers(topic): Promise<any>;
+  
+  //TODO: define structure
+  getIpnsPeers(ipns): Promise<any>;
+  
+  //TODO: define structure
+  getGroupPeers(groupId): Promise<any>;
+
+  resolveStaticId(staticId): Promise<string>;
 }

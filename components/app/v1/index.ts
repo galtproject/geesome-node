@@ -32,12 +32,15 @@ import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, IDriver} from "../../drivers/interface";
+import {GeesomeEmitter} from "./events";
 
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
 let config = require('./config');
 const appCron = require('./cron');
+const appEvents = require('./events');
+const appListener = require('./listener');
 const _ = require('lodash');
 const request = require('request');
 const fs = require('fs');
@@ -78,7 +81,10 @@ module.exports = async (extendConfig) => {
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
   
+  app.events = appEvents(app);
+  
   await appCron(app);
+  await appListener(app);
 
   console.log('Start api...');
   require('../../api/' + config.apiModule)(app, process.env.PORT || 7711);
@@ -92,6 +98,7 @@ class GeesomeApp implements IGeesomeApp {
   render: IRender;
   authorization: any;
   drivers: any;
+  events: GeesomeEmitter;
 
   frontendStorageId;
 
@@ -228,6 +235,7 @@ class GeesomeApp implements IGeesomeApp {
       return dbGroup;
     }
     const groupObject: IGroup = await this.render.manifestIdToDbObject(manifestStorageId);
+    groupObject.isRemote = true;
     return this.createGroupByObject(groupObject);
   }
 
@@ -248,11 +256,16 @@ class GeesomeApp implements IGeesomeApp {
       type: groupObject.type,
       view: groupObject.view,
       isPublic: groupObject.isPublic,
+      isRemote: groupObject.isRemote,
       description: groupObject.description,
       size: groupObject.size,
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
     });
+    
+    if(dbGroup.isRemote) {
+      this.events.emit(this.events.NewRemoteGroup, dbGroup);
+    }
     return dbGroup;
   }
 
@@ -853,5 +866,56 @@ class GeesomeApp implements IGeesomeApp {
 
   runSeeds() {
     return require('./seeds')(this);
+  }
+
+  async getPeers(topic) {
+    const peers = await this.storage.getPeers(topic);
+    return {
+      count: peers.length,
+      list: peers
+    }
+  }
+
+  async getIpnsPeers(ipnsId) {
+    const peers = await this.storage.getIpnsPeers(ipnsId);
+    return {
+      count: peers.length,
+      list: peers
+    }
+  }
+
+  async getGroupPeers(groupId) {
+    let ipnsId;
+    if(ipfsHelper.isIpfsHash(groupId)) {
+      ipnsId = groupId;
+    } else {
+      const group = await this.database.getGroup(groupId);
+      ipnsId = group.manifestStaticStorageId;
+    }
+    return this.getIpnsPeers(ipnsId);
+  }
+  
+  async resolveStaticId(staticId) {
+    return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
+      try {
+        await this.database.addStaticIdHistoryItem({
+          staticId: staticId,
+          dynamicId: dynamicId,
+          isActive: true,
+          boundAt: new Date()
+        });
+        return dynamicId;
+      } catch (e) {
+        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+        return staticIdItem.staticId
+      }
+    }).catch(async (err) => {
+      const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+      if(staticIdItem) {
+        return staticIdItem.dynamicId;
+      } else {
+        throw (err);
+      }
+    })
   }
 }

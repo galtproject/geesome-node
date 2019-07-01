@@ -1,3 +1,5 @@
+export {};
+
 const cron = require('node-cron');
 const pIteration = require('p-iteration');
 

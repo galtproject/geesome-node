@@ -12,34 +12,32 @@
  */
 
 export default {
-    template: require('./GroupHeader.html'),
-    props: ['group'],
-    async created() {
-        this.fetchData();
-    },
+  template: require('./GroupHeader.html'),
+  props: ['group'],
+  async created() {
+    this.fetchData();
+  },
 
-    async mounted() {
+  async mounted() {
 
-    },
+  },
 
-    methods: {
-        async fetchData() {
-            this.coverImageSrc = await this.$coreApi.getImageLink(this.group.coverImage);
-        }
-    },
+  methods: {
+    async fetchData() {
+      this.coverImageSrc = await this.$coreApi.getImageLink(this.group.coverImage);
+    }
+  },
 
-    watch: {
-        group() {
-            this.fetchData();
-        }
-    },
+  watch: {
+    group() {
+      this.fetchData();
+    }
+  },
 
-    computed: {
-        
-    },
-    data() {
-        return {
-            coverImageSrc: null
-        }
-    },
+  computed: {},
+  data() {
+    return {
+      coverImageSrc: null
+    }
+  },
 }

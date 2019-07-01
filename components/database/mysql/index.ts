@@ -161,6 +161,14 @@ class MysqlDatabase implements IDatabase {
       }
     });
   }
+  
+  async getRemoteGroups() {
+    return this.models.Group.findAll({
+      where: {
+        isRemote: true
+      }
+    });
+  }
 
   async addGroup(group) {
     return this.models.Group.create(group);
@@ -452,6 +460,14 @@ class MysqlDatabase implements IDatabase {
 
   async getUserLimit(userId, name) {
     return this.models.UserLimit.findOne({where: {userId, name}});
+  }
+
+  async addStaticIdHistoryItem(staticIdItem) {
+    return this.models.StaticIdHistory.create(staticIdItem);
+  }
+
+  async getActualStaticIdItem(staticId) {
+    return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
   }
 
   async getValue(key: string) {

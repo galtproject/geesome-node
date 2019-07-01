@@ -58,6 +58,8 @@ export interface IDatabase {
 
   getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
+  getRemoteGroups(): Promise<IGroup[]>;
+
   addGroup(group): Promise<IGroup>;
 
   updateGroup(id, updateData): Promise<void>;
@@ -125,6 +127,9 @@ export interface IDatabase {
   updateUserLimit(limitId, limitData): Promise<void>;
 
   getUserLimit(userId, name): Promise<IUserLimit>;
+
+  addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
+  getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
 
   getValue(key: string): Promise<string>;
 
@@ -308,6 +313,15 @@ export interface IUserLimit {
   adminId: number;
   periodTimestamp: number;
   isActive: boolean;
+}
+
+export interface IStaticIdHistoryItem {
+  id?: number;
+  staticId: string;
+  dynamicId: string;
+  periodTimestamp: number;
+  isActive: boolean;
+  boundAt: Date;
 }
 
 
