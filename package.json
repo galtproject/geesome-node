@@ -15,7 +15,7 @@
     "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#e862826",
     "@microlink/youtube-dl": "^2.0.0",
     "@types/es6-promise": "^3.3.0",
-    "axios": "^0.18.0",
+    "axios": "^0.18.1",
     "bcrypt": "^3.0.6",
     "body-parser": "^1.19.0",
     "cids": "^0.7.0",
