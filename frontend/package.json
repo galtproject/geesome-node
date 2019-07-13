@@ -21,7 +21,7 @@
     "@galtproject/frontend-core": "git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#973cdac",
     "@sentry/browser": "^4.4.2",
     "async": "^2.5.0",
-    "axios": "^0.16.2",
+    "axios": "^0.18.1",
     "bluebird": "^3.5.2",
     "default-passive-events": "^1.0.7",
     "dexie": "^2.0.4",
