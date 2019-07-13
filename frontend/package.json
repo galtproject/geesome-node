@@ -34,7 +34,7 @@
     "latlon-geohash": "^1.1.0",
     "leaflet": "git://github.com/jonybang/Leaflet.git#dad5ea5c5006a10248e0fc88999e8d00b2956443",
     "leaflet-edge-scale-bar": "git://github.com/GEOF-OSGL/Leaflet.EdgeScaleBar.git",
-    "lodash": "^4.17.10",
+    "lodash": "^4.17.13",
     "mediaelement": "^4.2.9",
     "moment": "^2.20.1",
     "nedb": "^1.8.0",
