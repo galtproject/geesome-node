@@ -1,13 +1,13 @@
 #!/bin/bash
 
-npm i
+npm i -g yarn
+
+yarn
 
 # frontend
-npm i -g yarn
 ( cd frontend && yarn && npm run dev-build )
 
 # backend
-
 [ -z "$STORAGE_REPO" ] && STORAGE_REPO=``
 [ -z "$DATABASE_NAME" ] && DATABASE_NAME=``
 

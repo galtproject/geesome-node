@@ -25,81 +25,87 @@ import EditGroup from "./pages/GroupPage/EditGroup/EditGroup";
 import JoinedGroups from "./pages/GroupsList/JoinedGroups/JoinedGroups";
 import AdminedGroups from "./pages/GroupsList/AdminedGroups/AdminedGroups";
 import BootNodesPage from "./pages/BootNodesPage/BootNodesPage";
+import SetupPage from "./pages/SetupPage/SetupPage";
 
 Vue.use(Router);
 
 export default new Router({
-    //mode: 'history',
-    routes: [
+  //mode: 'history',
+  routes: [
+    {
+      path: '',
+      name: 'main-page',
+      component: MainPage
+    },
+    {
+      path: '/setup',
+      name: 'setup',
+      component: SetupPage
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginPage
+    },
+    {
+      path: '/file-explorer',
+      name: 'file-explorer',
+      component: FileExplorerPage
+    },
+    {
+      path: '/boot-nodes',
+      name: 'boot-nodes',
+      component: BootNodesPage
+    },
+    {
+      path: '/new-user',
+      name: 'new-user',
+      component: NewUser
+    },
+    {
+      path: '/new-group',
+      name: 'new-group',
+      component: NewGroup
+    },
+    {
+      path: '/edit-group/:groupId',
+      name: 'edit-group',
+      component: EditGroup
+    },
+    {
+      path: '/content/:manifestId?',
+      name: 'content-page',
+      component: ContentPage
+    },
+    {
+      path: '/joined-groups',
+      name: 'joined-groups',
+      component: JoinedGroups
+    },
+    {
+      path: '/admined-groups',
+      name: 'admined-groups',
+      component: AdminedGroups
+    },
+    {
+      path: '/group/',
+      name: 'group-layout',
+      component: GroupLayout,
+      children: [
         {
-            path: '',
-            name: 'main-page',
-            component: MainPage
+          path: ':groupId',
+          name: 'group-page',
+          component: GroupPage
         },
         {
-            path: '/login',
-            name: 'login',
-            component: LoginPage
-        },
-        {
-            path: '/file-explorer',
-            name: 'file-explorer',
-            component: FileExplorerPage
-        },
-        {
-            path: '/boot-nodes',
-            name: 'boot-nodes',
-            component: BootNodesPage
-        },
-        {
-            path: '/new-user',
-            name: 'new-user',
-            component: NewUser
-        },
-        {
-            path: '/new-group',
-            name: 'new-group',
-            component: NewGroup
-        },
-        {
-            path: '/edit-group/:groupId',
-            name: 'edit-group',
-            component: EditGroup
-        },
-        {
-            path: '/content/:manifestId?',
-            name: 'content-page',
-            component: ContentPage
-        },
-        {
-            path: '/joined-groups',
-            name: 'joined-groups',
-            component: JoinedGroups
-        },
-        {
-            path: '/admined-groups',
-            name: 'admined-groups',
-            component: AdminedGroups
-        },
-        {
-            path: '/group/',
-            name: 'group-layout',
-            component: GroupLayout,
-            children: [
-                {
-                    path: ':groupId',
-                    name: 'group-page',
-                    component: GroupPage
-                },
-                {
-                    path: ':groupId/posts/:postId',
-                    name: 'group-post-page',
-                    component: GroupPostPage
-                }
-            ]
-        },
-        {
-            path: '*', redirect: '/'
+          path: ':groupId/posts/:postId',
+          name: 'group-post-page',
+          component: GroupPostPage
         }
-    ]
+      ]
+    },
+    {
+      path: '*', redirect: '/'
+    }
+  ]
 })

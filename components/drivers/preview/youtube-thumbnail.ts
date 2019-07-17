@@ -1,10 +1,6 @@
 import {DriverInput, IDriver} from "../interface";
 
-import {Stream} from "stream";
-
-const youtubedl = require('youtube-dl');
-const fs = require('fs');
-const _ = require('lodash');
+const youtubedl = require('@microlink/youtube-dl');
 
 export class YoutubeThumbnailPreviewDriver implements IDriver{
     supportedInputs = [DriverInput.Source];

@@ -2,7 +2,7 @@ import {DriverInput, IDriver} from "../interface";
 
 import {Stream} from "stream";
 
-const youtubedl = require('youtube-dl');
+const youtubedl = require('@microlink/youtube-dl');
 
 export class YoutubeVideoUploadDriver implements IDriver{
     supportedInputs = [DriverInput.Source];

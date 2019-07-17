@@ -18,6 +18,7 @@ const config = require('./config');
 
 const _ = require('lodash');
 const mime = require('mime');
+const pIteration = require('p-iteration');
 
 const bodyParser = require('body-parser');
 const busboy = require('connect-busboy');
@@ -28,9 +29,11 @@ const service = require('restana')({
   maxParamLength: 2000
 });
 
+const maxBodySizeMb = 2000;
+
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
   require('./showEndpointsTable');
-  service.use(bodyParser.json({limit: '2000mb'}));
+  service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
   service.use(bodyParser.urlencoded({extended: true}));
   service.use(bearerToken());
 
@@ -99,6 +102,25 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         .join('<br><br>')
       + "</html>";
     res.send(html, 200);
+  });
+
+  service.get('/v1/is-empty', async (req, res) => {
+    res.send({
+      result: (await geesomeApp.database.getUsersCount()) === 0
+    }, 200);
+  });
+
+  service.post('/v1/setup', async (req, res) => {
+    if((await geesomeApp.database.getUsersCount()) > 0) {
+      return res.send(403);
+    }
+    const adminUser = await geesomeApp.registerUser(req.body.email, req.body.name, req.body.password);
+
+    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
+      return geesomeApp.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
+    });
+    
+    res.send({user: adminUser, apiKey: await geesomeApp.generateUserApiKey(adminUser.id, "password_auth")}, 200);
   });
 
   service.post('/v1/login', async (req, res) => {
@@ -309,6 +331,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
   });
 
+  service.get('/v1/group/:groupId/peers', async (req, res) => {
+    res.send(await geesomeApp.getGroupPeers(req.params.groupId));
+  });
+  
   service.get('/v1/content/:contentId', async (req, res) => {
     res.send(await geesomeApp.getContent(req.params.contentId));
   });
@@ -327,7 +353,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/resolve/:storageId', async (req, res) => {
-    geesomeApp.storage.resolveStaticId(req.params.storageId).then(res.send.bind(res)).catch((err) => {
+    geesomeApp.resolveStaticId(req.params.storageId).then(res.send.bind(res)).catch((err) => {
       res.send(err.message, 500)
     })
   });

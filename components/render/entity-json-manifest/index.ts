@@ -16,7 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {IContent, IGroup, IPost} from "../../database/interface";
 
 const _ = require('lodash');
-const treeLib = require('../../../libs/base36Trie');
+const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
 
 module.exports = async (app: IGeesomeApp) => {
     
@@ -76,7 +76,7 @@ class EntityJsonManifest implements IRender {
         } else if(name === 'content-manifest') {
             //TODO: add preview size
             const content: IContent = data;
-            const contentManifest = _.pick(content, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
+            const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension', 'updatedAt', 'createdAt']);
 
             contentManifest.content = content.storageId;
             contentManifest.preview = content.previewStorageId;
@@ -94,7 +94,6 @@ class EntityJsonManifest implements IRender {
         
         if(manifest._type === 'group-manifest') {
             const group: IGroup = _.pick(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
-            group.isRemote = true;
             group.manifestStorageId = manifestId;
             
             if(manifest.avatarImage) {
@@ -121,6 +120,9 @@ class EntityJsonManifest implements IRender {
     }
     
     getStorageRef(storageId) {
+        if(!storageId) {
+            return null;
+        }
         return {
             '/' : storageId
         }

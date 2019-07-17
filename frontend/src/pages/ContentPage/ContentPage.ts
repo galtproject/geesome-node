@@ -16,7 +16,7 @@ import EthData from "@galtproject/frontend-core/libs/EthData";
 import GroupItem from "../GroupsList/GroupItem/GroupItem";
 import PostItem from "../../directives/Posts/PostItem/PostItem";
 
-const ipfsHelper = require('../../../../libs/ipfsHelper');
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentPage.html'),
@@ -46,7 +46,7 @@ export default {
         this.type = this.manifest._type.split('-')[0];
         if (this.type === 'group') {
           await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-          this.subManifests = await this.$coreApi.getGroupPosts(manifestId)
+          this.subManifests = await this.$coreApi.getGroupPostsAsync(manifestId)
         }
         if (this.type === 'post') {
           this.manifest.groupId = this.manifest.group;

@@ -11,31 +11,33 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-module.exports = async function(sequelize) {
-    const models: any = {};
+module.exports = async function (sequelize) {
+  const models: any = {};
 
-    models.User = await require('./user')(sequelize, models);
-    models.UserApiKey = await require('./userApiKey')(sequelize, models);
+  models.User = await require('./user')(sequelize, models);
+  models.UserApiKey = await require('./userApiKey')(sequelize, models);
 
-    models.CorePermission = await require('./corePermission')(sequelize, models);
-    
-    models.Group = await require('./group')(sequelize, models);
-    models.GroupPermission = await require('./groupPermission')(sequelize, models);
-    models.Post = await require('./post')(sequelize, models);
-    models.Content = await require('./content')(sequelize, models);
+  models.CorePermission = await require('./corePermission')(sequelize, models);
 
-    models.Tag = await require('./tag')(sequelize, models);
-    models.AutoTag = await require('./autoTag')(sequelize, models);
-    
-    models.Category = await require('./category')(sequelize, models);
-    
-    models.FileCatalogItem = await require('./fileCatalogItem')(sequelize, models);
-    models.FileCatalogItemPermission = await require('./fileCatalogItemPermission')(sequelize, models);
-    
-    models.UserContentAction = await require('./userContentAction')(sequelize, models);
-    models.UserLimit = await require('./userLimit')(sequelize, models);
-    
-    models.Value = await require('./value')(sequelize, models);
+  models.Group = await require('./group')(sequelize, models);
+  models.GroupPermission = await require('./groupPermission')(sequelize, models);
+  models.Post = await require('./post')(sequelize, models);
+  models.Content = await require('./content')(sequelize, models);
 
-    return models;
+  models.Tag = await require('./tag')(sequelize, models);
+  models.AutoTag = await require('./autoTag')(sequelize, models);
+
+  models.Category = await require('./category')(sequelize, models);
+
+  models.FileCatalogItem = await require('./fileCatalogItem')(sequelize, models);
+  models.FileCatalogItemPermission = await require('./fileCatalogItemPermission')(sequelize, models);
+
+  models.UserContentAction = await require('./userContentAction')(sequelize, models);
+  models.UserLimit = await require('./userLimit')(sequelize, models);
+
+  models.StaticIdHistory = await require('./staticIdHistory')(sequelize, models);
+   
+  models.Value = await require('./value')(sequelize, models);
+
+  return models;
 };

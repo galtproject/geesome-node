@@ -16,8 +16,8 @@ import {ClientStorage} from "./clientStorage";
 // const config = require('../../config');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
-const ipfsHelper = require('../../../libs/ipfsHelper');
-const trie = require('../../../libs/base36Trie');
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const trie = require('@galtproject/geesome-libs/src/base36Trie');
 // import {JsIpfsService} from "../../../components/storage/JsIpfsService";
 //
 // const IPFS = require('ipfs-http-client');
@@ -102,6 +102,12 @@ export default {
       async logout() {
         //TODO: send request to server for disable api key
         localStorage.setItem('geesome-api-key', null);
+      },
+      setup(setupData) {
+        return wrap($http.post(`/v1/setup`, setupData)).then(data => {
+          setApiKey(data.apiKey);
+          return data;
+        });
       },
       createGroup(groupData) {
         return wrap($http.post(`/v1/user/create-group`, groupData));
@@ -218,19 +224,36 @@ export default {
           ipldHash = ipldHash['/'];
         }
         return wrap($http.get(`/ipld/${ipldHash}`)).then(ipldData => {
+          if(!ipldData) {
+            return null;
+          }
           ipldData.id = ipldHash;
           return ipldData;
         });
       },
-      async getGroupPosts(groupId, limit = 10, offset = 0, orderDir = 'desc') {
+      async getGroupPostsAsync(groupId, options: any = {}, onItemCallback?, onFinishCallback?) {
         const group = await this.getGroup(groupId);
+        
+        const defaultOptions = {
+          limit: 10,
+          offset: 0,
+          orderDir: 'desc'
+        };
+        
+        _.forEach(defaultOptions, (optionValue, optionName) => {
+          if(_.isUndefined(options[optionName])) {
+            options[optionName] = optionValue;
+          }
+        });
+        
         const postsCount = parseInt(group.postsCount);
-        if (offset + limit > postsCount) {
-          limit = postsCount - offset;
+        if (options.offset + options.limit > postsCount) {
+          options.limit = postsCount - options.offset;
         }
 
         const postsPath = group.id + '/posts/';
-        return (await pIteration.map(_.range(postsCount - offset, postsCount - offset - limit), async (postNumber) => {
+        const posts = [];
+        pIteration.forEach(_.range(postsCount - options.offset, postsCount - options.offset - options.limit), async (postNumber, index) => {
           const postNumberPath = trie.getTreePath(postNumber).join('/');
           const post = await this.getIpld(postsPath + postNumberPath);
           post.id = postNumber;
@@ -239,8 +262,16 @@ export default {
           if (post) {
             post.group = group;
           }
-          return post;
-        })).filter(post => post);
+          posts[index] = post;
+          if(onItemCallback) {
+            onItemCallback(posts);
+          }
+        }).then(() => {
+          if(onFinishCallback) {
+            onFinishCallback(posts);
+          }
+        });
+        return posts;
         // return $http.get(`/v1/group/${groupId}/posts`, { params: { limit, offset } }).then(response => response.data);
       },
       async getGroupPost(groupId, postId) {
@@ -333,6 +364,9 @@ export default {
       },
       getNodeAddressList() {
         return wrap($http.get(`/v1/node-address-list`)).then(data => data.result);
+      },
+      getGroupPeers(ipnsId) {
+        return wrap($http.get(`/v1/group/${ipnsId}/peers`));
       }
     };
   }
