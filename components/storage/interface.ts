@@ -53,6 +53,7 @@ export interface IStorage {
   subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
 
   getIpnsPeers(ipnsId): Promise<string[]>;
+  getPubSubLs(): Promise<string[]>;
   getPeers(topic): Promise<string[]>;
 }
 

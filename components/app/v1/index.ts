@@ -191,14 +191,19 @@ class GeesomeApp implements IGeesomeApp {
     if (!groupId || _.isUndefined(groupId)) {
       return null;
     }
+    console.log('checkGroupId', groupId);
     if (!commonHelper.isNumber(groupId)) {
       let group = await this.database.getGroupByManifestId(groupId);
+      console.log('group', group);
       if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
+        console.log('group createIfNotExist', groupId);
         return group.id;
+      } else if(group) {
+        groupId = group.id;
       }
-      groupId = group.id;
     }
+    console.log('groupId', groupId);
     return groupId;
   }
 
@@ -225,16 +230,18 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createGroupByRemoteStorageId(manifestStorageId) {
+    let staticStorageId;
     if (ipfsHelper.isIpfsHash(manifestStorageId)) {
-      manifestStorageId = await this.storage.resolveStaticId(manifestStorageId);
+      staticStorageId = manifestStorageId;
+      manifestStorageId = await this.storage.resolveStaticId(staticStorageId);
     }
 
-    let dbGroup = await this.database.getGroupByManifestId(manifestStorageId);
+    let dbGroup = await this.database.getGroupByManifestId(staticStorageId || manifestStorageId);
     if (dbGroup) {
       //TODO: update group if necessary
       return dbGroup;
     }
-    const groupObject: IGroup = await this.render.manifestIdToDbObject(manifestStorageId);
+    const groupObject: IGroup = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
     groupObject.isRemote = true;
     return this.createGroupByObject(groupObject);
   }
@@ -270,10 +277,15 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createContentByObject(contentObject) {
-    let dbContent = await this.database.getContentByStorageId(contentObject.manifestStaticStorageId);
+    const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
+    if(!storageId) {
+      return null;
+    }
+    let dbContent = await this.database.getContentByStorageId(storageId);
     if (dbContent) {
       return dbContent;
     }
+    return null;
   }
 
   checkStorageId(storageId) {

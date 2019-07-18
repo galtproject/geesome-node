@@ -1,9 +1,15 @@
 import {IGroup} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
+const {getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/ipfsHelper')
+
+const _ = require('lodash');
+
 export {};
 
-module.exports = (geesomeApp: IGeesomeApp) => {
+module.exports = async (geesomeApp: IGeesomeApp) => {
+  
+  const selfIpnsId = await geesomeApp.storage.getAccountIdByName('self');
   
   console.log('geesomeApp.storage[\'node\']._ipns.cache', );
   
@@ -16,9 +22,24 @@ module.exports = (geesomeApp: IGeesomeApp) => {
   
   function subscribeForGroupUpdates(group: IGroup) {
     console.log('subscribeForGroupUpdates', group.manifestStaticStorageId);
-    return geesomeApp.storage.subscribeToIpnsUpdates(group.manifestStaticStorageId, (message) => {
+    geesomeApp.storage.subscribeToIpnsUpdates(group.manifestStaticStorageId, (message) => {
       handleIpnsUpdate(group.manifestStaticStorageId, message);
-    })
+    });
+    
+    const checkConnectionInterval = setInterval(() => {
+      geesomeApp.storage.getPubSubLs().then((subscriptions) => {
+        const recordName = getIpnsUpdatesTopic(group.manifestStaticStorageId);
+        let isGroupExistInSubscriptions = subscriptions.some(peer => _.includes(peer, recordName));
+        console.log('subscriptions', subscriptions);
+        if(isGroupExistInSubscriptions) {
+          return;
+        }
+        console.log('group not exists in subscriptions', selfIpnsId, recordName);
+        
+        clearInterval(checkConnectionInterval);
+        subscribeForGroupUpdates(group);
+      })
+    }, 60 * 1000)
   }
   
   function handleIpnsUpdate(ipnsId, message) {

@@ -32,7 +32,7 @@ class EntityJsonManifest implements IRender {
         if(name === 'group-manifest') {
             //TODO: size => postsSize
             const group: IGroup = data;
-            const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
+            const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
 
             groupManifest.postsCount = group.publishedPostsCount;
             groupManifest.ipns = group.manifestStaticStorageId;
