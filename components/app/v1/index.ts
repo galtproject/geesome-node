@@ -191,19 +191,19 @@ class GeesomeApp implements IGeesomeApp {
     if (!groupId || _.isUndefined(groupId)) {
       return null;
     }
-    console.log('checkGroupId', groupId);
+    // console.log('checkGroupId', groupId);
     if (!commonHelper.isNumber(groupId)) {
       let group = await this.database.getGroupByManifestId(groupId);
-      console.log('group', group);
+      // console.log('group', group);
       if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
-        console.log('group createIfNotExist', groupId);
+        // console.log('group createIfNotExist', groupId);
         return group.id;
       } else if(group) {
         groupId = group.id;
       }
     }
-    console.log('groupId', groupId);
+    // console.log('groupId', groupId);
     return groupId;
   }
 
