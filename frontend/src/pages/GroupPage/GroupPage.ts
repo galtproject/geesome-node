@@ -12,14 +12,13 @@
  */
 
 import PostItem from "../../directives/Posts/PostItem/PostItem";
-import GroupHeader from "./GroupHeader/GroupHeader";
-import GroupInfo from "./GroupInfo/GroupInfo";
 import NewPostControl from "./NewPostControl/NewPostControl";
+import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
 const _ = require('lodash');
 
 export default {
   template: require('./GroupPage.html'),
-  components: {PostItem, NewPostControl},
+  components: {PostItem, NewPostControl, Pagination},
   props: ['group'],
   async created() {
     this.getPosts();
@@ -28,7 +27,7 @@ export default {
     async getPosts() {
       this.posts = [];
       this.loading = true;
-      await this.$coreApi.getGroupPostsAsync(this.groupId, {limit: 10, offset: 0}, (posts) => {
+      await this.$coreApi.getGroupPostsAsync(this.groupId, {limit: this.perPage, offset: (this.currentPage - 1) * this.perPage}, (posts) => {
         this.posts = _.clone(posts);
       }, (posts) => {
         this.posts = _.clone(posts);
@@ -38,6 +37,9 @@ export default {
   },
   watch: {
     groupId() {
+      this.getPosts();
+    },
+    currentPage() {
       this.getPosts();
     }
   },
@@ -50,7 +52,9 @@ export default {
     return {
       localeKey: 'group_page',
       posts: [],
-      loading: true
+      loading: true,
+      currentPage: 1,
+      perPage: 10
     };
   }
 }

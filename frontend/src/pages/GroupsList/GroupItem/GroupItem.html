@@ -4,12 +4,12 @@
     </md-card-media>
     
     <md-card-header>
-        <div class="md-title"><router-link :to="{name: 'group-page', params: {groupId: group.ipns}}">{{group.title}}</router-link></div>
+        <div class="md-title"><router-link :to="{name: 'group-page', params: {groupId: idForRoute}}">{{group.title}}</router-link></div>
         <div class="md-subhead">@{{group.name}}</div>
     </md-card-header>
     
     <md-card-actions md-alignment="space-between">
-        <md-button v-if="isCanEditGroup" :to="{'name': 'edit-group', params: {groupId: group.ipns}}">Edit</md-button>
+        <md-button v-if="isCanEditGroup" :to="{'name': 'edit-group', params: {groupId: idForRoute}}">Edit</md-button>
         <div v-else-if="isJoined !== null">
             <md-button class="md-accent" v-if="isJoined" @click="leaveGroup">Unsubscribe</md-button>
             <md-button class="md-primary" v-else @click="joinGroup">Subscribe</md-button>

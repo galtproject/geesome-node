@@ -33,7 +33,7 @@
                         <group-item :group="manifest"></group-item>
                     </div>
                     <div class="md-layout-item md-size-70">
-                        <post-item v-for="(post, index) in subManifests" v-model="subManifests[index]"></post-item>
+                        <post-item v-for="(post, index) in subManifests" v-model="subManifests[index]" v-if="subManifests[index]"></post-item>
                     </div>
                 </div>
             </div>
