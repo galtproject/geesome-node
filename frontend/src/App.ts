@@ -98,7 +98,7 @@ export default {
       this.language = this.$locale.lang;
     });
 
-    this.$coreApi.init(this.$store);
+    await this.$coreApi.init(this.$store);
 
     this.$coreApi.getCurrentUser().then((user) => {
       this.$store.commit('user', user);

@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#e862826",
+    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#d9c534c",
     "@microlink/youtube-dl": "^2.0.0",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.18.1",

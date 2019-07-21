@@ -18,12 +18,13 @@ const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const trie = require('@galtproject/geesome-libs/src/base36Trie');
+const JsIpfsService = require('@galtproject/geesome-libs/src/JsIpfsService');
 // import {JsIpfsService} from "../../../components/storage/JsIpfsService";
 //
-// const IPFS = require('ipfs-http-client');
+// const IPFS = require('ipfs');
 //
 // const node = new IPFS({ host: config.serverBaseUrl.split('://')[1], port: '5001', protocol: config.serverBaseUrl.split('://')[0] });
-// const ipfsService = new JsIpfsService(node);
+
 
 export default {
   install(Vue, options: any = {}) {
@@ -55,6 +56,8 @@ export default {
       $http.defaults.headers.post['Authorization'] = 'Bearer ' + apiKey;
       $http.defaults.headers.get['Authorization'] = 'Bearer ' + apiKey;
     }
+    
+    let serverIpfsAddresses;
 
     function changeServer(server) {
       localStorage.setItem('geesome-server', server);
@@ -63,12 +66,28 @@ export default {
       $http.defaults.baseURL = appStore.state.serverAddress;
     }
 
+    function promiseMeJsIpfs () {
+      return new Promise((resolve, reject) => {
+        const ipfs = window['Ipfs'].createNode({
+          EXPERIMENTAL: {
+            pubsub: true,
+            ipnsPubsub: true
+          }
+        });
+        ipfs.once('ready', () => resolve(ipfs))
+        ipfs.once('error', err => reject(err))
+      })
+    }
+
     let appStore;
 
     let serverLessMode = false;
 
+    let node;
+    let ipfsService;
+
     Vue.prototype.$coreApi = {
-      init(store) {
+      async init(store) {
         appStore = store;
 
         let server = localStorage.getItem('geesome-server');
@@ -81,6 +100,18 @@ export default {
         }
 
         changeServer(server);
+        serverIpfsAddresses = await this.getNodeAddressList();
+        
+        node = await promiseMeJsIpfs();
+        ipfsService = new JsIpfsService(node);
+
+        await pIteration.forEach(serverIpfsAddresses, async (address) => {
+          if(_.includes(address, '192.168')) {
+            const localAddress = address.replace(/\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/, '127.0.0.1');
+            await ipfsService.addBootNode(localAddress).then(() => console.log('successful connect to ', localAddress)).catch(() =>  console.warn('failed connect to ', localAddress))
+          }
+          return ipfsService.addBootNode(address).then(() => console.log('successful connect to ', address)).catch(() =>  console.warn('failed connect to ', address));
+        })
       },
       getCurrentUser() {
         return wrap($http.get('/v1/user')).then(user => {
@@ -223,7 +254,8 @@ export default {
         if (ipldHash['/']) {
           ipldHash = ipldHash['/'];
         }
-        return wrap($http.get(`/ipld/${ipldHash}`)).then(ipldData => {
+        //wrap($http.get(`/ipld/${ipldHash}`))
+        return ipfsService.getObject(ipldHash).then(ipldData => {
           if(!ipldData) {
             return null;
           }
@@ -263,6 +295,7 @@ export default {
             post.group = group;
           }
           posts[index] = post;
+
           if(onItemCallback) {
             onItemCallback(posts);
           }
@@ -300,7 +333,7 @@ export default {
         return wrap($http.get(`/v1/user/group/${groupId}/can-edit`)).then(data => data.valid);
       },
       resolveIpns(ipns) {
-        return wrap($http.get(`/resolve/${ipns}`));
+        return wrap($http.get(`/resolve/${ipns}`)).catch(() => null);
       },
       getFileCatalogItems(parentItemId, type?, sortBy?, sortDir?, limit?, offset?) {
         if (!sortBy) {

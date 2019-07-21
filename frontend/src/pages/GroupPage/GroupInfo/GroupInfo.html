@@ -4,6 +4,7 @@
             <div class="md-title"><router-link :to="{'name': 'group-page', params: {groupId: group.id}}" style="text-decoration: none;">@{{group.name}}</router-link></div>
             <div class="md-subhead"><pretty-hex :hex="group.ipns"></pretty-hex></div>
             <div class="md-subhead"><pretty-hex :hex="group.id"></pretty-hex></div>
+            <div class="md-subhead">Posts: {{group.postsCount}}</div>
             <div class="md-subhead">Peers: {{peers ? peers.count : '...'}}</div>
         </md-card-header-text>
 

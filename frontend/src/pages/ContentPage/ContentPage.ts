@@ -18,6 +18,8 @@ import PostItem from "../../directives/Posts/PostItem/PostItem";
 
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 
+const _ = require('lodash');
+
 export default {
   template: require('./ContentPage.html'),
   components: {ContentManifestInfoItem, GroupItem, PostItem},
@@ -46,7 +48,13 @@ export default {
         this.type = this.manifest._type.split('-')[0];
         if (this.type === 'group') {
           await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-          this.subManifests = await this.$coreApi.getGroupPostsAsync(manifestId)
+          await this.$coreApi.getGroupPostsAsync(manifestId, (posts) => {
+            this.subManifests = _.clone(posts);
+          }, (posts) => {
+            this.subManifests = _.clone(posts);
+            console.log('posts', posts);
+            this.loading = false;
+          })
         }
         if (this.type === 'post') {
           this.manifest.groupId = this.manifest.group;
