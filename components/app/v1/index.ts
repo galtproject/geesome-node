@@ -220,6 +220,7 @@ class GeesomeApp implements IGeesomeApp {
     groupData.storageAccountId = await this.storage.createAccountIfNotExists(groupData['name']);
     groupData.manifestStaticStorageId = groupData.storageAccountId;
 
+    console.log('createGroup', groupData);
     const group = await this.database.addGroup(groupData);
 
     await this.database.addAdminToGroup(userId, group.id);
@@ -233,7 +234,7 @@ class GeesomeApp implements IGeesomeApp {
     let staticStorageId;
     if (ipfsHelper.isIpfsHash(manifestStorageId)) {
       staticStorageId = manifestStorageId;
-      manifestStorageId = await this.storage.resolveStaticId(staticStorageId);
+      manifestStorageId = await this.resolveStaticId(staticStorageId);
     }
 
     let dbGroup = await this.database.getGroupByManifestId(staticStorageId || manifestStorageId);
@@ -255,20 +256,11 @@ class GeesomeApp implements IGeesomeApp {
     if (!dbCover) {
       dbCover = await this.createContentByObject(groupObject.coverImage);
     }
-    const dbGroup = await this.database.addGroup({
-      manifestStaticStorageId: groupObject.manifestStaticStorageId,
-      manifestStorageId: groupObject.manifestStorageId,
-      name: groupObject.name,
-      title: groupObject.title,
-      type: groupObject.type,
-      view: groupObject.view,
-      isPublic: groupObject.isPublic,
-      isRemote: groupObject.isRemote,
-      description: groupObject.description,
-      size: groupObject.size,
+    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'isPublic', 'isRemote', 'description', 'size'];
+    const dbGroup = await this.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
-    });
+    }));
     
     if(dbGroup.isRemote) {
       this.events.emit(this.events.NewRemoteGroup, dbGroup);
