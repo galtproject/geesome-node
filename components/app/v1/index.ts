@@ -193,7 +193,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     // console.log('checkGroupId', groupId);
     if (!commonHelper.isNumber(groupId)) {
-      let group = await this.database.getGroupByManifestId(groupId);
+      let group = await this.getGroupByManifestId(groupId, groupId);
       // console.log('group', group);
       if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
@@ -237,7 +237,7 @@ class GeesomeApp implements IGeesomeApp {
       manifestStorageId = await this.resolveStaticId(staticStorageId);
     }
 
-    let dbGroup = await this.database.getGroupByManifestId(staticStorageId || manifestStorageId);
+    let dbGroup = await this.getGroupByManifestId(manifestStorageId, staticStorageId);
     if (dbGroup) {
       //TODO: update group if necessary
       return dbGroup;
@@ -772,8 +772,14 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroup(groupId);
   }
 
-  getGroupByManifestId(groupId) {
-    return this.database.getGroupByManifestId(groupId);
+  async getGroupByManifestId(groupId, staticId) {
+    if(!staticId) {
+      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
+      if(historyItem) {
+        staticId = historyItem.staticId;
+      }
+    }
+    return this.database.getGroupByManifestId(groupId, staticId);
   }
 
   getGroupPosts(groupId, sortDir, limit, offset) {

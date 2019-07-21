@@ -54,7 +54,7 @@ export interface IDatabase {
 
   getGroup(id): Promise<IGroup>;
 
-  getGroupByManifestId(manifestId): Promise<IGroup>;
+  getGroupByManifestId(manifestId, staticManifestId): Promise<IGroup>;
 
   getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
@@ -130,6 +130,7 @@ export interface IDatabase {
 
   addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
+  getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
 
   getValue(key: string): Promise<string>;
 

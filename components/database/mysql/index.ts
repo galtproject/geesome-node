@@ -142,9 +142,19 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getGroupByManifestId(id) {
+  async getGroupByManifestId(id, staticId?) {
+    const whereOr = [];
+    if(id) {
+      whereOr.push({manifestStorageId: id});
+    }
+    if(staticId) {
+      whereOr.push({manifestStaticStorageId: staticId});
+    }
+    if(!whereOr.length) {
+      return null;
+    }
     return this.models.Group.findOne({
-      where: {[Op.or]: [{manifestStorageId: id}, {manifestStaticStorageId: id}]},
+      where: {[Op.or]: whereOr},
       include: [
         {model: this.models.Content, as: 'avatarImage'},
         {model: this.models.Content, as: 'coverImage'}
@@ -468,6 +478,10 @@ class MysqlDatabase implements IDatabase {
 
   async getActualStaticIdItem(staticId) {
     return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
+  }
+
+  async getStaticIdItemByDynamicId(dynamicId) {
+    return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]});
   }
 
   async getValue(key: string) {
