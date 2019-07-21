@@ -64,6 +64,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
     connectionIntervals[ipnsId] = setInterval(() => {
       geesomeApp.storage.getIpnsPeers(ipnsId).then((peers) => {
+        console.log(ipnsId, 'peers', peers);
         if(!peers.length) {
           subscribeToIpnsUpdates(ipnsId);
         }
@@ -87,7 +88,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
       periodTimestamp: message.data.ttl,
       isActive: true,
       boundAt: message.data.validity.toString('utf8')
-    });
+    }).catch(() => {/* already exists */});
     // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
   }
 };

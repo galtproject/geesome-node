@@ -162,11 +162,11 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getGroupWhereStaticOutdated(outdatedForHours) {
+  async getGroupWhereStaticOutdated(outdatedForSeconds) {
     return this.models.Group.findAll({
       where: {
         staticStorageUpdatedAt: {
-          [Op.lt]: commonHelpers.moveDate(- parseFloat(outdatedForHours), 'hour')
+          [Op.lt]: commonHelpers.moveDate(- parseFloat(outdatedForSeconds), 'second')
         }
       }
     });
