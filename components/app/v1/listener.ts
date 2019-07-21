@@ -1,45 +1,80 @@
 import {IGroup} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
-const {getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/ipfsHelper')
-
-const _ = require('lodash');
-
 export {};
 
 module.exports = async (geesomeApp: IGeesomeApp) => {
   
-  const selfIpnsId = await geesomeApp.storage.getAccountIdByName('self');
+  const peersToIpns = {
+    
+  };
   
-  console.log('geesomeApp.storage[\'node\']._ipns.cache', );
+  const selfIpnsId = await geesomeApp.storage.getAccountIdByName('self');
+  console.log('selfIpnsId',selfIpnsId);
+  
+  geesomeApp.storage['fsub'].libp2p.on('peer:disconnect', (peerDisconnect) => {
+    const peerId = peerDisconnect.id._idB58String;
+    if(peersToIpns[peerId]) {
+      console.log('❗️ Disconected from remote node!');
+    }
+  });
+  geesomeApp.storage['fsub'].libp2p.on('connection:start', (connectionStart) => {
+    const peerId = connectionStart.id._idB58String;
+    if(peersToIpns[peerId]) {
+      console.log('✅️ Connected to remote node!');
+      Array.from(peersToIpns[peerId]).forEach((ipnsId) => {
+        subscribeToIpnsUpdates(ipnsId);
+      })
+    }
+  });
+  // geesomeApp.storage['fsub'].libp2p.on('disconnected', (disconected) => {
+  //   // console.log('disconected', disconected.id._idB58String);
+  //   if(disconected.id._idB58String === remoteNode) {
+  //     console.log('❗️ Disconected from remote node!');
+  //   }
+  // });
+  // geesomeApp.storage['fsub'].libp2p.on('connection:end', (connectionEnd) => {
+  //   // console.log('connection:end', connectionEnd.id._idB58String);
+  //   if(connectionEnd.id._idB58String === remoteNode) {
+  //     console.log('❗️ Disconected from remote node!');
+  //   }
+  // });
   
   geesomeApp.database.getRemoteGroups().then(remoteGroups => {
-    // console.log('remoteGroups', remoteGroups);
     remoteGroups.forEach(subscribeForGroupUpdates)
   });
   
   geesomeApp.events.on(geesomeApp.events.NewRemoteGroup, subscribeForGroupUpdates);
   
   function subscribeForGroupUpdates(group: IGroup) {
-    console.log('subscribeForGroupUpdates', group.manifestStaticStorageId);
-    geesomeApp.storage.subscribeToIpnsUpdates(group.manifestStaticStorageId, (message) => {
-      handleIpnsUpdate(group.manifestStaticStorageId, message);
+    subscribeToIpnsUpdates(group.manifestStaticStorageId);
+  }
+  
+  const connectionIntervals = {};
+  
+  function subscribeToIpnsUpdates(ipnsId) {
+    console.log('📡 subscribeToIpnsUpdates', ipnsId);
+    geesomeApp.storage.subscribeToIpnsUpdates(ipnsId, (message) => {
+      handleIpnsUpdate(ipnsId, message);
     });
     
-    const checkConnectionInterval = setInterval(() => {
-      geesomeApp.storage.getPubSubLs().then((subscriptions) => {
-        const recordName = getIpnsUpdatesTopic(group.manifestStaticStorageId);
-        let isGroupExistInSubscriptions = subscriptions.some(peer => _.includes(peer, recordName));
-        console.log('subscriptions', subscriptions);
-        if(isGroupExistInSubscriptions) {
-          return;
+    if(connectionIntervals[ipnsId]) {
+      clearInterval(connectionIntervals[ipnsId]);
+    }
+
+    connectionIntervals[ipnsId] = setInterval(() => {
+      geesomeApp.storage.getIpnsPeers(ipnsId).then((peers) => {
+        if(!peers.length) {
+          subscribeToIpnsUpdates(ipnsId);
         }
-        console.log('group not exists in subscriptions', selfIpnsId, recordName);
-        
-        clearInterval(checkConnectionInterval);
-        subscribeForGroupUpdates(group);
+        peers.forEach(peerId => {
+          if(!peersToIpns[peerId]) {
+            peersToIpns[peerId] = new Set();
+          }
+          peersToIpns[peerId].add(ipnsId);
+        });
       })
-    }, 60 * 1000)
+    }, 5 * 60 * 1000)
   }
   
   function handleIpnsUpdate(ipnsId, message) {
