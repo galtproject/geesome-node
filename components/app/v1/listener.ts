@@ -64,6 +64,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
     connectionIntervals[ipnsId] = setInterval(() => {
       geesomeApp.storage.getIpnsPeers(ipnsId).then((peers) => {
+        console.log(ipnsId, 'peers', peers);
         if(!peers.length) {
           subscribeToIpnsUpdates(ipnsId);
         }
