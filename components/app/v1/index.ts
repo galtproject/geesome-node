@@ -150,7 +150,6 @@ class GeesomeApp implements IGeesomeApp {
   async loginUser(usernameOrEmail, password): Promise<any> {
     return new Promise((resolve, reject) => {
       this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
-        console.log('user', user);
         if (!user) {
           return null;
         }
@@ -191,19 +190,15 @@ class GeesomeApp implements IGeesomeApp {
     if (!groupId || _.isUndefined(groupId)) {
       return null;
     }
-    // console.log('checkGroupId', groupId);
     if (!commonHelper.isNumber(groupId)) {
       let group = await this.getGroupByManifestId(groupId, groupId);
-      // console.log('group', group);
       if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
-        // console.log('group createIfNotExist', groupId);
         return group.id;
       } else if(group) {
         groupId = group.id;
       }
     }
-    // console.log('groupId', groupId);
     return groupId;
   }
 
@@ -220,7 +215,6 @@ class GeesomeApp implements IGeesomeApp {
     groupData.storageAccountId = await this.storage.createAccountIfNotExists(groupData['name']);
     groupData.manifestStaticStorageId = groupData.storageAccountId;
 
-    console.log('createGroup', groupData);
     const group = await this.database.addGroup(groupData);
 
     await this.database.addAdminToGroup(userId, group.id);
