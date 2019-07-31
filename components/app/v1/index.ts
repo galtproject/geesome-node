@@ -467,7 +467,7 @@ class GeesomeApp implements IGeesomeApp {
       mimeType: type,
       previewMimeType: previewType as any,
       userId: options.userId,
-      view: ContentView.List,
+      view: ContentView.Contents,
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
@@ -519,7 +519,7 @@ class GeesomeApp implements IGeesomeApp {
       mimeType: type,
       previewMimeType: previewType as any,
       userId: options.userId,
-      view: ContentView.List,
+      view: ContentView.Attachment,
       storageId: storageFile.id,
       size: storageFile.size,
       name: name

@@ -189,8 +189,8 @@ export enum ContentMimeType {
 }
 
 export enum ContentView {
-  Slider = 'slider',
-  List = 'list'
+  Attachment = 'attachment',
+  Contents = 'contents'
 }
 
 export interface IPost {
