@@ -6,7 +6,7 @@ sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password pas
 sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password_again password root'
 
 sudo apt-get install python build-essential libssl-dev mysql-server-5.7 ffmpeg -y
-mysql -uroot -proot -e "create database geesome_node; ALTER DATABASE geesome_node CHARACTER SET utf8 COLLATE utf8_general_ci;"
+bash/create-database.sh
 mysql -uroot -proot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'"
 
 sudo apt-get install curl python-software-properties -y

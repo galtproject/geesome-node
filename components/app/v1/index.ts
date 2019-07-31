@@ -802,7 +802,10 @@ class GeesomeApp implements IGeesomeApp {
       limit = 20;
     if (!offset)
       offset = 0;
-    return this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset);
+    return {
+      list: await this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset),
+      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type)
+    };
   }
 
   async getFileCatalogItemsBreadcrumbs(userId, itemId) {

@@ -360,7 +360,9 @@ export default {
       resolveIpns(ipns) {
         return wrap($http.get(`/resolve/${ipns}`)).catch(() => null);
       },
-      getFileCatalogItems(parentItemId, type?, sortBy?, sortDir?, limit?, offset?) {
+      getFileCatalogItems(parentItemId, type?, params?) {
+        let {sortBy, sortDir, limit, offset} = params;
+        
         if (!sortBy) {
           sortBy = 'updatedAt';
         }
@@ -390,8 +392,9 @@ export default {
       getContentsIdsByFileCatalogIds(fileCatalogIds) {
         return wrap($http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds));
       },
-      getAllItems(itemsName, search?, sortField?, sortDir?, limit?, offset?) {
-        return wrap($http.get(`/v1/admin/all-` + itemsName, {params: {search, sortField, sortDir, limit, offset}}));
+      getAllItems(itemsName, search?, params?) {
+        let {sortBy, sortDir, limit, offset} = params;
+        return wrap($http.get(`/v1/admin/all-` + itemsName, {params: {search, sortBy, sortDir, limit, offset}}));
       },
       adminCreateUser(userData) {
         return wrap($http.post(`/v1/admin/add-user`, userData));

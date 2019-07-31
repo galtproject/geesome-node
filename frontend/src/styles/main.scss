@@ -215,13 +215,14 @@ a.icon-link {
       cursor: pointer;
       display: flex;
       align-items: stretch;
-      height: 100%;
+      //height: 100%;
       min-height: 65px;
       & > *:first-child {
         width: 27%;
       }
       & > *:last-child {
         width: 73%;
+        padding-left: 5px;
       }
       .file-checkbox-container, .file-name-container {
         &, &:before {
@@ -234,7 +235,19 @@ a.icon-link {
         }
       }
       .md-elevation-3 {
-        height: 100%;
+        //height: 100%;
+        min-height: 45px;
+      }
+      .file-manifest-container {
+        font-size: 11px;
+        padding: 5px;
+        background: #2f2f2f;
+        .icon-link {
+          padding: 0;
+          position: relative;
+          bottom: 2px;
+          right: 3px;
+        }
       }
     }
 
@@ -260,7 +273,6 @@ a.icon-link {
       }
     }
     .file-name-container {
-      margin-left: 5px;
       padding: 5px;
       line-height: 1.2;
       font-size: 13px;

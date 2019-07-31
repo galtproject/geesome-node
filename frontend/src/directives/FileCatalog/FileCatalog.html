@@ -26,8 +26,8 @@
         </md-card-content>
       </md-card>
 
-      <div class="file-catalog-folders md-layout" v-if="folders.length">
-        <div class="md-layout-item md-size-25" v-for="folder in folders">
+      <div class="file-catalog-foldersList md-layout" v-if="foldersList.length">
+        <div class="md-layout-item md-size-25" v-for="folder in foldersList">
           <div class="folder-item">
             <div v-if="selectMode">
               <div class="md-elevation-3 file-checkbox-container">
@@ -37,13 +37,15 @@
 
             <div @click="openFolder(folder)">
               <div class="md-elevation-3 file-name-container">
-                {{folder.name}}
+                {{folder.name | prettyFileName}}
               </div>
             </div>
           </div>
         </div>
       </div>
       <div class="file-catalog-not-found" v-else>Folders not found</div>
+
+      <pagination :total="foldersTotal" :per-page="foldersPerPage" :current-page.sync="foldersCurrentPage" :display-pages="10"></pagination>
 
       <div class="file-catalog-header md-subhead">
         <span>Files</span>
@@ -59,8 +61,8 @@
         </md-card-content>
       </md-card>
 
-      <div class="file-catalog-files md-layout" v-if="files.length">
-        <div class="md-layout-item md-size-25" v-for="file in files">
+      <div class="file-catalog-files md-layout" v-if="filesList.length">
+        <div class="md-layout-item md-size-25" v-for="file in filesList">
           <div class="file-item">
             <div v-if="selectMode">
               <div class="md-elevation-3 file-checkbox-container">
@@ -70,7 +72,11 @@
 
             <div @click="showFile(file)">
               <div class="md-elevation-3 file-name-container">
-                {{file.name | hexCut}}
+                {{file.name | prettyFileName}}
+              </div>
+              <div class="md-elevation-3 file-manifest-container">
+                <span>Manifest:</span>
+                <pretty-hex :hex="file.content.manifestStorageId"></pretty-hex>
               </div>
             </div>
           </div>
@@ -78,6 +84,7 @@
       </div>
       <div class="file-catalog-not-found" v-else>Files not found</div>
 
+      <pagination :total="filesTotal" :per-page="filesPerPage" :current-page.sync="filesCurrentPage" :display-pages="10"></pagination>
     </div>
     <div class="md-layout-item md-size-20" v-if="currentFile">
       <content-manifest-info-item :db-id="currentFile.content.id" :vertical-mode="true"></content-manifest-info-item>

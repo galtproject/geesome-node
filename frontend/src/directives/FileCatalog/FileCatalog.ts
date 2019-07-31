@@ -12,107 +12,144 @@
  */
 
 import ContentManifestInfoItem from "../ContentManifestInfoItem/ContentManifestInfoItem";
+import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
 
 export default {
-    name: 'file-catalog',
-    template: require('./FileCatalog.html'),
-    components: {ContentManifestInfoItem},//UploadContent, 
-    props: ['selectMode', 'selectedIds', 'hideMethods'],
-    async created() {
+  name: 'file-catalog',
+  template: require('./FileCatalog.html'),
+  components: {ContentManifestInfoItem, Pagination},//UploadContent, 
+  props: ['selectMode', 'selectedIds', 'hideMethods'],
+  async created() {
+    this.getItems();
+    this.localSelectedIds = this.selectedIds || [];
+  },
+
+  async mounted() {
+
+  },
+
+  methods: {
+    async getItems() {
+      await this.getFolders();
+      await this.getFiles();
+    },
+    async getFolders() {
+      this.loading = true;
+      this.folders = await this.$coreApi.getFileCatalogItems(this.parentItemId, 'folder', {
+        limit: this.foldersPerPage,
+        offset: (this.foldersCurrentPage - 1) * this.foldersPerPage
+      });
+      this.loading = false;
+    },
+    async getFiles() {
+      this.loading = true;
+      this.files = await this.$coreApi.getFileCatalogItems(this.parentItemId, 'file', {
+        limit: this.filesPerPage,
+        offset: (this.filesCurrentPage - 1) * this.foldersPerPage
+      });
+      this.loading = false;
+    },
+    async getBreadcrumbs() {
+      if (!this.parentItemId) {
+        this.breadcrumbs = [];
+        return;
+      }
+      this.breadcrumbs = await this.$coreApi.getFileCatalogBreadcrumbs(this.parentItemId);
+    },
+    openFolder(item) {
+      this.parentItemId = item.id;
+      this.currentFile = null;
+      this.getItems();
+      this.getBreadcrumbs();
+    },
+    showFile(file) {
+      this.currentFile = file;
+      console.log('this.currentFile', this.currentFile);
+    },
+    addFolder() {
+      this.showNewFolder = !this.showNewFolder;
+    },
+    saveFolder() {
+      this.$coreApi.createFolder(this.parentItemId, this.newFolder.name).then(() => {
         this.getItems();
-        this.localSelectedIds = this.selectedIds || [];
+        this.$notify({
+          type: 'success',
+          title: "Success"
+        });
+        this.showNewFolder = false;
+      }).catch(() => {
+        this.$notify({
+          type: 'error',
+          title: "Error",
+          text: "Maybe already exist item with same name in same folder"
+        });
+      })
     },
+    uploadFile() {
+      this.showNewFile = !this.showNewFile;
+    },
+    fileUploaded(data) {
+      if (data.method === 'choose-uploaded') {
+        this.$coreApi.addContentIdToFolderId(data.id, this.parentItemId).then(() => {
+          this.getItems();
+        })
+      } else {
+        this.getItems();
+      }
+    },
+    getLocale(key, options?) {
+      return this.$locale.get(this.localeKey + "." + key, options);
+    }
+  },
 
-    async mounted() {
-        
+  watch: {
+    localSelectedIds() {
+      this.$emit('update:selected-ids', this.localSelectedIds);
     },
+    filesCurrentPage() {
+      this.getFiles()
+    },
+    foldersCurrentPage() {
+      this.getFolders()
+    }
+  },
 
-    methods: {
-        async getItems() {
-            this.loading = true;
-            this.folders = await this.$coreApi.getFileCatalogItems(this.parentItemId, 'folder');
-            this.files = await this.$coreApi.getFileCatalogItems(this.parentItemId, 'file');
-            this.loading = false;
-        },
-        async getBreadcrumbs() {
-            if(!this.parentItemId) {
-                this.breadcrumbs = [];
-                return;
-            }
-            this.breadcrumbs = await this.$coreApi.getFileCatalogBreadcrumbs(this.parentItemId);
-        },
-        openFolder (item) {
-            this.parentItemId = item.id;
-            this.currentFile = null;
-            this.getItems();
-            this.getBreadcrumbs();
-        },
-        showFile(file) {
-            this.currentFile = file;
-            console.log('this.currentFile', this.currentFile);
-        },
-        addFolder() {
-            this.showNewFolder = !this.showNewFolder;
-        },
-        saveFolder() {
-            this.$coreApi.createFolder(this.parentItemId, this.newFolder.name).then(() => {
-                this.getItems();
-                this.$notify({
-                    type: 'success',
-                    title: "Success"
-                });
-                this.showNewFolder = false;
-            }).catch(() => {
-                this.$notify({
-                    type: 'error',
-                    title: "Error",
-                    text: "Maybe already exist item with same name in same folder"
-                });
-            })
-        },
-        uploadFile() {
-            this.showNewFile = !this.showNewFile;
-        },
-        fileUploaded(data) {
-            if(data.method === 'choose-uploaded') {
-                this.$coreApi.addContentIdToFolderId(data.id, this.parentItemId).then(() => {
-                    this.getItems();
-                })
-            } else {
-                this.getItems();
-            }
-        },
-        getLocale(key, options?) {
-            return this.$locale.get(this.localeKey + "." + key, options);
-        }
+  computed: {
+    filesList() {
+      return this.files.list;
     },
-
-    watch: {
-        localSelectedIds() {
-            this.$emit('update:selected-ids', this.localSelectedIds);
-        }
+    filesTotal() {
+      return this.files.total;
     },
-
-    computed: {
-        user() {
-            return this.$store.state.user;
-        }
+    foldersList() {
+      return this.folders.list;
     },
-    data() {
-        return {
-            localeKey: 'file_catalog',
-            loading: true,
-            parentItemId: null,
-            breadcrumbs: [],
-            folders: [],
-            files: [],
-            localSelectedIds: [],
-            currentFile: null,
-            showNewFolder: false,
-            newFolder: {
-                name: ''
-            },
-            showNewFile: false
-        }
+    foldersTotal() {
+      return this.folders.total;
     },
+    user() {
+      return this.$store.state.user;
+    }
+  },
+  data() {
+    return {
+      localeKey: 'file_catalog',
+      loading: true,
+      parentItemId: null,
+      breadcrumbs: [],
+      folders: [],
+      files: [],
+      localSelectedIds: [],
+      currentFile: null,
+      showNewFolder: false,
+      newFolder: {
+        name: ''
+      },
+      showNewFile: false,
+      filesPerPage: 20,
+      foldersPerPage: 20,
+      foldersCurrentPage: 1,
+      filesCurrentPage: 1
+    }
+  },
 }
