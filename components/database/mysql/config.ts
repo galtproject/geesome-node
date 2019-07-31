@@ -12,7 +12,7 @@
  */
 
 module.exports = {
-    'name': 'geesome_core',
+    'name': 'geesome_node',
     'user': 'root',
     'password': 'root',
     'options': {

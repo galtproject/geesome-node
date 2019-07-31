@@ -12,29 +12,30 @@
  */
 
 module.exports = {
-    databaseModule: 'mysql',
-    databaseConfig: {},
-    storageModule: 'js-ipfs',
-    storageConfig: {
-        jsNode: {
-            // getting by getSecretKey
-            pass: '',
-            EXPERIMENTAL: {
-                pubsub: true,
-                ipnsPubsub: true
-            }
-        },
-        goNode: {
-            // host: 'ipfs.infura.io', port: '5001', protocol: 'https'
-            host: 'localhost', 
-            port: '5001', 
-            protocol: 'http'
-        }
+  databaseModule: 'mysql',
+  databaseConfig: {},
+  storageModule: 'js-ipfs',
+  storageConfig: {
+    jsNode: {
+      // getting by getSecretKey
+      pass: '',
+      // path: '$HOME/.jsipfs',
+      EXPERIMENTAL: {
+        pubsub: true,
+        ipnsPubsub: true
+      }
     },
-    apiModule: 'http-v1',
-    apiConfig: {},
-    authorizationModule: 'passport',
-    authorizationConfig: {},
-    renderModule: 'entity-json-manifest',
-    renderConfig: {}
+    goNode: {
+      // host: 'ipfs.infura.io', port: '5001', protocol: 'https'
+      host: 'localhost',
+      port: '5001',
+      protocol: 'http'
+    }
+  },
+  apiModule: 'http-v1',
+  apiConfig: {},
+  authorizationModule: 'passport',
+  authorizationConfig: {},
+  renderModule: 'entity-json-manifest',
+  renderConfig: {}
 };

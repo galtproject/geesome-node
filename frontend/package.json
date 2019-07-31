@@ -1,5 +1,5 @@
 {
-  "name": "@galtproject/geesome-ui",
+  "name": "geesome-node-ui",
   "version": "0.1.0",
   "main": "index.js",
   "scripts": {
@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git://github.com/galtspace/galtproject-frontend-core.git#973cdac",
+    "@galtproject/frontend-core": "git://github.com/galtspace/galtproject-frontend-core.git#3c9db81",
     "async": "^2.5.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",

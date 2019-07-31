@@ -151,7 +151,7 @@ class GeesomeApp implements IGeesomeApp {
     return new Promise((resolve, reject) => {
       this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
         if (!user) {
-          return null;
+          return resolve(null);
         }
         bcrypt.compare(password, user.passwordHash, async function (err, result) {
           resolve(result ? user : null);
@@ -615,6 +615,8 @@ class GeesomeApp implements IGeesomeApp {
       contentId: content.id,
       apiKey: options.apiKey
     });
+    
+    console.log('updateContentManifest', content);
 
     await this.updateContentManifest(content.id);
 

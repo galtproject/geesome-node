@@ -294,7 +294,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getFileCatalogItems(userId, parentItemId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+  async getFileCatalogItems(userId, parentItemId, type = null, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
     limit = parseInt(limit as any) || 10;
     offset = parseInt(offset as any) || 0;
     return this.models.FileCatalogItem.findAll({
@@ -306,7 +306,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getFileCatalogItemsByContent(userId, contentId, type = undefined, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+  async getFileCatalogItemsByContent(userId, contentId, type = null, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
     limit = parseInt(limit as any) || 10;
     offset = parseInt(offset as any) || 0;
     return this.models.FileCatalogItem.findAll({
@@ -317,7 +317,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getFileCatalogItemsCount(userId, parentItemId, type = undefined) {
+  async getFileCatalogItemsCount(userId, parentItemId, type = null) {
     return this.models.FileCatalogItem.count({
       where: {userId, parentItemId, type}
     });

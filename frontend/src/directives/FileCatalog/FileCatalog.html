@@ -70,7 +70,7 @@
 
             <div @click="showFile(file)">
               <div class="md-elevation-3 file-name-container">
-                {{file.name}}
+                {{file.name | hexCut}}
               </div>
             </div>
           </div>

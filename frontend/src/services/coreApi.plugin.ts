@@ -13,29 +13,16 @@
 
 import axios from 'axios';
 import {ClientStorage} from "./clientStorage";
-// const config = require('../../config');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const trie = require('@galtproject/geesome-libs/src/base36Trie');
 const JsIpfsService = require('@galtproject/geesome-libs/src/JsIpfsService');
-// import {JsIpfsService} from "../../../components/storage/JsIpfsService";
-//
-// const IPFS = require('ipfs');
-//
-// const node = new IPFS({ host: config.serverBaseUrl.split('://')[1], port: '5001', protocol: config.serverBaseUrl.split('://')[0] });
 
 
 export default {
   install(Vue, options: any = {}) {
-    let $http = axios.create({
-      // baseURL: config.serverBaseUrl,
-      // headers: {'Authorization': 'unauthorized'},
-      // withCredentials: true,
-      // mode: 'no-cors',
-    });
-
-    let current;
+    let $http = axios.create({});
 
     getApiKey();
 
@@ -66,14 +53,14 @@ export default {
       $http.defaults.baseURL = appStore.state.serverAddress;
     }
 
-    function promiseMeJsIpfs () {
+    function initBrowserIpfsNode (options) {
       return new Promise((resolve, reject) => {
-        const ipfs = window['Ipfs'].createNode({
+        const ipfs = window['Ipfs'].createNode(_.merge({
           EXPERIMENTAL: {
             pubsub: true,
             ipnsPubsub: true
           }
-        });
+        }, options));
         ipfs.once('ready', () => resolve(ipfs))
         ipfs.once('error', err => reject(err))
       })
@@ -91,26 +78,64 @@ export default {
         appStore = store;
 
         let server = localStorage.getItem('geesome-server');
+        let isLocalServer;
         if (!server) {
           let port = 7722;
           if (document.location.hostname === 'localhost' || document.location.hostname === '127.0.0.1' || _.startsWith(document.location.pathname, '/node')) {
             port = 7711;
+            isLocalServer = true;
           }
           server = document.location.protocol + "//" + document.location.hostname + ":" + port;
+        } else {
+          isLocalServer = _.includes(server, ':7711');
         }
 
         changeServer(server);
         serverIpfsAddresses = await this.getNodeAddressList();
         
-        node = await promiseMeJsIpfs();
+        serverIpfsAddresses.forEach(address => {
+          if(_.includes(address, '192.168')) {
+            serverIpfsAddresses.push(address.replace(/\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/, '127.0.0.1'));
+          }
+        });
+        
+        let preloadAddresses;
+        
+        if(isLocalServer) {
+          preloadAddresses = serverIpfsAddresses.filter((address) => {
+            return _.includes(address, '127.0.0.1');
+          })
+        } else {
+          preloadAddresses = serverIpfsAddresses.filter((address) => {
+            return !_.includes(address, '127.0.0.1') && !_.includes(address, '192.') && address.length > 64;
+          })
+        }
+
+        preloadAddresses = preloadAddresses.map(address => {
+          return address.replace('/p2p-circuit', '').replace('4002', '5001');
+        });
+
+        preloadAddresses = ['/ip4/127.0.0.1/tcp/5001/http'];
+        
+        console.log('preloadAddresses', preloadAddresses);
+
+        preloadAddresses = preloadAddresses.concat([
+          //TODO: get from some dynamic place
+          '/dns4/node0.preload.ipfs.io/tcp/443/wss/ipfs/QmZMxNdpMkewiVZLMRxaNxUeZpDUb34pWjZ1kZvsd16Zic',
+          '/dns4/node1.preload.ipfs.io/tcp/443/wss/ipfs/Qmbut9Ywz9YEDrz8ySBSgWyJk41Uvm2QJPhwDJzJyGFsD6'
+        ]);
+        
+        node = await initBrowserIpfsNode({
+          preload: {
+            enabled: true,
+            addresses: preloadAddresses
+          }
+        });
+        
         ipfsService = new JsIpfsService(node);
 
         await pIteration.forEach(serverIpfsAddresses, async (address) => {
-          if(_.includes(address, '192.168')) {
-            const localAddress = address.replace(/\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/, '127.0.0.1');
-            await ipfsService.addBootNode(localAddress).then(() => console.log('successful connect to ', localAddress)).catch(() =>  console.warn('failed connect to ', localAddress))
-          }
-          return ipfsService.addBootNode(address).then(() => console.log('successful connect to ', address)).catch(() =>  console.warn('failed connect to ', address));
+          return ipfsService.addBootNode(address).then(() => console.log('successful connect to ', address)).catch((e) =>  console.warn('failed connect to ', address, e));
         })
       },
       getCurrentUser() {
