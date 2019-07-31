@@ -14,6 +14,7 @@
 import PostItem from "../../directives/Posts/PostItem/PostItem";
 import NewPostControl from "./NewPostControl/NewPostControl";
 import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
+
 const _ = require('lodash');
 
 export default {
@@ -27,7 +28,10 @@ export default {
     async getPosts() {
       this.posts = [];
       this.loading = true;
-      await this.$coreApi.getGroupPostsAsync(this.groupId, {limit: this.perPage, offset: (this.currentPage - 1) * this.perPage}, (posts) => {
+      await this.$coreApi.getGroupPostsAsync(this.groupId, {
+        limit: this.perPage,
+        offset: (this.currentPage - 1) * this.perPage
+      }, (posts) => {
         this.posts = _.clone(posts);
       }, (posts) => {
         this.posts = _.clone(posts);

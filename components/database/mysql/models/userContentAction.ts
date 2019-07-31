@@ -12,33 +12,33 @@
  */
 
 module.exports = async function (sequelize, models) {
-    const Sequelize = require('sequelize');
-    
-    const UserContentAction = sequelize.define('userContentAction', {
-        // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-        name: {
-            type: Sequelize.STRING(200)
-        },
-        size: {
-            type: Sequelize.INTEGER
-        },
-    } as any, {
-        indexes: [
-            // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-            // { fields: ['chainAccountAddress'] },
-            // { fields: ['tokensAddress'] },
-            // { fields: ['tokensAddress', 'chainAccountAddress'] }
-        ]
-    } as any);
+  const Sequelize = require('sequelize');
 
-    UserContentAction.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(UserContentAction, { as: 'contentActions', foreignKey: 'userId' });
-    
-    UserContentAction.belongsTo(models.UserApiKey, { as: 'userApiKey', foreignKey: 'userApiKeyId' });
-    models.UserApiKey.hasMany(UserContentAction, { as: 'contentActions', foreignKey: 'userApiKeyId' });
-    
-    UserContentAction.belongsTo(models.Content, { as: 'content', foreignKey: 'contentId' });
-    models.Content.hasMany(UserContentAction, { as: 'usersContentActions', foreignKey: 'contentId' });
+  const UserContentAction = sequelize.define('userContentAction', {
+    // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+    name: {
+      type: Sequelize.STRING(200)
+    },
+    size: {
+      type: Sequelize.INTEGER
+    },
+  } as any, {
+    indexes: [
+      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+      // { fields: ['chainAccountAddress'] },
+      // { fields: ['tokensAddress'] },
+      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+    ]
+  } as any);
 
-    return UserContentAction.sync({});
+  UserContentAction.belongsTo(models.User, {as: 'user', foreignKey: 'userId'});
+  models.User.hasMany(UserContentAction, {as: 'contentActions', foreignKey: 'userId'});
+
+  UserContentAction.belongsTo(models.UserApiKey, {as: 'userApiKey', foreignKey: 'userApiKeyId'});
+  models.UserApiKey.hasMany(UserContentAction, {as: 'contentActions', foreignKey: 'userApiKeyId'});
+
+  UserContentAction.belongsTo(models.Content, {as: 'content', foreignKey: 'contentId'});
+  models.Content.hasMany(UserContentAction, {as: 'usersContentActions', foreignKey: 'contentId'});
+
+  return UserContentAction.sync({});
 };

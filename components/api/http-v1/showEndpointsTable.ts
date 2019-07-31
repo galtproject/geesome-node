@@ -16,5 +16,5 @@ const config = require('./config');
 console.log(`| URL | Header | Body | Response |`);
 console.log(`| --- | --- | --- | --- |`);
 config.endpointsInfo.map((endpoint) => {
-    console.log(`| ${endpoint.uri} | ${endpoint.header} | ${endpoint.body} | ${endpoint.response} |`);
+  console.log(`| ${endpoint.uri} | ${endpoint.header} | ${endpoint.body} | ${endpoint.response} |`);
 });

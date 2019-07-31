@@ -80,9 +80,9 @@ module.exports = async (extendConfig) => {
   // }
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
-  
+
   app.events = appEvents(app);
-  
+
   await appCron(app);
   await appListener(app);
 
@@ -195,7 +195,7 @@ class GeesomeApp implements IGeesomeApp {
       if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
         return group.id;
-      } else if(group) {
+      } else if (group) {
         groupId = group.id;
       }
     }
@@ -255,8 +255,8 @@ class GeesomeApp implements IGeesomeApp {
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
     }));
-    
-    if(dbGroup.isRemote) {
+
+    if (dbGroup.isRemote) {
       this.events.emit(this.events.NewRemoteGroup, dbGroup);
     }
     return dbGroup;
@@ -264,7 +264,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async createContentByObject(contentObject) {
     const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-    if(!storageId) {
+    if (!storageId) {
       return null;
     }
     let dbContent = await this.database.getContentByStorageId(storageId);
@@ -615,7 +615,7 @@ class GeesomeApp implements IGeesomeApp {
       contentId: content.id,
       apiKey: options.apiKey
     });
-    
+
     console.log('updateContentManifest', content);
 
     await this.updateContentManifest(content.id);
@@ -718,11 +718,11 @@ class GeesomeApp implements IGeesomeApp {
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
     let storageUpdatedAt = group.storageUpdatedAt;
     let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
-    
-    if(manifestStorageId != group.manifestStorageId) {
+
+    if (manifestStorageId != group.manifestStorageId) {
       storageUpdatedAt = new Date();
       staticStorageUpdatedAt = new Date();
-      
+
       await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
     }
 
@@ -769,9 +769,9 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupByManifestId(groupId, staticId) {
-    if(!staticId) {
+    if (!staticId) {
       const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
-      if(historyItem) {
+      if (historyItem) {
         staticId = historyItem.staticId;
       }
     }
@@ -895,7 +895,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getGroupPeers(groupId) {
     let ipnsId;
-    if(ipfsHelper.isIpfsHash(groupId)) {
+    if (ipfsHelper.isIpfsHash(groupId)) {
       ipnsId = groupId;
     } else {
       const group = await this.database.getGroup(groupId);
@@ -903,7 +903,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     return this.getIpnsPeers(ipnsId);
   }
-  
+
   async resolveStaticId(staticId) {
     return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
       try {
@@ -920,7 +920,7 @@ class GeesomeApp implements IGeesomeApp {
       }
     }).catch(async (err) => {
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      if(staticIdItem) {
+      if (staticIdItem) {
         return staticIdItem.dynamicId;
       } else {
         throw (err);

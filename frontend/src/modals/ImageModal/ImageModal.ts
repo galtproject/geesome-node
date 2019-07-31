@@ -14,23 +14,21 @@
 import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 
 export default {
-    template: require('./ImageModal.html'),
-    props: ['images'],
-    components: {
-        ModalItem
-    },
-    created() {
+  template: require('./ImageModal.html'),
+  props: ['images'],
+  components: {
+    ModalItem
+  },
+  created() {
 
-    },
-    methods: {
-        async close() {
-            this.$root.$asyncModal.close('image-modal');
-        }
-    },
-    watch: {},
-    data: function () {
-        return {
-            
-        }
+  },
+  methods: {
+    async close() {
+      this.$root.$asyncModal.close('image-modal');
     }
+  },
+  watch: {},
+  data: function () {
+    return {}
+  }
 }

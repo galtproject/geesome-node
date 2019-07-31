@@ -14,24 +14,18 @@
 import FileCatalog from "../../directives/FileCatalog/FileCatalog";
 
 export default {
-    template: require('./FileExplorerPage.html'),
-    components: {FileCatalog},
-    props: [],
-    async created() {
-        
-    },
-    methods: {
-        
-    },
-    watch: {
-        
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'file_explorer_page',
-        };
-    }
+  template: require('./FileExplorerPage.html'),
+  components: {FileCatalog},
+  props: [],
+  async created() {
+
+  },
+  methods: {},
+  watch: {},
+  computed: {},
+  data() {
+    return {
+      localeKey: 'file_explorer_page',
+    };
+  }
 }

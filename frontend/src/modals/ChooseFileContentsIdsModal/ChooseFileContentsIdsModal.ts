@@ -15,37 +15,37 @@ import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 import FileCatalog from "../../directives/FileCatalog/FileCatalog";
 
 export default {
-    template: require('./ChooseFileContentsIdsModal.html'),
-    props: [],
-    components: {
-        ModalItem,
-        FileCatalog
-    },
-    created() {
+  template: require('./ChooseFileContentsIdsModal.html'),
+  props: [],
+  components: {
+    ModalItem,
+    FileCatalog
+  },
+  created() {
 
+  },
+  methods: {
+    tabChanged(tabName) {
+      this.currentTab = tabName;
     },
-    methods: {
-        tabChanged(tabName) {
-            this.currentTab = tabName;
-        },
-        fileUploaded(data) {
-            this.$root.$asyncModal.close('choose-file-contents-ids-modal', [data.id]);
-        },
-        async ok() {
-            this.contentsIds = await this.$coreApi.getContentsIdsByFileCatalogIds(this.fileCatalogItemsIds);
-            this.$root.$asyncModal.close('choose-file-contents-ids-modal', this.contentsIds);
-        },
-        cancel() {
-            this.$root.$asyncModal.close('choose-file-contents-ids-modal');
-        }
+    fileUploaded(data) {
+      this.$root.$asyncModal.close('choose-file-contents-ids-modal', [data.id]);
     },
-    watch: {},
-    data: function () {
-        return {
-            localeKey: 'choose_file_contents_ids_modal',
-            currentTab: 'upload',
-            contentsIds: [],
-            fileCatalogItemsIds: []
-        }
+    async ok() {
+      this.contentsIds = await this.$coreApi.getContentsIdsByFileCatalogIds(this.fileCatalogItemsIds);
+      this.$root.$asyncModal.close('choose-file-contents-ids-modal', this.contentsIds);
+    },
+    cancel() {
+      this.$root.$asyncModal.close('choose-file-contents-ids-modal');
     }
+  },
+  watch: {},
+  data: function () {
+    return {
+      localeKey: 'choose_file_contents_ids_modal',
+      currentTab: 'upload',
+      contentsIds: [],
+      fileCatalogItemsIds: []
+    }
+  }
 }

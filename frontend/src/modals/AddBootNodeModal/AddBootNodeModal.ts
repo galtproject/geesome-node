@@ -14,30 +14,28 @@
 import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 
 export default {
-    template: require('./AddBootNodeModal.html'),
-    props: [],
-    components: {
-        ModalItem
-    },
-    created() {
+  template: require('./AddBootNodeModal.html'),
+  props: [],
+  components: {
+    ModalItem
+  },
+  created() {
 
+  },
+  methods: {
+    async ok() {
+      await this.$coreApi.adminAddBootNode(this.nodeAddress);
+      this.$root.$asyncModal.close('add-boot-node-modal');
     },
-    methods: {
-        async ok() {
-            await this.$coreApi.adminAddBootNode(this.nodeAddress);
-            this.$root.$asyncModal.close('add-boot-node-modal');
-        },
-        async cancel() {
-            this.$root.$asyncModal.close('add-boot-node-modal');
-        }
-    },
-    watch: {},
-    computed: {
-        
-    },
-    data: function () {
-        return {
-            nodeAddress: ''
-        }
+    async cancel() {
+      this.$root.$asyncModal.close('add-boot-node-modal');
     }
+  },
+  watch: {},
+  computed: {},
+  data: function () {
+    return {
+      nodeAddress: ''
+    }
+  }
 }

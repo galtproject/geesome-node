@@ -12,30 +12,22 @@
  */
 
 export default {
-    template: require('./PostsContainer.html'),
-    props: ['mode'],
-    async created() {
+  template: require('./PostsContainer.html'),
+  props: ['mode'],
+  async created() {
 
-    },
+  },
 
-    async mounted() {
+  async mounted() {
 
-    },
+  },
 
-    methods: {
-        
-    },
+  methods: {},
 
-    watch: {
-        
-    },
+  watch: {},
 
-    computed: {
-        
-    },
-    data() {
-        return {
-            
-        }
-    },
+  computed: {},
+  data() {
+    return {}
+  },
 }

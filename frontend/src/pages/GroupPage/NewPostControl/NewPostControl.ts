@@ -15,58 +15,56 @@ import ContentManifestInfoItem from "../../../directives/ContentManifestInfoItem
 import {EventBus, UPDATE_GROUP} from "../../../services/events";
 
 export default {
-    template: require('./NewPostControl.html'),
-    props: ['group'],
-    components: {ContentManifestInfoItem},
-    async created() {
-        this.fetchData();
-    },
+  template: require('./NewPostControl.html'),
+  props: ['group'],
+  components: {ContentManifestInfoItem},
+  async created() {
+    this.fetchData();
+  },
 
-    async mounted() {
+  async mounted() {
 
-    },
+  },
 
-    methods: {
-        async fetchData() {
-            if(!this.group) {
-                this.canCreatePosts = false;
-                return;
-            }
-            this.canCreatePosts = await this.$coreApi.getCanCreatePost(this.group.id);
-        },
-        handleUpload(data) {
-            this.postContentsDbIds.push(data.id);
-        },
-        deleteContent(index) {
-            this.postContentsDbIds.splice(index, 1);
-        },
-        publishPost() {
-            const postContentsDbIds = this.postContentsDbIds;
-            this.postContentsDbIds = [];
-            this.saving = true;
-            this.$coreApi.createPost(postContentsDbIds, {groupId: this.group.id, status: 'published'}).then(() => {
-                this.saving = false;
-                this.$emit('new-post');
-                EventBus.$emit(UPDATE_GROUP, this.group.id);
-            })
-        },
+  methods: {
+    async fetchData() {
+      if (!this.group) {
+        this.canCreatePosts = false;
+        return;
+      }
+      this.canCreatePosts = await this.$coreApi.getCanCreatePost(this.group.id);
     },
+    handleUpload(data) {
+      this.postContentsDbIds.push(data.id);
+    },
+    deleteContent(index) {
+      this.postContentsDbIds.splice(index, 1);
+    },
+    publishPost() {
+      const postContentsDbIds = this.postContentsDbIds;
+      this.postContentsDbIds = [];
+      this.saving = true;
+      this.$coreApi.createPost(postContentsDbIds, {groupId: this.group.id, status: 'published'}).then(() => {
+        this.saving = false;
+        this.$emit('new-post');
+        EventBus.$emit(UPDATE_GROUP, this.group.id);
+      })
+    },
+  },
 
-    watch: {
-        group() {
-            this.fetchData();
-        }
-    },
+  watch: {
+    group() {
+      this.fetchData();
+    }
+  },
 
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'group_page',
-            canCreatePosts: false,
-            saving: false,
-            postContentsDbIds: []
-        }
-    },
+  computed: {},
+  data() {
+    return {
+      localeKey: 'group_page',
+      canCreatePosts: false,
+      saving: false,
+      postContentsDbIds: []
+    }
+  },
 }

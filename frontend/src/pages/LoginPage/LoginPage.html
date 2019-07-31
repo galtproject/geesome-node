@@ -1,30 +1,30 @@
 <posts-container :mode="'tight'">
-    <md-card>
-        <md-card-header>
-            <div class="md-title">Authorization</div>
-        </md-card-header>
+  <md-card>
+    <md-card-header>
+      <div class="md-title">Authorization</div>
+    </md-card-header>
 
-        <md-card-content>
-            <md-field>
-                <label>Geesome node</label>
-                <md-input v-model="server"></md-input>
-            </md-field>
-            
-            <md-field>
-                <label>Login</label>
-                <md-input v-model="username"></md-input>
-            </md-field>
-            
-            <md-field>
-                <label>Password</label>
-                <md-input v-model="password" type="password"></md-input>
-            </md-field>
-            
-            <md-button class="md-raised md-accent" @click="login()">
-                Login
-            </md-button>
-            
-            <div style="margin-top: 20px" class="md-error" v-if="error">Authorization failed, please try again</div>
-        </md-card-content>
-    </md-card>
+    <md-card-content>
+      <md-field>
+        <label>Geesome node</label>
+        <md-input v-model="server"></md-input>
+      </md-field>
+
+      <md-field>
+        <label>Login</label>
+        <md-input v-model="username"></md-input>
+      </md-field>
+
+      <md-field>
+        <label>Password</label>
+        <md-input v-model="password" type="password"></md-input>
+      </md-field>
+
+      <md-button class="md-raised md-accent" @click="login()">
+        Login
+      </md-button>
+
+      <div style="margin-top: 20px" class="md-error" v-if="error">Authorization failed, please try again</div>
+    </md-card-content>
+  </md-card>
 </posts-container>

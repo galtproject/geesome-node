@@ -12,6 +12,7 @@
  */
 
 export interface IRender {
-    generateContent(name, data, options?): Promise<any>;
-    manifestIdToDbObject(manifest): Promise<any>;
+  generateContent(name, data, options?): Promise<any>;
+
+  manifestIdToDbObject(manifest): Promise<any>;
 }

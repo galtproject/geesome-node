@@ -14,13 +14,15 @@
         <upload-content @uploaded="fileUploaded" :hide-methods="['enter_text', 'choose_uploaded']"></upload-content>
       </md-tab>
       <md-tab id="file-catalog" md-label="Choose uploaded">
-        <file-catalog :select-mode="true" :selected-ids.sync="fileCatalogItemsIds" :hide-methods="['enter_text', 'choose_uploaded']"></file-catalog>
+        <file-catalog :select-mode="true" :selected-ids.sync="fileCatalogItemsIds"
+                      :hide-methods="['enter_text', 'choose_uploaded']"></file-catalog>
       </md-tab>
     </md-tabs>
   </div>
 
   <template slot="footer">
     <md-button @click="cancel" class="md-raised"><span v-locale="localeKey + '.cancel'"></span></md-button>
-    <md-button @click="ok" class="md-raised md-accent" :disabled="!fileCatalogItemsIds.length"><span v-locale="localeKey + '.ok'"></span></md-button>
+    <md-button @click="ok" class="md-raised md-accent" :disabled="!fileCatalogItemsIds.length"><span
+        v-locale="localeKey + '.ok'"></span></md-button>
   </template>
 </modal-item>

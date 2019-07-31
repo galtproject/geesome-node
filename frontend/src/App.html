@@ -1,31 +1,31 @@
 <div style="height: 100%;">
-    <modal ref="modal"></modal>
-    <modal ref="sub_modal"></modal>
+  <modal ref="modal"></modal>
+  <modal ref="sub_modal"></modal>
 
-    <!--<wait-screen></wait-screen>-->
+  <!--<wait-screen></wait-screen>-->
 
-    <notifications :duration="7000" position="bottom right"></notifications>
-    
-    <div class="sk-cube-grid" v-if="loading">
-      <div class="sk-cube sk-cube1"></div>
-      <div class="sk-cube sk-cube2"></div>
-      <div class="sk-cube sk-cube3"></div>
-      <div class="sk-cube sk-cube4"></div>
-      <div class="sk-cube sk-cube5"></div>
-      <div class="sk-cube sk-cube6"></div>
-      <div class="sk-cube sk-cube7"></div>
-      <div class="sk-cube sk-cube8"></div>
-      <div class="sk-cube sk-cube9"></div>
-    </div>
-  
-    <md-app v-else>
-        <md-app-toolbar class="md-accent" md-elevation="0">
-            <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
-            <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
+  <notifications :duration="7000" position="bottom right"></notifications>
 
-            <span flex style="flex: 1"></span>
+  <div class="sk-cube-grid" v-if="loading">
+    <div class="sk-cube sk-cube1"></div>
+    <div class="sk-cube sk-cube2"></div>
+    <div class="sk-cube sk-cube3"></div>
+    <div class="sk-cube sk-cube4"></div>
+    <div class="sk-cube sk-cube5"></div>
+    <div class="sk-cube sk-cube6"></div>
+    <div class="sk-cube sk-cube7"></div>
+    <div class="sk-cube sk-cube8"></div>
+    <div class="sk-cube sk-cube9"></div>
+  </div>
 
-            <span>
+  <md-app v-else>
+    <md-app-toolbar class="md-accent" md-elevation="0">
+      <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
+      <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
+
+      <span flex style="flex: 1"></span>
+
+      <span>
               <div v-locale="localeKey + '.server_address'"></div>
               <small>{{serverAddress}}</small>
               
@@ -34,17 +34,18 @@
                 <router-link v-else :to="{name: 'login'}">Login</router-link>
               </div>
             </span>
-        </md-app-toolbar>
-        
-        
-        <md-app-drawer :md-active="menuVisible" md-persistent="mini" :class="{'minimized': menuMinimized}">
-            <main-menu :menu-visible.sync="menuVisible" :menu-minimized.sync="menuMinimized"></main-menu>
-        </md-app-drawer>
+    </md-app-toolbar>
 
-        <md-app-content>
-            <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading" style="margin-top: 100px;"></md-progress-bar>
 
-            <router-view v-if="!loading"></router-view>
-        </md-app-content>
-    </md-app>
+    <md-app-drawer :md-active="menuVisible" md-persistent="mini" :class="{'minimized': menuMinimized}">
+      <main-menu :menu-visible.sync="menuVisible" :menu-minimized.sync="menuMinimized"></main-menu>
+    </md-app-drawer>
+
+    <md-app-content>
+      <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"
+                       style="margin-top: 100px;"></md-progress-bar>
+
+      <router-view v-if="!loading"></router-view>
+    </md-app-content>
+  </md-app>
 </div>

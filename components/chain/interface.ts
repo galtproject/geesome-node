@@ -12,30 +12,44 @@
  */
 
 export interface IChainService {
-    getDefaultTokenAddress(): string;
-    getCoinbaseAddress(): string;
-    isValidAddress(address): boolean;
-    getCurrentBlock(): Promise<number>;
-    getChainId(): Promise<number>;
-    onReconnect(callback): void;
-    getTotalSupply(): Promise<any>;
-    getTokensBalance(address, tokenAddress?): Promise<any>;
-    getTokenSymbol(tokenAddress): Promise<string>;
-    getTransactionStatus(txHash): Promise<string>;
-    sendTokens(tokenAddress, tokensAmount, accountAddress): Promise<string>;
-    getExplorerTokensBalance(address, tokenAddress?): Promise<any>;
-    getTokensTransfersSumOfAddress(address, fromBlock?): Promise<number>;
-    getExplorerTransactionTemplate(): string;
-    // runAutoClaimer(): void;
+  getDefaultTokenAddress(): string;
+
+  getCoinbaseAddress(): string;
+
+  isValidAddress(address): boolean;
+
+  getCurrentBlock(): Promise<number>;
+
+  getChainId(): Promise<number>;
+
+  onReconnect(callback): void;
+
+  getTotalSupply(): Promise<any>;
+
+  getTokensBalance(address, tokenAddress?): Promise<any>;
+
+  getTokenSymbol(tokenAddress): Promise<string>;
+
+  getTransactionStatus(txHash): Promise<string>;
+
+  sendTokens(tokenAddress, tokensAmount, accountAddress): Promise<string>;
+
+  getExplorerTokensBalance(address, tokenAddress?): Promise<any>;
+
+  getTokensTransfersSumOfAddress(address, fromBlock?): Promise<number>;
+
+  getExplorerTransactionTemplate(): string;
+
+  // runAutoClaimer(): void;
 }
 
 export interface IChainTransferEvent {
-    returnValues: {from: string, to: string, value: number};
+  returnValues: { from: string, to: string, value: number };
 }
 
 export class IChainTxStatus {
-    static NOT_SENT = 'not_sent';
-    static PENDING = 'pending';
-    static CONFIRMED = 'confirmed';
-    static REVERTED = 'reverted';
+  static NOT_SENT = 'not_sent';
+  static PENDING = 'pending';
+  static CONFIRMED = 'confirmed';
+  static REVERTED = 'reverted';
 }

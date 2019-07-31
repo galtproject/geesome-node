@@ -86,7 +86,7 @@ Vue.filter('prettySize', function (bytesSize) {
 });
 
 Vue.filter('prettyFileName', function (str) {
-  if(str.length <= 20) {
+  if (str.length <= 20) {
     return str;
   }
   return str ? str.slice(0, 7) + "..." + str.slice(-6) : '';

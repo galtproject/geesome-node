@@ -12,31 +12,29 @@
  */
 
 export default {
-    template: require('./LoginPage.html'),
-    created() {
-        this.server = this.$store.state.serverAddress;
-    },
-    methods: {
-        login() {
-            this.$coreApi.login(this.server, this.username, this.password).then((data) => {
-                this.$store.commit('user', data.user);
-                this.$router.push({name: 'main-page'});
-                this.error = null;
-            }).catch(() => {
-                this.error = 'failed';
-            })
-        }
-    },
-    data() {
-        return {
-            localeKey: 'login_page',
-            server: null,
-            username: null,
-            password: null,
-            error: null
-        };
-    },
-    computed: {
-        
+  template: require('./LoginPage.html'),
+  created() {
+    this.server = this.$store.state.serverAddress;
+  },
+  methods: {
+    login() {
+      this.$coreApi.login(this.server, this.username, this.password).then((data) => {
+        this.$store.commit('user', data.user);
+        this.$router.push({name: 'main-page'});
+        this.error = null;
+      }).catch(() => {
+        this.error = 'failed';
+      })
     }
+  },
+  data() {
+    return {
+      localeKey: 'login_page',
+      server: null,
+      username: null,
+      password: null,
+      error: null
+    };
+  },
+  computed: {}
 }

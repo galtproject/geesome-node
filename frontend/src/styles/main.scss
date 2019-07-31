@@ -30,13 +30,16 @@ $fa-font-path: "webfonts";
   top: 2px;
   right: 1px;
 }
+
 .md-icon-button .fas.md-icon {
-  font-size: 22px!important;
+  font-size: 22px !important;
 }
+
 a.md-icon-button .fas.md-icon {
   position: relative;
   left: 5px;
 }
+
 a.icon-link {
   display: inline-block;
   padding: 5px;
@@ -46,7 +49,7 @@ a.icon-link {
 .huge-button {
   height: 100px;
   width: 99%;
-  
+
   .md-button-content {
     display: flex;
     flex-direction: column;
@@ -75,6 +78,7 @@ a.icon-link {
   top: 0;
   left: -350px;
 }
+
 .group-info {
   width: 300px;
 }
@@ -88,17 +92,17 @@ a.icon-link {
 
   height: 200px;
   width: 100%;
-  
+
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
-  
+
   .group-header-title {
     font-weight: 700;
     font-size: 22px;
   }
-  
+
   .group-header-avatar {
     width: 80px;
     height: 80px;
@@ -121,12 +125,11 @@ a.icon-link {
   .new-post-card {
     margin-right: 0;
   }
-  
+
   .post-card {
     margin-right: 0;
   }
 }
-
 
 .upload-content {
   .md-layout {
@@ -182,16 +185,17 @@ a.icon-link {
     -webkit-transition-delay: 9999s;
     -webkit-transition: color 9999s ease-out, background-color 9999s ease-out;
   }
-  
-  input:-internal-autofill-previewed, 
-  input:-internal-autofill-selected, 
-  textarea:-internal-autofill-previewed, 
-  textarea:-internal-autofill-selected, 
-  select:-internal-autofill-previewed, 
+
+  input:-internal-autofill-previewed,
+  input:-internal-autofill-selected,
+  textarea:-internal-autofill-previewed,
+  textarea:-internal-autofill-selected,
+  select:-internal-autofill-previewed,
   select:-internal-autofill-selected {
     background-color: transparent;
   }
 }
+
 //.md-field.md-theme-default.md-has-value .md-input {
 //  -webkit-text-fill-color: black;
 //}
@@ -263,7 +267,7 @@ a.icon-link {
         border-radius: 3px;
       }
     }
-    
+
     .file-checkbox-container {
       display: flex;
       align-items: center;
@@ -282,7 +286,7 @@ a.icon-link {
 
 .new-group-features-list {
   padding-left: 0;
-  list-style-type:none;
+  list-style-type: none;
   margin-left: 5px;
   li {
     margin-bottom: 20px;
@@ -308,18 +312,20 @@ a.icon-link {
     width: 10px;
     min-width: 10px;
     height: 10px;
-    font-size: 10px!important;
+    font-size: 10px !important;
     position: relative;
     bottom: 3px;
     margin-right: 3px;
   }
 }
+
 .file-catalog-header {
   margin: 15px;
   .link-with-icon {
     margin-left: 10px;
   }
 }
+
 .file-catalog-not-found {
   margin: 10px 15px;
 }

@@ -12,48 +12,53 @@
  */
 
 import {IChainService, IWallet} from "../interace";
+
 const galtUtils = require('@galtproject/utils');
 
 module.exports = async () => {
-    return new ChainMockService();
+  return new ChainMockService();
 };
 
 class ChainMockService implements IChainService {
-    newEventsCallback;
-    
-    constructor() {
-        
-    }
+  newEventsCallback;
 
-    subscribeForNewEvents(eventName: string, blockNumber: number, callback) {
-        this.newEventsCallback = callback;
-    }
+  constructor() {
 
-    callNewEvent(eventName: string, contour, id) {
-        this.newEventsCallback({ returnValues: {contour, id} });
-    }
-    
-    async getCurrentBlock() {
-        return 0;
-    }
+  }
 
-    async onReconnect(callback) {
-        
-    }
+  subscribeForNewEvents(eventName: string, blockNumber: number, callback) {
+    this.newEventsCallback = callback;
+  }
 
-    generateNewWallet() {
-        return null
-    };
-    prepareWallet(address){
-        
-    };
-    getTokensBalance(address){
-        return null;
-    };
-    sendTokens(fromAddress, fromPrivateKey, to, amount) {
-        return null;
-    };
-    async getTokensTransfersSumOfAddress(address, fromBlock?){
-        return 0;
-    }
+  callNewEvent(eventName: string, contour, id) {
+    this.newEventsCallback({returnValues: {contour, id}});
+  }
+
+  async getCurrentBlock() {
+    return 0;
+  }
+
+  async onReconnect(callback) {
+
+  }
+
+  generateNewWallet() {
+    return null
+  };
+
+  prepareWallet(address) {
+
+  };
+
+  getTokensBalance(address) {
+    return null;
+  };
+
+  sendTokens(fromAddress, fromPrivateKey, to, amount) {
+    return null;
+  };
+
+  async getTokensTransfersSumOfAddress(address, fromBlock?) {
+    return 0;
+  }
 }

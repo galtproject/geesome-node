@@ -144,13 +144,13 @@ class MysqlDatabase implements IDatabase {
 
   async getGroupByManifestId(id, staticId?) {
     const whereOr = [];
-    if(id) {
+    if (id) {
       whereOr.push({manifestStorageId: id});
     }
-    if(staticId) {
+    if (staticId) {
       whereOr.push({manifestStaticStorageId: staticId});
     }
-    if(!whereOr.length) {
+    if (!whereOr.length) {
       return null;
     }
     return this.models.Group.findOne({
@@ -166,12 +166,12 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findAll({
       where: {
         staticStorageUpdatedAt: {
-          [Op.lt]: commonHelpers.moveDate(- parseFloat(outdatedForSeconds), 'second')
+          [Op.lt]: commonHelpers.moveDate(-parseFloat(outdatedForSeconds), 'second')
         }
       }
     });
   }
-  
+
   async getRemoteGroups() {
     return this.models.Group.findAll({
       where: {

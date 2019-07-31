@@ -14,40 +14,40 @@
 import PostItem from "../../../directives/Posts/PostItem/PostItem";
 
 export default {
-    template: require('./GroupPostPage.html'),
-    components: {PostItem},
-    props: ['group'],
-    async created() {
-        this.getPost();
-    },
-    methods: {
-        async getPost() {
-            this.loading = true;
-            this.post = await this.$coreApi.getGroupPost(this.groupId, this.postId);
-            this.loading = false;
-        }
-    },
-    watch: {
-        groupId() {
-            this.getPost();
-        },
-        postId() {
-            this.getPost();
-        }
-    },
-    computed: {
-        groupId() {
-            return this.$route.params.groupId;
-        },
-        postId() {
-            return this.$route.params.postId;
-        }
-    },
-    data() {
-        return {
-            localeKey: 'group_post_page',
-            post: null,
-            loading: true
-        };
+  template: require('./GroupPostPage.html'),
+  components: {PostItem},
+  props: ['group'],
+  async created() {
+    this.getPost();
+  },
+  methods: {
+    async getPost() {
+      this.loading = true;
+      this.post = await this.$coreApi.getGroupPost(this.groupId, this.postId);
+      this.loading = false;
     }
+  },
+  watch: {
+    groupId() {
+      this.getPost();
+    },
+    postId() {
+      this.getPost();
+    }
+  },
+  computed: {
+    groupId() {
+      return this.$route.params.groupId;
+    },
+    postId() {
+      return this.$route.params.postId;
+    }
+  },
+  data() {
+    return {
+      localeKey: 'group_post_page',
+      post: null,
+      loading: true
+    };
+  }
 }

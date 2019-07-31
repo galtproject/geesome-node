@@ -20,5 +20,5 @@ export const UPDATE_ADMIN_GROUPS = 'update-admin-groups';
 export const UPDATE_GROUP = 'update-group';
 
 export function GetEventName(eventName, componentName) {
-    return eventName + (componentName == 'main' ? '' : '-' + componentName);
+  return eventName + (componentName == 'main' ? '' : '-' + componentName);
 }

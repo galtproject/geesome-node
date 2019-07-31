@@ -104,10 +104,10 @@ export interface IGeesomeApp {
 
   //TODO: define structure
   getPeers(topic): Promise<any>;
-  
+
   //TODO: define structure
   getIpnsPeers(ipns): Promise<any>;
-  
+
   //TODO: define structure
   getGroupPeers(groupId): Promise<any>;
 

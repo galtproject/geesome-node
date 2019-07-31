@@ -13,6 +13,7 @@
 
 import axios from 'axios';
 import {ClientStorage} from "./clientStorage";
+
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
@@ -43,7 +44,7 @@ export default {
       $http.defaults.headers.post['Authorization'] = 'Bearer ' + apiKey;
       $http.defaults.headers.get['Authorization'] = 'Bearer ' + apiKey;
     }
-    
+
     let serverIpfsAddresses;
 
     function changeServer(server) {
@@ -53,7 +54,7 @@ export default {
       $http.defaults.baseURL = appStore.state.serverAddress;
     }
 
-    function initBrowserIpfsNode (options) {
+    function initBrowserIpfsNode(options) {
       return new Promise((resolve, reject) => {
         const ipfs = window['Ipfs'].createNode(_.merge({
           EXPERIMENTAL: {
@@ -92,16 +93,16 @@ export default {
 
         changeServer(server);
         serverIpfsAddresses = await this.getNodeAddressList();
-        
+
         serverIpfsAddresses.forEach(address => {
-          if(_.includes(address, '192.168')) {
+          if (_.includes(address, '192.168')) {
             serverIpfsAddresses.push(address.replace(/\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/, '127.0.0.1'));
           }
         });
-        
+
         let preloadAddresses;
-        
-        if(isLocalServer) {
+
+        if (isLocalServer) {
           preloadAddresses = serverIpfsAddresses.filter((address) => {
             return _.includes(address, '127.0.0.1');
           })
@@ -116,7 +117,7 @@ export default {
         });
 
         // preloadAddresses = ['/ip4/127.0.0.1/tcp/5002/http'];
-        
+
         console.log('preloadAddresses', preloadAddresses);
 
         preloadAddresses = preloadAddresses.concat([
@@ -124,18 +125,18 @@ export default {
           '/dns4/node0.preload.ipfs.io/tcp/443/wss/ipfs/QmZMxNdpMkewiVZLMRxaNxUeZpDUb34pWjZ1kZvsd16Zic',
           '/dns4/node1.preload.ipfs.io/tcp/443/wss/ipfs/Qmbut9Ywz9YEDrz8ySBSgWyJk41Uvm2QJPhwDJzJyGFsD6'
         ]);
-        
+
         node = await initBrowserIpfsNode({
           preload: {
             enabled: true,
             addresses: preloadAddresses
           }
         });
-        
+
         ipfsService = new JsIpfsService(node);
 
         await pIteration.forEach(serverIpfsAddresses, async (address) => {
-          return ipfsService.addBootNode(address).then(() => console.log('successful connect to ', address)).catch((e) =>  console.warn('failed connect to ', address, e));
+          return ipfsService.addBootNode(address).then(() => console.log('successful connect to ', address)).catch((e) => console.warn('failed connect to ', address, e));
         })
       },
       getCurrentUser() {
@@ -281,7 +282,7 @@ export default {
         }
         //wrap($http.get(`/ipld/${ipldHash}`))
         return ipfsService.getObject(ipldHash).then(ipldData => {
-          if(!ipldData) {
+          if (!ipldData) {
             return null;
           }
           ipldData.id = ipldHash;
@@ -290,19 +291,19 @@ export default {
       },
       async getGroupPostsAsync(groupId, options: any = {}, onItemCallback?, onFinishCallback?) {
         const group = await this.getGroup(groupId);
-        
+
         const defaultOptions = {
           limit: 10,
           offset: 0,
           orderDir: 'desc'
         };
-        
+
         _.forEach(defaultOptions, (optionValue, optionName) => {
-          if(_.isUndefined(options[optionName])) {
+          if (_.isUndefined(options[optionName])) {
             options[optionName] = optionValue;
           }
         });
-        
+
         const postsCount = parseInt(group.postsCount);
         if (options.offset + options.limit > postsCount) {
           options.limit = postsCount - options.offset;
@@ -321,11 +322,11 @@ export default {
           }
           posts[index] = post;
 
-          if(onItemCallback) {
+          if (onItemCallback) {
             onItemCallback(posts);
           }
         }).then(() => {
-          if(onFinishCallback) {
+          if (onFinishCallback) {
             onFinishCallback(posts);
           }
         });
@@ -335,7 +336,7 @@ export default {
       async getGroupPost(groupId, postId) {
         const group = await this.getGroup(groupId);
         let post;
-        if(ipfsHelper.isIpldHash(postId)) {
+        if (ipfsHelper.isIpldHash(postId)) {
           post = await this.getIpld(postId);
           post.manifestId = postId;
         } else {
@@ -344,7 +345,7 @@ export default {
           post = await this.getIpld(postsPath + postNumberPath);
           post.manifestId = ipfsHelper.cidToHash(trie.getNode(group.posts, postId));
         }
-        
+
         post.id = postId;
         // post.sourceIpld = _.clone(post);
         post.groupId = groupId;
@@ -362,7 +363,7 @@ export default {
       },
       getFileCatalogItems(parentItemId, type?, params?) {
         let {sortBy, sortDir, limit, offset} = params;
-        
+
         if (!sortBy) {
           sortBy = 'updatedAt';
         }

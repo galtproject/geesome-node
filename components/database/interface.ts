@@ -129,7 +129,9 @@ export interface IDatabase {
   getUserLimit(userId, name): Promise<IUserLimit>;
 
   addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
+
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
+
   getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
 
   getValue(key: string): Promise<string>;

@@ -12,29 +12,31 @@
  */
 
 export interface IAcquiring {
-    getName(): string;
-    createOrder(amount, localId, returnUrl, additionalOptions?): Promise<IAcquiringOrderResponse>;
-    getOrderStatus(orderId): Promise<IAcquiringOrderStatusResponse>;
+  getName(): string;
+
+  createOrder(amount, localId, returnUrl, additionalOptions?): Promise<IAcquiringOrderResponse>;
+
+  getOrderStatus(orderId): Promise<IAcquiringOrderStatusResponse>;
 }
 
 export interface IAcquiringOrderResponse {
-    orderId: string;
-    paymentUrl: string;
-    errorCode?: string;
-    errorMessage?: string;
+  orderId: string;
+  paymentUrl: string;
+  errorCode?: string;
+  errorMessage?: string;
 }
 
 export interface IAcquiringOrderStatusResponse {
-    status: string;
-    error: string;
+  status: string;
+  error: string;
 }
 
 export class OrderStatus {
-    static NEW = 'new';
-    static HOLD = 'hold';
-    static PAID = 'paid';
-    static CANCELLED = 'cancelled';
-    static RETURNED = 'returned';
-    static AUTHORIZATION = 'authorization';
-    static DECLINED = 'declined';
+  static NEW = 'new';
+  static HOLD = 'hold';
+  static PAID = 'paid';
+  static CANCELLED = 'cancelled';
+  static RETURNED = 'returned';
+  static AUTHORIZATION = 'authorization';
+  static DECLINED = 'declined';
 }
