@@ -52,9 +52,9 @@
     reflect-metadata "^0.1.12"
     tslib "^1.8.1"
 
-"@galtproject/frontend-core@git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#973cdac":
+"@galtproject/frontend-core@git://github.com/galtspace/galtproject-frontend-core.git#973cdac":
   version "0.1.0"
-  resolved "git+ssh://git@github.com/galtspace/galtproject-frontend-core.git#973cdacc2b2067cec4b25d9cc423a5e33fab847c"
+  resolved "git://github.com/galtspace/galtproject-frontend-core.git#973cdacc2b2067cec4b25d9cc423a5e33fab847c"
   dependencies:
     "@galtproject/utils" "git://github.com/galtspace/galtproject-utils-js.git"
     "@sentry/browser" "^4.4.2"
@@ -8874,7 +8874,7 @@ pull-write@^1.1.4:
     pull-cat "^1.1.11"
     pull-stream "^3.4.5"
 
-"pull-ws@github:hugomrdias/pull-ws#fix/bundle-size":
+pull-ws@hugomrdias/pull-ws#fix/bundle-size:
   version "3.3.1"
   resolved "https://codeload.github.com/hugomrdias/pull-ws/tar.gz/8e2ce0bb3b1cd6804828316e937fff8e0bef6225"
   dependencies:
