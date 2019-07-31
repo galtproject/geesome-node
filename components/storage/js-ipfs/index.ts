@@ -14,47 +14,26 @@
 import {IGeesomeApp} from "../../app/interface";
 const JsIpfsServiceNode = require("@galtproject/geesome-libs/src/JsIpfsServiceNode");
 
-const _ = require('lodash');
-
-const IPFSFactory = require('ipfsd-ctl');
-const f = IPFSFactory.create({
-  path: require('ipfs'),
-  // exec: require('ipfs'),
-  type: 'js',
-  port: 5001
-});
-
-// const ipfs = )
+const IPFS = require('ipfs');
+const Gateway = require('ipfs/src/http');
 
 module.exports = async (app: IGeesomeApp) => {
-    
-    const daemon = await f.spawn(_.extend({
-      disposable: false,
-      repoPath: '$HOME/.jsipfs',
-      defaultAddrs: true,
-      // args: ['--api /ip4/127.0.0.1/tcp/5001']
-      // config: app.config.storageConfig.jsNode
-    }, app.config.storageConfig.jsNode));
-    
-    let node;
-    // console.log('node', node);
-    try {
-      if(!daemon.initialized) {
-        await daemon.init();
-      }
-      await daemon.start();
+  const node = new IPFS(app.config.storageConfig.jsNode);
 
-      console.log('daemon',daemon);
-      node = daemon.api;
-        await new Promise((resolve, reject) => {
-            node.on('ready', (err) => err ? reject(err) : resolve());
-            node.on('error', (err) => reject(err))
-        });
-        
-        console.log('🎁 IPFS node have started');
-    } catch (e) {
-        console.error('❌ IPFS not started', e);
-    }
-    
-    return new JsIpfsServiceNode(node);
+  // console.log('node', node);
+  try {
+    await new Promise((resolve, reject) => {
+      node.on('ready', (err) => err ? reject(err) : resolve());
+      node.on('error', (err) => reject(err))
+    });
+
+    const gateway = new Gateway(node);
+    await gateway.start();
+
+    console.log('🎁 IPFS node have started');
+  } catch (e) {
+    console.error('❌ IPFS not started', e);
+  }
+
+  return new JsIpfsServiceNode(node);
 };

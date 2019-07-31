@@ -112,10 +112,10 @@ export default {
         }
 
         preloadAddresses = preloadAddresses.map(address => {
-          return address.replace('/p2p-circuit', '').replace('4002', '5001');
+          return address.replace('/p2p-circuit', '').replace('4002', '5002').replace(/\/ipfs\/.+/, '/');
         });
 
-        preloadAddresses = ['/ip4/127.0.0.1/tcp/5001/http'];
+        // preloadAddresses = ['/ip4/127.0.0.1/tcp/5002/http'];
         
         console.log('preloadAddresses', preloadAddresses);
 
