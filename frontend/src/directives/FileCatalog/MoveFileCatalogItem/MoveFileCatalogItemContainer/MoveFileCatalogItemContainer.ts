@@ -23,6 +23,8 @@ import {
   EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER, EVENT_COMPLETE_MOVE_FILE_CONTAINER
 } from "../events";
 
+const _ = require('lodash');
+
 export default {
   // name: 'autocomplete-container',
   template: require('./MoveFileCatalogItemContainer.html'),
@@ -72,6 +74,9 @@ export default {
     async getItems() {
       const fileCatalog = await this.$coreApi.getFileCatalogItems(undefined, 'folder', {search: this.search ? '%' + this.search + '%' : ''});
       this.items = fileCatalog.list;
+      if(!this.search || _.includes(this.search.toLowerCase(), 'home')) {
+        this.items.splice(0, 0, {'name': "Home", id: null});
+      }
     },
     getElOffset(el) {
       const rect = el.getBoundingClientRect();
