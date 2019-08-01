@@ -80,7 +80,7 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
 
-  getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogListResponse>;
+  getFileCatalogItems(userId, parentItemId, type?, search?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogListResponse>;
 
   getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 
@@ -91,6 +91,8 @@ export interface IGeesomeApp {
   createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
 
   addContentToFolder(userId, contentId, folderId): Promise<any>;
+
+  updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
 
   getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
 

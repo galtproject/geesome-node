@@ -752,6 +752,15 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+  public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
+    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
+    if(fileCatalogItem.userId !== userId) {
+      throw new Error("not_permitted");
+    }
+    await this.database.updateFileCatalogItem(fileCatalogId, updateData);
+    return this.database.getFileCatalogItem(fileCatalogId);
+  }
+
   async handleSourceByUploadDriver(sourceLink, driver) {
     const previewDriver = this.drivers.upload[driver] as AbstractDriver;
     if (!previewDriver) {
@@ -855,9 +864,12 @@ class GeesomeApp implements IGeesomeApp {
   }
 
 
-  async getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?) {
-    if (!parentItemId)
+  async getFileCatalogItems(userId, parentItemId, type?, search = '', sortField?, sortDir?, limit?, offset?) {
+    if(parentItemId == 'null') {
       parentItemId = null;
+    }
+    if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
+      parentItemId = undefined;
     if (!sortField)
       sortField = 'createdAt';
     if (!sortDir)
@@ -866,9 +878,10 @@ class GeesomeApp implements IGeesomeApp {
       limit = 20;
     if (!offset)
       offset = 0;
+    
     return {
-      list: await this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset),
-      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type)
+      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, sortField, sortDir, limit, offset),
+      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
     };
   }
 

@@ -305,9 +305,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
 
   service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
   });
-  service.get('/v1/user/file-catalog/breadcrumbs/:itemId', async (req, res) => {
+  service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
     res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
   });
 
@@ -316,6 +316,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
   service.post('/v1/user/file-catalog/add-content-to-folder', async (req, res) => {
     res.send(await geesomeApp.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
+  });
+  service.post('/v1/user/file-catalog/file-catalog-item/:itemId/update', async (req, res) => {
+    res.send(await geesomeApp.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
   });
 
   service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {

@@ -221,10 +221,10 @@ a.icon-link {
       align-items: stretch;
       //height: 100%;
       min-height: 65px;
-      & > *:first-child {
+      & > .file-item-control {
         width: 27%;
       }
-      & > *:last-child {
+      & > .file-item-content {
         width: 73%;
         padding-left: 5px;
       }
@@ -372,5 +372,45 @@ a.icon-link {
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;
+  }
+}
+
+.input-absolute-container {
+  z-index: 9999;
+  position: absolute;
+
+  &.autocomplete-container {
+    z-index: 99999;
+    .autocomplete-list {
+      min-width: 150px;
+      background: #39343e;
+
+      .list-container {
+        display: flex;
+        flex-direction: column;
+        & > a {
+          padding: 10px;
+        }
+      }
+      .search-container {
+        padding: 10px;
+        .md-field {
+          margin-bottom: 0;
+        }
+      }
+    }
+  }
+}
+
+.custom-menu {
+  .md-list-item-content {
+    padding: 0;
+    & > *, .md-button {
+      margin: 0;
+      width: 100%;
+      .md-ripple {
+        justify-content: flex-start;
+      }
+    }
   }
 }

@@ -26,14 +26,14 @@
       <span flex style="flex: 1"></span>
 
       <span>
-              <div v-locale="localeKey + '.server_address'"></div>
-              <small>{{serverAddress}}</small>
-              
-              <div>
-                <a v-if="user" href @click.prevent="logout()">Logout</a>
-                <router-link v-else :to="{name: 'login'}">Login</router-link>
-              </div>
-            </span>
+        <div v-locale="localeKey + '.server_address'"></div>
+        <small>{{serverAddress}}</small>
+        
+        <div>
+          <a v-if="user" href @click.prevent="logout()">Logout</a>
+          <router-link v-else :to="{name: 'login'}">Login</router-link>
+        </div>
+      </span>
     </md-app-toolbar>
 
 
@@ -46,6 +46,8 @@
                        style="margin-top: 100px;"></md-progress-bar>
 
       <router-view v-if="!loading"></router-view>
+
+      <move-file-catalog-item-container></move-file-catalog-item-container>
     </md-app-content>
   </md-app>
 </div>

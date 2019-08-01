@@ -362,7 +362,7 @@ export default {
         return wrap($http.get(`/resolve/${ipns}`)).catch(() => null);
       },
       getFileCatalogItems(parentItemId, type?, params?) {
-        let {sortBy, sortDir, limit, offset} = params;
+        let {sortBy, sortDir, limit, offset, search} = params;
 
         if (!sortBy) {
           sortBy = 'updatedAt';
@@ -371,24 +371,20 @@ export default {
           sortDir = 'desc';
         }
         return wrap($http.get(`/v1/user/file-catalog/`, {
-          params: {
-            parentItemId,
-            type,
-            sortField: sortBy,
-            sortDir,
-            limit,
-            offset
-          }
+          params: {parentItemId, type, sortBy, sortDir, limit, offset, search}
         }));
       },
       getFileCatalogBreadcrumbs(itemId) {
-        return wrap($http.get(`/v1/user/file-catalog/breadcrumbs/${itemId}`));
+        return wrap($http.get(`/v1/user/file-catalog/file-catalog-item/${itemId}/breadcrumbs`));
       },
       createFolder(parentItemId, name) {
         return wrap($http.post(`/v1/user/file-catalog/create-folder`, {parentItemId, name}));
       },
       addContentIdToFolderId(contentId, folderId) {
         return wrap($http.post(`/v1/user/file-catalog/add-content-to-folder`, {contentId, folderId}));
+      },
+      updateFileCatalogItem(itemId, updateData) {
+        return wrap($http.post(`/v1/user/file-catalog/file-catalog-item/${itemId}/update`, updateData));
       },
       getContentsIdsByFileCatalogIds(fileCatalogIds) {
         return wrap($http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds));

@@ -13,15 +13,23 @@
 
 import ContentManifestInfoItem from "../ContentManifestInfoItem/ContentManifestInfoItem";
 import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
+import MoveFileCatalogItemInput from "./MoveFileCatalogItem/MoveFileCatalogItemInput/MoveFileCatalogItemInput";
+import {EventBus} from "../../services/events";
+import {EVENT_COMPLETE_MOVE_FILE_CONTAINER} from "./MoveFileCatalogItem/events";
 
 export default {
   name: 'file-catalog',
   template: require('./FileCatalog.html'),
-  components: {ContentManifestInfoItem, Pagination},//UploadContent, 
+  components: {ContentManifestInfoItem, Pagination, MoveFileCatalogItemInput},//UploadContent, 
   props: ['selectMode', 'selectedIds', 'hideMethods'],
   async created() {
     this.getItems();
+    this.getBreadcrumbs();
     this.localSelectedIds = this.selectedIds || [];
+    EventBus.$on(EVENT_COMPLETE_MOVE_FILE_CONTAINER, () => {
+      this.getItems();
+      this.getBreadcrumbs();
+    });
   },
 
   async mounted() {
@@ -35,7 +43,7 @@ export default {
     },
     async getFolders() {
       this.loading = true;
-      this.folders = await this.$coreApi.getFileCatalogItems(this.parentItemId, 'folder', {
+      this.folders = await this.$coreApi.getFileCatalogItems(this.parentItemId || 'null', 'folder', {
         limit: this.foldersPerPage,
         offset: (this.foldersCurrentPage - 1) * this.foldersPerPage
       });
@@ -43,7 +51,7 @@ export default {
     },
     async getFiles() {
       this.loading = true;
-      this.files = await this.$coreApi.getFileCatalogItems(this.parentItemId, 'file', {
+      this.files = await this.$coreApi.getFileCatalogItems(this.parentItemId || 'null', 'file', {
         limit: this.filesPerPage,
         offset: (this.filesCurrentPage - 1) * this.foldersPerPage
       });
@@ -57,10 +65,8 @@ export default {
       this.breadcrumbs = await this.$coreApi.getFileCatalogBreadcrumbs(this.parentItemId);
     },
     openFolder(item) {
-      this.parentItemId = item.id;
+      this.$router.push({query: {parent: item.id}});
       this.currentFile = null;
-      this.getItems();
-      this.getBreadcrumbs();
     },
     showFile(file) {
       this.currentFile = file;
@@ -71,6 +77,7 @@ export default {
     },
     saveFolder() {
       this.$coreApi.createFolder(this.parentItemId, this.newFolder.name).then(() => {
+        this.newFolder.name = '';
         this.getItems();
         this.$notify({
           type: 'success',
@@ -96,6 +103,8 @@ export default {
       } else {
         this.getItems();
       }
+      
+      this.showNewFile = false;
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);
@@ -111,31 +120,38 @@ export default {
     },
     foldersCurrentPage() {
       this.getFolders()
+    },
+    parentItemId() {
+      console.log('parentItemId', this.parentItemId);
+      this.getItems();
+      this.getBreadcrumbs();
     }
   },
 
   computed: {
     filesList() {
-      return this.files ? this.files.list : [];
+      return this.files ? this.files.list || [] : [];
     },
     filesTotal() {
       return this.files ? this.files.total : null;
     },
     foldersList() {
-      return this.folders ? this.folders.list : [];
+      return this.folders ? this.folders.list || [] : [];
     },
     foldersTotal() {
       return this.folders ? this.folders.total : null;
     },
     user() {
       return this.$store.state.user;
+    },
+    parentItemId() {
+      return this.$route.query.parent || null;
     }
   },
   data() {
     return {
       localeKey: 'file_catalog',
       loading: true,
-      parentItemId: null,
       breadcrumbs: [],
       folders: [],
       files: [],

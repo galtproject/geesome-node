@@ -33,6 +33,8 @@ import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
 
 import {VueEditor, Quill} from 'vue2-editor'
 import UploadContent from "./directives/UploadContent/UploadContent";
+import MoveFileCatalogItemContainer
+  from "./directives/FileCatalog/MoveFileCatalogItem/MoveFileCatalogItemContainer/MoveFileCatalogItemContainer";
 
 const _ = require('lodash');
 
@@ -94,7 +96,7 @@ Vue.filter('prettyFileName', function (str) {
 
 export default {
   template: require('./App.html'),
-  components: {MainMenu},//,ConsoleLog
+  components: {MainMenu, MoveFileCatalogItemContainer},//,ConsoleLog
   async created() {
     this.$locale.init(this.$store, '/locale/').then(() => {
       this.$store.commit('locale_loaded', true);
