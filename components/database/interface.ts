@@ -165,7 +165,12 @@ export interface IContent {
   userId: number;
   groupId?: number;
   localId?: number;
-  previewStorageId?: string;
+  largePreviewSize?: number;
+  largePreviewStorageId?: string;
+  mediumPreviewSize?: number;
+  mediumPreviewStorageId?: string;
+  smallPreviewSize?: number;
+  smallPreviewStorageId?: string;
   previewMimeType?: ContentMimeType;
   previewExtension?: string;
   storageId?: string;
@@ -288,6 +293,8 @@ export interface IFileCatalogItem {
   contentId?: number;
   groupId?: number;
   size?: number;
+  manifestStorageId?: string;
+  nativeStorageId?: string;
 }
 
 export enum IFileCatalogItemType {

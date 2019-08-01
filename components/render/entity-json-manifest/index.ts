@@ -76,11 +76,34 @@ class EntityJsonManifest implements IRender {
     } else if (name === 'content-manifest') {
       //TODO: add preview size
       const content: IContent = data;
-      const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension', 'updatedAt', 'createdAt']);
+      const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'view', 'size', 'extension', 'updatedAt', 'createdAt']);
 
       contentManifest.content = content.storageId;
-      contentManifest.preview = content.previewStorageId;
+      contentManifest.preview = {
+        medium: {
+          content: content.mediumPreviewStorageId,
+          mimeType: content.previewMimeType,
+          extension: content.previewExtension,
+          size: content.mediumPreviewSize
+        }
+      };
 
+      if (content.smallPreviewStorageId) {
+        contentManifest.preview.small = {
+          content: content.smallPreviewStorageId,
+          mimeType: content.previewMimeType,
+          extension: content.previewExtension,
+          size: content.smallPreviewSize
+        };
+      }
+      if (content.largePreviewStorageId) {
+        contentManifest.preview.large = {
+          content: content.largePreviewStorageId,
+          mimeType: content.previewMimeType,
+          extension: content.previewExtension,
+          size: content.largePreviewSize
+        };
+      }
       this.setManifestVersion(contentManifest, name);
 
       return contentManifest;
@@ -112,7 +135,7 @@ class EntityJsonManifest implements IRender {
       const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 
       content.storageId = manifest.content;
-      content.previewStorageId = manifest.preview;
+      content.mediumPreviewStorageId = manifest.preview;
       content.manifestStorageId = manifestId;
 
       return content;

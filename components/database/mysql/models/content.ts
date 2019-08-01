@@ -52,8 +52,23 @@ module.exports = async function (sequelize, models) {
     storageId: {
       type: Sequelize.STRING(200)
     },
-    previewStorageId: {
+    largePreviewStorageId: {
       type: Sequelize.STRING(200)
+    },
+    largePreviewSize: {
+      type: Sequelize.INTEGER
+    },
+    mediumPreviewStorageId: {
+      type: Sequelize.STRING(200)
+    },
+    mediumPreviewSize: {
+      type: Sequelize.INTEGER
+    },
+    smallPreviewStorageId: {
+      type: Sequelize.STRING(200)
+    },
+    smallPreviewSize: {
+      type: Sequelize.INTEGER
     },
     previewMimeType: {
       type: Sequelize.STRING(200)

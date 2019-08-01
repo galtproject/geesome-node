@@ -15,12 +15,19 @@ import {Stream} from "stream";
 
 export interface IDriver {
   supportedInputs: string[];
+  supportedOutputSizes: string[];
 
   processByStream?(inputSteam: Stream, options?): Promise<IDriverResponse>;
 
   processByContent?(inputContent: any, options?): Promise<IDriverResponse>;
 
   processBySource?(sourceLink: any, options?): Promise<IDriverResponse>;
+}
+
+export enum OutputSize {
+  Medium = 'medium',
+  Small = 'small',
+  Large = 'large'
 }
 
 export enum DriverInput {

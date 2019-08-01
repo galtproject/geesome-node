@@ -1,4 +1,5 @@
-import {DriverInput, IDriver} from "../interface";
+import {DriverInput, OutputSize} from "../interface";
+import AbstractDriver from "../abstractDriver";
 
 // import {Stream} from "stream";
 
@@ -6,8 +7,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
 const uuidv1 = require('uuid/v1');
 
-export class VideoToStreambleDriver implements IDriver {
+export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
+  supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(stream, options: any = {}) {
     // console.log('stream', stream);

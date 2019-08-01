@@ -1,9 +1,11 @@
-import {DriverInput, IDriver} from "../interface";
+import {DriverInput, OutputSize} from "../interface";
+import AbstractDriver from "../abstractDriver";
 
 const youtubedl = require('@microlink/youtube-dl');
 
-export class YoutubeThumbnailPreviewDriver implements IDriver {
+export class YoutubeThumbnailPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Source];
+  supportedOutputSizes = [OutputSize.Medium];
 
   async processBySource(url, options: any = {}) {
     return new Promise((resolve, reject) => {

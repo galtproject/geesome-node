@@ -25,6 +25,12 @@ module.exports = async function (sequelize, models) {
     defaultFolderFor: {
       type: Sequelize.STRING(200)
     },
+    manifestStorageId: {
+      type: Sequelize.STRING(200)
+    },
+    nativeStorageId: {
+      type: Sequelize.STRING(200)
+    },
     size: {
       type: Sequelize.INTEGER
     },

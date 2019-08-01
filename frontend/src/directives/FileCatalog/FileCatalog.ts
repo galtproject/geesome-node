@@ -116,16 +116,16 @@ export default {
 
   computed: {
     filesList() {
-      return this.files.list;
+      return this.files ? this.files.list : [];
     },
     filesTotal() {
-      return this.files.total;
+      return this.files ? this.files.total : null;
     },
     foldersList() {
-      return this.folders.list;
+      return this.folders ? this.folders.list : [];
     },
     foldersTotal() {
-      return this.folders.total;
+      return this.folders ? this.folders.total : null;
     },
     user() {
       return this.$store.state.user;

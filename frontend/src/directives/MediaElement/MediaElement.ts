@@ -66,7 +66,7 @@ export default {
       pluginPath: 'build/',
       shimScriptAccess: 'always',
       forceLive: this.forceLive,
-      poster: this.preview,
+      poster: this.preview ? this.preview.medium.content : null,
       // (by default, this is set as `sameDomain`)
       // shimScriptAccess: 'always',
       success: (mediaElement, originalNode, instance) => {
