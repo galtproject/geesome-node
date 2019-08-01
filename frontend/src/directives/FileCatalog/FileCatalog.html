@@ -40,6 +40,20 @@
                 {{folder.name | prettyFileName}}
               </div>
             </div>
+            
+            <div v-if="!selectMode" class="file-item-control">
+              <md-menu md-size="medium" :mdCloseOnClick="true">
+                <md-button class="md-icon-button" md-menu-trigger>
+                  <md-icon class="fas fa-ellipsis-v"></md-icon>
+                </md-button>
+
+                <md-menu-content class="custom-menu">
+                  <md-menu-item>
+                    <move-file-catalog-item-input placeholder="Move to ..." :item="folder"></move-file-catalog-item-input>
+                  </md-menu-item>
+                </md-menu-content>
+              </md-menu>
+            </div>
           </div>
         </div>
       </div>
@@ -91,10 +105,7 @@
 
                 <md-menu-content class="custom-menu">
                   <md-menu-item>
-                    <move-file-catalog-item-input placeholder="Move to ..."
-                                                  :item="file"
-                                                  @moved="getFiles()"
-                    ></move-file-catalog-item-input>
+                    <move-file-catalog-item-input placeholder="Move to ..." :item="file"></move-file-catalog-item-input>
                   </md-menu-item>
                 </md-menu-content>
               </md-menu>

@@ -77,6 +77,7 @@ export default {
       if(!this.search || _.includes(this.search.toLowerCase(), 'home')) {
         this.items.splice(0, 0, {'name': "Home", id: null});
       }
+      this.items = this.items.filter(item => item.id !== this.itemToMove.id && item.parentItemId !== this.itemToMove.id && item.id !== this.itemToMove.parentItemId);
     },
     getElOffset(el) {
       const rect = el.getBoundingClientRect();
