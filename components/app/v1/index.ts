@@ -49,6 +49,7 @@ const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
+const axios = require('axios');
 const Transform = require('stream').Transform;
 const saltRounds = 10;
 
@@ -544,16 +545,14 @@ class GeesomeApp implements IGeesomeApp {
       storageFile = resultFile;
       extension = resultExtension;
     } else {
-      const {resultFile, resultMimeType, resultExtension} = await new Promise((resolve, reject) => {
-        request.get(url).on('response', (responseStream) => {
-          const {statusCode} = responseStream;
-          if (statusCode !== 200) {
-            return reject();
-          }
-          const contentType = responseStream.headers['content-type'];
-          resolve(this.saveFileByStream(options.userId, responseStream.client, contentType || mime.getType(name), extension))
-        })
-      }) as any;
+      const {resultFile, resultMimeType, resultExtension} = await axios({url, method: 'get', responseType: 'stream'}).then((response) => {
+        const {status, statusText, data, headers} = response;
+        if (status !== 200) {
+          throw statusText;
+        }
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name), extension);
+      });
+      console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
       storageFile = resultFile;
       extension = resultExtension;
@@ -623,8 +622,10 @@ class GeesomeApp implements IGeesomeApp {
     // console.log('stream.pipe(sizeCheckStream)', stream.pipe(sizeCheckStream));
     // console.log('sizeCheckStream.pipe(stream)', sizeCheckStream.pipe(stream));
 
+    const resultFile = await this.storage.saveFileByData(stream);
+    console.log('resultFile', resultFile);
     return {
-      resultFile: await this.storage.saveFileByData(stream),
+      resultFile: resultFile,
       resultMimeType: mimeType,
       resultExtension: extension
     };
@@ -632,7 +633,6 @@ class GeesomeApp implements IGeesomeApp {
 
   private async getUserLimitRemained(userId, limitName: UserLimitName) {
     const limit = await this.database.getUserLimit(userId, limitName);
-    console.log('limit', limit);
     if (!limit || !limit.isActive) {
       return null;
     }

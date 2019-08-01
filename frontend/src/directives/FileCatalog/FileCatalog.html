@@ -9,7 +9,7 @@
 
       <div class="file-catalog-header md-subhead">
         <span>Folders</span>
-        <a class="link-with-icon" href @click.prevent="addFolder()">
+        <a class="link-with-icon ignore-subhead" href @click.prevent="addFolder()">
           <md-icon :class="{'fas': true, 'fa-caret-up': !showNewFolder, 'fa-caret-down': showNewFolder}"></md-icon>
           Add folder
         </a>
@@ -65,7 +65,7 @@
 
       <div class="file-catalog-header md-subhead">
         <span>Files</span>
-        <a class="link-with-icon" href @click.prevent="uploadFile()">
+        <a class="link-with-icon ignore-subhead" href @click.prevent="uploadFile()">
           <md-icon :class="{'fas': true, 'fa-caret-up': !showNewFile, 'fa-caret-down': showNewFile}"></md-icon>
           Upload file
         </a>

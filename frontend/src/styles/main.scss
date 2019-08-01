@@ -357,7 +357,7 @@ a.icon-link {
   }
 }
 
-.md-theme-default .md-subhead a:not(.md-button) {
+.md-theme-default .md-subhead a:not(.md-button):not(.ignore-subhead) {
   color: #fff;
   text-decoration: none !important;
   &:hover {
