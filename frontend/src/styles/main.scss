@@ -382,12 +382,34 @@ a.icon-link {
   &.autocomplete-container {
     z-index: 99999;
     .autocomplete-list {
-      display: flex;
-      flex-direction: column;
-      background: #39343e;
       min-width: 150px;
-      & > a {
+      background: #39343e;
+
+      .list-container {
+        display: flex;
+        flex-direction: column;
+        & > a {
+          padding: 10px;
+        }
+      }
+      .search-container {
         padding: 10px;
+        .md-field {
+          margin-bottom: 0;
+        }
+      }
+    }
+  }
+}
+
+.custom-menu {
+  .md-list-item-content {
+    padding: 0;
+    & > *, .md-button {
+      margin: 0;
+      width: 100%;
+      .md-ripple {
+        justify-content: flex-start;
       }
     }
   }

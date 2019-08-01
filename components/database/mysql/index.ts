@@ -294,33 +294,52 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getFileCatalogItems(userId, parentItemId, type = null, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+  async getFileCatalogItems(userId, parentItemId, type = null, search = '', sortBy = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
     limit = parseInt(limit as any) || 10;
     offset = parseInt(offset as any) || 0;
+    
+    const where: any = {userId, type, isDeleted: false};
+    
+    if(!_.isUndefined(parentItemId)) {
+      where.parentItemId = parentItemId;
+    }
+
+    if(search) {
+      where['name'] = {[Op.like]: search};
+    }
+    
     return this.models.FileCatalogItem.findAll({
-      where: {userId, parentItemId, type, isDeleted: false},
-      order: [[sortField, sortDir.toUpperCase()]],
+      where,
+      order: [[sortBy, sortDir.toUpperCase()]],
       include: [{model: this.models.Content, as: 'content'}],
       limit,
       offset
     });
   }
 
-  async getFileCatalogItemsByContent(userId, contentId, type = null, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+  async getFileCatalogItemsByContent(userId, contentId, type = null, sortBy = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
     limit = parseInt(limit as any) || 10;
     offset = parseInt(offset as any) || 0;
     return this.models.FileCatalogItem.findAll({
-      where: {userId, contentId, type},
-      order: [[sortField, sortDir.toUpperCase()]],
+      where: {userId, contentId, type, isDeleted: false},
+      order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
   }
 
-  async getFileCatalogItemsCount(userId, parentItemId, type = null) {
-    return this.models.FileCatalogItem.count({
-      where: {userId, parentItemId, type}
-    });
+  async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
+    const where: any = {userId, type, isDeleted: false};
+
+    if(!_.isUndefined(parentItemId)) {
+      where.parentItemId = parentItemId;
+    }
+    
+    if(search) {
+      where['name'] = {[Op.like]: search};
+    }
+    
+    return this.models.FileCatalogItem.count({ where });
   }
 
   async getFileCatalogItemsBreadcrumbs(childItemId) {

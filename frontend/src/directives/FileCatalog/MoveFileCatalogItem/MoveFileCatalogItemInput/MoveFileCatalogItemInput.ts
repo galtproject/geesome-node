@@ -13,136 +13,85 @@
 
 const _ = require('lodash');
 import {
-    EventBus
+  EventBus
 } from "../../../../services/events";
 
 import {
   EVENT_SHOW_MOVE_FILE_CONTAINER,
   EVENT_HIDE_MOVE_FILE_CONTAINER,
   EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER,
-  EVENT_UPDATE_VALUE_MOVE_FILE_CONTAINER,
-  EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER
+  EVENT_UPDATE_VALUE_MOVE_FILE_CONTAINER, EVENT_COMPLETE_MOVE_FILE_CONTAINER
 } from "../events";
 
 export default {
-    // name: 'autocomplete-input',
-    template: require('./MoveFileCatalogItemInput.html'),
-    props: ['value', 'placeholder', 'disabled', 'emptyLabel', 'items'],
-    async created() {
-        this.uniqId = Math.random().toString(36).substr(2, 9);
-        
-        this.searchText = _.isUndefined(this.value) ?  '' : this.value;
-        
-        this.updateValueDebounce = _.debounce((value) => {
-            this.$emit('input', value);
-            this.$emit('change', value);
-        }, 100);
+  // name: 'autocomplete-input',
+  template: require('./MoveFileCatalogItemInput.html'),
+  props: ['item', 'placeholder', 'disabled', 'emptyLabel'],
+  async created() {
+    this.uniqId = Math.random().toString(36).substr(2, 9);
 
-        EventBus.$on(EVENT_UPDATE_VALUE_MOVE_FILE_CONTAINER, (data) => {
-            if(this.uniqId != data.uniqId)
-                return;
-            this.showList = false;
-            this.$emit('selected', data.value);
-            this.searchText = data.title;
-            this.updateValue(data.value);
-        });
+    EventBus.$on(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, (data) => {
+      if (this.uniqId != data.uniqId)
+        return;
+      this.preventClose();
+    });
 
-        EventBus.$on(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, (data) => {
-            if(this.uniqId != data.uniqId)
-                return;
-            this.preventClose();
-        });
-        
-        this.filterItems();
+    EventBus.$on(EVENT_COMPLETE_MOVE_FILE_CONTAINER, (data) => {
+      if (this.uniqId != data.uniqId)
+        return;
+      this.$emit('moved');
+    });
+  },
+  mounted() {
+    this.clickOutsideListener = () => {
+      this.onClickOutside();
+    };
+    document.body.addEventListener('click', this.clickOutsideListener);
+
+    this.preventCloseListener = () => {
+      this.preventClose();
+    };
+    this.$refs.input.querySelectorAll('button')[0].addEventListener('click', this.preventCloseListener)
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.clickOutsideListener);
+
+    this.$refs.input.querySelectorAll('button')[0].removeEventListener('click', this.preventCloseListener);
+  },
+  methods: {
+    openContainer() {
+      if (this.showList)
+        return;
+
+      EventBus.$emit(EVENT_SHOW_MOVE_FILE_CONTAINER, {
+        uniqId: this.uniqId,
+        input: this.$refs.input,
+        itemToMove: this.item
+      });
+
+      this.showList = true;
     },
-    mounted() {
-        this.clickOutsideListener = () => {
-            this.onClickOutside();
-        };
-        document.body.addEventListener('click', this.clickOutsideListener);
-
-        this.preventCloseListener = () => {
-            this.preventClose();
-        };
-        this.$refs.input.querySelectorAll('button')[0].addEventListener('click', this.preventCloseListener)
-    },
-    beforeDestroy() {
-        document.removeEventListener('click', this.clickOutsideListener);
-
-        this.$refs.input.querySelectorAll('button')[0].removeEventListener('click', this.preventCloseListener);
-    },
-    methods: {
-        openContainer(){
-            if(this.showList)
-                return;
-
-            EventBus.$emit(EVENT_SHOW_MOVE_FILE_CONTAINER, {
-                uniqId: this.uniqId,
-                input: this.$refs.input,
-                items: this.items
-            });
-            
-            this.showList = true;
-        },
-        onClickOutside(){
-            setTimeout(() => {
-                if(this.isPreventClose) {
-                    return;
-                }
-                this.showList = false;
-                EventBus.$emit(EVENT_HIDE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
-            }, 200);
-        },
-        preventClose() {
-            this.isPreventClose = true;
-            setTimeout(() => {
-                this.isPreventClose = false;
-            }, 300);
-        },
-        itemSearch(item) {
-            return _.includes(item.title.toLowerCase(), this.searchText.toLowerCase());
-        },
-        filterItems() {
-            if(!this.searchText) {
-                this.filtredItems = this.items;
-
-                EventBus.$emit(EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER, {
-                    uniqId: this.uniqId,
-                    items: this.filtredItems
-                });
-                return;
-            }
-            this.filtredItems = this.items.filter((item) => {
-                return this.itemSearch(item) || (item.items && item.items.filter((subItem) => this.itemSearch(subItem)).length)
-            }).map(item => {
-                if(this.itemSearch(item)) {
-                    return item;
-                }
-                item = _.clone(item);
-                item.items = item.items.filter((subItem) => this.itemSearch(subItem));
-                return item;
-            });
-            EventBus.$emit(EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER, {
-                uniqId: this.uniqId,
-                items: this.filtredItems
-            });
-        },
-        updateValue(value) {
-            this.updateValueDebounce(value);
+    onClickOutside() {
+      setTimeout(() => {
+        if (this.isPreventClose) {
+          return;
         }
+        this.showList = false;
+        EventBus.$emit(EVENT_HIDE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
+      }, 200);
     },
-    watch: {
-        searchText() {
-            this.filterItems();
-        }
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            searchText: "",
-            filtredItems: []
-        }
+    preventClose() {
+      this.isPreventClose = true;
+      setTimeout(() => {
+        this.isPreventClose = false;
+      }, 300);
     }
+  },
+  watch: {},
+  computed: {},
+  data() {
+    return {
+      
+    }
+  }
 }

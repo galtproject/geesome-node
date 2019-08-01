@@ -362,7 +362,7 @@ export default {
         return wrap($http.get(`/resolve/${ipns}`)).catch(() => null);
       },
       getFileCatalogItems(parentItemId, type?, params?) {
-        let {sortBy, sortDir, limit, offset} = params;
+        let {sortBy, sortDir, limit, offset, search} = params;
 
         if (!sortBy) {
           sortBy = 'updatedAt';
@@ -371,14 +371,7 @@ export default {
           sortDir = 'desc';
         }
         return wrap($http.get(`/v1/user/file-catalog/`, {
-          params: {
-            parentItemId,
-            type,
-            sortField: sortBy,
-            sortDir,
-            limit,
-            offset
-          }
+          params: {parentItemId, type, sortBy, sortDir, limit, offset, search}
         }));
       },
       getFileCatalogBreadcrumbs(itemId) {

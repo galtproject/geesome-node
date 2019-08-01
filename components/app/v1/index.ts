@@ -864,9 +864,12 @@ class GeesomeApp implements IGeesomeApp {
   }
 
 
-  async getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?) {
-    if (!parentItemId)
+  async getFileCatalogItems(userId, parentItemId, type?, search = '', sortField?, sortDir?, limit?, offset?) {
+    if(parentItemId == 'null') {
       parentItemId = null;
+    }
+    if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
+      parentItemId = undefined;
     if (!sortField)
       sortField = 'createdAt';
     if (!sortDir)
@@ -875,9 +878,10 @@ class GeesomeApp implements IGeesomeApp {
       limit = 20;
     if (!offset)
       offset = 0;
+    
     return {
-      list: await this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset),
-      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type)
+      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, sortField, sortDir, limit, offset),
+      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
     };
   }
 

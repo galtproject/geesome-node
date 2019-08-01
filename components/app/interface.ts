@@ -80,7 +80,7 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
 
-  getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogListResponse>;
+  getFileCatalogItems(userId, parentItemId, type?, search?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogListResponse>;
 
   getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 

@@ -20,90 +20,102 @@ import {
   EVENT_HIDE_MOVE_FILE_CONTAINER,
   EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER,
   EVENT_UPDATE_VALUE_MOVE_FILE_CONTAINER,
-  EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER
+  EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER, EVENT_COMPLETE_MOVE_FILE_CONTAINER
 } from "../events";
 
 export default {
-    // name: 'autocomplete-container',
-    template: require('./MoveFileCatalogItemContainer.html'),
-    props: [],
-    mounted(){
-        this.$refs.container.addEventListener('click', () => {
-            EventBus.$emit(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
-        });
-        
-        EventBus.$on(EVENT_SHOW_MOVE_FILE_CONTAINER,(config) => {
-            this.uniqId = config.uniqId;
+  // name: 'autocomplete-container',
+  template: require('./MoveFileCatalogItemContainer.html'),
+  props: [],
+  mounted() {
+    this.$refs.container.addEventListener('click', () => {
+      EventBus.$emit(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
+    });
 
-            this.showList = true;
-            this.items = config.items;
-            this.value = config.value;
+    EventBus.$on(EVENT_SHOW_MOVE_FILE_CONTAINER, (config) => {
+      this.uniqId = config.uniqId;
 
-            let inputOffset = this.getElOffset(config.input);
-            this.top = (inputOffset.top + this.getElHeight(config.input)) - 20 + 'px';
-            this.left = inputOffset.left + 'px';
-            
-            const drawer = document.querySelectorAll('.md-app-drawer');
-            if(drawer && drawer.length) {
-                this.left = (inputOffset.left - this.getElWidth(drawer[0])) + 'px';
-            }
-            
-            // this.width = this.getElWidth(config.input) + 'px';
-        });
+      this.showList = true;
+      this.itemToMove = config.itemToMove;
 
-        EventBus.$on(EVENT_HIDE_MOVE_FILE_CONTAINER,(config) => {
-            if(this.uniqId != config.uniqId) {
-                return;
-            }
-            this.uniqId = null;
-            this.showList = false;
-        });
+      let inputOffset = this.getElOffset(config.input);
+      this.top = (inputOffset.top + this.getElHeight(config.input)) - 20 + 'px';
+      this.left = inputOffset.left + 'px';
 
-        EventBus.$on(EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER,(config) => {
-            if(this.uniqId != config.uniqId) {
-                return;
-            }
-            this.items = config.items;
-        });
+      const drawer = document.querySelectorAll('.md-app-drawer');
+      if (drawer && drawer.length) {
+        this.left = (inputOffset.left - this.getElWidth(drawer[0])) + 'px';
+      }
+
+      this.getItems();
+
+      // this.width = this.getElWidth(config.input) + 'px';
+    });
+
+    EventBus.$on(EVENT_HIDE_MOVE_FILE_CONTAINER, (config) => {
+      if (this.uniqId != config.uniqId) {
+        return;
+      }
+      this.uniqId = null;
+      this.showList = false;
+      this.$emit('change');
+    });
+
+    EventBus.$on(EVENT_UPDATE_ITEMS_MOVE_FILE_CONTAINER, (config) => {
+      if (this.uniqId != config.uniqId) {
+        return;
+      }
+      this.items = config.items;
+    });
+  },
+  methods: {
+    async getItems() {
+      const fileCatalog = await this.$coreApi.getFileCatalogItems(undefined, 'folder', {search: this.search ? '%' + this.search + '%' : ''});
+      this.items = fileCatalog.list;
     },
-    methods: {
-        getElOffset(el) {
-            const rect = el.getBoundingClientRect();
-            const docEl = document.documentElement;
+    getElOffset(el) {
+      const rect = el.getBoundingClientRect();
+      const docEl = document.documentElement;
 
-            const top = rect.top + window.pageYOffset - docEl.clientTop;
-            const left = rect.left + window.pageXOffset - docEl.clientLeft;
-            return {top, left};
-        },
-        getElHeight(el) {
-            return el.offsetHeight;
-        },
-        getElWidth(el) {
-            return el.offsetWidth;
-        },
-        preventClose() {
-            EventBus.$emit(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
-        },
-        selectItem(item) {
-            EventBus.$emit(EVENT_UPDATE_VALUE_MOVE_FILE_CONTAINER, {value: item.value, title: item.title, uniqId: this.uniqId});
-            this.showList = false;
-        }
+      const top = rect.top + window.pageYOffset - docEl.clientTop;
+      const left = rect.left + window.pageXOffset - docEl.clientLeft;
+      return {top, left};
     },
-    watch: {
-        
+    getElHeight(el) {
+      return el.offsetHeight;
     },
-    computed: {
-        
+    getElWidth(el) {
+      return el.offsetWidth;
     },
-    data: function () {
-        return {
-            showList: false,
-            items: [],
-            selected: [],
-            top: '0px',
-            left: '0px',
-            // width: '0px',
-            uniqId: null
-        }
+    preventClose() {
+      EventBus.$emit(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
+    },
+    async selectItem(folder) {
+      await this.$coreApi.updateFileCatalogItem(this.itemToMove.id, {parentItemId: folder.id});
+      EventBus.$emit(EVENT_HIDE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
+      EventBus.$emit(EVENT_COMPLETE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
+      this.$notify({
+        type: 'success',
+        title: "Success"
+      })
     }
+  },
+  watch: {
+    search() {
+      this.getItems();
+    }
+  },
+  computed: {},
+  data: function () {
+    return {
+      showList: false,
+      items: [],
+      top: '0px',
+      left: '0px',
+      // width: '0px',
+      uniqId: null,
+      itemToMove: null,
+      search: ''
+    }
+  }
 }

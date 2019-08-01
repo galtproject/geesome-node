@@ -305,7 +305,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
 
   service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
   });
   service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
     res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));

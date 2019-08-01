@@ -96,13 +96,13 @@ export interface IDatabase {
 
   getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
 
-  getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+  getFileCatalogItems(userId, parentItemId, type?, search?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
 
   getFileCatalogItemsByContent(userId, contentId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
 
   getFileCatalogItemsBreadcrumbs(itemId): Promise<IFileCatalogItem[]>;
 
-  getFileCatalogItemsCount(userId, parentItemId, type?): Promise<number>;
+  getFileCatalogItemsCount(userId, parentItemId, type?, search?): Promise<number>;
 
   getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
 
