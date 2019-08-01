@@ -12,8 +12,8 @@
  */
 
 module.exports = {
-    merchantLogin: 'yalland',
-    merchantToken: 'ilq4lvt7i6qas8hnjfdg01vhi6',
-    apiLogin: 'yalland-api',
-    apiPassword: 'yalland'
+  merchantLogin: 'yalland',
+  merchantToken: 'ilq4lvt7i6qas8hnjfdg01vhi6',
+  apiLogin: 'yalland-api',
+  apiPassword: 'yalland'
 };

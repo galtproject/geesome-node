@@ -14,40 +14,38 @@
 import PrettyName from "../../../../directives/PrettyName/PrettyName";
 
 export default {
-    template: require('./CreatedForAdminOverview.html'),
-    components: {PrettyName},
-    props: [],
-    async created() {
-        this.getItems();
+  template: require('./CreatedForAdminOverview.html'),
+  components: {PrettyName},
+  props: [],
+  async created() {
+    this.getItems();
+  },
+  methods: {
+    async getItems() {
+      this.items = [];
+      this.loading = true;
+
+      this.items = await this.$coreApi.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
+
+      this.loading = false;
     },
-    methods: {
-        async getItems() {
-            this.items = [];
-            this.loading = true;
-            
-            this.items = await this.$coreApi.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
-            
-            this.loading = false;
-        },
-        setActiveTab(tabName) {
-            this.activeTab = tabName;
-        }
-    },
-    watch: {
-        activeTab() {
-            this.getItems();
-        }
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'widgets.created_for_admin_overview',
-            search: '',
-            items: [],
-            activeTab: 'content',
-            loading: true
-        };
+    setActiveTab(tabName) {
+      this.activeTab = tabName;
     }
+  },
+  watch: {
+    activeTab() {
+      this.getItems();
+    }
+  },
+  computed: {},
+  data() {
+    return {
+      localeKey: 'widgets.created_for_admin_overview',
+      search: '',
+      items: [],
+      activeTab: 'content',
+      loading: true
+    };
+  }
 }

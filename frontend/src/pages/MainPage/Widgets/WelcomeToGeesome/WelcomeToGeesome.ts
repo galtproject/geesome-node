@@ -14,31 +14,29 @@
 import GeesomeNodeServerModal from "../../../../modals/GeesomeNodeServerModal/GeesomeNodeServerModal";
 
 export default {
-    template: require('./WelcomeToGeesome.html'),
-    components: {},
-    props: [],
-    async created() {
-        
-    },
-    methods: {
-        connectToNode() {
-            this.$root.$asyncModal.open({
-                id: 'geesome-node-server-modal',
-                component: GeesomeNodeServerModal
-            });
-        }
-    },
-    watch: {
-        
-    },
-    computed: {
-        user() {
-            return this.$store.state.user;
-        }
-    },
-    data() {
-        return {
-            localeKey: 'widgets.welcome_to_geesome',
-        };
+  template: require('./WelcomeToGeesome.html'),
+  components: {},
+  props: [],
+  async created() {
+
+  },
+  methods: {
+    connectToNode() {
+      this.$root.$asyncModal.open({
+        id: 'geesome-node-server-modal',
+        component: GeesomeNodeServerModal
+      });
     }
+  },
+  watch: {},
+  computed: {
+    user() {
+      return this.$store.state.user;
+    }
+  },
+  data() {
+    return {
+      localeKey: 'widgets.welcome_to_geesome',
+    };
+  }
 }

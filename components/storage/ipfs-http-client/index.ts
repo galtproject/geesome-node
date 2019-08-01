@@ -12,12 +12,13 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
+
 const JsIpfsServiceNode = require("@galtproject/geesome-libs/src/JsIpfsServiceNode");
 
 const IPFS = require('ipfs-http-client');
 
 module.exports = async (app: IGeesomeApp) => {
-    const node = new IPFS(app.config.storageConfig.goNode);
-    
-    return new JsIpfsServiceNode(node);
+  const node = new IPFS(app.config.storageConfig.goNode);
+
+  return new JsIpfsServiceNode(node);
 };

@@ -15,17 +15,13 @@ import CreatedForAdminOverview from "./Widgets/CreatedForAdminOverview/CreatedFo
 import WelcomeToGeesome from "./Widgets/WelcomeToGeesome/WelcomeToGeesome";
 
 export default {
-    template: require('./MainPage.html'),
-    components: {CreatedForAdminOverview, WelcomeToGeesome},
-    methods: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'main_page'
-        };
-    },
-    computed: {
-        
-    }
+  template: require('./MainPage.html'),
+  components: {CreatedForAdminOverview, WelcomeToGeesome},
+  methods: {},
+  data() {
+    return {
+      localeKey: 'main_page'
+    };
+  },
+  computed: {}
 }

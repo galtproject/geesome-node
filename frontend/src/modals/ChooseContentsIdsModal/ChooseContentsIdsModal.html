@@ -9,11 +9,13 @@
   </template>
 
   <div class="modal-body" slot="body">
-    <file-catalog :select-mode="true" :selected-ids.sync="fileCatalogItemsIds" :hide-methods="['choose_uploaded']"></file-catalog>
+    <file-catalog :select-mode="true" :selected-ids.sync="fileCatalogItemsIds"
+                  :hide-methods="['choose_uploaded']"></file-catalog>
   </div>
 
   <template slot="footer">
     <md-button @click="cancel" class="md-raised"><span v-locale="localeKey + '.cancel'"></span></md-button>
-    <md-button @click="ok" class="md-raised md-accent" :disabled="!fileCatalogItemsIds.length"><span v-locale="localeKey + '.ok'"></span></md-button>
+    <md-button @click="ok" class="md-raised md-accent" :disabled="!fileCatalogItemsIds.length"><span
+        v-locale="localeKey + '.ok'"></span></md-button>
   </template>
 </modal-item>

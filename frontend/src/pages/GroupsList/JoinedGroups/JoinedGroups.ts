@@ -16,27 +16,23 @@
 import GroupItem from "../GroupItem/GroupItem";
 
 export default {
-    template: require('./JoinedGroups.html'),
-    components: {GroupItem},
-    props: [],
-    async created() {
-        this.getGroups();
-    },
-    methods: {
-        async getGroups() {
-            this.memberInGroups = await this.$coreApi.getMemberInGroups();
-        }
-    },
-    watch: {
-        
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'content_page',
-            memberInGroups: []
-        };
+  template: require('./JoinedGroups.html'),
+  components: {GroupItem},
+  props: [],
+  async created() {
+    this.getGroups();
+  },
+  methods: {
+    async getGroups() {
+      this.memberInGroups = await this.$coreApi.getMemberInGroups();
     }
+  },
+  watch: {},
+  computed: {},
+  data() {
+    return {
+      localeKey: 'content_page',
+      memberInGroups: []
+    };
+  }
 }

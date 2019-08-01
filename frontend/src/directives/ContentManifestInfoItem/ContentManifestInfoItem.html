@@ -1,25 +1,39 @@
 <div :class="{'content-manifest-info-item': true, 'mini-manifest-info': mini}">
-    <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"></md-progress-bar>
-    
-    <div class="md-layout" v-if="manifestObj">
-        <div :class="{'md-layout-item': true, 'md-size-30': !verticalMode, 'md-size-100': verticalMode}">
-            <b>Preview:</b><br>
-            <content-manifest-item :manifest="manifestObj" :preview-mode="true"></content-manifest-item>
-        </div>
-        <div :class="{'md-layout-item': true, 'md-size-70': !verticalMode, 'md-size-100 margin-top': verticalMode}" style="position: relative;">
-            <div>
-                <b>Name:</b> <pretty-name :name="manifestObj.name"></pretty-name><br>
-                <b>Type:</b> {{manifestObj.mimeType}}<br>
-                <b>Size:</b> {{manifestObj.size| prettySize}}<br>
-                <b>Ipfs hash:</b> <pretty-hex :hex="manifestObj.content"></pretty-hex><br>
-                <b>Preview ipfs hash:</b> <pretty-hex :hex="manifestObj.preview"></pretty-hex><br>
-                <b>Manifest ipld hash:</b> <pretty-hex :hex="manifestObj.id"></pretty-hex><br>
-                <a class="icon-link" :href="srcLink" @click.prevent="download"><md-icon class="fas fa-file-download"></md-icon></a>
-                <router-link class="icon-link" :to="{name: 'content-page', params: {contentId: manifestObj.id}}"><md-icon class="fas fa-share"></md-icon></router-link>
-            </div>
-            <md-button v-if="showCloseButton" class="md-accent md-icon-button" @click="$emit('close')" style="position: absolute; top: 0; right: 0;">
-                <md-icon class="fas fa-times"></md-icon>
-            </md-button>
-        </div>
+  <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"></md-progress-bar>
+
+  <div class="md-layout" v-if="manifestObj">
+    <div :class="{'md-layout-item': true, 'md-size-30': !verticalMode, 'md-size-100': verticalMode}">
+      <b>Preview:</b><br>
+      <content-manifest-item :manifest="manifestObj" :preview-mode="true"></content-manifest-item>
     </div>
+    <div :class="{'md-layout-item': true, 'md-size-70': !verticalMode, 'md-size-100 margin-top': verticalMode}"
+         style="position: relative;">
+      <div>
+        <b>Name:</b>
+        <pretty-name :name="manifestObj.name"></pretty-name>
+        <br>
+        <b>Type:</b> {{manifestObj.mimeType}}<br>
+        <b>Size:</b> {{manifestObj.size| prettySize}}<br>
+        <b>Ipfs hash:</b>
+        <pretty-hex :hex="manifestObj.content"></pretty-hex>
+        <br>
+        <b>Preview ipfs hash:</b>
+        <pretty-hex :hex="manifestObj.preview ? manifestObj.preview.medium.content : ''"></pretty-hex>
+        <br>
+        <b>Manifest ipld hash:</b>
+        <pretty-hex :hex="manifestObj.id"></pretty-hex>
+        <br>
+        <a class="icon-link" :href="srcLink" @click.prevent="download">
+          <md-icon class="fas fa-file-download"></md-icon>
+        </a>
+        <router-link class="icon-link" :to="{name: 'content-page', params: {contentId: manifestObj.id}}">
+          <md-icon class="fas fa-share"></md-icon>
+        </router-link>
+      </div>
+      <md-button v-if="showCloseButton" class="md-accent md-icon-button" @click="$emit('close')"
+                 style="position: absolute; top: 0; right: 0;">
+        <md-icon class="fas fa-times"></md-icon>
+      </md-button>
+    </div>
+  </div>
 </div>

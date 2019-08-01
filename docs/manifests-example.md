@@ -9,10 +9,26 @@ Content using for describing of IPFS file: type, size, name, extension and in fu
  "size": 8097,
  "mimeType": "image/jpeg",
  "extension": "jpg",
- "preview": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
- "previewSize": 1097,
- "previewMimeType": "image/jpeg",
- "previewExtension": "jpeg",
+ "preview": {
+    "small": {
+        "content": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
+        "size": 809,
+        "mimeType": "image/jpeg",
+        "extension": "jpg"
+    },
+    "medium": {
+        "content": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
+        "size": 1600,
+        "mimeType": "image/jpeg",
+        "extension": "jpg"
+    },
+    "large": {
+        "content": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
+        "size": 4000,
+        "mimeType": "image/jpeg",
+        "extension": "jpg"
+    }
+ },
  "storageType": "ipfs",
  "_version": "0.1",
  "_source": "geesome-core",

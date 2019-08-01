@@ -16,27 +16,23 @@
 import GroupItem from "../GroupItem/GroupItem";
 
 export default {
-    template: require('./AdminedGroups.html'),
-    components: {GroupItem},
-    props: [],
-    async created() {
-        this.getGroups();
-    },
-    methods: {
-        async getGroups() {
-            this.adminInGroups = await this.$coreApi.getAdminInGroups();
-        }
-    },
-    watch: {
-        
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'content_page',
-            adminInGroups: []
-        };
+  template: require('./AdminedGroups.html'),
+  components: {GroupItem},
+  props: [],
+  async created() {
+    this.getGroups();
+  },
+  methods: {
+    async getGroups() {
+      this.adminInGroups = await this.$coreApi.getAdminInGroups();
     }
+  },
+  watch: {},
+  computed: {},
+  data() {
+    return {
+      localeKey: 'content_page',
+      adminInGroups: []
+    };
+  }
 }

@@ -19,104 +19,104 @@ const fileSaver = require('file-saver');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 
 export default {
-    template: require('./ContentManifestInfoItem.html'),
-    props: ['manifest', 'dbId', 'verticalMode', 'mini'],
-    components: {PrettyName},
-    async created() {
-        this.setContent();
-    },
+  template: require('./ContentManifestInfoItem.html'),
+  props: ['manifest', 'dbId', 'verticalMode', 'mini'],
+  components: {PrettyName},
+  async created() {
+    this.setContent();
+  },
 
-    async mounted() {
+  async mounted() {
 
-    },
+  },
 
-    methods: {
-        setContent() {
-            if(this.dbId) {
-                this.setContentByDbId();
-            } else {
-                this.setContentByManifest();
-            }
-        },
-        async setContentByDbId(){
-            this.loading = true;
-            const dbContent = await this.$coreApi.getDbContent(this.dbId);
-            const manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
-            this.setContentByManifest(manifestObj);
-        },
-        async setContentByManifest(manifestObj) {
-            this.loading = true;
-            
-            if(manifestObj) {
-                this.manifestObj = manifestObj;
-            } else if(ipfsHelper.isIpldHash(this.manifest)) {
-                this.manifestObj = await this.$coreApi.getIpld(this.manifest);
-            } else if(this.manifest) {
-                this.manifestObj = this.manifest;
-            }
-            if(!this.manifestObj) {
-                return;
-            }
+  methods: {
+    setContent() {
+      if (this.dbId) {
+        this.setContentByDbId();
+      } else {
+        this.setContentByManifest();
+      }
+    },
+    async setContentByDbId() {
+      this.loading = true;
+      const dbContent = await this.$coreApi.getDbContent(this.dbId);
+      const manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
+      this.setContentByManifest(manifestObj);
+    },
+    async setContentByManifest(manifestObj) {
+      this.loading = true;
 
-            this.srcLink = await this.$coreApi.getImageLink(this.manifestObj.content);
-            
-            if(this.type == 'text') {
-                this.content = await this.$coreApi.getContentData(this.manifestObj.content);
-            }
-            if(this.type == 'image' || this.type == 'file') {
-                this.content = this.srcLink;
-            }
-            this.loading = false;
-        },
-        download() {
-            fileSaver.saveAs(this.srcLink, this.filename);
-        }
-    },
+      if (manifestObj) {
+        this.manifestObj = manifestObj;
+      } else if (ipfsHelper.isIpldHash(this.manifest)) {
+        this.manifestObj = await this.$coreApi.getIpld(this.manifest);
+      } else if (this.manifest) {
+        this.manifestObj = this.manifest;
+      }
+      if (!this.manifestObj) {
+        return;
+      }
 
-    watch: {
-        type() {
-            this.setContent();
-        },
-        dbId() {
-            this.setContentByDbId();
-        }
-    },
+      this.srcLink = await this.$coreApi.getImageLink(this.manifestObj.content);
 
-    computed: {
-        filename() {
-            return _.last(this.srcLink.split('/')) + '.' + this.extension;
-        },
-        type() {
-            if(!this.manifestObj) {
-                return null;
-            }
-            if(_.startsWith(this.manifestObj.mimeType, 'image')) {
-                return 'image';
-            }
-            if(_.startsWith(this.manifestObj.mimeType, 'text')) {
-                return 'text';
-            }
-            return 'file';
-        },
-        extension() {
-            if(!this.manifestObj) {
-                return null;
-            }
-            return this.manifestObj.extension || mime.getExtension(this.manifestObj.mimeType) || '';
-        },
-        showCloseButton() {
-            return !!this.$listeners.close;
-        },
-        slashesSrcLink() {
-            return this.srcLink.replace('http:', '').replace('https:', '');
-        }
+      if (this.type == 'text') {
+        this.content = await this.$coreApi.getContentData(this.manifestObj.content);
+      }
+      if (this.type == 'image' || this.type == 'file') {
+        this.content = this.srcLink;
+      }
+      this.loading = false;
     },
-    data() {
-        return {
-            manifestObj: null,
-            content: '',
-            srcLink: '',
-            loading: true
-        }
+    download() {
+      fileSaver.saveAs(this.srcLink, this.filename);
+    }
+  },
+
+  watch: {
+    type() {
+      this.setContent();
     },
+    dbId() {
+      this.setContentByDbId();
+    }
+  },
+
+  computed: {
+    filename() {
+      return _.last(this.srcLink.split('/')) + '.' + this.extension;
+    },
+    type() {
+      if (!this.manifestObj) {
+        return null;
+      }
+      if (_.startsWith(this.manifestObj.mimeType, 'image')) {
+        return 'image';
+      }
+      if (_.startsWith(this.manifestObj.mimeType, 'text')) {
+        return 'text';
+      }
+      return 'file';
+    },
+    extension() {
+      if (!this.manifestObj) {
+        return null;
+      }
+      return this.manifestObj.extension || mime.getExtension(this.manifestObj.mimeType) || '';
+    },
+    showCloseButton() {
+      return !!this.$listeners.close;
+    },
+    slashesSrcLink() {
+      return this.srcLink.replace('http:', '').replace('https:', '');
+    }
+  },
+  data() {
+    return {
+      manifestObj: null,
+      content: '',
+      srcLink: '',
+      loading: true
+    }
+  },
 }

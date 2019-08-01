@@ -12,39 +12,39 @@
  */
 
 module.exports = async function (sequelize, models) {
-    const Sequelize = require('sequelize');
-    
-    const UserLimit = sequelize.define('userLimit', {
-        // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-        name: {
-            type: Sequelize.STRING(200)
-        },
-        value: {
-            type: Sequelize.DOUBLE
-        },
-        periodTimestamp: {
-            type: Sequelize.INTEGER
-        },
-        isActive: {
-            type: Sequelize.BOOLEAN
-        },
-        deactivateOn: {
-            type: Sequelize.DATE
-        }
-    } as any, {
-        indexes: [
-            // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-            // { fields: ['chainAccountAddress'] },
-            // { fields: ['tokensAddress'] },
-            // { fields: ['tokensAddress', 'chainAccountAddress'] }
-        ]
-    } as any);
+  const Sequelize = require('sequelize');
 
-    UserLimit.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(UserLimit, { as: 'limits', foreignKey: 'userId' });
-    
-    UserLimit.belongsTo(models.User, { as: 'admin', foreignKey: 'adminId' });
-    models.User.hasMany(UserLimit, { as: 'limitsSet', foreignKey: 'adminId' });
+  const UserLimit = sequelize.define('userLimit', {
+    // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+    name: {
+      type: Sequelize.STRING(200)
+    },
+    value: {
+      type: Sequelize.DOUBLE
+    },
+    periodTimestamp: {
+      type: Sequelize.INTEGER
+    },
+    isActive: {
+      type: Sequelize.BOOLEAN
+    },
+    deactivateOn: {
+      type: Sequelize.DATE
+    }
+  } as any, {
+    indexes: [
+      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+      // { fields: ['chainAccountAddress'] },
+      // { fields: ['tokensAddress'] },
+      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+    ]
+  } as any);
 
-    return UserLimit.sync({});
+  UserLimit.belongsTo(models.User, {as: 'user', foreignKey: 'userId'});
+  models.User.hasMany(UserLimit, {as: 'limits', foreignKey: 'userId'});
+
+  UserLimit.belongsTo(models.User, {as: 'admin', foreignKey: 'adminId'});
+  models.User.hasMany(UserLimit, {as: 'limitsSet', foreignKey: 'adminId'});
+
+  return UserLimit.sync({});
 };

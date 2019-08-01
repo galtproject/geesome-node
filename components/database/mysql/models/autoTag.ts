@@ -12,35 +12,35 @@
  */
 
 module.exports = async function (sequelize, models) {
-    const Sequelize = require('sequelize');
-    
-    const AutoTag = sequelize.define('autoTag', {
-        // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-        isGlobal: {
-            type: Sequelize.BOOLEAN
-        },
-        requiredTagsCount: {
-            type: Sequelize.INTEGER
-        }
-    } as any, {
-        indexes: [
-            // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-            // { fields: ['chainAccountAddress'] },
-            // { fields: ['tokensAddress'] },
-            // { fields: ['tokensAddress', 'chainAccountAddress'] }
-        ]
-    } as any);
+  const Sequelize = require('sequelize');
 
-    AutoTag.belongsTo(models.Tag, { as: 'requiredTag1', foreignKey: 'requiredTag1Id' });
-    AutoTag.belongsTo(models.Tag, { as: 'requiredTag2', foreignKey: 'requiredTag2Id' });
-    AutoTag.belongsTo(models.Tag, { as: 'requiredTag3', foreignKey: 'requiredTag3Id' });
-    AutoTag.belongsTo(models.Tag, { as: 'requiredTag4', foreignKey: 'requiredTag4Id' });
-    AutoTag.belongsTo(models.Tag, { as: 'requiredTag5', foreignKey: 'requiredTag5Id' });
+  const AutoTag = sequelize.define('autoTag', {
+    // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+    isGlobal: {
+      type: Sequelize.BOOLEAN
+    },
+    requiredTagsCount: {
+      type: Sequelize.INTEGER
+    }
+  } as any, {
+    indexes: [
+      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+      // { fields: ['chainAccountAddress'] },
+      // { fields: ['tokensAddress'] },
+      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+    ]
+  } as any);
 
-    AutoTag.belongsTo(models.Tag, { as: 'resultTag', foreignKey: 'resultTagId' });
-    
-    AutoTag.belongsTo(models.Group, { as: 'group', foreignKey: 'groupId' });
-    models.User.hasMany(AutoTag, { as: 'autoTags', foreignKey: 'groupId' });
+  AutoTag.belongsTo(models.Tag, {as: 'requiredTag1', foreignKey: 'requiredTag1Id'});
+  AutoTag.belongsTo(models.Tag, {as: 'requiredTag2', foreignKey: 'requiredTag2Id'});
+  AutoTag.belongsTo(models.Tag, {as: 'requiredTag3', foreignKey: 'requiredTag3Id'});
+  AutoTag.belongsTo(models.Tag, {as: 'requiredTag4', foreignKey: 'requiredTag4Id'});
+  AutoTag.belongsTo(models.Tag, {as: 'requiredTag5', foreignKey: 'requiredTag5Id'});
 
-    return AutoTag.sync({});
+  AutoTag.belongsTo(models.Tag, {as: 'resultTag', foreignKey: 'resultTagId'});
+
+  AutoTag.belongsTo(models.Group, {as: 'group', foreignKey: 'groupId'});
+  models.User.hasMany(AutoTag, {as: 'autoTags', foreignKey: 'groupId'});
+
+  return AutoTag.sync({});
 };

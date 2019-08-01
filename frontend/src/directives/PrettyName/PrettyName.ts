@@ -13,38 +13,32 @@
 
 const _ = require('lodash');
 export default {
-    name: 'pretty-name',
-    template: require('./PrettyName.html'),
-    props: ['name'],
-    created() {
+  name: 'pretty-name',
+  template: require('./PrettyName.html'),
+  props: ['name'],
+  created() {
 
-    },
-    watch: {
-        
-    },
-    methods: {
-        
-    },
-    computed: {
-        prettyName() {
-            if(!this.name) {
-                return '';
-            }
-            const dotIndex = _.lastIndexOf(this.name, '.');
-            let cutContentLength = 10;
-            let endChars = 4;
-            if(dotIndex <= cutContentLength) {
-                return this.name;
-            }
-            if(this.name.length < cutContentLength + endChars) {
-                cutContentLength = cutContentLength - endChars;
-            }
-            return this.name.slice(0, cutContentLength) + "..." + this.name.slice(dotIndex - endChars);
-        }
-    },
-    data() {
-        return {
-            
-        }
+  },
+  watch: {},
+  methods: {},
+  computed: {
+    prettyName() {
+      if (!this.name) {
+        return '';
+      }
+      const dotIndex = _.lastIndexOf(this.name, '.');
+      let cutContentLength = 10;
+      let endChars = 4;
+      if (dotIndex <= cutContentLength) {
+        return this.name;
+      }
+      if (this.name.length < cutContentLength + endChars) {
+        cutContentLength = cutContentLength - endChars;
+      }
+      return this.name.slice(0, cutContentLength) + "..." + this.name.slice(dotIndex - endChars);
     }
+  },
+  data() {
+    return {}
+  }
 }

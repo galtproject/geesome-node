@@ -12,36 +12,36 @@
  */
 
 module.exports = async function (sequelize, models) {
-    const Sequelize = require('sequelize');
-    
-    const UserApiKey = sequelize.define('userApiKey', {
-        // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-        title: {
-            type: Sequelize.STRING
-        },
-        valueHash: {
-            type: Sequelize.STRING(200)
-        },
-        type: {
-            type: Sequelize.STRING(200)
-        },
-        permissions: {
-            type: Sequelize.STRING
-        },
-        expiredOn: {
-            type: Sequelize.DATE
-        },
-    } as any, {
-        indexes: [
-            // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-            // { fields: ['chainAccountAddress'] },
-            // { fields: ['tokensAddress'] },
-            // { fields: ['tokensAddress', 'chainAccountAddress'] }
-        ]
-    } as any);
+  const Sequelize = require('sequelize');
 
-    UserApiKey.belongsTo(models.User, { as: 'user', foreignKey: 'userId' });
-    models.User.hasMany(UserApiKey, { as: 'apiKeys', foreignKey: 'userId' });
+  const UserApiKey = sequelize.define('userApiKey', {
+    // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+    title: {
+      type: Sequelize.STRING
+    },
+    valueHash: {
+      type: Sequelize.STRING(200)
+    },
+    type: {
+      type: Sequelize.STRING(200)
+    },
+    permissions: {
+      type: Sequelize.STRING
+    },
+    expiredOn: {
+      type: Sequelize.DATE
+    },
+  } as any, {
+    indexes: [
+      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+      // { fields: ['chainAccountAddress'] },
+      // { fields: ['tokensAddress'] },
+      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+    ]
+  } as any);
 
-    return UserApiKey.sync({});
+  UserApiKey.belongsTo(models.User, {as: 'user', foreignKey: 'userId'});
+  models.User.hasMany(UserApiKey, {as: 'apiKeys', foreignKey: 'userId'});
+
+  return UserApiKey.sync({});
 };

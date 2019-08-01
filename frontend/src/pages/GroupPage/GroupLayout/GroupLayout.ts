@@ -17,38 +17,38 @@ import GroupInfo from "../GroupInfo/GroupInfo";
 import {EventBus, UPDATE_GROUP} from "../../../services/events";
 
 export default {
-    template: require('./GroupLayout.html'),
-    components: {GroupHeader, GroupInfo},
-    async created() {
+  template: require('./GroupLayout.html'),
+  components: {GroupHeader, GroupInfo},
+  async created() {
+    this.getGroup();
+    EventBus.$on(UPDATE_GROUP, (groupId) => {
+      if (groupId === this.group.id) {
         this.getGroup();
-        EventBus.$on(UPDATE_GROUP, (groupId) => {
-            if(groupId === this.group.id) {
-                this.getGroup();
-            }
-        })
-    },
-    methods: {
-        async getGroup() {
-            this.group = null;
-            this.group = await this.$coreApi.getGroup(this.groupId);
-        }
-    },
-    watch: {
-        groupId() {
-            this.getGroup();
-        }
-    },
-    computed: {
-        groupId() {
-            return this.$route.params.groupId;
-        }
-    },
-    data() {
-        return {
-            localeKey: 'group_page',
-            posts: [],
-            group: null,
-            loading: true
-        };
+      }
+    })
+  },
+  methods: {
+    async getGroup() {
+      this.group = null;
+      this.group = await this.$coreApi.getGroup(this.groupId);
     }
+  },
+  watch: {
+    groupId() {
+      this.getGroup();
+    }
+  },
+  computed: {
+    groupId() {
+      return this.$route.params.groupId;
+    }
+  },
+  data() {
+    return {
+      localeKey: 'group_page',
+      posts: [],
+      group: null,
+      loading: true
+    };
+  }
 }

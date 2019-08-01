@@ -15,39 +15,39 @@ import ChooseFileContentsIdsModal from "../../../modals/ChooseFileContentsIdsMod
 import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
 
 export default {
-    name: 'group-form',
-    template: require('./GroupForm.html'),
-    components: {ContentManifestItem},
-    props: ['group', 'invalid'],
-    methods: {
-        chooseImage(fieldName) {
-            this.$root.$asyncModal.open({
-                id: 'choose-file-contents-ids-modal',
-                component: ChooseFileContentsIdsModal,
-                onClose: (selected) => {
-                    if(!selected || !selected.length) {
-                        return;
-                    }
-                    this.group[fieldName] = selected[0];
-                }
-            });
-        }, 
-        updateInvalid() {
-            const invalid = !this.group.name || !this.group.title;
-            this.$emit('update:invalid', invalid);
+  name: 'group-form',
+  template: require('./GroupForm.html'),
+  components: {ContentManifestItem},
+  props: ['group', 'invalid'],
+  methods: {
+    chooseImage(fieldName) {
+      this.$root.$asyncModal.open({
+        id: 'choose-file-contents-ids-modal',
+        component: ChooseFileContentsIdsModal,
+        onClose: (selected) => {
+          if (!selected || !selected.length) {
+            return;
+          }
+          this.group[fieldName] = selected[0];
         }
+      });
     },
-    watch: {
-        'group.name'() {
-            this.updateInvalid();
-        },
-        'group.title'() {
-            this.updateInvalid();
-        }
-    },
-    data() {
-        return {
-            localeKey: 'group_form'
-        };
+    updateInvalid() {
+      const invalid = !this.group.name || !this.group.title;
+      this.$emit('update:invalid', invalid);
     }
+  },
+  watch: {
+    'group.name'() {
+      this.updateInvalid();
+    },
+    'group.title'() {
+      this.updateInvalid();
+    }
+  },
+  data() {
+    return {
+      localeKey: 'group_form'
+    };
+  }
 }

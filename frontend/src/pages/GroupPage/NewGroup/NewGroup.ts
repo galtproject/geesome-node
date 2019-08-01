@@ -16,35 +16,33 @@ import ContentManifestItem from "../../../directives/ContentManifestItem/Content
 import GroupForm from "../GroupForm/GroupForm";
 
 export default {
-    template: require('./NewGroup.html'),
-    components: {ContentManifestItem, GroupForm},
-    methods: {
-        create() {
-            this.$coreApi.createGroup(this.group).then((createdGroup) => {
-                EventBus.$emit(UPDATE_ADMIN_GROUPS);
-                this.$router.push({name: 'group-page', params: {groupId: createdGroup.manifestStaticStorageId}})
-            }).catch(() => {
-                this.error = 'failed';
-            })
-        }
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'login_page',
-            group: {
-                name: '',
-                title: '',
-                type: 'channel',
-                view: 'tumblr-like',
-                isPublic: true,
-                avatarImageId: null,
-                coverImageId: null
-            },
-            error: null,
-            invalidInputs: true
-        };
+  template: require('./NewGroup.html'),
+  components: {ContentManifestItem, GroupForm},
+  methods: {
+    create() {
+      this.$coreApi.createGroup(this.group).then((createdGroup) => {
+        EventBus.$emit(UPDATE_ADMIN_GROUPS);
+        this.$router.push({name: 'group-page', params: {groupId: createdGroup.manifestStaticStorageId}})
+      }).catch(() => {
+        this.error = 'failed';
+      })
     }
+  },
+  computed: {},
+  data() {
+    return {
+      localeKey: 'login_page',
+      group: {
+        name: '',
+        title: '',
+        type: 'channel',
+        view: 'tumblr-like',
+        isPublic: true,
+        avatarImageId: null,
+        coverImageId: null
+      },
+      error: null,
+      invalidInputs: true
+    };
+  }
 }

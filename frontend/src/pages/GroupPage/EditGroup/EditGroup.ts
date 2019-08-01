@@ -16,30 +16,28 @@ import ContentManifestItem from "../../../directives/ContentManifestItem/Content
 import GroupForm from "../GroupForm/GroupForm";
 
 export default {
-    template: require('./EditGroup.html'),
-    components: {ContentManifestItem, GroupForm},
-    async created() {
-        this.group = await this.$coreApi.getDbGroup(this.$route.params.groupId);
-    },
-    methods: {
-        update() {
-            this.$coreApi.updateGroup(this.group).then((updatedGroup) => {
-                EventBus.$emit(UPDATE_ADMIN_GROUPS);
-                this.$router.push({name: 'group-page', params: {groupId: updatedGroup.manifestStaticStorageId}})
-            }).catch(() => {
-                this.error = 'failed';
-            })
-        }
-    },
-    computed: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'edit_group',
-            group: null,
-            error: null,
-            invalidInputs: true
-        };
+  template: require('./EditGroup.html'),
+  components: {ContentManifestItem, GroupForm},
+  async created() {
+    this.group = await this.$coreApi.getDbGroup(this.$route.params.groupId);
+  },
+  methods: {
+    update() {
+      this.$coreApi.updateGroup(this.group).then((updatedGroup) => {
+        EventBus.$emit(UPDATE_ADMIN_GROUPS);
+        this.$router.push({name: 'group-page', params: {groupId: updatedGroup.manifestStaticStorageId}})
+      }).catch(() => {
+        this.error = 'failed';
+      })
     }
+  },
+  computed: {},
+  data() {
+    return {
+      localeKey: 'edit_group',
+      group: null,
+      error: null,
+      invalidInputs: true
+    };
+  }
 }

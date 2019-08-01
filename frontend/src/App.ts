@@ -85,6 +85,13 @@ Vue.filter('prettySize', function (bytesSize) {
   return round(bytesSize / (1024 ** 4)) + ' Tb';
 });
 
+Vue.filter('prettyFileName', function (str) {
+  if (str.length <= 20) {
+    return str;
+  }
+  return str ? str.slice(0, 7) + "..." + str.slice(-6) : '';
+});
+
 export default {
   template: require('./App.html'),
   components: {MainMenu},//,ConsoleLog

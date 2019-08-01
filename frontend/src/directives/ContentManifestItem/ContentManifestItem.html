@@ -1,18 +1,22 @@
 <content>
-    <img v-if="type === 'image' && previewMode" :src="previewSrcLink">
-    <a v-if="type === 'image' && !previewMode" href @click.prevent="openImage"><img :src="previewSrcLink || srcLink"></a>
-    
-    <media-element v-if="type === 'video' && content" :source="content" :preview="previewSrcLink"></media-element>
-    <span v-if="type === 'text' && content" v-html="content"></span>
-   
-    <div class="md-layout" v-if="type === 'file'" style="align-items: center;">
-        <div :class="{'md-layout-item': true, 'md-size-10': !previewMode, 'md-size-100': previewMode}" :style="{'text-align': previewMode ? 'center' : 'left'}">
-            <md-button class="md-icon-button" @click="download()">
-                <md-icon class="fas fa-file-download fa-3x"></md-icon>
-            </md-button>
-        </div>
-        <div :class="{'md-layout-item': true, 'md-size-90': !previewMode, 'md-size-100': previewMode}" :style="{'text-align': previewMode ? 'center' : 'left'}" v-if="manifestObj">
-            <a href @click.prevent="download"><pretty-name :name="manifestObj.name"></pretty-name></a>
-        </div>
+  <img v-if="type === 'image' && previewMode" :src="previewSrcLink">
+  <a v-if="type === 'image' && !previewMode" href @click.prevent="openImage"><img :src="previewSrcLink || srcLink"></a>
+
+  <media-element v-if="type === 'video' && content" :source="content" :preview="previewSrcLink"></media-element>
+  <span v-if="type === 'text' && content" v-html="content"></span>
+
+  <div class="md-layout" v-if="type === 'file'" style="align-items: center;">
+    <div :class="{'md-layout-item': true, 'md-size-10': !previewMode, 'md-size-100': previewMode}"
+         :style="{'text-align': previewMode ? 'center' : 'left'}">
+      <md-button class="md-icon-button" @click="download()">
+        <md-icon class="fas fa-file-download fa-3x"></md-icon>
+      </md-button>
     </div>
+    <div :class="{'md-layout-item': true, 'md-size-90': !previewMode, 'md-size-100': previewMode}"
+         :style="{'text-align': previewMode ? 'center' : 'left'}" v-if="manifestObj">
+      <a href @click.prevent="download">
+        <pretty-name :name="manifestObj.name"></pretty-name>
+      </a>
+    </div>
+  </div>
 </content>

@@ -80,7 +80,7 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
 
-  getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+  getFileCatalogItems(userId, parentItemId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogListResponse>;
 
   getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 
@@ -104,12 +104,18 @@ export interface IGeesomeApp {
 
   //TODO: define structure
   getPeers(topic): Promise<any>;
-  
+
   //TODO: define structure
   getIpnsPeers(ipns): Promise<any>;
-  
+
   //TODO: define structure
   getGroupPeers(groupId): Promise<any>;
 
   resolveStaticId(staticId): Promise<string>;
+}
+
+
+export interface IFileCatalogListResponse {
+  list: IFileCatalogItem[];
+  total: number;
 }

@@ -31,8 +31,9 @@ import {
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
-import {DriverInput, IDriver} from "../../drivers/interface";
+import {DriverInput, IDriver, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
+import AbstractDriver from "../../drivers/abstractDriver";
 
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
@@ -80,9 +81,9 @@ module.exports = async (extendConfig) => {
   // }
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
-  
+
   app.events = appEvents(app);
-  
+
   await appCron(app);
   await appListener(app);
 
@@ -151,7 +152,7 @@ class GeesomeApp implements IGeesomeApp {
     return new Promise((resolve, reject) => {
       this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
         if (!user) {
-          return null;
+          return resolve(null);
         }
         bcrypt.compare(password, user.passwordHash, async function (err, result) {
           resolve(result ? user : null);
@@ -195,7 +196,7 @@ class GeesomeApp implements IGeesomeApp {
       if (!group && createIfNotExist) {
         group = await this.createGroupByRemoteStorageId(groupId);
         return group.id;
-      } else if(group) {
+      } else if (group) {
         groupId = group.id;
       }
     }
@@ -255,8 +256,8 @@ class GeesomeApp implements IGeesomeApp {
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
     }));
-    
-    if(dbGroup.isRemote) {
+
+    if (dbGroup.isRemote) {
       this.events.emit(this.events.NewRemoteGroup, dbGroup);
     }
     return dbGroup;
@@ -264,7 +265,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async createContentByObject(contentObject) {
     const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-    if(!storageId) {
+    if (!storageId) {
       return null;
     }
     let dbContent = await this.database.getContentByStorageId(storageId);
@@ -402,30 +403,70 @@ class GeesomeApp implements IGeesomeApp {
     }
     const extension = fullType.split('/')[1];
 
-    const previewDriver = this.drivers.preview[type] as IDriver;
+    const previewDriver = this.drivers.preview[type] as AbstractDriver;
     if (!previewDriver) {
       return {};
     }
     try {
-      if (previewDriver.supportedInputs[0] === DriverInput.Stream) {
-        const inputStream = await this.storage.getFileStream(storageId);
-        const {stream: resultStream, type, extension: resultExtension} = await previewDriver.processByStream(inputStream, {extension});
-        const storageFile = await this.storage.saveFileByData(resultStream);
+      if (previewDriver.isInputSupported(DriverInput.Stream)) {
+        let inputStream = await this.storage.getFileStream(storageId);
+        
+        const {stream: mediumStream, type, extension: resultExtension} = await previewDriver.processByStream(inputStream, {extension, size: OutputSize.Medium});
+        const mediumFile = await this.storage.saveFileByData(mediumStream);
+
+        let smallFile;
+        if(previewDriver.isOutputSizeSupported(OutputSize.Small)) {
+          inputStream = await this.storage.getFileStream(storageId);
+          const {stream: smallStream} = await previewDriver.processByStream(inputStream, {extension, size: OutputSize.Small});
+          smallFile = await this.storage.saveFileByData(smallStream);
+        }
+
+        let largeFile;
+        if(previewDriver.isOutputSizeSupported(OutputSize.Large)) {
+          inputStream = await this.storage.getFileStream(storageId);
+          const {stream: largeStream} = await previewDriver.processByStream(inputStream, {extension, size: OutputSize.Large});
+          largeFile = await this.storage.saveFileByData(largeStream);
+        }
+        
         return {
-          previewStorageId: storageFile.id,
+          smallPreviewStorageId: smallFile ? smallFile.id : null,
+          smallPreviewSize: smallFile ? smallFile.size : null,
+          largePreviewStorageId: largeFile ? largeFile.id : null,
+          largePreviewSize: smallFile ? smallFile.size : null,
+          mediumPreviewStorageId: mediumFile.id,
+          mediumPreviewSize: mediumFile.size,
           previewType: type,
           previewExtension: resultExtension
         };
-      } else if (previewDriver.supportedInputs[0] === DriverInput.Content) {
+      } else if (previewDriver.isInputSupported(DriverInput.Content)) {
         const data = await this.storage.getFileData(storageId);
-        const {content: resultData, type, extension: resultExtension} = await previewDriver.processByContent(data, {extension});
-        const storageFile = await this.storage.saveFileByData(resultData);
+        
+        const {content: mediumData, type, extension: resultExtension} = await previewDriver.processByContent(data, {extension, size: OutputSize.Medium});
+        const mediumFile = await this.storage.saveFileByData(mediumData);
+        
+        let smallFile;
+        if(previewDriver.isOutputSizeSupported(OutputSize.Small)) {
+          const {content: smallData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
+          smallFile = await this.storage.saveFileByData(smallData);
+        }
+
+        let largeFile;
+        if(previewDriver.isOutputSizeSupported(OutputSize.Large)) {
+          const {content: largeData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
+          largeFile = await this.storage.saveFileByData(largeData);
+        }
+        
         return {
-          previewStorageId: storageFile.id,
+          smallPreviewStorageId: smallFile ? smallFile.id : null,
+          smallPreviewSize: smallFile ? smallFile.size : null,
+          largePreviewStorageId: largeFile ? largeFile.id : null,
+          largePreviewSize: smallFile ? smallFile.size : null,
+          mediumPreviewStorageId: mediumFile.id,
+          mediumPreviewSize: mediumFile.size,
           previewType: type,
           previewExtension: resultExtension
         };
-      } else if (previewDriver.supportedInputs[0] === DriverInput.Source) {
+      } else if (previewDriver.isInputSupported(DriverInput.Source)) {
         const {content: resultData, path, extension: resultExtension, type} = await previewDriver.processBySource(source, {});
         console.log('path', path);
         let storageFile;
@@ -435,13 +476,20 @@ class GeesomeApp implements IGeesomeApp {
           storageFile = await this.storage.saveFileByData(resultData);
         }
 
+        //TODO: other sizes?
         return {
-          previewStorageId: storageFile.id,
+          smallPreviewStorageId: null,
+          smallPreviewSize: null,
+          largePreviewStorageId: null,
+          largePreviewSize: null,
+          mediumPreviewStorageId: storageFile.id,
+          mediumPreviewSize: storageFile.size,
           previewType: type,
           previewExtension: resultExtension
         };
       }
     } catch (e) {
+      console.error(e);
       return {};
     }
     throw new Error(type + "_preview_driver_input_not_found");
@@ -457,17 +505,25 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {previewStorageId, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
 
     return this.addContent({
-      previewStorageId,
+      mediumPreviewStorageId,
+      mediumPreviewSize,
+
+      smallPreviewStorageId,
+      smallPreviewSize,
+
+      largePreviewStorageId,
+      largePreviewSize,
+      
       previewExtension,
       storageType: ContentStorageType.IPFS,
       extension: resultExtension,
       mimeType: type,
       previewMimeType: previewType as any,
       userId: options.userId,
-      view: ContentView.List,
+      view: ContentView.Contents,
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
@@ -509,17 +565,25 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {previewStorageId, previewType, previewExtension} = await this.getPreview(storageFile.id, type, url);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type, url);
 
     return this.addContent({
-      previewStorageId,
+      mediumPreviewStorageId,
+      mediumPreviewSize,
+      
+      smallPreviewStorageId,
+      smallPreviewSize,
+      
+      largePreviewStorageId,
+      largePreviewSize,
+      
       extension,
       previewExtension,
       storageType: ContentStorageType.IPFS,
       mimeType: type,
       previewMimeType: previewType as any,
       userId: options.userId,
-      view: ContentView.List,
+      view: ContentView.Attachment,
       storageId: storageFile.id,
       size: storageFile.size,
       name: name
@@ -616,6 +680,8 @@ class GeesomeApp implements IGeesomeApp {
       apiKey: options.apiKey
     });
 
+    console.log('updateContentManifest', content);
+
     await this.updateContentManifest(content.id);
 
     return content;
@@ -687,7 +753,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
-    const previewDriver = this.drivers.upload[driver] as IDriver;
+    const previewDriver = this.drivers.upload[driver] as AbstractDriver;
     if (!previewDriver) {
       throw new Error(driver + "_upload_driver_not_found");
     }
@@ -716,11 +782,11 @@ class GeesomeApp implements IGeesomeApp {
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
     let storageUpdatedAt = group.storageUpdatedAt;
     let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
-    
-    if(manifestStorageId != group.manifestStorageId) {
+
+    if (manifestStorageId != group.manifestStorageId) {
       storageUpdatedAt = new Date();
       staticStorageUpdatedAt = new Date();
-      
+
       await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
     }
 
@@ -767,9 +833,9 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupByManifestId(groupId, staticId) {
-    if(!staticId) {
+    if (!staticId) {
       const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
-      if(historyItem) {
+      if (historyItem) {
         staticId = historyItem.staticId;
       }
     }
@@ -800,7 +866,10 @@ class GeesomeApp implements IGeesomeApp {
       limit = 20;
     if (!offset)
       offset = 0;
-    return this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset);
+    return {
+      list: await this.database.getFileCatalogItems(userId, parentItemId, type, sortField, sortDir, limit, offset),
+      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type)
+    };
   }
 
   async getFileCatalogItemsBreadcrumbs(userId, itemId) {
@@ -890,7 +959,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getGroupPeers(groupId) {
     let ipnsId;
-    if(ipfsHelper.isIpfsHash(groupId)) {
+    if (ipfsHelper.isIpfsHash(groupId)) {
       ipnsId = groupId;
     } else {
       const group = await this.database.getGroup(groupId);
@@ -898,7 +967,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     return this.getIpnsPeers(ipnsId);
   }
-  
+
   async resolveStaticId(staticId) {
     return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
       try {
@@ -915,7 +984,7 @@ class GeesomeApp implements IGeesomeApp {
       }
     }).catch(async (err) => {
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      if(staticIdItem) {
+      if (staticIdItem) {
         return staticIdItem.dynamicId;
       } else {
         throw (err);

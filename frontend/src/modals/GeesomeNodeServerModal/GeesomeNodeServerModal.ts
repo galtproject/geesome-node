@@ -14,32 +14,32 @@
 import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 
 export default {
-    template: require('./GeesomeNodeServerModal.html'),
-    props: [],
-    components: {
-        ModalItem
+  template: require('./GeesomeNodeServerModal.html'),
+  props: [],
+  components: {
+    ModalItem
+  },
+  created() {
+    this.serverAddress = this.currentServerAddress;
+  },
+  methods: {
+    async ok() {
+      this.$coreApi.changeServer(this.serverAddress);
+      this.$root.$asyncModal.close('geesome-node-server-modal');
     },
-    created() {
-        this.serverAddress = this.currentServerAddress;
-    },
-    methods: {
-        async ok() {
-            this.$coreApi.changeServer(this.serverAddress);
-            this.$root.$asyncModal.close('geesome-node-server-modal');
-        },
-        async cancel() {
-            this.$root.$asyncModal.close('geesome-node-server-modal');
-        }
-    },
-    watch: {},
-    computed: {
-        currentServerAddress() {
-            return this.$store.state.serverAddress;
-        }
-    },
-    data: function () {
-        return {
-            serverAddress: ''
-        }
+    async cancel() {
+      this.$root.$asyncModal.close('geesome-node-server-modal');
     }
+  },
+  watch: {},
+  computed: {
+    currentServerAddress() {
+      return this.$store.state.serverAddress;
+    }
+  },
+  data: function () {
+    return {
+      serverAddress: ''
+    }
+  }
 }

@@ -14,22 +14,32 @@
 import {Stream} from "stream";
 
 export interface IDriver {
-    supportedInputs: string[];
-    processByStream?(inputSteam: Stream, options?): Promise<IDriverResponse>;
-    processByContent?(inputContent: any, options?): Promise<IDriverResponse>;
-    processBySource?(sourceLink: any, options?): Promise<IDriverResponse>;
+  supportedInputs: string[];
+  supportedOutputSizes: string[];
+
+  processByStream?(inputSteam: Stream, options?): Promise<IDriverResponse>;
+
+  processByContent?(inputContent: any, options?): Promise<IDriverResponse>;
+
+  processBySource?(sourceLink: any, options?): Promise<IDriverResponse>;
+}
+
+export enum OutputSize {
+  Medium = 'medium',
+  Small = 'small',
+  Large = 'large'
 }
 
 export enum DriverInput {
-    Stream = 'stream',
-    Content = 'content',
-    Source = 'source'
+  Stream = 'stream',
+  Content = 'content',
+  Source = 'source'
 }
 
 export interface IDriverResponse {
-    stream?: Stream;
-    content?: any;
-    path?: string;
-    type?: string;
-    extension?: string;
+  stream?: Stream;
+  content?: any;
+  path?: string;
+  type?: string;
+  extension?: string;
 }

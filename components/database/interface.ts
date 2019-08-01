@@ -129,7 +129,9 @@ export interface IDatabase {
   getUserLimit(userId, name): Promise<IUserLimit>;
 
   addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
+
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
+
   getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
 
   getValue(key: string): Promise<string>;
@@ -163,7 +165,12 @@ export interface IContent {
   userId: number;
   groupId?: number;
   localId?: number;
-  previewStorageId?: string;
+  largePreviewSize?: number;
+  largePreviewStorageId?: string;
+  mediumPreviewSize?: number;
+  mediumPreviewStorageId?: string;
+  smallPreviewSize?: number;
+  smallPreviewStorageId?: string;
   previewMimeType?: ContentMimeType;
   previewExtension?: string;
   storageId?: string;
@@ -187,8 +194,8 @@ export enum ContentMimeType {
 }
 
 export enum ContentView {
-  Slider = 'slider',
-  List = 'list'
+  Attachment = 'attachment',
+  Contents = 'contents'
 }
 
 export interface IPost {
@@ -273,6 +280,7 @@ export enum GroupView {
   TelegramLike = 'telegram-like'
 }
 
+
 export interface IFileCatalogItem {
   id?: number;
   name: string;
@@ -285,6 +293,8 @@ export interface IFileCatalogItem {
   contentId?: number;
   groupId?: number;
   size?: number;
+  manifestStorageId?: string;
+  nativeStorageId?: string;
 }
 
 export enum IFileCatalogItemType {
