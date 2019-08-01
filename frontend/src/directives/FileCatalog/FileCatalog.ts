@@ -13,11 +13,12 @@
 
 import ContentManifestInfoItem from "../ContentManifestInfoItem/ContentManifestInfoItem";
 import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
+import MoveFileCatalogItemInput from "./MoveFileCatalogItem/MoveFileCatalogItemInput/MoveFileCatalogItemInput";
 
 export default {
   name: 'file-catalog',
   template: require('./FileCatalog.html'),
-  components: {ContentManifestInfoItem, Pagination},//UploadContent, 
+  components: {ContentManifestInfoItem, Pagination, MoveFileCatalogItemInput},//UploadContent, 
   props: ['selectMode', 'selectedIds', 'hideMethods'],
   async created() {
     this.getItems();
@@ -116,13 +117,13 @@ export default {
 
   computed: {
     filesList() {
-      return this.files ? this.files.list : [];
+      return this.files ? this.files.list || [] : [];
     },
     filesTotal() {
       return this.files ? this.files.total : null;
     },
     foldersList() {
-      return this.folders ? this.folders.list : [];
+      return this.folders ? this.folders.list || [] : [];
     },
     foldersTotal() {
       return this.folders ? this.folders.total : null;

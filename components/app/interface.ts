@@ -92,6 +92,8 @@ export interface IGeesomeApp {
 
   addContentToFolder(userId, contentId, folderId): Promise<any>;
 
+  updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
+
   getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
 
   getAllContentList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;

@@ -752,6 +752,15 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+  public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
+    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
+    if(fileCatalogItem.userId !== userId) {
+      throw new Error("not_permitted");
+    }
+    await this.database.updateFileCatalogItem(fileCatalogId, updateData);
+    return this.database.getFileCatalogItem(fileCatalogId);
+  }
+
   async handleSourceByUploadDriver(sourceLink, driver) {
     const previewDriver = this.drivers.upload[driver] as AbstractDriver;
     if (!previewDriver) {

@@ -22,6 +22,9 @@ module.exports = async function (sequelize, models) {
     type: {
       type: Sequelize.STRING(200)
     },
+    view: {
+      type: Sequelize.STRING(200)
+    },
     defaultFolderFor: {
       type: Sequelize.STRING(200)
     },

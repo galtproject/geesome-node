@@ -382,13 +382,16 @@ export default {
         }));
       },
       getFileCatalogBreadcrumbs(itemId) {
-        return wrap($http.get(`/v1/user/file-catalog/breadcrumbs/${itemId}`));
+        return wrap($http.get(`/v1/user/file-catalog/file-catalog-item/${itemId}/breadcrumbs`));
       },
       createFolder(parentItemId, name) {
         return wrap($http.post(`/v1/user/file-catalog/create-folder`, {parentItemId, name}));
       },
       addContentIdToFolderId(contentId, folderId) {
         return wrap($http.post(`/v1/user/file-catalog/add-content-to-folder`, {contentId, folderId}));
+      },
+      updateFileCatalogItem(itemId, updateData) {
+        return wrap($http.post(`/v1/user/file-catalog/file-catalog-item/${itemId}/update`, updateData));
       },
       getContentsIdsByFileCatalogIds(fileCatalogIds) {
         return wrap($http.post(`/v1/file-catalog/get-contents-ids`, fileCatalogIds));

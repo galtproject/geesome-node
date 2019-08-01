@@ -221,10 +221,10 @@ a.icon-link {
       align-items: stretch;
       //height: 100%;
       min-height: 65px;
-      & > *:first-child {
+      & > .file-item-control {
         width: 27%;
       }
-      & > *:last-child {
+      & > .file-item-content {
         width: 73%;
         padding-left: 5px;
       }
@@ -372,5 +372,23 @@ a.icon-link {
 @media (min-width: 1100px) {
   .large-modal .modal-dialog {
     width: 1000px;
+  }
+}
+
+.input-absolute-container {
+  z-index: 9999;
+  position: absolute;
+
+  &.autocomplete-container {
+    z-index: 99999;
+    .autocomplete-list {
+      display: flex;
+      flex-direction: column;
+      background: #39343e;
+      min-width: 150px;
+      & > a {
+        padding: 10px;
+      }
+    }
   }
 }
