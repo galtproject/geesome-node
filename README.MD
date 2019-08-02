@@ -46,7 +46,7 @@ GeeSome Node can be used:
 - to share the uploaded content in any form (blog, playlist, file, folder)
 - to create chat groups
 
-## Screenshots
+## UI Screenshots
 
 ### File explorer
 ![GeeSome File explorer](./frontend/assets/screenshots/file-explorer.png)
