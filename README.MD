@@ -44,7 +44,7 @@ GeeSome Node can be used:
 - to share the uploaded content in any form (blog, playlist, file, folder)
 - to create chat groups
 
-## Install with domain
+## Install with domain to your server
 1. Set DNS settings for domain: ip address of server
 2. Clone repo to server that bound to domain
 ```
