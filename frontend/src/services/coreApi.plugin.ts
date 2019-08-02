@@ -66,6 +66,7 @@ export default {
         await geesomeClient.setServer(server);
         const data = await geesomeClient.loginUserPass(username, password);
         localStorage.setItem('geesome-api-key', data.apiKey);
+        return data;
       },
 
       async logout() {
