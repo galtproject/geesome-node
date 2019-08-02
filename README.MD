@@ -1,3 +1,29 @@
+<h1 align="center">
+  <img src="https://github.com/galtspace/geesome-node/raw/master/frontend/assets/logos-long.png"
+  alt="geesome" width="470"></a>
+</h1>
+
+<h3 align="center">File Storage and Social Media Node</h3>
+<div align="center">
+  Current state: 0.2 - Alpha
+</div>
+
+<br />
+
+<div align="center">
+<img src="https://img.shields.io/github/issues-raw/galtspace/geesome-node.svg?color=green&style=flat-square" alt="opened issues"/>
+<img src="https://img.shields.io/github/issues-closed-raw/galtspace/geesome-node.svg?color=blue&style=flat-square" alt="closed issues" />
+<img src="https://img.shields.io/github/issues-pr-closed/galtspace/geesome-node.svg?color=green&style=flat-square" alt="closed PR"/>
+<img src="https://img.shields.io/github/issues-pr-raw/galtspace/geesome-node.svg?color=green&style=flat-square" alt="opened PR"/>
+</div>
+<br/>
+<br/>
+<div align="center">
+  <img src="https://img.shields.io/badge/contributions-welcome-orange.svg?style=flat-square" alt="Contributions Welcome" />
+  <a href="https://t.me/fuckgoogle"> <img src="https://img.shields.io/badge/Join%20Us%20On-Telegram-2599D2.svg?style=flat-square" alt="Join Us On Telegram" /></a>
+</div>
+<br/>
+
 # GeeSome Node
 GeeSome Node allows you to run your own file storage with social media functional: 
 make you own public or private group with posts and content.
