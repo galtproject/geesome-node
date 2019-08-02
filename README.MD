@@ -5,7 +5,7 @@
 
 <h3 align="center">File Storage and Social Media Node</h3>
 <div align="center">
-  Current state: 0.2 - Alpha
+  Current state: 0.2.0 - Alpha
 </div>
 
 <br />
