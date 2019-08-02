@@ -14,7 +14,7 @@
 export default {
   template: require('./LoginPage.html'),
   created() {
-    this.server = this.$store.state.serverAddress;
+    this.server = this.stateServerAddress;
   },
   methods: {
     login() {
@@ -27,6 +27,16 @@ export default {
       })
     }
   },
+  watch: {
+    stateServerAddress() {
+      this.server = this.stateServerAddress;
+    }
+  },
+  computed: {
+    stateServerAddress(){
+      return this.$store.state.serverAddress;
+    }
+  },
   data() {
     return {
       localeKey: 'login_page',
@@ -35,6 +45,5 @@ export default {
       password: null,
       error: null
     };
-  },
-  computed: {}
+  }
 }

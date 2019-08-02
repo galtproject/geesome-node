@@ -31,6 +31,14 @@ export default {
           apiKey,
           clientStorage: new BrowserLocalClientStorage()
         });
+
+        if(!server || server === 'null') {
+          geesomeClient.setServerByDocumentLocation();
+        }
+        
+        appStore.commit('serverAddress', geesomeClient.server);
+        localStorage.setItem('geesome-server', geesomeClient.server);
+        
         await geesomeClient.init();
         await geesomeClient.initBrowserIpfsNode();
         
@@ -53,6 +61,8 @@ export default {
 
       async login(server, username, password) {
         localStorage.setItem('geesome-server', server);
+        appStore.commit('serverAddress', server);
+        
         await geesomeClient.setServer(server);
         const data = await geesomeClient.loginUserPass(username, password);
         localStorage.setItem('geesome-api-key', data.apiKey);
