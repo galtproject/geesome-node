@@ -146,7 +146,11 @@ export default {
     }
   },
 
-  watch: {},
+  watch: {
+    '$route.name'() {
+      this.menuVisible = false;
+    }
+  },
 
   computed: {
     serverAddress() {

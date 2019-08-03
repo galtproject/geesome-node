@@ -24,14 +24,24 @@
       <md-button @click="menuVisible = !menuVisible" class="md-icon-button">
         <md-icon class="fas fa-times"></md-icon>
       </md-button>
-      
-      <div class="drawer-header md-layout">
-        <div class="md-layout-item md-xsmall-size-40">
-          <div class="logo">
-            <img src="build/images/logo.png">
-          </div>
+
+      <div class="md-xsmall-show">
+        <div v-locale="localeKey + '.server_address'"></div>
+        <small>{{serverAddress}}</small>
+        
+        <div>
+          <a v-if="user" href @click.prevent="logout()">Logout</a>
+          <router-link v-else :to="{name: 'login'}">Login</router-link>
         </div>
       </div>
+      
+      <!--<div class="drawer-header md-layout">-->
+        <!--<div class="md-layout-item md-xsmall-size-40">-->
+          <!--<div class="logo">-->
+            <!--<img src="build/images/logo.png">-->
+          <!--</div>-->
+        <!--</div>-->
+      <!--</div>-->
 
       <div class="drawer-content">
         <main-menu :menu-visible.sync="menuVisible" :menu-minimized.sync="menuMinimized"></main-menu>
@@ -50,7 +60,7 @@
 
           <span flex style="flex: 1"></span>
 
-          <span>
+          <span class="md-xsmall-hide">
             <div v-locale="localeKey + '.server_address'"></div>
             <small>{{serverAddress}}</small>
             

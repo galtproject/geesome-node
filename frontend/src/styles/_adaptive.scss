@@ -29,7 +29,8 @@
     .drawer-content {
       margin-top: 15px;
       display: flex;
-      flex-direction: column-reverse;
+      flex-direction: column;
+      justify-content: flex-start;
     }
   }
 }
