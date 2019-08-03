@@ -19,29 +19,49 @@
   </div>
 
   <md-app v-else>
-    <md-app-toolbar class="md-accent" md-elevation="0">
-      <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
-      <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
+    <md-app-drawer :md-permanent="is_mobile ? 'clipped' : 'full'" md-persistent="mini" :md-active.sync="menuVisible" md-swipeable>
 
-      <span flex style="flex: 1"></span>
-
-      <span>
-        <div v-locale="localeKey + '.server_address'"></div>
-        <small>{{serverAddress}}</small>
-        
-        <div>
-          <a v-if="user" href @click.prevent="logout()">Logout</a>
-          <router-link v-else :to="{name: 'login'}">Login</router-link>
+      <md-button @click="menuVisible = !menuVisible" class="md-icon-button">
+        <md-icon class="fas fa-times"></md-icon>
+      </md-button>
+      
+      <div class="drawer-header md-layout">
+        <div class="md-layout-item md-xsmall-size-40">
+          <div class="logo">
+            <img src="build/images/logo.png">
+          </div>
         </div>
-      </span>
-    </md-app-toolbar>
+      </div>
 
-
-    <md-app-drawer :md-active="menuVisible" md-persistent="mini" :class="{'minimized': menuMinimized}">
-      <main-menu :menu-visible.sync="menuVisible" :menu-minimized.sync="menuMinimized"></main-menu>
+      <div class="drawer-content">
+        <main-menu :menu-visible.sync="menuVisible" :menu-minimized.sync="menuMinimized"></main-menu>
+      </div>
     </md-app-drawer>
 
     <md-app-content>
+      <md-app-toolbar class="md-accent md-xsmall-show" md-elevation="0">
+        <div class="md-toolbar-row">
+          <md-button @click="menuVisible = !menuVisible" class="md-icon-button">
+            <md-icon class="fas fa-bars"></md-icon>
+          </md-button>
+          
+          <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
+          <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
+
+          <span flex style="flex: 1"></span>
+
+          <span>
+            <div v-locale="localeKey + '.server_address'"></div>
+            <small>{{serverAddress}}</small>
+            
+            <div>
+              <a v-if="user" href @click.prevent="logout()">Logout</a>
+              <router-link v-else :to="{name: 'login'}">Login</router-link>
+            </div>
+          </span>
+        </div>
+      </md-app-toolbar>
+
       <md-progress-bar class="md-accent" md-mode="indeterminate" v-if="loading"
                        style="margin-top: 100px;"></md-progress-bar>
 

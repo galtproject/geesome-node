@@ -35,6 +35,7 @@ import {VueEditor, Quill} from 'vue2-editor'
 import UploadContent from "./directives/UploadContent/UploadContent";
 import MoveFileCatalogItemContainer
   from "./directives/FileCatalog/MoveFileCatalogItem/MoveFileCatalogItemContainer/MoveFileCatalogItemContainer";
+import Helper from "@galtproject/frontend-core/services/helper";
 
 const _ = require('lodash');
 
@@ -48,7 +49,9 @@ Vue.use(storePlugin, {
   locale: null,
   locale_loaded: null,
   serverAddress: null,
-  cybActive: false
+  haveAdminReadPermission: false,
+  cybActive: false,
+  is_mobile: false
 });
 Vue.use(localePlugin);
 
@@ -98,6 +101,8 @@ export default {
   template: require('./App.html'),
   components: {MainMenu, MoveFileCatalogItemContainer},//,ConsoleLog
   async created() {
+    this.$store.commit('is_mobile', Helper.isMobile());
+    
     this.$locale.init(this.$store, '/locale/').then(() => {
       this.$store.commit('locale_loaded', true);
       this.language = this.$locale.lang;
@@ -109,8 +114,11 @@ export default {
 
     await this.$coreApi.init(this.$store);
 
-    this.$coreApi.getCurrentUser().then((user) => {
+    this.$coreApi.getCurrentUser().then(async (user) => {
       this.$store.commit('user', user);
+
+      this.$store.commit('haveAdminReadPermission', await this.$coreApi.adminIsHaveCorePermission('admin:read'));
+      
       this.loading = false;
     }).catch(() => {
       this.$store.commit('user', null);
@@ -146,6 +154,9 @@ export default {
     },
     user() {
       return this.$store.state.user;
+    },
+    is_mobile() {
+      return this.$store.state.is_mobile;
     }
   },
 

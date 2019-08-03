@@ -8,14 +8,14 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#958d840":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#c6b716d":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#958d8402b7ed1004987dc8c0bfdc4f58692d5be6"
+  resolved "git://github.com/galtspace/geesome-libs.git#c6b716d60e2ec99450097c754597c50a057a9017"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
     cids "^0.7.1"
-    cryptiles ">=4.1.2"
+    cryptiles ">=4.1.3"
     hat "^0.0.3"
     ipfs "^0.35.0"
     ipns "^0.5.2"
@@ -1382,7 +1382,7 @@ cryptiles@3.x.x:
   dependencies:
     boom "5.x.x"
 
-cryptiles@4.x.x, cryptiles@>=4.1.2:
+cryptiles@4.x.x, cryptiles@>=4.1.3:
   version "4.1.3"
   resolved "https://registry.yarnpkg.com/cryptiles/-/cryptiles-4.1.3.tgz#2461d3390ea0b82c643a6ba79f0ed491b0934c25"
   dependencies:

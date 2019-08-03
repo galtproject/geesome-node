@@ -1,0 +1,35 @@
+.md-xsmall-show {
+  display: none;
+}
+@media (max-width: 600px) {
+  .md-xsmall-show {
+    display: block;
+  }
+  .md-app-toolbar {
+    min-height: 80px;
+  }
+}
+@media (max-width: 600px) {
+  .md-app-drawer.md-persistent-mini.md-theme-default {
+    position: absolute;
+    width: 280px;
+    max-width: 280px;
+    top: 0;
+    bottom: auto;
+    &:not(.md-active) {
+      width: 0 !important;
+    }
+    &.md-active {
+      bottom: 0;
+    }
+    .drawer-header {
+      height: 66px;
+    }
+
+    .drawer-content {
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+  }
+}

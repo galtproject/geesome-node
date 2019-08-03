@@ -32,7 +32,6 @@ export default {
     async getData() {
       this.memberInGroups = await this.$coreApi.getMemberInGroups();
       this.adminInGroups = await this.$coreApi.getAdminInGroups();
-      this.haveAdminReadPermission = await this.$coreApi.adminIsHaveCorePermission('admin:read');
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);
@@ -67,6 +66,9 @@ export default {
     },
     user() {
       return this.$store.state.user;
+    },
+    haveAdminReadPermission() {
+      return this.$store.state.haveAdminReadPermission;
     }
   },
   data() {
@@ -75,8 +77,7 @@ export default {
       menuVisibleLocal: false,
       menuMinimizedLocal: true,
       memberInGroups: [],
-      adminInGroups: [],
-      haveAdminReadPermission: false
+      adminInGroups: []
     }
   },
 }
