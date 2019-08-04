@@ -8,8 +8,7 @@
   .md-app-toolbar {
     min-height: 80px;
   }
-}
-@media (max-width: 600px) {
+  
   .md-app-drawer.md-persistent-mini.md-theme-default {
     position: absolute;
     width: 280px;
@@ -18,12 +17,19 @@
     bottom: auto;
     &:not(.md-active) {
       width: 0 !important;
+      top: 0;
     }
     &.md-active {
       bottom: 0;
     }
     .drawer-header {
-      height: 66px;
+      padding: 10px;
+    }
+    
+    .close-button {
+      position: absolute;
+      top: 0;
+      right: 0;
     }
 
     .drawer-content {

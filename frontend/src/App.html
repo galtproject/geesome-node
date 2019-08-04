@@ -21,11 +21,11 @@
   <md-app v-else>
     <md-app-drawer :md-permanent="is_mobile ? 'clipped' : 'full'" md-persistent="mini" :md-active.sync="menuVisible" md-swipeable>
 
-      <md-button @click="menuVisible = !menuVisible" class="md-icon-button">
+      <md-button @click="menuVisible = !menuVisible" class="md-icon-button md-xsmall-show close-button">
         <md-icon class="fas fa-times"></md-icon>
       </md-button>
 
-      <div class="md-xsmall-show">
+      <div class="md-xsmall-show drawer-header">
         <div v-locale="localeKey + '.server_address'"></div>
         <small>{{serverAddress}}</small>
         
@@ -49,7 +49,7 @@
     </md-app-drawer>
 
     <md-app-content>
-      <md-app-toolbar class="md-accent md-xsmall-show" md-elevation="0">
+      <md-app-toolbar class="md-accent" md-elevation="0">
         <div class="md-toolbar-row">
           <md-button @click="menuVisible = !menuVisible" class="md-icon-button">
             <md-icon class="fas fa-bars"></md-icon>

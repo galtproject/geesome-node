@@ -431,6 +431,11 @@ a.icon-link {
 
 
 .md-app-side-drawer {
+  .md-app-drawer {
+    &:not(.md-active) {
+      top: 0;
+    }
+  }
   .md-list-item.sub-menu {
     .md-list-item-content {
       padding: 0 10px;

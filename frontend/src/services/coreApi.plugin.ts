@@ -47,7 +47,7 @@ export default {
           'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup', 
           'saveFile', 'saveObject', 'saveContentData', 'saveDataByUrl', 'createPost', 'getContentData', 'getDbContent', 
           'getMemberInGroups', 'getAdminInGroups', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getImageLink', 
-          'getIpld', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
+          'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
           'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
           'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getAllItems', 'adminCreateUser', 
           'adminSetUserLimit', 'adminIsHaveCorePermission', 'adminAddCorePermission', 'adminRemoveCorePermission',
