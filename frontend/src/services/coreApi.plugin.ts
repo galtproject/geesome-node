@@ -42,17 +42,17 @@ export default {
         await geesomeClient.init();
         await geesomeClient.initBrowserIpfsNode();
         
-        // TODO: call directly from geesomeClient
+        // TODO: call directly from geesomeClient?
         [
           'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup', 
           'saveFile', 'saveObject', 'saveContentData', 'saveDataByUrl', 'createPost', 'getContentData', 'getDbContent', 
           'getMemberInGroups', 'getAdminInGroups', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getImageLink', 
           'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
           'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
-          'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getAllItems', 'adminCreateUser', 
+          'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getUserApiKeys', 'getAllItems', 'adminCreateUser', 
           'adminSetUserLimit', 'adminIsHaveCorePermission', 'adminAddCorePermission', 'adminRemoveCorePermission',
           'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
-          'getGroupPeers'
+          'getGroupPeers', 'updateCurrentUser'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

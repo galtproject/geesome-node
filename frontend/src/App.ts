@@ -36,6 +36,7 @@ import UploadContent from "./directives/UploadContent/UploadContent";
 import MoveFileCatalogItemContainer
   from "./directives/FileCatalog/MoveFileCatalogItem/MoveFileCatalogItemContainer/MoveFileCatalogItemContainer";
 import Helper from "@galtproject/frontend-core/services/helper";
+import {EventBus, UPDATE_CURRENT_USER} from "./services/events";
 
 const _ = require('lodash');
 
@@ -114,17 +115,9 @@ export default {
 
     await this.$coreApi.init(this.$store);
 
-    this.$coreApi.getCurrentUser().then(async (user) => {
-      this.$store.commit('user', user);
-
-      this.$store.commit('haveAdminReadPermission', await this.$coreApi.adminIsHaveCorePermission('admin:read'));
-      
-      this.loading = false;
-    }).catch(() => {
-      this.$store.commit('user', null);
-      // this.$router.push({name: 'login'});
-      this.loading = false;
-    });
+    this.getCurrentUser();
+    
+    EventBus.$on(UPDATE_CURRENT_USER, this.getCurrentUser.bind(this));
 
     document.addEventListener("cyb:init", (data) => {
       this.$store.commit('cybActive', true);
@@ -140,6 +133,19 @@ export default {
     async logout() {
       await this.$coreApi.logout();
       location.reload();
+    },
+    getCurrentUser() {
+      this.$coreApi.getCurrentUser().then(async (user) => {
+        this.$store.commit('user', user);
+
+        this.$store.commit('haveAdminReadPermission', await this.$coreApi.adminIsHaveCorePermission('admin:read'));
+
+        this.loading = false;
+      }).catch(() => {
+        this.$store.commit('user', null);
+        // this.$router.push({name: 'login'});
+        this.loading = false;
+      });
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);

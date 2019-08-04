@@ -26,6 +26,8 @@ import JoinedGroups from "./pages/GroupsList/JoinedGroups/JoinedGroups";
 import AdminedGroups from "./pages/GroupsList/AdminedGroups/AdminedGroups";
 import BootNodesPage from "./pages/BootNodesPage/BootNodesPage";
 import SetupPage from "./pages/SetupPage/SetupPage";
+import CurrentUserProfile from "./pages/UserProfile/CurrentUserProfile/CurrentUserProfile";
+import EditProfile from "./pages/UserProfile/EditProfile/EditProfile";
 
 Vue.use(Router);
 
@@ -46,6 +48,16 @@ export default new Router({
       path: '/login',
       name: 'login',
       component: LoginPage
+    },
+    {
+      path: '/profile',
+      name: 'current-user-profile',
+      component: CurrentUserProfile
+    },
+    {
+      path: '/profile/edit',
+      name: 'current-user-profile-edit',
+      component: EditProfile
     },
     {
       path: '/file-explorer',

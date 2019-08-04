@@ -217,6 +217,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName));
   });
 
+  service.post('/v1/user/update', async (req, res) => {
+    res.send(await geesomeApp.updateUser(req.user.id, req.body));
+  });
+
   service.post('/v1/user/create-group', async (req, res) => {
     res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
   });
@@ -268,7 +272,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/api-keys', async (req, res) => {
-    res.send(await geesomeApp.getUserApiKeys(req.user.id, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+    res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });
 
   service.post('/v1/user/save-file', async (req, res) => {

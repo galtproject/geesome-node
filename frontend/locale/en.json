@@ -5,6 +5,7 @@
     "main_menu": {
       "title": "Menu",
       "home": "Home",
+      "profile": "Profile",
       "file_explorer": "Files explorer",
       "boot_nodes": "Boot Nodes",
       "administration_groups": "Administrate groups",

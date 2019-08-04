@@ -31,10 +31,17 @@ module.exports = async function (sequelize, models) {
     expiredOn: {
       type: Sequelize.DATE
     },
+    isDisabled: {
+      type: Sequelize.BOOLEAN,
+      defaultValue: false
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
+      { fields: ['userId'] },
+      { fields: ['userId', 'isDisabled'] },
+      { fields: ['userId', 'title', 'isDisabled'] },
+      { fields: ['valueHash', 'isDisabled'] },
       // { fields: ['tokensAddress'] },
       // { fields: ['tokensAddress', 'chainAccountAddress'] }
     ]

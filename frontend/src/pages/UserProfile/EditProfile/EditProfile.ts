@@ -11,29 +11,33 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import {EventBus, UPDATE_CURRENT_USER} from "../../../services/events";
+import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
+import ProfileForm from "../ProfileForm/ProfileForm";
+
 export default {
-  template: require('./UserProfile.html'),
-  components: {},
-  props: ['user'],
+  template: require('./EditProfile.html'),
+  components: {ContentManifestItem, ProfileForm},
   async created() {
-    this.getApiKeys();
+    this.user = await this.$coreApi.getCurrentUser();
   },
   methods: {
-    async getApiKeys() {
-      const apiKeys = await this.$coreApi.getUserApiKeys();
-      this.apiKeys = apiKeys.list;
+    update() {
+      this.$coreApi.updateCurrentUser(this.user).then((updatedUser) => {
+        EventBus.$emit(UPDATE_CURRENT_USER);
+        this.$router.push({name: 'current-user-profile'})
+      }).catch(() => {
+        this.error = 'failed';
+      })
     }
   },
-  watch: {},
-  computed: {
-    currentUser() {
-      return this.$store.state.user;
-    },
-  },
+  computed: {},
   data() {
     return {
-      localeKey: 'user_profile',
-      apiKeys: []
+      localeKey: 'edit_profile',
+      user: null,
+      error: null,
+      invalidInputs: true
     };
   }
 }

@@ -28,6 +28,9 @@ module.exports = async function (sequelize, models) {
     title: {
       type: Sequelize.STRING
     },
+    description: {
+      type: Sequelize.STRING
+    },
     passwordHash: {
       type: Sequelize.STRING(200)
     },

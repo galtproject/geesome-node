@@ -39,6 +39,8 @@ export interface IGeesomeApp {
 
   loginUser(usernameOrEmail, password): Promise<IUser>;
 
+  updateUser(userId, updateData): Promise<IUser>;
+
   canCreatePostInGroup(userId, groupId);
 
   canEditGroup(userId, groupId);
@@ -59,7 +61,7 @@ export interface IGeesomeApp {
 
   getUserByApiKey(apiKey): Promise<IUser>;
   
-  getUserApiKeys(userId, listParams?: IListParams): Promise<IUserApiKey[]>;
+  getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
 
   setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
 
@@ -127,8 +129,12 @@ export interface IGeesomeApp {
   resolveStaticId(staticId): Promise<string>;
 }
 
-
 export interface IFileCatalogListResponse {
   list: IFileCatalogItem[];
+  total: number;
+}
+
+export interface IUserApiKeysListResponse {
+  list: IUserApiKey[];
   total: number;
 }
