@@ -1,23 +1,18 @@
 <content>
 
-  <md-toolbar class="md-transparent" md-elevation="0">
+  <md-toolbar class="md-transparent" md-elevation="0" class="md-xsmall-hide">
     <span v-if="menuVisibleLocal" v-locale="localeKey + '.title'"></span>
-
-    <md-button class="md-icon-button show" @click="toggleMenu()" v-if="!menuVisibleLocal">
-      <md-icon>menu</md-icon>
-    </md-button>
-
-    <div class="md-toolbar-section-end">
-      <md-button class="md-icon-button md-dense" @click="toggleMenu" v-if="menuVisibleLocal">
-        <md-icon>keyboard_arrow_left</md-icon>
-      </md-button>
-    </div>
   </md-toolbar>
 
   <md-list>
     <md-list-item :to="'/'">
       <md-icon class="fas fa-home"></md-icon>
       <span class="md-list-item-text" v-locale="localeKey + '.home'"></span>
+    </md-list-item>
+    
+    <md-list-item :to="{name: 'profile'}" v-if="user">
+      <md-icon class="fas fa-user"></md-icon>
+      <span class="md-list-item-text" v-locale="localeKey + '.profile'"></span>
     </md-list-item>
 
     <md-list-item :to="{name: 'file-explorer'}" v-if="user">
@@ -30,7 +25,7 @@
       <span class="md-list-item-text" v-locale="localeKey + '.boot_nodes'"></span>
     </md-list-item>
 
-    <md-list-item v-if="user" :to="{name: 'admined-groups'}">
+    <md-list-item :to="{name: 'admined-groups'}" v-if="user">
       <md-icon class="fas fa-users-cog"></md-icon>
       <span class="md-list-item-text" v-locale="localeKey + '.administration_groups'"></span>
     </md-list-item>

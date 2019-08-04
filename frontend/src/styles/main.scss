@@ -415,6 +415,55 @@ a.icon-link {
   }
 }
 
+
 .logo img {
   width: 70px;
 }
+
+
+.md-app-drawer {
+  position: relative;
+  transition: width 300ms linear, width 300ms ease-out;
+  max-width: 250px;
+  .menu-button {
+    margin-top: 10px;
+    margin-bottom: 20px;
+    margin-left: 15px;
+  }
+}
+
+.md-app-scroller {
+  padding: 0 !important;
+}
+.md-drawer.md-persistent-mini:not(.md-active) .md-toolbar {
+  display: block;
+}
+
+
+.md-app-side-drawer {
+  .md-app-drawer {
+    &:not(.md-active) {
+      top: 0;
+    }
+  }
+  .md-list-item.sub-menu {
+    .md-list-item-content {
+      padding: 0 10px;
+      justify-content: flex-start;
+      min-height: 48px;
+      .md-list {
+        width: 100%;
+      }
+    }
+  }
+}
+
+.md-app-drawer.md-permanent-clipped {
+  position: absolute;
+  z-index: 999;
+}
+.md-overlay {
+  z-index: 990;
+}
+
+@import "adaptive";

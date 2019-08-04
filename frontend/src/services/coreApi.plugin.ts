@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import { GeesomeClient, BrowserLocalClientStorage } from '@galtproject/geesome-libs/src/GeesomeClient';
+const { GeesomeClient, BrowserLocalClientStorage } = require('@galtproject/geesome-libs/src/GeesomeClient');
 
 export default {
   install(Vue, options: any = {}) {
@@ -47,13 +47,17 @@ export default {
           'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup', 
           'saveFile', 'saveObject', 'saveContentData', 'saveDataByUrl', 'createPost', 'getContentData', 'getDbContent', 
           'getMemberInGroups', 'getAdminInGroups', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getImageLink', 
-          'getIpld', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
+          'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
           'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
           'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getAllItems', 'adminCreateUser', 
           'adminSetUserLimit', 'adminIsHaveCorePermission', 'adminAddCorePermission', 'adminRemoveCorePermission',
-          'adminAddUserAPiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
+          'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
           'getGroupPeers'
         ].forEach(methodName => {
+          if(!geesomeClient[methodName]) {
+            console.error('geesomeClient.' + methodName + ' method not found');
+            return;
+          }
           this[methodName] = geesomeClient[methodName];
           this[methodName] = this[methodName].bind(geesomeClient);
         });

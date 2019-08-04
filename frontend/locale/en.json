@@ -1,7 +1,7 @@
 {
   "app_container": {
     "navbar_title": "Geesome Node",
-    "server_address": "Server",
+    "server_address": "Node:",
     "main_menu": {
       "title": "Menu",
       "home": "Home",
@@ -29,5 +29,8 @@
   },
   "new_user": {
     "limit_period": "Limit for each period"
+  },
+  "user_profile": {
+    
   }
 }

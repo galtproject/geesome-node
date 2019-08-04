@@ -11,7 +11,16 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IContent, IDatabase, IFileCatalogItem, IGroup, IPost, IUser, IUserLimit} from "../database/interface";
+import {
+  IContent,
+  IDatabase,
+  IFileCatalogItem,
+  IGroup, IListParams,
+  IPost,
+  IUser,
+  IUserApiKey,
+  IUserLimit
+} from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
 
@@ -49,6 +58,8 @@ export interface IGeesomeApp {
   generateUserApiKey(userId, type?): Promise<string>;
 
   getUserByApiKey(apiKey): Promise<IUser>;
+  
+  getUserApiKeys(userId, listParams?: IListParams): Promise<IUserApiKey[]>;
 
   setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
 
@@ -78,9 +89,9 @@ export interface IGeesomeApp {
 
   getGroup(groupId): Promise<IGroup>;
 
-  getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
+  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
-  getFileCatalogItems(userId, parentItemId, type?, search?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogListResponse>;
+  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
 
   getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 
@@ -94,11 +105,11 @@ export interface IGeesomeApp {
 
   updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
 
-  getAllUserList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
+  getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUser[]>;
 
-  getAllContentList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
+  getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContent[]>;
 
-  getAllGroupList(adminId, searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
+  getAllGroupList(adminId, searchString, listParams?: IListParams): Promise<IGroup[]>;
 
   getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
 
