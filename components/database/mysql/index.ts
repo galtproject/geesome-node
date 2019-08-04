@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase} from "../interface";
+import {IDatabase, IListParams} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
@@ -55,6 +55,19 @@ class MysqlDatabase implements IDatabase {
     return this.models.UserApiKey.findOne({where: {valueHash}});
   }
 
+  async getApiKeysByUser(userId, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, { sortBy: 'publishedAt' });
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+
+    return this.models.UserApiKey.findAll({
+      where: {userId},
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
   getSessionStore() {
     const expressSession = require('express-session');
     const SessionStore = require('express-session-sequelize')(expressSession.Store);
@@ -85,7 +98,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.Content.destroy({where: {id}})
   }
 
-  async getContentList(userId, limit?, offset?) {
+  async getContentList(userId, listParams: IListParams = {}) {
+    const {limit, offset} = listParams;
     return this.models.Content.findAll({
       where: {userId},
       order: [
@@ -236,14 +250,15 @@ class MysqlDatabase implements IDatabase {
     return result.length > 0;
   }
 
-  async getGroupPosts(groupId, sortDir, limit, offset) {
-    sortDir = sortDir || 'DESC';
-    limit = parseInt(limit) || 10;
-    offset = parseInt(offset) || 0;
+  async getGroupPosts(groupId, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, { sortBy: 'publishedAt' });
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+    
     return this.models.Post.findAll({
       where: {groupId},
       include: [{model: this.models.Content, as: 'contents'}],
-      order: [['publishedAt', sortDir.toUpperCase()]],
+      order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
@@ -294,10 +309,10 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getFileCatalogItems(userId, parentItemId, type = null, search = '', sortBy = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
-    limit = parseInt(limit as any) || 10;
-    offset = parseInt(offset as any) || 0;
+  async getFileCatalogItems(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
     
+    const {limit, offset, sortBy, sortDir} = listParams;
     const where: any = {userId, type, isDeleted: false};
     
     if(!_.isUndefined(parentItemId)) {
@@ -317,9 +332,10 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getFileCatalogItemsByContent(userId, contentId, type = null, sortBy = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
-    limit = parseInt(limit as any) || 10;
-    offset = parseInt(offset as any) || 0;
+  async getFileCatalogItemsByContent(userId, contentId, type = null, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const { sortBy, sortDir, limit, offset } = listParams;
+    
     return this.models.FileCatalogItem.findAll({
       where: {userId, contentId, type, isDeleted: false},
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -423,42 +439,49 @@ class MysqlDatabase implements IDatabase {
     return this.models.CorePermission.findOne({where: {userId, name: permissionName}});
   }
 
-  async getAllUserList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+  async getAllUserList(searchString, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const { sortBy, sortDir, limit, offset } = listParams;
+    
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {email: searchString}]};
     }
     return this.models.User.findAll({
       where,
-      order: [[sortField, sortDir.toUpperCase()]],
+      order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
   }
 
-  async getAllContentList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
+  async getAllContentList(searchString, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const { sortBy, sortDir, limit, offset } = listParams;
+    
     let where = {};
     if (searchString) {
       where = {name: searchString};
     }
     return this.models.Content.findAll({
       where,
-      order: [[sortField, sortDir.toUpperCase()]],
+      order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
   }
 
-  async getAllGroupList(searchString, sortField = 'createdAt', sortDir = 'desc', limit = 20, offset = 0) {
-    limit = parseInt(limit as any) || 10;
-    offset = parseInt(offset as any) || 0;
+  async getAllGroupList(searchString, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const { sortBy, sortDir, limit, offset } = listParams;
+    
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {title: searchString}]};
     }
     return this.models.Group.findAll({
       where,
-      order: [[sortField, sortDir.toUpperCase()]],
+      order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
@@ -520,4 +543,12 @@ class MysqlDatabase implements IDatabase {
   async clearValue(key: string) {
     return this.models.Value.destroy({where: {key}});
   }
+}
+
+
+function setDefaultListParamsValues(listParams: IListParams, defaultParams: IListParams = {}) {
+  listParams.sortBy = listParams.sortBy || defaultParams.sortBy || 'createdAt';
+  listParams.sortDir = listParams.sortDir || defaultParams.sortDir || 'desc';
+  listParams.limit = parseInt(listParams.limit as any) || defaultParams.limit || 20;
+  listParams.offset = parseInt(listParams.offset as any) || defaultParams.offset || 0;
 }

@@ -20,13 +20,15 @@ export interface IDatabase {
 
   getApiKeyByHash(valueHash: string): Promise<IUserApiKey>;
 
+  getApiKeysByUser(userId: number, listParams?: IListParams): Promise<IUserApiKey[]>;
+
   addContent(content: IContent): Promise<IContent>;
 
   updateContent(id, updateData: any): Promise<void>;
 
   deleteContent(id): Promise<void>;
 
-  getContentList(accountAddress, limit?, offset?): Promise<IContent[]>;
+  getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
 
   getContent(id): Promise<IContent>;
 
@@ -88,7 +90,7 @@ export interface IDatabase {
 
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
-  getGroupPosts(groupId, sortDir, limit, offset): Promise<IPost[]>;
+  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
   getPost(postId): Promise<IPost>;
 
@@ -96,9 +98,9 @@ export interface IDatabase {
 
   getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
 
-  getFileCatalogItems(userId, parentItemId, type?, search?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
 
-  getFileCatalogItemsByContent(userId, contentId, type?, sortField?, sortDir?, limit?, offset?): Promise<IFileCatalogItem[]>;
+  getFileCatalogItemsByContent(userId, contentId, type?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
 
   getFileCatalogItemsBreadcrumbs(itemId): Promise<IFileCatalogItem[]>;
 
@@ -112,11 +114,11 @@ export interface IDatabase {
 
   getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
 
-  getAllUserList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IUser[]>;
+  getAllUserList(searchString, listParams?: IListParams): Promise<IUser[]>;
 
-  getAllContentList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IContent[]>;
+  getAllContentList(searchString, listParams?: IListParams): Promise<IContent[]>;
 
-  getAllGroupList(searchString, sortField?, sortDir?, limit?, offset?): Promise<IGroup[]>;
+  getAllGroupList(searchString, listParams?: IListParams): Promise<IGroup[]>;
 
   addUserContentAction(userContentActionData): Promise<IUserContentAction>;
 
@@ -139,6 +141,13 @@ export interface IDatabase {
   setValue(key: string, content: string): Promise<void>;
 
   clearValue(key: string): Promise<void>;
+}
+
+export interface IListParams {
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortDir?: string;
 }
 
 export interface IUserApiKey {

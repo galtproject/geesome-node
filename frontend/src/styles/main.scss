@@ -416,10 +416,20 @@ a.icon-link {
 }
 
 
+.logo img {
+  width: 70px;
+}
+
+
 .md-app-drawer {
   position: relative;
   transition: width 300ms linear, width 300ms ease-out;
   max-width: 250px;
+  .menu-button {
+    margin-top: 10px;
+    margin-bottom: 20px;
+    margin-left: 15px;
+  }
 }
 
 .md-app-scroller {

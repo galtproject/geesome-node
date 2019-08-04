@@ -182,13 +182,13 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/admin/all-users', async (req, res) => {
-    res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
   service.get('/v1/admin/all-content', async (req, res) => {
-    res.send(await geesomeApp.getAllContentList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    res.send(await geesomeApp.getAllContentList(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
   service.get('/v1/admin/all-groups', async (req, res) => {
-    res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
 
   service.get('/v1/admin/boot-nodes', async (req, res) => {
@@ -267,6 +267,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
   });
 
+  service.get('/v1/user/api-keys', async (req, res) => {
+    res.send(await geesomeApp.getUserApiKeys(req.user.id, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+  });
+
   service.post('/v1/user/save-file', async (req, res) => {
     req.pipe(req.busboy);
 
@@ -305,7 +309,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
 
   service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query.sortBy, req.query.sortDir, req.query.limit, req.query.offset));
+    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
   service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
     res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
@@ -331,7 +335,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/group/:groupId/posts', async (req, res) => {
-    res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query.sortDir, req.query.limit, req.query.offest));
+    res.send(await geesomeApp.getGroupPosts(req.params.groupId, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
 
   service.get('/v1/group/:groupId/peers', async (req, res) => {

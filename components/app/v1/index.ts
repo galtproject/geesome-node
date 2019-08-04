@@ -26,7 +26,7 @@ import {
   UserContentActionName,
   UserLimitName,
   IUserLimit,
-  CorePermissionName, IGroup
+  CorePermissionName, IGroup, IListParams
 } from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
@@ -43,7 +43,6 @@ const appCron = require('./cron');
 const appEvents = require('./events');
 const appListener = require('./listener');
 const _ = require('lodash');
-const request = require('request');
 const fs = require('fs');
 const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
@@ -183,6 +182,10 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     return this.database.getUser(keyObj.userId);
+  }
+
+  getUserApiKeys(userId, listParams?: IListParams) {
+    return this.database.getApiKeysByUser(userId, listParams);
   }
 
   async checkGroupId(groupId, createIfNotExist = true) {
@@ -851,8 +854,8 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroupByManifestId(groupId, staticId);
   }
 
-  getGroupPosts(groupId, sortDir, limit, offset) {
-    return this.database.getGroupPosts(groupId, sortDir, limit, offset)
+  getGroupPosts(groupId, listParams?: IListParams) {
+    return this.database.getGroupPosts(groupId, listParams)
   }
 
   getContent(contentId) {
@@ -864,23 +867,15 @@ class GeesomeApp implements IGeesomeApp {
   }
 
 
-  async getFileCatalogItems(userId, parentItemId, type?, search = '', sortField?, sortDir?, limit?, offset?) {
+  async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
     if(parentItemId == 'null') {
       parentItemId = null;
     }
     if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
       parentItemId = undefined;
-    if (!sortField)
-      sortField = 'createdAt';
-    if (!sortDir)
-      sortDir = 'desc';
-    if (!limit)
-      limit = 20;
-    if (!offset)
-      offset = 0;
     
     return {
-      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, sortField, sortDir, limit, offset),
+      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
       total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
     };
   }
@@ -898,49 +893,25 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getContentsIdsByFileCatalogIds(catalogIds);
   }
 
-  async getAllUserList(adminId, searchString?, sortField?, sortDir?, limit?, offset?) {
+  async getAllUserList(adminId, searchString?, listParams?: IListParams) {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    if (!sortField)
-      sortField = 'createdAt';
-    if (!sortDir)
-      sortDir = 'desc';
-    if (!limit)
-      limit = 20;
-    if (!offset)
-      offset = 0;
-    return this.database.getAllUserList(searchString, sortField, sortDir, limit, offset);
+    return this.database.getAllUserList(searchString, listParams);
   }
 
-  async getAllGroupList(adminId, searchString?, sortField?, sortDir?, limit?, offset?) {
+  async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    if (!sortField)
-      sortField = 'createdAt';
-    if (!sortDir)
-      sortDir = 'desc';
-    if (!limit)
-      limit = 20;
-    if (!offset)
-      offset = 0;
-    return this.database.getAllGroupList(searchString, sortField, sortDir, limit, offset);
+    return this.database.getAllGroupList(searchString, listParams);
   }
 
-  async getAllContentList(adminId, searchString?, sortField?, sortDir?, limit?, offset?) {
+  async getAllContentList(adminId, searchString?, listParams?: IListParams) {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    if (!sortField)
-      sortField = 'createdAt';
-    if (!sortDir)
-      sortDir = 'desc';
-    if (!limit)
-      limit = 20;
-    if (!offset)
-      offset = 0;
-    return this.database.getAllContentList(searchString, sortField, sortDir, limit, offset);
+    return this.database.getAllContentList(searchString, listParams);
   }
 
   async getUserLimit(adminId, userId, limitName) {

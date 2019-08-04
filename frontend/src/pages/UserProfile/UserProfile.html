@@ -1,0 +1,43 @@
+<div id="file-explorer-page">
+  <h3>User profile</h3>
+  
+  <md-card>
+    <md-card-content>
+      <div class="md-layout">
+        <div class="md-layout-30">
+          
+          <content-manifest-item :manifest="user.avatarImage" :preview-mode="true"></content-manifest-item>
+          
+        </div>
+        <div class="md-layout-70">
+          
+          <div class="properties">
+            <div><label>Username:</label> <span>@{{user.name}}</span></div>
+            <div><label>FullName:</label> <span>{{user.title}}</span></div>
+            <div><label>Email:</label> <span>{{user.email}}</span></div>
+          </div>
+          
+          <div v-if="currentUser.storageAccountId === user.ipns">
+            <h3>Api keys</h3>
+
+            <md-table>
+              <md-table-row>
+                <md-table-head>Title</md-table-head>
+                <md-table-head>Type</md-table-head>
+                <md-table-head>Permissions</md-table-head>
+                <md-table-head>Expired on</md-table-head>
+              </md-table-row>
+
+              <md-table-row v-for="item in apiKeys">
+                <md-table-cell>{{item.title}}</md-table-cell>
+                <md-table-cell>{{item.type}}</md-table-cell>
+                <md-table-cell>{{item.permissions}}</md-table-cell>
+                <md-table-cell>{{item.expiredOn}}</md-table-cell>
+              </md-table-row>
+            </md-table>
+          </div>
+        </div>
+      </div>
+    </md-card-content>
+  </md-card>
+</div>

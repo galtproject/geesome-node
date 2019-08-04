@@ -24,7 +24,7 @@ export default {
       this.creation = true;
       this.$coreApi.adminCreateUser(this.user).then(async (createdUser) => {
         if (!this.passwordAuth) {
-          this.resultApiKey = await this.$coreApi.adminAddUserAPiKey(createdUser.id);
+          this.resultApiKey = await this.$coreApi.adminAddUserApiKey(createdUser.id);
         }
         if (this.userLimit.isActive) {
           await this.$coreApi.adminSetUserLimit(this.user);

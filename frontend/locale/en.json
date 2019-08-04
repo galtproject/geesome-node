@@ -29,5 +29,8 @@
   },
   "new_user": {
     "limit_period": "Limit for each period"
+  },
+  "user_profile": {
+    
   }
 }

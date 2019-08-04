@@ -9,6 +9,11 @@
       <md-icon class="fas fa-home"></md-icon>
       <span class="md-list-item-text" v-locale="localeKey + '.home'"></span>
     </md-list-item>
+    
+    <md-list-item :to="{name: 'profile'}" v-if="user">
+      <md-icon class="fas fa-user"></md-icon>
+      <span class="md-list-item-text" v-locale="localeKey + '.profile'"></span>
+    </md-list-item>
 
     <md-list-item :to="{name: 'file-explorer'}" v-if="user">
       <md-icon class="fas fa-hdd"></md-icon>

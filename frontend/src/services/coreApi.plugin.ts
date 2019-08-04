@@ -51,7 +51,7 @@ export default {
           'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
           'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getAllItems', 'adminCreateUser', 
           'adminSetUserLimit', 'adminIsHaveCorePermission', 'adminAddCorePermission', 'adminRemoveCorePermission',
-          'adminAddUserAPiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
+          'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
           'getGroupPeers'
         ].forEach(methodName => {
           this[methodName] = geesomeClient[methodName];
