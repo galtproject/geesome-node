@@ -54,6 +54,10 @@ export default {
           'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
           'getGroupPeers'
         ].forEach(methodName => {
+          if(!geesomeClient[methodName]) {
+            console.error('geesomeClient.' + methodName + ' method not found');
+            return;
+          }
           this[methodName] = geesomeClient[methodName];
           this[methodName] = this[methodName].bind(geesomeClient);
         });

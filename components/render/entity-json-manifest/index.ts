@@ -46,7 +46,8 @@ class EntityJsonManifest implements IRender {
 
       groupManifest.posts = {};
 
-      const groupPosts = await this.app.database.getGroupPosts(group.id, 'desc', 100, 0);
+      // TODO: write all posts
+      const groupPosts = await this.app.database.getGroupPosts(group.id, {limit: 100, offset: 0});
       groupPosts.forEach((post: IPost) => {
         if (!post.manifestStorageId) {
           return;
