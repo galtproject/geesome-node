@@ -39,4 +39,27 @@
       justify-content: flex-start;
     }
   }
+  
+  #profile-page {
+    .profile-image {
+      display: flex;
+      justify-content: center;
+      
+      img {
+        width: 100px;
+      }
+    }
+  }
+  
+  .container-page {
+    padding: 10px 20px 0;
+  }
+
+  .wide-content {
+    width: 100%;
+  }
+  
+  .faq-block {
+    padding: 20px;
+  }
 }
