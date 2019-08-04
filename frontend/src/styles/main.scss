@@ -25,11 +25,11 @@ $fa-font-path: "webfonts";
 
 @import "media-element";
 
-.fas:before {
-  position: relative;
-  top: 2px;
-  right: 1px;
-}
+//.fas:before {
+//  position: relative;
+//  top: 2px;
+//  right: 1px;
+//}
 
 .md-icon-button .fas.md-icon {
   font-size: 22px !important;
@@ -464,6 +464,17 @@ a.icon-link {
 }
 .md-overlay {
   z-index: 990;
+}
+
+.md-button .fas.fa-pen.md-icon {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    font-size: 18px!important;
+}
+
+.profile-image {
+  padding: 0 20px;
 }
 
 @import "adaptive";

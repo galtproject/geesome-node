@@ -20,8 +20,12 @@ export interface IDatabase {
 
   getApiKeyByHash(valueHash: string): Promise<IUserApiKey>;
 
-  getApiKeysByUser(userId: number, listParams?: IListParams): Promise<IUserApiKey[]>;
-
+  getApiKeysByUser(userId: number, isDisabled?: boolean, search?: string, listParams?: IListParams): Promise<IUserApiKey[]>;
+  
+  getApiKeysCountByUser(userId: number, isDisabled?: boolean, search?: string): Promise<number>;
+  
+  updateUser(id, updateData: any): Promise<void>;
+  
   addContent(content: IContent): Promise<IContent>;
 
   updateContent(id, updateData: any): Promise<void>;

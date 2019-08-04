@@ -41,7 +41,7 @@ export default {
     async setContentByDbId() {
       this.loading = true;
       const dbContent = await this.$coreApi.getDbContent(this.dbId);
-      const manifestObj = await this.$coreApi.getIpld(dbContent.manifestStorageId);
+      const manifestObj = await this.$coreApi.getObject(dbContent.manifestStorageId);
       this.setContentByManifest(manifestObj);
     },
     async setContentByManifest(manifestObj) {
@@ -50,7 +50,7 @@ export default {
       if (manifestObj) {
         this.manifestObj = manifestObj;
       } else if (ipfsHelper.isIpldHash(this.manifest)) {
-        this.manifestObj = await this.$coreApi.getIpld(this.manifest);
+        this.manifestObj = await this.$coreApi.getObject(this.manifest);
       } else if (this.manifest) {
         this.manifestObj = this.manifest;
       }

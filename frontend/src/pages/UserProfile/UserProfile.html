@@ -4,12 +4,13 @@
   <md-card>
     <md-card-content>
       <div class="md-layout">
-        <div class="md-layout-30">
-          
-          <content-manifest-item :manifest="user.avatarImage" :preview-mode="true"></content-manifest-item>
-          
+        <div class="md-layout-item md-size-20 profile-image">
+          <div v-if="user.avatarImage">
+            <content-manifest-item :manifest="user.avatarImage.manifestStorageId" :preview-mode="true"></content-manifest-item>
+          </div>
+          <img v-else src="assets/empty-profile.png">
         </div>
-        <div class="md-layout-70">
+        <div class="md-layout-item md-size-80">
           
           <div class="properties">
             <div><label>Username:</label> <span>@{{user.name}}</span></div>
@@ -17,7 +18,12 @@
             <div><label>Email:</label> <span>{{user.email}}</span></div>
           </div>
           
-          <div v-if="currentUser.storageAccountId === user.ipns">
+          <div v-if="currentUser.id === user.id">
+            <md-button :to="{name: 'current-user-profile-edit'}" class="md-primary">
+              <md-icon class="fas fa-pen"></md-icon>
+              Edit profile
+            </md-button>
+            
             <h3>Api keys</h3>
 
             <md-table>
@@ -25,6 +31,7 @@
                 <md-table-head>Title</md-table-head>
                 <md-table-head>Type</md-table-head>
                 <md-table-head>Permissions</md-table-head>
+                <md-table-head>Created at</md-table-head>
                 <md-table-head>Expired on</md-table-head>
               </md-table-row>
 
@@ -32,6 +39,7 @@
                 <md-table-cell>{{item.title}}</md-table-cell>
                 <md-table-cell>{{item.type}}</md-table-cell>
                 <md-table-cell>{{item.permissions}}</md-table-cell>
+                <md-table-cell>{{item.createdAt}}</md-table-cell>
                 <md-table-cell>{{item.expiredOn}}</md-table-cell>
               </md-table-row>
             </md-table>

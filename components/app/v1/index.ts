@@ -161,6 +161,12 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+  async updateUser(userId, updateData) {
+    await this.database.updateUser(userId, updateData);
+
+    return this.database.getUser(userId);
+  }
+
   async generateUserApiKey(userId, type?) {
     const generated = uuidAPIKey.create();
 
@@ -184,8 +190,11 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUser(keyObj.userId);
   }
 
-  getUserApiKeys(userId, listParams?: IListParams) {
-    return this.database.getApiKeysByUser(userId, listParams);
+  async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
+    return {
+      list: await this.database.getApiKeysByUser(userId, isDisabled, search, listParams),
+      total: await this.database.getApiKeysCountByUser(userId, isDisabled, search)
+    };
   }
 
   async checkGroupId(groupId, createIfNotExist = true) {
@@ -414,24 +423,33 @@ class GeesomeApp implements IGeesomeApp {
     try {
       if (previewDriver.isInputSupported(DriverInput.Stream)) {
         let inputStream = await this.storage.getFileStream(storageId);
-        
-        const {stream: mediumStream, type, extension: resultExtension} = await previewDriver.processByStream(inputStream, {extension, size: OutputSize.Medium});
+
+        const {stream: mediumStream, type, extension: resultExtension} = await previewDriver.processByStream(inputStream, {
+          extension,
+          size: OutputSize.Medium
+        });
         const mediumFile = await this.storage.saveFileByData(mediumStream);
 
         let smallFile;
-        if(previewDriver.isOutputSizeSupported(OutputSize.Small)) {
+        if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
           inputStream = await this.storage.getFileStream(storageId);
-          const {stream: smallStream} = await previewDriver.processByStream(inputStream, {extension, size: OutputSize.Small});
+          const {stream: smallStream} = await previewDriver.processByStream(inputStream, {
+            extension,
+            size: OutputSize.Small
+          });
           smallFile = await this.storage.saveFileByData(smallStream);
         }
 
         let largeFile;
-        if(previewDriver.isOutputSizeSupported(OutputSize.Large)) {
+        if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
           inputStream = await this.storage.getFileStream(storageId);
-          const {stream: largeStream} = await previewDriver.processByStream(inputStream, {extension, size: OutputSize.Large});
+          const {stream: largeStream} = await previewDriver.processByStream(inputStream, {
+            extension,
+            size: OutputSize.Large
+          });
           largeFile = await this.storage.saveFileByData(largeStream);
         }
-        
+
         return {
           smallPreviewStorageId: smallFile ? smallFile.id : null,
           smallPreviewSize: smallFile ? smallFile.size : null,
@@ -444,22 +462,25 @@ class GeesomeApp implements IGeesomeApp {
         };
       } else if (previewDriver.isInputSupported(DriverInput.Content)) {
         const data = await this.storage.getFileData(storageId);
-        
-        const {content: mediumData, type, extension: resultExtension} = await previewDriver.processByContent(data, {extension, size: OutputSize.Medium});
+
+        const {content: mediumData, type, extension: resultExtension} = await previewDriver.processByContent(data, {
+          extension,
+          size: OutputSize.Medium
+        });
         const mediumFile = await this.storage.saveFileByData(mediumData);
-        
+
         let smallFile;
-        if(previewDriver.isOutputSizeSupported(OutputSize.Small)) {
+        if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
           const {content: smallData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
           smallFile = await this.storage.saveFileByData(smallData);
         }
 
         let largeFile;
-        if(previewDriver.isOutputSizeSupported(OutputSize.Large)) {
+        if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
           const {content: largeData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
           largeFile = await this.storage.saveFileByData(largeData);
         }
-        
+
         return {
           smallPreviewStorageId: smallFile ? smallFile.id : null,
           smallPreviewSize: smallFile ? smallFile.size : null,
@@ -520,7 +541,7 @@ class GeesomeApp implements IGeesomeApp {
 
       largePreviewStorageId,
       largePreviewSize,
-      
+
       previewExtension,
       storageType: ContentStorageType.IPFS,
       extension: resultExtension,
@@ -548,7 +569,11 @@ class GeesomeApp implements IGeesomeApp {
       storageFile = resultFile;
       extension = resultExtension;
     } else {
-      const {resultFile, resultMimeType, resultExtension} = await axios({url, method: 'get', responseType: 'stream'}).then((response) => {
+      const {resultFile, resultMimeType, resultExtension} = await axios({
+        url,
+        method: 'get',
+        responseType: 'stream'
+      }).then((response) => {
         const {status, statusText, data, headers} = response;
         if (status !== 200) {
           throw statusText;
@@ -572,13 +597,13 @@ class GeesomeApp implements IGeesomeApp {
     return this.addContent({
       mediumPreviewStorageId,
       mediumPreviewSize,
-      
+
       smallPreviewStorageId,
       smallPreviewSize,
-      
+
       largePreviewStorageId,
       largePreviewSize,
-      
+
       extension,
       previewExtension,
       storageType: ContentStorageType.IPFS,
@@ -757,7 +782,7 @@ class GeesomeApp implements IGeesomeApp {
 
   public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
-    if(fileCatalogItem.userId !== userId) {
+    if (fileCatalogItem.userId !== userId) {
       throw new Error("not_permitted");
     }
     await this.database.updateFileCatalogItem(fileCatalogId, updateData);
@@ -868,12 +893,12 @@ class GeesomeApp implements IGeesomeApp {
 
 
   async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
-    if(parentItemId == 'null') {
+    if (parentItemId == 'null') {
       parentItemId = null;
     }
     if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
       parentItemId = undefined;
-    
+
     return {
       list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
       total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)

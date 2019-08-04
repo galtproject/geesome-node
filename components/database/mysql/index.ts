@@ -52,20 +52,46 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getApiKeyByHash(valueHash) {
-    return this.models.UserApiKey.findOne({where: {valueHash}});
+    return this.models.UserApiKey.findOne({where: {valueHash, isDisabled: false}});
   }
 
-  async getApiKeysByUser(userId, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, { sortBy: 'publishedAt' });
+  async getApiKeysByUser(userId, isDisabled?, search?, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
+    const where = {userId};
+
+    if(search) {
+      where['title'] = {[Op.like]: search};
+    }
+    if(!_.isUndefined(isDisabled)) {
+      where['isDisabled'] =isDisabled;
+    }
+    
     return this.models.UserApiKey.findAll({
-      where: {userId},
+      where,
       order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
+  }
+
+  async getApiKeysCountByUser(userId, isDisabled?, search?) {
+    const where = {userId};
+
+    if(search) {
+      where['title'] = {[Op.like]: search};
+    }
+    if(!_.isUndefined(isDisabled)) {
+      where['isDisabled'] =isDisabled;
+    }
+    
+    return this.models.UserApiKey.count({ where });
+  }
+
+  async updateUser(id, updateData) {
+    return this.models.User.update(updateData, {where: {id}})
   }
 
   getSessionStore() {
@@ -143,7 +169,12 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUser(id) {
-    return this.models.User.findOne({where: {id}});
+    return this.models.User.findOne({
+      where: {id},
+      include: [
+        {model: this.models.Content, as: 'avatarImage'}
+      ]
+    });
   }
 
   async getGroup(id) {

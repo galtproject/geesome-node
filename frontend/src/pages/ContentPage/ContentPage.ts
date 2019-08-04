@@ -44,7 +44,7 @@ export default {
         if (ipfsHelper.isIpfsHash(manifestId)) {
           manifestId = await this.$coreApi.resolveIpns(manifestId);
         }
-        this.manifest = await this.$coreApi.getIpld(manifestId);
+        this.manifest = await this.$coreApi.getObject(manifestId);
         this.type = this.manifest._type.split('-')[0];
         if (this.type === 'group') {
           await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);

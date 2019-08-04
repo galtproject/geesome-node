@@ -11,18 +11,17 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
+import UserProfile from "../UserProfile";
+
 export default {
-  template: require('./UserProfile.html'),
-  components: {},
-  props: ['user'],
+  template: require('./CurrentUserProfile.html'),
+  components: {UserProfile},
+  props: [],
   async created() {
-    this.getApiKeys();
+    
   },
   methods: {
-    async getApiKeys() {
-      const apiKeys = await this.$coreApi.getUserApiKeys();
-      this.apiKeys = apiKeys.list;
-    }
+    
   },
   watch: {},
   computed: {
@@ -32,8 +31,7 @@ export default {
   },
   data() {
     return {
-      localeKey: 'user_profile',
-      apiKeys: []
+      
     };
   }
 }

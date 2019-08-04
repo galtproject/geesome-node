@@ -1,8 +1,8 @@
 <content>
 
-  <md-toolbar class="md-transparent" md-elevation="0" class="md-xsmall-hide">
-    <span v-if="menuVisibleLocal" v-locale="localeKey + '.title'"></span>
-  </md-toolbar>
+  <!--<md-toolbar class="md-transparent md-xsmall-hide" md-elevation="0">-->
+    <!--<span v-if="menuVisibleLocal" v-locale="localeKey + '.title'"></span>-->
+  <!--</md-toolbar>-->
 
   <md-list>
     <md-list-item :to="'/'">
@@ -10,7 +10,7 @@
       <span class="md-list-item-text" v-locale="localeKey + '.home'"></span>
     </md-list-item>
     
-    <md-list-item :to="{name: 'profile'}" v-if="user">
+    <md-list-item :to="{name: 'current-user-profile'}" v-if="user">
       <md-icon class="fas fa-user"></md-icon>
       <span class="md-list-item-text" v-locale="localeKey + '.profile'"></span>
     </md-list-item>
