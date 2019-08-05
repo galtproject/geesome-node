@@ -90,7 +90,7 @@ const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
 const geesomeClient = new GeesomeClient({
     server: 'https://your-site.com:7722',
-    // paste apiKey from GeeSome UI: here
+    // paste apiKey from GeeSome UI here
     apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E'
 });
 await geesomeClient.init();
@@ -103,6 +103,16 @@ console.log('content manifest ipld', contentObj.manifestStorageId);
 You can also use `geesomeClient.loginUserPass` for login via login and password without manually 
 setting `apiKey`. But more safer to use `apiKey`, because you can always disable it `apiKey` and 
 create another if there is a leak.
+
+## TODO:
+- Manage api keys in UI
+- Share folder by ipld manifest
+- Share folder by ipns manifest
+- Play audio and video content in groups as playlist
+- Public chat groups
+- Personal messages
+- Private chat groups
+- Feed for aggregate channels, chats, personal messages like in Telegram
 
 ## Minimal requirements
 - System: Ubuntu 16.04
