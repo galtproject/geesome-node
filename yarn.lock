@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#853a636":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#167d741":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#853a636cc2cb186aad77d9d8d6b6d0c93cae1d32"
+  resolved "git://github.com/galtspace/geesome-libs.git#167d7411df9f66ef5bffcd2f162b58e1c1760c90"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -22,6 +22,7 @@
     ipns "^0.5.2"
     lodash "^4.17.11"
     multihashes "~0.4.14"
+    p-iteration "^1.1.8"
     peer-id "^0.12.2"
 
 "@hapi/accept@3.x.x":
@@ -5703,7 +5704,7 @@ p-is-promise@^2.0.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/p-is-promise/-/p-is-promise-2.1.0.tgz#918cebaea248a62cf7ffab8e3bca8c5f882fc42e"
 
-p-iteration@^1.1.7:
+p-iteration@^1.1.7, p-iteration@^1.1.8:
   version "1.1.8"
   resolved "https://registry.yarnpkg.com/p-iteration/-/p-iteration-1.1.8.tgz#14df726d55af368beba81bcc92a26bb1b48e714a"
 
