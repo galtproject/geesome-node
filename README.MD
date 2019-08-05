@@ -76,9 +76,13 @@ There is additional parameters that can be used in export:
 
 ## Getting started with GeeSome Node API
 1. Get apiKey from GeeSome UI
-2. Install GeeSome libs:
+2. Install GeeSome libs by npm:
 ```
 npm i --save git://github.com/galtspace/geesome-libs.git
+```
+or yarn:
+```
+yarn add git://github.com/galtspace/geesome-libs.git
 ```
 3. Init GeeSome client and send request to your GeeSome node
 ```
@@ -93,6 +97,7 @@ await geesomeClient.init();
 
 const contentObj = await geesomeClient.saveDataByUrl('http://url.to/image.jpg');
 
+console.log('content ipfs', contentObj.storageId);
 console.log('content manifest ipld', contentObj.manifestStorageId);
 ```
 You can also use `geesomeClient.loginUserPass` for login via login and password without manually 
