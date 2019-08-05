@@ -80,7 +80,10 @@ There is additional parameters that can be used in export:
 4. Open your-site.com/#/setup and create first admin user
 
 ## Getting started with GeeSome Node API
-1. Get apiKey from GeeSome UI
+1. Get apiKey from GeeSome UI of your node
+```
+You can get your current session api key after login by enter localStorage.getItem('geesome-api-key') in browser console of UI page. Soon it will be more convenient and correct by keys generation in UI.
+```
 2. Install GeeSome libs by npm:
 ```
 npm i --save git://github.com/galtspace/geesome-libs.git
@@ -118,7 +121,7 @@ create another if there is a leak.
 - Personal messages
 - Private chat groups
 - Feed for aggregate channels, chats, personal messages like in Telegram
-- Local IPNS accounts (in-browser) and signing authentication and IPNS publish transactions
+- Local IPNS accounts (in-browser) and signing authentication or publish transactions
 
 ## Minimal requirements
 - System: Ubuntu 16.04
