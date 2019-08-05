@@ -483,6 +483,8 @@ a.icon-link {
   
   .profile {
     margin: 20px;
+    margin-bottom: 5px;
+    
     .profile-id {
       &, .md-icon-font {
         color: grey;
@@ -506,4 +508,43 @@ a.icon-link {
   }
 }
 
+.md-avatar {
+  img {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+  }
+}
+
+.group-info {
+  .md-card-header.md-card-header-flex {
+    flex-direction: row-reverse;
+    .md-title:first-child {
+      font-size: 15px;
+      line-height: 1;
+      margin: 0;
+      margin-bottom: 5px;
+    }
+    .md-subhead {
+      font-size: 12px;
+      line-height: 1.8;
+      .icon-link {
+        padding: 0;
+      }
+    }
+    .md-card-media {
+      margin-left: 0;
+      margin-right: 16px;
+      flex: initial;
+      &, img {
+        width: 60px;
+        height: 60px;
+        border-radius: 100%;
+      }
+    }
+    .md-card-actions {
+      padding-top: 0;
+    }
+  }
+}
 @import "adaptive";

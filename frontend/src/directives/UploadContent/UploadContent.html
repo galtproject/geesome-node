@@ -1,27 +1,27 @@
 <div class="upload-content">
   <div class="md-layout" v-if="!mode">
-    <div class="md-layout-item" v-if="!isHideEnterText">
+    <div class="md-layout-item md-xsmall-size-50" v-if="!isHideEnterText">
       <md-button class="md-raised huge-button md-accent" @click="setMode('enter_text')">
         <md-icon class="fas fa-edit"></md-icon>
 
         <div>Enter Text</div>
       </md-button>
     </div>
-    <div class="md-layout-item" v-if="!isHideUploadNew">
+    <div class="md-layout-item md-xsmall-size-50" v-if="!isHideUploadNew">
       <md-button class="md-raised huge-button md-accent" @click="setMode('upload_new')">
         <md-icon class="fas fa-upload"></md-icon>
 
         <div>Upload new</div>
       </md-button>
     </div>
-    <div class="md-layout-item" v-if="!isHideUploadLink">
+    <div class="md-layout-item md-xsmall-size-50" v-if="!isHideUploadLink">
       <md-button class="md-raised huge-button md-accent" @click="setMode('upload_link')">
         <md-icon class="fas fa-link"></md-icon>
 
         <div>Upload by link</div>
       </md-button>
     </div>
-    <div class="md-layout-item" v-if="!isHideChooseUploaded">
+    <div class="md-layout-item md-xsmall-size-50" v-if="!isHideChooseUploaded">
       <md-button class="md-raised huge-button md-accent" @click="chooseUploaded()">
         <md-icon class="fas fa-cloud"></md-icon>
 

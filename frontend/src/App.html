@@ -32,7 +32,7 @@
 
       <div class="md-xsmall-show drawer-header">
         
-        <div class="profile">
+        <div class="profile" v-if="user">
           <div class="avatar">
             <div v-if="user.avatarImage">
               <content-manifest-item :manifest="user.avatarImage.manifestStorageId" :preview-mode="true"></content-manifest-item>
