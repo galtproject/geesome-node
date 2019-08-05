@@ -74,6 +74,31 @@ There is additional parameters that can be used in export:
 
 4. Open your-site.com/#/setup and create first admin user
 
+## Getting started with GeeSome Node API
+1. Get apiKey from GeeSome UI
+2. Install GeeSome libs:
+```
+npm i --save git://github.com/galtspace/geesome-libs.git
+```
+3. Init GeeSome client and send request to your GeeSome node
+```
+const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
+
+const geesomeClient = new GeesomeClient({
+    server: 'https://your-site.com:7722',
+    // paste apiKey from GeeSome UI: here
+    apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E'
+});
+await geesomeClient.init();
+
+const contentObj = await geesomeClient.saveDataByUrl('http://url.to/image.jpg');
+
+console.log('content manifest ipld', contentObj.manifestStorageId);
+```
+You can also use `geesomeClient.loginUserPass` for login via login and password without manually 
+setting `apiKey`. But more safer to use `apiKey`, because you can always disable it `apiKey` and 
+create another if there is a leak.
+
 ## Minimal requirements
 - System: Ubuntu 16.04
 - 2 GB RAM
