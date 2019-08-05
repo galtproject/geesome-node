@@ -80,7 +80,7 @@ There is additional parameters that can be used in export:
 4. Open your-site.com/#/setup and create first admin user
 
 ## Getting started with GeeSome Node API
-1. Get apiKey from GeeSome UI
+1. Get apiKey from GeeSome UI of your node
 2. Install GeeSome libs by npm:
 ```
 npm i --save git://github.com/galtspace/geesome-libs.git
