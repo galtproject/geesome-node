@@ -23,6 +23,7 @@ const pIteration = require('p-iteration');
 const bodyParser = require('body-parser');
 const busboy = require('connect-busboy');
 const bearerToken = require('express-bearer-token');
+const proxy = require('express-http-proxy');
 
 const service = require('restana')({
   ignoreTrailingSlash: true,
@@ -378,6 +379,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       res.send(null, 200)
     });
   });
+
+  service.get('/v0/refs*', proxy('localhost'));
 
   service.post('/save-object', async (req, res) => {
     geesomeApp.storage.saveObject(req.body).then((result) => {

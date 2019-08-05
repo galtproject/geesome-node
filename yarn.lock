@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#741bcf4":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#34733f2":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#741bcf4bd07e8963cf9223c66a24c2ec05a7bc17"
+  resolved "git://github.com/galtspace/geesome-libs.git#34733f22af269eb43711b68227b119a2c7c711e0"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -1650,7 +1650,7 @@ debug@4.1.0:
   dependencies:
     ms "^2.1.1"
 
-debug@^3.1.0, debug@^3.2.6:
+debug@^3.0.1, debug@^3.1.0, debug@^3.2.6:
   version "3.2.6"
   resolved "https://registry.yarnpkg.com/debug/-/debug-3.2.6.tgz#e83d17de16d8a7efb7717edbe5fb10135eee629b"
   dependencies:
@@ -1994,7 +1994,7 @@ es-to-primitive@^1.2.0:
     is-date-object "^1.0.1"
     is-symbol "^1.0.2"
 
-es6-promise@*, es6-promise@^4.0.3:
+es6-promise@*, es6-promise@^4.0.3, es6-promise@^4.1.1:
   version "4.2.8"
   resolved "https://registry.yarnpkg.com/es6-promise/-/es6-promise-4.2.8.tgz#4eb21594c972bc40553d276e510539143db53e0a"
 
@@ -2192,6 +2192,14 @@ express-bearer-token@^2.4.0:
   dependencies:
     cookie "^0.3.1"
     cookie-parser "^1.4.4"
+
+express-http-proxy@^1.5.1:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/express-http-proxy/-/express-http-proxy-1.5.1.tgz#cbf45695c759693c9c5f946117462d25b57e77a8"
+  dependencies:
+    debug "^3.0.1"
+    es6-promise "^4.1.1"
+    raw-body "^2.3.0"
 
 express-mysql-session@^2.1.0:
   version "2.1.0"
@@ -2829,7 +2837,7 @@ http-errors@1.7.2:
     statuses ">= 1.5.0 < 2"
     toidentifier "1.0.0"
 
-http-errors@~1.7.2:
+http-errors@1.7.3, http-errors@~1.7.2:
   version "1.7.3"
   resolved "https://registry.yarnpkg.com/http-errors/-/http-errors-1.7.3.tgz#6c619e4f9c60308c38519498c14fbb10aacebb06"
   dependencies:
@@ -6418,6 +6426,15 @@ raw-body@2.4.0:
   dependencies:
     bytes "3.1.0"
     http-errors "1.7.2"
+    iconv-lite "0.4.24"
+    unpipe "1.0.0"
+
+raw-body@^2.3.0:
+  version "2.4.1"
+  resolved "https://registry.yarnpkg.com/raw-body/-/raw-body-2.4.1.tgz#30ac82f98bb5ae8c152e67149dac8d55153b168c"
+  dependencies:
+    bytes "3.1.0"
+    http-errors "1.7.3"
     iconv-lite "0.4.24"
     unpipe "1.0.0"
 
