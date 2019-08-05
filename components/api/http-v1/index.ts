@@ -380,7 +380,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     });
   });
 
-  service.get('/v0/refs*', proxy('localhost'));
+  service.get('/api/v0/refs*', proxy('localhost'));
 
   service.post('/save-object', async (req, res) => {
     geesomeApp.storage.saveObject(req.body).then((result) => {
