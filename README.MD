@@ -121,7 +121,7 @@ create another if there is a leak.
 - Personal messages
 - Private chat groups
 - Feed for aggregate channels, chats, personal messages like in Telegram
-- Local IPNS accounts (in-browser) and signing authentication and IPNS publish transactions
+- Local IPNS accounts (in-browser) and signing authentication or publish transactions
 
 ## Minimal requirements
 - System: Ubuntu 16.04
