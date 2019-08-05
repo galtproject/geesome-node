@@ -81,6 +81,9 @@ There is additional parameters that can be used in export:
 
 ## Getting started with GeeSome Node API
 1. Get apiKey from GeeSome UI of your node
+```
+You can get your current session api key after login by enter localStorage.getItem('geesome-api-key') in browser console of UI page. Soon it will be more convenient and correct by keys generation in UI.
+```
 2. Install GeeSome libs by npm:
 ```
 npm i --save git://github.com/galtspace/geesome-libs.git
