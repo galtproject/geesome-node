@@ -1,16 +1,16 @@
-<div id="file-explorer-page">
+<div id="profile-page" class="container-page">
   <h3>User profile</h3>
   
   <md-card>
     <md-card-content>
       <div class="md-layout">
-        <div class="md-layout-item md-size-20 profile-image">
+        <div class="md-layout-item md-size-20 md-small-size-100 profile-image">
           <div v-if="user.avatarImage">
             <content-manifest-item :manifest="user.avatarImage.manifestStorageId" :preview-mode="true"></content-manifest-item>
           </div>
           <img v-else src="assets/empty-profile.png">
         </div>
-        <div class="md-layout-item md-size-80">
+        <div class="md-layout-item md-size-80 md-small-size-100">
           
           <div class="properties">
             <div><label>Username:</label> <span>@{{user.name}}</span></div>

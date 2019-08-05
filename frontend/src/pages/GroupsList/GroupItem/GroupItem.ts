@@ -44,6 +44,9 @@ export default {
     },
     leaveGroup() {
       this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
+    },
+    openGroup() {
+      this.$router.push({name: 'group-page', params: {groupId: this.idForRoute}})
     }
   },
 

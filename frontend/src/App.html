@@ -19,32 +19,49 @@
   </div>
 
   <md-app v-else>
-    <md-app-drawer :md-permanent="is_mobile ? 'clipped' : 'full'" md-persistent="mini" :md-active.sync="menuVisible" md-swipeable>
+    <md-app-drawer :md-permanent="is_mobile ? 'clipped' : 'full'" md-persistent="mini" :md-active.sync="menuVisible"
+                   md-swipeable>
 
       <md-button @click="menuVisible = !menuVisible" class="md-icon-button md-xsmall-hide menu-button">
         <md-icon class="fas fa-bars"></md-icon>
       </md-button>
-      
-      <md-button @click="menuVisible = !menuVisible" class="md-icon-button md-xsmall-show close-button">
-        <md-icon class="fas fa-times"></md-icon>
-      </md-button>
+
+      <!--<md-button @click="menuVisible = !menuVisible" class="md-icon-button md-xsmall-show close-button">-->
+        <!--<md-icon class="fas fa-times"></md-icon>-->
+      <!--</md-button>-->
 
       <div class="md-xsmall-show drawer-header">
-        <div v-locale="localeKey + '.server_address'"></div>
-        <small>{{serverAddress}}</small>
         
-        <div>
-          <a v-if="user" href @click.prevent="logout()">Logout</a>
-          <router-link v-else :to="{name: 'login'}">Login</router-link>
+        <div class="profile" v-if="user">
+          <div class="avatar">
+            <div v-if="user.avatarImage">
+              <content-manifest-item :manifest="user.avatarImage.manifestStorageId" :preview-mode="true"></content-manifest-item>
+            </div>
+            <img v-else src="assets/empty-profile.png">
+          </div>
+          <div class="info">
+            <div class="profile-name"><b>{{user.title || '@' + user.name}}</b></div>
+            <div class="profile-id"><pretty-hex :hex="user.storageAccountId"></pretty-hex></div>
+          </div>
+        </div>
+        
+        <div class="server">
+          <div v-locale="localeKey + '.server_address'"></div>
+          <small>{{serverAddress}}</small>
+
+          <div>
+            <a v-if="user" href @click.prevent="logout()">Logout</a>
+            <router-link v-else :to="{name: 'login'}">Login</router-link>
+          </div>
         </div>
       </div>
-      
+
       <!--<div class="drawer-header md-layout">-->
-        <!--<div class="md-layout-item md-xsmall-size-40">-->
-          <!--<div class="logo">-->
-            <!--<img src="build/images/logo.png">-->
-          <!--</div>-->
-        <!--</div>-->
+      <!--<div class="md-layout-item md-xsmall-size-40">-->
+      <!--<div class="logo">-->
+      <!--<img src="build/images/logo.png">-->
+      <!--</div>-->
+      <!--</div>-->
       <!--</div>-->
 
       <!--<span class="logo"><img src="assets/logo-circle-only.png"></span>-->
@@ -60,10 +77,10 @@
           <md-button @click="menuVisible = !menuVisible" class="md-icon-button md-xsmall-show">
             <md-icon class="fas fa-bars"></md-icon>
           </md-button>
-          
+
           <span class="logo"><img src="assets/logo-circle-only.png"></span>
-          
-      <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
+
+          <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
           <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
 
           <span flex style="flex: 1"></span>
