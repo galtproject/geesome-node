@@ -24,7 +24,6 @@
     "cookie-parser": "^1.4.4",
     "ethers": "^4.0.25",
     "express-bearer-token": "^2.4.0",
-    "express-http-proxy": "^1.5.1",
     "express-mysql-session": "^2.1.0",
     "express-session": "^1.16.1",
     "express-session-sequelize": "^2.0.0",
