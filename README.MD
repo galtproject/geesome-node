@@ -32,6 +32,12 @@ Node provides a UI for storing and accessing your saved data or remote data of o
 
 ![GeeSome Main Page](./frontend/assets/screenshots/main-page.png)
 
+## About GeeSome Project
+GeeSome created for provide communication between GaltProject communities. GaltProject team are very worried about the 
+many issues of censorship and monopolization in the Social Network world. Because of this we are working on 
+decentralized protocol and node application for create convenient tool for upload content and share it between friends.
+It's very simple but powerful idea - give the communities create their own Social Networks nodes for communications.
+
 ## GeeSome Protocol
 A new open protocol for unstopable social networking and communication on IPFS.
 It defines the structure of social network data to describe familiar to the modern user entities: content, posts, tags, groups.
