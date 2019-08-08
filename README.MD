@@ -91,8 +91,8 @@ There is additional parameters that can be used in export:
 
 | Parameter | Description |
 |-----|-------------|
-| DATABASE_NAME | Database name to store app data. Default: geesome-node |
-| STORAGE_REPO | Directory to store IPFS content. Default: ~/.jsipfs  |
+| DATABASE_NAME | Database name to store app data. Default: `geesome-node` |
+| STORAGE_REPO | Directory to store IPFS content. Default: `~/.jsipfs`  |
 
 4. Open your-site.com/#/setup and create first admin user
 
