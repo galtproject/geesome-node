@@ -155,4 +155,4 @@ create another if there is a leak.
 - [Libs repo](https://github.com/galtspace/geesome-libs)
 
 ## Do you like the project? ✨
-Put a star and fork it. Thank you!
+Put a star and fork it. Join Us On [Telegram](https://t.me/geesome). Thank you!
