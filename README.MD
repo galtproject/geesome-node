@@ -55,6 +55,12 @@ GeeSome Node can be used:
 - to share the uploaded content in any form (blog, playlist, file, folder)
 - to create chat groups
 
+## GeeSome Scheme
+![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/62708490-d304a800-b9f3-11e9-8c2c-5cb3f2b5f753.jpg)
+
+You can run personal or public GeeSome node. It used for storing files, manage entities and prepare content for publishing.
+Also because of IPNS updates issues - GeeSome node have IPNS caching based on signed PubSub events.
+
 ## UI Screenshots
 
 ### File explorer
@@ -147,3 +153,6 @@ create another if there is a leak.
 - [Manifests example](./docs/manifests-example.md)
 - [API](./components/api/http-v1/index.ts)
 - [Libs repo](https://github.com/galtspace/geesome-libs)
+
+## Do you like the project? ✨
+Put a star and fork it. Thank you!
