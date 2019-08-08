@@ -59,7 +59,9 @@ GeeSome Node can be used:
 ![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/62708490-d304a800-b9f3-11e9-8c2c-5cb3f2b5f753.jpg)
 
 You can run personal or public GeeSome node. It used for storing files, manage entities and prepare content for publishing.
-Also because of IPNS updates issues - GeeSome node have IPNS caching based on signed PubSub events.
+Also because of IPNS updates issues - GeeSome node have IPNS caching based on signed PubSub events. 
+Also there is an [issue](https://github.com/galtspace/geesome-node/issues/115) about IPNS keys of user. 
+Currently its storing in IPNS node, but need to improve it.
 
 ## UI Screenshots
 
