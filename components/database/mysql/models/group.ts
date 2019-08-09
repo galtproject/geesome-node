@@ -93,6 +93,9 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
+  Group.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
+  models.User.hasMany(Group, {as: 'createdGroups', foreignKey: 'creatorId'});
+  
   models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {} as any);
 
   Group.belongsToMany(models.User, {as: 'administrators', through: models.GroupAdministrators});

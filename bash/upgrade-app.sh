@@ -8,4 +8,5 @@ yarn
 ( cd frontend && yarn && npm run dev-build )
 
 # backend
+npm run migrate-database
 pm2 start geesome-node

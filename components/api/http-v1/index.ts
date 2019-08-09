@@ -215,6 +215,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: await geesomeApp.storage.nodeAddressList()});
   });
 
+  service.get('/v1/user/get-friends', async (req, res) => {
+    res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+  });
+  
+  service.post('/v1/user/add-friend', async (req, res) => {
+    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
+  });
+
+  service.post('/v1/user/remove-friend', async (req, res) => {
+    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
+  });
+
   service.get('/v1/admin/get-user/:userId/limit/:limitName', async (req, res) => {
     res.send(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName));
   });

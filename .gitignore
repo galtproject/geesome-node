@@ -5,3 +5,4 @@ coverage
 .DS_Store
 *.log
 *.key
+components/database/mysql/config

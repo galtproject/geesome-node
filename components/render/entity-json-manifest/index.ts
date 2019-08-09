@@ -13,7 +13,7 @@
 
 import {IRender} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
-import {IContent, IGroup, IPost} from "../../database/interface";
+import {IContent, IGroup, IPost, IUser} from "../../database/interface";
 
 const _ = require('lodash');
 const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
@@ -55,7 +55,7 @@ class EntityJsonManifest implements IRender {
         treeLib.setNode(groupManifest.posts, post.localId, this.getStorageRef(post.manifestStorageId));
       });
 
-      this.setManifestVersion(groupManifest, name);
+      this.setManifestMeta(groupManifest, name);
 
       return groupManifest;
     } else if (name === 'post-manifest') {
@@ -71,9 +71,22 @@ class EntityJsonManifest implements IRender {
         return this.getStorageRef(content.manifestStorageId);
       });
 
-      this.setManifestVersion(postManifest, name);
+      this.setManifestMeta(postManifest, name);
 
       return postManifest;
+    } else if (name === 'user-manifest') {
+      const user: IUser = data;
+      const userManifest = _.pick(user, ['name', 'title', 'email', 'description']);
+
+      userManifest.ipns = user.manifestStaticStorageId;
+
+      if (user.avatarImage) {
+        userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
+      }
+
+      this.setManifestMeta(userManifest, name);
+
+      return userManifest;
     } else if (name === 'content-manifest') {
       //TODO: add preview size
       const content: IContent = data;
@@ -105,7 +118,7 @@ class EntityJsonManifest implements IRender {
           size: content.largePreviewSize
         };
       }
-      this.setManifestVersion(contentManifest, name);
+      this.setManifestMeta(contentManifest, name);
 
       return contentManifest;
     }
@@ -132,6 +145,17 @@ class EntityJsonManifest implements IRender {
 
       //TODO: import posts too
       return group;
+    } else if (manifest._type === 'user-manifest') {
+      const user: IUser = _.pick(manifest, ['name', 'title', 'email', 'description']);
+      user.manifestStorageId = manifestId;
+
+      if (manifest.avatarImage) {
+        user.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage)) as any;
+      }
+
+      user.manifestStaticStorageId = manifest.ipns;
+
+      return user;
     } else if (manifest._type === 'content-manifest') {
       const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 
@@ -152,9 +176,9 @@ class EntityJsonManifest implements IRender {
     }
   }
 
-  setManifestVersion(manifest, type) {
+  setManifestMeta(manifest, type) {
     manifest._version = "0.1";
-    manifest._source = "geesome-core";
+    manifest._source = "geesome-node";
     manifest._protocol = "geesome-ipsp";
     manifest._type = type;
   }

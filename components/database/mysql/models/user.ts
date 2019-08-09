@@ -55,6 +55,15 @@ module.exports = async function (sequelize, models) {
       // { fields: ['tokensAddress', 'chainAccountAddress'] }
     ]
   } as any);
+  
+  models.User = User;
+  await models.User.sync({});
+  
+  models.UserFriends = sequelize.define('userFriends', {} as any, {} as any);
 
-  return User.sync({});
+  User.belongsToMany(User, {as: 'friends', through: models.UserFriends});
+
+  await models.UserFriends.sync({});
+  
+  return models.User;
 };

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "./node_modules/.bin/ts-node ./index.ts",
     "recreate-database": "./bash/drop-database.sh && ./bash/create-database.sh",
+    "migrate-database": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
     "upgrade": "./bash/upgrade-app.sh",
     "test": "./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
@@ -14,7 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#b2ce08c",
-    "@microlink/youtube-dl": "^2.0.0",
+    "@microlink/youtube-dl": "git://github.com/Jonybang/node-youtube-dl.git#bac9c1e",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.19.0",
     "bcrypt": "^3.0.6",
@@ -44,13 +45,15 @@
     "request": "^2.88.0",
     "restana": "^3.1.0",
     "sequelize": "^5.3.0",
+    "sequelize-cli": "^5.5.0",
     "serve-static": "^1.14.1",
     "sharp": "^0.22.1",
     "typedarray-to-buffer": "^3.1.5",
     "uuid": "^3.3.2",
     "uuid-apikey": "^1.4.3",
     "web3": "^1.0.0-beta.37",
-    "xkcd-password": "^2.0.0"
+    "xkcd-password": "^2.0.0",
+    "youtube-dl": "^2.0.0"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",

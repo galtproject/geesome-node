@@ -58,6 +58,16 @@ export interface IDatabase {
 
   getUser(id): Promise<IUser>;
 
+  getUserByManifestId(manifestId, staticManifestId): Promise<IUser>;
+
+  addUserFriend(userId, friendId): Promise<void>;
+
+  removeUserFriend(userId, friendId): Promise<void>;
+
+  getUserFriends(userId, search?, limitParams?: IListParams): Promise<IUser[]>;
+  
+  getUserFriendsCount(userId, search?): Promise<number>;
+
   getGroup(id): Promise<IGroup>;
 
   getGroupByManifestId(manifestId, staticManifestId): Promise<IGroup>;
@@ -247,8 +257,11 @@ export interface IUser {
   passwordHash: string;
   title?: string;
   storageAccountId?: string;
+  isRemote?: boolean;
   avatarImageId?: number;
   avatarImage?: IContent;
+  manifestStorageId?: string;
+  manifestStaticStorageId?: string;
 }
 
 export interface IGroup {
@@ -262,6 +275,7 @@ export interface IGroup {
   isRemote: boolean;
 
   description?: string;
+  authorId?: number;
   avatarImageId?: number;
   avatarImage?: IContent;
   coverImageId?: number;
@@ -283,7 +297,8 @@ export interface IGroup {
 
 export enum GroupType {
   Channel = 'channel',
-  Chat = 'chat'
+  Chat = 'chat',
+  PersonalChat = 'personal_chat'
 }
 
 export enum GroupView {

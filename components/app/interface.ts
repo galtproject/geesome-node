@@ -41,6 +41,24 @@ export interface IGeesomeApp {
 
   updateUser(userId, updateData): Promise<IUser>;
 
+  generateUserApiKey(userId, type?): Promise<string>;
+
+  getUserByApiKey(apiKey): Promise<IUser>;
+
+  getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
+
+  setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
+
+  getMemberInGroups(userId): Promise<IGroup[]>;
+
+  getAdminInGroups(userId): Promise<IGroup[]>;
+
+  addUserFriendById(userId, friendId): Promise<void>;
+
+  removeUserFriendById(userId, friendId): Promise<void>;
+
+  getUserFriends(userId, search?, listParams?: IListParams): Promise<IUserListResponse>;
+
   canCreatePostInGroup(userId, groupId);
 
   canEditGroup(userId, groupId);
@@ -57,17 +75,17 @@ export interface IGeesomeApp {
 
   removeAdminFromGroup(userId, groupId): Promise<void>;
 
-  generateUserApiKey(userId, type?): Promise<string>;
-
-  getUserByApiKey(apiKey): Promise<IUser>;
-  
-  getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
-
-  setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
-
   createPost(userId, postData);
 
   updatePost(userId, postId, postData);
+
+  createGroup(userId, groupData): Promise<IGroup>;
+
+  updateGroup(userId, id, updateData): Promise<IGroup>;
+
+  getGroup(groupId): Promise<IGroup>;
+
+  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
   saveData(fileStream, fileName, options);
 
@@ -80,18 +98,6 @@ export interface IGeesomeApp {
   getDataStructure(dataId);
 
   getDataStructure(dataId);
-
-  getMemberInGroups(userId): Promise<IGroup[]>;
-
-  getAdminInGroups(userId): Promise<IGroup[]>;
-
-  createGroup(userId, groupData): Promise<IGroup>;
-
-  updateGroup(userId, id, updateData): Promise<IGroup>;
-
-  getGroup(groupId): Promise<IGroup>;
-
-  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
   getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
 
@@ -117,13 +123,13 @@ export interface IGeesomeApp {
 
   getContent(contentId): Promise<IContent>;
 
-  //TODO: define structure
+  //TODO: define interface
   getPeers(topic): Promise<any>;
 
-  //TODO: define structure
+  //TODO: define interface
   getIpnsPeers(ipns): Promise<any>;
 
-  //TODO: define structure
+  //TODO: define interface
   getGroupPeers(groupId): Promise<any>;
 
   resolveStaticId(staticId): Promise<string>;
@@ -136,5 +142,10 @@ export interface IFileCatalogListResponse {
 
 export interface IUserApiKeysListResponse {
   list: IUserApiKey[];
+  total: number;
+}
+
+export interface IUserListResponse {
+  list: IUser[];
   total: number;
 }

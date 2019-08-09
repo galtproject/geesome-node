@@ -177,6 +177,51 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
+  async getUserByManifestId(id, staticId?) {
+    const whereOr = [];
+    if (id) {
+      whereOr.push({manifestStorageId: id});
+    }
+    if (staticId) {
+      whereOr.push({manifestStaticStorageId: staticId});
+    }
+    if (!whereOr.length) {
+      return null;
+    }
+    return this.models.User.findOne({
+      where: {[Op.or]: whereOr},
+      include: [
+        {model: this.models.Content, as: 'avatarImage'}
+      ]
+    });
+  }
+  
+  async addUserFriend(userId, friendId) {
+    return (await this.getUser(userId)).addFriends([await this.getUser(friendId)]);
+  }
+
+  async removeUserFriend(userId, friendId) {
+    return (await this.getUser(userId)).removeFriends([await this.getUser(friendId)]);
+  }
+
+  async getUserFriends(userId, search?, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const { limit, offset } = listParams;
+    //TODO: use search and order
+    return (await this.getUser(userId)).getFriends({
+      include: [
+        {model: this.models.Content, as: 'avatarImage'}
+      ],
+      limit,
+      offset
+    });
+  }
+
+  async getUserFriendsCount(userId, search?) {
+    //TODO: use search
+    return (await this.getUser(userId)).countFriends();
+  }
+
   async getGroup(id) {
     return this.models.Group.findOne({
       where: {id},
