@@ -1,7 +1,7 @@
 <div id="profile-page" class="container-page">
   <h3>User profile</h3>
   
-  <md-card>
+  <md-card v-if="user">
     <md-card-content>
       <div class="md-layout">
         <div class="md-layout-item md-size-20 md-small-size-100 profile-image">
@@ -16,6 +16,8 @@
             <div><label>Username:</label> <span>@{{user.name}}</span></div>
             <div><label>FullName:</label> <span>{{user.title}}</span></div>
             <div><label>Email:</label> <span>{{user.email}}</span></div>
+            <div><label>IPNS:</label> <pretty-hex :hex="user.manifestStaticStorageId"></pretty-hex></div>
+            <div><label>IPLD:</label> <pretty-hex :hex="user.manifestStorageId"></pretty-hex></div>
           </div>
           
           <div v-if="currentUser.id === user.id">
