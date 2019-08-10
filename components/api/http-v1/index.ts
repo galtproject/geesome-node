@@ -250,6 +250,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getAdminInGroups(req.user.id));
   });
 
+  service.get('/v1/user/personal-chat-groups', async (req, res) => {
+    res.send(await geesomeApp.getPersonalChatGroups(req.user.id));
+  });
+
   service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
     res.send({valid: await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)});
   });

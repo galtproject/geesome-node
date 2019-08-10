@@ -25,6 +25,9 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    .add-group-button {
+      margin: 0;
+    }
   }
   .chat-container {
     width: 70%;

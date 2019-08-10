@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase, IListParams} from "../interface";
+import {GroupType, IDatabase, IListParams} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
@@ -324,6 +324,12 @@ class MysqlDatabase implements IDatabase {
       where: {id: groupId}
     });
     return result.length > 0;
+  }
+
+  async getCreatorInGroupsByType(creatorId, type: GroupType) {
+    return this.models.Group.findAll({
+      where: {creatorId, type}
+    });
   }
 
   async getGroupPosts(groupId, listParams: IListParams = {}) {

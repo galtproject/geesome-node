@@ -92,6 +92,8 @@ export interface IDatabase {
 
   getAdminInGroups(userId): Promise<IGroup[]>;
 
+  getCreatorInGroupsByType(userId, type: GroupType): Promise<IGroup[]>;
+
   getGroupSizeSum(id): Promise<number>;
 
   addCorePermission(userId, permissionName): Promise<void>;
@@ -253,6 +255,7 @@ export enum PostStatus {
 export interface IUser {
   id?: number;
   name: string;
+  description?: string;
   email: string;
   passwordHash: string;
   title?: string;

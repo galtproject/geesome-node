@@ -23,7 +23,7 @@ import {
   UserContentActionName,
   UserLimitName,
   IUserLimit,
-  CorePermissionName, IGroup, IListParams, IUser
+  CorePermissionName, IGroup, IListParams, IUser, GroupType, GroupView
 } from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
@@ -201,13 +201,26 @@ class GeesomeApp implements IGeesomeApp {
   }
   
   async addUserFriendById(userId, friendId) {
-    friendId = await this.checkGroupId(friendId, true);
+    friendId = await this.checkUserId(friendId, true);
+
+    const user = await this.database.getUser(userId);
+    const friend = await this.database.getUser(friendId);
+    
+    await this.createGroup(userId, {
+      name: friend.manifestStaticStorageId + ':' + user.manifestStaticStorageId + ':personal_chat:default',
+      type: GroupType.PersonalChat,
+      title: friend.title,
+      staticStorageId: friend.manifestStaticStorageId,
+      view: GroupView.TelegramLike
+    });
     
     return this.database.addUserFriend(userId, friendId);
   }
 
   async removeUserFriendById(userId, friendId) {
-    friendId = await this.checkGroupId(friendId, true);
+    friendId = await this.checkUserId(friendId, true);
+    
+    // TODO: remove personal chat group?
 
     return this.database.removeUserFriend(userId, friendId);
   }
@@ -331,6 +344,10 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getAdminInGroups(userId)
   }
 
+  getPersonalChatGroups(userId) {
+    return this.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat);
+  }
+
   /**
    ===========================================
    GROUPS ACTIONS
@@ -365,13 +382,18 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createGroup(userId, groupData) {
-    groupData.userId = userId;
-    groupData.storageAccountId = await this.storage.createAccountIfNotExists(groupData['name']);
-    groupData.manifestStaticStorageId = groupData.storageAccountId;
+    groupData.creatorId = userId;
+    
+    groupData.manifestStaticStorageId = await this.storage.createAccountIfNotExists(groupData['name']);
+    if(groupData.type !== GroupType.PersonalChat) {
+      groupData.staticStorageId = groupData.manifestStaticStorageId;
+    }
 
     const group = await this.database.addGroup(groupData);
 
-    await this.database.addAdminToGroup(userId, group.id);
+    if(groupData.type !== GroupType.PersonalChat) {
+      await this.database.addAdminToGroup(userId, group.id);
+    }
 
     await this.updateGroupManifest(group.id);
 

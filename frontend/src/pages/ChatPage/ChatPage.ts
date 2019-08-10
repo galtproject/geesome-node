@@ -17,8 +17,8 @@ export default {
     name: 'chat-page',
     template: require('./ChatPage.html'),
     components: { GroupItem },
-    created() {
-        
+    async created() {
+        // this.groups = await this.$coreApi.getPersonalChatGroups();
     },
     mounted() {
         

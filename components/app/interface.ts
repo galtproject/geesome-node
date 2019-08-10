@@ -53,6 +53,8 @@ export interface IGeesomeApp {
 
   getAdminInGroups(userId): Promise<IGroup[]>;
 
+  getPersonalChatGroups(userId): Promise<IGroup[]>;
+
   addUserFriendById(userId, friendId): Promise<void>;
 
   removeUserFriendById(userId, friendId): Promise<void>;
