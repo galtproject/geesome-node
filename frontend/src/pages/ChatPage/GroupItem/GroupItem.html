@@ -1,0 +1,8 @@
+<div :class="{'group': true, 'active': active}">
+    <div class="avatar"><img :src="avatar"></div>
+    <div class="info">
+        <div class="name"><span v-html="name"></span> <pretty-hex :hex="address"></pretty-hex></div>
+        <div class="text" v-html="lastMessage.text"></div>
+    </div>
+    <div class="date" v-html="lastMessage.date"></div>
+</div>

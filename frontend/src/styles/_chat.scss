@@ -1,0 +1,236 @@
+/*!
+ * Copyright ©️ 2018 Galt•Space Society Construction and Terraforming Company 
+ * (Founded by [Nikolai Popeka](https://github.com/npopeka),
+ * [Dima Starodubcev](https://github.com/xhipster), 
+ * [Valery Litvin](https://github.com/litvintech) by 
+ * [Basic Agreement](http://cyb.ai/QmSAWEG5u5aSsUyMNYuX2A2Eaz4kEuoYWUkVBRdmu9qmct:ipfs)).
+ * ​
+ * Copyright ©️ 2018 Galt•Core Blockchain Company 
+ * (Founded by [Nikolai Popeka](https://github.com/npopeka) and 
+ * Galt•Space Society Construction and Terraforming Company by 
+ * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
+ */
+
+
+#chat-page {
+  flex: 1;
+  display: flex;
+  background: #19161C;
+  margin-top: 0 !important;
+  height: auto !important;
+
+  .groups-container {
+    width: 30%;
+    border-right: 1px solid #616161;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .chat-container {
+    width: 70%;
+    height: 100%;
+  }
+
+  .chat-messages-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .chat-message {
+    max-width: 70%;
+    min-width: 30%;
+    border-radius: 12px;
+    border: 1px solid #607D8B;
+
+    align-self: flex-start;
+    &.current-user-message {
+      align-self: flex-end;
+    }
+
+    .md-card-header {
+      .md-subhead {
+        opacity: 1;
+      }
+      background: #78909C;
+      color: black;
+      padding: 5px;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+
+    .md-card-content {
+      background: #607D8B;
+      color: black;
+      padding: 5px;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+    }
+  }
+
+  .groups-list {
+    //padding: 10px;
+    flex: 1;
+    .group {
+      display: flex;
+      position: relative;
+      padding: 15px;
+      cursor: pointer;
+      //.name {
+      //  color: rgb(236, 146, 39);
+      //}
+      .avatar {
+        height: 50px;
+        width: 50px;
+        border-radius: 100%;
+        border: none;
+        img {
+          border-radius: 100%;
+          max-width: 100%;
+        }
+      }
+      &.active {
+        background: #382f50;
+      }
+      &:hover {
+        background: #44475a;
+      }
+      .info {
+        padding-left: 15px;
+      }
+      .text {
+        color: grey;
+        .highlight {
+          color: #83d9ef;
+          //padding: 3px;
+        }
+      }
+      .date {
+        position: absolute;
+        top: 5px;
+        right: 10px;
+      }
+    }
+
+    .add-group-button {
+      width: 100%;
+    }
+  }
+
+  .chat-control {
+    display: flex;
+    justify-content: center;
+    height: 60px;
+    align-items: center;
+  }
+
+  $new-message-height: 50px;
+
+  .chat-container {
+    //padding: 0 10%;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+
+    .chat {
+      height: calc(100% - #{$new-message-height});
+      overflow: scroll;
+      padding: 15px;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: flex-end;
+    }
+
+    .message {
+      display: flex;
+      position: relative;
+      margin-bottom: 5px;
+      padding: 10px;
+      background: #44475a;
+      border-radius: 5px;
+      max-width: 70%;
+      width: auto;
+      &.my {
+        background: #6272a4;
+        align-self: end;
+        .avatar {
+          display: none;
+        }
+      }
+      .avatar {
+        height: 50px;
+        width: 50px;
+        min-width: 50px;
+        border-radius: 100%;
+        border: none;
+        img {
+          border-radius: 100%;
+          max-width: 100%;
+        }
+      }
+      .info {
+        padding-left: 15px;
+        font-size: 14px;
+      }
+      .text {
+        color: #f8f8f2;
+        .highlight {
+          background: #F5F5F5;
+          padding: 3px;
+        }
+      }
+      .name {
+        color: #83d9ef;
+      }
+      .date {
+        position: absolute;
+        bottom: 3px;
+        right: 3px;
+        color: #83d9ef;
+      }
+    }
+  }
+
+  .welcome {
+    display: flex;
+    justify-content: center;
+    align-content: center;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    .welcome-message {
+      display: flex;
+      .welcome-icon {
+        width: 50px;
+        display: flex;
+      }
+      .welcome-text {
+        width: 400px;
+      }
+    }
+  }
+
+  .new-message {
+    display: flex;
+    height: $new-message-height;
+    align-items: center;
+    padding: 0 15px;
+    & > *:not(:last-child) {
+      margin-right: 10px;
+    }
+    .input {
+      flex: 1;
+      input[type=text] {
+        background: none;
+        border: none;
+        width: 100%;
+        height: 100%;
+        &::placeholder {
+          color: grey;
+          opacity: 1; /* Firefox */
+        }
+        &:focus {
+          outline:0;
+        }
+      }
+    }
+  }
+}

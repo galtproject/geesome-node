@@ -15,6 +15,11 @@
       <span class="md-list-item-text" v-locale="localeKey + '.profile'"></span>
     </md-list-item>
 
+    <md-list-item :to="{name: 'chat-page'}" v-if="user">
+      <md-icon class="fas fa-comments"></md-icon>
+      <span class="md-list-item-text" v-locale="localeKey + '.chat'"></span>
+    </md-list-item>
+
     <md-list-item :to="{name: 'file-explorer'}" v-if="user">
       <md-icon class="fas fa-hdd"></md-icon>
       <span class="md-list-item-text" v-locale="localeKey + '.file_explorer'"></span>

@@ -24,6 +24,7 @@ $fa-font-path: "webfonts";
 @import '~@galtproject/frontend-core/modals/AsyncModal/modal.css';
 
 @import "media-element";
+@import "chat";
 
 //.fas:before {
 //  position: relative;
@@ -31,6 +32,10 @@ $fa-font-path: "webfonts";
 //  right: 1px;
 //}
 
+.md-app-content {
+  display: flex;
+  flex-direction: column;
+}
 .md-icon-button .fas.md-icon {
   font-size: 22px !important;
 }

@@ -28,6 +28,7 @@ import BootNodesPage from "./pages/BootNodesPage/BootNodesPage";
 import SetupPage from "./pages/SetupPage/SetupPage";
 import CurrentUserProfile from "./pages/UserProfile/CurrentUserProfile/CurrentUserProfile";
 import EditProfile from "./pages/UserProfile/EditProfile/EditProfile";
+import ChatPage from "./pages/ChatPage/ChatPage";
 
 Vue.use(Router);
 
@@ -58,6 +59,11 @@ export default new Router({
       path: '/profile/edit',
       name: 'current-user-profile-edit',
       component: EditProfile
+    },
+    {
+      path: '/chat',
+      name: 'chat-page',
+      component: ChatPage
     },
     {
       path: '/file-explorer',
