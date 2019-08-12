@@ -110,6 +110,8 @@ export interface IDatabase {
 
   getFileCatalogItemsCount(userId, parentItemId, type?, search?): Promise<number>;
 
+  isFileCatalogItemExistWithContent(userId, parentItemId, contentId): Promise<boolean>;
+
   getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
 
   addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;

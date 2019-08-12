@@ -30,7 +30,7 @@ export default {
 
   methods: {
     async fetchData() {
-      // this.avatarImageSrc = await this.$coreApi.getImageLink(this.group.avatarImage);
+      // this.avatarImageSrc = await this.$coreApi.getContentLink(this.group.avatarImage);
       this.peers = await this.$coreApi.getGroupPeers(this.group.ipns);
     },
     async updateIsJoined() {

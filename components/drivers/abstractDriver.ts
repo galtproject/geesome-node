@@ -9,11 +9,15 @@ export default class AbstractDriver implements IDriver {
   isInputSupported(input: DriverInput) {
     return _.includes(this.supportedInputs, input);
   }
-
+  
   isOutputSizeSupported(outputSize: OutputSize) {
     return _.includes(this.supportedOutputSizes, outputSize);
   }
 
+  async isInputExtensionSupported(inputExtension: string) {
+    return false;
+  }
+  
   processByStream?(inputSteam, options?) { return null; };
 
   processByContent?(inputContent, options?) { return null; };

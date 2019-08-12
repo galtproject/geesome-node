@@ -389,6 +389,10 @@ class MysqlDatabase implements IDatabase {
     return this.models.FileCatalogItem.count({ where });
   }
 
+  async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
+    return this.models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId}});
+  }
+
   async getFileCatalogItemsBreadcrumbs(childItemId) {
     const breadcrumbs = [];
     if (!childItemId) {
