@@ -541,6 +541,7 @@ class GeesomeApp implements IGeesomeApp {
 
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
+      console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewifNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
@@ -786,6 +787,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     
     if(await this.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
+      console.log(`Content ${content.id} already exists in folder`);
       return;
     }
 
