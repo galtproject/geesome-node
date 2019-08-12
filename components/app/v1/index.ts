@@ -528,8 +528,9 @@ class GeesomeApp implements IGeesomeApp {
     const extension = (fileName || '').split('.').length > 1 ? _.last(fileName.split('.')) : null;
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, mime.getType(fileName), extension);
 
-    const existsContent = await this.database.getContentByStorageId(storageFile.id);
+    let existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
+      await this.setContentPreviewifNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
@@ -592,6 +593,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
+      await this.setContentPreviewifNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
@@ -619,6 +621,26 @@ class GeesomeApp implements IGeesomeApp {
       size: storageFile.size,
       name: name
     }, options);
+  }
+  
+  async setContentPreviewifNotExist(content) {
+    if(content.mediumPreviewStorageId) {
+      return;
+    }
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
+    await this.database.updateContent(content.id, {
+      mediumPreviewStorageId,
+      mediumPreviewSize,
+      smallPreviewStorageId,
+      smallPreviewSize,
+      largePreviewStorageId,
+      largePreviewSize,
+      previewType,
+      previewExtension
+    });
+    await this.updateContentManifest(content.id);
+    const updatedContent = await this.database.getContent(content.id);
+    _.extend(content, updatedContent);
   }
 
   private async saveFileByStream(userId, stream, mimeType, extension?) {
