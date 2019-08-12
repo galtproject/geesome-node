@@ -22,6 +22,12 @@ export class VideoThumbnail extends AbstractDriver {
     ffmpeg(inputStream)
       .outputOptions(['-f image2', '-vframes 1', '-vcodec png', '-f rawvideo', '-ss 00:00:05'])//, '-s 320x240'
       .output(transformStream)
+      .on('error', function (err, stdout, stderr) {
+        console.log('An error occurred: ' + err.message, err, stderr);
+        if(options.onError) {
+          options.onError(err);
+        }
+      })
       .run();
     
     return {

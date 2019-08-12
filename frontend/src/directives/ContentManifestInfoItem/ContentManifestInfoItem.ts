@@ -58,7 +58,7 @@ export default {
         return;
       }
 
-      this.srcLink = await this.$coreApi.getImageLink(this.manifestObj.content);
+      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.content);
 
       if (this.type == 'text') {
         this.content = await this.$coreApi.getContentData(this.manifestObj.content);

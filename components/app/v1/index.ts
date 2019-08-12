@@ -412,9 +412,10 @@ class GeesomeApp implements IGeesomeApp {
       }
     }
     //TODO: detect more video types
-    if(_.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi')) {
+    if(_.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi') || _.endsWith(fullType, 'mov') || _.endsWith(fullType, 'quicktime')) {
       previewDriverName = 'video-thumbnail';
     }
+    console.log('previewDriverName', previewDriverName, fullType);
     if (!previewDriverName) {
       previewDriverName = fullType.split('/')[0];
     }
@@ -426,32 +427,27 @@ class GeesomeApp implements IGeesomeApp {
     }
     try {
       if (previewDriver.isInputSupported(DriverInput.Stream)) {
-        let inputStream = await this.storage.getFileStream(storageId);
-
-        const {stream: mediumStream, type, extension: resultExtension} = await previewDriver.processByStream(inputStream, {
+        const {content: mediumFile, type, extension: resultExtension} = await this.getPreviewStreamContent(previewDriver, storageId, {
           extension,
           size: OutputSize.Medium
         });
-        const mediumFile = await this.storage.saveFileByData(mediumStream);
-
+        
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
-          inputStream = await this.storage.getFileStream(storageId);
-          const {stream: smallStream} = await previewDriver.processByStream(inputStream, {
+          smallFile = await this.getPreviewStreamContent(previewDriver, storageId, {
             extension,
             size: OutputSize.Small
           });
-          smallFile = await this.storage.saveFileByData(smallStream);
+          smallFile = smallFile.content;
         }
 
         let largeFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
-          inputStream = await this.storage.getFileStream(storageId);
-          const {stream: largeStream} = await previewDriver.processByStream(inputStream, {
+          largeFile = await this.getPreviewStreamContent(previewDriver, storageId, {
             extension,
             size: OutputSize.Large
           });
-          largeFile = await this.storage.saveFileByData(largeStream);
+          largeFile = largeFile.content;
         }
 
         return {
@@ -522,6 +518,21 @@ class GeesomeApp implements IGeesomeApp {
       return {};
     }
     throw new Error(previewDriver + "_preview_driver_input_not_found");
+  }
+
+
+  async getPreviewStreamContent(previewDriver, storageId, options): Promise<any> {
+    return new Promise(async (resolve, reject) => {
+      const inputStream = await this.storage.getFileStream(storageId);
+      let error = null;
+      options.onError = (err) => {
+        error = err;
+      };
+      const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
+
+      const content = await this.storage.saveFileByData(resultStream);
+      return error ? reject(error) : resolve({ content, type, extension });
+    });
   }
 
   async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, folderId? }) {
@@ -627,7 +638,7 @@ class GeesomeApp implements IGeesomeApp {
     if(content.mediumPreviewStorageId) {
       return;
     }
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
     await this.database.updateContent(content.id, {
       mediumPreviewStorageId,
       mediumPreviewSize,
@@ -772,6 +783,10 @@ class GeesomeApp implements IGeesomeApp {
 
     if (parentItemId === 'null') {
       parentItemId = null;
+    }
+    
+    if(await this.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
+      return;
     }
 
     const groupId = (await this.checkGroupId(options.groupId)) || null;
