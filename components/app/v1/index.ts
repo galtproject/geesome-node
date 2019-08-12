@@ -636,7 +636,7 @@ class GeesomeApp implements IGeesomeApp {
   }
   
   async setContentPreviewifNotExist(content) {
-    if(content.mediumPreviewStorageId) {
+    if(content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
     let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
@@ -647,7 +647,7 @@ class GeesomeApp implements IGeesomeApp {
       smallPreviewSize,
       largePreviewStorageId,
       largePreviewSize,
-      previewType,
+      previewMimeType: previewType as any,
       previewExtension
     });
     await this.updateContentManifest(content.id);
