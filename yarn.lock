@@ -269,9 +269,9 @@
     "@hapi/bourne" "1.x.x"
     "@hapi/hoek" "6.x.x"
 
-"@microlink/youtube-dl@^2.0.0":
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/@microlink/youtube-dl/-/youtube-dl-2.0.0.tgz#0120c67949185228afe4d771cfd80719b278cd73"
+"@microlink/youtube-dl@git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203":
+  version "2.0.1"
+  resolved "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203e8aeb259f9be9d8f0fbffd65f9a545b6a"
   dependencies:
     hh-mm-ss "~1.2.0"
     mkdirp "~0.5.1"

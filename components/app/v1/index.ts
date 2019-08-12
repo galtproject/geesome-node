@@ -405,18 +405,22 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getPreview(storageId, fullType, source?) {
-    let type;
+    let previewDriverName;
     if (source) {
       if (detecterHelper.isYoutubeUrl(source)) {
-        type = 'youtube-thumbnail';
+        previewDriverName = 'youtube-thumbnail';
       }
     }
-    if (!type) {
-      type = fullType.split('/')[0];
+    //TODO: detect more video types
+    if(_.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi')) {
+      previewDriverName = 'video-thumbnail';
+    }
+    if (!previewDriverName) {
+      previewDriverName = fullType.split('/')[0];
     }
     const extension = fullType.split('/')[1];
 
-    const previewDriver = this.drivers.preview[type] as AbstractDriver;
+    const previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
     }
@@ -517,7 +521,7 @@ class GeesomeApp implements IGeesomeApp {
       console.error(e);
       return {};
     }
-    throw new Error(type + "_preview_driver_input_not_found");
+    throw new Error(previewDriver + "_preview_driver_input_not_found");
   }
 
   async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, folderId? }) {

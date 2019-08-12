@@ -17,7 +17,7 @@ import {UserLimitName} from "../components/database/interface";
 const assert = require('assert');
 const fs = require('fs');
 
-describe.only("app", function () {
+describe("app", function () {
   const databaseConfig = {name: 'test_geesome_core', options: {logging: true}};
 
   this.timeout(30000);
@@ -63,7 +63,7 @@ describe.only("app", function () {
           periodTimestamp: 60,
           isActive: true
         };
-        await app.setUserLimit(adminUser.id, testUser.id, limitData);
+        await app.setUserLimit(adminUser.id, limitData);
 
         try {
           await app.saveData(fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
@@ -77,7 +77,7 @@ describe.only("app", function () {
 
         limitData.value = 1000 * (10 ** 3);
 
-        await app.setUserLimit(adminUser.id, testUser.id, limitData);
+        await app.setUserLimit(adminUser.id, limitData);
 
         await app.saveData(fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
           userId: testUser.id,

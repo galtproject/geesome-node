@@ -22,6 +22,8 @@ export interface IDriver {
   processByContent?(inputContent: any, options?): Promise<IDriverResponse>;
 
   processBySource?(sourceLink: any, options?): Promise<IDriverResponse>;
+
+  isInputExtensionSupported(inputExtension: string):  Promise<boolean>;
 }
 
 export enum OutputSize {
