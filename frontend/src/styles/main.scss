@@ -547,4 +547,8 @@ a.icon-link {
     }
   }
 }
+
+.file-name-container {
+  word-break: break-all;
+}
 @import "adaptive";
