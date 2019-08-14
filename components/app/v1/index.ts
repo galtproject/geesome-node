@@ -35,7 +35,7 @@ import AbstractDriver from "../../drivers/abstractDriver";
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
-const { getPersonalChatName } = require('@galtproject/geesome-libs/src/name');
+const { getPersonalChatHash } = require('@galtproject/geesome-libs/src/name');
 let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
@@ -207,13 +207,17 @@ class GeesomeApp implements IGeesomeApp {
     const user = await this.database.getUser(userId);
     const friend = await this.database.getUser(friendId);
     
-    await this.createGroup(userId, {
-      name: getPersonalChatName([friend.manifestStaticStorageId, user.manifestStaticStorageId], 'default'),
+    const group = await this.createGroup(userId, {
+      name: user.name + ":" + friend.name,
       type: GroupType.PersonalChat,
       title: friend.title,
+      storageId: friend.manifestStorageId,
       staticStorageId: friend.manifestStaticStorageId,
+      avatarImageId: friend.avatarImageId,
       view: GroupView.TelegramLike
     });
+
+    await this.database.addMemberToGroup(userId, group.id);
     
     return this.database.addUserFriend(userId, friendId);
   }
@@ -230,7 +234,7 @@ class GeesomeApp implements IGeesomeApp {
     return {
       list: await this.database.getUserFriends(userId, search, listParams),
       total: await this.database.getUserFriendsCount(userId, search)
-    } ;
+    };
   }
 
   async checkUserId(userId, createIfNotExist = true) {
@@ -506,6 +510,9 @@ class GeesomeApp implements IGeesomeApp {
 
     const contentsIds = postData.contentsIds;
     delete postData.contentsIds;
+    
+    const user = await this.database.getUser(userId);
+    postData.authorStaticStorageId = user.manifestStaticStorageId;
 
     const post = await this.database.addPost(postData);
 

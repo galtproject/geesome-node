@@ -72,6 +72,9 @@
   .groups-list {
     //padding: 10px;
     flex: 1;
+    & > .md-button:first-child {
+      margin-top: 20px;
+    }
     .group {
       display: flex;
       position: relative;
@@ -99,7 +102,7 @@
       .info {
         padding-left: 15px;
       }
-      .text {
+      .content {
         color: grey;
         .highlight {
           color: #83d9ef;

@@ -245,6 +245,7 @@ export interface IPost {
   staticStorageId?;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+  authorStaticStorageId?: string;
 }
 
 export enum PostStatus {

@@ -12,41 +12,89 @@
  */
 
 import GroupItem from "./GroupItem/GroupItem";
+import AddFriendModal from "../../modals/AddFriendModal/AddFriendModal";
+const _ = require('lodash');
 
 export default {
-    name: 'chat-page',
-    template: require('./ChatPage.html'),
-    components: { GroupItem },
-    async created() {
-        // this.groups = await this.$coreApi.getPersonalChatGroups();
+  name: 'chat-page',
+  template: require('./ChatPage.html'),
+  components: {GroupItem},
+  async created() {
+    this.getGroups();
+  },
+  mounted() {
+
+  },
+  methods: {
+    async getGroups() {
+      this.groups = (await this.$coreApi.getMemberInChats()).map((group) => {
+        group.lastMessage = {text: 'Sed ut perspiciatis unde...', date: '11:00'};
+        return group;
+      });
     },
-    mounted() {
-        
+    async selectGroup(group) {
+      this.selectedGroupId = group.ipns;
+
+      this.messagesLoading = true;
+      this.messages = [];
+      
+      await this.$coreApi.getGroupPostsAsync(this.selectedGroupId, {
+        limit: this.messagesPagination.perPage,
+        offset: (this.messagesPagination.currentPage - 1) * this.messagesPagination.perPage
+      }, (posts) => {
+        this.appendMessages(posts);
+      }, (posts) => {
+        this.appendMessages(posts);
+        this.messagesLoading = false;
+      });
     },
-    methods: {
-        selectGroup(index) {
-            this.selectedGroupIndex = index;
-        },
-        getLocale(key, options?) {
-            return this.$locale.get(this.localeKey + "." + key, options);
+    appendMessages(messages) {
+      //TODO: more effective appendMessages
+      this.messages = messages;
+      
+      this.messages.forEach(async message => {
+        if(this.messagesAuthorsLoading[message.author]) {
+          return;
         }
+        this.messagesAuthorsLoading[message.author] = true;
+        this.messagesAuthors[message.author] = await this.$coreApi.getUser(message.author);
+      });
     },
-    data() {
-        return {
-            localeKey: 'chat_page',
-            loading: true,
-            selectedGroupIndex: -1,
-            groups: [
-                {avatar: 'https://placeimg.com/100/100/people/7', name: 'Eva summer', address: '0xdc802fa26a41b848812e00da5043f7dcd7eea400', lastMessage: {text: 'Sed ut perspiciatis unde...', date: '11:00'}},
-                {avatar: 'https://placeimg.com/100/100/people/4', name: 'Alexandra Smith', address: '0xd7877afc0b8c52abed659566ecaa4afda05e9f7a', lastMessage: {text: 'This is amazing!', date: '10:00'}},
-                {avatar: 'https://placeimg.com/100/100/people/6', name: 'Mike Apple', address: '0xd7877afc0b8c52abed659566ecaa4afda05e9f7a', lastMessage: {text: '😁 <span class="highlight">Sticker</span>', date: '9:00'}},
-                {avatar: 'https://placeimg.com/100/100/people/3', name: 'Evening club', address: '0xdc802fa26a41b848812e00da5043f7dcd7eea400', lastMessage: {text: '<span class="highlight">Eva: Photo</span>', date: '8:00'}},
-            ]
-        };
-    },
-    computed: {
-        user_wallet() {
-            return this.$store.state.user_wallet
+    addFriend() {
+      this.$root.$asyncModal.open({
+        id: 'add-friend-modal',
+        component: AddFriendModal,
+        onClose: () => {
+          this.getGroups();
         }
+      });
     },
+    getLocale(key, options?) {
+      return this.$locale.get(this.localeKey + "." + key, options);
+    }
+  },
+  computed: {
+    currentGroup() {
+      return _.find(this.groups, {ipns: this.selectedGroupId});
+    },
+    user() {
+      return this.$store.state.user;
+    },
+  },
+  data() {
+    return {
+      localeKey: 'chat_page',
+      loading: true,
+      selectedGroupId: null,
+      groups: [],
+      messages: [],
+      messagesLoading: false,
+      messagesPagination: {
+        currentPage: 1,
+        perPage: 10
+      },
+      messagesAuthors: {},
+      messagesAuthorsLoading: {}
+    };
+  }
 }

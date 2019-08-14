@@ -11,31 +11,45 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const pIteration = require('p-iteration');
+const _ = require('lodash');
+const moment = require('moment');
 
 export default {
-    name: 'group-item',
-    template: require('./GroupItem.html'),
-    props: ['active', 'group', 'lastMessage'],
-    // components: {TariffPayingControl},
-    async mounted() {
+  template: require('./MessageItem.html'),
+  props: ['message', 'messagesAuthors'],
+  async created() {
 
+  },
+
+  async mounted() {
+
+  },
+
+  methods: {
+    
+  },
+
+  watch: {
+    
+  },
+
+  computed: {
+    contentsList() {
+      return _.orderBy(this.value.contents, ['position'], ['asc']);
     },
-    watch: {
-        
+    date() {
+      return moment(this.value.publishedAt).format('DD.MM.YYYY h:mm:ss');
     },
-    methods: {
-        
+    user() {
+      return this.$store.state.user;
     },
-    data() {
-        return {
-            localeKey: 'chat_page.group_item',
-            loading: true
-        }
-    },
-    // computed: {
-    //     user_wallet() {
-    //         return this.$store.state.user_wallet;
-    //     }
-    // }
+    isCurrentUserMessage() {
+      return this.user.ipns == this.message.author;
+    }
+  },
+  data() {
+    return {
+      content: ''
+    }
+  },
 }

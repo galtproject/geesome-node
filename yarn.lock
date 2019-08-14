@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#2de3962":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#df523fa":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#2de3962c3b37663bb15f2e60874ffbf7c560097e"
+  resolved "git://github.com/galtspace/geesome-libs.git#df523fa0402ed17f66a50f5a05717894eadc29c8"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -24,6 +24,7 @@
     multihashes "~0.4.14"
     p-iteration "^1.1.8"
     peer-id "^0.12.2"
+    sha3 "^2.0.6"
 
 "@hapi/accept@3.x.x":
   version "3.2.2"
@@ -1058,7 +1059,7 @@ buffer-xor@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/buffer-xor/-/buffer-xor-1.0.3.tgz#26e61ed1422fb70dd42e6e36729ed51d855fe8d9"
 
-buffer@^5.2.1:
+buffer@5.2.1, buffer@^5.2.1:
   version "5.2.1"
   resolved "https://registry.yarnpkg.com/buffer/-/buffer-5.2.1.tgz#dd57fa0f109ac59c602479044dca7b8b3d0b71d6"
   dependencies:
@@ -6967,6 +6968,12 @@ sha.js@^2.4.0, sha.js@^2.4.8:
   dependencies:
     inherits "^2.0.1"
     safe-buffer "^5.0.1"
+
+sha3@^2.0.6:
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/sha3/-/sha3-2.0.6.tgz#bba49db667d151b76fb17b98757cd9a659fc53eb"
+  dependencies:
+    buffer "5.2.1"
 
 shallow-clone@^1.0.0:
   version "1.0.0"

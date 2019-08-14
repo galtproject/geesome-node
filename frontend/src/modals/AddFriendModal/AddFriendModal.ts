@@ -11,31 +11,33 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const pIteration = require('p-iteration');
+import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 
 export default {
-    name: 'group-item',
-    template: require('./GroupItem.html'),
-    props: ['active', 'group', 'lastMessage'],
-    // components: {TariffPayingControl},
-    async mounted() {
-
+  template: require('./AddFriendModal.html'),
+  props: [],
+  components: {
+    ModalItem
+  },
+  created() {
+    // this.serverAddress = this.currentServerAddress;
+  },
+  methods: {
+    async ok() {
+      await this.$coreApi.addFriend(this.friendId);
+      this.$root.$asyncModal.close('add-friend-modal');
     },
-    watch: {
-        
-    },
-    methods: {
-        
-    },
-    data() {
-        return {
-            localeKey: 'chat_page.group_item',
-            loading: true
-        }
-    },
-    // computed: {
-    //     user_wallet() {
-    //         return this.$store.state.user_wallet;
-    //     }
-    // }
+    async cancel() {
+      this.$root.$asyncModal.close('add-friend-modal');
+    }
+  },
+  watch: {},
+  computed: {
+    
+  },
+  data: function () {
+    return {
+      friendId: ''
+    }
+  }
 }

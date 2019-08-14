@@ -46,6 +46,7 @@ Also post have information about total size of contents, group's IPNS and publis
  "publishedAt": "2019-06-19T12:28:03.000Z",
  "size": 16097,
  "group": "QmRDrCNvumKD1rE9fH3tCJRLa4d9KAwV9uQVpJeTGK37Bk",
+ "author": "Qme5v5iSDCw3ECwxBayCSdmZGRDJNb5HVJNiTECUt4h9co",
  "contents": [{
    "/": "bafyreigwgatkuopm5a5mjn766mkvlf4ygs2f4ziwkwqhv4jeagcjwblp3m"
   }, {

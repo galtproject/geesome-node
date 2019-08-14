@@ -20,7 +20,7 @@
 
           <md-field>
             <label>Key store method</label>
-            <md-select v-model="user.keyStoreMethod">
+            <md-select v-model="user.keyStoreMethod" :disabled="true">
               <md-option value="local">Local (in extension)</md-option>
               <md-option value="node">In node</md-option>
             </md-select>

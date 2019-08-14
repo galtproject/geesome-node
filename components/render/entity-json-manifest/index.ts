@@ -66,6 +66,7 @@ class EntityJsonManifest implements IRender {
 
       const group = await this.app.database.getGroup(post.groupId);
       postManifest.group = group.manifestStaticStorageId;
+      postManifest.autor = post.authorStaticStorageId;
 
       postManifest.contents = post.contents.map((content: IContent) => {
         return this.getStorageRef(content.manifestStorageId);
@@ -76,7 +77,7 @@ class EntityJsonManifest implements IRender {
       return postManifest;
     } else if (name === 'user-manifest') {
       const user: IUser = data;
-      const userManifest = _.pick(user, ['name', 'title', 'email', 'description']);
+      const userManifest = _.pick(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
       userManifest.ipns = user.manifestStaticStorageId;
 

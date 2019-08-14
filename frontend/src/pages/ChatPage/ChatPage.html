@@ -1,72 +1,38 @@
 <div id="chat-page">
     <div class="groups-container">
         <div class="groups-list">
-            <group-item 
-                v-for="(group, index) in groups" 
-                :active="selectedGroupIndex === index"
-                :avatar="group.avatar" 
-                :name="group.name"
-                :address="group.address"
-                :last-message="group.lastMessage"
-                @click.native="selectGroup(index)"
+            <group-item v-for="(group, index) in groups" :group="group"
+                        :active="selectedGroupId === group.ipns"
+                        :last-message="group.lastMessage"
+                        @click.native="selectGroup(group)"
             ></group-item>
 
-            <md-button class="md-primary add-group-button"><md-icon>add</md-icon> Add friend</md-button>
+            <md-button class="md-primary add-group-button" @click="addFriend"><md-icon>add</md-icon> Add friend</md-button>
         </div>
         
         <div class="chat-control">
-            <md-button class="md-primary md-icon-button"><md-icon>settings</md-icon></md-button>
-            <md-button class="md-primary md-icon-button"><md-icon>add</md-icon></md-button>
+            <md-button class="md-primary md-icon-button" :disabled="true"><md-icon>settings</md-icon></md-button>
+            <md-button class="md-primary md-icon-button" @click="addFriend"><md-icon>add</md-icon></md-button>
         </div>
     </div>
     <div class="chat-container">
-        <div class="welcome" v-if="selectedGroupIndex === -1">
+        
+        <md-progress-bar v-if="messagesLoading" class="md-accent" md-mode="indeterminate"></md-progress-bar>
+
+        <div class="welcome" v-if="selectedGroupId === null">
             <div class="welcome-message">
                 <div class="welcome-icon"><md-icon>help</md-icon></div>
                 <div class="welcome-text">
-                    Community members can talk to each other using decentralised encrypted chats. All chats have end-to-end encryption. Messages and media are stored in IPFS, a decentralised file system. Those chats can not be blocked or censored. Only community members can decrypt them. As a community member you can create private or public chat or join existing.
+                    You can create personal chats by adding friends or public chats.
                 </div>
             </div>
         </div>
         
-        <div class="chat" v-if="selectedGroupIndex !== -1">
-            <div class="message my">
-                <div class="avatar"><img src="https://placeimg.com/100/100/people/1"></div>
-                <div class="info">
-                    <!--<div class="name">Buyer <pretty-hex hex="0xf0430bbb78C3c359c22d4913484081A563B86170"></pretty-hex></div>-->
-                    <div class="text">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</div>
-                </div>
-                <div class="date">11:00</div>
-            </div>
-
-            <div class="message">
-                <div class="avatar"><img src="https://placeimg.com/100/100/people/7"></div>
-                <div class="info">
-                    <div class="name">Eva summer <pretty-hex hex="0xdc802fa26a41b848812e00da5043f7dcd7eea400"></pretty-hex></div>
-                    <div class="text">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</div>
-                </div>
-                <div class="date">10:50</div>
-            </div>
-            
-            <div class="message my">
-                <div class="avatar"><img src="https://placeimg.com/100/100/people/1"></div>
-                <div class="info">
-                    <!--<div class="name">Seller <pretty-hex hex="0xEf7751e98c135d28AF63D1353CB02dc502B72ee6"></pretty-hex></div>-->
-                    <div class="text">Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</div>
-                </div>
-                <div class="date">10:40</div>
-            </div>
-
-            <div class="message">
-                <div class="avatar"><img src="https://placeimg.com/100/100/people/7"></div>
-                <div class="info">
-                    <div class="name">Eva summer <pretty-hex hex="0xdc802fa26a41b848812e00da5043f7dcd7eea400"></pretty-hex></div>
-                    <div class="text">Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</div>
-                </div>
-                <div class="date">10:30</div>
-            </div>
+        <div class="chat" v-if="selectedGroupId !== null">
+            <message-item v-for="message in messages" :message="message" :message-authors="messagesAuthors"></message-item>
         </div>
-        <div class="new-message" v-if="selectedGroupIndex !== -1">
+        
+        <div class="new-message" v-if="selectedGroupId !== null">
             <div class="attachment"><md-icon>attach_file</md-icon></div>
             <div class="input">
                 <input type="text" placeholder="Write a message...">
