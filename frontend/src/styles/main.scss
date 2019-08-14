@@ -32,6 +32,16 @@ $fa-font-path: "webfonts";
 //  right: 1px;
 //}
 
+//body {
+//  position: relative;
+//  &:after {
+//    content: " ";
+//    background-image: url("../assets/space-mascot.png");
+//    position: absolute;
+//    bottom: -10px;
+//  }
+//}
+
 .md-app-content {
   display: flex;
   flex-direction: column;
@@ -302,10 +312,10 @@ a.icon-link {
   }
 }
 
-.container-page {
+.container-page {    
   padding-top: 50px;
-  max-width: 900px;
-  margin: auto;
+  width: 1200px;
+  margin: 0 auto;
 }
 
 .margin-top {

@@ -12,6 +12,7 @@
  */
 
 import {
+  GroupType,
   IContent,
   IDatabase,
   IFileCatalogItem,
@@ -49,9 +50,9 @@ export interface IGeesomeApp {
 
   setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
 
-  getMemberInGroups(userId): Promise<IGroup[]>;
+  getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
-  getAdminInGroups(userId): Promise<IGroup[]>;
+  getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
   getPersonalChatGroups(userId): Promise<IGroup[]>;
 

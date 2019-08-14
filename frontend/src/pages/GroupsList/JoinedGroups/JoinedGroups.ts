@@ -24,7 +24,7 @@ export default {
   },
   methods: {
     async getGroups() {
-      this.memberInGroups = await this.$coreApi.getMemberInGroups();
+      this.memberInGroups = await this.$coreApi.getMemberInChannels();
     }
   },
   watch: {},

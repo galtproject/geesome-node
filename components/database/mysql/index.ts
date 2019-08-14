@@ -286,8 +286,11 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).removeMembers([await this.getUser(userId)]);
   }
 
-  async getMemberInGroups(userId) {
+  async getMemberInGroups(userId, types) {
     return (await this.getUser(userId)).getMemberInGroups({
+      where: {
+        type: { [Op.in]: types }
+      },
       include: [
         {model: this.models.Content, as: 'avatarImage'},
         {model: this.models.Content, as: 'coverImage'}
@@ -303,8 +306,11 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).removeAdministrators([await this.getUser(userId)]);
   }
 
-  async getAdminInGroups(userId) {
+  async getAdminInGroups(userId, types) {
     return (await this.getUser(userId)).getAdministratorInGroups({
+      where: {
+        type: { [Op.in]: types }
+      },
       include: [
         {model: this.models.Content, as: 'avatarImage'},
         {model: this.models.Content, as: 'coverImage'}

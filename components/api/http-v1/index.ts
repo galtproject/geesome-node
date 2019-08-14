@@ -243,11 +243,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/member-in-groups', async (req, res) => {
-    res.send(await geesomeApp.getMemberInGroups(req.user.id));
+    res.send(await geesomeApp.getMemberInGroups(req.user.id, req.query.types.split(',')));
   });
 
   service.get('/v1/user/admin-in-groups', async (req, res) => {
-    res.send(await geesomeApp.getAdminInGroups(req.user.id));
+    res.send(await geesomeApp.getAdminInGroups(req.user.id, req.query.types.split(',')));
   });
 
   service.get('/v1/user/personal-chat-groups', async (req, res) => {

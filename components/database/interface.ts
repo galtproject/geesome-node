@@ -84,13 +84,13 @@ export interface IDatabase {
 
   removeMemberFromGroup(userId, groupId): Promise<void>;
 
-  getMemberInGroups(userId): Promise<IGroup[]>;
+  getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
   addAdminToGroup(userId, groupId): Promise<void>;
 
   removeAdminFromGroup(userId, groupId): Promise<void>;
 
-  getAdminInGroups(userId): Promise<IGroup[]>;
+  getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
   getCreatorInGroupsByType(userId, type: GroupType): Promise<IGroup[]>;
 

@@ -46,7 +46,7 @@ export default {
         [
           'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup', 
           'saveFile', 'saveObject', 'saveContentData', 'saveDataByUrl', 'createPost', 'getContentData', 'getDbContent', 
-          'getMemberInGroups', 'getAdminInGroups', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink', 
+          'getMemberInGroups', 'getMemberInChannels', 'getMemberInChats', 'getAdminInGroups', 'getAdminInChannels', 'getAdminInChats', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink', 
           'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
           'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
           'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getUserApiKeys', 'getAllItems', 'adminCreateUser', 

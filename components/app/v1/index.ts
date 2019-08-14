@@ -35,6 +35,7 @@ import AbstractDriver from "../../drivers/abstractDriver";
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
+const { getPersonalChatName } = require('@galtproject/geesome-libs/src/name');
 let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
@@ -207,7 +208,7 @@ class GeesomeApp implements IGeesomeApp {
     const friend = await this.database.getUser(friendId);
     
     await this.createGroup(userId, {
-      name: friend.manifestStaticStorageId + ':' + user.manifestStaticStorageId + ':personal_chat:default',
+      name: getPersonalChatName([friend.manifestStaticStorageId, user.manifestStaticStorageId], 'default'),
       type: GroupType.PersonalChat,
       title: friend.title,
       staticStorageId: friend.manifestStaticStorageId,
@@ -336,12 +337,12 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  getMemberInGroups(userId) {
-    return this.database.getMemberInGroups(userId)
+  getMemberInGroups(userId, types) {
+    return this.database.getMemberInGroups(userId, types)
   }
 
-  getAdminInGroups(userId) {
-    return this.database.getAdminInGroups(userId)
+  getAdminInGroups(userId, types) {
+    return this.database.getAdminInGroups(userId, types)
   }
 
   getPersonalChatGroups(userId) {
