@@ -3,7 +3,6 @@
         <div class="groups-list">
             <group-item v-for="(group, index) in groups" :group="group"
                         :active="selectedGroupId === group.ipns"
-                        :last-message="group.lastMessage"
                         @click.native="selectGroup(group)"
             ></group-item>
 

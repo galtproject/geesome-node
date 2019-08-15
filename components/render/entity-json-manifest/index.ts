@@ -46,10 +46,11 @@ class EntityJsonManifest implements IRender {
       }
       
       // TODO: is this need for protocol?
-      // if(group.type === GroupType.PersonalChat) {
-      //   const creator = await this.app.database.getUser(group.creatorId);
-      //   groupManifest.members = [group.staticStorageId, creator.manifestStaticStorageId];
-      // }
+      // currently used for getting companion info in chats list
+      if(group.type === GroupType.PersonalChat) {
+        const creator = await this.app.database.getUser(group.creatorId);
+        groupManifest.members = [group.staticStorageId, creator.manifestStaticStorageId];
+      }
 
       groupManifest.posts = {};
 
@@ -97,7 +98,6 @@ class EntityJsonManifest implements IRender {
 
       return userManifest;
     } else if (name === 'content-manifest') {
-      //TODO: add preview size
       const content: IContent = data;
       const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'view', 'size', 'extension', 'updatedAt', 'createdAt']);
 

@@ -52,9 +52,9 @@
     reflect-metadata "^0.1.12"
     tslib "^1.8.1"
 
-"@galtproject/frontend-core@git://github.com/galtspace/galtproject-frontend-core.git#1bde751":
+"@galtproject/frontend-core@git://github.com/galtspace/galtproject-frontend-core.git#b8bc7f4":
   version "0.1.0"
-  resolved "git://github.com/galtspace/galtproject-frontend-core.git#1bde751682b9312d4a5a29102828031c399e1c5e"
+  resolved "git://github.com/galtspace/galtproject-frontend-core.git#b8bc7f450c020aa50f6bc32d824651eae81237ab"
   dependencies:
     "@galtproject/utils" "git://github.com/galtspace/galtproject-utils-js.git"
     "@sentry/browser" "^4.4.2"

@@ -47,7 +47,7 @@ export default {
       return this.$store.state.user;
     },
     isCurrentUserMessage() {
-      return this.user.ipns == this.message.author;
+      return this.user.manifestStaticStorageId == this.message.author;
     }
   },
   data() {

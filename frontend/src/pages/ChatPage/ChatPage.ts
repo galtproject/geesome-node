@@ -29,11 +29,7 @@ export default {
   },
   methods: {
     async getGroups() {
-      console.log('getGroups');
-      this.groups = (await this.$coreApi.getMemberInChats()).map((group) => {
-        group.lastMessage = {text: 'Sed ut perspiciatis unde...', date: '11:00'};
-        return group;
-      });
+      this.groups = await this.$coreApi.getMemberInChats();
     },
     async selectGroup(group) {
       this.selectedGroupId = group.ipns;

@@ -12,30 +12,86 @@
  */
 
 const pIteration = require('p-iteration');
+const _ = require('lodash');
 
 export default {
-    name: 'group-item',
-    template: require('./GroupItem.html'),
-    props: ['active', 'group', 'lastMessage'],
-    // components: {TariffPayingControl},
-    async mounted() {
-
+  name: 'group-item',
+  template: require('./GroupItem.html'),
+  props: ['active', 'group'],
+  // components: {TariffPayingControl},
+  async mounted() {
+    this.getLastMessage();
+    this.getPersonalChatUser();
+  },
+  methods: {
+    async getLastMessage() {
+      this.lastMessage = null;
+      if(!this.group) {
+        return;
+      }
+      this.lastMessage = await this.$coreApi.getGroupPost(this.group.id, this.group.postsCount);
+      this.lastMessageText = await this.$coreApi.getContentData(this.lastMessage.contents[0]);
     },
-    watch: {
-        
+    async getPersonalChatUser() {
+      if(!this.group || this.group.type !== 'personal_chat') {
+        return;
+      }
+      if(this.usersInfoLoading[this.personalChatIpns]) {
+        return;
+      }
+      this.$store.commit('usersInfoLoading', _.extend({}, this.usersInfoLoading, {[this.personalChatIpns]: true}));
+      this.$store.commit('usersInfo', _.extend({}, this.usersInfo, {[this.personalChatIpns]: await this.$coreApi.getUser(this.personalChatIpns)}));
+    }
+  },
+  watch: {
+    group() {
+      this.getLastMessage();
     },
-    methods: {
-        
+    async personalChatIpns() {
+      this.getPersonalChatUser();
+    }
+  },
+  computed: {
+    personalChatIpns() {
+      if(!this.group || !this.user) {
+        return '';
+      }
+      return _.find(this.group.members, (memberIpns) => {
+        return memberIpns != this.user.ipns;
+      });
     },
-    data() {
-        return {
-            localeKey: 'chat_page.group_item',
-            loading: true
-        }
+    usersInfo() {
+      return this.$store.state.usersInfo;
     },
-    // computed: {
-    //     user_wallet() {
-    //         return this.$store.state.user_wallet;
-    //     }
-    // }
+    usersInfoLoading() {
+      return this.$store.state.usersInfoLoading;
+    },
+    user() {
+      return this.$store.state.user;
+    },
+    title() {
+      if(!this.group) {
+        return '';
+      }
+      if(this.group.type === 'personal_chat') {
+        return (this.usersInfo[this.personalChatIpns] || {}).title || (this.usersInfo[this.personalChatIpns] || {}).name;
+      }
+    },
+    avatarImage() {
+      if(!this.group) {
+        return '';
+      }
+      if(this.group.type === 'personal_chat') {
+        return (this.usersInfo[this.personalChatIpns] || {}).avatarImage;
+      }
+    }
+  },
+  data() {
+    return {
+      localeKey: 'chat_page.group_item',
+      loading: true,
+      lastMessage: null,
+      lastMessageText: ''
+    }
+  }
 }
