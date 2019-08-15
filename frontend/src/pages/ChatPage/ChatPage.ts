@@ -133,7 +133,7 @@ export default {
       messagesLoading: false,
       messagesPagination: {
         currentPage: 1,
-        perPage: 10
+        perPage: 20
       },
       newMessage: {
         text: ''
