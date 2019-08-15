@@ -1,26 +1,31 @@
 import {IGroup} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const {getPersonalChatHash} = require('@galtproject/geesome-libs/src/name');
+
 export {};
 
 module.exports = async (geesomeApp: IGeesomeApp) => {
 
-  const peersToIpns = {};
+  const peersToTopic = {};
 
   const selfIpnsId = await geesomeApp.storage.getAccountIdByName('self');
   console.log('selfIpnsId', selfIpnsId);
 
   geesomeApp.storage['fsub'].libp2p.on('peer:disconnect', (peerDisconnect) => {
     const peerId = peerDisconnect.id._idB58String;
-    if (peersToIpns[peerId]) {
+    const topic = ipfsHelper.getIpnsUpdatesTopic(peerId);
+    if (peersToTopic[topic]) {
       console.log('❗️ Disconected from remote node!');
     }
   });
   geesomeApp.storage['fsub'].libp2p.on('connection:start', (connectionStart) => {
     const peerId = connectionStart.id._idB58String;
-    if (peersToIpns[peerId]) {
+    const topic = ipfsHelper.getIpnsUpdatesTopic(peerId);
+    if (peersToTopic[topic]) {
       console.log('✅️ Connected to remote node!');
-      Array.from(peersToIpns[peerId]).forEach((ipnsId) => {
+      Array.from(peersToTopic[topic]).forEach((ipnsId) => {
         subscribeToIpnsUpdates(ipnsId);
       })
     }
@@ -41,11 +46,29 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
   geesomeApp.database.getRemoteGroups().then(remoteGroups => {
     remoteGroups.forEach(subscribeForGroupUpdates)
   });
+  
+  geesomeApp.database.getPersonalChatGroups().then(personalGroups => {
+    personalGroups.forEach(subscribeForPersonalGroupUpdates)
+  });
 
   geesomeApp.events.on(geesomeApp.events.NewRemoteGroup, subscribeForGroupUpdates);
 
   function subscribeForGroupUpdates(group: IGroup) {
     subscribeToIpnsUpdates(group.manifestStaticStorageId);
+  }
+
+  async function subscribeForPersonalGroupUpdates(group: IGroup) {
+    const creator = await geesomeApp.database.getUser(group.creatorId);
+    const groupTopic = getPersonalChatHash([creator.manifestStaticStorageId, group.staticStorageId], group.theme);
+
+    console.log('📡 subscribeForPersonalGroupUpdates', groupTopic);
+    geesomeApp.storage.subscribeToEvent(groupTopic, (message) => {
+      handlePersonalChatUpdate(group, message);
+    });
+
+    handleUnsubscribe(groupTopic, () => {
+      subscribeForPersonalGroupUpdates(group);
+    })
   }
 
   const connectionIntervals = {};
@@ -56,21 +79,27 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
       handleIpnsUpdate(ipnsId, message);
     });
 
-    if (connectionIntervals[ipnsId]) {
-      clearInterval(connectionIntervals[ipnsId]);
+    handleUnsubscribe(ipfsHelper.getIpnsUpdatesTopic(ipnsId), () => {
+      subscribeToIpnsUpdates(ipnsId);
+    })
+  }
+  
+  function handleUnsubscribe(topic, callback) {
+    if (connectionIntervals[topic]) {
+      clearInterval(connectionIntervals[topic]);
     }
 
-    connectionIntervals[ipnsId] = setInterval(() => {
-      geesomeApp.storage.getIpnsPeers(ipnsId).then((peers) => {
-        console.log(ipnsId, 'peers', peers);
+    connectionIntervals[topic] = setInterval(() => {
+      geesomeApp.storage.getPeers(topic).then((peers) => {
+        console.log(topic, 'peers', peers);
         if (!peers.length) {
-          subscribeToIpnsUpdates(ipnsId);
+          callback();
         }
         peers.forEach(peerId => {
-          if (!peersToIpns[peerId]) {
-            peersToIpns[peerId] = new Set();
+          if (!peersToTopic[peerId]) {
+            peersToTopic[peerId] = new Set();
           }
-          peersToIpns[peerId].add(ipnsId);
+          peersToTopic[peerId].add(topic);
         });
       })
     }, 5 * 60 * 1000)
@@ -88,6 +117,21 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
       boundAt: message.data.validity.toString('utf8')
     }).catch(() => {/* already exists */
     });
+    // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
+  }
+  
+  function handlePersonalChatUpdate(group, message) {
+    console.log('handlePersonalChatUpdate');
+    console.log('group', group);
+    console.log('message.data', message.data);
+    // geesomeApp.database.addStaticIdHistoryItem({
+    //   staticId: ipnsId,
+    //   dynamicId: message.data.valueStr.replace('/ipfs/', ''),
+    //   periodTimestamp: message.data.ttl,
+    //   isActive: true,
+    //   boundAt: message.data.validity.toString('utf8')
+    // }).catch(() => {/* already exists */
+    // });
     // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
   }
 };

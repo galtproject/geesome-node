@@ -208,8 +208,9 @@ class GeesomeApp implements IGeesomeApp {
     const friend = await this.database.getUser(friendId);
     
     const group = await this.createGroup(userId, {
-      name: user.name + ":" + friend.name,
+      name: (user.name + "_" + friend.name).replace(/[\W_]+/g,"_"),
       type: GroupType.PersonalChat,
+      theme: 'default',
       title: friend.title,
       storageId: friend.manifestStorageId,
       staticStorageId: friend.manifestStaticStorageId,
@@ -218,6 +219,7 @@ class GeesomeApp implements IGeesomeApp {
     });
 
     await this.database.addMemberToGroup(userId, group.id);
+    await this.database.addAdminToGroup(userId, group.id);
     
     return this.database.addUserFriend(userId, friendId);
   }
@@ -431,7 +433,7 @@ class GeesomeApp implements IGeesomeApp {
     if (!dbCover) {
       dbCover = await this.createContentByObject(groupObject.coverImage);
     }
-    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'isPublic', 'isRemote', 'description', 'size'];
+    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'isPublic', 'isRemote', 'description', 'size'];
     const dbGroup = await this.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
@@ -514,15 +516,27 @@ class GeesomeApp implements IGeesomeApp {
     const user = await this.database.getUser(userId);
     postData.authorStaticStorageId = user.manifestStaticStorageId;
 
-    const post = await this.database.addPost(postData);
+    let post = await this.database.addPost(postData);
 
     let size = await this.database.getPostSizeSum(post.id);
     await this.database.updatePost(post.id, {size});
 
     await this.database.setPostContents(post.id, contentsIds);
     await this.updatePostManifest(post.id);
+    
+    post = await this.database.getPost(post.id);
+    
+    const group = await this.database.getGroup(postData.groupId);
+    if(group.type === GroupType.PersonalChat) {
+      //TODO: encrypt by pgp
+      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatHash([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+        type: 'new_post',
+        postIpld: post.manifestStorageId,
+        groupIpld: group.manifestStaticStorageId
+      });
+    }
 
-    return this.database.getPost(post.id);
+    return post;
   }
 
   async updatePost(userId, postId, postData) {

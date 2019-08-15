@@ -75,6 +75,8 @@ export interface IDatabase {
   getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
   getRemoteGroups(): Promise<IGroup[]>;
+  
+  getPersonalChatGroups(): Promise<IGroup[]>;
 
   addGroup(group): Promise<IGroup>;
 
@@ -277,11 +279,12 @@ export interface IGroup {
   title: string;
   type: GroupType;
   view: GroupView;
+  theme: string;
   isPublic: boolean;
   isRemote: boolean;
 
   description?: string;
-  authorId?: number;
+  creatorId?: number;
   avatarImageId?: number;
   avatarImage?: IContent;
   coverImageId?: number;

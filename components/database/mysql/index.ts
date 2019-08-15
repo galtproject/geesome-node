@@ -62,13 +62,13 @@ class MysqlDatabase implements IDatabase {
 
     const where = {userId};
 
-    if(search) {
+    if (search) {
       where['title'] = {[Op.like]: search};
     }
-    if(!_.isUndefined(isDisabled)) {
-      where['isDisabled'] =isDisabled;
+    if (!_.isUndefined(isDisabled)) {
+      where['isDisabled'] = isDisabled;
     }
-    
+
     return this.models.UserApiKey.findAll({
       where,
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -80,14 +80,14 @@ class MysqlDatabase implements IDatabase {
   async getApiKeysCountByUser(userId, isDisabled?, search?) {
     const where = {userId};
 
-    if(search) {
+    if (search) {
       where['title'] = {[Op.like]: search};
     }
-    if(!_.isUndefined(isDisabled)) {
-      where['isDisabled'] =isDisabled;
+    if (!_.isUndefined(isDisabled)) {
+      where['isDisabled'] = isDisabled;
     }
-    
-    return this.models.UserApiKey.count({ where });
+
+    return this.models.UserApiKey.count({where});
   }
 
   async updateUser(id, updateData) {
@@ -195,7 +195,7 @@ class MysqlDatabase implements IDatabase {
       ]
     });
   }
-  
+
   async addUserFriend(userId, friendId) {
     return (await this.getUser(userId)).addFriends([await this.getUser(friendId)]);
   }
@@ -206,7 +206,7 @@ class MysqlDatabase implements IDatabase {
 
   async getUserFriends(userId, search?, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { limit, offset } = listParams;
+    const {limit, offset} = listParams;
     //TODO: use search and order
     return (await this.getUser(userId)).getFriends({
       include: [
@@ -263,11 +263,11 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getRemoteGroups() {
-    return this.models.Group.findAll({
-      where: {
-        isRemote: true
-      }
-    });
+    return this.models.Group.findAll({ where: { isRemote: true } });
+  }
+
+  async getPersonalChatGroups() {
+    return this.models.Group.findAll({where: {type: GroupType.PersonalChat}});
   }
 
   async addGroup(group) {
@@ -289,7 +289,7 @@ class MysqlDatabase implements IDatabase {
   async getMemberInGroups(userId, types) {
     return (await this.getUser(userId)).getMemberInGroups({
       where: {
-        type: { [Op.in]: types }
+        type: {[Op.in]: types}
       },
       include: [
         {model: this.models.Content, as: 'avatarImage'},
@@ -309,7 +309,7 @@ class MysqlDatabase implements IDatabase {
   async getAdminInGroups(userId, types) {
     return (await this.getUser(userId)).getAdministratorInGroups({
       where: {
-        type: { [Op.in]: types }
+        type: {[Op.in]: types}
       },
       include: [
         {model: this.models.Content, as: 'avatarImage'},
@@ -339,10 +339,10 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getGroupPosts(groupId, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, { sortBy: 'publishedAt' });
+    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
-    
+
     return this.models.Post.findAll({
       where: {groupId},
       include: [{model: this.models.Content, as: 'contents'}],
@@ -399,18 +399,18 @@ class MysqlDatabase implements IDatabase {
 
   async getFileCatalogItems(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    
+
     const {limit, offset, sortBy, sortDir} = listParams;
     const where: any = {userId, type, isDeleted: false};
-    
-    if(!_.isUndefined(parentItemId)) {
+
+    if (!_.isUndefined(parentItemId)) {
       where.parentItemId = parentItemId;
     }
 
-    if(search) {
+    if (search) {
       where['name'] = {[Op.like]: search};
     }
-    
+
     return this.models.FileCatalogItem.findAll({
       where,
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -422,8 +422,8 @@ class MysqlDatabase implements IDatabase {
 
   async getFileCatalogItemsByContent(userId, contentId, type = null, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     return this.models.FileCatalogItem.findAll({
       where: {userId, contentId, type, isDeleted: false},
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -435,15 +435,15 @@ class MysqlDatabase implements IDatabase {
   async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
     const where: any = {userId, type, isDeleted: false};
 
-    if(!_.isUndefined(parentItemId)) {
+    if (!_.isUndefined(parentItemId)) {
       where.parentItemId = parentItemId;
     }
-    
-    if(search) {
+
+    if (search) {
       where['name'] = {[Op.like]: search};
     }
-    
-    return this.models.FileCatalogItem.count({ where });
+
+    return this.models.FileCatalogItem.count({where});
   }
 
   async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
@@ -533,8 +533,8 @@ class MysqlDatabase implements IDatabase {
 
   async getAllUserList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {email: searchString}]};
@@ -549,8 +549,8 @@ class MysqlDatabase implements IDatabase {
 
   async getAllContentList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     let where = {};
     if (searchString) {
       where = {name: searchString};
@@ -565,8 +565,8 @@ class MysqlDatabase implements IDatabase {
 
   async getAllGroupList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {title: searchString}]};

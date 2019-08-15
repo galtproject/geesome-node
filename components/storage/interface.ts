@@ -50,7 +50,11 @@ export interface IStorage {
 
   nodeAddressList(): Promise<string[]>;
 
+  publishEventByIpnsId(ipnsId, topic, data): Promise<void>;
+  
   subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
+
+  subscribeToEvent(topic, callback): Promise<void>;
 
   getIpnsPeers(ipnsId): Promise<string[]>;
 

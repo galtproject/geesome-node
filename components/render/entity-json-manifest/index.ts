@@ -13,7 +13,7 @@
 
 import {IRender} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
-import {IContent, IGroup, IPost, IUser} from "../../database/interface";
+import {GroupType, IContent, IGroup, IPost, IUser} from "../../database/interface";
 
 const _ = require('lodash');
 const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
@@ -32,7 +32,7 @@ class EntityJsonManifest implements IRender {
     if (name === 'group-manifest') {
       //TODO: size => postsSize
       const group: IGroup = data;
-      const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
+      const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
 
       groupManifest.postsCount = group.publishedPostsCount;
       groupManifest.ipns = group.manifestStaticStorageId;
@@ -43,6 +43,12 @@ class EntityJsonManifest implements IRender {
       if (group.coverImage) {
         groupManifest.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
       }
+      
+      // TODO: is this need for protocol?
+      // if(group.type === GroupType.PersonalChat) {
+      //   const creator = await this.app.database.getUser(group.creatorId);
+      //   groupManifest.members = [group.staticStorageId, creator.manifestStaticStorageId];
+      // }
 
       groupManifest.posts = {};
 
