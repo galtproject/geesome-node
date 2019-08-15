@@ -16,6 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {GroupType, IContent, IGroup, IPost, IUser} from "../../database/interface";
 
 const _ = require('lodash');
+const pIteration = require('p-iteration');
 const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
 
 module.exports = async (app: IGeesomeApp) => {
@@ -54,6 +55,7 @@ class EntityJsonManifest implements IRender {
 
       // TODO: write all posts
       const groupPosts = await this.app.database.getGroupPosts(group.id, {limit: 100, offset: 0});
+      console.log('groupPosts', group.id, groupPosts);
       groupPosts.forEach((post: IPost) => {
         if (!post.manifestStorageId) {
           return;
@@ -163,6 +165,22 @@ class EntityJsonManifest implements IRender {
       user.manifestStaticStorageId = manifest.ipns;
 
       return user;
+    } else if (manifest._type === 'post-manifest') {
+      const post: IPost = _.pick(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
+      post.manifestStorageId = manifestId;
+
+      // const group = await this.app.createGroupByRemoteStorageId(manifest.group)
+      post.authorStaticStorageId = manifest.author;
+      
+      const contentsIds = manifest.contents.map(content => {
+        return content['/'];
+      });
+
+      post.contents = await pIteration.map(contentsIds, (contentId) => {
+        return this.app.createContentByRemoteStorageId(contentId);
+      });
+      
+      return post;
     } else if (manifest._type === 'content-manifest') {
       const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 

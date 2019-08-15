@@ -42,6 +42,10 @@ export interface IDatabase {
 
   addPost(post: IPost): Promise<IPost>;
 
+  getPostByManifestId(manifestStorageId): Promise<IPost>;
+
+  getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId): Promise<IPost>;
+
   updatePost(id, updateData: any): Promise<IPost>;
 
   getPostSizeSum(id): Promise<number>;
@@ -182,6 +186,7 @@ export interface IContent {
   id?: number;
   storageType: ContentStorageType;
   mimeType: ContentMimeType;
+  isRemote?: boolean;
   extension?: string;
   view?: ContentView;
   name?: string;
@@ -239,6 +244,7 @@ export interface IPost {
   contents?: IContent[];
   size?;
   isPinned?: boolean;
+  isRemote?: boolean;
   isFullyPinned?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;

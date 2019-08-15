@@ -37,6 +37,9 @@ module.exports = async function (sequelize, models) {
     size: {
       type: Sequelize.INTEGER
     },
+    isRemote: {
+      type: Sequelize.BOOLEAN
+    },
     isPinned: {
       type: Sequelize.BOOLEAN
     },

@@ -17,6 +17,12 @@ module.exports = {
       }),
       queryInterface.addColumn('posts', 'authorStaticStorageId', {
         type: Sequelize.STRING(200)
+      }),
+      queryInterface.addColumn('posts', 'isRemote', {
+        type: Sequelize.BOOLEAN
+      }),
+      queryInterface.addColumn('contents', 'isRemote', {
+        type: Sequelize.BOOLEAN
       })
     ]);
   },
@@ -25,7 +31,9 @@ module.exports = {
     return Promise.all([
       queryInterface.removeColumn('groups', 'creatorId'),
       queryInterface.removeColumn('users', 'isRemote'),
-      queryInterface.removeColumn('posts', 'authorStaticStorageId')
+      queryInterface.removeColumn('posts', 'authorStaticStorageId'),
+      queryInterface.removeColumn('posts', 'isRemote'),
+      queryInterface.removeColumn('contents', 'isRemote')
     ]);
   }
 };

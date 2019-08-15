@@ -1,4 +1,4 @@
-import {IGroup} from "../../database/interface";
+import {IGroup, IPost, IUser} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
@@ -52,6 +52,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
   });
 
   geesomeApp.events.on(geesomeApp.events.NewRemoteGroup, subscribeForGroupUpdates);
+  geesomeApp.events.on(geesomeApp.events.NewPersonalGroup, subscribeForPersonalGroupUpdates);
 
   function subscribeForGroupUpdates(group: IGroup) {
     subscribeToIpnsUpdates(group.manifestStaticStorageId);
@@ -120,18 +121,23 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
     // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
   }
   
-  function handlePersonalChatUpdate(group, message) {
+  async function handlePersonalChatUpdate(personalGroup: IGroup, message) {
     console.log('handlePersonalChatUpdate');
-    console.log('group', group);
-    console.log('message.data', message.data);
-    // geesomeApp.database.addStaticIdHistoryItem({
-    //   staticId: ipnsId,
-    //   dynamicId: message.data.valueStr.replace('/ipfs/', ''),
-    //   periodTimestamp: message.data.ttl,
-    //   isActive: true,
-    //   boundAt: message.data.validity.toString('utf8')
-    // }).catch(() => {/* already exists */
-    // });
-    // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
+    // console.log('personalGroup', personalGroup);
+    // console.log('message.dataJson', message.dataJson);
+    
+    const messageData = message.dataJson;
+
+    // const eventGroup: IGroup = await geesomeApp.render.manifestIdToDbObject(messageData.groupIpld);
+    const eventPost: IPost = await geesomeApp.render.manifestIdToDbObject(messageData.postIpld);
+    
+    console.log('eventPost.authorStaticStorageId', eventPost.authorStaticStorageId);
+    console.log('personalGroup.staticStorageId', personalGroup.staticStorageId);
+    console.log('message.keyIpns', message.keyIpns);
+    
+    if(eventPost.authorStaticStorageId === personalGroup.staticStorageId && eventPost.authorStaticStorageId === message.keyIpns) {
+      const dbPost = await geesomeApp.createPostByRemoteStorageId(messageData.postIpld, personalGroup.id);
+      console.log('💬 new post in personal chat', dbPost);
+    }
   }
 };

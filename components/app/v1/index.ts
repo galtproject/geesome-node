@@ -215,11 +215,14 @@ class GeesomeApp implements IGeesomeApp {
       storageId: friend.manifestStorageId,
       staticStorageId: friend.manifestStaticStorageId,
       avatarImageId: friend.avatarImageId,
-      view: GroupView.TelegramLike
+      view: GroupView.TelegramLike,
+      isPublic: false
     });
 
     await this.database.addMemberToGroup(userId, group.id);
     await this.database.addAdminToGroup(userId, group.id);
+    
+    this.events.emit(this.events.NewPersonalGroup, group);
     
     return this.database.addUserFriend(userId, friendId);
   }
@@ -613,6 +616,25 @@ class GeesomeApp implements IGeesomeApp {
     }
     return this.getIpnsPeers(ipnsId);
   }
+
+  async createPostByRemoteStorageId(manifestStorageId, groupId) {
+    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId);
+    postObject.isRemote = true;
+    postObject.groupId = groupId;
+    postObject.localId = await this.getPostLocalId(postObject);
+    
+    const { contents } = postObject;
+    
+    delete postObject.contents;
+
+    console.log('postObject', postObject);
+    let post = await this.database.addPost(postObject);
+    await this.database.setPostContents(post.id, contents.map(c => c.id));
+
+    await this.updateGroupManifest(post.groupId);
+    
+    return this.database.getPost(post.id);
+  }
   
   /**
    ===========================================
@@ -622,21 +644,21 @@ class GeesomeApp implements IGeesomeApp {
 
   async createContentByObject(contentObject) {
     const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-    if (!storageId) {
-      return null;
-    }
     let dbContent = await this.database.getContentByStorageId(storageId);
     if (dbContent) {
       return dbContent;
     }
-    return null;
+    return this.addContent(contentObject);
   }
   
-  checkStorageId(storageId) {
-    if (ipfsHelper.isCid(storageId)) {
-      storageId = ipfsHelper.cidToHash(storageId);
+  async createContentByRemoteStorageId(manifestStorageId) {
+    let dbContent = await this.database.getContentByManifestId(manifestStorageId);
+    if (dbContent) {
+      return dbContent;
     }
-    return storageId;
+    const contentObject: IContent = await this.render.manifestIdToDbObject(manifestStorageId);
+    contentObject.isRemote = true;
+    return this.createContentByObject(contentObject);
   }
 
   async getPreview(storageId, fullType, source?) {
@@ -754,8 +776,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     throw new Error(previewDriver + "_preview_driver_input_not_found");
   }
-
-
+  
   async getPreviewStreamContent(previewDriver, storageId, options): Promise<any> {
     return new Promise(async (resolve, reject) => {
       const inputStream = await this.storage.getFileStream(storageId);
@@ -777,7 +798,7 @@ class GeesomeApp implements IGeesomeApp {
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
-      await this.setContentPreviewifNotExist(existsContent);
+      await this.setContentPreviewIfNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
@@ -840,7 +861,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
-      await this.setContentPreviewifNotExist(existsContent);
+      await this.setContentPreviewIfNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
@@ -870,7 +891,7 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
   
-  async setContentPreviewifNotExist(content) {
+  async setContentPreviewIfNotExist(content) {
     if(content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
@@ -948,30 +969,34 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  private async addContent(contentData: IContent, options: { groupId, userId, apiKey? }) {
-    const groupId = await this.checkGroupId(options.groupId);
-    let group;
-    if (groupId) {
-      contentData.groupId = groupId;
-      group = await this.database.getGroup(groupId);
+  private async addContent(contentData: IContent, options: { groupId?, userId?, apiKey? } = {}) {
+    if(options.groupId) {
+      const groupId = await this.checkGroupId(options.groupId);
+      let group;
+      if (groupId) {
+        contentData.groupId = groupId;
+        group = await this.database.getGroup(groupId);
+      }
+      contentData.isPublic = group && group.isPublic;
     }
-    contentData.isPublic = group && group.isPublic;
 
     const content = await this.database.addContent(contentData);
 
-    await this.addContentToUserFileCatalog(content.userId, content, options);
+    if(content.userId) {
+      await this.addContentToUserFileCatalog(content.userId, content, options);
 
-    await this.database.addUserContentAction({
-      name: UserContentActionName.Upload,
-      userId: content.userId,
-      size: content.size,
-      contentId: content.id,
-      apiKey: options.apiKey
-    });
-
-    console.log('updateContentManifest', content);
-
-    await this.updateContentManifest(content.id);
+      await this.database.addUserContentAction({
+        name: UserContentActionName.Upload,
+        userId: content.userId,
+        size: content.size,
+        contentId: content.id,
+        apiKey: options.apiKey
+      });
+    }
+    
+    if(!contentData.manifestStorageId) {
+      await this.updateContentManifest(content.id);
+    }
 
     return content;
   }
@@ -1199,6 +1224,13 @@ class GeesomeApp implements IGeesomeApp {
       count: peers.length,
       list: peers
     }
+  }
+
+  checkStorageId(storageId) {
+    if (ipfsHelper.isCid(storageId)) {
+      storageId = ipfsHelper.cidToHash(storageId);
+    }
+    return storageId;
   }
 
   async resolveStaticId(staticId) {

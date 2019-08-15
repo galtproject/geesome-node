@@ -24,12 +24,14 @@ import {
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
+import {IRender} from "../render/interface";
 
 export interface IGeesomeApp {
   config: any;
   database: IDatabase;
   storage: IStorage;
   events: GeesomeEmitter;
+  render: IRender;
   authorization: any;
 
   frontendStorageId;
@@ -84,8 +86,10 @@ export interface IGeesomeApp {
 
   createGroup(userId, groupData): Promise<IGroup>;
 
-  updateGroup(userId, id, updateData): Promise<IGroup>;
+  createGroupByRemoteStorageId(manifestStorageId): Promise<IGroup>;
 
+  updateGroup(userId, id, updateData): Promise<IGroup>;
+  
   getGroup(groupId): Promise<IGroup>;
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
@@ -93,6 +97,10 @@ export interface IGeesomeApp {
   saveData(fileStream, fileName, options);
 
   saveDataByUrl(url, options);
+
+  createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
+
+  createPostByRemoteStorageId(manifestStorageId, groupId): Promise<IPost>;
 
   getFileStream(filePath);
 

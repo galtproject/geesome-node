@@ -61,7 +61,7 @@ module.exports = async function (sequelize, models) {
   
   models.UserFriends = sequelize.define('userFriends', {} as any, {} as any);
 
-  User.belongsToMany(User, {as: 'friends', through: models.UserFriends});
+  User.belongsToMany(User, {as: 'friends', through: models.UserFriends, unique: false});
 
   await models.UserFriends.sync({});
   

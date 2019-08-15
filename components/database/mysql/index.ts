@@ -232,7 +232,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getGroupByManifestId(id, staticId?) {
+  async getGroupByManifestId(id?, staticId?) {
     const whereOr = [];
     if (id) {
       whereOr.push({manifestStorageId: id});
@@ -368,6 +368,41 @@ class MysqlDatabase implements IDatabase {
 
     return post;
   }
+
+
+  async getPostByManifestId(manifestStorageId) {
+    const post = await this.models.Post.findOne({
+      where: { manifestStorageId },
+      include: [{model: this.models.Content, as: 'contents'}]
+    });
+
+    post.contents = _.orderBy(post.contents, [(content) => {
+      return content.postsContents.position;
+    }], ['asc']);
+
+    return post;
+  }
+
+
+  async getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId) {
+    const group = await this.getGroupByManifestId(groupManifestStorageId, groupManifestStorageId);
+    
+    if(!group) {
+      return null;
+    }
+    
+    const post = await this.models.Post.findOne({
+      where: { localId, groupId: group.id },
+      include: [{model: this.models.Content, as: 'contents'}]
+    });
+
+    post.contents = _.orderBy(post.contents, [(content) => {
+      return content.postsContents.position;
+    }], ['asc']);
+
+    return post;
+  }
+
 
   async addPost(post) {
     return this.models.Post.create(post);

@@ -46,6 +46,9 @@ module.exports = async function (sequelize, models) {
     isPinned: {
       type: Sequelize.BOOLEAN
     },
+    isRemote: {
+      type: Sequelize.BOOLEAN
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
