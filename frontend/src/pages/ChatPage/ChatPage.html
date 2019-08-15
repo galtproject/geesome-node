@@ -29,7 +29,7 @@
         </div>
         
         <div class="chat" v-if="selectedGroupId !== null">
-            <message-item v-for="message in messages" :message="message"></message-item>
+            <message-item v-for="message in messages" v-if="message" :message="message"></message-item>
         </div>
         
         <div class="new-message" v-if="selectedGroupId !== null">
