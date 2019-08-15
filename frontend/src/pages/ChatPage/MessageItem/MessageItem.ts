@@ -35,10 +35,13 @@ export default {
 
   computed: {
     contentsList() {
-      return _.orderBy(this.value.contents, ['position'], ['asc']);
+      return _.orderBy(this.message.contents, ['position'], ['asc']);
+    },
+    usersInfo() {
+      return this.$store.state.usersInfo;
     },
     date() {
-      return moment(this.value.publishedAt).format('DD.MM.YYYY h:mm:ss');
+      return moment(this.message.publishedAt).format('DD.MM.YYYY h:mm:ss');
     },
     user() {
       return this.$store.state.user;

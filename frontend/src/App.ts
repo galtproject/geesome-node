@@ -52,7 +52,9 @@ Vue.use(storePlugin, {
   serverAddress: null,
   haveAdminReadPermission: false,
   cybActive: false,
-  is_mobile: false
+  is_mobile: false,
+  usersInfo: {},
+  usersInfoLoading: {}
 });
 Vue.use(localePlugin);
 

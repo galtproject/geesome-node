@@ -315,7 +315,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       userId: req.user.id,
       apiKey: req.token,
       groupId: req.body['groupId'],
-      folderId: req.body['folderId']
+      folderId: req.body['folderId'],
+      mimeType: req.body['mimeType']
     }), 200);
   });
 

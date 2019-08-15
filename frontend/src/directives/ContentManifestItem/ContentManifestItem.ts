@@ -52,6 +52,8 @@ export default {
         this.manifestObj = manifestObj;
       } else if (ipfsHelper.isIpldHash(this.manifest)) {
         this.manifestObj = await this.$coreApi.getObject(this.manifest);
+      } else if (this.manifest && this.manifest['/']) {
+        this.manifestObj = await this.$coreApi.getObject(this.manifest['/']);
       } else {
         this.manifestObj = this.manifest;
       }

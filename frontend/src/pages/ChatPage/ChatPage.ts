@@ -13,20 +13,23 @@
 
 import GroupItem from "./GroupItem/GroupItem";
 import AddFriendModal from "../../modals/AddFriendModal/AddFriendModal";
+import {EventBus, UPDATE_GROUP} from "../../services/events";
+import MessageItem from "./MessageItem/MessageItem";
 const _ = require('lodash');
 
 export default {
   name: 'chat-page',
   template: require('./ChatPage.html'),
-  components: {GroupItem},
+  components: {GroupItem, MessageItem},
   async created() {
-    this.getGroups();
+    
   },
   mounted() {
-
+    this.getGroups();
   },
   methods: {
     async getGroups() {
+      console.log('getGroups');
       this.groups = (await this.$coreApi.getMemberInChats()).map((group) => {
         group.lastMessage = {text: 'Sed ut perspiciatis unde...', date: '11:00'};
         return group;
@@ -34,13 +37,20 @@ export default {
     },
     async selectGroup(group) {
       this.selectedGroupId = group.ipns;
-
-      this.messagesLoading = true;
-      this.messages = [];
       
-      await this.$coreApi.getGroupPostsAsync(this.selectedGroupId, {
+      await this.getGroupPosts(0);
+    },
+    
+    getGroupPosts(offset) {
+      this.messagesLoading = true;
+      
+      if(offset === 0) {
+        this.messages = [];
+      }
+      return this.$coreApi.getGroupPostsAsync(this.selectedGroupId, {
         limit: this.messagesPagination.perPage,
-        offset: (this.messagesPagination.currentPage - 1) * this.messagesPagination.perPage
+        offset
+        // offset: (this.messagesPagination.currentPage - 1) * this.messagesPagination.perPage
       }, (posts) => {
         this.appendMessages(posts);
       }, (posts) => {
@@ -48,16 +58,17 @@ export default {
         this.messagesLoading = false;
       });
     },
+    
     appendMessages(messages) {
       //TODO: more effective appendMessages
       this.messages = messages;
       
       this.messages.forEach(async message => {
-        if(this.messagesAuthorsLoading[message.author]) {
+        if(this.usersInfoLoading[message.author]) {
           return;
         }
-        this.messagesAuthorsLoading[message.author] = true;
-        this.messagesAuthors[message.author] = await this.$coreApi.getUser(message.author);
+        this.$store.commit('usersInfoLoading', _.extend({}, this.usersInfoLoading, {[message.author]: true}));
+        this.$store.commit('usersInfo', _.extend({}, this.usersInfo, {[message.author]: await this.$coreApi.getUser(message.author)}));
       });
     },
     addFriend() {
@@ -69,6 +80,35 @@ export default {
         }
       });
     },
+    onEnter(event) {
+      if(event.shiftKey) {
+        return;
+      }
+      this.newMessage.text = _.trimEnd(this.newMessage.text, "\n");
+      this.sendMessage();
+    },
+    async sendMessage() {
+      const contentsIds = [];
+      
+      const text = this.newMessage.text;
+      
+      this.newMessage.text = '';
+      
+      const textContent = await this.$coreApi.saveContentData(text, {
+        groupId: this.selectedGroupId,
+        mimeType: 'text/markdown'
+      });
+
+      contentsIds.push(textContent.id);
+      
+      await this.$coreApi.createPost(contentsIds, {groupId: this.selectedGroupId, status: 'published'}).then(() => {
+        this.saving = false;
+        this.$emit('new-post');
+        EventBus.$emit(UPDATE_GROUP, this.selectedGroupId);
+      });
+
+      await this.getGroupPosts(0);
+    },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);
     }
@@ -79,6 +119,12 @@ export default {
     },
     user() {
       return this.$store.state.user;
+    },
+    usersInfo() {
+      return this.$store.state.usersInfo;
+    },
+    usersInfoLoading() {
+      return this.$store.state.usersInfoLoading;
     },
   },
   data() {
@@ -93,8 +139,9 @@ export default {
         currentPage: 1,
         perPage: 10
       },
-      messagesAuthors: {},
-      messagesAuthorsLoading: {}
+      newMessage: {
+        text: ''
+      }
     };
   }
 }

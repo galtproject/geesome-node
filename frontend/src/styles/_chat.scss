@@ -224,17 +224,23 @@
     }
     .input {
       flex: 1;
-      input[type=text] {
+      textarea {
         background: none;
+        font-size: 14px;
         border: none;
         width: 100%;
         height: 100%;
+        caret-color: white;
+        color: white;
         &::placeholder {
           color: grey;
           opacity: 1; /* Firefox */
         }
         &:focus {
           outline:0;
+          &::placeholder {
+            color: #ec9227;
+          }
         }
       }
     }

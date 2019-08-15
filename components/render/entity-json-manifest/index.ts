@@ -72,7 +72,7 @@ class EntityJsonManifest implements IRender {
 
       const group = await this.app.database.getGroup(post.groupId);
       postManifest.group = group.manifestStaticStorageId;
-      postManifest.autor = post.authorStaticStorageId;
+      postManifest.author = post.authorStaticStorageId;
 
       postManifest.contents = post.contents.map((content: IContent) => {
         return this.getStorageRef(content.manifestStorageId);

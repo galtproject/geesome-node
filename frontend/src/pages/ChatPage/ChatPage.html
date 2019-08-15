@@ -1,4 +1,4 @@
-<div id="chat-page">
+<div id="chat-page" xmlns:v-on="http://www.w3.org/1999/xhtml">
     <div class="groups-container">
         <div class="groups-list">
             <group-item v-for="(group, index) in groups" :group="group"
@@ -29,15 +29,21 @@
         </div>
         
         <div class="chat" v-if="selectedGroupId !== null">
-            <message-item v-for="message in messages" :message="message" :message-authors="messagesAuthors"></message-item>
+            <message-item v-for="message in messages" :message="message"></message-item>
         </div>
         
         <div class="new-message" v-if="selectedGroupId !== null">
-            <div class="attachment"><md-icon>attach_file</md-icon></div>
+            <div class="attachment"><md-button class="md-icon-button"><md-icon class="fas fa-paperclip"></md-icon></md-button></div>
+            
+            <div class="emoji"><md-button class="md-icon-button"><md-icon class="far fa-smile"></md-icon></md-button></div>
+            
             <div class="input">
-                <input type="text" placeholder="Write a message...">
+                <textarea type="text" v-model="newMessage.text" placeholder="Write a message..." v-on:keyup.enter="onEnter"></textarea>
             </div>
-            <div class="emoji"><md-icon>sentiment_satisfied_alt</md-icon></div>
+            
+            <div class="send" v-if="newMessage.text">
+                <md-button class="md-icon-button" @click="sendMessage"><md-icon class="fas fa-paper-plane"></md-icon></md-button>
+            </div>
         </div>
     </div>
 </div>
