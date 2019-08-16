@@ -1,8 +1,7 @@
-import {IGroup, IPost, IUser} from "../../database/interface";
+import {IGroup, IPost} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
-const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
-const {getPersonalChatHash, getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/name');
+const {getPersonalChatTopic, getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/name');
 
 export {};
 
@@ -60,7 +59,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
   async function subscribeForPersonalGroupUpdates(group: IGroup) {
     const creator = await geesomeApp.database.getUser(group.creatorId);
-    const groupTopic = getPersonalChatHash([creator.manifestStaticStorageId, group.staticStorageId], group.theme);
+    const groupTopic = getPersonalChatTopic([creator.manifestStaticStorageId, group.staticStorageId], group.theme);
 
     console.log('📡 subscribeForPersonalGroupUpdates', groupTopic);
     geesomeApp.storage.subscribeToEvent(groupTopic, (message) => {

@@ -35,7 +35,7 @@ import AbstractDriver from "../../drivers/abstractDriver";
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
-const { getPersonalChatHash } = require('@galtproject/geesome-libs/src/name');
+const { getPersonalChatTopic } = require('@galtproject/geesome-libs/src/name');
 let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
@@ -59,6 +59,13 @@ module.exports = async (extendConfig) => {
 
   console.log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
+  
+  // setInterval(() => {
+  //   console.log('publishEvent', 'geesome-test');
+  //   app.storage.publishEvent('geesome-test', {
+  //     lala: 'lolo'
+  //   });
+  // }, 1000);
 
   const frontendPath = __dirname + '/../../../frontend/dist';
   if (fs.existsSync(frontendPath)) {
@@ -532,7 +539,7 @@ class GeesomeApp implements IGeesomeApp {
     const group = await this.database.getGroup(postData.groupId);
     if(group.type === GroupType.PersonalChat) {
       //TODO: encrypt by pgp
-      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatHash([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postIpld: post.manifestStorageId,
         groupIpld: group.manifestStaticStorageId
@@ -627,7 +634,7 @@ class GeesomeApp implements IGeesomeApp {
     
     delete postObject.contents;
 
-    console.log('postObject', postObject);
+    // console.log('postObject', postObject);
     let post = await this.database.addPost(postObject);
     await this.database.setPostContents(post.id, contents.map(c => c.id));
 
@@ -1117,7 +1124,7 @@ class GeesomeApp implements IGeesomeApp {
   private async generateAndSaveManifest(entityName, entityObj) {
     const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
     const hash = await this.storage.saveObject(manifestContent);
-    console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
+    // console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
     return hash;
   }
 

@@ -51,6 +51,7 @@ export interface IStorage {
   nodeAddressList(): Promise<string[]>;
 
   publishEventByIpnsId(ipnsId, topic, data): Promise<void>;
+  publishEvent(topic, data): Promise<void>;
   
   subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
 

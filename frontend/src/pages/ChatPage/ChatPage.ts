@@ -33,6 +33,17 @@ export default {
   methods: {
     async getGroups() {
       this.groups = await this.$coreApi.getMemberInChats();
+
+      this.groups.forEach((group) => {
+        if (group.type === 'personal_chat') {
+          this.$coreApi.subscribeToPersonalChatUpdates(group.members, 'default', (event) => this.fetchGroupUpdate(group, event));
+        } else {
+          this.$coreApi.subscribeToGroupUpdates(group.ipns, 'default', (event) => this.fetchGroupUpdate(group, event));
+        }
+      });
+    },
+    fetchGroupUpdate(group, event) {
+      console.log('fetchGroupUpdate', group, event);
     },
     getGroupPosts(offset) {
       this.messagesLoading = true;
