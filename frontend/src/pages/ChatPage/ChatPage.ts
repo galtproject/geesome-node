@@ -42,8 +42,12 @@ export default {
         }
       });
     },
-    fetchGroupUpdate(group, event) {
+    async fetchGroupUpdate(group, event) {
       console.log('fetchGroupUpdate', group, event);
+      const post = await this.$coreApi.getPost(event.dataJson.postIpld);
+      if(post.group === this.selectedGroupId) {
+        this.messages.push(post);
+      }
     },
     getGroupPosts(offset) {
       this.messagesLoading = true;
@@ -71,8 +75,8 @@ export default {
         if(this.usersInfoLoading[message.author]) {
           return;
         }
-        this.$store.commit('usersInfoLoading', _.extend({}, this.usersInfoLoading, {[message.author]: true}));
-        this.$store.commit('usersInfo', _.extend({}, this.usersInfo, {[message.author]: await this.$coreApi.getUser(message.author)}));
+        this.$identities.loading('usersInfo', message.author);
+        this.$identities.set('usersInfo', message.author, await this.$coreApi.getUser(message.author));
       });
     },
     addFriend() {
@@ -111,7 +115,7 @@ export default {
         EventBus.$emit(UPDATE_GROUP, this.selectedGroupId);
       });
 
-      await this.getGroupPosts(0);
+      // await this.getGroupPosts(0);
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);

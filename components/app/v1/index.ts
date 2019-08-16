@@ -60,12 +60,12 @@ module.exports = async (extendConfig) => {
   console.log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
   
-  // setInterval(() => {
-  //   console.log('publishEvent', 'geesome-test');
-  //   app.storage.publishEvent('geesome-test', {
-  //     lala: 'lolo'
-  //   });
-  // }, 1000);
+  setInterval(() => {
+    console.log('publishEvent', 'geesome-test');
+    app.storage.publishEvent('geesome-test', {
+      lala: 'lolo'
+    });
+  }, 1000);
 
   const frontendPath = __dirname + '/../../../frontend/dist';
   if (fs.existsSync(frontendPath)) {

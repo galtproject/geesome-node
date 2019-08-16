@@ -23,7 +23,7 @@
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",
     "default-passive-events": "^1.0.7",
-    "ipfs": "^0.35.0",
+    "ipfs": "^0.36.0",
     "dexie": "^2.0.4",
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",

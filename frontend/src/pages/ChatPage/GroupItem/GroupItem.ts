@@ -39,8 +39,8 @@ export default {
       if(this.usersInfoLoading[this.personalChatIpns]) {
         return;
       }
-      this.$store.commit('usersInfoLoading', _.extend({}, this.usersInfoLoading, {[this.personalChatIpns]: true}));
-      this.$store.commit('usersInfo', _.extend({}, this.usersInfo, {[this.personalChatIpns]: await this.$coreApi.getUser(this.personalChatIpns)}));
+      this.$identities.loading('usersInfo', this.personalChatIpns);
+      this.$identities.set('usersInfo', this.personalChatIpns, await this.$coreApi.getUser(this.personalChatIpns));
     }
   },
   watch: {
