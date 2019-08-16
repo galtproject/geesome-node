@@ -2,7 +2,7 @@ import {IGroup, IPost, IUser} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
-const {getPersonalChatHash} = require('@galtproject/geesome-libs/src/name');
+const {getPersonalChatHash, getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/name');
 
 export {};
 
@@ -15,14 +15,14 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
   geesomeApp.storage['fsub'].libp2p.on('peer:disconnect', (peerDisconnect) => {
     const peerId = peerDisconnect.id._idB58String;
-    const topic = ipfsHelper.getIpnsUpdatesTopic(peerId);
+    const topic = getIpnsUpdatesTopic(peerId);
     if (peersToTopic[topic]) {
       console.log('❗️ Disconected from remote node!');
     }
   });
   geesomeApp.storage['fsub'].libp2p.on('connection:start', (connectionStart) => {
     const peerId = connectionStart.id._idB58String;
-    const topic = ipfsHelper.getIpnsUpdatesTopic(peerId);
+    const topic = getIpnsUpdatesTopic(peerId);
     if (peersToTopic[topic]) {
       console.log('✅️ Connected to remote node!');
       Array.from(peersToTopic[topic]).forEach((ipnsId) => {
@@ -80,7 +80,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
       handleIpnsUpdate(ipnsId, message);
     });
 
-    handleUnsubscribe(ipfsHelper.getIpnsUpdatesTopic(ipnsId), () => {
+    handleUnsubscribe(getIpnsUpdatesTopic(ipnsId), () => {
       subscribeToIpnsUpdates(ipnsId);
     })
   }
