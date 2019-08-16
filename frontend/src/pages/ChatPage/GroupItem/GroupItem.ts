@@ -11,13 +11,13 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-const pIteration = require('p-iteration');
+// const pIteration = require('p-iteration');
 const _ = require('lodash');
 
 export default {
   name: 'group-item',
   template: require('./GroupItem.html'),
-  props: ['active', 'group'],
+  props: ['active', 'group', 'to'],
   // components: {TariffPayingControl},
   async mounted() {
     this.getLastMessage();

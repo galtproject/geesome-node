@@ -26,17 +26,14 @@ export default {
   },
   mounted() {
     this.getGroups();
+    if(this.selectedGroupId) {
+      this.getGroupPosts(0);
+    }
   },
   methods: {
     async getGroups() {
       this.groups = await this.$coreApi.getMemberInChats();
     },
-    async selectGroup(group) {
-      this.selectedGroupId = group.ipns;
-      
-      await this.getGroupPosts(0);
-    },
-    
     getGroupPosts(offset) {
       this.messagesLoading = true;
       
@@ -109,7 +106,15 @@ export default {
       return this.$locale.get(this.localeKey + "." + key, options);
     }
   },
+  watch: {
+    selectedGroupId() {
+       this.getGroupPosts(0);
+    }
+  },
   computed: {
+    selectedGroupId() {
+      return this.$route.params.groupId;
+    },
     currentGroup() {
       return _.find(this.groups, {ipns: this.selectedGroupId});
     },
@@ -127,7 +132,6 @@ export default {
     return {
       localeKey: 'chat_page',
       loading: true,
-      selectedGroupId: null,
       groups: [],
       messages: [],
       messagesLoading: false,

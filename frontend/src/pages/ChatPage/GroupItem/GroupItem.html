@@ -1,4 +1,4 @@
-<div :class="{'group': true, 'active': active}">
+<router-link :class="{'group': true, 'active': active}" :to="to">
     <div class="avatar">
         <content-manifest-item :manifest="avatarImage" :preview-mode="true"></content-manifest-item>
     </div>
@@ -8,4 +8,4 @@
         <div class="text" v-html="lastMessageText"></div>
     </div>
     <div class="date">{{group.updatedAt | beautyDate}}</div>
-</div>
+</router-link>

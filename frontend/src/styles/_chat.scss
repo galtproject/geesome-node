@@ -75,11 +75,17 @@
     & > .md-button:first-child {
       margin-top: 20px;
     }
-    .group {
+    
+    a.group {
       display: flex;
       position: relative;
       padding: 15px;
       cursor: pointer;
+
+      &, &:hover {
+        text-decoration: none;
+      }
+      
       //.name {
       //  color: rgb(236, 146, 39);
       //}
@@ -111,6 +117,9 @@
           color: #83d9ef;
           //padding: 3px;
         }
+      }
+      .name {
+        color: white;
       }
       .text {
         text-overflow: ellipsis;

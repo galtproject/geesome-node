@@ -3,7 +3,7 @@
         <div class="groups-list">
             <group-item v-for="(group, index) in groups" :group="group"
                         :active="selectedGroupId === group.ipns"
-                        @click.native="selectGroup(group)"
+                        :to="{params: {groupId: group.ipns}}"
             ></group-item>
 
             <md-button class="md-primary add-group-button" @click="addFriend"><md-icon>add</md-icon> Add friend</md-button>

@@ -61,7 +61,7 @@ export default new Router({
       component: EditProfile
     },
     {
-      path: '/chat',
+      path: '/chat/:groupId?',
       name: 'chat-page',
       component: ChatPage
     },
