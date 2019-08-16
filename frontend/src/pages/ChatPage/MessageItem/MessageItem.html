@@ -3,7 +3,8 @@
     <content-manifest-item v-if="usersInfo[message.author]" :manifest="usersInfo[message.author].avatarImage" :preview-mode="true"></content-manifest-item>
   </div>
   <div class="info">
-    <div class="name" v-if="!isCurrentUserMessage && usersInfo[message.author]">{{usersInfo[message.author] ? usersInfo[message.author].title : '...'}} <pretty-hex :hex="message.author"></pretty-hex></div>
+    <div class="name" v-if="!isCurrentUserMessage && usersInfo[message.author]">{{usersInfo[message.author] ? usersInfo[message.author].title || usersInfo[message.author].name : '...'}}</div>
+    <!--<pretty-hex :hex="message.author"></pretty-hex>-->
     <div class="content">
       <md-card-content v-for="content in contentsList">
         <content-manifest-item :manifest="content"></content-manifest-item>

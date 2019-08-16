@@ -149,7 +149,7 @@
     flex-direction: column;
 
     .chat {
-      height: calc(100% - #{$new-message-height});
+      height: calc(100vh - 64px - #{$new-message-height});
       overflow: scroll;
       padding: 15px;
       display: flex;
