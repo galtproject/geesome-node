@@ -43,6 +43,11 @@ export default {
 
         info[entity][id] = data;
         appStore.commit(entity, info[entity]);
+        
+        if(info[entity + 'Loading']) {
+          info[entity + 'Loading'][id] = false;
+          appStore.commit(entity + 'Loading', info[entity + 'Loading']);
+        }
       }
     };
   }

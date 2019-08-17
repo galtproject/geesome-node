@@ -25,12 +25,12 @@ export default {
   },
   methods: {
     async getLastMessage() {
-      this.lastMessage = null;
       if(!this.group) {
         return;
       }
-      this.lastMessage = await this.$coreApi.getGroupPost(this.group.id, this.group.postsCount);
-      this.lastMessageText = await this.$coreApi.getContentData(this.lastMessage.contents[0]);
+      this.$identities.loading('lastPost', this.group.id);
+      this.$identities.set('lastPost', this.group.id, await this.$coreApi.getGroupPost(this.group.id, this.group.postsCount));
+      this.$identities.set('lastPostText', this.group.id, await this.$coreApi.getContentData(this.lastMessage.contents[0]));
     },
     async getPersonalChatUser() {
       if(!this.group || this.group.type !== 'personal_chat') {
@@ -52,6 +52,12 @@ export default {
     }
   },
   computed: {
+    lastMessage() {
+      return this.group ? this.$store.state.lastPost[this.group.id] : null;
+    },
+    lastMessageText() {
+      return this.group ? this.$store.state.lastPostText[this.group.id] : null;
+    },
     personalChatIpns() {
       if(!this.group || !this.user) {
         return '';
@@ -89,9 +95,7 @@ export default {
   data() {
     return {
       localeKey: 'chat_page.group_item',
-      loading: true,
-      lastMessage: null,
-      lastMessageText: ''
+      loading: true
     }
   }
 }

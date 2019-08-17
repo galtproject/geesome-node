@@ -56,7 +56,10 @@ Vue.use(storePlugin, {
   cybActive: false,
   is_mobile: false,
   usersInfo: {},
-  usersInfoLoading: {}
+  usersInfoLoading: {},
+  lastPost: {},
+  lastPostText: {},
+  lastPostLoading: {}
 });
 Vue.use(localePlugin);
 Vue.use(identitiesPlugin);

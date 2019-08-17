@@ -48,6 +48,11 @@ export default {
     },
     async setContentByManifest(manifestObj) {
       this.loading = true;
+      
+      this.content = null;
+      this.srcLink = null;
+      this.previewSrcLink = null;
+      
       if (manifestObj) {
         this.manifestObj = manifestObj;
       } else if (ipfsHelper.isIpldHash(this.manifest)) {

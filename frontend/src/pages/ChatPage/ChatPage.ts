@@ -45,9 +45,13 @@ export default {
     async fetchGroupUpdate(group, event) {
       console.log('fetchGroupUpdate', group, event);
       const post = await this.$coreApi.getPost(event.dataJson.postIpld);
-      if(post.group === this.selectedGroupId) {
-        this.messages.push(post);
+      if(group.ipns === this.selectedGroupId) {
+        this.messages.unshift(post);
       }
+      
+      this.$identities.loading('lastPost', group.id);
+      this.$identities.set('lastPost', group.id, post);
+      this.$identities.set('lastPostText', group.id, await this.$coreApi.getContentData(post.contents[0]));
     },
     getGroupPosts(offset) {
       this.messagesLoading = true;
