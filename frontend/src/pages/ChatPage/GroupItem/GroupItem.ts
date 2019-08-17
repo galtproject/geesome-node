@@ -36,7 +36,7 @@ export default {
       if(!this.group || this.group.type !== 'personal_chat') {
         return;
       }
-      if(this.usersInfoLoading[this.personalChatIpns]) {
+      if(this.usersInfoLoading[this.personalChatIpns] || this.usersInfo[this.personalChatIpns]) {
         return;
       }
       this.$identities.loading('usersInfo', this.personalChatIpns);

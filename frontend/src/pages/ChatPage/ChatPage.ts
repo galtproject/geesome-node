@@ -76,7 +76,7 @@ export default {
       this.messages = messages;
       
       this.messages.forEach(async message => {
-        if(this.usersInfoLoading[message.author]) {
+        if(this.usersInfoLoading[message.author] || this.usersInfo[message.author]) {
           return;
         }
         this.$identities.loading('usersInfo', message.author);
