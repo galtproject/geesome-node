@@ -36,6 +36,7 @@ const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
 const { getPersonalChatTopic } = require('@galtproject/geesome-libs/src/name');
+const bs58 = require('bs58');
 let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
@@ -144,7 +145,7 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("username_already_exists");
     }
 
-    const storageAccountId = await this.storage.createAccountIfNotExists(name);
+    const storageAccountId = await this.createStorageAccount(name);
 
     return new Promise((resolve, reject) => {
       bcrypt.hash(password, saltRounds, async (err, passwordHash) => {
@@ -401,7 +402,7 @@ class GeesomeApp implements IGeesomeApp {
   async createGroup(userId, groupData) {
     groupData.creatorId = userId;
     
-    groupData.manifestStaticStorageId = await this.storage.createAccountIfNotExists(groupData['name']);
+    groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
     if(groupData.type !== GroupType.PersonalChat) {
       groupData.staticStorageId = groupData.manifestStaticStorageId;
     }
@@ -1240,7 +1241,24 @@ class GeesomeApp implements IGeesomeApp {
     return storageId;
   }
 
+  async createStorageAccount(name) {
+    // const existsAccountId = await this.storage.getAccountIdByName(name);
+    // TODO: use it in future for public nodes
+    // if(existsAccountId) {
+    //   throw "already_exists";
+    // }
+    const storageAccountId = await this.storage.createAccountIfNotExists(name);
+
+    const publicKey = await this.storage.getAccountPublicKey(storageAccountId);
+    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey));
+    return storageAccountId;
+  }
+
   async resolveStaticId(staticId) {
+    this.storage.resolveStaticIdEntry(staticId).then(entry => {
+      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {/* already added */});
+    });
+    
     return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
       try {
         await this.database.addStaticIdHistoryItem({
@@ -1249,6 +1267,7 @@ class GeesomeApp implements IGeesomeApp {
           isActive: true,
           boundAt: new Date()
         });
+        
         return dynamicId;
       } catch (e) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);

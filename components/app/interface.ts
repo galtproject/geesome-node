@@ -143,6 +143,8 @@ export interface IGeesomeApp {
   //TODO: define interface
   getGroupPeers(groupId): Promise<any>;
 
+  createStorageAccount(accountName): Promise<string>;
+
   resolveStaticId(staticId): Promise<string>;
 }
 

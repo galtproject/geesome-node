@@ -649,6 +649,15 @@ class MysqlDatabase implements IDatabase {
     return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
   }
 
+  async setStaticIdPublicKey(staticId, publicKey) {
+    console.log('staticId, publicKey', staticId, publicKey);
+    return this.models.StaticIdPublicKey.create({staticId, publicKey});
+  }
+
+  async getStaticIdPublicKey(staticId) {
+    return this.models.StaticIdPublicKey.findOne({where: {staticId}}).then(item => item ? item.publicKey : null);
+  }
+
   async getStaticIdItemByDynamicId(dynamicId) {
     return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]});
   }

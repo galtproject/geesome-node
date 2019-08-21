@@ -16,6 +16,7 @@ import {IGeesomeApp} from "../../app/interface";
 import {GroupType, IContent, IGroup, IPost, IUser} from "../../database/interface";
 
 const _ = require('lodash');
+const bs58 = require('bs58');
 const pIteration = require('p-iteration');
 const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
 
@@ -37,6 +38,7 @@ class EntityJsonManifest implements IRender {
 
       groupManifest.postsCount = group.publishedPostsCount;
       groupManifest.ipns = group.manifestStaticStorageId;
+      groupManifest.publicKey = await this.app.database.getStaticIdPublicKey(groupManifest.ipns);
 
       if (group.avatarImage) {
         groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
@@ -89,8 +91,7 @@ class EntityJsonManifest implements IRender {
       const userManifest = _.pick(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
       userManifest.ipns = user.manifestStaticStorageId;
-      // TODO: find the way to getting publicKey from IPNS and dont store it to IPLD
-      userManifest.publicKey = Array.from(await this.app.storage.getAccountPublicKey(userManifest.ipns));
+      userManifest.publicKey = await this.app.database.getStaticIdPublicKey(userManifest.ipns);
 
       if (user.avatarImage) {
         userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);

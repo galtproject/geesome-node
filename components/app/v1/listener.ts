@@ -2,6 +2,7 @@ import {IGroup, IPost} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
 const {getPersonalChatTopic, getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/name');
+const bs58 = require('bs58');
 
 export {};
 
@@ -109,15 +110,16 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
     console.log('handleIpnsUpdate');
     console.log('ipnsId', ipnsId);
     console.log('message.data', message.data);
+    
     geesomeApp.database.addStaticIdHistoryItem({
       staticId: ipnsId,
       dynamicId: message.data.valueStr.replace('/ipfs/', ''),
       periodTimestamp: message.data.ttl,
       isActive: true,
       boundAt: message.data.validity.toString('utf8')
-    }).catch(() => {/* already exists */
-    });
-    // geesomeApp.storage['node']._ipns.cache.set(ipnsId, message.data.valueStr, { ttl: message.data.ttl })
+    }).catch(() => {/* already exists */});
+
+    geesomeApp.database.setStaticIdPublicKey(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
   }
   
   async function handlePersonalChatUpdate(personalGroup: IGroup, message) {

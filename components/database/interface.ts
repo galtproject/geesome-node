@@ -155,6 +155,10 @@ export interface IDatabase {
   getUserLimit(userId, name): Promise<IUserLimit>;
 
   addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
+  
+  setStaticIdPublicKey(staticId, publicKey): Promise<IStaticIdPublicKey>;
+  
+  getStaticIdPublicKey(staticId): Promise<string>;
 
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
 
@@ -378,6 +382,11 @@ export interface IStaticIdHistoryItem {
   boundAt: Date;
 }
 
+export interface IStaticIdPublicKey {
+  id?: number;
+  staticId: string;
+  publicKey: string;
+}
 
 export enum UserLimitName {
   SaveContentSize = 'save_content:size'

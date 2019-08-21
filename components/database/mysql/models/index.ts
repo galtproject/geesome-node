@@ -36,6 +36,7 @@ module.exports = async function (sequelize) {
   models.UserLimit = await require('./userLimit')(sequelize, models);
 
   models.StaticIdHistory = await require('./staticIdHistory')(sequelize, models);
+  models.StaticIdPublicKey = await require('./staticIdPublicKey')(sequelize, models);
 
   models.Value = await require('./value')(sequelize, models);
 
