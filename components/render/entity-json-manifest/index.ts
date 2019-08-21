@@ -89,6 +89,8 @@ class EntityJsonManifest implements IRender {
       const userManifest = _.pick(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
       userManifest.ipns = user.manifestStaticStorageId;
+      // TODO: find the way to getting publicKey from IPNS and dont store it to IPLD
+      userManifest.publicKey = Array.from(await this.app.storage.getAccountPublicKey(userManifest.ipns));
 
       if (user.avatarImage) {
         userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
@@ -96,6 +98,8 @@ class EntityJsonManifest implements IRender {
 
       this.setManifestMeta(userManifest, name);
 
+      console.log('userManifest', JSON.stringify(userManifest));
+      
       return userManifest;
     } else if (name === 'content-manifest') {
       const content: IContent = data;

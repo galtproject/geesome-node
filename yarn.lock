@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#bd1fef6":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#b600a80":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#bd1fef6ecfe7bf76ed038a3844e483c088d99a25"
+  resolved "git://github.com/galtspace/geesome-libs.git#b600a8013b7a02eaa3bfaf7bd2494a3695520072"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -22,6 +22,7 @@
     ipns "^0.5.2"
     lodash "^4.17.11"
     multihashes "~0.4.14"
+    openpgp "^4.6.0"
     p-iteration "^1.1.8"
     peer-id "^0.12.2"
     peer-info "^0.16.0"
@@ -532,7 +533,7 @@ asmcrypto.js@^2.3.2:
   version "2.3.2"
   resolved "https://registry.yarnpkg.com/asmcrypto.js/-/asmcrypto.js-2.3.2.tgz#b9f84bd0a1fb82f21f8c29cc284a707ad17bba2e"
 
-asn1.js@^5.0.1:
+asn1.js@^5.0.0, asn1.js@^5.0.1:
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/asn1.js/-/asn1.js-5.2.0.tgz#292c0357f26a47802ac9727e8772c09c7fc9bd85"
   dependencies:
@@ -5646,7 +5647,7 @@ node-cron@^2.0.3:
     opencollective-postinstall "^2.0.0"
     tz-offset "0.0.1"
 
-node-fetch@^2.3.0, node-fetch@^2.6.0:
+node-fetch@^2.1.2, node-fetch@^2.3.0, node-fetch@^2.6.0:
   version "2.6.0"
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.0.tgz#e633456386d4aa55863f676a7ab0daa8fdecb0fd"
 
@@ -5661,6 +5662,12 @@ node-forge@~0.8.5:
 node-gyp-build@~4.1.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.1.0.tgz#3bc3dd7dd4aafecaf64a2e3729e785bc3cdea565"
+
+node-localstorage@~1.3.0:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/node-localstorage/-/node-localstorage-1.3.1.tgz#3177ef42837f398aee5dd75e319b281e40704243"
+  dependencies:
+    write-file-atomic "^1.1.4"
 
 node-pre-gyp@0.12.0:
   version "0.12.0"
@@ -5826,6 +5833,14 @@ onetime@^5.1.0:
 opencollective-postinstall@^2.0.0:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/opencollective-postinstall/-/opencollective-postinstall-2.0.2.tgz#5657f1bede69b6e33a45939b061eb53d3c6c3a89"
+
+openpgp@^4.6.0:
+  version "4.6.0"
+  resolved "https://registry.yarnpkg.com/openpgp/-/openpgp-4.6.0.tgz#73198d1c3e4a8e7e6f3ab01fc6309c2a01ac96ae"
+  dependencies:
+    asn1.js "^5.0.0"
+    node-fetch "^2.1.2"
+    node-localstorage "~1.3.0"
 
 optimist@~0.3.5:
   version "0.3.7"
@@ -7162,6 +7177,10 @@ slice-ansi@^1.0.0:
   dependencies:
     is-fullwidth-code-point "^2.0.0"
 
+slide@^1.1.5:
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/slide/-/slide-1.1.6.tgz#56eb027d65b4d2dce6cb2e2d32c4d4afc9e1d707"
+
 smart-buffer@^4.0.2:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/smart-buffer/-/smart-buffer-4.0.2.tgz#5207858c3815cc69110703c6b94e46c15634395d"
@@ -8384,6 +8403,14 @@ wreck@14.x.x:
     boom "7.x.x"
     bourne "1.x.x"
     hoek "6.x.x"
+
+write-file-atomic@^1.1.4:
+  version "1.3.4"
+  resolved "https://registry.yarnpkg.com/write-file-atomic/-/write-file-atomic-1.3.4.tgz#f807a4f0b1d9e913ae7a48112e6cc3af1991b45f"
+  dependencies:
+    graceful-fs "^4.1.11"
+    imurmurhash "^0.1.4"
+    slide "^1.1.5"
 
 write-file-atomic@^2.0.0:
   version "2.4.3"

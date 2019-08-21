@@ -25,6 +25,9 @@ export interface IStorage {
   getFileData(filePath): Promise<any>;
 
   getAccountIdByName(name): Promise<string>;
+  
+  getAccountPeerId(key): Promise<any>;
+  getAccountPublicKey(key): Promise<Buffer>;
 
   getCurrentAccountId(): Promise<string>;
 
