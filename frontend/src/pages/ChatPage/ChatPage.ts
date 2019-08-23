@@ -24,9 +24,10 @@ export default {
   async created() {
     
   },
-  mounted() {
+  async mounted() {
     this.getGroups();
     if(this.selectedGroupId) {
+      await this.$coreApi.exportPrivateKey();
       this.getGroupPosts(0);
     }
   },
@@ -44,7 +45,7 @@ export default {
     },
     async fetchGroupUpdate(group, event) {
       console.log('fetchGroupUpdate', group, event);
-      const post = await this.$coreApi.getPost(event.dataJson.postIpld);
+      const post = await this.$coreApi.getGroupPost(group.id, event.dataJson.postId);
       if(group.ipns === this.selectedGroupId) {
         this.messages.unshift(post);
       }

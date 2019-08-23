@@ -215,6 +215,8 @@ export interface IContent {
   staticStorageId?: string;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+
+  encryptedManifestStorageId?: string;
 }
 
 export enum ContentStorageType {
@@ -249,6 +251,7 @@ export interface IPost {
   size?;
   isPinned?: boolean;
   isRemote?: boolean;
+  isEncrypted?: boolean;
   isFullyPinned?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;
@@ -258,6 +261,8 @@ export interface IPost {
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
   authorStaticStorageId?: string;
+
+  encryptedManifestStorageId?: string;
 }
 
 export enum PostStatus {
@@ -302,6 +307,7 @@ export interface IGroup {
   size?: number;
   isPinned?: boolean;
   isFullyPinned?: boolean;
+  isEncrypted?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;
   storageId?: string;
@@ -309,6 +315,8 @@ export interface IGroup {
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
   publishedPostsCount?: number;
+
+  encryptedManifestStorageId?: string;
 
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;

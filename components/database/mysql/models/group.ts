@@ -52,6 +52,9 @@ module.exports = async function (sequelize, models) {
     isPinned: {
       type: Sequelize.BOOLEAN
     },
+    isEncrypted: {
+      type: Sequelize.BOOLEAN
+    },
     isFullyPinned: {
       type: Sequelize.BOOLEAN
     },
@@ -76,6 +79,9 @@ module.exports = async function (sequelize, models) {
     manifestStaticStorageId: {
       type: Sequelize.STRING(200),
       unique: true
+    },
+    encryptedManifestStorageId: {
+      type: Sequelize.TEXT
     },
     storageUpdatedAt: {
       type: Sequelize.DATE

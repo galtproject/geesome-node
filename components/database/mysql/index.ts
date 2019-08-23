@@ -197,7 +197,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async addUserFriend(userId, friendId) {
-    return (await this.getUser(userId)).addFriends([await this.getUser(friendId)]);
+    return (await this.getUser(userId)).addFriends([await this.getUser(friendId)]).catch((e) => {console.error(e); throw e;});
   }
 
   async removeUserFriend(userId, friendId) {
@@ -650,7 +650,6 @@ class MysqlDatabase implements IDatabase {
   }
 
   async setStaticIdPublicKey(staticId, publicKey) {
-    console.log('staticId, publicKey', staticId, publicKey);
     return this.models.StaticIdPublicKey.create({staticId, publicKey});
   }
 

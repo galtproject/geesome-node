@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#8f3fbe4":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#28b15b4":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#8f3fbe47f173d41021f6aac3d47da79d5432c604"
+  resolved "git://github.com/galtspace/geesome-libs.git#28b15b42727c6cb835f037081ddfc8a677cc58f1"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -22,6 +22,7 @@
     ipns "^0.5.2"
     lodash "^4.17.11"
     multihashes "~0.4.14"
+    node-forge "0.8.5"
     openpgp "^4.6.0"
     p-iteration "^1.1.8"
     peer-id "^0.12.2"
@@ -5651,13 +5652,13 @@ node-fetch@^2.1.2, node-fetch@^2.3.0, node-fetch@^2.6.0:
   version "2.6.0"
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.0.tgz#e633456386d4aa55863f676a7ab0daa8fdecb0fd"
 
+node-forge@0.8.5, node-forge@~0.8.5:
+  version "0.8.5"
+  resolved "https://registry.yarnpkg.com/node-forge/-/node-forge-0.8.5.tgz#57906f07614dc72762c84cef442f427c0e1b86ee"
+
 node-forge@~0.7.6:
   version "0.7.6"
   resolved "https://registry.yarnpkg.com/node-forge/-/node-forge-0.7.6.tgz#fdf3b418aee1f94f0ef642cd63486c77ca9724ac"
-
-node-forge@~0.8.5:
-  version "0.8.5"
-  resolved "https://registry.yarnpkg.com/node-forge/-/node-forge-0.8.5.tgz#57906f07614dc72762c84cef442f427c0e1b86ee"
 
 node-gyp-build@~4.1.0:
   version "4.1.0"

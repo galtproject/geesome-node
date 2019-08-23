@@ -129,16 +129,14 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
     
     const messageData = message.dataJson;
 
-    // const eventGroup: IGroup = await geesomeApp.render.manifestIdToDbObject(messageData.groupIpld);
-    const eventPost: IPost = await geesomeApp.render.manifestIdToDbObject(messageData.postIpld);
+    // const eventGroup: IGroup = await geesomeApp.render.manifestIdToDbObject(messageData.groupId);
+    //
+    // console.log('personalGroup.staticStorageId', personalGroup.staticStorageId);
+    // console.log('message.keyIpns', message.keyIpns);
     
-    console.log('eventPost.authorStaticStorageId', eventPost.authorStaticStorageId);
-    console.log('personalGroup.staticStorageId', personalGroup.staticStorageId);
-    console.log('message.keyIpns', message.keyIpns);
-    
-    if(eventPost.authorStaticStorageId === personalGroup.staticStorageId && eventPost.authorStaticStorageId === message.keyIpns) {
-      const dbPost = await geesomeApp.createPostByRemoteStorageId(messageData.postIpld, personalGroup.id);
-      console.log('💬 new post in personal chat', dbPost);
+    if(message.keyIpns === personalGroup.staticStorageId) {
+      const dbPost = await geesomeApp.createPostByRemoteStorageId(messageData.postId, personalGroup.id, messageData.sentAt, messageData.isEncrypted);
+      console.log('💬 new post in personal chat', messageData, dbPost);
     }
   }
 };

@@ -34,6 +34,7 @@ import AbstractDriver from "../../drivers/abstractDriver";
 
 const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const pgpHelper = require('@galtproject/geesome-libs/src/pgpHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
 const { getPersonalChatTopic } = require('@galtproject/geesome-libs/src/name');
 const bs58 = require('bs58');
@@ -216,7 +217,7 @@ class GeesomeApp implements IGeesomeApp {
     const friend = await this.database.getUser(friendId);
     
     const group = await this.createGroup(userId, {
-      name: (user.name + "_" + friend.name).replace(/[\W_]+/g,"_"),
+      name: (user.name + "_" + friend.name).replace(/[\W_]+/g,"_") + '_default',
       type: GroupType.PersonalChat,
       theme: 'default',
       title: friend.title,
@@ -224,7 +225,8 @@ class GeesomeApp implements IGeesomeApp {
       staticStorageId: friend.manifestStaticStorageId,
       avatarImageId: friend.avatarImageId,
       view: GroupView.TelegramLike,
-      isPublic: false
+      isPublic: false,
+      isEncrypted: true
     });
 
     await this.database.addMemberToGroup(userId, group.id);
@@ -538,12 +540,43 @@ class GeesomeApp implements IGeesomeApp {
     post = await this.database.getPost(post.id);
     
     const group = await this.database.getGroup(postData.groupId);
-    if(group.type === GroupType.PersonalChat) {
-      //TODO: encrypt by pgp
+    
+    if(group.isEncrypted && group.type === GroupType.PersonalChat) {
+      // Encrypt post id
+      const keyForEncrypt = await this.database.getStaticIdPublicKey(group.staticStorageId);
+
+      console.log('keyLookup', user.manifestStaticStorageId);
+      const userKey = await this.storage.keyLookup(user.manifestStaticStorageId);
+      console.log('pgpHelper.transformKey(userKey.marshal())', userKey.marshal());
+      try {
+        const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
+        const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
+        console.log('pgpHelper.transformKey', keyForEncrypt);
+        const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
+        console.log('encrypt', userPrivateKey, publicKeyForEncrypt, post.manifestStorageId);
+        const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
+
+        await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+          type: 'new_post',
+          postId: encryptedText,
+          groupId: group.manifestStaticStorageId,
+          isEncrypted: true,
+          sentAt: post.publishedAt.toString()
+        });
+
+        await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
+        await this.updateGroupManifest(group.id);
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      // Send plain post id
       await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
-        postIpld: post.manifestStorageId,
-        groupIpld: group.manifestStaticStorageId
+        postId: post.manifestStorageId,
+        groupId: group.manifestStaticStorageId,
+        isEncrypted: false,
+        sentAt: post.publishedAt.toString()
       });
     }
 
@@ -625,19 +658,21 @@ class GeesomeApp implements IGeesomeApp {
     return this.getIpnsPeers(ipnsId);
   }
 
-  async createPostByRemoteStorageId(manifestStorageId, groupId) {
-    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId);
+  async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
+    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId, 'post-manifest', {isEncrypted, groupId, publishedAt});
     postObject.isRemote = true;
-    postObject.groupId = groupId;
+    postObject.status = PostStatus.Published;
     postObject.localId = await this.getPostLocalId(postObject);
-    
-    const { contents } = postObject;
-    
-    delete postObject.contents;
 
-    // console.log('postObject', postObject);
+    const { contents } = postObject;
+    delete postObject.contents;
+    
     let post = await this.database.addPost(postObject);
-    await this.database.setPostContents(post.id, contents.map(c => c.id));
+    
+    if(!isEncrypted) {
+      // console.log('postObject', postObject);
+      await this.database.setPostContents(post.id, contents.map(c => c.id));
+    }
 
     await this.updateGroupManifest(post.groupId);
     
@@ -1250,7 +1285,7 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.storage.createAccountIfNotExists(name);
 
     const publicKey = await this.storage.getAccountPublicKey(storageAccountId);
-    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey));
+    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {/*dont do anything*/});
     return storageAccountId;
   }
 

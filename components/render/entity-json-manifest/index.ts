@@ -13,7 +13,7 @@
 
 import {IRender} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
-import {GroupType, IContent, IGroup, IPost, IUser} from "../../database/interface";
+import {GroupType, IContent, IGroup, IPost, IUser, PostStatus} from "../../database/interface";
 
 const _ = require('lodash');
 const bs58 = require('bs58');
@@ -36,6 +36,9 @@ class EntityJsonManifest implements IRender {
       const group: IGroup = data;
       const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
 
+      if(data.isEncrypted) {
+        groupManifest.isEncrypted = true;
+      }
       groupManifest.postsCount = group.publishedPostsCount;
       groupManifest.ipns = group.manifestStaticStorageId;
       groupManifest.publicKey = await this.app.database.getStaticIdPublicKey(groupManifest.ipns);
@@ -60,10 +63,11 @@ class EntityJsonManifest implements IRender {
       const groupPosts = await this.app.database.getGroupPosts(group.id, {limit: 100, offset: 0});
       // console.log('groupPosts', group.id, groupPosts);
       groupPosts.forEach((post: IPost) => {
-        if (!post.manifestStorageId) {
-          return;
+        if(post.isEncrypted) {
+          treeLib.setNode(groupManifest.posts, post.localId, post.encryptedManifestStorageId);
+        } else if (post.manifestStorageId) {
+          treeLib.setNode(groupManifest.posts, post.localId, this.getStorageRef(post.manifestStorageId));
         }
-        treeLib.setNode(groupManifest.posts, post.localId, this.getStorageRef(post.manifestStorageId));
       });
 
       this.setManifestMeta(groupManifest, name);
@@ -139,11 +143,19 @@ class EntityJsonManifest implements IRender {
     return '';
   }
 
-  async manifestIdToDbObject(manifestId) {
+  async manifestIdToDbObject(manifestId, type = null, options: any = {}) {
     manifestId = this.app.checkStorageId(manifestId);
-    const manifest = await this.app.storage.getObject(manifestId);
+    let manifest: any = {};
 
-    if (manifest._type === 'group-manifest') {
+    if(!options.isEncrypted) {
+      manifest = await this.app.storage.getObject(manifestId);
+      
+      if(!type) {
+        type = manifest._type;
+      }
+    }
+    
+    if (type === 'group-manifest') {
       const group: IGroup = _.pick(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
       group.manifestStorageId = manifestId;
 
@@ -159,7 +171,7 @@ class EntityJsonManifest implements IRender {
 
       //TODO: import posts too
       return group;
-    } else if (manifest._type === 'user-manifest') {
+    } else if (type === 'user-manifest') {
       const user: IUser = _.pick(manifest, ['name', 'title', 'email', 'description']);
       user.manifestStorageId = manifestId;
 
@@ -170,28 +182,38 @@ class EntityJsonManifest implements IRender {
       user.manifestStaticStorageId = manifest.ipns;
 
       return user;
-    } else if (manifest._type === 'post-manifest') {
-      const post: IPost = _.pick(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
-      post.manifestStorageId = manifestId;
-
-      // const group = await this.app.createGroupByRemoteStorageId(manifest.group)
-      post.authorStaticStorageId = manifest.author;
+    } else if (type === 'post-manifest') {
+      let post: IPost;
       
-      const contentsIds = manifest.contents.map(content => {
-        return content['/'];
-      });
+      if(options.isEncrypted) {
+        post = { ...options, isEncrypted: true, encryptedManifestStorageId: manifestId };
+      } else {
+        post = _.pick(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
 
-      post.contents = await pIteration.map(contentsIds, (contentId) => {
-        return this.app.createContentByRemoteStorageId(contentId);
-      });
+        post.manifestStorageId = manifestId;
+        post.authorStaticStorageId = manifest.author;
+        // const group = await this.app.createGroupByRemoteStorageId(manifest.group)
+
+        const contentsIds = manifest.contents.map(content => {
+          return content['/'];
+        });
+
+        post.contents = await pIteration.map(contentsIds, (contentId) => {
+          return this.app.createContentByRemoteStorageId(contentId);
+        });
+      }
       
       return post;
-    } else if (manifest._type === 'content-manifest') {
+    } else if (type === 'content-manifest') {
       const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
 
-      content.storageId = manifest.content;
-      content.mediumPreviewStorageId = manifest.preview;
-      content.manifestStorageId = manifestId;
+      if(manifest.isEncrypted) {
+        content.encryptedManifestStorageId = manifestId;
+      } else {
+        content.storageId = manifest.content;
+        content.mediumPreviewStorageId = manifest.preview;
+        content.manifestStorageId = manifestId;
+      }
 
       return content;
     }

@@ -100,7 +100,7 @@ export interface IGeesomeApp {
 
   createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
 
-  createPostByRemoteStorageId(manifestStorageId, groupId): Promise<IPost>;
+  createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
   getFileStream(filePath);
 

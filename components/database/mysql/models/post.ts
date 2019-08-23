@@ -40,6 +40,9 @@ module.exports = async function (sequelize, models) {
     isRemote: {
       type: Sequelize.BOOLEAN
     },
+    isEncrypted: {
+      type: Sequelize.BOOLEAN
+    },
     isPinned: {
       type: Sequelize.BOOLEAN
     },
@@ -63,6 +66,9 @@ module.exports = async function (sequelize, models) {
     },
     manifestStaticStorageId: {
       type: Sequelize.STRING(200)
+    },
+    encryptedManifestStorageId: {
+      type: Sequelize.TEXT
     },
     authorStaticStorageId: {
       type: Sequelize.STRING(200)

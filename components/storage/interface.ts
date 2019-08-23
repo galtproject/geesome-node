@@ -48,6 +48,8 @@ export interface IStorage {
   
   resolveStaticIdEntry(staticStorageId): Promise<{pubKey}>;
 
+  keyLookup(ipnsId): Promise<any>;
+
   getBootNodeList(): Promise<string[]>;
 
   addBootNode(address): Promise<string[]>;

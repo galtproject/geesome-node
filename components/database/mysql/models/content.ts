@@ -49,6 +49,9 @@ module.exports = async function (sequelize, models) {
     isRemote: {
       type: Sequelize.BOOLEAN
     },
+    isEncrypted: {
+      type: Sequelize.BOOLEAN
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
@@ -91,7 +94,10 @@ module.exports = async function (sequelize, models) {
     manifestStaticStorageId: {
       type: Sequelize.STRING(200),
       unique: true
-    }
+    },
+    encryptedManifestStorageId: {
+      type: Sequelize.TEXT
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

@@ -168,6 +168,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
   });
 
+  service.post('/v1/user/export-private-key', async (req, res) => {
+    res.send({result: (await geesomeApp.storage.keyLookup(req.user.manifestStaticStorageId)).marshal()});
+  });
+
 
   service.post('/v1/admin/permissions/core/add_permission', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
