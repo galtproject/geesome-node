@@ -287,6 +287,7 @@ class GeesomeApp implements IGeesomeApp {
       //TODO: update user if necessary
       return dbUser;
     }
+    console.log('manifestIdToDbObject', staticStorageId, manifestStorageId);
     const userObject: IUser = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
     userObject.isRemote = true;
     return this.createUserByObject(userObject);
