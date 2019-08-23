@@ -196,6 +196,8 @@ class GeesomeApp implements IGeesomeApp {
       });
       user.manifestStaticStorageId = user.storageAccountId;
     }
+    
+    console.log('user.manifestStaticStorageId', user.manifestStaticStorageId);
 
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
 
