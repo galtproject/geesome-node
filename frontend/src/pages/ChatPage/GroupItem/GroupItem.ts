@@ -29,8 +29,12 @@ export default {
         return;
       }
       this.$identities.loading('lastPost', this.group.id);
-      this.$identities.set('lastPost', this.group.id, await this.$coreApi.getGroupPost(this.group.id, this.group.postsCount));
-      this.$identities.set('lastPostText', this.group.id, await this.$coreApi.getContentData(this.lastMessage.contents[0]));
+      if(this.group.postsCount) {
+        this.$identities.set('lastPost', this.group.id, await this.$coreApi.getGroupPost(this.group.id, this.group.postsCount));
+      }
+      if(this.lastMessage) {
+        this.$identities.set('lastPostText', this.group.id, await this.$coreApi.getContentData(this.lastMessage.contents[0]));
+      }
     },
     async getPersonalChatUser() {
       if(!this.group || this.group.type !== 'personal_chat') {
