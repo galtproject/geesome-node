@@ -144,6 +144,7 @@ class EntityJsonManifest implements IRender {
   }
 
   async manifestIdToDbObject(manifestId, type = null, options: any = {}) {
+    console.log('manifestIdToDbObject', manifestId);
     manifestId = this.app.checkStorageId(manifestId);
     let manifest: any = {};
 
