@@ -1268,6 +1268,11 @@ class GeesomeApp implements IGeesomeApp {
     if (ipfsHelper.isCid(storageId)) {
       storageId = ipfsHelper.cidToHash(storageId);
     }
+    
+    if(storageId['/']) {
+      storageId = storageId['/'];
+    }
+    
     return storageId;
   }
 
