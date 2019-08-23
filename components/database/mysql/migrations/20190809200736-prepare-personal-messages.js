@@ -11,37 +11,37 @@ module.exports = {
     return Promise.all([
       queryInterface.addColumn('groups', 'creatorId', {
         type: Sequelize.INTEGER
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('groups', 'isEncrypted', {
         type: Sequelize.BOOLEAN
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('groups', 'theme', {
         type: Sequelize.STRING(200)
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('users', 'isRemote', {
         type: Sequelize.BOOLEAN
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('posts', 'authorStaticStorageId', {
         type: Sequelize.STRING(200)
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('posts', 'encryptedManifestStorageId', {
         type: Sequelize.TEXT
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('posts', 'isEncrypted', {
         type: Sequelize.BOOLEAN
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('posts', 'isRemote', {
         type: Sequelize.BOOLEAN
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('contents', 'isRemote', {
         type: Sequelize.BOOLEAN
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('contents', 'isEncrypted', {
         type: Sequelize.BOOLEAN
-      }),
+      }).catch(() => {}),
       queryInterface.addColumn('contents', 'encryptedManifestStorageId', {
         type: Sequelize.TEXT
-      })
+      }).catch(() => {})
     ]);
   },
 
