@@ -47,17 +47,17 @@ module.exports = {
 
   down: async (queryInterface, Sequelize) => {
     return Promise.all([
-      queryInterface.removeColumn('groups', 'creatorId'),
-      queryInterface.removeColumn('groups', 'isEncrypted'),
-      queryInterface.removeColumn('groups', 'theme'),
-      queryInterface.removeColumn('users', 'isRemote'),
-      queryInterface.removeColumn('posts', 'authorStaticStorageId'),
-      queryInterface.removeColumn('posts', 'encryptedManifestStorageId'),
-      queryInterface.removeColumn('posts', 'isEncrypted'),
-      queryInterface.removeColumn('posts', 'isRemote'),
-      queryInterface.removeColumn('contents', 'isRemote'),
-      queryInterface.removeColumn('contents', 'isEncrypted'),
-      queryInterface.removeColumn('contents', 'encryptedManifestStorageId')
+      queryInterface.removeColumn('groups', 'creatorId').catch(() => {}),
+      queryInterface.removeColumn('groups', 'isEncrypted').catch(() => {}),
+      queryInterface.removeColumn('groups', 'theme').catch(() => {}),
+      queryInterface.removeColumn('users', 'isRemote').catch(() => {}),
+      queryInterface.removeColumn('posts', 'authorStaticStorageId').catch(() => {}),
+      queryInterface.removeColumn('posts', 'encryptedManifestStorageId').catch(() => {}),
+      queryInterface.removeColumn('posts', 'isEncrypted').catch(() => {}),
+      queryInterface.removeColumn('posts', 'isRemote').catch(() => {}),
+      queryInterface.removeColumn('contents', 'isRemote').catch(() => {}),
+      queryInterface.removeColumn('contents', 'isEncrypted').catch(() => {}),
+      queryInterface.removeColumn('contents', 'encryptedManifestStorageId').catch(() => {})
     ]);
   }
 };
