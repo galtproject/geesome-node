@@ -11,7 +11,7 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-import {IDatabase, IListParams} from "../interface";
+import {GroupType, IDatabase, IListParams} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
@@ -62,13 +62,13 @@ class MysqlDatabase implements IDatabase {
 
     const where = {userId};
 
-    if(search) {
+    if (search) {
       where['title'] = {[Op.like]: search};
     }
-    if(!_.isUndefined(isDisabled)) {
-      where['isDisabled'] =isDisabled;
+    if (!_.isUndefined(isDisabled)) {
+      where['isDisabled'] = isDisabled;
     }
-    
+
     return this.models.UserApiKey.findAll({
       where,
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -80,14 +80,14 @@ class MysqlDatabase implements IDatabase {
   async getApiKeysCountByUser(userId, isDisabled?, search?) {
     const where = {userId};
 
-    if(search) {
+    if (search) {
       where['title'] = {[Op.like]: search};
     }
-    if(!_.isUndefined(isDisabled)) {
-      where['isDisabled'] =isDisabled;
+    if (!_.isUndefined(isDisabled)) {
+      where['isDisabled'] = isDisabled;
     }
-    
-    return this.models.UserApiKey.count({ where });
+
+    return this.models.UserApiKey.count({where});
   }
 
   async updateUser(id, updateData) {
@@ -177,6 +177,51 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
+  async getUserByManifestId(id, staticId?) {
+    const whereOr = [];
+    if (id) {
+      whereOr.push({manifestStorageId: id});
+    }
+    if (staticId) {
+      whereOr.push({manifestStaticStorageId: staticId});
+    }
+    if (!whereOr.length) {
+      return null;
+    }
+    return this.models.User.findOne({
+      where: {[Op.or]: whereOr},
+      include: [
+        {model: this.models.Content, as: 'avatarImage'}
+      ]
+    });
+  }
+
+  async addUserFriend(userId, friendId) {
+    return (await this.getUser(userId)).addFriends([await this.getUser(friendId)]).catch((e) => {console.error(e); throw e;});
+  }
+
+  async removeUserFriend(userId, friendId) {
+    return (await this.getUser(userId)).removeFriends([await this.getUser(friendId)]);
+  }
+
+  async getUserFriends(userId, search?, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const {limit, offset} = listParams;
+    //TODO: use search and order
+    return (await this.getUser(userId)).getFriends({
+      include: [
+        {model: this.models.Content, as: 'avatarImage'}
+      ],
+      limit,
+      offset
+    });
+  }
+
+  async getUserFriendsCount(userId, search?) {
+    //TODO: use search
+    return (await this.getUser(userId)).countFriends();
+  }
+
   async getGroup(id) {
     return this.models.Group.findOne({
       where: {id},
@@ -187,7 +232,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getGroupByManifestId(id, staticId?) {
+  async getGroupByManifestId(id?, staticId?) {
     const whereOr = [];
     if (id) {
       whereOr.push({manifestStorageId: id});
@@ -218,11 +263,11 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getRemoteGroups() {
-    return this.models.Group.findAll({
-      where: {
-        isRemote: true
-      }
-    });
+    return this.models.Group.findAll({ where: { isRemote: true } });
+  }
+
+  async getPersonalChatGroups() {
+    return this.models.Group.findAll({where: {type: GroupType.PersonalChat}});
   }
 
   async addGroup(group) {
@@ -241,8 +286,11 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).removeMembers([await this.getUser(userId)]);
   }
 
-  async getMemberInGroups(userId) {
+  async getMemberInGroups(userId, types) {
     return (await this.getUser(userId)).getMemberInGroups({
+      where: {
+        type: {[Op.in]: types}
+      },
       include: [
         {model: this.models.Content, as: 'avatarImage'},
         {model: this.models.Content, as: 'coverImage'}
@@ -258,8 +306,11 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).removeAdministrators([await this.getUser(userId)]);
   }
 
-  async getAdminInGroups(userId) {
+  async getAdminInGroups(userId, types) {
     return (await this.getUser(userId)).getAdministratorInGroups({
+      where: {
+        type: {[Op.in]: types}
+      },
       include: [
         {model: this.models.Content, as: 'avatarImage'},
         {model: this.models.Content, as: 'coverImage'}
@@ -281,11 +332,17 @@ class MysqlDatabase implements IDatabase {
     return result.length > 0;
   }
 
+  async getCreatorInGroupsByType(creatorId, type: GroupType) {
+    return this.models.Group.findAll({
+      where: {creatorId, type}
+    });
+  }
+
   async getGroupPosts(groupId, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, { sortBy: 'publishedAt' });
+    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
-    
+
     return this.models.Post.findAll({
       where: {groupId},
       include: [{model: this.models.Content, as: 'contents'}],
@@ -311,6 +368,41 @@ class MysqlDatabase implements IDatabase {
 
     return post;
   }
+
+
+  async getPostByManifestId(manifestStorageId) {
+    const post = await this.models.Post.findOne({
+      where: { manifestStorageId },
+      include: [{model: this.models.Content, as: 'contents'}]
+    });
+
+    post.contents = _.orderBy(post.contents, [(content) => {
+      return content.postsContents.position;
+    }], ['asc']);
+
+    return post;
+  }
+
+
+  async getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId) {
+    const group = await this.getGroupByManifestId(groupManifestStorageId, groupManifestStorageId);
+    
+    if(!group) {
+      return null;
+    }
+    
+    const post = await this.models.Post.findOne({
+      where: { localId, groupId: group.id },
+      include: [{model: this.models.Content, as: 'contents'}]
+    });
+
+    post.contents = _.orderBy(post.contents, [(content) => {
+      return content.postsContents.position;
+    }], ['asc']);
+
+    return post;
+  }
+
 
   async addPost(post) {
     return this.models.Post.create(post);
@@ -342,18 +434,18 @@ class MysqlDatabase implements IDatabase {
 
   async getFileCatalogItems(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    
+
     const {limit, offset, sortBy, sortDir} = listParams;
     const where: any = {userId, type, isDeleted: false};
-    
-    if(!_.isUndefined(parentItemId)) {
+
+    if (!_.isUndefined(parentItemId)) {
       where.parentItemId = parentItemId;
     }
 
-    if(search) {
+    if (search) {
       where['name'] = {[Op.like]: search};
     }
-    
+
     return this.models.FileCatalogItem.findAll({
       where,
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -365,8 +457,8 @@ class MysqlDatabase implements IDatabase {
 
   async getFileCatalogItemsByContent(userId, contentId, type = null, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     return this.models.FileCatalogItem.findAll({
       where: {userId, contentId, type, isDeleted: false},
       order: [[sortBy, sortDir.toUpperCase()]],
@@ -378,15 +470,15 @@ class MysqlDatabase implements IDatabase {
   async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
     const where: any = {userId, type, isDeleted: false};
 
-    if(!_.isUndefined(parentItemId)) {
+    if (!_.isUndefined(parentItemId)) {
       where.parentItemId = parentItemId;
     }
-    
-    if(search) {
+
+    if (search) {
       where['name'] = {[Op.like]: search};
     }
-    
-    return this.models.FileCatalogItem.count({ where });
+
+    return this.models.FileCatalogItem.count({where});
   }
 
   async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
@@ -476,8 +568,8 @@ class MysqlDatabase implements IDatabase {
 
   async getAllUserList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {email: searchString}]};
@@ -492,8 +584,8 @@ class MysqlDatabase implements IDatabase {
 
   async getAllContentList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     let where = {};
     if (searchString) {
       where = {name: searchString};
@@ -508,8 +600,8 @@ class MysqlDatabase implements IDatabase {
 
   async getAllGroupList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
-    const { sortBy, sortDir, limit, offset } = listParams;
-    
+    const {sortBy, sortDir, limit, offset} = listParams;
+
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {title: searchString}]};
@@ -555,6 +647,14 @@ class MysqlDatabase implements IDatabase {
 
   async getActualStaticIdItem(staticId) {
     return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
+  }
+
+  async setStaticIdPublicKey(staticId, publicKey) {
+    return this.models.StaticIdPublicKey.create({staticId, publicKey});
+  }
+
+  async getStaticIdPublicKey(staticId) {
+    return this.models.StaticIdPublicKey.findOne({where: {staticId}}).then(item => item ? item.publicKey : null);
   }
 
   async getStaticIdItemByDynamicId(dynamicId) {

@@ -11,28 +11,33 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-// import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
-
-import GroupItem from "../GroupItem/GroupItem";
+import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
 
 export default {
-  template: require('./AdminedGroups.html'),
-  components: {GroupItem},
+  template: require('./AddFriendModal.html'),
   props: [],
-  async created() {
-    this.getGroups();
+  components: {
+    ModalItem
+  },
+  created() {
+    // this.serverAddress = this.currentServerAddress;
   },
   methods: {
-    async getGroups() {
-      this.adminInGroups = await this.$coreApi.getAdminInChannels();
+    async ok() {
+      await this.$coreApi.addFriend(this.friendId);
+      this.$root.$asyncModal.close('add-friend-modal');
+    },
+    async cancel() {
+      this.$root.$asyncModal.close('add-friend-modal');
     }
   },
   watch: {},
-  computed: {},
-  data() {
+  computed: {
+    
+  },
+  data: function () {
     return {
-      localeKey: 'content_page',
-      adminInGroups: []
-    };
+      friendId: ''
+    }
   }
 }

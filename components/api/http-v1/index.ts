@@ -168,6 +168,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
   });
 
+  service.post('/v1/user/export-private-key', async (req, res) => {
+    res.send({result: (await geesomeApp.storage.keyLookup(req.user.manifestStaticStorageId)).marshal()});
+  });
+
 
   service.post('/v1/admin/permissions/core/add_permission', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
@@ -215,6 +219,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: await geesomeApp.storage.nodeAddressList()});
   });
 
+  service.get('/v1/user/get-friends', async (req, res) => {
+    res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+  });
+  
+  service.post('/v1/user/add-friend', async (req, res) => {
+    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
+  });
+
+  service.post('/v1/user/remove-friend', async (req, res) => {
+    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
+  });
+
   service.get('/v1/admin/get-user/:userId/limit/:limitName', async (req, res) => {
     res.send(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName));
   });
@@ -231,11 +247,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/member-in-groups', async (req, res) => {
-    res.send(await geesomeApp.getMemberInGroups(req.user.id));
+    res.send(await geesomeApp.getMemberInGroups(req.user.id, req.query.types.split(',')));
   });
 
   service.get('/v1/user/admin-in-groups', async (req, res) => {
-    res.send(await geesomeApp.getAdminInGroups(req.user.id));
+    res.send(await geesomeApp.getAdminInGroups(req.user.id, req.query.types.split(',')));
+  });
+
+  service.get('/v1/user/personal-chat-groups', async (req, res) => {
+    res.send(await geesomeApp.getPersonalChatGroups(req.user.id));
   });
 
   service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
@@ -299,7 +319,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       userId: req.user.id,
       apiKey: req.token,
       groupId: req.body['groupId'],
-      folderId: req.body['folderId']
+      folderId: req.body['folderId'],
+      mimeType: req.body['mimeType']
     }), 200);
   });
 

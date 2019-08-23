@@ -37,6 +37,12 @@ module.exports = async function (sequelize, models) {
     size: {
       type: Sequelize.INTEGER
     },
+    isRemote: {
+      type: Sequelize.BOOLEAN
+    },
+    isEncrypted: {
+      type: Sequelize.BOOLEAN
+    },
     isPinned: {
       type: Sequelize.BOOLEAN
     },
@@ -59,6 +65,12 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.STRING(200)
     },
     manifestStaticStorageId: {
+      type: Sequelize.STRING(200)
+    },
+    encryptedManifestStorageId: {
+      type: Sequelize.TEXT
+    },
+    authorStaticStorageId: {
       type: Sequelize.STRING(200)
     }
   } as any, {

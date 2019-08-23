@@ -14,56 +14,22 @@
 module.exports = async function (sequelize, models) {
   const Sequelize = require('sequelize');
 
-  const User = sequelize.define('user', {
+  const StaticIdPublicKey = sequelize.define('staticIdPublicKey', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-    name: {
+    staticId: {
       type: Sequelize.STRING(200)
     },
-    email: {
-      type: Sequelize.STRING(200)
-    },
-    keyStoreMethod: {
-      type: Sequelize.STRING(200)
-    },
-    title: {
-      type: Sequelize.STRING
-    },
-    description: {
-      type: Sequelize.STRING
-    },
-    passwordHash: {
-      type: Sequelize.STRING(200)
-    },
-    storageAccountId: {
-      type: Sequelize.STRING(200)
-    },
-    avatarImageId: {
-      type: Sequelize.INTEGER
-    },
-    manifestStorageId: {
-      type: Sequelize.STRING(200)
-    },
-    manifestStaticStorageId: {
-      type: Sequelize.STRING(200),
-      unique: true
+    publicKey: {
+      type: Sequelize.TEXT
     }
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
       // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      {fields: ['staticId'], unique: true}
     ]
   } as any);
-  
-  models.User = User;
-  await models.User.sync({});
-  
-  models.UserFriends = sequelize.define('userFriends', {} as any, {} as any);
 
-  User.belongsToMany(User, {as: 'friends', through: models.UserFriends, unique: false});
-
-  await models.UserFriends.sync({});
-  
-  return models.User;
+  return StaticIdPublicKey.sync({});
 };

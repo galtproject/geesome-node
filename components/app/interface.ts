@@ -12,6 +12,7 @@
  */
 
 import {
+  GroupType,
   IContent,
   IDatabase,
   IFileCatalogItem,
@@ -23,12 +24,14 @@ import {
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
+import {IRender} from "../render/interface";
 
 export interface IGeesomeApp {
   config: any;
   database: IDatabase;
   storage: IStorage;
   events: GeesomeEmitter;
+  render: IRender;
   authorization: any;
 
   frontendStorageId;
@@ -40,6 +43,26 @@ export interface IGeesomeApp {
   loginUser(usernameOrEmail, password): Promise<IUser>;
 
   updateUser(userId, updateData): Promise<IUser>;
+
+  generateUserApiKey(userId, type?): Promise<string>;
+
+  getUserByApiKey(apiKey): Promise<IUser>;
+
+  getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
+
+  setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
+
+  getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
+
+  getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
+
+  getPersonalChatGroups(userId): Promise<IGroup[]>;
+
+  addUserFriendById(userId, friendId): Promise<void>;
+
+  removeUserFriendById(userId, friendId): Promise<void>;
+
+  getUserFriends(userId, search?, listParams?: IListParams): Promise<IUserListResponse>;
 
   canCreatePostInGroup(userId, groupId);
 
@@ -57,21 +80,27 @@ export interface IGeesomeApp {
 
   removeAdminFromGroup(userId, groupId): Promise<void>;
 
-  generateUserApiKey(userId, type?): Promise<string>;
-
-  getUserByApiKey(apiKey): Promise<IUser>;
-  
-  getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
-
-  setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
-
   createPost(userId, postData);
 
   updatePost(userId, postId, postData);
 
+  createGroup(userId, groupData): Promise<IGroup>;
+
+  createGroupByRemoteStorageId(manifestStorageId): Promise<IGroup>;
+
+  updateGroup(userId, id, updateData): Promise<IGroup>;
+  
+  getGroup(groupId): Promise<IGroup>;
+
+  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
+
   saveData(fileStream, fileName, options);
 
   saveDataByUrl(url, options);
+
+  createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
+
+  createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
   getFileStream(filePath);
 
@@ -80,18 +109,6 @@ export interface IGeesomeApp {
   getDataStructure(dataId);
 
   getDataStructure(dataId);
-
-  getMemberInGroups(userId): Promise<IGroup[]>;
-
-  getAdminInGroups(userId): Promise<IGroup[]>;
-
-  createGroup(userId, groupData): Promise<IGroup>;
-
-  updateGroup(userId, id, updateData): Promise<IGroup>;
-
-  getGroup(groupId): Promise<IGroup>;
-
-  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
   getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
 
@@ -117,14 +134,16 @@ export interface IGeesomeApp {
 
   getContent(contentId): Promise<IContent>;
 
-  //TODO: define structure
+  //TODO: define interface
   getPeers(topic): Promise<any>;
 
-  //TODO: define structure
+  //TODO: define interface
   getIpnsPeers(ipns): Promise<any>;
 
-  //TODO: define structure
+  //TODO: define interface
   getGroupPeers(groupId): Promise<any>;
+
+  createStorageAccount(accountName): Promise<string>;
 
   resolveStaticId(staticId): Promise<string>;
 }
@@ -136,5 +155,10 @@ export interface IFileCatalogListResponse {
 
 export interface IUserApiKeysListResponse {
   list: IUserApiKey[];
+  total: number;
+}
+
+export interface IUserListResponse {
+  list: IUser[];
   total: number;
 }

@@ -27,6 +27,7 @@ import PrettyHex from "@galtproject/frontend-core/directives/PrettyHex/PrettyHex
 import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc";
 
 import coreApiPlugin from './services/coreApi.plugin';
+import identitiesPlugin from './services/identities.plugin';
 import MainMenu from "./directives/MainMenu/MainMenu";
 import ContentManifestItem from "./directives/ContentManifestItem/ContentManifestItem";
 import PostsContainer from "./directives/Posts/PostsContainer/PostsContainer";
@@ -43,6 +44,7 @@ const _ = require('lodash');
 Vue.use(Notifications);
 
 Vue.use(coreApiPlugin);
+Vue.use(identitiesPlugin);
 Vue.use(httpPlugin);
 Vue.use(Vuex as any);
 Vue.use(storePlugin, {
@@ -52,9 +54,15 @@ Vue.use(storePlugin, {
   serverAddress: null,
   haveAdminReadPermission: false,
   cybActive: false,
-  is_mobile: false
+  is_mobile: false,
+  usersInfo: {},
+  usersInfoLoading: {},
+  lastPost: {},
+  lastPostText: {},
+  lastPostLoading: {}
 });
 Vue.use(localePlugin);
+Vue.use(identitiesPlugin);
 
 Vue.component('vue-editor', VueEditor);
 Vue.component('modal', Modal);
@@ -113,8 +121,9 @@ export default {
       this.language = this.$locale.lang;
     });
 
+    this.$identities.init(this.$store);
     await this.$coreApi.init(this.$store);
-
+    
     this.getCurrentUser();
     
     EventBus.$on(UPDATE_CURRENT_USER, this.getCurrentUser.bind(this));

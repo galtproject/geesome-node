@@ -40,6 +40,9 @@ module.exports = async function (sequelize, models) {
     view: {
       type: Sequelize.STRING(200)
     },
+    theme: {
+      type: Sequelize.STRING(200)
+    },
     size: {
       type: Sequelize.INTEGER
     },
@@ -47,6 +50,9 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.BOOLEAN
     },
     isPinned: {
+      type: Sequelize.BOOLEAN
+    },
+    isEncrypted: {
       type: Sequelize.BOOLEAN
     },
     isFullyPinned: {
@@ -74,6 +80,9 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.STRING(200),
       unique: true
     },
+    encryptedManifestStorageId: {
+      type: Sequelize.TEXT
+    },
     storageUpdatedAt: {
       type: Sequelize.DATE
     },
@@ -93,6 +102,9 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
+  Group.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
+  models.User.hasMany(Group, {as: 'createdGroups', foreignKey: 'creatorId'});
+  
   models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {} as any);
 
   Group.belongsToMany(models.User, {as: 'administrators', through: models.GroupAdministrators});

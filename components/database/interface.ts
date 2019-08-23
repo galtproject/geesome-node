@@ -42,6 +42,10 @@ export interface IDatabase {
 
   addPost(post: IPost): Promise<IPost>;
 
+  getPostByManifestId(manifestStorageId): Promise<IPost>;
+
+  getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId): Promise<IPost>;
+
   updatePost(id, updateData: any): Promise<IPost>;
 
   getPostSizeSum(id): Promise<number>;
@@ -58,6 +62,16 @@ export interface IDatabase {
 
   getUser(id): Promise<IUser>;
 
+  getUserByManifestId(manifestId, staticManifestId): Promise<IUser>;
+
+  addUserFriend(userId, friendId): Promise<void>;
+
+  removeUserFriend(userId, friendId): Promise<void>;
+
+  getUserFriends(userId, search?, limitParams?: IListParams): Promise<IUser[]>;
+  
+  getUserFriendsCount(userId, search?): Promise<number>;
+
   getGroup(id): Promise<IGroup>;
 
   getGroupByManifestId(manifestId, staticManifestId): Promise<IGroup>;
@@ -65,6 +79,8 @@ export interface IDatabase {
   getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
   getRemoteGroups(): Promise<IGroup[]>;
+  
+  getPersonalChatGroups(): Promise<IGroup[]>;
 
   addGroup(group): Promise<IGroup>;
 
@@ -74,13 +90,15 @@ export interface IDatabase {
 
   removeMemberFromGroup(userId, groupId): Promise<void>;
 
-  getMemberInGroups(userId): Promise<IGroup[]>;
+  getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
   addAdminToGroup(userId, groupId): Promise<void>;
 
   removeAdminFromGroup(userId, groupId): Promise<void>;
 
-  getAdminInGroups(userId): Promise<IGroup[]>;
+  getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
+
+  getCreatorInGroupsByType(userId, type: GroupType): Promise<IGroup[]>;
 
   getGroupSizeSum(id): Promise<number>;
 
@@ -137,6 +155,10 @@ export interface IDatabase {
   getUserLimit(userId, name): Promise<IUserLimit>;
 
   addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
+  
+  setStaticIdPublicKey(staticId, publicKey): Promise<IStaticIdPublicKey>;
+  
+  getStaticIdPublicKey(staticId): Promise<string>;
 
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
 
@@ -168,6 +190,7 @@ export interface IContent {
   id?: number;
   storageType: ContentStorageType;
   mimeType: ContentMimeType;
+  isRemote?: boolean;
   extension?: string;
   view?: ContentView;
   name?: string;
@@ -192,6 +215,8 @@ export interface IContent {
   staticStorageId?: string;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+
+  encryptedManifestStorageId?: string;
 }
 
 export enum ContentStorageType {
@@ -225,6 +250,8 @@ export interface IPost {
   contents?: IContent[];
   size?;
   isPinned?: boolean;
+  isRemote?: boolean;
+  isEncrypted?: boolean;
   isFullyPinned?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;
@@ -233,6 +260,9 @@ export interface IPost {
   staticStorageId?;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+  authorStaticStorageId?: string;
+
+  encryptedManifestStorageId?: string;
 }
 
 export enum PostStatus {
@@ -245,12 +275,16 @@ export enum PostStatus {
 export interface IUser {
   id?: number;
   name: string;
+  description?: string;
   email: string;
   passwordHash: string;
   title?: string;
   storageAccountId?: string;
+  isRemote?: boolean;
   avatarImageId?: number;
   avatarImage?: IContent;
+  manifestStorageId?: string;
+  manifestStaticStorageId?: string;
 }
 
 export interface IGroup {
@@ -260,10 +294,12 @@ export interface IGroup {
   title: string;
   type: GroupType;
   view: GroupView;
+  theme: string;
   isPublic: boolean;
   isRemote: boolean;
 
   description?: string;
+  creatorId?: number;
   avatarImageId?: number;
   avatarImage?: IContent;
   coverImageId?: number;
@@ -271,6 +307,7 @@ export interface IGroup {
   size?: number;
   isPinned?: boolean;
   isFullyPinned?: boolean;
+  isEncrypted?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;
   storageId?: string;
@@ -279,13 +316,16 @@ export interface IGroup {
   manifestStaticStorageId?: string;
   publishedPostsCount?: number;
 
+  encryptedManifestStorageId?: string;
+
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;
 }
 
 export enum GroupType {
   Channel = 'channel',
-  Chat = 'chat'
+  Chat = 'chat',
+  PersonalChat = 'personal_chat'
 }
 
 export enum GroupView {
@@ -350,6 +390,11 @@ export interface IStaticIdHistoryItem {
   boundAt: Date;
 }
 
+export interface IStaticIdPublicKey {
+  id?: number;
+  staticId: string;
+  publicKey: string;
+}
 
 export enum UserLimitName {
   SaveContentSize = 'save_content:size'

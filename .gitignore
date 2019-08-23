@@ -6,3 +6,4 @@ coverage
 *.log
 *.key
 test/resources
+components/database/mysql/config

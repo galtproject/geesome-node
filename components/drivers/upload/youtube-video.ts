@@ -3,7 +3,12 @@ import {DriverInput, OutputSize} from "../interface";
 import {Stream} from "stream";
 import AbstractDriver from "../abstractDriver";
 
-const youtubedl = require('@microlink/youtube-dl');
+let youtubedl;
+try {
+  youtubedl = require('@microlink/youtube-dl');
+} catch (e) {
+  console.warn('Failed youtubedl init', e)
+}
 
 export class YoutubeVideoUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Source];

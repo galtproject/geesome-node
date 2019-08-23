@@ -11,28 +11,48 @@
  * [Basic Agreement](http://cyb.ai/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS:ipfs)).
  */
 
-// import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
-
-import GroupItem from "../GroupItem/GroupItem";
+const _ = require('lodash');
+const moment = require('moment');
 
 export default {
-  template: require('./AdminedGroups.html'),
-  components: {GroupItem},
-  props: [],
+  template: require('./MessageItem.html'),
+  props: ['message', 'messagesAuthors'],
   async created() {
-    this.getGroups();
+
   },
+
+  async mounted() {
+
+  },
+
   methods: {
-    async getGroups() {
-      this.adminInGroups = await this.$coreApi.getAdminInChannels();
+    
+  },
+
+  watch: {
+    
+  },
+
+  computed: {
+    contentsList() {
+      return _.orderBy(this.message.contents, ['position'], ['asc']);
+    },
+    usersInfo() {
+      return this.$store.state.usersInfo;
+    },
+    date() {
+      return moment(this.message.publishedAt).format('DD.MM.YYYY h:mm:ss');
+    },
+    user() {
+      return this.$store.state.user;
+    },
+    isCurrentUserMessage() {
+      return this.user.manifestStaticStorageId == this.message.author;
     }
   },
-  watch: {},
-  computed: {},
   data() {
     return {
-      localeKey: 'content_page',
-      adminInGroups: []
-    };
-  }
+      content: ''
+    }
+  },
 }

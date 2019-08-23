@@ -44,8 +44,8 @@ export default {
     }
   },
   computed: {
-    creationDisabled() {
-      return !this.user.name || !this.user.email || !(this.passwordAuth ? this.user.password : true) || !(this.userLimit.isActive ? (this.userLimit.valueMb && this.userLimit.periodTimestamp) : true);
+    creationDisabled() {// || !this.user.email
+      return !this.user.name || !(this.passwordAuth ? this.user.password : true) || !(this.userLimit.isActive ? (this.userLimit.valueMb && this.userLimit.periodTimestamp) : true);
     }
   },
   data() {
@@ -55,7 +55,7 @@ export default {
         name: '',
         title: '',
         email: '',
-        keyStoreMethod: ''
+        keyStoreMethod: 'node'
       },
       isAdmin: false,
       passwordAuth: true,
