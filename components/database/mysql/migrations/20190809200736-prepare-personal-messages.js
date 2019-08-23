@@ -52,6 +52,7 @@ module.exports = {
     return Promise.all([
       queryInterface.removeColumn('groups', 'creatorId').catch(() => {}),
       queryInterface.removeColumn('groups', 'isEncrypted').catch(() => {}),
+      queryInterface.removeColumn('groups', 'encryptedManifestStorageId').catch(() => {}),
       queryInterface.removeColumn('groups', 'theme').catch(() => {}),
       queryInterface.removeColumn('users', 'isRemote').catch(() => {}),
       queryInterface.removeColumn('posts', 'authorStaticStorageId').catch(() => {}),
