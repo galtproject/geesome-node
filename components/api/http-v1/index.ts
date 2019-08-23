@@ -28,7 +28,8 @@ const request = require('request');
 
 const service = require('restana')({
   ignoreTrailingSlash: true,
-  maxParamLength: 2000
+  maxParamLength: 2000,
+  errorHandler
 });
 
 const maxBodySizeMb = 2000;
@@ -429,14 +430,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       })
     });
   }
-
-  function handleError(res, e) {
-    return res.send({
-      error: e.message || e,
-      errorCode: -1
-    }, 400);
-  }
-
+  
   function setHeaders(res) {
     res.setHeader('Strict-Transport-Security', 'max-age=0');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -449,5 +443,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   return service.start(port);
 };
+
+function errorHandler (err, req, res) {
+  console.log(`Something was wrong: ${err.message || err}`, err)
+  res.send(err)
+}
 
 
