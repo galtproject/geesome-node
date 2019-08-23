@@ -214,7 +214,7 @@ class EntityJsonManifest implements IRender {
         
         if(manifest.preview) {
           if(manifest.preview.medium) {
-            const mediumPreview = (await this.manifestIdToDbObject(manifest.preview.medium)) as any;
+            const mediumPreview = manifest.preview.medium;
             content.mediumPreviewStorageId = mediumPreview.content;
             content.mediumPreviewSize = mediumPreview.size;
 
@@ -223,7 +223,7 @@ class EntityJsonManifest implements IRender {
           }
           
           if(manifest.preview.small) {
-            const smallPreview = (await this.manifestIdToDbObject(manifest.preview.small)) as any;
+            const smallPreview = manifest.preview.small;
             content.smallPreviewStorageId = smallPreview.content;
             content.smallPreviewSize = smallPreview.size;
             
@@ -232,7 +232,7 @@ class EntityJsonManifest implements IRender {
           }
           
           if(manifest.preview.large) {
-            const largePreview = (await this.manifestIdToDbObject(manifest.preview.large)) as any;
+            const largePreview = manifest.preview.large;
             
             content.smallPreviewStorageId = largePreview.content;
             content.smallPreviewSize = largePreview.size;
