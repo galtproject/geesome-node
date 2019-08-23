@@ -188,16 +188,6 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.updateUser(userId, updateData);
 
     const user = await this.database.getUser(userId);
-    
-    // TODO: remove on update old version node users
-    if(!user.manifestStaticStorageId && user.storageAccountId) {
-      await this.database.updateUser(userId, {
-        manifestStaticStorageId: user.storageAccountId
-      });
-      user.manifestStaticStorageId = user.storageAccountId;
-    }
-    
-    console.log('user.manifestStaticStorageId', user.manifestStaticStorageId);
 
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
 
@@ -289,6 +279,8 @@ class GeesomeApp implements IGeesomeApp {
       staticStorageId = manifestStorageId;
       manifestStorageId = await this.resolveStaticId(staticStorageId);
     }
+    
+    console.log('getUserByManifestId', manifestStorageId);
 
     let dbUser = await this.getUserByManifestId(manifestStorageId, staticStorageId);
     if (dbUser) {
