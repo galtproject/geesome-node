@@ -15,6 +15,9 @@ module.exports = {
       queryInterface.addColumn('groups', 'isEncrypted', {
         type: Sequelize.BOOLEAN
       }),
+      queryInterface.addColumn('groups', 'theme', {
+        type: Sequelize.STRING(200)
+      }),
       queryInterface.addColumn('users', 'isRemote', {
         type: Sequelize.BOOLEAN
       }),
@@ -45,10 +48,16 @@ module.exports = {
   down: async (queryInterface, Sequelize) => {
     return Promise.all([
       queryInterface.removeColumn('groups', 'creatorId'),
+      queryInterface.removeColumn('groups', 'isEncrypted'),
+      queryInterface.removeColumn('groups', 'theme'),
       queryInterface.removeColumn('users', 'isRemote'),
       queryInterface.removeColumn('posts', 'authorStaticStorageId'),
+      queryInterface.removeColumn('posts', 'encryptedManifestStorageId'),
+      queryInterface.removeColumn('posts', 'isEncrypted'),
       queryInterface.removeColumn('posts', 'isRemote'),
-      queryInterface.removeColumn('contents', 'isRemote')
+      queryInterface.removeColumn('contents', 'isRemote'),
+      queryInterface.removeColumn('contents', 'isEncrypted'),
+      queryInterface.removeColumn('contents', 'encryptedManifestStorageId')
     ]);
   }
 };
