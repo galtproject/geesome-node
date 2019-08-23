@@ -144,7 +144,6 @@ class EntityJsonManifest implements IRender {
   }
 
   async manifestIdToDbObject(manifestId, type = null, options: any = {}) {
-    console.log('manifestIdToDbObject', manifestId);
     manifestId = this.app.checkStorageId(manifestId);
     let manifest: any = {};
 
@@ -206,13 +205,43 @@ class EntityJsonManifest implements IRender {
       
       return post;
     } else if (type === 'content-manifest') {
-      const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'previewMimeType', 'view', 'size', 'extension', 'previewExtension']);
+      const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'view', 'size', 'extension']);
 
       if(manifest.isEncrypted) {
         content.encryptedManifestStorageId = manifestId;
       } else {
         content.storageId = manifest.content;
-        content.mediumPreviewStorageId = manifest.preview;
+        
+        if(manifest.preview) {
+          if(manifest.preview.medium) {
+            const mediumPreview = (await this.manifestIdToDbObject(manifest.preview.medium)) as any;
+            content.mediumPreviewStorageId = mediumPreview.content;
+            content.mediumPreviewSize = mediumPreview.size;
+
+            content.previewExtension = mediumPreview.extension;
+            content.previewMimeType = mediumPreview.mimeType;
+          }
+          
+          if(manifest.preview.small) {
+            const smallPreview = (await this.manifestIdToDbObject(manifest.preview.small)) as any;
+            content.smallPreviewStorageId = smallPreview.content;
+            content.smallPreviewSize = smallPreview.size;
+            
+            content.previewExtension = content.previewExtension || smallPreview.extension;
+            content.previewMimeType = content.previewMimeType || smallPreview.mimeType;
+          }
+          
+          if(manifest.preview.large) {
+            const largePreview = (await this.manifestIdToDbObject(manifest.preview.large)) as any;
+            
+            content.smallPreviewStorageId = largePreview.content;
+            content.smallPreviewSize = largePreview.size;
+
+            content.previewExtension = content.previewExtension || largePreview.extension;
+            content.previewMimeType = content.previewMimeType || largePreview.mimeType;
+          }
+        }
+        
         content.manifestStorageId = manifestId;
       }
 

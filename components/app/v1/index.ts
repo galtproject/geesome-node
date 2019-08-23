@@ -36,7 +36,7 @@ const commonHelper = require('@galtproject/geesome-libs/src/common');
 const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const pgpHelper = require('@galtproject/geesome-libs/src/pgpHelper');
 const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
-const { getPersonalChatTopic } = require('@galtproject/geesome-libs/src/name');
+const {getPersonalChatTopic} = require('@galtproject/geesome-libs/src/name');
 const bs58 = require('bs58');
 let config = require('./config');
 const appCron = require('./cron');
@@ -61,7 +61,7 @@ module.exports = async (extendConfig) => {
 
   console.log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
-  
+
   // setInterval(() => {
   //   console.log('publishEvent', 'geesome-test');
   //   app.storage.publishEvent('geesome-test', {
@@ -133,7 +133,7 @@ class GeesomeApp implements IGeesomeApp {
 
     return secretKey;
   }
-  
+
   /**
    ===========================================
    USERS ACTIONS
@@ -165,7 +165,7 @@ class GeesomeApp implements IGeesomeApp {
         await this.database.updateUser(newUser.id, {
           manifestStorageId
         });
-        
+
         resolve((await this.database.getUser(newUser.id)) as any);
       });
     });
@@ -198,18 +198,18 @@ class GeesomeApp implements IGeesomeApp {
         manifestStorageId
       });
     }
-    
+
     return this.database.getUser(userId);
   }
-  
+
   async addUserFriendById(userId, friendId) {
     friendId = await this.checkUserId(friendId, true);
 
     const user = await this.database.getUser(userId);
     const friend = await this.database.getUser(friendId);
-    
+
     const group = await this.createGroup(userId, {
-      name: (user.name + "_" + friend.name).replace(/[\W_]+/g,"_") + '_default',
+      name: (user.name + "_" + friend.name).replace(/[\W_]+/g, "_") + '_default',
       type: GroupType.PersonalChat,
       theme: 'default',
       title: friend.title,
@@ -223,20 +223,20 @@ class GeesomeApp implements IGeesomeApp {
 
     await this.database.addMemberToGroup(userId, group.id);
     await this.database.addAdminToGroup(userId, group.id);
-    
+
     this.events.emit(this.events.NewPersonalGroup, group);
-    
+
     return this.database.addUserFriend(userId, friendId);
   }
 
   async removeUserFriendById(userId, friendId) {
     friendId = await this.checkUserId(friendId, true);
-    
+
     // TODO: remove personal chat group?
 
     return this.database.removeUserFriend(userId, friendId);
   }
-  
+
   async getUserFriends(userId, search?, listParams?: IListParams) {
     return {
       list: await this.database.getUserFriends(userId, search, listParams),
@@ -279,15 +279,12 @@ class GeesomeApp implements IGeesomeApp {
       staticStorageId = manifestStorageId;
       manifestStorageId = await this.resolveStaticId(staticStorageId);
     }
-    
-    console.log('getUserByManifestId', manifestStorageId);
 
     let dbUser = await this.getUserByManifestId(manifestStorageId, staticStorageId);
     if (dbUser) {
       //TODO: update user if necessary
       return dbUser;
     }
-    console.log('manifestIdToDbObject', staticStorageId, manifestStorageId);
     const userObject: IUser = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
     userObject.isRemote = true;
     return this.createUserByObject(userObject);
@@ -368,7 +365,7 @@ class GeesomeApp implements IGeesomeApp {
    GROUPS ACTIONS
    ===========================================
    **/
-  
+
   async checkGroupId(groupId, createIfNotExist = true) {
     if (groupId == 'null' || groupId == 'undefined') {
       return null;
@@ -398,15 +395,15 @@ class GeesomeApp implements IGeesomeApp {
 
   async createGroup(userId, groupData) {
     groupData.creatorId = userId;
-    
+
     groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
-    if(groupData.type !== GroupType.PersonalChat) {
+    if (groupData.type !== GroupType.PersonalChat) {
       groupData.staticStorageId = groupData.manifestStaticStorageId;
     }
 
     const group = await this.database.addGroup(groupData);
 
-    if(groupData.type !== GroupType.PersonalChat) {
+    if (groupData.type !== GroupType.PersonalChat) {
       await this.database.addAdminToGroup(userId, group.id);
     }
 
@@ -520,7 +517,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const contentsIds = postData.contentsIds;
     delete postData.contentsIds;
-    
+
     const user = await this.database.getUser(userId);
     postData.authorStaticStorageId = user.manifestStaticStorageId;
 
@@ -531,39 +528,31 @@ class GeesomeApp implements IGeesomeApp {
 
     await this.database.setPostContents(post.id, contentsIds);
     await this.updatePostManifest(post.id);
-    
+
     post = await this.database.getPost(post.id);
-    
+
     const group = await this.database.getGroup(postData.groupId);
-    
-    if(group.isEncrypted && group.type === GroupType.PersonalChat) {
+
+    if (group.isEncrypted && group.type === GroupType.PersonalChat) {
       // Encrypt post id
       const keyForEncrypt = await this.database.getStaticIdPublicKey(group.staticStorageId);
 
-      console.log('keyLookup', user.manifestStaticStorageId);
       const userKey = await this.storage.keyLookup(user.manifestStaticStorageId);
-      console.log('pgpHelper.transformKey(userKey.marshal())', userKey.marshal());
-      try {
-        const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
-        const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
-        console.log('pgpHelper.transformKey', keyForEncrypt);
-        const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
-        console.log('encrypt', userPrivateKey, publicKeyForEncrypt, post.manifestStorageId);
-        const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
+      const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
+      const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
+      const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
+      const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-        await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
-          type: 'new_post',
-          postId: encryptedText,
-          groupId: group.manifestStaticStorageId,
-          isEncrypted: true,
-          sentAt: post.publishedAt.toString()
-        });
+      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+        type: 'new_post',
+        postId: encryptedText,
+        groupId: group.manifestStaticStorageId,
+        isEncrypted: true,
+        sentAt: post.publishedAt.toString()
+      });
 
-        await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
-        await this.updateGroupManifest(group.id);
-      } catch (e) {
-        console.error(e);
-      }
+      await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
+      await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
       await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
@@ -654,26 +643,30 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
-    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId, 'post-manifest', {isEncrypted, groupId, publishedAt});
+    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
+      isEncrypted,
+      groupId,
+      publishedAt
+    });
     postObject.isRemote = true;
     postObject.status = PostStatus.Published;
     postObject.localId = await this.getPostLocalId(postObject);
 
-    const { contents } = postObject;
+    const {contents} = postObject;
     delete postObject.contents;
-    
+
     let post = await this.database.addPost(postObject);
-    
-    if(!isEncrypted) {
+
+    if (!isEncrypted) {
       // console.log('postObject', postObject);
       await this.database.setPostContents(post.id, contents.map(c => c.id));
     }
 
     await this.updateGroupManifest(post.groupId);
-    
+
     return this.database.getPost(post.id);
   }
-  
+
   /**
    ===========================================
    CONTENT ACTIONS
@@ -688,7 +681,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     return this.addContent(contentObject);
   }
-  
+
   async createContentByRemoteStorageId(manifestStorageId) {
     let dbContent = await this.database.getContentByManifestId(manifestStorageId);
     if (dbContent) {
@@ -707,7 +700,7 @@ class GeesomeApp implements IGeesomeApp {
       }
     }
     //TODO: detect more video types
-    if(_.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi') || _.endsWith(fullType, 'mov') || _.endsWith(fullType, 'quicktime')) {
+    if (_.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi') || _.endsWith(fullType, 'mov') || _.endsWith(fullType, 'quicktime')) {
       previewDriverName = 'video-thumbnail';
     }
     console.log('previewDriverName', previewDriverName, fullType);
@@ -726,7 +719,7 @@ class GeesomeApp implements IGeesomeApp {
           extension,
           size: OutputSize.Medium
         });
-        
+
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
           smallFile = await this.getPreviewStreamContent(previewDriver, storageId, {
@@ -814,7 +807,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     throw new Error(previewDriver + "_preview_driver_input_not_found");
   }
-  
+
   async getPreviewStreamContent(previewDriver, storageId, options): Promise<any> {
     return new Promise(async (resolve, reject) => {
       const inputStream = await this.storage.getFileStream(storageId);
@@ -825,7 +818,7 @@ class GeesomeApp implements IGeesomeApp {
       const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
       const content = await this.storage.saveFileByData(resultStream);
-      return error ? reject(error) : resolve({ content, type, extension });
+      return error ? reject(error) : resolve({content, type, extension});
     });
   }
 
@@ -928,9 +921,9 @@ class GeesomeApp implements IGeesomeApp {
       name: name
     }, options);
   }
-  
+
   async setContentPreviewIfNotExist(content) {
-    if(content.mediumPreviewStorageId && content.previewMimeType) {
+    if (content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
     let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
@@ -1008,7 +1001,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   private async addContent(contentData: IContent, options: { groupId?, userId?, apiKey? } = {}) {
-    if(options.groupId) {
+    if (options.groupId) {
       const groupId = await this.checkGroupId(options.groupId);
       let group;
       if (groupId) {
@@ -1020,7 +1013,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const content = await this.database.addContent(contentData);
 
-    if(content.userId) {
+    if (content.userId) {
       await this.addContentToUserFileCatalog(content.userId, content, options);
 
       await this.database.addUserContentAction({
@@ -1031,8 +1024,8 @@ class GeesomeApp implements IGeesomeApp {
         apiKey: options.apiKey
       });
     }
-    
-    if(!contentData.manifestStorageId) {
+
+    if (!contentData.manifestStorageId) {
       await this.updateContentManifest(content.id);
     }
 
@@ -1049,7 +1042,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     return previewDriver.processBySource(sourceLink, {});
   }
-  
+
   /**
    ===========================================
    FILE CATALOG ACTIONS
@@ -1088,8 +1081,8 @@ class GeesomeApp implements IGeesomeApp {
     if (parentItemId === 'null') {
       parentItemId = null;
     }
-    
-    if(await this.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
+
+    if (await this.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
       console.log(`Content ${content.id} already exists in folder`);
       return;
     }
@@ -1268,11 +1261,11 @@ class GeesomeApp implements IGeesomeApp {
     if (ipfsHelper.isCid(storageId)) {
       storageId = ipfsHelper.cidToHash(storageId);
     }
-    
-    if(storageId['/']) {
+
+    if (storageId['/']) {
       storageId = storageId['/'];
     }
-    
+
     return storageId;
   }
 
@@ -1285,15 +1278,17 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.storage.createAccountIfNotExists(name);
 
     const publicKey = await this.storage.getAccountPublicKey(storageAccountId);
-    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {/*dont do anything*/});
+    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {/*dont do anything*/
+    });
     return storageAccountId;
   }
 
   async resolveStaticId(staticId) {
     this.storage.resolveStaticIdEntry(staticId).then(entry => {
-      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {/* already added */});
+      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {/* already added */
+      });
     });
-    
+
     return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
       try {
         await this.database.addStaticIdHistoryItem({
@@ -1302,7 +1297,7 @@ class GeesomeApp implements IGeesomeApp {
           isActive: true,
           boundAt: new Date()
         });
-        
+
         return dynamicId;
       } catch (e) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
