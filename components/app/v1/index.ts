@@ -187,7 +187,13 @@ class GeesomeApp implements IGeesomeApp {
   async updateUser(userId, updateData) {
     await this.database.updateUser(userId, updateData);
 
-    const user = await this.database.getUser(userId);
+    let user = await this.database.getUser(userId);
+    
+    if(!user.storageAccountId) {
+      const storageAccountId = await this.createStorageAccount(user.name);
+      await this.database.updateUser(userId, {storageAccountId, manifestStaticStorageId: storageAccountId});
+      user = await this.database.getUser(userId);
+    }
 
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
 
