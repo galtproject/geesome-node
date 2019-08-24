@@ -37,7 +37,7 @@ export default {
       }
     },
     async getPersonalChatUser() {
-      if(!this.group || this.group.type !== 'personal_chat') {
+      if(!this.group || this.group.type !== 'personal_chat' || !this.personalChatIpns) {
         return;
       }
       if(this.usersInfoLoading[this.personalChatIpns] || this.usersInfo[this.personalChatIpns]) {
@@ -67,7 +67,7 @@ export default {
         return '';
       }
       return _.find(this.group.members, (memberIpns) => {
-        return memberIpns != this.user.ipns;
+        return memberIpns != this.user.manifestStaticStorageId;
       });
     },
     usersInfo() {

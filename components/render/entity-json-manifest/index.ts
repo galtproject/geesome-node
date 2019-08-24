@@ -169,6 +169,15 @@ class EntityJsonManifest implements IRender {
       group.publishedPostsCount = manifest.postsCount;
       group.manifestStaticStorageId = manifest.ipns;
 
+      //TODO: check ipns for valid bound to ipld
+      await this.app.database.setStaticIdPublicKey(manifest.ipns, manifest.publicKey).catch(() => {});
+      await this.app.database.addStaticIdHistoryItem({
+        staticId: manifest.ipns,
+        dynamicId: manifestId,
+        isActive: true,
+        boundAt: new Date()
+      }).catch(() => {});
+
       //TODO: import posts too
       return group;
     } else if (type === 'user-manifest') {
@@ -180,6 +189,15 @@ class EntityJsonManifest implements IRender {
       }
 
       user.manifestStaticStorageId = manifest.ipns;
+      
+      //TODO: check ipns for valid bound to ipld
+      await this.app.database.setStaticIdPublicKey(manifest.ipns, manifest.publicKey).catch(() => {});
+      await this.app.database.addStaticIdHistoryItem({
+        staticId: manifest.ipns, 
+        dynamicId: manifestId, 
+        isActive: true,
+        boundAt: new Date()
+      }).catch(() => {});
 
       return user;
     } else if (type === 'post-manifest') {
