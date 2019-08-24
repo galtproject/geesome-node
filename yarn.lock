@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#28b15b4":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#74dad92":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#28b15b42727c6cb835f037081ddfc8a677cc58f1"
+  resolved "git://github.com/galtspace/geesome-libs.git#74dad928bbff0de1c4f90421468dca1c874badce"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
