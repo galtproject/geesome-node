@@ -1035,7 +1035,7 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateContentManifest(content.id);
     }
 
-    return content;
+    return this.database.getContent(content.id);
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
