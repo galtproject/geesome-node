@@ -32,7 +32,7 @@
         </div>
         
         <div class="new-message" v-if="selectedGroupId !== null">
-            <div class="attachment"><md-button class="md-icon-button"><md-icon class="fas fa-paperclip"></md-icon></md-button></div>
+            <div class="attachment"><md-button class="md-icon-button" @click="chooseAttachments"><md-icon class="fas fa-paperclip"></md-icon></md-button></div>
             
             <div class="emoji"><md-button class="md-icon-button"><md-icon class="far fa-smile"></md-icon></md-button></div>
             
@@ -42,6 +42,11 @@
             
             <div class="send" v-if="newMessage.text">
                 <md-button class="md-icon-button" @click="sendMessage"><md-icon class="fas fa-paper-plane"></md-icon></md-button>
+            </div>
+        </div>
+        <div>
+            <div v-for="(id, index) in newMessage.contentsDbIds" class="contents-list">
+                <content-manifest-info-item :db-id="id" @close="deleteContent(index)" :mini="true"></content-manifest-info-item>
             </div>
         </div>
     </div>

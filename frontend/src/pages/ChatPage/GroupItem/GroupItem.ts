@@ -22,6 +22,10 @@ export default {
   async mounted() {
     this.getLastMessage();
     this.getPersonalChatUser();
+    setInterval(() => {
+      // hack for solve reactivity problems
+      this.now = new Date();
+    }, 1000);
   },
   methods: {
     async getLastMessage() {
@@ -91,6 +95,7 @@ export default {
       if(!this.group) {
         return '';
       }
+      this.now;
       if(this.group.type === 'personal_chat') {
         return (this.usersInfo[this.personalChatIpns] || {}).avatarImage;
       }
@@ -99,7 +104,8 @@ export default {
   data() {
     return {
       localeKey: 'chat_page.group_item',
-      loading: true
+      loading: true,
+      now: null
     }
   }
 }

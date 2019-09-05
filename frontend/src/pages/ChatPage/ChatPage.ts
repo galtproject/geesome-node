@@ -15,12 +15,14 @@ import GroupItem from "./GroupItem/GroupItem";
 import AddFriendModal from "../../modals/AddFriendModal/AddFriendModal";
 import {EventBus, UPDATE_GROUP} from "../../services/events";
 import MessageItem from "./MessageItem/MessageItem";
+import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
+import ChooseFileContentsIdsModal from "../../modals/ChooseFileContentsIdsModal/ChooseFileContentsIdsModal";
 const _ = require('lodash');
 
 export default {
   name: 'chat-page',
   template: require('./ChatPage.html'),
-  components: {GroupItem, MessageItem},
+  components: {GroupItem, MessageItem, ContentManifestInfoItem},
   async created() {
     
   },
@@ -101,7 +103,7 @@ export default {
       this.sendMessage();
     },
     async sendMessage() {
-      const contentsIds = [];
+      let contentsIds = [];
       
       const text = this.newMessage.text;
       
@@ -113,6 +115,10 @@ export default {
       });
 
       contentsIds.push(textContent.id);
+
+      contentsIds = contentsIds.concat(this.newMessage.contentsDbIds);
+
+      this.newMessage.contentsDbIds = [];
       
       await this.$coreApi.createPost(contentsIds, {groupId: this.selectedGroupId, status: 'published'}).then(() => {
         this.saving = false;
@@ -121,6 +127,15 @@ export default {
       });
 
       // await this.getGroupPosts(0);
+    },
+    chooseAttachments() {
+      this.$root.$asyncModal.open({
+        id: 'choose-file-contents-ids-modal',
+        component: ChooseFileContentsIdsModal,
+        onClose: (selected) => {
+          this.newMessage.contentsDbIds = selected;
+        }
+      });
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);
@@ -160,7 +175,8 @@ export default {
         perPage: 20
       },
       newMessage: {
-        text: ''
+        text: '',
+        contentsDbIds: []
       }
     };
   }
