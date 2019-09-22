@@ -23,12 +23,12 @@ export class ImagePreviewDriver extends AbstractDriver {
     const extension = options.extension || 'jpg';
 
     // TODO: get size by settings
-    let size = {width: 400};
+    let size = {width: 1024};
     if(options.size === 'small') {
-      size = {width: 200};
+      size = {width: 512};
     }
     if(options.size === 'large') {
-      size = {width: 800};
+      size = {width: 2048};
     }
     const resizerStream = sharp()
         .resize(_.extend(size, {withoutEnlargement: true}))

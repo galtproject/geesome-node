@@ -120,6 +120,8 @@ export interface IGeesomeApp {
 
   updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
 
+  regenerateUserContentPreviews(userId): Promise<void>;
+
   getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUser[]>;
 
   getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContent[]>;

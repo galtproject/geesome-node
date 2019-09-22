@@ -353,6 +353,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
   });
 
+  service.post('/v1/user/regenerate-previews', async (req, res) => {
+    res.send(await geesomeApp.regenerateUserContentPreviews(req.user.id));
+  });
+
 
   service.get('/v1/group/:groupId', async (req, res) => {
     res.send(await geesomeApp.getGroup(req.params.groupId));

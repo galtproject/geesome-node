@@ -50,7 +50,7 @@ export default {
           'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
           'getGroupPeers', 'updateCurrentUser', 'userGetFriends', 'addFriend', 'removeFriend', 'getPersonalChatGroups',
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
-          'ipfsNode', 'exportPrivateKey', 'decryptText'
+          'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

@@ -16,12 +16,17 @@ export default {
   async created() {
 
   },
-  methods: {},
+  methods: {
+    regeneratePreviews() {
+      this.$coreApi.regenerateUserPreviews();
+    }
+  },
   watch: {},
   computed: {},
   data() {
     return {
       localeKey: 'file_explorer_page',
+      showAdvanced: false
     };
   }
 }

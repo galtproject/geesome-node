@@ -45,6 +45,7 @@ const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
 const axios = require('axios');
+const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const saltRounds = 10;
 
@@ -1134,6 +1135,54 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.updateContent(contentId, {
       manifestStorageId: await this.generateAndSaveManifest('content', await this.database.getContent(contentId))
     });
+  }
+  
+  async regenerateUserContentPreviews(userId) {
+    (async () => {
+      const previousIpldToNewIpld = [];
+      
+      let userContents = [];
+      
+      let offset = 0;
+      let limit = 100;
+      do {
+        userContents = await this.database.getContentList(userId, {
+          offset,
+          limit
+        });
+
+        await pIteration.forEach(userContents, async (content: IContent) => {
+          const previousIpldToNewIpldItem = [content.manifestStorageId];
+          let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
+
+          await this.database.updateContent(content.id, {
+            mediumPreviewStorageId,
+            mediumPreviewSize,
+
+            smallPreviewStorageId,
+            smallPreviewSize,
+
+            largePreviewStorageId,
+            largePreviewSize,
+
+            previewExtension,
+            previewMimeType: previewType
+          });
+          
+          await this.updateContentManifest(content.id);
+          const updatedContent = await this.database.getContent(content.id);
+          
+          previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
+
+          previousIpldToNewIpld.push(previousIpldToNewIpldItem);
+        });
+        
+        offset += limit;
+      } while(userContents.length === limit);
+      
+      console.log('previousIpldToNewIpld', previousIpldToNewIpld);
+      console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
+    })();
   }
 
   /**
