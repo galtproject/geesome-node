@@ -1234,23 +1234,9 @@ class GeesomeApp implements IGeesomeApp {
 
     const path = `/${userStaticId}/` + breadcrumbs.map(b => b.name).join('/') + '/';
 
-    //TODO: replace node calling by storage object methods
-    const pathStat = await this.storage.node.files.stat(path, {hash: true});
-    if(!pathStat || !pathStat.hash) {
-      await this.storage.node.files.mkdir(path, { parents: true });
-    }
+    await this.storage.makeDir(path);
     
     return path;
-  }
-  
-  public async cpFileToStorage(fileCatalogItem: IFileCatalogItem, storageDirPath) {
-    //TODO: replace node calling by storage object methods
-    const filePath = storageDirPath + fileCatalogItem.content.name;
-    const existFiles = await this.storage.node.files.ls(filePath);
-    if(existFiles.length) {
-      await this.storage.node.files.rm(filePath);
-    }
-    await this.storage.node.files.cp('/ipfs/' + fileCatalogItem.content.storageId, filePath, { parents: true, flush: true });
   }
   
   public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
@@ -1264,7 +1250,7 @@ class GeesomeApp implements IGeesomeApp {
     const fileCatalogChildrenFiles = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
 
     await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
-      await this.cpFileToStorage(fileCatalogItem, storageDirPath);
+      await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.content.name);
     });
   }
   
@@ -1487,7 +1473,8 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.storage.createAccountIfNotExists(name);
 
     const publicKey = await this.storage.getAccountPublicKey(storageAccountId);
-    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {/*dont do anything*/
+    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
+      /*dont do anything*/
     });
     return storageAccountId;
   }

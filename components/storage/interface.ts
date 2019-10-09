@@ -69,6 +69,10 @@ export interface IStorage {
   getPubSubLs(): Promise<string[]>;
 
   getPeers(topic): Promise<string[]>;
+  
+  makeDir(path): Promise<void>;
+
+  copyFileFromId(storageId, path): Promise<void>;
 }
 
 interface IResultFile {
