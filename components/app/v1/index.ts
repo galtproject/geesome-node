@@ -92,7 +92,7 @@ module.exports = async (extendConfig) => {
   await appListener(app);
 
   console.log('Start api...');
-  require('../../api/' + config.apiModule)(app, process.env.PORT || 7711);
+  require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
   return app;
 };
@@ -136,8 +136,23 @@ class GeesomeApp implements IGeesomeApp {
    USERS ACTIONS
    ===========================================
    **/
+  
+  async setup(userData) {
+    if ((await this.database.getUsersCount()) > 0) {
+      throw 'already_setup';
+    }
+    const adminUser = await this.registerUser(userData);
 
-  async registerUser(email, name, password): Promise<any> {
+    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
+      return this.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
+    });
+
+    return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, "password_auth")};
+  }
+
+  async registerUser(userData): Promise<any> {
+    const {email, name, password} = userData;
+    
     const existUserWithName = await this.database.getUserByName(name);
     if (existUserWithName) {
       throw new Error("username_already_exists");

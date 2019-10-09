@@ -110,16 +110,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/setup', async (req, res) => {
-    if ((await geesomeApp.database.getUsersCount()) > 0) {
-      return res.send(403);
-    }
-    const adminUser = await geesomeApp.registerUser(req.body.email, req.body.name, req.body.password);
-
-    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
-      return geesomeApp.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
-    });
-
-    res.send({user: adminUser, apiKey: await geesomeApp.generateUserApiKey(adminUser.id, "password_auth")}, 200);
+    res.send(await geesomeApp.setup(req.body), 200);
   });
 
   service.post('/v1/login', async (req, res) => {
@@ -146,7 +137,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
       return res.send(403);
     }
-    res.send(await geesomeApp.registerUser(req.body.email, req.body.name, req.body.password));
+    res.send(await geesomeApp.registerUser(req.body));
   });
   service.post('/v1/admin/add-user-api-key', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {

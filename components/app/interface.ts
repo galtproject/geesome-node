@@ -34,7 +34,9 @@ export interface IGeesomeApp {
 
   getSecretKey(keyName): Promise<string>;
 
-  registerUser(email, name, password): Promise<IUser>;
+  setup(userData): Promise<{user: IUser, apiKey: string}>;
+
+  registerUser(userData): Promise<IUser>;
 
   loginUser(usernameOrEmail, password): Promise<IUser>;
 

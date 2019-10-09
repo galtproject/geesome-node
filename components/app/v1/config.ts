@@ -15,7 +15,7 @@ module.exports = {
     jsNode: {
       // getting by getSecretKey
       pass: '',
-      // path: '$HOME/.jsipfs',
+      // repo: '~/.jsipfs',
       EXPERIMENTAL: {
         pubsub: true,
         ipnsPubsub: true

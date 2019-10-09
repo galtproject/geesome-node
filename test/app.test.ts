@@ -26,11 +26,29 @@ describe("app", function () {
     describe('app ' + appVersion, () => {
       before(async () => {
         const appConfig = require('../components/app/v1/config');
+        appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+        appConfig.storageConfig.jsNode.config = {
+          Addresses: {
+            Swarm: [
+              "/ip4/0.0.0.0/tcp/40002",
+              "/ip4/127.0.0.1/tcp/40003/ws",
+              "/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
+            ]
+          }
+        };
+        
         const database = await require('../components/database/' + appConfig.databaseModule)({config: {databaseConfig}});
         await database.flushDatabase();
 
         try {
-          app = await require('../components/app/' + appVersion)({databaseConfig});
+          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 77111});
+
+          await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+          const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user'});
+          await app.createGroup(testUser.id, {
+            name: 'test',
+            title: 'Test'
+          });
         } catch (e) {
           console.error(e);
           assert.equal(true, false);
@@ -38,17 +56,17 @@ describe("app", function () {
       });
 
       it("should initialized successfully", async () => {
-        assert.notEqual(await app.database.getUsersCount(), 0);
+        assert.equal(await app.database.getUsersCount(), 2);
 
         await new Promise((resolve, reject) => {
           fs.writeFile('/tmp/test', 'test', resolve);
         });
         const resultFile = await app.storage.saveFileByPath('/tmp/test');
 
-        assert.notEqual(resultFile.storageAccountId, null);
+        assert.notEqual(resultFile.id, undefined);
 
         const adminUser = (await app.database.getAllUserList('admin'))[0];
-        const testUser = (await app.database.getAllUserList('test'))[0];
+        const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
         const limitData = {
@@ -65,7 +83,7 @@ describe("app", function () {
           await app.saveData(fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
             userId: testUser.id,
             groupId: testGroup.id
-          })
+          });
           assert.equal(true, false);
         } catch (e) {
           assert.equal(true, true);

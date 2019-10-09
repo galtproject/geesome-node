@@ -22,7 +22,6 @@ describe("databaseValues", function () {
     describe(databaseService + ' database', () => {
       before(async () => {
         database = await require('../components/database/' + databaseService)({config: {databaseConfig}});
-        console.log('database', database);
       });
 
       after(async () => {

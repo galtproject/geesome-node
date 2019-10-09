@@ -9,7 +9,8 @@
     "migrate-database": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
     "rollback-migration": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "upgrade": "./bash/upgrade-app.sh",
-    "test": "./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
+    "recreate-test-database": "mysql -uroot -proot -e \"drop database test_geesome_core; create database test_geesome_core;\"",
+    "test": "npm run recreate-test-database; ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
   },
   "author": "",
