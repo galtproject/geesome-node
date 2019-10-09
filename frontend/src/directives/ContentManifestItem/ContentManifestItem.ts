@@ -63,8 +63,8 @@ export default {
         return;
       }
 
-      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.content);
-      this.previewSrcLink = await this.$coreApi.getContentLink(this.manifestObj.preview ? this.manifestObj.preview.medium.content : null);
+      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.storageId);
+      this.previewSrcLink = await this.$coreApi.getContentLink(this.manifestObj.preview ? this.manifestObj.preview.medium.storageId : null);
 
       if (this.type == 'text') {
         this.content = await this.$coreApi.getContentData(this.contentId);
@@ -131,7 +131,7 @@ export default {
       return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview.medium.mimeType : this.manifestObj.mimeType;
     },
     contentId() {
-      return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview.medium.content : this.manifestObj.content;
+      return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview.medium.storageId : this.manifestObj.storageId;
     }
   },
   data() {

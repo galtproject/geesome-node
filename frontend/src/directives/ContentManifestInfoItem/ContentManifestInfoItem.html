@@ -24,10 +24,10 @@
         <b>Type:</b> {{manifestObj.mimeType}}<br>
         <b>Size:</b> {{manifestObj.size| prettySize}}<br>
         <b>Ipfs hash:</b>
-        <pretty-hex :hex="manifestObj.content"></pretty-hex>
+        <pretty-hex :hex="manifestObj.storageId"></pretty-hex>
         <br>
         <b>Preview ipfs hash:</b>
-        <pretty-hex :hex="manifestObj.preview ? manifestObj.preview.medium.content : ''"></pretty-hex>
+        <pretty-hex :hex="manifestObj.preview ? manifestObj.preview.medium.storageId : ''"></pretty-hex>
         <br>
         <b>Manifest ipld hash:</b>
         <pretty-hex :hex="manifestObj.id"></pretty-hex>

@@ -27,7 +27,7 @@ export default {
   methods: {
     async fetchData() {
       // this.avatarImageSrc = await this.$coreApi.getContentLink(this.group.avatarImage);
-      this.peers = await this.$coreApi.getGroupPeers(this.group.ipns);
+      this.peers = await this.$coreApi.getGroupPeers(this.group.staticId);
     },
     async updateIsJoined() {
       this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);

@@ -37,14 +37,14 @@ export default {
         if (group.type === 'personal_chat') {
           this.$coreApi.subscribeToPersonalChatUpdates(group.members, 'default', (event) => this.fetchGroupUpdate(group, event));
         } else {
-          this.$coreApi.subscribeToGroupUpdates(group.ipns, 'default', (event) => this.fetchGroupUpdate(group, event));
+          this.$coreApi.subscribeToGroupUpdates(group.staticId, 'default', (event) => this.fetchGroupUpdate(group, event));
         }
       });
     },
     async fetchGroupUpdate(group, event) {
       console.log('fetchGroupUpdate', group, event);
       const post = await this.$coreApi.getGroupPost(group.id, event.dataJson.postId);
-      if(group.ipns === this.selectedGroupId) {
+      if(group.staticId === this.selectedGroupId) {
         this.messages.unshift(post);
       }
       

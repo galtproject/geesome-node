@@ -22,7 +22,7 @@ export default {
       this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
     }
 
-    this.resolvedIpld = await this.$coreApi.resolveIpns(this.group.ipns);
+    this.resolvedIpld = await this.$coreApi.resolveIpns(this.group.staticId);
   },
 
   async mounted() {
@@ -55,7 +55,7 @@ export default {
   computed: {
     idForRoute() {
       //TODO: compare the date of actual ipld and ipld that resolved by ipns
-      return this.resolvedIpld ? this.group.ipns : this.group.id;
+      return this.resolvedIpld ? this.group.staticId : this.group.id;
     }
   },
   data() {

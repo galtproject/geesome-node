@@ -54,10 +54,10 @@ export default {
         return;
       }
 
-      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.content);
+      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.storageId);
 
       if (this.type == 'text') {
-        this.content = await this.$coreApi.getContentData(this.manifestObj.content);
+        this.content = await this.$coreApi.getContentData(this.manifestObj.storageId);
       }
       if (this.type == 'image' || this.type == 'file') {
         this.content = this.srcLink;
