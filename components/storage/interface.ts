@@ -8,6 +8,8 @@
  */
 
 export interface IStorage {
+  node: any;
+  
   saveDirectory(path): Promise<IResultFile>;
 
   saveFileByPath(path): Promise<IResultFile>;

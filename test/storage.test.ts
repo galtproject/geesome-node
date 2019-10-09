@@ -14,7 +14,7 @@ const assert = require('assert');
 const appConfig = require('../components/app/v1/config');
 const CID = require('cids');
 
-describe("storage", function () {
+describe.skip("storage", function () {
   this.timeout(30000);
 
   let storage: IStorage;

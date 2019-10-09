@@ -120,6 +120,10 @@ export interface IGeesomeApp {
 
   updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
 
+  saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
+
+  publishFolder(userId, fileCatalogId): Promise<{storageId:string, staticId:string}>;
+
   regenerateUserContentPreviews(userId): Promise<void>;
 
   getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUser[]>;

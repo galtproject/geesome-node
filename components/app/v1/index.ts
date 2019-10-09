@@ -13,13 +13,13 @@ import {
   PostStatus,
   ContentView,
   IPost,
-  IFileCatalogItemType,
+  FileCatalogItemType,
   IContent,
   ContentStorageType,
   UserContentActionName,
   UserLimitName,
   IUserLimit,
-  CorePermissionName, IGroup, IListParams, IUser, GroupType, GroupView
+  CorePermissionName, IGroup, IListParams, IUser, GroupType, GroupView, IFileCatalogItem
 } from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 import {IStorage} from "../../storage/interface";
@@ -141,6 +141,10 @@ class GeesomeApp implements IGeesomeApp {
     const existUserWithName = await this.database.getUserByName(name);
     if (existUserWithName) {
       throw new Error("username_already_exists");
+    }
+    
+    if(_.includes(name, '@')) {
+      throw new Error("forbidden_symbols_in_name");
     }
 
     const storageAccountId = await this.createStorageAccount(name);
@@ -1062,7 +1066,7 @@ class GeesomeApp implements IGeesomeApp {
 
     let parentItemId = options.folderId;
     if (_.isUndefined(parentItemId) || parentItemId === 'undefined') {
-      const contentFiles = await this.database.getFileCatalogItemsByContent(userId, content.id, IFileCatalogItemType.File);
+      const contentFiles = await this.database.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
       if (contentFiles.length) {
         return content;
       }
@@ -1072,7 +1076,7 @@ class GeesomeApp implements IGeesomeApp {
       if (!folder) {
         folder = await this.database.addFileCatalogItem({
           name: _.upperFirst(baseType) + " Uploads",
-          type: IFileCatalogItemType.Folder,
+          type: FileCatalogItemType.Folder,
           position: (await this.database.getFileCatalogItemsCount(userId, null)) + 1,
           defaultFolderFor: baseType,
           userId
@@ -1094,7 +1098,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const resultItem = await this.database.addFileCatalogItem({
       name: content.name || "Unnamed " + new Date().toISOString(),
-      type: IFileCatalogItemType.File,
+      type: FileCatalogItemType.File,
       position: (await this.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
       contentId: content.id,
       size: content.size,
@@ -1114,7 +1118,7 @@ class GeesomeApp implements IGeesomeApp {
   async createUserFolder(userId, parentItemId, folderName) {
     return this.database.addFileCatalogItem({
       name: folderName,
-      type: IFileCatalogItemType.Folder,
+      type: FileCatalogItemType.Folder,
       position: (await this.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
       size: 0,
       parentItemId,
@@ -1130,11 +1134,31 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.updateFileCatalogItem(fileCatalogId, updateData);
     return this.database.getFileCatalogItem(fileCatalogId);
   }
+  
+  async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
+    if (parentItemId == 'null') {
+      parentItemId = null;
+    }
+    if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
+      parentItemId = undefined;
 
-  async updateContentManifest(contentId) {
-    return this.database.updateContent(contentId, {
-      manifestStorageId: await this.generateAndSaveManifest('content', await this.database.getContent(contentId))
-    });
+    return {
+      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
+      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
+    };
+  }
+
+  async getFileCatalogItemsBreadcrumbs(userId, itemId) {
+    const item = await this.database.getFileCatalogItem(itemId);
+    if (item.userId != userId) {
+      throw new Error("not_permitted");
+    }
+
+    return this.database.getFileCatalogItemsBreadcrumbs(itemId);
+  }
+
+  async getContentsIdsByFileCatalogIds(catalogIds) {
+    return this.database.getContentsIdsByFileCatalogIds(catalogIds);
   }
   
   async regenerateUserContentPreviews(userId) {
@@ -1184,6 +1208,113 @@ class GeesomeApp implements IGeesomeApp {
       console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
     })();
   }
+  
+  public async makeFolderStorageDir(fileCatalogItem: IFileCatalogItem) {
+
+    const breadcrumbs = await this.getFileCatalogItemsBreadcrumbs(fileCatalogItem.userId, fileCatalogItem.id);
+
+    breadcrumbs.push(fileCatalogItem);
+
+    const {storageAccountId: userStaticId} = await this.database.getUser(fileCatalogItem.userId);
+
+    const path = `/${userStaticId}/` + breadcrumbs.map(b => b.name).join('/') + '/';
+
+    //TODO: replace node calling by storage object methods
+    await this.storage.node.mkdir(path, { parents: true });
+    
+    return path;
+  }
+  
+  public async cpFileToStorage(fileCatalogItem: IFileCatalogItem, storageDirPath) {
+    //TODO: replace node calling by storage object methods
+    await this.storage.node.cp('/ipfs/' + fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.content.name, { parents: true });
+  }
+  
+  public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
+    const fileCatalogChildrenFolders = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
+    
+    await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
+      const sPath = await this.makeFolderStorageDir(fItem);
+      return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
+    });
+
+    const fileCatalogChildrenFiles = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
+
+    await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
+      await this.cpFileToStorage(fileCatalogItem, storageDirPath);
+    });
+  }
+  
+  public async getStorageDirectoryHash(path) {
+    const stats = await this.storage.node.files.stat(path);
+    return stats.hash;
+  }
+
+  public async publishFolder(userId, fileCatalogId) {
+    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
+
+    const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
+    
+    await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
+    
+    const storageId = await this.getStorageDirectoryHash(storageDirPath);
+    
+    const user = await this.database.getUser(userId);
+    
+    const staticId = await this.createStorageAccount(user.name + '@directory');
+    await this.storage.bindToStaticId(storageId, staticId);
+    
+    return {
+      storageId,
+      staticId
+    }
+  }
+  
+  public async saveContentByPath(userId, path, contentId) {
+    const pathArr = path.split('/');
+    const foldersArr = pathArr.slice(0, -1);
+    const fileName = pathArr.slice(-1)[0];
+    
+    let currentFolderId = null;
+    await pIteration.forEachSeries(foldersArr, async (name) => {
+      const foundItems = await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.Folder, name);
+      
+      if(foundItems.length) {
+        currentFolderId = foundItems[0].id;
+      } else {
+        const newFileCatalogFolder = await this.database.addFileCatalogItem({
+          name,
+          userId,
+          type: FileCatalogItemType.Folder,
+          position: (await this.database.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
+          parentItemId: currentFolderId
+        });
+        currentFolderId = newFileCatalogFolder.id;
+      }
+    });
+
+    const foundFileItems = await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.File, fileName);
+    
+    let fileItem;
+    
+    if(foundFileItems.length) {
+      await this.database.updateFileCatalogItem(foundFileItems[0].id, { contentId });
+      fileItem = await this.database.getFileCatalogItem(foundFileItems[0].id);
+    } else {
+      fileItem = this.database.addFileCatalogItem({
+        userId,
+        name: fileName,
+        type: FileCatalogItemType.File,
+        position: (await this.database.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
+        parentItemId: currentFolderId
+      });
+    }
+    if(currentFolderId) {
+      const size = await this.database.getFileCatalogItemsSizeSum(currentFolderId);
+      await this.database.updateFileCatalogItem(currentFolderId, {size});
+    }
+    return fileItem;
+  }
 
   /**
    ===========================================
@@ -1194,6 +1325,12 @@ class GeesomeApp implements IGeesomeApp {
   private detectType(storageId, fileName) {
     // const ext = _.last(fileName.split('.')).toLowerCase();
     return mime.getType(fileName) || ContentMimeType.Unknown;
+  }
+
+  async updateContentManifest(contentId) {
+    return this.database.updateContent(contentId, {
+      manifestStorageId: await this.generateAndSaveManifest('content', await this.database.getContent(contentId))
+    });
   }
 
   private async generateAndSaveManifest(entityName, entityObj) {
@@ -1232,32 +1369,6 @@ class GeesomeApp implements IGeesomeApp {
 
   getDataStructure(dataId) {
     return this.storage.getObject(dataId);
-  }
-
-  async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
-    if (parentItemId == 'null') {
-      parentItemId = null;
-    }
-    if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
-      parentItemId = undefined;
-
-    return {
-      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
-      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
-    };
-  }
-
-  async getFileCatalogItemsBreadcrumbs(userId, itemId) {
-    const item = await this.database.getFileCatalogItem(itemId);
-    if (item.userId != userId) {
-      throw new Error("not_permitted");
-    }
-
-    return this.database.getFileCatalogItemsBreadcrumbs(itemId);
-  }
-
-  async getContentsIdsByFileCatalogIds(catalogIds) {
-    return this.database.getContentsIdsByFileCatalogIds(catalogIds);
   }
 
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
