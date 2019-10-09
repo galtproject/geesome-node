@@ -103,6 +103,29 @@ describe("app", function () {
         //
         // assert.notEqual(contentObj.storageAccountId, null);
       });
+
+      it.only("should file catalog working properly", async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        
+        const indexHtml = '<h1>Hello world</h1>';
+        const fileName = 'index.html';
+        
+        const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
+        const indexHtmlFileItem = await app.saveContentByPath(testUser.id, '/1/2/3/' + fileName, indexHtmlContent.id);
+        
+        assert.equal(indexHtmlFileItem.name, fileName);
+        
+        let parentFolderId = indexHtmlFileItem.parentItemId;
+        let level = 3;
+        
+        while(parentFolderId) {
+          const parentFolder = await app.database.getFileCatalogItem(parentFolderId);
+          console.log('parentFolder', parentFolder.name, 'level', level, 'parentItemId', parentFolder.parentItemId);
+          assert.equal(parentFolder.name, level.toString());
+          level -= 1;
+          parentFolderId = parentFolder.parentItemId;
+        }
+      });
     });
   });
 });

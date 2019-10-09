@@ -1286,7 +1286,7 @@ class GeesomeApp implements IGeesomeApp {
   }
   
   public async saveContentByPath(userId, path, contentId) {
-    const pathArr = path.split('/');
+    const pathArr = _.trim(path, '/').split('/');
     const foldersArr = pathArr.slice(0, -1);
     const fileName = pathArr.slice(-1)[0];
     
