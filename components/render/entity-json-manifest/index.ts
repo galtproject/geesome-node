@@ -36,8 +36,8 @@ class EntityJsonManifest implements IRender {
         groupManifest.isEncrypted = true;
       }
       groupManifest.postsCount = group.publishedPostsCount;
-      groupManifest.ipns = group.manifestStaticStorageId;
-      groupManifest.publicKey = await this.app.database.getStaticIdPublicKey(groupManifest.ipns);
+      groupManifest.staticId = group.manifestStaticStorageId;
+      groupManifest.publicKey = await this.app.database.getStaticIdPublicKey(groupManifest.staticId);
 
       if (group.avatarImage) {
         groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
@@ -90,8 +90,8 @@ class EntityJsonManifest implements IRender {
       const user: IUser = data;
       const userManifest = _.pick(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
-      userManifest.ipns = user.manifestStaticStorageId;
-      userManifest.publicKey = await this.app.database.getStaticIdPublicKey(userManifest.ipns);
+      userManifest.staticId = user.manifestStaticStorageId;
+      userManifest.publicKey = await this.app.database.getStaticIdPublicKey(userManifest.staticId);
 
       if (user.avatarImage) {
         userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
@@ -106,10 +106,10 @@ class EntityJsonManifest implements IRender {
       const content: IContent = data;
       const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'view', 'size', 'extension', 'updatedAt', 'createdAt']);
 
-      contentManifest.content = content.storageId;
+      contentManifest.storageId = content.storageId;
       contentManifest.preview = {
         medium: {
-          content: content.mediumPreviewStorageId,
+          storageId: content.mediumPreviewStorageId,
           mimeType: content.previewMimeType,
           extension: content.previewExtension,
           size: content.mediumPreviewSize
@@ -118,7 +118,7 @@ class EntityJsonManifest implements IRender {
 
       if (content.smallPreviewStorageId) {
         contentManifest.preview.small = {
-          content: content.smallPreviewStorageId,
+          storageId: content.smallPreviewStorageId,
           mimeType: content.previewMimeType,
           extension: content.previewExtension,
           size: content.smallPreviewSize
@@ -126,7 +126,7 @@ class EntityJsonManifest implements IRender {
       }
       if (content.largePreviewStorageId) {
         contentManifest.preview.large = {
-          content: content.largePreviewStorageId,
+          storageId: content.largePreviewStorageId,
           mimeType: content.previewMimeType,
           extension: content.previewExtension,
           size: content.largePreviewSize
@@ -163,12 +163,12 @@ class EntityJsonManifest implements IRender {
       }
 
       group.publishedPostsCount = manifest.postsCount;
-      group.manifestStaticStorageId = manifest.ipns;
+      group.manifestStaticStorageId = manifest.staticId;
 
       //TODO: check ipns for valid bound to ipld
-      await this.app.database.setStaticIdPublicKey(manifest.ipns, manifest.publicKey).catch(() => {});
+      await this.app.database.setStaticIdPublicKey(manifest.staticId, manifest.publicKey).catch(() => {});
       await this.app.database.addStaticIdHistoryItem({
-        staticId: manifest.ipns,
+        staticId: manifest.staticId,
         dynamicId: manifestId,
         isActive: true,
         boundAt: new Date()
@@ -184,12 +184,12 @@ class EntityJsonManifest implements IRender {
         user.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage)) as any;
       }
 
-      user.manifestStaticStorageId = manifest.ipns;
+      user.manifestStaticStorageId = manifest.staticId;
       
       //TODO: check ipns for valid bound to ipld
-      await this.app.database.setStaticIdPublicKey(manifest.ipns, manifest.publicKey).catch(() => {});
+      await this.app.database.setStaticIdPublicKey(manifest.staticId, manifest.publicKey).catch(() => {});
       await this.app.database.addStaticIdHistoryItem({
-        staticId: manifest.ipns, 
+        staticId: manifest.staticId, 
         dynamicId: manifestId, 
         isActive: true,
         boundAt: new Date()
@@ -224,12 +224,12 @@ class EntityJsonManifest implements IRender {
       if(manifest.isEncrypted) {
         content.encryptedManifestStorageId = manifestId;
       } else {
-        content.storageId = manifest.content;
+        content.storageId = manifest.storageId;
         
         if(manifest.preview) {
           if(manifest.preview.medium) {
             const mediumPreview = manifest.preview.medium;
-            content.mediumPreviewStorageId = mediumPreview.content;
+            content.mediumPreviewStorageId = mediumPreview.storageId;
             content.mediumPreviewSize = mediumPreview.size;
 
             content.previewExtension = mediumPreview.extension;
@@ -238,7 +238,7 @@ class EntityJsonManifest implements IRender {
           
           if(manifest.preview.small) {
             const smallPreview = manifest.preview.small;
-            content.smallPreviewStorageId = smallPreview.content;
+            content.smallPreviewStorageId = smallPreview.storageId;
             content.smallPreviewSize = smallPreview.size;
             
             content.previewExtension = content.previewExtension || smallPreview.extension;
@@ -248,7 +248,7 @@ class EntityJsonManifest implements IRender {
           if(manifest.preview.large) {
             const largePreview = manifest.preview.large;
             
-            content.smallPreviewStorageId = largePreview.content;
+            content.smallPreviewStorageId = largePreview.storageId;
             content.smallPreviewSize = largePreview.size;
 
             content.previewExtension = content.previewExtension || largePreview.extension;

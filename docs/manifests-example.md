@@ -5,25 +5,25 @@ Content using for describing of IPFS file: type, size, name, extension and in fu
 ```
 {
  "name": "avatar1.jpg",
- "content": "QmY8BULaKQeez58U9vE3CYGBzwahSfiMjfVP2QeMQhz13R",
+ "storageId": "QmY8BULaKQeez58U9vE3CYGBzwahSfiMjfVP2QeMQhz13R",
  "size": 8097,
  "mimeType": "image/jpeg",
  "extension": "jpg",
  "preview": {
     "small": {
-        "content": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
+        "storageId": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
         "size": 809,
         "mimeType": "image/jpeg",
         "extension": "jpg"
     },
     "medium": {
-        "content": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
+        "storageId": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
         "size": 1600,
         "mimeType": "image/jpeg",
         "extension": "jpg"
     },
     "large": {
-        "content": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
+        "storageId": "QmcjynznjE9eGa9eVxbACY659phCpJExt2NY3jdAAsiKSw",
         "size": 4000,
         "mimeType": "image/jpeg",
         "extension": "jpg"
@@ -71,7 +71,7 @@ avatar and cover(IPLD of content's manifests).
  "description": null,
  "postsSize": 32194,
  "postsCount": 2,
- "ipns": "QmRDrCNvumKD1rE9fH3tCJRLa4d9KAwV9uQVpJeTGK37Bk",
+ "staticId": "QmRDrCNvumKD1rE9fH3tCJRLa4d9KAwV9uQVpJeTGK37Bk",
  "avatarImage": {
   "/": "bafyreibn6eyfr7h43trpj4fbyxqh6apgfipcfprfklsnqfonqzkoise3oy"
  },

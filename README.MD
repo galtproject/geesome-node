@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://github.com/galtspace/geesome-node/raw/master/frontend/assets/logos-long.png"
+  <img src="https://github.com/galtproject/geesome-node/raw/master/frontend/assets/logos-long.png"
   alt="geesome" width="470"></a>
 </h1>
 
@@ -11,10 +11,10 @@
 <br />
 
 <div align="center">
-<img src="https://img.shields.io/github/issues-raw/galtspace/geesome-node.svg?color=green&style=flat-square" alt="opened issues"/>
-<img src="https://img.shields.io/github/issues-closed-raw/galtspace/geesome-node.svg?color=blue&style=flat-square" alt="closed issues" />
-<img src="https://img.shields.io/github/issues-pr-closed/galtspace/geesome-node.svg?color=green&style=flat-square" alt="closed PR"/>
-<img src="https://img.shields.io/github/issues-pr-raw/galtspace/geesome-node.svg?color=green&style=flat-square" alt="opened PR"/>
+<img src="https://img.shields.io/github/issues-raw/galtproject/geesome-node.svg?color=green&style=flat-square" alt="opened issues"/>
+<img src="https://img.shields.io/github/issues-closed-raw/galtproject/geesome-node.svg?color=blue&style=flat-square" alt="closed issues" />
+<img src="https://img.shields.io/github/issues-pr-closed/galtproject/geesome-node.svg?color=green&style=flat-square" alt="closed PR"/>
+<img src="https://img.shields.io/github/issues-pr-raw/galtproject/geesome-node.svg?color=green&style=flat-square" alt="opened PR"/>
 </div>
 <br/>
 <br/>
@@ -60,7 +60,7 @@ GeeSome Node can be used:
 
 You can run personal or public GeeSome node. It used for storing files, manage entities and prepare content for publishing.
 Also because of IPNS updates issues - GeeSome node have IPNS caching based on signed PubSub events. 
-Also there is an [issue](https://github.com/galtspace/geesome-node/issues/115) about IPNS keys of user. 
+Also there is an [issue](https://github.com/galtproject/geesome-node/issues/115) about IPNS keys of user. 
 Currently its storing in IPNS node, but need to improve it.
 
 ## UI Screenshots
@@ -80,7 +80,7 @@ Currently its storing in IPNS node, but need to improve it.
 1. Set DNS settings for domain: ip address of server
 2. Clone repo to server that bound to domain
 ```
-git clone https://github.com/galtspace/geesome-node.git
+git clone https://github.com/galtproject/geesome-node.git
 ```
 3. Run script with parameters: domain and email for letsencrypt
 ```
@@ -103,11 +103,11 @@ You can get your current session api key after login by enter localStorage.getIt
 ```
 2. Install GeeSome libs by npm:
 ```
-npm i --save git://github.com/galtspace/geesome-libs.git
+npm i --save git://github.com/galtproject/geesome-libs.git
 ```
 or yarn:
 ```
-yarn add git://github.com/galtspace/geesome-libs.git
+yarn add git://github.com/galtproject/geesome-libs.git
 ```
 3. Init GeeSome client and send request to your GeeSome node
 ```
@@ -154,7 +154,7 @@ create another if there is a leak.
 ## Links
 - [Manifests example](./docs/manifests-example.md)
 - [API](./components/api/http-v1/index.ts)
-- [Libs repo](https://github.com/galtspace/geesome-libs)
+- [Libs repo](https://github.com/galtproject/geesome-libs)
 
 ## Do you like the project? ✨
 Put a star and fork it. Join Us On [Telegram](https://t.me/geesome). Thank you!
