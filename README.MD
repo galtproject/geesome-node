@@ -129,13 +129,21 @@ You can also use `geesomeClient.loginUserPass` for login via login and password 
 setting `apiKey`. But more safer to use `apiKey`, because you can always disable it `apiKey` and 
 create another if there is a leak.
 
+## Current state and features:
+- Public channels and posts
+- Basic file manager
+- User profile
+- Encrypted personal messages
+- Api keys for access to all node features
+- Separated content and access by users
+- Limit users upload
+- IPNS caching for fast resolving
+
 ## TODO:
 - Manage api keys in UI
-- Share folder by ipld manifest
-- Share folder by ipns manifest
+- Share folder by ipld, ipns manifest
 - Play audio and video content in groups as playlist
 - Public chat groups
-- Personal messages
 - Private chat groups
 - Feed for aggregate channels, chats, personal messages like in Telegram
 - Local IPNS accounts (in-browser) and signing authentication or publish transactions
