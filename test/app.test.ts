@@ -109,10 +109,10 @@ describe("app", function () {
         
         const indexHtml = '<h1>Hello world</h1>';
         const fileName = 'index.html';
+        const filePath = '/1/2/3/' + fileName;
         
         const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
-        const indexHtmlFileItem = await app.saveContentByPath(testUser.id, '/1/2/3/' + fileName, indexHtmlContent.id);
-        
+        const indexHtmlFileItem = await app.saveContentByPath(testUser.id, filePath, indexHtmlContent.id);
         assert.equal(indexHtmlFileItem.name, fileName);
         
         let parentFolderId = indexHtmlFileItem.parentItemId;
@@ -120,11 +120,36 @@ describe("app", function () {
         
         while(parentFolderId) {
           const parentFolder = await app.database.getFileCatalogItem(parentFolderId);
-          console.log('parentFolder', parentFolder.name, 'level', level, 'parentItemId', parentFolder.parentItemId);
           assert.equal(parentFolder.name, level.toString());
           level -= 1;
           parentFolderId = parentFolder.parentItemId;
         }
+        
+        const foundIndexHtmlFileContent = await app.getContentByPath(testUser.id, filePath);
+
+        assert.equal(foundIndexHtmlFileContent.id, indexHtmlFileItem.content.id);
+        
+        const gotIndexHtml = await app.storage.getFileData(indexHtmlFileItem.content.storageId);
+        
+        assert.equal(gotIndexHtml, indexHtml);
+        
+        const publishFolderResult = await app.publishFolder(testUser.id, indexHtmlFileItem.parentItemId);
+        
+        const resolvedStorageId = await app.resolveStaticId(publishFolderResult.staticId);
+        
+        assert.equal(publishFolderResult.storageId, resolvedStorageId);
+        
+        const gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
+
+        assert.equal(gotIndexHtmlByFolder, indexHtml);
+        
+        try {
+          await app.storage.getFileData(publishFolderResult.storageId + '/incorrect' + fileName);
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(e.message, 'file does not exist');
+        }
+
       });
     });
   });

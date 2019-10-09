@@ -502,7 +502,10 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getFileCatalogItem(id) {
-    return this.models.FileCatalogItem.findOne({where: {id}});
+    return this.models.FileCatalogItem.findOne({
+      where: {id},
+      include: [{model: this.models.Content, as: 'content'}]
+    });
   }
 
   async addFileCatalogItem(item) {

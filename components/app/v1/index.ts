@@ -1235,14 +1235,22 @@ class GeesomeApp implements IGeesomeApp {
     const path = `/${userStaticId}/` + breadcrumbs.map(b => b.name).join('/') + '/';
 
     //TODO: replace node calling by storage object methods
-    await this.storage.node.mkdir(path, { parents: true });
+    const pathStat = await this.storage.node.files.stat(path, {hash: true});
+    if(!pathStat || !pathStat.hash) {
+      await this.storage.node.files.mkdir(path, { parents: true });
+    }
     
     return path;
   }
   
   public async cpFileToStorage(fileCatalogItem: IFileCatalogItem, storageDirPath) {
     //TODO: replace node calling by storage object methods
-    await this.storage.node.cp('/ipfs/' + fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.content.name, { parents: true });
+    const filePath = storageDirPath + fileCatalogItem.content.name;
+    const existFiles = await this.storage.node.files.ls(filePath);
+    if(existFiles.length) {
+      await this.storage.node.files.rm(filePath);
+    }
+    await this.storage.node.files.cp('/ipfs/' + fileCatalogItem.content.storageId, filePath, { parents: true, flush: true });
   }
   
   public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
@@ -1285,18 +1293,23 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
   
-  public async saveContentByPath(userId, path, contentId) {
+  public async findCatalogItemByPath(userId, path, createFoldersIfNotExists = false): Promise<{foundCatalogItem:IFileCatalogItem, lastFolderId: number}> {
     const pathArr = _.trim(path, '/').split('/');
     const foldersArr = pathArr.slice(0, -1);
     const fileName = pathArr.slice(-1)[0];
-    
+
     let currentFolderId = null;
+    let breakSearch = false;
     await pIteration.forEachSeries(foldersArr, async (name) => {
+      console.log('name', name, 'breakSearch', breakSearch, 'currentFolderId', currentFolderId);
+      if(breakSearch) {
+        return;
+      }
       const foundItems = await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.Folder, name);
-      
+
       if(foundItems.length) {
         currentFolderId = foundItems[0].id;
-      } else {
+      } else if(createFoldersIfNotExists) {
         const newFileCatalogFolder = await this.database.addFileCatalogItem({
           name,
           userId,
@@ -1305,30 +1318,49 @@ class GeesomeApp implements IGeesomeApp {
           parentItemId: currentFolderId
         });
         currentFolderId = newFileCatalogFolder.id;
+      } else {
+        breakSearch = true;
       }
     });
+    
+    if(breakSearch) {
+      return null;
+    }
 
-    const foundFileItems = await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.File, fileName);
+    console.log('lastFolderId', currentFolderId);
+    return {
+      lastFolderId: currentFolderId,
+      foundCatalogItem: (await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.File, fileName))[0]
+    };
+  }
+  
+  public async saveContentByPath(userId, path, contentId) {
+    const fileName = _.trim(path, '/').split('/').slice(-1)[0];
     
-    let fileItem;
+    let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, true);
     
-    if(foundFileItems.length) {
-      await this.database.updateFileCatalogItem(foundFileItems[0].id, { contentId });
-      fileItem = await this.database.getFileCatalogItem(foundFileItems[0].id);
+    if(fileItem) {
+      await this.database.updateFileCatalogItem(fileItem.id, { contentId });
     } else {
-      fileItem = this.database.addFileCatalogItem({
+      fileItem = await this.database.addFileCatalogItem({
         userId,
+        contentId,
         name: fileName,
         type: FileCatalogItemType.File,
-        position: (await this.database.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
-        parentItemId: currentFolderId
+        position: (await this.database.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
+        parentItemId: lastFolderId
       });
     }
-    if(currentFolderId) {
-      const size = await this.database.getFileCatalogItemsSizeSum(currentFolderId);
-      await this.database.updateFileCatalogItem(currentFolderId, {size});
+    if(fileItem.parentItemId) {
+      const size = await this.database.getFileCatalogItemsSizeSum(fileItem.parentItemId);
+      await this.database.updateFileCatalogItem(fileItem.parentItemId, {size});
     }
-    return fileItem;
+    return this.database.getFileCatalogItem(fileItem.id);
+  }
+
+  public async getContentByPath(userId, path) {
+    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path);
+    return fileCatalogItem ? await this.database.getContent(fileCatalogItem.contentId) : null;
   }
 
   /**
