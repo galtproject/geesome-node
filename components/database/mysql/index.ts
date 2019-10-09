@@ -102,7 +102,7 @@ class MysqlDatabase implements IDatabase {
     await pIteration.forEachSeries([
       'FileCatalogItemPermission', 'FileCatalogItem', 'Category', 'CorePermission',
       'UserContentAction', 'UserLimit', 'AutoTag', 'Tag', 'Content', 'PostsContents', 'Post', 'GroupPermission',
-      'GroupAdministrators', 'GroupMembers', 'Group', 'User', 'Value'
+      'GroupAdministrators', 'GroupMembers', 'Group', 'UserApiKey', 'User', 'Value'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });

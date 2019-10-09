@@ -24,7 +24,7 @@ describe("app", function () {
 
   versions.forEach((appVersion) => {
     describe('app ' + appVersion, () => {
-      before(async () => {
+      beforeEach(async () => {
         const appConfig = require('../components/app/v1/config');
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.config = {
@@ -37,9 +37,6 @@ describe("app", function () {
           }
         };
         
-        const database = await require('../components/database/' + appConfig.databaseModule)({config: {databaseConfig}});
-        await database.flushDatabase();
-
         try {
           app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 77111});
 
@@ -53,6 +50,11 @@ describe("app", function () {
           console.error(e);
           assert.equal(true, false);
         }
+      });
+      
+      afterEach(async () => {
+        await app.database.flushDatabase();
+        await app.storage.node.stop();
       });
 
       it("should initialized successfully", async () => {
@@ -104,7 +106,7 @@ describe("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
 
-      it.only("should file catalog working properly", async () => {
+      it("should file catalog working properly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         
         const indexHtml = '<h1>Hello world</h1>';
