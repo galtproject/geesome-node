@@ -8,9 +8,9 @@
   dependencies:
     regenerator-runtime "^0.13.2"
 
-"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#cffb7e3":
+"@galtproject/geesome-libs@git://github.com/galtspace/geesome-libs.git#4f4f421":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#cffb7e3923478d0eb4bed6620e89dfe0e9c83024"
+  resolved "git://github.com/galtspace/geesome-libs.git#4f4f421233df6234e60bbc2f187ddf18470d5b6d"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -21,7 +21,7 @@
     ipfs "^0.35.0"
     ipfsd-ctl "^0.43.0"
     ipns "^0.5.2"
-    lodash "^4.17.11"
+    lodash "^4.17.15"
     multihashes "~0.4.14"
     node-forge "0.8.5"
     openpgp "^4.6.0"
@@ -5269,7 +5269,7 @@ lodash@^4.17.11, lodash@^4.17.13, lodash@^4.17.4:
   version "4.17.13"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.13.tgz#0bdc3a6adc873d2f4e0c4bac285df91b64fc7b93"
 
-lodash@^4.17.14, lodash@^4.17.5:
+lodash@^4.17.14, lodash@^4.17.15, lodash@^4.17.5:
   version "4.17.15"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
   integrity sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==

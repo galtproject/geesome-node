@@ -400,6 +400,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
     const ipfsId = await geesomeApp.resolveStaticId(ipnsId);
     
+    console.log('ipnsPath', ipnsPath);
+    console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
+    
     geesomeApp.getFileStream(ipnsPath.replace(ipnsId, ipfsId)).then((stream) => {
       stream.pipe(res);
     })

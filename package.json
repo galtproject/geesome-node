@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#cffb7e3",
+    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#4f4f421",
     "@microlink/youtube-dl": "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.19.0",
