@@ -160,6 +160,7 @@ geesomeClient.init().then(async () => {
 - Separated content and access by users
 - Limit users upload
 - IPNS caching for fast resolving
+- IPFS and IPNS directories for HTML sites and more
 
 ## TODO:
 - Manage api keys in UI
