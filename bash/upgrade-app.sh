@@ -9,4 +9,5 @@ yarn
 
 # backend
 npm run migrate-database
+npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 pm2 start geesome-node
