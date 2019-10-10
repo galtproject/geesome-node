@@ -1271,7 +1271,7 @@ class GeesomeApp implements IGeesomeApp {
 
     console.log('fileCatalogChildrenFiles.length', fileCatalogChildrenFiles.length);
     await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
-      await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.content.name);
+      await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
     });
   }
 
