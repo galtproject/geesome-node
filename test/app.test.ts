@@ -106,7 +106,7 @@ describe("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
 
-      it.only("should file catalog working properly", async () => {
+      it("should file catalog working properly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         
         const indexHtml = '<h1>Hello world</h1>';
@@ -164,7 +164,7 @@ describe("app", function () {
         assert.equal(gotIndexHtmlByFolder, indexHtml);
 
         const indexHtml2 = '<h1>Hello world 2</h1>';
-        const fileName2 = 'index2.html';
+        const fileName2 = 'index2.json';
         const filePath2 = foldersPath + fileName2;
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
 

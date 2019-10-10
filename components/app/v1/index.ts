@@ -1261,6 +1261,7 @@ class GeesomeApp implements IGeesomeApp {
     const fileCatalogChildrenFolders = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
 
     console.log('makeFolderChildrenStorageDirsAndCopyFiles sPath', storageDirPath);
+    console.log('fileCatalogChildrenFolders.length', fileCatalogChildrenFolders.length);
     await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
       const sPath = await this.makeFolderStorageDir(fItem);
       return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
@@ -1268,6 +1269,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const fileCatalogChildrenFiles = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
 
+    console.log('fileCatalogChildrenFiles.length', fileCatalogChildrenFiles.length);
     await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
       await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.content.name);
     });
