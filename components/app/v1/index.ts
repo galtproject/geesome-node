@@ -1331,11 +1331,17 @@ class GeesomeApp implements IGeesomeApp {
     if(breakSearch) {
       return null;
     }
-
+    
+    const results = await this.database.getFileCatalogItems(userId, currentFolderId, type, lastItemName);
+    if(results.length > 1) {
+      await pIteration.forEach(results.slice(1), item => this.database.updateFileCatalogItem(item.id, {isDeleted: true}));
+      console.log('remove excess file items: ', lastItemName);
+    }
+    
     console.log('lastFolderId', currentFolderId);
     return {
       lastFolderId: currentFolderId,
-      foundCatalogItem: (await this.database.getFileCatalogItems(userId, currentFolderId, type, lastItemName))[0]
+      foundCatalogItem: results[0]
     };
   }
   
