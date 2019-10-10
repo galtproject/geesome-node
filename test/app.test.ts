@@ -106,7 +106,7 @@ describe("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
 
-      it("should file catalog working properly", async () => {
+      it.only("should file catalog working properly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         
         const indexHtml = '<h1>Hello world</h1>';
@@ -163,7 +163,7 @@ describe("app", function () {
         
         assert.equal(gotIndexHtmlByFolder, indexHtml);
 
-        const indexHtml2 = '<h1>Hello world 2</h1>';
+        let indexHtml2 = '<h1>Hello world 2</h1>';
         const fileName2 = 'index2.json';
         const filePath2 = foldersPath + fileName2;
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
@@ -175,6 +175,18 @@ describe("app", function () {
           assert.equal(e.message, 'file does not exist');
         }
 
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+        assert.equal(gotIndexHtmlByFolder, indexHtml2);
+
+        indexHtml2 = '<h1>Hello world 3</h1>';
+        await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+        assert.equal(gotIndexHtmlByFolder, indexHtml2);
+        
+        indexHtml2 = '<h1>Hello world 2</h1>';
+        await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
         publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);

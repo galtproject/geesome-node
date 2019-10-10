@@ -1341,12 +1341,15 @@ class GeesomeApp implements IGeesomeApp {
   
   public async saveContentByPath(userId, path, contentId, options: {groupId?} = {}) {
     const fileName = _.trim(path, '/').split('/').slice(-1)[0];
+    console.log('saveContentByPath', 'path:', path, 'fileName:', fileName);
     
     let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
-    
+
     if(fileItem) {
+      console.log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
       await this.database.updateFileCatalogItem(fileItem.id, { contentId });
     } else {
+      console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
       fileItem = await this.database.addFileCatalogItem({
         userId,
         contentId,
