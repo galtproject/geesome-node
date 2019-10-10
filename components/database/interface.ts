@@ -335,7 +335,7 @@ export enum GroupView {
 export interface IFileCatalogItem {
   id?: number;
   name: string;
-  type: IFileCatalogItemType;
+  type: FileCatalogItemType;
   position: number;
   userId: number;
   defaultFolderFor?: string;
@@ -346,9 +346,11 @@ export interface IFileCatalogItem {
   size?: number;
   manifestStorageId?: string;
   nativeStorageId?: string;
+  
+  content?: IContent;
 }
 
-export enum IFileCatalogItemType {
+export enum FileCatalogItemType {
   Folder = 'folder',
   File = 'file'
 }

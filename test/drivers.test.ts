@@ -15,7 +15,7 @@ const drivers = require('../components/drivers');
 describe("drivers", function () {
   describe('preview video-thumbnail', () => {
 
-    it.only("should get video screenshot correctly", () => {
+    it("should get video screenshot correctly", () => {
       return new Promise(async (resolve, reject) => {
         const result = await drivers['preview']['video-thumbnail'].processByStream(fs.createReadStream(__dirname + '/resources/input-video.mp4'), {});
         const strm = fs.createWriteStream(__dirname + '/resources/output-screenshot.png');

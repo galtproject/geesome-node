@@ -7,7 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import Promise from "sequelize/types/lib/promise";
+
 export interface IStorage {
+  node: any;
+  
   saveDirectory(path): Promise<IResultFile>;
 
   saveFileByPath(path): Promise<IResultFile>;
@@ -67,6 +71,12 @@ export interface IStorage {
   getPubSubLs(): Promise<string[]>;
 
   getPeers(topic): Promise<string[]>;
+  
+  makeDir(path): Promise<void>;
+
+  copyFileFromId(storageId, path): Promise<void>;
+
+  getDirectoryId(path): Promise<string>;
 }
 
 interface IResultFile {

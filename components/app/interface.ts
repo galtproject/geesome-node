@@ -34,7 +34,9 @@ export interface IGeesomeApp {
 
   getSecretKey(keyName): Promise<string>;
 
-  registerUser(email, name, password): Promise<IUser>;
+  setup(userData): Promise<{user: IUser, apiKey: string}>;
+
+  registerUser(userData): Promise<IUser>;
 
   loginUser(usernameOrEmail, password): Promise<IUser>;
 
@@ -119,6 +121,14 @@ export interface IGeesomeApp {
   addContentToFolder(userId, contentId, folderId): Promise<any>;
 
   updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
+
+  saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
+
+  getContentByPath(userId, path): Promise<IContent>;
+
+  getFileCatalogItemByPath(userId, path, type): Promise<IFileCatalogItem>;
+
+  publishFolder(userId, fileCatalogId): Promise<{storageId:string, staticId:string}>;
 
   regenerateUserContentPreviews(userId): Promise<void>;
 

@@ -102,7 +102,7 @@ class MysqlDatabase implements IDatabase {
     await pIteration.forEachSeries([
       'FileCatalogItemPermission', 'FileCatalogItem', 'Category', 'CorePermission',
       'UserContentAction', 'UserLimit', 'AutoTag', 'Tag', 'Content', 'PostsContents', 'Post', 'GroupPermission',
-      'GroupAdministrators', 'GroupMembers', 'Group', 'User', 'Value'
+      'GroupAdministrators', 'GroupMembers', 'Group', 'UserApiKey', 'User', 'Value'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
@@ -502,7 +502,10 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getFileCatalogItem(id) {
-    return this.models.FileCatalogItem.findOne({where: {id}});
+    return this.models.FileCatalogItem.findOne({
+      where: {id},
+      include: [{model: this.models.Content, as: 'content'}]
+    });
   }
 
   async addFileCatalogItem(item) {

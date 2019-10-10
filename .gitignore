@@ -7,3 +7,4 @@ coverage
 *.key
 test/resources
 components/database/mysql/config
+.jsipfs-test
