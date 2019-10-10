@@ -721,6 +721,9 @@ class GeesomeApp implements IGeesomeApp {
         previewDriverName = 'youtube-thumbnail';
       }
     }
+    if(!fullType) {
+      fullType = '';
+    }
     //TODO: detect more video types
     if (_.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi') || _.endsWith(fullType, 'mov') || _.endsWith(fullType, 'quicktime')) {
       previewDriverName = 'video-thumbnail';
@@ -844,7 +847,10 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, folderId?, mimeType? }) {
+  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, folderId?, mimeType?, path? }) {
+    if(options.path) {
+      fileName = _.trim(options.path, '/').split('/').slice(-1)[0];
+    }
     const extension = (fileName || '').split('.').length > 1 ? _.last((fileName || '').split('.')) : null;
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName), extension);
 
@@ -881,8 +887,13 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, folderId? }) {
-    const name = _.last(url.split('/'));
+  async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, folderId?, path? }) {
+    let name;
+    if(options.path) {
+      name = _.trim(options.path, '/').split('/').slice(-1)[0];
+    } else {
+      name = _.last(url.split('/'))
+    }
     let extension = name.split('.').length > 1 ? _.last(name.split('.')) : null;
     let type;
 
@@ -1076,10 +1087,19 @@ class GeesomeApp implements IGeesomeApp {
     return this.addContentToUserFileCatalog(userId, content, {folderId})
   }
 
-  private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId? }) {
+  private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
     const baseType = _.first(content.mimeType.split('/'));
 
-    let parentItemId = options.folderId;
+    let parentItemId;
+
+    const groupId = (await this.checkGroupId(options.groupId)) || null;
+    
+    if(options.path) {
+      return this.saveContentByPath(content.userId, options.path, content.id);
+    }
+    
+    parentItemId = options.folderId;
+
     if (_.isUndefined(parentItemId) || parentItemId === 'undefined') {
       const contentFiles = await this.database.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
       if (contentFiles.length) {
@@ -1108,8 +1128,6 @@ class GeesomeApp implements IGeesomeApp {
       console.log(`Content ${content.id} already exists in folder`);
       return;
     }
-
-    const groupId = (await this.checkGroupId(options.groupId)) || null;
 
     const resultItem = await this.database.addFileCatalogItem({
       name: content.name || "Unnamed " + new Date().toISOString(),
@@ -1319,7 +1337,7 @@ class GeesomeApp implements IGeesomeApp {
     };
   }
   
-  public async saveContentByPath(userId, path, contentId) {
+  public async saveContentByPath(userId, path, contentId, options: {groupId?} = {}) {
     const fileName = _.trim(path, '/').split('/').slice(-1)[0];
     
     let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
@@ -1333,7 +1351,8 @@ class GeesomeApp implements IGeesomeApp {
         name: fileName,
         type: FileCatalogItemType.File,
         position: (await this.database.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
-        parentItemId: lastFolderId
+        parentItemId: lastFolderId,
+        groupId: options.groupId
       });
     }
     if(fileItem.parentItemId) {

@@ -109,25 +109,47 @@ or yarn:
 ```
 yarn add git://github.com/galtproject/geesome-libs.git
 ```
-3. Init GeeSome client and send request to your GeeSome node
-```
+3. Init GeeSome client and save image to your IPFS node
+```javascript
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
 const geesomeClient = new GeesomeClient({
-    server: 'https://your-site.com:7722',
+    server: 'https://your-site.com:7722', // or 'http://localhost:7711'
     // paste apiKey from GeeSome UI here
     apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E'
 });
-await geesomeClient.init();
-
-const contentObj = await geesomeClient.saveDataByUrl('http://url.to/image.jpg');
-
-console.log('content ipfs', contentObj.storageId);
-console.log('content manifest ipld', contentObj.manifestStorageId);
+geesomeClient.init().then(async () => {
+    const contentObj = await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg');
+    
+    console.log('content ipfs', contentObj.storageId);
+    console.log('content manifest ipld', contentObj.manifestStorageId);
+});
 ```
 You can also use `geesomeClient.loginUserPass` for login via login and password without manually 
 setting `apiKey`. But more safer to use `apiKey`, because you can always disable it `apiKey` and 
 create another if there is a leak.
+
+4. Create and publish IPFS site directory with content
+```javascript
+geesomeClient.init().then(async () => {
+    await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg', {path: '/my-site/image.jpg'});
+    
+    await geesomeClient.saveContentData('<h1>Hello world!</h1> <img src="./image.jpg"/>', {path: '/my-site/index.html'});
+    
+    const mySiteFolder = await geesomeClient.getFileCatalogItemByPath('/my-site/', 'folder');
+    
+    const {storageId, staticId} = await geesomeClient.publishFolder(mySiteFolder.id);
+    
+    console.log(`check out by IPFS hash: ${geesomeClient.server}/ipfs/${storageId}/`); // for example: https://your-site.com:7722/ipfs/QmbDxAcbnSc5bgX77MgqqZ9bPVcczv5McZAYrWXoRxExi8/
+
+    console.log(`check out by IPNS hash: ${geesomeClient.server}/ipns/${staticId}/`); // for example: https://your-site.com:7722/ipns/QmcqRcmu7p3UHkMPz8XJ886KPWbzxgpc9uNXy9GUDfUD87/
+    
+    // resolve IPNS by api:
+    const resolvedStorageId = await geesomeClient.resolveIpns(staticId);
+    
+    console.log(storageId === resolvedStorageId); // true
+});
+```
 
 ## Current state and features:
 - Public channels and posts

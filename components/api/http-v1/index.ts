@@ -308,7 +308,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       apiKey: req.token,
       groupId: req.body['groupId'],
       folderId: req.body['folderId'],
-      mimeType: req.body['mimeType']
+      mimeType: req.body['mimeType'],
+      path: req.body['path']
     }), 200);
   });
 
@@ -318,7 +319,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       apiKey: req.token,
       groupId: req.body['groupId'],
       driver: req.body['driver'],
-      folderId: req.body['folderId']
+      folderId: req.body['folderId'],
+      path: req.body['path']
     }), 200);
   });
 
@@ -378,15 +380,27 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getContent(req.params.contentId));
   });
 
-  service.get('/v1/content-data/:storageId', async (req, res) => {
-    geesomeApp.getFileStream(req.params.storageId).then((stream) => {
+  service.get('/v1/content-data/*', async (req, res) => {
+    const dataPath = req.url.replace('/v1/content-data/', '');
+    geesomeApp.getFileStream(dataPath).then((stream) => {
       stream.pipe(res);
     })
   });
 
-  service.get('/ipfs/:storageId', async (req, res) => {
+  service.get('/ipfs/*', async (req, res) => {
+    const ipfsPath = req.url.replace('/ipfs/', '');
     //TODO: https://gist.github.com/padenot/1324734
-    geesomeApp.getFileStream(req.params.storageId).then((stream) => {
+    geesomeApp.getFileStream(ipfsPath).then((stream) => {
+      stream.pipe(res);
+    })
+  });
+
+  service.get('/ipns/*', async (req, res) => {
+    const ipnsPath = req.url.replace('/ipns/', '');
+    const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
+    const ipfsId = await geesomeApp.resolveStaticId(ipnsId);
+    
+    geesomeApp.getFileStream(ipnsPath.replace(ipnsId, ipfsId)).then((stream) => {
       stream.pipe(res);
     })
   });
@@ -399,7 +413,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/ipld/*', async (req, res) => {
     const ipldPath = req.url.replace('/ipld/', '');
-    console.log('ipldPath', ipldPath);
     geesomeApp.getDataStructure(ipldPath).then(result => {
       res.send(_.isNumber(result) ? result.toString() : result);
     }).catch(() => {

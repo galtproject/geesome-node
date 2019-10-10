@@ -111,7 +111,8 @@ describe("app", function () {
         
         const indexHtml = '<h1>Hello world</h1>';
         const fileName = 'index.html';
-        const filePath = '/1/2/3/' + fileName;
+        const foldersPath = '/1/2/3/';
+        const filePath = foldersPath + fileName;
         
         const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
         const indexHtmlFileItem = await app.saveContentByPath(testUser.id, filePath, indexHtmlContent.id);
@@ -161,6 +162,22 @@ describe("app", function () {
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
         
         assert.equal(gotIndexHtmlByFolder, indexHtml);
+
+        const indexHtml2 = '<h1>Hello world 2</h1>';
+        const fileName2 = 'index2.html';
+        const filePath2 = foldersPath + fileName2;
+        await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
+
+        try {
+          await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(e.message, 'file does not exist');
+        }
+
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+        assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
     });
   });
