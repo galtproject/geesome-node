@@ -126,6 +126,8 @@ export interface IGeesomeApp {
 
   getContentByPath(userId, path): Promise<IContent>;
 
+  getFileCatalogItemByPath(userId, path, type): Promise<IFileCatalogItem>;
+
   publishFolder(userId, fileCatalogId): Promise<{storageId:string, staticId:string}>;
 
   regenerateUserContentPreviews(userId): Promise<void>;

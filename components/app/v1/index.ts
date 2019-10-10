@@ -1228,7 +1228,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const breadcrumbs = await this.getFileCatalogItemsBreadcrumbs(fileCatalogItem.userId, fileCatalogItem.id);
 
-    breadcrumbs.push(fileCatalogItem);
+    // breadcrumbs.push(fileCatalogItem);
 
     const {storageAccountId: userStaticId} = await this.database.getUser(fileCatalogItem.userId);
 
@@ -1241,7 +1241,8 @@ class GeesomeApp implements IGeesomeApp {
   
   public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
     const fileCatalogChildrenFolders = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
-    
+
+    console.log('makeFolderChildrenStorageDirsAndCopyFiles sPath', storageDirPath);
     await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
       const sPath = await this.makeFolderStorageDir(fItem);
       return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
@@ -1253,24 +1254,20 @@ class GeesomeApp implements IGeesomeApp {
       await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.content.name);
     });
   }
-  
-  public async getStorageDirectoryHash(path) {
-    const stats = await this.storage.node.files.stat(path);
-    return stats.hash;
-  }
 
   public async publishFolder(userId, fileCatalogId) {
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
 
     const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
-    
+
+    console.log('publishFolder storageDirPath', storageDirPath);
     await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
     
-    const storageId = await this.getStorageDirectoryHash(storageDirPath);
+    const storageId = await this.storage.getDirectoryId(storageDirPath);
     
     const user = await this.database.getUser(userId);
     
-    const staticId = await this.createStorageAccount(user.name + '@directory');
+    const staticId = await this.createStorageAccount(await ipfsHelper.getIpfsHashFromString(user.name + '@directory:' + storageDirPath));
     await this.storage.bindToStaticId(storageId, staticId);
     
     return {
@@ -1279,11 +1276,13 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
   
-  public async findCatalogItemByPath(userId, path, createFoldersIfNotExists = false): Promise<{foundCatalogItem:IFileCatalogItem, lastFolderId: number}> {
+  public async findCatalogItemByPath(userId, path, type, createFoldersIfNotExists = false): Promise<{foundCatalogItem:IFileCatalogItem, lastFolderId: number}> {
     const pathArr = _.trim(path, '/').split('/');
     const foldersArr = pathArr.slice(0, -1);
-    const fileName = pathArr.slice(-1)[0];
+    const lastItemName = pathArr.slice(-1)[0];
 
+    console.log('foldersArr', foldersArr);
+    console.log('lastItemName', lastItemName);
     let currentFolderId = null;
     let breakSearch = false;
     await pIteration.forEachSeries(foldersArr, async (name) => {
@@ -1316,14 +1315,14 @@ class GeesomeApp implements IGeesomeApp {
     console.log('lastFolderId', currentFolderId);
     return {
       lastFolderId: currentFolderId,
-      foundCatalogItem: (await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.File, fileName))[0]
+      foundCatalogItem: (await this.database.getFileCatalogItems(userId, currentFolderId, type, lastItemName))[0]
     };
   }
   
   public async saveContentByPath(userId, path, contentId) {
     const fileName = _.trim(path, '/').split('/').slice(-1)[0];
     
-    let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, true);
+    let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
     
     if(fileItem) {
       await this.database.updateFileCatalogItem(fileItem.id, { contentId });
@@ -1345,8 +1344,13 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async getContentByPath(userId, path) {
-    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path);
+    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File);
     return fileCatalogItem ? await this.database.getContent(fileCatalogItem.contentId) : null;
+  }
+  
+  public async getFileCatalogItemByPath(userId, path, type: FileCatalogItemType) {
+    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, type);
+    return fileCatalogItem;
   }
 
   /**

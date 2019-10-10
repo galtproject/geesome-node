@@ -8,7 +8,7 @@
  */
 
 import {IGeesomeApp} from "../components/app/interface";
-import {UserLimitName} from "../components/database/interface";
+import {FileCatalogItemType, UserLimitName} from "../components/database/interface";
 
 const assert = require('assert');
 const fs = require('fs');
@@ -38,7 +38,7 @@ describe("app", function () {
         };
         
         try {
-          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 77111});
+          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user'});
@@ -106,7 +106,7 @@ describe("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
 
-      it("should file catalog working properly", async () => {
+      it.only("should file catalog working properly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         
         const indexHtml = '<h1>Hello world</h1>';
@@ -134,14 +134,15 @@ describe("app", function () {
         const gotIndexHtml = await app.storage.getFileData(indexHtmlFileItem.content.storageId);
         
         assert.equal(gotIndexHtml, indexHtml);
-        
-        const publishFolderResult = await app.publishFolder(testUser.id, indexHtmlFileItem.parentItemId);
+
+        console.log('publishFolder indexHtmlFileItem.parentItem');
+        let publishFolderResult = await app.publishFolder(testUser.id, indexHtmlFileItem.parentItemId);
         
         const resolvedStorageId = await app.resolveStaticId(publishFolderResult.staticId);
         
         assert.equal(publishFolderResult.storageId, resolvedStorageId);
         
-        const gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
+        let gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
 
         assert.equal(gotIndexHtmlByFolder, indexHtml);
         
@@ -151,7 +152,15 @@ describe("app", function () {
         } catch (e) {
           assert.equal(e.message, 'file does not exist');
         }
+        
+        const firstFolder = await app.getFileCatalogItemByPath(testUser.id, '/1/', FileCatalogItemType.Folder);
 
+        console.log('publishFolder firstFolder', firstFolder.name);
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+
+        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
+        
+        assert.equal(gotIndexHtmlByFolder, indexHtml);
       });
     });
   });

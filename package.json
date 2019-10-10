@@ -10,13 +10,13 @@
     "rollback-migration": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "upgrade": "./bash/upgrade-app.sh",
     "recreate-test-database": "mysql -uroot -proot -e \"drop database test_geesome_core; create database test_geesome_core;\"",
-    "test": "npm run recreate-test-database; ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
+    "test": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#a1e2f0a",
+    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#a94febb",
     "@microlink/youtube-dl": "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.19.0",

@@ -346,6 +346,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.post('/v1/user/file-catalog/get-content-by-path', async (req, res) => {
     res.send(await geesomeApp.getContentByPath(req.user.id, req.body.path));
   });
+  service.post('/v1/user/file-catalog/get-item-by-path', async (req, res) => {
+    res.send(await geesomeApp.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
+  });
   service.post('/v1/user/file-catalog/publish-folder/:itemId', async (req, res) => {
     res.send(await geesomeApp.publishFolder(req.user.id, req.params.itemId));
   });

@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import Promise from "sequelize/types/lib/promise";
+
 export interface IStorage {
   node: any;
   
@@ -73,6 +75,8 @@ export interface IStorage {
   makeDir(path): Promise<void>;
 
   copyFileFromId(storageId, path): Promise<void>;
+
+  getDirectoryId(path): Promise<string>;
 }
 
 interface IResultFile {
