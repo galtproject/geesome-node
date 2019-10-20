@@ -28,7 +28,11 @@ export class VideoThumbnail extends AbstractDriver {
       done();
     };
     
-    ffmpeg(inputStream)
+    console.log('inputStream', options.extension, inputStream);
+    ffmpeg()
+      .input(inputStream)
+      .inputFormat(options.extension)
+      .inputOptions("-movflags faststart")
       .outputOptions(['-f image2', '-vframes 1', '-vcodec png', '-f rawvideo', '-ss 00:00:05'])//, '-s 320x240'
       .output(transformStream)
       .on('error', function (err, stdout, stderr) {
@@ -38,7 +42,19 @@ export class VideoThumbnail extends AbstractDriver {
         }
       })
       .run();
-    
+
+    /**
+     new ffmpeg({ source: inputStream})
+       .addInputOptions(['-f image2', '-vframes 1', '-vcodec png', '-f rawvideo', '-ss 00:00:05'])//, '-s 320x240'
+       .on('error', function (err, stdout, stderr) {
+          console.log('An error occurred: ' + err.message, err, stderr);
+          if(options.onError) {
+            options.onError(err);
+          }
+        })
+       .writeToStream(transformStream, { end: true });
+     */
+
     return {
       stream: transformStream,
       type: 'image/png',

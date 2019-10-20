@@ -10,11 +10,12 @@
 import {IGeesomeApp} from "../components/app/interface";
 import {FileCatalogItemType, UserLimitName} from "../components/database/interface";
 
+const ipfsHelper = require("@galtproject/geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 
 describe("app", function () {
-  const databaseConfig = {name: 'test_geesome_core', options: {logging: true}};
+  const databaseConfig = {name: 'test_geesome_core', options: {logging: false}};
 
   this.timeout(30000);
 
@@ -98,15 +99,33 @@ describe("app", function () {
         await app.saveData(fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
           userId: testUser.id,
           groupId: testGroup.id
-        })
-
+        });
+        
         // const contentObj = await app.saveDataByUrl('https://www.youtube.com/watch?v=rxGnonKB7TY', {userId: 1, groupId: 1, driver: 'youtube-video'});
         // console.log('contentObj', contentObj);
         //
         // assert.notEqual(contentObj.storageAccountId, null);
       });
+      
+      it('should correctly save video', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+        
+        const videoContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-video.mp4'), 'input-video.mp4', {
+          userId: testUser.id,
+          groupId: testGroup.id
+        });
 
-      it.only("should file catalog working properly", async () => {
+        const contentObj = await app.storage.getObject(videoContent.manifestStorageId);
+
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
+        assert.equal(contentObj.mimeType, 'video/mp4');
+
+        assert.equal(contentObj.preview.medium.mimeType, 'image/jpg');
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
+      });
+
+      it("should file catalog working properly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         
         const indexHtml = '<h1>Hello world</h1>';
