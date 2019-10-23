@@ -13,7 +13,7 @@ const fs = require('fs');
 const drivers = require('../components/drivers');
 const mediainfo = require('node-mediainfo');
 
-describe.only("drivers", function () {
+describe("drivers", function () {
   this.timeout(60000);
   
   describe('convert video', () => {
