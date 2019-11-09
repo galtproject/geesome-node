@@ -29,6 +29,7 @@ describe("app", function () {
       beforeEach(async () => {
         const appConfig = require('../components/app/v1/config');
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+        appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         appConfig.storageConfig.jsNode.config = {
           Addresses: {
             Swarm: [
