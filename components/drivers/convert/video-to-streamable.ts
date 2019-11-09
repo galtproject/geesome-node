@@ -14,14 +14,15 @@ const stream = require('stream');
 
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
-const uuidv1 = require('uuid/v1');
+const uuidv4 = require('uuid/v4');
+const mediainfo = require('node-mediainfo');
 
 export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(inputStream, options: any = {}) {
-    const path = `/tmp/` + uuidv1() + '.' + options.extension;
+    const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.' + options.extension;
     
     await new Promise((resolve, reject) =>
       inputStream
@@ -35,6 +36,21 @@ export class VideoToStreambleDriver extends AbstractDriver {
         .on('error', error => reject(error))
         .on('finish', () => resolve({path}))
     );
+
+    let videoInfo = await mediainfo(path);
+    let resultStream = fs.createReadStream(path);
+    resultStream.on("close", () => {
+      fs.unlinkSync(path);
+    });
+    
+    if(videoInfo.media.track[0].IsStreamable === 'Yes') {
+      return {
+        tempPath: path,
+        stream: resultStream,
+        type: 'video/' + options.extension,
+        processed: false
+      };
+    }
     
     const transformStream = new stream.Transform();
     transformStream._transform = function (chunk, encoding, done) {
@@ -42,7 +58,6 @@ export class VideoToStreambleDriver extends AbstractDriver {
       done();
     };
 
-    console.log('path', path);
     
     new ffmpeg(path)
       .inputFormat(options.extension)
@@ -54,10 +69,18 @@ export class VideoToStreambleDriver extends AbstractDriver {
       })
       .run();
 
+    transformStream.on("finish", () => {
+      fs.unlinkSync(path);
+    });
+    transformStream.on("error", () => {
+      fs.unlinkSync(path);
+    });
     //
     return {
+      tempPath: path,
       stream: transformStream,
-      type: 'video/' + options.extension
+      type: 'video/' + options.extension,
+      processed: true
     }
   }
 }

@@ -15,10 +15,39 @@ const mediainfo = require('node-mediainfo');
 
 describe("drivers", function () {
   this.timeout(60000);
+
+  describe('youtube video', () => {
+
+    it("should successfully getting video from youtube", async () => {
+      const ouputStreamablePath = __dirname + '/resources/output-youtube-video.mp4';
+      
+      async function downloadVideo() {
+        const result = await drivers['upload']['youtube-video'].processBySource('https://www.youtube.com/watch?v=DXUAyRRkI6k');
+
+        await new Promise(async (resolve, reject) => {
+          const strm = fs.createWriteStream(ouputStreamablePath);
+          result.stream.pipe(strm);
+
+          strm.on('finish', resolve);
+          strm.on('error', reject);
+        });
+      }
+      
+      try {
+        await downloadVideo();
+      } catch (e) {
+        console.warn('error', e.message, 'try again...');
+        //try again
+        await downloadVideo();
+      }
+
+      let videoInfo = await mediainfo(ouputStreamablePath);
+      assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
+    });
+  });
   
   describe('convert video', () => {
-    
-    it("should convert video to stremable", async () => {
+    it("should convert video to streamable", async () => {
       const videoPath = __dirname + '/resources/not-streamable-input-video.mp4';
 
       let videoInfo = await mediainfo(videoPath);
@@ -31,6 +60,8 @@ describe("drivers", function () {
         }
       });
 
+      assert.equal(result.processed, true);
+
       const ouputStreamablePath = __dirname + '/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
@@ -42,11 +73,45 @@ describe("drivers", function () {
 
       videoInfo = await mediainfo(ouputStreamablePath);
       assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
+
+      console.log('result.tempPath', result.tempPath);
+      assert.equal(fs.existsSync(result.tempPath), false);
+    });
+
+    it("should not process already streamable video", async () => {
+      const videoPath = __dirname + '/resources/streamable-input-video.mp4';
+
+      let videoInfo = await mediainfo(videoPath);
+      assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
+
+      const result = await drivers['convert']['video-to-streamable'].processByStream(fs.createReadStream(videoPath), {
+        extension: 'mp4',
+        onError() {
+          assert.equal(false, true);
+        }
+      });
+
+      assert.equal(result.processed, false);
+
+      const ouputStreamablePath = __dirname + '/resources/output-video.mp4';
+      await new Promise(async (resolve, reject) => {
+        const strm = fs.createWriteStream(ouputStreamablePath);
+        result.stream.pipe(strm);
+
+        strm.on('finish', resolve);
+        strm.on('error', reject);
+      });
+
+      videoInfo = await mediainfo(ouputStreamablePath);
+      assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
+
+      console.log('result.tempPath', result.tempPath);
+      assert.equal(fs.existsSync(result.tempPath), false);
     });
   });
 
   describe('preview video-thumbnail', () => {
-    it.only("should get video screenshot correctly", async () => {
+    it("should get video screenshot correctly", async () => {
       await new Promise(async (resolve, reject) => {
 
         const videoPath = __dirname + '/resources/streamable-input-video.mp4';
@@ -59,6 +124,7 @@ describe("drivers", function () {
             assert.equal(false, true);
           }
         });
+        
         const strm = fs.createWriteStream(__dirname + '/resources/output-screenshot.png');
         result.stream.pipe(strm);
 

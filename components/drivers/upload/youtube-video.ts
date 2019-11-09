@@ -24,11 +24,13 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
   supportedOutputSizes = [OutputSize.Medium];
 
   async processBySource(url, options: any = {}) {
-    const stream = youtubedl(url,
+    
+    let stream = youtubedl(url,
       // Optional arguments passed to youtube-dl.
       ['--format=18'],
       // Additional options can be given for calling `child_process.execFile()`.
       {cwd: __dirname});
+    
     return {
       stream,
       type: 'video/mp4',

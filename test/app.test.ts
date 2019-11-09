@@ -13,6 +13,7 @@ import {FileCatalogItemType, UserLimitName} from "../components/database/interfa
 const ipfsHelper = require("@galtproject/geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
+const _ = require('lodash');
 
 describe("app", function () {
   const databaseConfig = {name: 'test_geesome_core', options: {logging: false}};
@@ -121,7 +122,7 @@ describe("app", function () {
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'video/mp4');
 
-        assert.equal(contentObj.preview.medium.mimeType, 'image/jpg');
+        assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
         assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
       });
 
