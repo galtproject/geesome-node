@@ -43,6 +43,8 @@ export class VideoToStreambleDriver extends AbstractDriver {
       fs.unlinkSync(path);
     });
     
+    console.log('path', path);
+    
     if(videoInfo.media.track[0].IsStreamable === 'Yes') {
       return {
         tempPath: path,
@@ -57,13 +59,12 @@ export class VideoToStreambleDriver extends AbstractDriver {
       this.push(chunk);
       done();
     };
-
     
     new ffmpeg(path)
       .inputFormat(options.extension)
       .outputOptions("-movflags faststart+frag_keyframe+empty_moov")
       .output(transformStream)
-      .outputFormat(options.extension)
+      .outputFormat('mp4')// TODO: check if options.extension format supported
       .on('error', function (err, stdout, stderr) {
         console.log('An error occurred: ' + err.message, err, stderr);
       })
@@ -75,6 +76,8 @@ export class VideoToStreambleDriver extends AbstractDriver {
     transformStream.on("error", () => {
       fs.unlinkSync(path);
     });
+
+    // console.log('transformStream', transformStream);
     //
     return {
       tempPath: path,

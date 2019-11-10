@@ -47,6 +47,7 @@ const mime = require('mime');
 const axios = require('axios');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
+const uuidv4 = require('uuid/v4');
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
@@ -845,12 +846,55 @@ class GeesomeApp implements IGeesomeApp {
       return error ? reject(error) : resolve({content, type, extension});
     });
   }
+  
+  async asyncOperationWrapper(methodName, args, options){
+    if(options.apiKey) {
+      const apiKey = await this.database.addApiKey(options.apiKey);
+      options.userApiKeyId = apiKey.id;
+    }
+    
+    if(options.async) {
+      const asyncOperation = await this.database.addUserAsyncOperation({
+        userId: options.userId,
+        userApiKeyId: options.userApiKeyId,
+        name: 'save-data',
+        inProcess: true,
+        channel: uuidv4()
+      });
+      
+      this[methodName].apply(this, args)
+        .then(res => {
+          this.database.updateUserAsyncOperation(asyncOperation.id, {
+            inProcess: false,
+            contentId: res.id
+          });
+          return this.storage.publishEvent(asyncOperation.channel, res);
+        })
+        .catch((e) => {
+          return this.database.updateUserAsyncOperation(asyncOperation.id, {
+            inProcess: false,
+            errorType: 'unknown',
+            errorMessage: e.message
+          });
+        });
+      
+      return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
+    } else {
+      return this[methodName].apply(this, args);
+    }
+  }
 
-  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, folderId?, mimeType?, path? }) {
+  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, async?, asyncCallback? }) {
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
     const extension = this.getExtensionFromName(fileName);
+    
+    if(options.apiKey && !options.userApiKeyId) {
+      const apiKey = await this.database.addApiKey(options.apiKey);
+      options.userApiKeyId = apiKey.id;
+    }
+    
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName), extension);
 
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -886,7 +930,7 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, folderId?, path? }) {
+  async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, async?, asyncCallback? }) {
     let name;
     if (options.path) {
       name = this.getFilenameFromPath(options.path);
@@ -895,6 +939,11 @@ class GeesomeApp implements IGeesomeApp {
     }
     let extension = this.getExtensionFromName(name);
     let type;
+    
+    if(options.apiKey && !options.userApiKeyId) {
+      const apiKey = await this.database.addApiKey(options.apiKey);
+      options.userApiKeyId = apiKey.id;
+    }
 
     let storageFile;
     if (options.driver && options.driver != 'none') {
@@ -974,6 +1023,14 @@ class GeesomeApp implements IGeesomeApp {
     _.extend(content, updatedContent);
   }
 
+  async getAsyncOperation(userId, operationId) {
+    const asyncOperation = await this.database.getUserAsyncOperation(operationId);
+    if(asyncOperation.userId != userId) {
+      throw new Error("not_permitted");
+    }
+    return asyncOperation;
+  }
+
   getFilenameFromPath(path) {
     return _.trim(path, '/').split('/').slice(-1)[0];
   }
@@ -1046,7 +1103,7 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  private async addContent(contentData: IContent, options: { groupId?, userId?, apiKey? } = {}) {
+  private async addContent(contentData: IContent, options: { groupId?, userId?, userApiKeyId? } = {}) {
     if (options.groupId) {
       const groupId = await this.checkGroupId(options.groupId);
       let group;
@@ -1067,7 +1124,7 @@ class GeesomeApp implements IGeesomeApp {
         userId: content.userId,
         size: content.size,
         contentId: content.id,
-        apiKey: options.apiKey
+        userApiKeyId: options.userApiKeyId
       });
     }
 

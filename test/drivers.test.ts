@@ -78,6 +78,42 @@ describe("drivers", function () {
       assert.equal(fs.existsSync(result.tempPath), false);
     });
 
+    it.skip("should convert mov video to streamable", async () => {
+      const videoPath = __dirname + '/resources/input-video.mov';
+
+      let videoInfo = await mediainfo(videoPath);
+      assert.equal(videoInfo.media.track[0].IsStreamable, 'No');
+
+      const result = await drivers['convert']['video-to-streamable'].processByStream(fs.createReadStream(videoPath), {
+        extension: 'mov',
+        onError() {
+          assert.equal(false, true);
+        }
+      });
+
+      assert.equal(result.processed, true);
+
+      const ouputStreamablePath = __dirname + '/resources/output-video.mp4';
+      await new Promise(async (resolve, reject) => {
+        const strm = fs.createWriteStream(ouputStreamablePath);
+        result.stream.pipe(strm);
+
+        // result.stream.on('data', (src) => {
+        //   console.log('Something is piping into the result.', src.length);
+        //   // assert.equal(src);
+        // });
+
+        strm.on('finish', resolve);
+        strm.on('error', reject);
+      });
+
+      videoInfo = await mediainfo(ouputStreamablePath);
+      assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
+
+      console.log('result.tempPath', result.tempPath);
+      assert.equal(fs.existsSync(result.tempPath), false);
+    });
+
     it("should not process already streamable video", async () => {
       const videoPath = __dirname + '/resources/streamable-input-video.mp4';
 

@@ -28,6 +28,7 @@ module.exports = async function (sequelize) {
   models.FileCatalogItem = await require('./fileCatalogItem')(sequelize, models);
   models.FileCatalogItemPermission = await require('./fileCatalogItemPermission')(sequelize, models);
 
+  models.UserAsyncOperation = await require('./userAsyncOperation')(sequelize, models);
   models.UserContentAction = await require('./userContentAction')(sequelize, models);
   models.UserLimit = await require('./userLimit')(sequelize, models);
 

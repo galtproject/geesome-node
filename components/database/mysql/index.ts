@@ -627,6 +627,18 @@ class MysqlDatabase implements IDatabase {
 
     return (await this.models.UserContentAction.sum('size', {where})) || 0;
   }
+  
+  async addUserAsyncOperation(userLimitData) {
+    return this.models.UserAsyncOperation.create(userLimitData);
+  }
+
+  async updateUserAsyncOperation(id, updateData) {
+    return this.models.UserAsyncOperation.update(updateData, {where: {id}});
+  }
+
+  async getUserAsyncOperation(id) {
+    return this.models.UserAsyncOperation.findOne({where: {id}});
+  }
 
   async addUserLimit(userLimitData) {
     return this.models.UserLimit.create(userLimitData);

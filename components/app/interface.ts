@@ -92,9 +92,13 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
+  asyncOperationWrapper(methodName, args, options);
+
   saveData(fileStream, fileName, options);
 
   saveDataByUrl(url, options);
+
+  getAsyncOperation(userId, id);
 
   createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
 

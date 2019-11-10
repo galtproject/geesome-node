@@ -293,37 +293,40 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       body[fieldname] = val;
     });
     req.busboy.on('file', async function (fieldname, file, filename) {
-      res.send(await geesomeApp.saveData(file, filename, {
+      const options = {
         userId: req.user.id,
         apiKey: req.token,
-        groupId: body['groupId'],
-        folderId: body['folderId']
-      }), 200);
+        ..._.pick(body, ['groupId', 'folderId', 'async'])
+      };
+
+      res.send(await geesomeApp.asyncOperationWrapper('saveData', [file, filename, options], options));
     });
   });
 
   service.post('/v1/user/save-data', async (req, res) => {
-    res.send(await geesomeApp.saveData(req.body['content'], req.body['fileName'] || req.body['name'], {
+    const options = {
       userId: req.user.id,
       apiKey: req.token,
-      groupId: req.body['groupId'],
-      folderId: req.body['folderId'],
-      mimeType: req.body['mimeType'],
-      path: req.body['path']
-    }), 200);
+      ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async'])
+    };
+    
+    res.send(await geesomeApp.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
   });
 
   service.post('/v1/user/save-data-by-url', async (req, res) => {
-    res.send(await geesomeApp.saveDataByUrl(req.body['url'], {
+    const options = {
       userId: req.user.id,
       apiKey: req.token,
-      groupId: req.body['groupId'],
-      driver: req.body['driver'],
-      folderId: req.body['folderId'],
-      path: req.body['path']
-    }), 200);
+      ..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
+    };
+    
+    res.send(await geesomeApp.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
   });
 
+
+  service.post('/v1/user/get-async-operation/:id', async (req, res) => {
+    res.send(await geesomeApp.getAsyncOperation(req.user.id, req.params.id));
+  });
 
   service.get('/v1/user/file-catalog/', async (req, res) => {
     res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));

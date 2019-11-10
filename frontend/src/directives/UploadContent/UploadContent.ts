@@ -42,7 +42,11 @@ export default {
       const mode = this.mode;
       await pIteration.forEachSeries(files, (file) => {
         this.saving = true;
-        return this.$coreApi.saveFile(file, {groupId: this.groupId, folderId: this.folderId}).then((contentObj) => {
+        return this.$coreApi.saveFile(file, {
+          groupId: this.groupId, 
+          folderId: this.folderId,
+          async: true
+        }).then((contentObj) => {
           return this.contentUploaded(contentObj, mode);
         });
       });
@@ -52,7 +56,8 @@ export default {
       this.$coreApi.saveDataByUrl(this.localValue, {
         groupId: this.groupId,
         driver: this.driver,
-        folderId: this.folderId
+        folderId: this.folderId,
+        async: true
       }).then(this.contentUploaded.bind(this))
     },
     contentUploaded(contentObj, mode?) {
