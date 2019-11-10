@@ -7,7 +7,7 @@ Content using for describing of IPFS file: type, size, name, extension and in fu
  "name": "avatar1.jpg",
  "storageId": "QmY8BULaKQeez58U9vE3CYGBzwahSfiMjfVP2QeMQhz13R",
  "size": 8097,
- "mimeType": "image/jpeg",
+ "storageType": "ipfs",
  "extension": "jpg",
  "preview": {
     "small": {
@@ -29,11 +29,13 @@ Content using for describing of IPFS file: type, size, name, extension and in fu
         "extension": "jpg"
     }
  },
+ "updatedAt": "2019-11-10T20:29:32.000Z",
+ "createdAt": "2019-11-10T20:29:32.000Z",
  "storageType": "ipfs",
  "_version": "0.1",
- "_source": "geesome-core",
- "_protocol": "geesome-ipsp",
- "_type": "content-manifest"
+  "_source": "geesome-node",
+  "_protocol": "geesome-ipsp",
+  "_type": "content-manifest"
 }
 ```
 
@@ -43,19 +45,45 @@ Also post have information about total size of contents, group's IPNS and publis
 ```
 {
  "status": "published",
- "publishedAt": "2019-06-19T12:28:03.000Z",
- "size": 16097,
- "group": "QmRDrCNvumKD1rE9fH3tCJRLa4d9KAwV9uQVpJeTGK37Bk",
- "author": "Qme5v5iSDCw3ECwxBayCSdmZGRDJNb5HVJNiTECUt4h9co",
- "contents": [{
-   "/": "bafyreigwgatkuopm5a5mjn766mkvlf4ygs2f4ziwkwqhv4jeagcjwblp3m"
-  }, {
-   "/": "bafyreidnf3fsd7chi4f37feclhcilxnjuox4av3kuoozcbotse2hn3ypga"
- }],
+ "publishedAt": "2019-11-10T20:29:34.000Z",
+ "view": null,
+ "type": null,
+ "size": 10,
+ "groupId": "bafyreifzqhj4fsoeu73st4f5my4aizpd3p64xmu5deq7vdlfhihwv5v7kq",
+ "groupStaticId": "QmWjfvrzec3zwxp8aeZZjATeh2KYk86EZQGC91oKHXAVJt",
+ "authorId": "bafyreiffczjn6roztepqkn37zh35inr33oi7rorwvmd6qcryjyq6kqc7va",
+ "authorStaticId": "QmWjfvrzec3zwxp8aeZZjATeh2KYk86EZQGC91oKHXAVJt",
+ "contents": [
+  {
+   "storageId": "bafyreicaoc3rcohdpqyrsdw2rtacyo7og5mqasmvl6x43upd7wxrvtnxnm"
+  }
+ ],
  "_version": "0.1",
- "_source": "geesome-core",
+ "_source": "geesome-node",
  "_protocol": "geesome-ipsp",
  "_type": "post-manifest"
+}
+```
+
+## User
+Users are creating posts and managing groups.
+```
+{
+ "name": "test_user",
+ "title": "Test user",
+ "email": "test@mail.com",
+ "description": "4",
+ "updatedAt": "2019-11-10T21:23:30.000Z",
+ "createdAt": "2019-11-10T20:02:32.000Z",
+ "staticId": "QmWjfvrzec3zwxp8aeZZjATeh2KYk86EZQGC91oKHXAVJt",
+ "publicKey": "2TuPVgMCHJy5atawrsADEzjP7MCVbyyCA89UW6Wvjp9HrBSRc9DQw7Lz7ezy3SwK3iv3KKm3no9oyNWovZwUo5Ceo3e62tQgdpEidjobQevjhVpzNmr1pYZzTTX2ZUpwT44LAKWYREyh5wgAevZn1BLEiucdDb9XrtFJ9G2odd4WMb48K8zSSZyVjmSmS6tuCHPHDQeoWdeYNEkvCTGdyQzJ7GLLqvbASigMKcJ5VxdDtgZbbphAHnTj9o2QuF5cVY4TwVUqy81embzMw4XWQzoz7PsAqQVNGaYAm1Q9kcveFLQ1rtFMBcTxx1w5KXxnir2VEtv9i7cZHr1rwdNg5Qc5oFsNtijXCMSaw3NP1UnoCix2AWmJwBqkjuZQZYceEvQfM1Lc3PABG1dWTA",
+ "avatarImage": {
+  "/": "bafyreih3wgraxbf4ockadtz4czxmhwurwtil4yk4qgxrerwub5zak6qs4u"
+ },
+ "_version": "0.1",
+ "_source": "geesome-node",
+ "_protocol": "geesome-ipsp",
+ "_type": "user-manifest"
 }
 ```
 
@@ -64,30 +92,38 @@ Group have name(aka @username), title, type(channel or chat), view, total size o
 avatar and cover(IPLD of content's manifests).
 ```
 {
- "name": "test",
- "title": "Test",
+ "name": "Test group",
+ "title": "test-group",
  "type": "channel",
- "view": "instagram-like",
- "description": null,
- "postsSize": 32194,
- "postsCount": 2,
- "staticId": "QmRDrCNvumKD1rE9fH3tCJRLa4d9KAwV9uQVpJeTGK37Bk",
+ "view": "tumblr-like",
+ "theme": null,
+ "isPublic": true,
+ "description": "Test group description",
+ "size": 21321455,
+ "createdAt": "2019-11-10T20:02:45.000Z",
+ "updatedAt": "2019-11-10T20:22:13.000Z",
+ "postsCount": 3,
+ "staticId": "QmWjfvrzec3zwxp8aeZZjATeh2KYk86EZQGC91oKHXAVJt",
+ "publicKey": "2TuPVgMCHJy5atawrsADEzjP7MCVbyyCA89UW6Wvjp9HrBSRc9DQw7Lz7ezy3SwK3iv3KKm3no9oyNWovZwUo5Ceo3e62tQgdpEidjobQevjhVpzNmr1pYZzTTX2ZUpwT44LAKWYREyh5wgAevZn1BLEiucdDb9XrtFJ9G2odd4WMb48K8zSSZyVjmSmS6tuCHPHDQeoWdeYNEkvCTGdyQzJ7GLLqvbASigMKcJ5VxdDtgZbbphAHnTj9o2QuF5cVY4TwVUqy81embzMw4XWQzoz7PsAqQVNGaYAm1Q9kcveFLQ1rtFMBcTxx1w5KXxnir2VEtv9i7cZHr1rwdNg5Qc5oFsNtijXCMSaw3NP1UnoCix2AWmJwBqkjuZQZYceEvQfM1Lc3PABG1dWTA",
  "avatarImage": {
-  "/": "bafyreibn6eyfr7h43trpj4fbyxqh6apgfipcfprfklsnqfonqzkoise3oy"
+  "/": "bafyreibyukpraz7pd4g45msbe4nlsia5hsfvdc6oqrueqbdfhz4ndjxmvq"
  },
  "coverImage": {
-  "/": "bafyreidnf3fsd7chi4f37feclhcilxnjuox4av3kuoozcbotse2hn3ypga"
+  "/": "bafyreidn42dm2cags7xh3cinquuuqp462skngpwzocnz3qpk5nabdjcpgu"
  },
  "posts": {
   "1": {
-   "/": "bafyreigni6leealrepmzrxfzr5fp7nijrs6be62keyuywugrmh2ydmhd2m"
+   "/": "bafyreihtrm5f3a3al53xbw6uwpovtll6xfu6d4qzysclhvjn4h5kwfgwgy"
   },
   "2": {
-   "/": "bafyreidm7e6qp2k4kcyc54hdpzxbig243qbgvmsffbolpxasfaeqezswue"
+   "/": "bafyreidgo2epobgmibd4lq3xg52z7icxehp4ubsc6l5anthdyh2kzoujn4"
+  },
+  "3": {
+   "/": "bafyreibhtxmyvgbqnxfdf23476aqpi6fqqwm72ugnom2h5f7vpxddstvfq"
   }
  },
  "_version": "0.1",
- "_source": "geesome-core",
+ "_source": "geesome-node",
  "_protocol": "geesome-ipsp",
  "_type": "group-manifest"
 }

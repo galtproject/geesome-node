@@ -153,14 +153,24 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserByName(name) {
-    return this.models.User.findOne({where: {name}});
+    return this.models.User.findOne({
+      where: {name},
+      include: [
+        {model: this.models.Content, as: 'avatarImage'},
+        {model: this.models.UserAccount, as: 'accounts'}
+      ]
+    });
   }
 
   async getUserByNameOrEmail(nameOrEmail) {
     return this.models.User.findOne({
       where: {
         [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}]
-      }
+      },
+      include: [
+        {model: this.models.Content, as: 'avatarImage'},
+        {model: this.models.UserAccount, as: 'accounts'}
+      ]
     });
   }
 
@@ -168,7 +178,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {id},
       include: [
-        {model: this.models.Content, as: 'avatarImage'}
+        {model: this.models.Content, as: 'avatarImage'},
+        {model: this.models.UserAccount, as: 'accounts'}
       ]
     });
   }
@@ -187,7 +198,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {[Op.or]: whereOr},
       include: [
-        {model: this.models.Content, as: 'avatarImage'}
+        {model: this.models.Content, as: 'avatarImage'},
+        {model: this.models.UserAccount, as: 'accounts'}
       ]
     });
   }
@@ -216,6 +228,26 @@ class MysqlDatabase implements IDatabase {
   async getUserFriendsCount(userId, search?) {
     //TODO: use search
     return (await this.getUser(userId)).countFriends();
+  }
+
+  async getUserAccount(id) {
+    return this.models.UserAccount.findOne({
+      where: { id }
+    });
+  }
+
+  async getUserAccountByName(userId, name) {
+    return this.models.UserAccount.findOne({
+      where: {userId, name}
+    });
+  }
+
+  async createUserAccount(accountData) {
+    return this.models.UserAccount.create(accountData);
+  }
+
+  async updateUserAccount(id, updateData) {
+    return this.models.UserAccount.update(updateData, {where: {id}});
   }
 
   async getGroup(id) {

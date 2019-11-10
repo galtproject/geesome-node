@@ -21,6 +21,7 @@ export default {
   methods: {
     async fetchData() {
       this.coverImageSrc = await this.$coreApi.getContentLink(this.group.coverImage);
+      console.log('this.coverImageSrc', this.coverImageSrc);
     }
   },
 

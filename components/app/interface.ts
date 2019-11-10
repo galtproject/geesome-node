@@ -14,7 +14,7 @@ import {
   IFileCatalogItem,
   IGroup, IListParams,
   IPost,
-  IUser,
+  IUser, IUserAccount,
   IUserApiKey,
   IUserLimit
 } from "../database/interface";
@@ -41,6 +41,8 @@ export interface IGeesomeApp {
   loginUser(usernameOrEmail, password): Promise<IUser>;
 
   updateUser(userId, updateData): Promise<IUser>;
+
+  setUserAccount(userId, accountData): Promise<IUserAccount>;
 
   generateUserApiKey(userId, type?): Promise<string>;
 

@@ -43,7 +43,7 @@ export default {
       return this.$store.state.user;
     },
     isCurrentUserMessage() {
-      return this.user.manifestStaticStorageId == this.message.author;
+      return this.user.manifestStaticStorageId == this.message.authorStaticId;
     }
   },
   data() {

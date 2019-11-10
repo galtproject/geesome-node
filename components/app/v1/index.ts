@@ -224,6 +224,28 @@ class GeesomeApp implements IGeesomeApp {
 
     return this.database.getUser(userId);
   }
+  
+  async setUserAccount(userId, accountData) {
+    let userAccount;
+    
+    if(accountData.id) {
+      userAccount = await this.database.getUserAccount(accountData.id);
+    } else {
+      userAccount = await this.database.getUserAccountByName(userId, accountData.name);
+    }
+
+    if(userAccount) {
+      if(userAccount.userId !== userId) {
+        throw new Error("not_permitted");
+      }
+      return this.database.updateUserAccount(userAccount.id, accountData);
+    } else {
+      return this.database.createUserAccount({
+        userId,
+        ...accountData
+      });
+    }
+  }
 
   async addUserFriendById(userId, friendId) {
     friendId = await this.checkUserId(friendId, true);
@@ -533,6 +555,8 @@ class GeesomeApp implements IGeesomeApp {
     postData.userId = userId;
     postData.groupId = await this.checkGroupId(postData.groupId);
 
+    const group = await this.database.getGroup(postData.groupId);
+
     if (postData.status === PostStatus.Published) {
       postData.localId = await this.getPostLocalId(postData);
       postData.publishedAt = new Date();
@@ -542,19 +566,23 @@ class GeesomeApp implements IGeesomeApp {
     delete postData.contentsIds;
 
     const user = await this.database.getUser(userId);
+    
+    postData.authorStorageId = user.manifestStorageId;
     postData.authorStaticStorageId = user.manifestStaticStorageId;
+
+    postData.groupStorageId = group.manifestStorageId;
+    postData.groupStaticStorageId = group.manifestStaticStorageId;
 
     let post = await this.database.addPost(postData);
 
+    await this.database.setPostContents(post.id, contentsIds);
+    
     let size = await this.database.getPostSizeSum(post.id);
     await this.database.updatePost(post.id, {size});
 
-    await this.database.setPostContents(post.id, contentsIds);
     await this.updatePostManifest(post.id);
 
     post = await this.database.getPost(post.id);
-
-    const group = await this.database.getGroup(postData.groupId);
 
     if (group.isEncrypted && group.type === GroupType.PersonalChat) {
       // Encrypt post id
@@ -1472,7 +1500,7 @@ class GeesomeApp implements IGeesomeApp {
   private async generateAndSaveManifest(entityName, entityObj) {
     const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
     const hash = await this.storage.saveObject(manifestContent);
-    // console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
+    console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
     return hash;
   }
 

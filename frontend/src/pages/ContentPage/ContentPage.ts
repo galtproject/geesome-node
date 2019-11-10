@@ -53,8 +53,7 @@ export default {
           })
         }
         if (this.type === 'post') {
-          this.manifest.groupId = this.manifest.group;
-          this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupId);
+          this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupStaticId);
         }
       } catch (e) {
 
