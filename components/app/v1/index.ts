@@ -925,7 +925,6 @@ class GeesomeApp implements IGeesomeApp {
       userId: options.userId,
       view: ContentView.Contents,
       storageId: storageFile.id,
-      size: storageFile.size,
       name: fileName,
     }, options);
   }
@@ -998,7 +997,6 @@ class GeesomeApp implements IGeesomeApp {
       userId: options.userId,
       view: ContentView.Attachment,
       storageId: storageFile.id,
-      size: storageFile.size,
       name: name
     }, options);
   }
@@ -1110,6 +1108,10 @@ class GeesomeApp implements IGeesomeApp {
       }
       contentData.isPublic = group && group.isPublic;
     }
+    
+    const storageContentStat = await this.storage.getFileStat(contentData.storageId);
+    
+    contentData.size = storageContentStat.size;
 
     const content = await this.database.addContent(contentData);
 

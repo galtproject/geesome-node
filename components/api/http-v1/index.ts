@@ -439,6 +439,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     };
     
     return geesomeApp.getFileStream(dataPath, fileStreamOptions).then((stream) => {
+      //
+      let resultLength = 0;
+      stream.on('data', (data) => {
+        resultLength += data.length;
+      });
+      stream.on('end', (data) => {
+        console.log('contentLength', contentLength);
+        console.log('resultLength ', resultLength);
+        console.log(range.start + contentLength, '/', dataSize);
+        console.log(range.start + resultLength, '/', dataSize);
+      });
+      
       res.writeHead(206, {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
