@@ -1076,10 +1076,7 @@ class GeesomeApp implements IGeesomeApp {
     // console.log('stream.pipe(sizeCheckStream)', stream.pipe(sizeCheckStream));
     // console.log('sizeCheckStream.pipe(stream)', sizeCheckStream.pipe(stream));
 
-    console.log('saveFileByData', stream);
-    
     const resultFile = await this.storage.saveFileByData(stream);
-    console.log('resultFile', resultFile);
     return {
       resultFile: resultFile,
       resultMimeType: mimeType,

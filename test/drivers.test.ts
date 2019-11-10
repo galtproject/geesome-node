@@ -78,7 +78,7 @@ describe("drivers", function () {
       assert.equal(fs.existsSync(result.tempPath), false);
     });
 
-    it.skip("should convert mov video to streamable", async () => {
+    it("should convert mov video to streamable", async () => {
       const videoPath = __dirname + '/resources/input-video.mov';
 
       let videoInfo = await mediainfo(videoPath);

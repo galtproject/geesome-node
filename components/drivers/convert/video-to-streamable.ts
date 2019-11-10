@@ -32,6 +32,9 @@ export class VideoToStreambleDriver extends AbstractDriver {
             fs.unlinkSync(path);
           reject(error);
         })
+        .on('progress', function (progress) {
+          console.log('percent: '+progress.percent+'% frames: ' +progress.frames);
+        })
         .pipe(fs.createWriteStream(path))
         .on('error', error => reject(error))
         .on('finish', () => resolve({path}))
