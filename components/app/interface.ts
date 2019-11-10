@@ -104,7 +104,7 @@ export interface IGeesomeApp {
 
   createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
-  getFileStream(filePath);
+  getFileStream(filePath, options?);
 
   checkStorageId(storageId): string;
 
@@ -145,6 +145,8 @@ export interface IGeesomeApp {
   getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
 
   getContent(contentId): Promise<IContent>;
+
+  getContentByStorageId(storageId): Promise<IContent>;
 
   //TODO: define interface
   getPeers(topic): Promise<any>;

@@ -12,7 +12,9 @@ import {CorePermissionName} from "../../database/interface";
 
 const config = require('./config');
 
+const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
+const fs = require('fs');
 const mime = require('mime');
 const pIteration = require('p-iteration');
 
@@ -385,18 +387,70 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
-    geesomeApp.getFileStream(dataPath).then((stream) => {
-      stream.pipe(res);
-    })
+    getFileStream(req, res, dataPath);
   });
 
   service.get('/ipfs/*', async (req, res) => {
     const ipfsPath = req.url.replace('/ipfs/', '');
-    //TODO: https://gist.github.com/padenot/1324734
-    geesomeApp.getFileStream(ipfsPath).then((stream) => {
-      stream.pipe(res);
-    })
+    getFileStream(req, res, ipfsPath);
   });
+  
+  async function getFileStream (req, res, dataPath) {
+    let splitPath = dataPath.split('.');
+    if(ipfsHelper.isIpfsHash(splitPath[0])) {
+      // cut extension, TODO: use regex
+      dataPath = splitPath[0];
+    }
+    
+    let range = req.headers['range'];
+    if(!range) {
+      return geesomeApp.getFileStream(dataPath).then((stream) => {
+        stream.pipe(res);
+      });
+    }
+    
+    const content = await geesomeApp.getContentByStorageId(dataPath);
+
+    let dataSize = content ? content.size : null;
+    if(!dataSize) {
+      const stat = await geesomeApp.storage.getFileStat(dataPath);
+      dataSize = stat.size;
+    }
+    
+    let chunkSize = 1024 * 1024;
+    if(dataSize > chunkSize * 2) {
+      chunkSize = Math.ceil(dataSize * 0.25);
+    }
+
+    range = range.replace(/bytes=/, "").split("-");
+
+    range[0] = range[0] ? parseInt(range[0], 10) : 0;
+    range[1] = range[1] ? parseInt(range[1], 10) : range[0] + chunkSize;
+    if(range[1] > dataSize - 1) {
+      range[1] = dataSize - 1;
+    }
+    range = {start: range[0], end: range[1]};
+
+    const contentLength = range.end - range.start + 1;
+    
+    const fileStreamOptions = {
+      offset: range.start,
+      length: contentLength
+    };
+    
+    return geesomeApp.getFileStream(dataPath, fileStreamOptions).then((stream) => {
+      res.writeHead(206, {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': 0,
+        'Content-Type': content ? content.mimeType : '',
+        'Accept-Ranges': 'bytes',
+        'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
+        'Content-Length': contentLength
+      });
+      stream.pipe(res);
+    });
+  }
 
   service.get('/ipns/*', async (req, res) => {
     const ipnsPath = req.url.replace('/ipns/', '');

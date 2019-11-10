@@ -74,7 +74,7 @@ export default {
       // renderers: [''],
       pluginPath: 'build/',
       shimScriptAccess: 'always',
-      forceLive: this.forceLive,
+      // forceLive: this.forceLive,
       poster: this.preview,
       // (by default, this is set as `sameDomain`)
       // shimScriptAccess: 'always',

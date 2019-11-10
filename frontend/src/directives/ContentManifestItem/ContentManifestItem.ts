@@ -70,7 +70,7 @@ export default {
         this.content = await this.$coreApi.getContentData(this.contentId);
       }
       if (this.type == 'image' || this.type == 'video' || this.type == 'audio' || this.type == 'file') {
-        this.content = this.srcLink;
+        this.content = this.srcLink + '.' + this.manifestObj.extension;
       }
       this.loading = false;
     },

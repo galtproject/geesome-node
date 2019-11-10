@@ -1474,8 +1474,8 @@ class GeesomeApp implements IGeesomeApp {
     return hash;
   }
 
-  getFileStream(filePath) {
-    return this.storage.getFileStream(filePath)
+  getFileStream(filePath, options = {}) {
+    return this.storage.getFileStream(filePath, options)
   }
 
   async getGroup(groupId) {
@@ -1499,6 +1499,10 @@ class GeesomeApp implements IGeesomeApp {
 
   getContent(contentId) {
     return this.database.getContent(contentId);
+  }
+
+  getContentByStorageId(storageId) {
+    return this.database.getContentByStorageId(storageId);
   }
 
   getDataStructure(dataId) {
