@@ -75,11 +75,11 @@ export default {
       this.messages = messages;
       
       this.messages.forEach(async message => {
-        if(this.usersInfoLoading[message.author] || this.usersInfo[message.author]) {
+        if(this.usersInfoLoading[message.authorStaticId] || this.usersInfo[message.authorStaticId]) {
           return;
         }
-        this.$identities.loading('usersInfo', message.author);
-        this.$identities.set('usersInfo', message.author, await this.$coreApi.getUser(message.author));
+        this.$identities.loading('usersInfo', message.authorStaticId);
+        this.$identities.set('usersInfo', message.authorStaticId, await this.$coreApi.getUser(message.authorStaticId));
       });
     },
     addFriend() {

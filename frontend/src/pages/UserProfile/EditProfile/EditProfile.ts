@@ -11,15 +11,32 @@ import {EventBus, UPDATE_CURRENT_USER} from "../../../services/events";
 import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
 import ProfileForm from "../ProfileForm/ProfileForm";
 
+const _ = require('lodash');
+
 export default {
   template: require('./EditProfile.html'),
   components: {ContentManifestItem, ProfileForm},
   async created() {
     this.user = await this.$coreApi.getCurrentUser();
+    const ethereumAccount = _.find(this.user.accounts, {name: 'ethereum'});
+    
+    if(ethereumAccount) {
+      this.user.accounts = {
+        ethereum: ethereumAccount
+      };
+    } else {
+      this.user.accounts = {
+        ethereum: {
+          name: 'ethereum',
+          address: ''
+        }
+      };
+    }
   },
   methods: {
     update() {
-      this.$coreApi.updateCurrentUser(this.user).then((updatedUser) => {
+      this.$coreApi.updateCurrentUser(this.user).then(async (updatedUser) => {
+        await this.$coreApi.setUserAccount(this.user.accounts.ethereum);
         EventBus.$emit(UPDATE_CURRENT_USER);
         this.$router.push({name: 'current-user-profile'})
       }).catch(() => {

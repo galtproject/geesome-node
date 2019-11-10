@@ -36,6 +36,7 @@ class EntityJsonManifest implements IRender {
         groupManifest.isEncrypted = true;
       }
       groupManifest.postsCount = group.publishedPostsCount;
+      //TODO: add previous ID
       groupManifest.staticId = group.manifestStaticStorageId;
       groupManifest.publicKey = await this.app.database.getStaticIdPublicKey(groupManifest.staticId);
 
@@ -75,12 +76,16 @@ class EntityJsonManifest implements IRender {
       //TODO: add groupNumber
       const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type', 'size']);
 
-      const group = await this.app.database.getGroup(post.groupId);
-      postManifest.group = group.manifestStaticStorageId;
-      postManifest.author = post.authorStaticStorageId;
+      postManifest.groupId = post.groupStorageId;
+      postManifest.groupStaticId = post.groupStaticStorageId;
+      
+      postManifest.authorId = post.authorStorageId;
+      postManifest.authorStaticId = post.authorStaticStorageId;
 
       postManifest.contents = post.contents.map((content: IContent) => {
-        return this.getStorageRef(content.manifestStorageId);
+        return {
+          storageId: content.manifestStorageId //this.getStorageRef(content.manifestStorageId)
+        };
       });
 
       this.setManifestMeta(postManifest, name);
@@ -205,11 +210,16 @@ class EntityJsonManifest implements IRender {
         post = _.pick(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
 
         post.manifestStorageId = manifestId;
-        post.authorStaticStorageId = manifest.author;
+        
+        post.authorStorageId = manifest.authorId;
+        post.authorStaticStorageId = manifest.authorStaticId;
+
+        post.groupStorageId = manifest.groupId;
+        post.groupStaticStorageId = manifest.groupStaticId;
         // const group = await this.app.createGroupByRemoteStorageId(manifest.group)
 
         const contentsIds = manifest.contents.map(content => {
-          return content['/'];
+          return content.storageId;
         });
 
         post.contents = await pIteration.map(contentsIds, (contentId) => {

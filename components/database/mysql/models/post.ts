@@ -66,6 +66,15 @@ module.exports = async function (sequelize, models) {
     encryptedManifestStorageId: {
       type: Sequelize.TEXT
     },
+    groupStorageId: {
+      type: Sequelize.STRING(200)
+    },
+    groupStaticStorageId: {
+      type: Sequelize.STRING(200)
+    },
+    authorStorageId: {
+      type: Sequelize.STRING(200)
+    },
     authorStaticStorageId: {
       type: Sequelize.STRING(200)
     }

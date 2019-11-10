@@ -68,6 +68,14 @@ export interface IDatabase {
   
   getUserFriendsCount(userId, search?): Promise<number>;
 
+  getUserAccount(id): Promise<IUserAccount>;
+
+  getUserAccountByName(userId, name): Promise<IUserAccount>;
+
+  createUserAccount(accountData): Promise<IUserAccount>;
+
+  updateUserAccount(id, updateData): Promise<IUserAccount>;
+
   getGroup(id): Promise<IGroup>;
 
   getGroupByManifestId(manifestId, staticManifestId): Promise<IGroup>;
@@ -262,7 +270,12 @@ export interface IPost {
   staticStorageId?;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+  
   authorStaticStorageId?: string;
+  authorStorageId?: string;
+
+  groupStaticStorageId?: string;
+  groupStorageId?: string;
 
   encryptedManifestStorageId?: string;
 }
@@ -287,6 +300,17 @@ export interface IUser {
   avatarImage?: IContent;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+}
+
+export interface IUserAccount {
+  id?: number;
+  userId: number;
+  title: string;
+  name: string;
+  type: string;
+  description: string;
+  address: string;
+  signature: string;
 }
 
 export interface IGroup {

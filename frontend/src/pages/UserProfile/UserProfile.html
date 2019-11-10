@@ -27,6 +27,7 @@
             <div><label>Email:</label> <span>{{user.email}}</span></div>
             <div><label>IPNS:</label> <pretty-hex :hex="user.manifestStaticStorageId"></pretty-hex></div>
             <div><label>IPLD:</label> <pretty-hex :hex="user.manifestStorageId"></pretty-hex></div>
+            <div v-for="account in user.accounts"><label>{{account.name}}:</label> <pretty-hex :hex="account.address"></pretty-hex></div>
           </div>
           
           <div v-if="currentUser.id === user.id">

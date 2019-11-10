@@ -229,6 +229,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.updateUser(req.user.id, req.body));
   });
 
+  service.post('/v1/user/set-account', async (req, res) => {
+    res.send(await geesomeApp.setUserAccount(req.user.id, req.body));
+  });
+
   service.post('/v1/user/create-group', async (req, res) => {
     res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
   });

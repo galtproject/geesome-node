@@ -9,10 +9,10 @@
 
 <div :class="{'message': true, 'my': isCurrentUserMessage}">
   <div class="avatar">
-    <content-manifest-item v-if="usersInfo[message.author]" :manifest="usersInfo[message.author].avatarImage" :preview-mode="true"></content-manifest-item>
+    <content-manifest-item v-if="usersInfo[message.authorStaticId]" :manifest="usersInfo[message.authorStaticId].avatarImage" :preview-mode="true"></content-manifest-item>
   </div>
   <div class="info">
-    <div class="name" v-if="!isCurrentUserMessage && usersInfo[message.author]">{{usersInfo[message.author] ? usersInfo[message.author].title || usersInfo[message.author].name : '...'}}</div>
+    <div class="name" v-if="!isCurrentUserMessage && usersInfo[message.authorStaticId]">{{usersInfo[message.authorStaticId] ? usersInfo[message.authorStaticId].title || usersInfo[message.authorStaticId].name : '...'}}</div>
     <!--<pretty-hex :hex="message.author"></pretty-hex>-->
     <div class="content">
       <md-card-content v-for="content in contentsList">
