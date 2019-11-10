@@ -11,10 +11,9 @@ import {IStorage} from "../components/storage/interface";
 
 const assert = require('assert');
 
-const appConfig = require('../components/app/v1/config');
 const CID = require('cids');
 
-describe.skip("storage", function () {
+describe("storage", function () {
   this.timeout(30000);
 
   let storage: IStorage;
@@ -24,6 +23,19 @@ describe.skip("storage", function () {
   storages.forEach((storageService) => {
     describe(storageService + ' storage', () => {
       before(async () => {
+        const appConfig = require('../components/app/v1/config');
+        appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+        appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
+        appConfig.storageConfig.jsNode.config = {
+          Addresses: {
+            Swarm: [
+              "/ip4/0.0.0.0/tcp/40002",
+              "/ip4/127.0.0.1/tcp/40003/ws",
+              "/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
+            ]
+          }
+        };
+        
         storage = await require('../components/storage/' + storageService)({
           config: appConfig
         });

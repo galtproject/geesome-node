@@ -144,6 +144,12 @@ export interface IDatabase {
 
   getUserContentActionsSizeSum(userId, name, periodTimestamp?): Promise<number>;
 
+  addUserAsyncOperation(userLimitData): Promise<IUserAsyncOperation>;
+
+  updateUserAsyncOperation(id, updateData): Promise<IUserAsyncOperation>;
+
+  getUserAsyncOperation(operationId): Promise<IUserAsyncOperation>;
+
   addUserLimit(limitData): Promise<IUserLimit>;
 
   updateUserLimit(limitId, limitData): Promise<void>;
@@ -377,6 +383,21 @@ export interface IUserLimit {
   adminId: number;
   periodTimestamp: number;
   isActive: boolean;
+}
+
+export interface IUserAsyncOperation {
+  id?: number;
+  name: string;
+  channel: string;
+  size: number;
+  percent: number;
+  finishedAt: Date;
+  errorType: string;
+  errorMessage: string;
+  inProcess: boolean;
+  
+  userId: number;
+  contentId: number;
 }
 
 export interface IStaticIdHistoryItem {

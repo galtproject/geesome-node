@@ -92,15 +92,19 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
 
+  asyncOperationWrapper(methodName, args, options);
+
   saveData(fileStream, fileName, options);
 
   saveDataByUrl(url, options);
+
+  getAsyncOperation(userId, id);
 
   createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
 
   createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
-  getFileStream(filePath);
+  getFileStream(filePath, options?);
 
   checkStorageId(storageId): string;
 
@@ -141,6 +145,8 @@ export interface IGeesomeApp {
   getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
 
   getContent(contentId): Promise<IContent>;
+
+  getContentByStorageId(storageId): Promise<IContent>;
 
   //TODO: define interface
   getPeers(topic): Promise<any>;

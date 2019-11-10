@@ -20,7 +20,9 @@ export interface IStorage {
 
   saveFileByUrl(url): Promise<IResultFile>;
 
-  getFileStream(filePath): Promise<any>;
+  getFileStream(filePath, options?): Promise<any>;
+
+  getFileStat(filePath): Promise<any>;
 
   getFileData(filePath): Promise<any>;
 
