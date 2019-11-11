@@ -40,7 +40,7 @@ export interface IGeesomeApp {
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
-  loginAuthMessage(authMessageId, address, signature): Promise<IUser>;
+  loginAuthMessage(authMessageId, address, signature, params?): Promise<IUser>;
 
   generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessage>;
 
