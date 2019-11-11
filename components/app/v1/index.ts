@@ -226,7 +226,7 @@ class GeesomeApp implements IGeesomeApp {
     return authMessage;
   }
 
-  async loginAuthMessage(authMessageId, address, signature) {
+  async loginAuthMessage(authMessageId, address, signature, params: any = {}) {
     if(!address) {
       throw new Error("not_valid");
     }
@@ -241,7 +241,7 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("not_valid");
     }
     
-    const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message);
+    const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
     if(!isValid) {
       throw new Error("not_valid");
     }

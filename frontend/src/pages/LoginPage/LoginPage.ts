@@ -21,13 +21,13 @@ export default {
     },
     ethereumLogin() {
       Web3Manager.onAccountAddressChange(async (address) => {
+        const fieldName = 'key';
         Web3Manager.onAccountAddressChangeCallbacks = [];
         
         const authMessage = await this.$coreApi.generateAuthMessage('ethereum', address);
-        const signature = await EthData.signMessage(authMessage.message, address);
-        console.log('signature', signature);
+        const signature = await EthData.signMessage(authMessage.message, address, fieldName);
 
-        this.handleLoginPromise(this.$coreApi.loginAuthMessage(this.server, authMessage.id, address, signature));
+        this.handleLoginPromise(this.$coreApi.loginAuthMessage(this.server, authMessage.id, address, signature, { fieldName }));
       });
       Web3Manager.initClientWeb3();
     },

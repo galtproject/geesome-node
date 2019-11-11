@@ -74,12 +74,12 @@ export default {
         return data;
       },
 
-      async loginAuthMessage(server, authMessageId, accountAddress, signature) {
+      async loginAuthMessage(server, authMessageId, accountAddress, signature, params) {
         localStorage.setItem('geesome-server', server);
         appStore.commit('serverAddress', server);
 
         await geesomeClient.setServer(server);
-        const data = await geesomeClient.loginAuthMessage(authMessageId, accountAddress, signature);
+        const data = await geesomeClient.loginAuthMessage(authMessageId, accountAddress, signature, params);
         localStorage.setItem('geesome-api-key', data.apiKey);
         return data;
       },

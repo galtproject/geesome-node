@@ -133,7 +133,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/login/auth-message', async (req, res) => {
-    geesomeApp.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature)
+    geesomeApp.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)
       .then(user => handleAuthResult(res, user))
       .catch((err) => {
         console.error(err);
