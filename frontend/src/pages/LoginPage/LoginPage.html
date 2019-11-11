@@ -29,9 +29,13 @@
         <md-input v-model="password" type="password"></md-input>
       </md-field>
 
-      <md-button class="md-raised md-accent" @click="login()">
+      <md-button class="md-primary" @click="login()">
         Login
       </md-button>
+      
+      <div style="margin-top: 20px;">
+        <md-button class="md-icon-button md-raised md-accent" @click="ethereumLogin"><md-icon class="fab fa-ethereum"></md-icon></md-button>
+      </div>
 
       <div style="margin-top: 20px" class="md-error" v-if="error">Authorization failed, please try again</div>
     </md-card-content>

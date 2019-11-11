@@ -10,37 +10,27 @@
 module.exports = async function (sequelize, models) {
   const Sequelize = require('sequelize');
 
-  const UserAccount = sequelize.define('userAccount', {
+  const UserAuthMessage = sequelize.define('userAuthMessage', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-    title: {
-      type: Sequelize.STRING
-    },
     provider: {
-      type: Sequelize.STRING(200)
-    },
-    type: {
       type: Sequelize.STRING(200)
     },
     address: {
       type: Sequelize.STRING(200)
     },
-    description: {
-      type: Sequelize.STRING
-    },
-    signature: {
-      type: Sequelize.STRING
+    message: {
+      type: Sequelize.STRING(200)
     }
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      { fields: ['userId'] },
-      { fields: ['userId', 'provider'] },
-      { fields: ['provider', 'address'] }
+      { fields: ['userAccountId'] },
+      { fields: ['address', 'provider'] }
     ]
   } as any);
 
-  UserAccount.belongsTo(models.User, {as: 'user', foreignKey: 'userId'});
-  models.User.hasMany(UserAccount, {as: 'accounts', foreignKey: 'userId'});
+  UserAuthMessage.belongsTo(models.User, {as: 'userAccount', foreignKey: 'userAccountId'});
+  models.User.hasMany(UserAuthMessage, {as: 'authMessages', foreignKey: 'userAccountId'});
 
-  return UserAccount.sync({});
+  return UserAuthMessage.sync({});
 };

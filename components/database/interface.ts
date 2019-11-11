@@ -70,11 +70,17 @@ export interface IDatabase {
 
   getUserAccount(id): Promise<IUserAccount>;
 
-  getUserAccountByName(userId, name): Promise<IUserAccount>;
+  getUserAccountByProvider(userId, provider): Promise<IUserAccount>;
+
+  getUserAccountByAddress(provider, address): Promise<IUserAccount>;
 
   createUserAccount(accountData): Promise<IUserAccount>;
 
   updateUserAccount(id, updateData): Promise<IUserAccount>;
+
+  getUserAuthMessage(id): Promise<IUserAuthMessage>;
+
+  createUserAuthMessage(authMessageData): Promise<IUserAuthMessage>;
 
   getGroup(id): Promise<IGroup>;
 
@@ -306,11 +312,19 @@ export interface IUserAccount {
   id?: number;
   userId: number;
   title: string;
-  name: string;
+  provider: string;
   type: string;
   description: string;
   address: string;
   signature: string;
+}
+
+export interface IUserAuthMessage {
+  id?: number;
+  userAccountId: number;
+  provider: string;
+  address: string;
+  message: string;
 }
 
 export interface IGroup {

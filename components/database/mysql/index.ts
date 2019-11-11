@@ -236,9 +236,15 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getUserAccountByName(userId, name) {
+  async getUserAccountByProvider(userId, provider) {
     return this.models.UserAccount.findOne({
-      where: {userId, name}
+      where: {userId, provider}
+    });
+  }
+
+  async getUserAccountByAddress(provider, address) {
+    return this.models.UserAccount.findOne({
+      where: {provider, address}
     });
   }
 
@@ -248,6 +254,14 @@ class MysqlDatabase implements IDatabase {
 
   async updateUserAccount(id, updateData) {
     return this.models.UserAccount.update(updateData, {where: {id}});
+  }
+  
+  async createUserAuthMessage(authMessageData) {
+    return this.models.UserAuthMessage.create(authMessageData);
+  }
+  
+  async getUserAuthMessage(id) {
+    return this.models.UserAuthMessage.findOne({where: {id}});
   }
 
   async getGroup(id) {

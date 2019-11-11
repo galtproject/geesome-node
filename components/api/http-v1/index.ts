@@ -114,18 +114,35 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.post('/v1/setup', async (req, res) => {
     res.send(await geesomeApp.setup(req.body), 200);
   });
+  
+  async function handleAuthResult(res, user) {
+    if (user) {
+      return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, "password_auth")}, 200);
+    } else {
+      return res.send(403);
+    }
+  }
 
-  service.post('/v1/login', async (req, res) => {
-    geesomeApp.loginUser(req.body.username, req.body.password).then(async user => {
-      if (user) {
-        return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, "password_auth")}, 200);
-      } else {
-        return res.send(403);
-      }
-    }).catch((err) => {
-      console.error(err);
-      res.send(403)
-    });
+  service.post('/v1/login/password', async (req, res) => {
+    geesomeApp.loginPassword(req.body.username, req.body.password)
+      .then(user => handleAuthResult(res, user))
+      .catch((err) => {
+        console.error(err);
+        res.send(403)
+      });
+  });
+
+  service.post('/v1/login/auth-message', async (req, res) => {
+    geesomeApp.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature)
+      .then(user => handleAuthResult(res, user))
+      .catch((err) => {
+        console.error(err);
+        res.send(403)
+      });
+  });
+
+  service.post('/v1/generate-auth-message', async (req, res) => {
+    res.send(await geesomeApp.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
   });
 
   service.get('/v1/user', async (req, res) => {
