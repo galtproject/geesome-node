@@ -243,16 +243,19 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserAccountByAddress(provider, address) {
+    address = address.toLowerCase();
     return this.models.UserAccount.findOne({
       where: {provider, address}
     });
   }
 
   async createUserAccount(accountData) {
+    accountData.address = accountData.address.toLowerCase();
     return this.models.UserAccount.create(accountData);
   }
 
   async updateUserAccount(id, updateData) {
+    updateData.address = updateData.address.toLowerCase();
     return this.models.UserAccount.update(updateData, {where: {id}});
   }
   
