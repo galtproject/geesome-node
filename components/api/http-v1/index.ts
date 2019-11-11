@@ -222,6 +222,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
     res.send(await geesomeApp.storage.removeBootNode(req.body.address));
   });
+
+  service.post('/v1/admin/get-user-account', async (req, res) => {
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.database.getUserAccountByAddress(req.body.provider, req.body.address));
+  });
+  
   service.get('/v1/node-address-list', async (req, res) => {
     res.send({result: await geesomeApp.storage.nodeAddressList()});
   });
