@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#51767fa",
+    "@galtproject/geesome-libs": "git://github.com/galtspace/geesome-libs.git#bc614bb",
     "@microlink/youtube-dl": "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.19.0",
@@ -30,6 +30,7 @@
     "express-mysql-session": "^2.1.0",
     "express-session": "^1.16.1",
     "express-session-sequelize": "^2.0.0",
+    "eth-sig-util": "^2.1.2",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
     "http-proxy-agent": "^2.1.0",

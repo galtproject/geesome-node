@@ -38,6 +38,7 @@ let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
 const appListener = require('./listener');
+const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
 const xkcdPassword = require('xkcd-password')();
@@ -182,13 +183,19 @@ class GeesomeApp implements IGeesomeApp {
         await this.database.updateUser(newUser.id, {
           manifestStorageId
         });
+        
+        if(userData.accounts && userData.accounts.length) {
+          await pIteration.forEach(userData.accounts, (userAccount) => {
+            return this.setUserAccount(newUser.id, userAccount);
+          });
+        }
 
         resolve((await this.database.getUser(newUser.id)) as any);
       });
     });
   }
 
-  async loginUser(usernameOrEmail, password): Promise<any> {
+  async loginPassword(usernameOrEmail, password): Promise<any> {
     return new Promise((resolve, reject) => {
       this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
         if (!user) {
@@ -199,6 +206,47 @@ class GeesomeApp implements IGeesomeApp {
         });
       }).catch(reject)
     });
+  }
+  
+  async generateUserAccountAuthMessage(accountProvider, accountAddress) {
+    const userAccount = await this.database.getUserAccountByAddress(accountProvider, accountAddress);
+    if(!userAccount) {
+      throw new Error("not_found");
+    }
+    
+    const authMessage = await this.database.createUserAuthMessage({
+      provider: accountProvider,
+      address: accountAddress,
+      userAccountId: userAccount.id,
+      message: uuidv4()
+    });
+    
+    delete authMessage.userAccountId;
+    
+    return authMessage;
+  }
+
+  async loginAuthMessage(authMessageId, address, signature) {
+    if(!address) {
+      throw new Error("not_valid");
+    }
+    
+    const authMessage = await this.database.getUserAuthMessage(authMessageId);
+    if(!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
+      throw new Error("not_valid");
+    }
+    
+    const userAccount = await this.database.getUserAccount(authMessage.userAccountId);
+    if(!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
+      throw new Error("not_valid");
+    }
+    
+    const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message);
+    if(!isValid) {
+      throw new Error("not_valid");
+    }
+    
+    return await this.database.getUser(userAccount.userId);
   }
 
   async updateUser(userId, updateData) {
@@ -231,7 +279,7 @@ class GeesomeApp implements IGeesomeApp {
     if(accountData.id) {
       userAccount = await this.database.getUserAccount(accountData.id);
     } else {
-      userAccount = await this.database.getUserAccountByName(userId, accountData.name);
+      userAccount = await this.database.getUserAccountByProvider(userId, accountData.provider);
     }
 
     if(userAccount) {

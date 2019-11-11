@@ -18,7 +18,7 @@ export default {
   components: {ContentManifestItem, ProfileForm},
   async created() {
     this.user = await this.$coreApi.getCurrentUser();
-    const ethereumAccount = _.find(this.user.accounts, {name: 'ethereum'});
+    const ethereumAccount = _.find(this.user.accounts, {provider: 'ethereum'});
     
     if(ethereumAccount) {
       this.user.accounts = {
@@ -27,7 +27,7 @@ export default {
     } else {
       this.user.accounts = {
         ethereum: {
-          name: 'ethereum',
+          provider: 'ethereum',
           address: ''
         }
       };

@@ -18,16 +18,16 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git://github.com/galtspace/galtproject-frontend-core.git#b8bc7f4",
+    "@galtproject/frontend-core": "git://github.com/galtspace/galtproject-frontend-core.git#81fb0ee",
     "async": "^2.5.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",
     "default-passive-events": "^1.0.7",
-    "ipfs": "^0.36.0",
     "dexie": "^2.0.4",
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome.git",
+    "ipfs": "^0.36.0",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",
     "js-yaml": "^3.13.1",
@@ -91,6 +91,7 @@
     "webpack-cli": "^3.3.0",
     "webpack-dev-server": "^3.1.4",
     "webpack-obfuscator": "^0.18.0",
+    "webpack-visualizer-plugin": "^0.1.11",
     "worker-loader": "^2.0.0"
   },
   "browserslist": [

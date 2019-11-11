@@ -15,7 +15,7 @@ import {
   IGroup, IListParams,
   IPost,
   IUser, IUserAccount,
-  IUserApiKey,
+  IUserApiKey, IUserAuthMessage,
   IUserLimit
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
@@ -38,7 +38,11 @@ export interface IGeesomeApp {
 
   registerUser(userData): Promise<IUser>;
 
-  loginUser(usernameOrEmail, password): Promise<IUser>;
+  loginPassword(usernameOrEmail, password): Promise<IUser>;
+
+  loginAuthMessage(authMessageId, address, signature): Promise<IUser>;
+
+  generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessage>;
 
   updateUser(userId, updateData): Promise<IUser>;
 

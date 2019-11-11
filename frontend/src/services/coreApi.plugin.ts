@@ -50,7 +50,7 @@ export default {
           'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
           'getGroupPeers', 'updateCurrentUser', 'userGetFriends', 'addFriend', 'removeFriend', 'getPersonalChatGroups',
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
-          'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount'
+          'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');
@@ -64,12 +64,22 @@ export default {
         })
       },
 
-      async login(server, username, password) {
+      async loginPassword(server, username, password) {
         localStorage.setItem('geesome-server', server);
         appStore.commit('serverAddress', server);
         
         await geesomeClient.setServer(server);
-        const data = await geesomeClient.loginUserPass(username, password);
+        const data = await geesomeClient.loginPassword(username, password);
+        localStorage.setItem('geesome-api-key', data.apiKey);
+        return data;
+      },
+
+      async loginAuthMessage(server, authMessageId, accountAddress, signature) {
+        localStorage.setItem('geesome-server', server);
+        appStore.commit('serverAddress', server);
+
+        await geesomeClient.setServer(server);
+        const data = await geesomeClient.loginAuthMessage(authMessageId, accountAddress, signature);
         localStorage.setItem('geesome-api-key', data.apiKey);
         return data;
       },
