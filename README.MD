@@ -161,9 +161,11 @@ geesomeClient.init().then(async () => {
 - Limit users upload
 - IPNS caching for fast resolving
 - IPFS and IPNS directories for HTML sites and more
+- Manage api keys in UI
+- Ethereum authentication by signature
+- Streamable media api(video and audio)
 
 ## TODO:
-- Manage api keys in UI
 - Share folder by ipld, ipns manifest
 - Play audio and video content in groups as playlist
 - Public chat groups
