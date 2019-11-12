@@ -166,33 +166,38 @@ class GeesomeApp implements IGeesomeApp {
 
     const storageAccountId = await this.createStorageAccount(name);
 
-    return new Promise((resolve, reject) => {
+    const passwordHash: any = await new Promise((resolve, reject) => {
+      if(!password) {
+        return resolve(null);
+      }
       bcrypt.hash(password, saltRounds, async (err, passwordHash) => {
-        const newUser = await this.database.addUser({
-          storageAccountId,
-          manifestStaticStorageId: storageAccountId,
-          passwordHash,
-          name,
-          email
-        });
-
-        const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
-
-        await this.storage.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
-
-        await this.database.updateUser(newUser.id, {
-          manifestStorageId
-        });
-        
-        if(userData.accounts && userData.accounts.length) {
-          await pIteration.forEach(userData.accounts, (userAccount) => {
-            return this.setUserAccount(newUser.id, userAccount);
-          });
-        }
-
-        resolve((await this.database.getUser(newUser.id)) as any);
+        err ? reject(err) : resolve(passwordHash);
       });
     });
+
+    const newUser = await this.database.addUser({
+      storageAccountId,
+      manifestStaticStorageId: storageAccountId,
+      passwordHash,
+      name,
+      email
+    });
+
+    const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
+
+    await this.storage.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
+
+    await this.database.updateUser(newUser.id, {
+      manifestStorageId
+    });
+
+    if(userData.accounts && userData.accounts.length) {
+      await pIteration.forEach(userData.accounts, (userAccount) => {
+        return this.setUserAccount(newUser.id, userAccount);
+      });
+    }
+
+    return this.database.getUser(newUser.id);
   }
 
   async loginPassword(usernameOrEmail, password): Promise<any> {
