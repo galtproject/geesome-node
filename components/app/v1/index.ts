@@ -287,16 +287,15 @@ class GeesomeApp implements IGeesomeApp {
       userAccount = await this.database.getUserAccountByProvider(userId, accountData.provider);
     }
 
+    accountData.userId = userId;
+
     if(userAccount) {
       if(userAccount.userId !== userId) {
         throw new Error("not_permitted");
       }
       return this.database.updateUserAccount(userAccount.id, accountData);
     } else {
-      return this.database.createUserAccount({
-        userId,
-        ...accountData
-      });
+      return this.database.createUserAccount(accountData);
     }
   }
 
