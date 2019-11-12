@@ -14,13 +14,15 @@ export interface IDatabase {
 
   addApiKey(apiKey): Promise<IUserApiKey>;
 
+  getApiKey(id): Promise<IUserApiKey>;
+
   getApiKeyByHash(valueHash: string): Promise<IUserApiKey>;
 
   getApiKeysByUser(userId: number, isDisabled?: boolean, search?: string, listParams?: IListParams): Promise<IUserApiKey[]>;
   
   getApiKeysCountByUser(userId: number, isDisabled?: boolean, search?: string): Promise<number>;
-  
-  updateUser(id, updateData: any): Promise<void>;
+
+  updateApiKey(id, updateData): Promise<void>;
   
   addContent(content: IContent): Promise<IContent>;
 
@@ -51,6 +53,8 @@ export interface IDatabase {
   getUsersCount(): Promise<number>;
 
   addUser(user: IUser): Promise<IUser>;
+
+  updateUser(id, updateData: any): Promise<void>;
 
   getUserByName(name): Promise<IUser>;
 
@@ -200,6 +204,7 @@ export interface IUserApiKey {
   userId: number;
   valueHash: string;
   expiredOn?: Date;
+  isDisabled: boolean;
 }
 
 export interface IContent {

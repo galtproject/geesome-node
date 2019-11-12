@@ -149,7 +149,7 @@ class GeesomeApp implements IGeesomeApp {
       return this.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
 
-    return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, "password_auth")};
+    return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
   async registerUser(userData): Promise<any> {
@@ -399,14 +399,13 @@ class GeesomeApp implements IGeesomeApp {
     return dbUser;
   }
 
-  async generateUserApiKey(userId, type?) {
+  async generateUserApiKey(userId, data) {
     const generated = uuidAPIKey.create();
 
-    await this.database.addApiKey({
-      type,
-      userId,
-      valueHash: generated.uuid
-    });
+    data.userId = userId;
+    data.valueHash = generated.uuid;
+    
+    await this.database.addApiKey(data);
 
     return generated.apiKey;
   }
@@ -427,6 +426,18 @@ class GeesomeApp implements IGeesomeApp {
       list: await this.database.getApiKeysByUser(userId, isDisabled, search, listParams),
       total: await this.database.getApiKeysCountByUser(userId, isDisabled, search)
     };
+  }
+  
+  async updateApiKey(userId, apiKeyId, updateData) {
+    const keyObj = await this.database.getApiKey(apiKeyId);
+
+    if(keyObj.userId !== userId) {
+      throw new Error("not_permitted");
+    }
+    
+    delete updateData.id;
+    
+    return this.database.updateApiKey(keyObj.id, updateData);
   }
 
   public async setUserLimit(adminId, limitData: IUserLimit) {

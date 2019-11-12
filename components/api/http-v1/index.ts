@@ -117,7 +117,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   
   async function handleAuthResult(res, user) {
     if (user) {
-      return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, "password_auth")}, 200);
+      return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, {type:"password_auth"})}, 200);
     } else {
       return res.send(403);
     }
@@ -162,7 +162,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
       return res.send(403);
     }
-    res.send(await geesomeApp.generateUserApiKey(req.body.userId, 'admin_manual'));
+    res.send(await geesomeApp.generateUserApiKey(req.body.userId, req.body));
   });
   service.post('/v1/admin/set-user-limit', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetUserLimit)) {
@@ -222,6 +222,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
     res.send(await geesomeApp.storage.removeBootNode(req.body.address));
   });
+
+  service.post('/v1/admin/get-user-account', async (req, res) => {
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.database.getUserAccountByAddress(req.body.provider, req.body.address));
+  });
+  
   service.get('/v1/node-address-list', async (req, res) => {
     res.send({result: await geesomeApp.storage.nodeAddressList()});
   });
@@ -304,8 +312,16 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
   });
 
-  service.get('/v1/user/api-keys', async (req, res) => {
+  service.get('/v1/user/api-key-list', async (req, res) => {
     res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+  });
+  
+  service.post('/v1/user/api-key/add', async (req, res) => {
+    res.send(await geesomeApp.generateUserApiKey(req.user.id, req.body));
+  });
+
+  service.post('/v1/user/api-key/:apiKeyId/update', async (req, res) => {
+    res.send(await geesomeApp.updateApiKey(req.user.id, req.params.apiKeyId, req.body));
   });
 
   service.post('/v1/user/save-file', async (req, res) => {

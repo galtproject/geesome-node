@@ -48,7 +48,9 @@ export interface IGeesomeApp {
 
   setUserAccount(userId, accountData): Promise<IUserAccount>;
 
-  generateUserApiKey(userId, type?): Promise<string>;
+  generateUserApiKey(userId, apiKeyData): Promise<string>;
+
+  updateApiKey(userId, id, updateData): Promise<void>;
 
   getUserByApiKey(apiKey): Promise<IUser>;
 

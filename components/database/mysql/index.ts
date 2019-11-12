@@ -46,6 +46,14 @@ class MysqlDatabase implements IDatabase {
   async addApiKey(apiKey) {
     return this.models.UserApiKey.create(apiKey);
   }
+  
+  async getApiKey(id) {
+    return this.models.UserApiKey.findOne({where: {id}});
+  }
+  
+  async updateApiKey(id, updateData) {
+    await this.models.UserApiKey.update(updateData, {where: {id}})
+  }
 
   async getApiKeyByHash(valueHash) {
     return this.models.UserApiKey.findOne({where: {valueHash, isDisabled: false}});
@@ -243,16 +251,19 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserAccountByAddress(provider, address) {
+    address = address.toLowerCase();
     return this.models.UserAccount.findOne({
       where: {provider, address}
     });
   }
 
   async createUserAccount(accountData) {
+    accountData.address = accountData.address.toLowerCase();
     return this.models.UserAccount.create(accountData);
   }
 
   async updateUserAccount(id, updateData) {
+    updateData.address = updateData.address.toLowerCase();
     return this.models.UserAccount.update(updateData, {where: {id}});
   }
   
