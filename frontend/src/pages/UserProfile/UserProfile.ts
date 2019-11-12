@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import ApiKeyFormModal from "../../modals/ApiKeyFormModal/ApiKeyFormModal";
+
 export default {
   template: require('./UserProfile.html'),
   components: {},
@@ -18,7 +20,34 @@ export default {
     async getApiKeys() {
       const apiKeys = await this.$coreApi.getUserApiKeys();
       this.apiKeys = apiKeys.list;
-    }
+    },
+    addApiKey() {
+      this.$root.$asyncModal.open({
+        id: 'api-key-form-modal',
+        component: ApiKeyFormModal,
+        props: {
+          apiKeyInput: {
+            title: '',
+            type: 'user_manual'
+          }
+        },
+        onClose: async (resultApiKey) => {
+          this.getApiKeys();
+        }
+      });
+    },
+    editApiKey(apiKey) {
+      this.$root.$asyncModal.open({
+        id: 'api-key-form-modal',
+        component: ApiKeyFormModal,
+        props: {
+          apiKeyInput: apiKey
+        },
+        onClose: async (resultApiKey) => {
+          this.getApiKeys();
+        }
+      });
+    },
   },
   watch: {},
   computed: {

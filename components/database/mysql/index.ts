@@ -46,6 +46,14 @@ class MysqlDatabase implements IDatabase {
   async addApiKey(apiKey) {
     return this.models.UserApiKey.create(apiKey);
   }
+  
+  async getApiKey(id) {
+    return this.models.UserApiKey.findOne({where: {id}});
+  }
+  
+  async updateApiKey(id, updateData) {
+    await this.models.UserApiKey.update(updateData, {where: {id}})
+  }
 
   async getApiKeyByHash(valueHash) {
     return this.models.UserApiKey.findOne({where: {valueHash, isDisabled: false}});
