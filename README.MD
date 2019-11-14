@@ -203,7 +203,7 @@ In another terminal tab:
 cd frontend && yarn
 npm run local
 ```
-Open UI by url: [http://localhost:8081/](http://localhost:8081/)
+Open UI page by url: [http://localhost:8081/](http://localhost:8081/)
 
 Api available by [http://localhost:7711](http://localhost:7711) endpoint.
 
