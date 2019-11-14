@@ -45,6 +45,9 @@ We are sure that this tool should be used not only by the project's communities,
 A new open protocol for unstopable social networking and communication on IPFS.
 It defines the structure of social network data to describe familiar to the modern user entities: content, posts, tags, groups.
 
+## GeeSome UI
+GeeSome UI - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient class in your projects for build you own UI with some important for you functions.
+
 ## Summary
 With the help of GeeSome Node, anyone can create an instance of a decentralized social network, with groups like in YouTube, Instagram or Telegram but with content preservation and no locks or censorship thanks to the concept of personal GeeSome Node using IPFS Node to store content, access data and receive updates by libp2p.
 
@@ -70,6 +73,9 @@ Currently its storing in GeeSome node, but need to improve it.
 
 ### Test group
 ![GeeSome Test Group](./frontend/assets/screenshots/test-group.png)
+
+### Encrypted personal chat
+![GeeSome Personal Chat](https://user-images.githubusercontent.com/4842007/68895796-b97da580-0732-11ea-9fad-cddfafe2c146.jpg)
 
 ### Mobile version
 | Main page | Menu | Groups list | Group page |
@@ -152,18 +158,18 @@ geesomeClient.init().then(async () => {
 ```
 
 ## Current state and features:
+- Encrypted personal messages
 - Public channels and posts
+- Streamable media api(video and audio)
 - Basic file manager
 - User profile
-- Encrypted personal messages
 - Api keys for access to all node features
-- Separated content and access by users
-- Limit users upload
+- Api keys managment in UI
+- Separated content and folders list and access by users
+- Users upload limits
 - IPNS caching for fast resolving
 - IPFS and IPNS directories for HTML sites and more
-- Manage api keys in UI
 - Ethereum authentication by signature
-- Streamable media api(video and audio)
 
 ## TODO:
 - Share folder by ipld, ipns manifest
@@ -197,7 +203,7 @@ In another terminal tab:
 cd frontend && yarn
 npm run local
 ```
-Open [http://localhost:8081/](http://localhost:8081/)
+Open UI by url: [http://localhost:8081/](http://localhost:8081/)
 
 Api available by [http://localhost:7711](http://localhost:7711) endpoint.
 
