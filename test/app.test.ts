@@ -10,7 +10,7 @@
 import {IGeesomeApp} from "../components/app/interface";
 import {FileCatalogItemType, UserLimitName} from "../components/database/interface";
 
-const ipfsHelper = require("@galtproject/geesome-libs/src/ipfsHelper");
+const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');

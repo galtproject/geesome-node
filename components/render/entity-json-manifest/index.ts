@@ -14,7 +14,7 @@ import {GroupType, IContent, IGroup, IPost, IUser, PostStatus} from "../../datab
 const _ = require('lodash');
 const bs58 = require('bs58');
 const pIteration = require('p-iteration');
-const treeLib = require('@galtproject/geesome-libs/src/base36Trie');
+const treeLib = require('geesome-libs/src/base36Trie');
 
 module.exports = async (app: IGeesomeApp) => {
 

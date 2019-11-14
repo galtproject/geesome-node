@@ -28,11 +28,11 @@ import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
 
-const commonHelper = require('@galtproject/geesome-libs/src/common');
-const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
-const pgpHelper = require('@galtproject/geesome-libs/src/pgpHelper');
-const detecterHelper = require('@galtproject/geesome-libs/src/detecter');
-const {getPersonalChatTopic} = require('@galtproject/geesome-libs/src/name');
+const commonHelper = require('geesome-libs/src/common');
+const ipfsHelper = require('geesome-libs/src/ipfsHelper');
+const pgpHelper = require('geesome-libs/src/pgpHelper');
+const detecterHelper = require('geesome-libs/src/detecter');
+const {getPersonalChatTopic} = require('geesome-libs/src/name');
 const bs58 = require('bs58');
 let config = require('./config');
 const appCron = require('./cron');

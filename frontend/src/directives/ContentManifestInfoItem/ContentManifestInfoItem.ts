@@ -12,7 +12,7 @@ import PrettyName from "../PrettyName/PrettyName";
 const _ = require('lodash');
 const mime = require('mime/lite');
 const fileSaver = require('file-saver');
-const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentManifestInfoItem.html'),

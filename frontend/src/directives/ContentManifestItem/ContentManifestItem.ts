@@ -14,7 +14,7 @@ import ImageModal from "../../modals/ImageModal/ImageModal";
 const fileSaver = require('file-saver');
 const mime = require('mime/lite');
 const _ = require('lodash');
-const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentManifestItem.html'),
