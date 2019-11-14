@@ -97,11 +97,7 @@ There is additional parameters that can be used in export:
 4. Open your-site.com/#/setup and create first admin user
 
 ## Getting started with GeeSome Node API
-1. Get apiKey from GeeSome UI of your node
-```
-You can get your current session api key after login by enter localStorage.getItem('geesome-api-key') in browser console of UI page. Soon it will be more convenient and correct by keys generation in UI.
-```
-2. Install GeeSome libs by npm:
+1. Install GeeSome libs by npm:
 ```
 npm i --save git://github.com/galtproject/geesome-libs.git
 ```
@@ -109,27 +105,77 @@ or yarn:
 ```
 yarn add git://github.com/galtproject/geesome-libs.git
 ```
-3. Init GeeSome client and save image to your IPFS node
+
+2. Get apiKey from node by api and login pass authorization:
 ```javascript
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
 const geesomeClient = new GeesomeClient({
-    server: 'https://your-site.com:7722', // or 'http://localhost:7711'
-    // paste apiKey from GeeSome UI here
-    apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E'
+    server: 'https://your-site.com:7722', // or 'http://localhost:7711',
+    // apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E' // if you paste your apiKey here, so no need to authorization by loginPassword function
 });
+
+geesomeClient.init().then(async () => {
+    await geesomeClient.loginPassword("username", "password");
+    console.log('Congrats! You successfully authorized, your session api key:', geesomeClient.apiKey);
+});
+```
+Or you can generate apiKey from UI in User Profile section by "Add api key" button.
+
+More safer to use already generated `apiKey`, because you can always disable it and create another if there is a leak.
+
+3. Init GeeSome client and save image to your IPFS node
+```javascript
 geesomeClient.init().then(async () => {
     const contentObj = await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg');
-    
     console.log('content ipfs', contentObj.storageId);
     console.log('content manifest ipld', contentObj.manifestStorageId);
 });
 ```
-You can also use `geesomeClient.loginUserPass` for login via login and password without manually 
-setting `apiKey`. But more safer to use `apiKey`, because you can always disable it `apiKey` and 
-create another if there is a leak.
 
-4. Create and publish IPFS site directory with content
+4. Create group and publish post via API
+```javascript
+geesomeClient.init().then(async () => {
+    const avatarPhoto = await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg');
+    
+    const group = await geesomeClient.createGroup(testUser.id, { name: 'test', title: 'Test', avatarImageId: avatarPhoto.id });
+
+    const groupIpns = group.manifestStaticStorageId;
+    console.log('group manifest ipld', group.manifestStorageId);
+    console.log('group manifest ipns that points to ipld', groupIpns);
+    
+    const postContent1 = await geesomeClient.saveContentData('My first post');
+    const postContent2 = await geesomeClient.saveDataByUrl('https://picsum.photos/1000/500.jpg');
+    
+    await geesomeClient.createPost([postContent1.id, postContent2.id], { groupId: group.id, status: 'published' });
+    
+    // get published group from IPFS with posts
+    
+    // resolve IPNS first
+    const updatedGroupIpld = await geesomeClient.resolveIpns(groupIpns);
+    console.log('new group manifest ipld with first post', updatedGroupIpld);
+    
+    // get JSON content of group by IPLD
+    const updatedGroupManifest = await geesomeClient.getObject(updatedGroupIpld);
+    console.log('fetched group manifest', updatedGroupManifest);
+    // or you can simply use geesomeClient.getGroup(groupIpns) for auto-resolve IPNS, get manifest with avatar and cover contents included
+    
+    // get posts one by one from group's posts tree
+    geesomeClient.getGroupPostsAsync(
+      updatedGroupIpld, 
+      {limit: 10, offset: 0, orderDir: 'desc'}, 
+      function onItemCallback(fetchedPost) {
+        console.log('fetchedPost', fetchedPost);
+        console.log('fetchedPost contents array', fetchedPost.contents);
+      }, 
+      function onFinishCallback(postList) {
+        console.log('postList', postList);
+      }
+    );
+});
+```
+
+5. Create and publish IPFS site directory with content to IPNS
 ```javascript
 geesomeClient.init().then(async () => {
     await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg', {path: '/my-site/image.jpg'});
