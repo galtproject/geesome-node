@@ -186,7 +186,7 @@ geesomeClient.init().then(async () => {
 
 ## Local install and run
 ```
-bash/ubuntu-install-deps.sh
+bash/ubuntu-install-deps.sh # if not ubuntu - execute commands manually for your OS
 npm i -g yarn # install if not installed
 yarn
 npm rebuild youtube-dl
