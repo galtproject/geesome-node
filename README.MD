@@ -219,6 +219,7 @@ Api available by [http://localhost:7711](http://localhost:7711) endpoint.
 - Use GeeSome as IPFS file storage in your decentralized project (Soon...)
 - IPNS updates problem and how we solved it (Soon...)
 - Are we ready for true decentralized messages and content? (Soon...)
+- We need backups for our Social Neworks! (Soon...)
 
 ## Do you like the project? ✨
 Put a star and fork it. Join Us On [Telegram](https://t.me/geesome). Thank you!
