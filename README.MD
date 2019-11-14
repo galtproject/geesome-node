@@ -56,7 +56,7 @@ GeeSome Node can be used:
 - to create chat groups
 
 ## GeeSome Scheme
-![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/62708490-d304a800-b9f3-11e9-8c2c-5cb3f2b5f753.jpg)
+![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/68893921-d912cf00-072e-11ea-8fe4-7d2937f32342.png)
 
 You can run personal or public GeeSome node. It used for storing files, manage entities and prepare content for publishing.
 Also because of IPNS updates issues - GeeSome node have IPNS caching based on signed PubSub events. 
