@@ -184,6 +184,23 @@ geesomeClient.init().then(async () => {
 - ffmpeg
 - Cerbot(Letsencrypt)
 
+## Local install and run
+```
+bash/ubuntu-install-deps.sh
+npm i -g yarn # install if not installed
+yarn
+npm rebuild youtube-dl
+npm run start
+```
+In another terminal tab:
+```
+cd frontend && yarn
+npm run local
+```
+Open [http://localhost:8081/](http://localhost:8081/)
+
+Api available by [http://localhost:7711](http://localhost:7711) endpoint.
+
 ## Links
 - [Manifests example](./docs/manifests-example.md)
 - [API](./components/api/http-v1/index.ts)
