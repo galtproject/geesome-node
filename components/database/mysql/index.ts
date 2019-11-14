@@ -14,7 +14,7 @@ const _ = require("lodash");
 const Sequelize = require("sequelize");
 const pIteration = require("p-iteration");
 const Op = Sequelize.Op;
-const commonHelpers = require('@galtproject/geesome-libs/src/common');
+const commonHelpers = require('geesome-libs/src/common');
 
 let config = require('./config');
 

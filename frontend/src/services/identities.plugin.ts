@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const { GeesomeClient, BrowserLocalClientStorage } = require('@galtproject/geesome-libs/src/GeesomeClient');
+const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
 
 export default {
   install(Vue, options: any = {}) {

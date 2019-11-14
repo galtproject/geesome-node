@@ -12,7 +12,7 @@ import {CorePermissionName} from "../../database/interface";
 
 const config = require('./config');
 
-const ipfsHelper = require('@galtproject/geesome-libs/src/ipfsHelper');
+const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
 const fs = require('fs');
 const mime = require('mime');

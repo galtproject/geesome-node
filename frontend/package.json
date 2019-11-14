@@ -18,6 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
+    "geesome-libs": "git://github.com/galtspace/geesome-libs.git#18ce246",
     "@galtproject/frontend-core": "git://github.com/galtspace/galtproject-frontend-core.git#e27c725",
     "async": "^2.5.0",
     "axios": "^0.18.1",
@@ -47,8 +48,7 @@
     "vue-router": "^3.0.1",
     "vue-template-compiler": "^2.5.13",
     "vue2-editor": "^2.6.6",
-    "vuex": "^3.0.1",
-    "web3": "^1.0.0-beta.52"
+    "vuex": "^3.0.1"
   },
   "devDependencies": {
     "@types/chai": "^4.1.3",

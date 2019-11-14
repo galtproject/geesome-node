@@ -10,7 +10,7 @@
 import {IGroup, IPost} from "../../database/interface";
 import {IGeesomeApp} from "../interface";
 
-const {getPersonalChatTopic, getIpnsUpdatesTopic} = require('@galtproject/geesome-libs/src/name');
+const {getPersonalChatTopic, getIpnsUpdatesTopic} = require('geesome-libs/src/name');
 const bs58 = require('bs58');
 
 export {};

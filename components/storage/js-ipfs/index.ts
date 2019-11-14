@@ -9,7 +9,7 @@
 
 import {IGeesomeApp} from "../../app/interface";
 
-const JsIpfsServiceNode = require("@galtproject/geesome-libs/src/JsIpfsServiceNode");
+const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNode");
 
 const IPFS = require('ipfs');
 const Gateway = require('ipfs/src/http');
