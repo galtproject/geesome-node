@@ -35,6 +35,9 @@ export class VideoToStreambleDriver extends AbstractDriver {
             fs.unlinkSync(path);
           reject(error);
         })
+        .on('data', function (data) {
+          console.log('createWriteStream data', data.length);
+        })
         .pipe(fs.createWriteStream(path))
         .on('close', () => resolve({path}))
     );
