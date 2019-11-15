@@ -47,7 +47,7 @@ describe("drivers", function () {
   });
   
   describe('convert video', () => {
-    it.only("should convert video to streamable", async () => {
+    it("should convert video to streamable", async () => {
       const videoPath = __dirname + '/resources/not-streamable-input-video.mp4';
 
       let videoInfo = await mediainfo(videoPath);

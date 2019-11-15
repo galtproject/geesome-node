@@ -24,12 +24,9 @@ export class VideoToStreambleDriver extends AbstractDriver {
   async processByStream(inputStream, options: any = {}) {
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.' + options.extension;
 
-    console.log('processByStream.path', path);
-    
     await new Promise((resolve, reject) =>
       inputStream
         .on('error', error => {
-          console.error('createWriteStream error', error);
           if (inputStream.truncated)
           // delete the truncated file
             fs.unlinkSync(path);
@@ -40,14 +37,12 @@ export class VideoToStreambleDriver extends AbstractDriver {
     );
 
     let videoInfo = await mediainfo(path);
-    console.log('processByStream.videoInfo', videoInfo);
     let resultStream = fs.createReadStream(path);
     resultStream.on("close", () => {
       fs.unlinkSync(path);
     });
 
     let durationSeconds = parseFloat(videoInfo.media.track[0].Duration);
-    console.log('processByStream.durationSeconds', durationSeconds);
 
     if (videoInfo.media.track[0].IsStreamable === 'Yes') {
       return {
@@ -57,7 +52,6 @@ export class VideoToStreambleDriver extends AbstractDriver {
         processed: false
       };
     }
-    console.log('videoInfo.media.track[0].IsStreamable', videoInfo.media.track[0].IsStreamable);
 
     const transformStream = new stream.Transform();
     transformStream._transform = function (chunk, encoding, done) {
@@ -92,8 +86,6 @@ export class VideoToStreambleDriver extends AbstractDriver {
       fs.unlinkSync(path);
     });
 
-    console.log('transformStream', transformStream);
-    //
     return {
       tempPath: path,
       stream: transformStream,
