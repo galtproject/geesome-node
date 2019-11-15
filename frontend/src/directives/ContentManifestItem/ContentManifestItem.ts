@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import MediaElement from "../MediaElement/MediaElement";
+import MediaElement from "geesome-vue-components/src/directives/MediaElement/MediaElement";
 import PrettyName from "../PrettyName/PrettyName";
 import ImageModal from "../../modals/ImageModal/ImageModal";
 

@@ -52,9 +52,9 @@
     reflect-metadata "^0.1.12"
     tslib "^1.8.1"
 
-"@galtproject/frontend-core@git://github.com/galtspace/galtproject-frontend-core.git#e27c725":
+"@galtproject/frontend-core@git://github.com/galtproject/galtproject-frontend-core.git#e27c725":
   version "0.1.0"
-  resolved "git://github.com/galtspace/galtproject-frontend-core.git#e27c7253d446f4cc8d05b6b787e8a1fd4ab50861"
+  resolved "git://github.com/galtproject/galtproject-frontend-core.git#e27c7253d446f4cc8d05b6b787e8a1fd4ab50861"
   dependencies:
     "@galtproject/utils" "git://github.com/galtspace/galtproject-utils-js.git"
     "@sentry/browser" "^4.4.2"
@@ -5012,9 +5012,9 @@ gc-stats@^1.2.1:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtspace/geesome-libs.git#5301f5c":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#5301f5c":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#5301f5c0b4034a9a497cbac5b39db55e25fd59f2"
+  resolved "git://github.com/galtproject/geesome-libs.git#5301f5c0b4034a9a497cbac5b39db55e25fd59f2"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -5033,6 +5033,12 @@ gc-stats@^1.2.1:
     peer-id "^0.12.2"
     peer-info "^0.16.0"
     sha3 "^2.0.6"
+
+"geesome-vue-components@git://github.com/galtproject/geesome-vue-components.git#2c206c1":
+  version "1.0.0"
+  resolved "git://github.com/galtproject/geesome-vue-components.git#2c206c191fa0e36dab1d59d341631957c3596bbf"
+  dependencies:
+    mediaelement "^4.2.9"
 
 get-browser-rtc@^1.0.0:
   version "1.0.2"
