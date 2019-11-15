@@ -969,7 +969,10 @@ class GeesomeApp implements IGeesomeApp {
     let dataSendingPromise = new Promise((resolve, reject) => {
       if(args[0].on) {
         console.log('args[0].on subscribe');
-        args[0].on('finish', () => resolve());
+        args[0]
+          .on('finish', () => resolve())
+          .on('pipe', () => console.log('args[0] pipe'))
+          .on('unpipe', () => console.log('args[0] unpipe'));
       } else {
         resolve();
       }
