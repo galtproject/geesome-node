@@ -966,6 +966,7 @@ class GeesomeApp implements IGeesomeApp {
       }
     }
     
+    console.log('this[methodName].apply(this, args)', methodName);
     this[methodName].apply(this, args)
       .then(res => {
         this.database.updateUserAsyncOperation(asyncOperation.id, {
@@ -986,6 +987,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+    console.log('saveData');
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
@@ -996,6 +998,7 @@ class GeesomeApp implements IGeesomeApp {
       options.userApiKeyId = apiKey.id;
     }
     
+    console.log('saveData.saveFileByStream');
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName),{extension, onProgress: options.onProgress});
 
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -1145,6 +1148,7 @@ class GeesomeApp implements IGeesomeApp {
 
   private async saveFileByStream(userId, stream, mimeType, options: any = {}): Promise<any> {
     return new Promise(async (resolve, reject) => {
+      console.log('saveFileByStream');
       if (this.isVideoType(mimeType)) {
         const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
           extension: _.last(mimeType.split('/')),
@@ -1153,6 +1157,7 @@ class GeesomeApp implements IGeesomeApp {
         });
         stream = convertResult.stream;
       }
+      console.log('saveFileByStream.stream');
 
       const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
