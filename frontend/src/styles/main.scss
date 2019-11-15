@@ -350,6 +350,9 @@ a.icon-link {
   &.mini-manifest-info {
     font-size: 11px;
     line-height: 1.3;
+    img {
+      max-height: 150px;
+    }
   }
 }
 

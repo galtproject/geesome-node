@@ -16,7 +16,7 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentManifestInfoItem.html'),
-  props: ['manifest', 'dbId', 'verticalMode', 'mini'],
+  props: ['manifest', 'dbId', 'verticalMode', 'mini', 'fullMode'],
   components: {PrettyName},
   async created() {
     this.setContent();
