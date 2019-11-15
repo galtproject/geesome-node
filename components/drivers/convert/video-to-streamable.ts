@@ -35,7 +35,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
           reject(error);
         })
         .pipe(fs.createWriteStream(path))
-        .on('finish', () => resolve({path}))
+        .on('close', () => resolve({path}))
     );
 
     let videoInfo = await mediainfo(path);
