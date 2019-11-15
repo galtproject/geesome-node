@@ -20,7 +20,7 @@
   "dependencies": {
     "geesome-libs": "git://github.com/galtproject/geesome-libs.git#5301f5c",
     "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#e27c725",
-    "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#2c206c1",
+    "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#ff8f41b",
     "async": "^2.5.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",
