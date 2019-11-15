@@ -6,6 +6,7 @@
       "title": "Menu",
       "home": "Home",
       "profile": "Profile",
+      "chat": "Chat",
       "file_explorer": "Files explorer",
       "boot_nodes": "Boot Nodes",
       "administration_groups": "Administrate groups",

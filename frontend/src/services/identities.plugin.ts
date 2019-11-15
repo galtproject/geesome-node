@@ -19,8 +19,8 @@ export default {
     };
     
     Vue.prototype.$identities = {
-      async init(store) {
-        appStore = store;
+      async init($vueInstance) {
+        appStore = $vueInstance.$store;
       },
 
       async loading(entity, id) {

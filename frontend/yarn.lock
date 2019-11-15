@@ -5012,9 +5012,9 @@ gc-stats@^1.2.1:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtspace/geesome-libs.git#18ce246":
+"geesome-libs@git://github.com/galtspace/geesome-libs.git#3540e12":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#18ce2467630f89f2c34ca9a3c17c44919352e3a3"
+  resolved "git://github.com/galtspace/geesome-libs.git#3540e12f0ccfbe9ecce876d9b24788d02132bafd"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
@@ -5025,7 +5025,7 @@ gc-stats@^1.2.1:
     ipfs "^0.35.0"
     ipfsd-ctl "^0.43.0"
     ipns "^0.5.2"
-    lodash "^4.17.15"
+    lodash "^4.17.11"
     multihashes "~0.4.14"
     node-forge "0.8.5"
     openpgp "^4.6.0"
@@ -6087,9 +6087,9 @@ ipfs-http-client@^32.0.0:
     tar-stream "^2.0.1"
     through2 "^3.0.1"
 
-"ipfs-http-client@github:ipfs/js-ipfs-http-client#master":
+ipfs-http-client@ipfs/js-ipfs-http-client#master:
   version "39.0.2"
-  resolved "https://codeload.github.com/ipfs/js-ipfs-http-client/tar.gz/621973c99916b4829e59aaf0fb67101284facfae"
+  resolved "https://codeload.github.com/ipfs/js-ipfs-http-client/tar.gz/0e011873747f9d8754d26ca21792df865fda8b1e"
   dependencies:
     abort-controller "^3.0.0"
     async "^2.6.1"
@@ -8422,7 +8422,7 @@ lodash@=3.10.1:
   version "4.17.13"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.13.tgz#0bdc3a6adc873d2f4e0c4bac285df91b64fc7b93"
 
-lodash@^4.17.14, lodash@^4.17.15:
+lodash@^4.17.14:
   version "4.17.15"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
 

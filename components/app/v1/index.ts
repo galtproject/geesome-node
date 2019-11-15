@@ -944,38 +944,48 @@ class GeesomeApp implements IGeesomeApp {
       options.userApiKeyId = apiKey.id;
     }
     
-    if(options.async) {
-      const asyncOperation = await this.database.addUserAsyncOperation({
-        userId: options.userId,
-        userApiKeyId: options.userApiKeyId,
-        name: 'save-data',
-        inProcess: true,
-        channel: uuidv4()
-      });
-      
-      this[methodName].apply(this, args)
-        .then(res => {
-          this.database.updateUserAsyncOperation(asyncOperation.id, {
-            inProcess: false,
-            contentId: res.id
-          });
-          return this.storage.publishEvent(asyncOperation.channel, res);
-        })
-        .catch((e) => {
-          return this.database.updateUserAsyncOperation(asyncOperation.id, {
-            inProcess: false,
-            errorType: 'unknown',
-            errorMessage: e.message
-          });
-        });
-      
-      return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
-    } else {
+    if(!options.async) {
       return this[methodName].apply(this, args);
     }
+    
+    const asyncOperation = await this.database.addUserAsyncOperation({
+      userId: options.userId,
+      userApiKeyId: options.userApiKeyId,
+      name: 'save-data',
+      inProcess: true,
+      channel: uuidv4()
+    });
+    
+    // TODO: fix hotfix
+    if(_.isObject(_.last(args))) {
+      _.last(args).onProgress = (progress) => {
+        console.log('onProgress', progress);
+        this.database.updateUserAsyncOperation(asyncOperation.id, {
+          percent: progress.percent
+        });
+      }
+    }
+    
+    this[methodName].apply(this, args)
+      .then(res => {
+        this.database.updateUserAsyncOperation(asyncOperation.id, {
+          inProcess: false,
+          contentId: res.id
+        });
+        return this.storage.publishEvent(asyncOperation.channel, res);
+      })
+      .catch((e) => {
+        return this.database.updateUserAsyncOperation(asyncOperation.id, {
+          inProcess: false,
+          errorType: 'unknown',
+          errorMessage: e.message
+        });
+      });
+    
+    return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
-  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, async?, asyncCallback? }) {
+  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
@@ -986,7 +996,7 @@ class GeesomeApp implements IGeesomeApp {
       options.userApiKeyId = apiKey.id;
     }
     
-    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName), extension);
+    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName),{extension, onProgress: options.onProgress});
 
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
@@ -1020,7 +1030,7 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, async?, asyncCallback? }) {
+  async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
     let name;
     if (options.path) {
       name = this.getFilenameFromPath(options.path);
@@ -1039,7 +1049,7 @@ class GeesomeApp implements IGeesomeApp {
     if (options.driver && options.driver != 'none') {
       const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
       type = dataToSave.type;
-      const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, extension);
+      const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {extension, onProgress: options.onProgress});
       type = resultMimeType;
       storageFile = resultFile;
       extension = resultExtension;
@@ -1133,44 +1143,62 @@ class GeesomeApp implements IGeesomeApp {
     return _.startsWith(fullType, 'video') || _.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi') || _.endsWith(fullType, 'mov') || _.endsWith(fullType, 'quicktime');
   }
 
-  private async saveFileByStream(userId, stream, mimeType, extension?) {
-    // console.log('saveFileByStream', userId, stream, mimeType, extension);
-    if (this.isVideoType(mimeType)) {
-      const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
-        extension: _.last(mimeType.split('/'))
-      });
-      stream = convertResult.stream;
-    }
+  private async saveFileByStream(userId, stream, mimeType, options: any = {}): Promise<any> {
+    return new Promise(async (resolve, reject) => {
+      if (this.isVideoType(mimeType)) {
+        const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
+          extension: _.last(mimeType.split('/')),
+          onProgress: options.onProgress,
+          onError: reject
+        });
+        stream = convertResult.stream;
+      }
 
-    const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
+      const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
-    if (sizeRemained !== null) {
-      console.log('sizeRemained', sizeRemained);
-      let streamSize = 0;
-      const sizeCheckStream = new Transform({
-        transform: function (chunk, encoding, callback) {
-          streamSize += chunk.length;
-          console.log('streamSize', streamSize);
-          if (streamSize > sizeRemained) {
-            console.error("limit_reached for user", userId);
-            callback("limit_reached", null)
-          } else {
-            callback(false, chunk);
+      // console.log('1 err', err);
+      // if(err) {
+      //   throw err;
+      // }
+      if (sizeRemained !== null) {
+        console.log('sizeRemained', sizeRemained);
+        let streamSize = 0;
+        const sizeCheckStream = new Transform({
+          transform: function (chunk, encoding, callback) {
+            streamSize += chunk.length;
+            console.log('streamSize', streamSize);
+            if (streamSize > sizeRemained) {
+              console.error("limit_reached for user", userId);
+              callback("limit_reached", null)
+            } else {
+              callback(false, chunk);
+            }
           }
-        }
+        });
+        stream = stream.pipe(sizeCheckStream);
+      }
+
+      // console.log('2 err', err);
+      // if(err) {
+      //   throw err;
+      // }
+      //
+      // console.log('stream.pipe(sizeCheckStream)', stream.pipe(sizeCheckStream));
+      // console.log('sizeCheckStream.pipe(stream)', sizeCheckStream.pipe(stream));
+
+      const resultFile = await this.storage.saveFileByData(stream);
+      //
+      // console.log('3 err', err);
+      // if(err) {
+      //   throw err;
+      // }
+
+      resolve({
+        resultFile: resultFile,
+        resultMimeType: mimeType,
+        resultExtension: options.extension
       });
-      stream = stream.pipe(sizeCheckStream);
-    }
-
-    // console.log('stream.pipe(sizeCheckStream)', stream.pipe(sizeCheckStream));
-    // console.log('sizeCheckStream.pipe(stream)', sizeCheckStream.pipe(stream));
-
-    const resultFile = await this.storage.saveFileByData(stream);
-    return {
-      resultFile: resultFile,
-      resultMimeType: mimeType,
-      resultExtension: extension
-    };
+    });
   }
 
   private async getUserLimitRemained(userId, limitName: UserLimitName) {
