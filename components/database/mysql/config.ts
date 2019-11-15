@@ -12,6 +12,7 @@ module.exports = {
   'user': 'root',
   'password': 'root',
   'options': {
+    'logging': false,
     'host': 'localhost',
     'port': 3306,
     'dialect': 'mysql',

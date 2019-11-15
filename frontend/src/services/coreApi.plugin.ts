@@ -12,12 +12,14 @@ const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/G
 export default {
   install(Vue, options: any = {}) {
     let appStore;
+    let notify;
 
     let geesomeClient;
 
     Vue.prototype.$coreApi = {
-      async init(store) {
-        appStore = store;
+      async init($vueInstance) {
+        appStore = $vueInstance.$store;
+        notify = $vueInstance.$notify;
 
         let server = localStorage.getItem('geesome-server');
         let apiKey = localStorage.getItem('geesome-api-key');
@@ -41,7 +43,7 @@ export default {
         // TODO: call directly from geesomeClient?
         [
           'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup', 
-          'saveFile', 'saveObject', 'saveContentData', 'saveDataByUrl', 'createPost', 'getContentData', 'getDbContent', 
+          'saveObject', 'createPost', 'getContentData', 'getDbContent', 
           'getMemberInGroups', 'getMemberInChannels', 'getMemberInChats', 'getAdminInGroups', 'getAdminInChannels', 'getAdminInChats', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink', 
           'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
           'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
@@ -89,6 +91,46 @@ export default {
         await geesomeClient.logout();
         //TODO: send request to server for disable api key
         localStorage.setItem('geesome-api-key', null);
+      },
+
+
+      saveFile(file, params: any = {}) {
+        params.onProcess = this.onProcess;
+        return geesomeClient.saveFile(file, params).catch(this.onError);
+      },
+
+      saveContentData(content, params: any = {}) {
+        params.onProcess = this.onProcess;
+        return geesomeClient.saveContentData(content, params).catch(this.onError);
+      },
+
+      saveDataByUrl(url, params: any = {}) {
+        params.onProcess = this.onProcess;
+        return geesomeClient.saveDataByUrl(url, params).catch(this.onError);
+      },
+      
+      onProcess(process) {
+        if(!process.percent) {
+          return;
+        }
+        // notify({
+        //   group: 'loading',
+        //   clean: true
+        // });
+        notify({
+          type: 'success',
+          title: `Process: ${Math.round(process.percent * 100) / 100}%`,
+          group: 'loading'
+        });
+      },
+
+      onError(err) {
+        notify({
+          type: 'error',
+          title: `Error`,
+          text: err.message
+        });
+        throw err;
       }
     };
   }

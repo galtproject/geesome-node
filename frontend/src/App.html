@@ -14,6 +14,7 @@
   <!--<wait-screen></wait-screen>-->
 
   <notifications :duration="7000" position="bottom right"></notifications>
+  <notifications :duration="7000" position="bottom right" group="loading" :max="1"></notifications>
 
   <div class="sk-cube-grid" v-if="loading">
     <div class="sk-cube sk-cube1"></div>

@@ -36,7 +36,9 @@ export default {
         groupId: this.groupId,
         fileName,
         folderId: this.folderId
-      }).then(this.contentUploaded.bind(this))
+      })
+        .then(this.contentUploaded.bind(this))
+        .catch(() => {this.saving = false;});
     },
     async uploadFiles(files) {
       const mode = this.mode;
@@ -46,9 +48,11 @@ export default {
           groupId: this.groupId, 
           folderId: this.folderId,
           async: true
-        }).then((contentObj) => {
-          return this.contentUploaded(contentObj, mode);
-        });
+        })
+          .then((contentObj) => {
+            return this.contentUploaded(contentObj, mode);
+          })
+          .catch(() => {this.saving = false;});
       });
     },
     saveLink() {
@@ -58,7 +62,9 @@ export default {
         driver: this.driver,
         folderId: this.folderId,
         async: true
-      }).then(this.contentUploaded.bind(this))
+      })
+        .then(this.contentUploaded.bind(this))
+        .catch(() => {this.saving = false;})
     },
     contentUploaded(contentObj, mode?) {
       this.$emit('update:content-id', contentObj.id);

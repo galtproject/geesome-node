@@ -14,7 +14,7 @@ const drivers = require('../components/drivers');
 const mediainfo = require('node-mediainfo');
 
 describe("drivers", function () {
-  this.timeout(60000);
+  this.timeout(100000);
 
   describe('youtube video', () => {
 

@@ -117,8 +117,8 @@ export default {
       this.language = this.$locale.lang;
     });
 
-    this.$identities.init(this.$store);
-    await this.$coreApi.init(this.$store);
+    this.$identities.init(this);
+    await this.$coreApi.init(this);
     
     this.getCurrentUser();
     

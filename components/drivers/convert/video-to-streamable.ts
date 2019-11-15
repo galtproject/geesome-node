@@ -23,7 +23,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
 
   async processByStream(inputStream, options: any = {}) {
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.' + options.extension;
-    
+
     await new Promise((resolve, reject) =>
       inputStream
         .on('error', error => {
@@ -31,9 +31,6 @@ export class VideoToStreambleDriver extends AbstractDriver {
           // delete the truncated file
             fs.unlinkSync(path);
           reject(error);
-        })
-        .on('progress', function (progress) {
-          console.log('percent: '+progress.percent+'% frames: ' +progress.frames);
         })
         .pipe(fs.createWriteStream(path))
         .on('error', error => reject(error))
@@ -45,10 +42,10 @@ export class VideoToStreambleDriver extends AbstractDriver {
     resultStream.on("close", () => {
       fs.unlinkSync(path);
     });
-    
-    console.log('path', path);
-    
-    if(videoInfo.media.track[0].IsStreamable === 'Yes') {
+
+    let durationSeconds = parseFloat(videoInfo.media.track[0].Duration);
+
+    if (videoInfo.media.track[0].IsStreamable === 'Yes') {
       return {
         tempPath: path,
         stream: resultStream,
@@ -56,20 +53,30 @@ export class VideoToStreambleDriver extends AbstractDriver {
         processed: false
       };
     }
-    
+
     const transformStream = new stream.Transform();
     transformStream._transform = function (chunk, encoding, done) {
       this.push(chunk);
       done();
     };
-    
+
     new ffmpeg(path)
       .inputFormat(options.extension)
       .outputOptions("-movflags faststart+frag_keyframe+empty_moov")
       .output(transformStream)
       .outputFormat('mp4')// TODO: check if options.extension format supported
+      .on('progress', function (progress) {
+        let a = progress.timemark.split(':');
+        let currentSeconds = (+a[0]) * 60 * 60 + (+a[1]) * 60 + (+a[2]);
+        progress.percent = currentSeconds / durationSeconds * 100;
+        if (options.onProgress) {
+          options.onProgress(progress);
+        }
+        console.log('progress:', progress);
+      })
       .on('error', function (err, stdout, stderr) {
-        console.log('An error occurred: ' + err.message, err, stderr);
+        console.error('An error occurred: ' + err.message, err, stderr);
+        options.onError && options.onError(err);
       })
       .run();
 
@@ -87,6 +94,6 @@ export class VideoToStreambleDriver extends AbstractDriver {
       stream: transformStream,
       type: 'video/' + options.extension,
       processed: true
-    }
+    };
   }
 }
