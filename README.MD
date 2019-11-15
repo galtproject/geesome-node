@@ -223,6 +223,9 @@ geesomeClient.init().then(async () => {
 - Private chat groups
 - Feed for aggregate channels, chats, personal messages like in Telegram
 - Local IPNS accounts (in-browser) and signing authentication or publish transactions
+- PubSub communication with modules
+- Auto-backup shared groups and folders to another node
+- Auto-backup social networks channels(Telegram, YouTube, Instagram)
 
 ## GeeSome Modules
 You can develop your own GeeSome module in any programming language for extend GeeSome node functional by
