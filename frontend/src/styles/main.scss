@@ -21,7 +21,7 @@ $fa-font-path: "webfonts";
 @import '~@galtproject/frontend-core/styles/main-with-theme.scss';
 @import '~@galtproject/frontend-core/modals/AsyncModal/modal.css';
 
-@import "media-element";
+@import "~geesome-vue-components/src/styles/media-element";
 @import "chat";
 
 //.fas:before {
