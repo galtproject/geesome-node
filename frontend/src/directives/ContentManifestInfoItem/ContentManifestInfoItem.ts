@@ -16,7 +16,7 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentManifestInfoItem.html'),
-  props: ['manifest', 'dbId', 'verticalMode', 'mini'],
+  props: ['manifest', 'dbId', 'verticalMode', 'mini', 'fullMode'],
   components: {PrettyName},
   async created() {
     this.setContent();
@@ -62,6 +62,10 @@ export default {
       if (this.type == 'image' || this.type == 'file') {
         this.content = this.srcLink;
       }
+      
+      //TODO: fix error "Path is not pinned"
+      // this.pins = await this.$coreApi.getStorageIdPins('/ipfs/' + this.manifestObj.storageId);
+      
       this.loading = false;
     },
     download() {
@@ -112,7 +116,8 @@ export default {
       manifestObj: null,
       content: '',
       srcLink: '',
-      loading: true
+      loading: true,
+      pins: null
     }
   },
 }
