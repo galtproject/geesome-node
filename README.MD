@@ -224,6 +224,14 @@ geesomeClient.init().then(async () => {
 - Feed for aggregate channels, chats, personal messages like in Telegram
 - Local IPNS accounts (in-browser) and signing authentication or publish transactions
 
+## GeeSome Modules
+You can develop your own GeeSome module in any programming language for extend GeeSome node functional by
+communication by API with api keys. Module can communicate with GeeSome node by http requests and 
+PubSub events(in future) for uploading content, managing users and groups.
+
+Existing modules:
+- [GeeSome ETH Manager](https://github.com/galtproject/geesome-eth-manager): Ethereum listener library for managing GeeSome node by Smart Contracts events: register users, set storage limits.
+
 ## Minimal requirements
 - System: Ubuntu 16.04
 - 2 GB RAM
