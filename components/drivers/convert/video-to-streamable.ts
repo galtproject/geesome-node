@@ -29,6 +29,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
     await new Promise((resolve, reject) =>
       inputStream
         .on('error', error => {
+          console.error('createWriteStream error', error);
           if (inputStream.truncated)
           // delete the truncated file
             fs.unlinkSync(path);
