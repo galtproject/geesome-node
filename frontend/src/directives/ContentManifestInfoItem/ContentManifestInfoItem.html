@@ -23,6 +23,7 @@
         <br>
         <b>Type:</b> {{manifestObj.mimeType}}<br>
         <b>Size:</b> {{manifestObj.size| prettySize}}<br>
+        <!--<b>Pins:</b> {{pins ? pins.length : '...'}}<br>-->
         <b>Ipfs hash:</b>
         <pretty-hex :hex="manifestObj.storageId"></pretty-hex>
         <br>

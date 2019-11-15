@@ -2523,9 +2523,9 @@ gc-stats@^1.2.1:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtspace/geesome-libs.git#aefed48":
+"geesome-libs@git://github.com/galtspace/geesome-libs.git#5301f5c":
   version "1.0.0"
-  resolved "git://github.com/galtspace/geesome-libs.git#aefed484e7dc2fd22307b68a05053f6ac38997a4"
+  resolved "git://github.com/galtspace/geesome-libs.git#5301f5c0b4034a9a497cbac5b39db55e25fd59f2"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
