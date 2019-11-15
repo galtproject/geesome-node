@@ -45,6 +45,9 @@ We are sure that this tool should be used not only by the project's communities,
 A new open protocol for unstopable social networking and communication on IPFS.
 It defines the structure of social network data to describe familiar to the modern user entities: content, posts, tags, groups.
 
+## GeeSome UI
+GeeSome UI - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient class in your projects for build you own UI with some important for you functions.
+
 ## Summary
 With the help of GeeSome Node, anyone can create an instance of a decentralized social network, with groups like in YouTube, Instagram or Telegram but with content preservation and no locks or censorship thanks to the concept of personal GeeSome Node using IPFS Node to store content, access data and receive updates by libp2p.
 
@@ -56,12 +59,12 @@ GeeSome Node can be used:
 - to create chat groups
 
 ## GeeSome Scheme
-![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/62708490-d304a800-b9f3-11e9-8c2c-5cb3f2b5f753.jpg)
+![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/68893921-d912cf00-072e-11ea-8fe4-7d2937f32342.png)
 
 You can run personal or public GeeSome node. It used for storing files, manage entities and prepare content for publishing.
 Also because of IPNS updates issues - GeeSome node have IPNS caching based on signed PubSub events. 
 Also there is an [issue](https://github.com/galtproject/geesome-node/issues/115) about IPNS keys of user. 
-Currently its storing in IPNS node, but need to improve it.
+Currently its storing in GeeSome node, but need to improve it.
 
 ## UI Screenshots
 
@@ -70,6 +73,9 @@ Currently its storing in IPNS node, but need to improve it.
 
 ### Test group
 ![GeeSome Test Group](./frontend/assets/screenshots/test-group.png)
+
+### Encrypted personal chat
+![GeeSome Personal Chat](https://user-images.githubusercontent.com/4842007/68895796-b97da580-0732-11ea-9fad-cddfafe2c146.jpg)
 
 ### Mobile version
 | Main page | Menu | Groups list | Group page |
@@ -121,7 +127,6 @@ geesomeClient.init().then(async () => {
 });
 ```
 Or you can generate apiKey from UI in User Profile section by "Add api key" button.
-
 More safer to use already generated `apiKey`, because you can always disable it and create another if there is a leak.
 
 3. Init GeeSome client and save image to your IPFS node
@@ -198,18 +203,18 @@ geesomeClient.init().then(async () => {
 ```
 
 ## Current state and features:
+- Encrypted personal messages
 - Public channels and posts
+- Streamable media api(video and audio)
 - Basic file manager
 - User profile
-- Encrypted personal messages
 - Api keys for access to all node features
-- Separated content and access by users
-- Limit users upload
+- Api keys managment in UI
+- Separated content and folders list and access by users
+- Users upload limits
 - IPNS caching for fast resolving
 - IPFS and IPNS directories for HTML sites and more
-- Manage api keys in UI
 - Ethereum authentication by signature
-- Streamable media api(video and audio)
 
 ## TODO:
 - Share folder by ipld, ipns manifest
@@ -230,10 +235,36 @@ geesomeClient.init().then(async () => {
 - ffmpeg
 - Cerbot(Letsencrypt)
 
+## Local install and run
+```
+bash/ubuntu-install-deps.sh # if not ubuntu - execute commands manually for your OS
+npm i -g yarn # install if not installed
+yarn
+npm rebuild youtube-dl
+npm run start
+```
+In another terminal tab:
+```
+cd frontend && yarn
+npm run local
+```
+Open UI page by url: [http://localhost:8081/](http://localhost:8081/)
+
+Api available by [http://localhost:7711](http://localhost:7711) endpoint.
+
 ## Links
 - [Manifests example](./docs/manifests-example.md)
 - [API](./components/api/http-v1/index.ts)
 - [Libs repo](https://github.com/galtproject/geesome-libs)
+
+## Articles
+- [How to make the internet great again](https://medium.com/geesome/how-to-make-the-internet-great-again-with-the-help-of-geesome-and-ipfs-ae516aa06f89)
+- Signing and encrypt messages by IPNS keys (Soon...)
+- How to add site to IPFS with GeeSome node (Soon...)
+- Use GeeSome as IPFS file storage in your decentralized project (Soon...)
+- IPNS updates problem and how we solved it (Soon...)
+- Are we ready for true decentralized messages and content? (Soon...)
+- We need backups for our Social Neworks! (Soon...)
 
 ## Do you like the project? ✨
 Put a star and fork it. Join Us On [Telegram](https://t.me/geesome). Thank you!
