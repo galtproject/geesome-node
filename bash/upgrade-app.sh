@@ -1,6 +1,7 @@
 #!/bin/bash
 
 pm2 stop geesome-node
+git checkout -- .
 git pull
 yarn
 
