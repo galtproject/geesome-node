@@ -966,17 +966,24 @@ class GeesomeApp implements IGeesomeApp {
       }
     }
     
-    console.log('this[methodName].apply(this, args)', methodName);
-    return new Promise((resolve, reject) => {
-      const methodPromise = this[methodName].apply(this, args);
-      
+    let dataSendingPromise = new Promise((resolve, reject) => {
       if(args[0].on) {
         console.log('args[0].on subscribe');
-        args[0].on('close', () => resolve(methodPromise));
+        args[0].on('close', () => resolve());
       } else {
-        resolve(methodPromise);
+        resolve();
       }
-    })
+    });
+    
+    console.log('this[methodName].apply(this, args)', methodName);
+    const methodPromise = this[methodName].apply(this, args);
+
+    console.log('await dataSendingPromise');
+    await dataSendingPromise;
+
+    console.log('methodPromise.then');
+    
+    methodPromise
       .then((res: any) => {
         this.database.updateUserAsyncOperation(asyncOperation.id, {
           inProcess: false,
@@ -990,9 +997,7 @@ class GeesomeApp implements IGeesomeApp {
           errorType: 'unknown',
           errorMessage: e.message
         });
-      })
-    
-    
+      });
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
