@@ -8,6 +8,7 @@ Content using for describing of IPFS file: type, size, name, extension and in fu
  "storageId": "QmY8BULaKQeez58U9vE3CYGBzwahSfiMjfVP2QeMQhz13R",
  "size": 8097,
  "storageType": "ipfs",
+ "mimeType": "image/jpeg",
  "extension": "jpg",
  "preview": {
     "small": {
