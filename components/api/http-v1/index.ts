@@ -91,12 +91,27 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     //TODO: output api docs
   });
 
+
+  /**
+   * @api {get} /v1/is-empty Request Node status
+   * @apiName IsEmpty
+   * @apiGroup Setup
+   *
+   * @apiSuccess {Boolean} result Node is empty or not.
+   */
   service.get('/v1/is-empty', async (req, res) => {
     res.send({
       result: (await geesomeApp.database.getUsersCount()) === 0
     }, 200);
   });
 
+  /**
+   * @api {get} /v1/setup Setup first admin user
+   * @apiName Setup
+   * @apiGroup Setup
+   *
+   * @apiInterface (../../database/interface.ts) {IUser}
+   */
   service.post('/v1/setup', async (req, res) => {
     res.send(await geesomeApp.setup(req.body), 200);
   });
