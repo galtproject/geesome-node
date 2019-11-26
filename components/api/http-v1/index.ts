@@ -27,7 +27,6 @@ const service = require('restana')({
 const maxBodySizeMb = 2000;
 
 module.exports = async (geesomeApp: IGeesomeApp, port) => {
-  require('./showEndpointsTable');
   service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
   service.use(bodyParser.urlencoded({extended: true}));
   service.use(bearerToken());
