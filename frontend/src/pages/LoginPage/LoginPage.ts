@@ -16,14 +16,18 @@ export default {
     this.server = this.stateServerAddress;
   },
   methods: {
-    login() {
-      this.handleLoginPromise(this.$coreApi.loginPassword(this.server, this.username, this.password))
+    login(method) {
+      if(method === 'password') {
+        this.handleLoginPromise(this.$coreApi.loginPassword(this.server, this.username, this.password))
+      } else if(method === 'api-key') {
+        this.handleLoginPromise(this.$coreApi.loginApiKey(this.server, this.apiKey));
+      }
     },
     ethereumLogin() {
       Web3Manager.onAccountAddressChange(async (address) => {
         const fieldName = 'key';
         Web3Manager.onAccountAddressChangeCallbacks = [];
-        
+
         const authMessage = await this.$coreApi.generateAuthMessage('ethereum', address);
         const signature = await EthData.signMessage(authMessage.message, address, fieldName);
 
@@ -55,6 +59,7 @@ export default {
     return {
       localeKey: 'login_page',
       server: null,
+      apiKey: null,
       username: null,
       password: null,
       error: null

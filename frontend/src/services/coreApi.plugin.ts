@@ -23,8 +23,8 @@ export default {
 
         let server = localStorage.getItem('geesome-server');
         let apiKey = localStorage.getItem('geesome-api-key');
-        
-        geesomeClient = new GeesomeClient({ 
+
+        geesomeClient = new GeesomeClient({
           server,
           apiKey,
           clientStorage: new BrowserLocalClientStorage()
@@ -33,21 +33,21 @@ export default {
         if(!server || server === 'null') {
           geesomeClient.setServerByDocumentLocation();
         }
-        
+
         appStore.commit('serverAddress', geesomeClient.server);
         localStorage.setItem('geesome-server', geesomeClient.server);
-        
+
         await geesomeClient.init();
         await geesomeClient.initBrowserIpfsNode();
-        
+
         // TODO: call directly from geesomeClient?
         [
-          'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup', 
-          'saveObject', 'createPost', 'getContentData', 'getDbContent', 
-          'getMemberInGroups', 'getMemberInChannels', 'getMemberInChats', 'getAdminInGroups', 'getAdminInChannels', 'getAdminInChats', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink', 
-          'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns', 
-          'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId', 
-          'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getUserApiKeys', 'getAllItems', 'adminCreateUser', 
+          'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup',
+          'saveObject', 'createPost', 'getContentData', 'getDbContent',
+          'getMemberInGroups', 'getMemberInChannels', 'getMemberInChats', 'getAdminInGroups', 'getAdminInChannels', 'getAdminInChats', 'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink',
+          'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns',
+          'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId',
+          'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getUserApiKeys', 'getAllItems', 'adminCreateUser',
           'adminSetUserLimit', 'adminIsHaveCorePermission', 'adminAddCorePermission', 'adminRemoveCorePermission',
           'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
           'getGroupPeers', 'updateCurrentUser', 'userGetFriends', 'addFriend', 'removeFriend', 'getPersonalChatGroups',
@@ -61,7 +61,7 @@ export default {
           }
           this[methodName] = geesomeClient[methodName].bind ? geesomeClient[methodName].bind(geesomeClient) : geesomeClient[methodName];
         });
-        
+
         await geesomeClient.ipfsService.pubSubSubscribe('geesome-test', (data) => {
           console.log('geesome-test', data);
         })
@@ -70,7 +70,7 @@ export default {
       async loginPassword(server, username, password) {
         localStorage.setItem('geesome-server', server);
         appStore.commit('serverAddress', server);
-        
+
         await geesomeClient.setServer(server);
         const data = await geesomeClient.loginPassword(username, password);
         localStorage.setItem('geesome-api-key', data.apiKey);
@@ -85,6 +85,16 @@ export default {
         const data = await geesomeClient.loginAuthMessage(authMessageId, accountAddress, signature, params);
         localStorage.setItem('geesome-api-key', data.apiKey);
         return data;
+      },
+
+      async loginApiKey(server, apiKey) {
+        localStorage.setItem('geesome-server', server);
+        appStore.commit('serverAddress', server);
+
+        await geesomeClient.setServer(server);
+        geesomeClient.setApiKey(apiKey);
+        localStorage.setItem('geesome-api-key', apiKey);
+        return {user: await geesomeClient.getCurrentUser(), apiKey};
       },
 
       async logout() {
@@ -108,7 +118,7 @@ export default {
         params.onProcess = this.onProcess;
         return geesomeClient.saveDataByUrl(url, params).catch(this.onError);
       },
-      
+
       onProcess(process) {
         if(!process.percent) {
           return;
