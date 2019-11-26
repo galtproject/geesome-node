@@ -13,7 +13,7 @@
       <md-icon>clear</md-icon>
     </md-button>
     <h4>
-      <div class="modal-title">Add IPFS Boot Node</div>
+      <div class="modal-title">{{apiKey.id ? "Edit" : "Add"}} Api Key</div>
     </h4>
   </template>
 
@@ -29,9 +29,9 @@
       <label>Type</label>
       <md-input v-model="apiKey.type"></md-input>
     </md-field>
-    
+
     <md-checkbox v-if="apiKey.id" v-model="apiKey.isDisabled">Disable</md-checkbox>
-    
+
     <div style="margin-top: 20px" class="md-success" v-if="resultApiKey">
       Successful created! Please copy your key:
       <pretty-hex :hex="resultApiKey" :full="true"></pretty-hex>
