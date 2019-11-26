@@ -10,18 +10,12 @@
 import {IGeesomeApp} from "../../app/interface";
 import {CorePermissionName} from "../../database/interface";
 
-const config = require('./config');
-
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
-const fs = require('fs');
 const mime = require('mime');
-const pIteration = require('p-iteration');
-
 const bodyParser = require('body-parser');
 const busboy = require('connect-busboy');
 const bearerToken = require('express-bearer-token');
-// const proxy = require('express-http-proxy');
 const request = require('request');
 
 const service = require('restana')({
@@ -95,14 +89,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1', async (req, res) => {
-    const endpoints = config.endpointsInfo;
-
-    const html = "<html>"
-      + endpoints
-        .map(e => `<h3>${e.uri}</h3>Method: <b>GET</b><br>Header: <b>${e.header}</b><br>Body: <b>${e.body}</b><br>Response: <b>${e.response}</b>`)
-        .join('<br><br>')
-      + "</html>";
-    res.send(html, 200);
+    //TODO: output api docs
   });
 
   service.get('/v1/is-empty', async (req, res) => {
@@ -114,7 +101,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.post('/v1/setup', async (req, res) => {
     res.send(await geesomeApp.setup(req.body), 200);
   });
-  
+
   async function handleAuthResult(res, user) {
     if (user) {
       return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, {type:"password_auth"})}, 200);
@@ -229,7 +216,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
     res.send(await geesomeApp.database.getUserAccountByAddress(req.body.provider, req.body.address));
   });
-  
+
   service.get('/v1/node-address-list', async (req, res) => {
     res.send({result: await geesomeApp.storage.nodeAddressList()});
   });
@@ -237,7 +224,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.get('/v1/user/get-friends', async (req, res) => {
     res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
-  
+
   service.post('/v1/user/add-friend', async (req, res) => {
     res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
   });
@@ -315,7 +302,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.get('/v1/user/api-key-list', async (req, res) => {
     res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });
-  
+
   service.post('/v1/user/api-key/add', async (req, res) => {
     res.send(await geesomeApp.generateUserApiKey(req.user.id, req.body));
   });
@@ -348,7 +335,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       apiKey: req.token,
       ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async'])
     };
-    
+
     res.send(await geesomeApp.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
   });
 
@@ -358,7 +345,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       apiKey: req.token,
       ..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
     };
-    
+
     res.send(await geesomeApp.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
   });
 
@@ -431,21 +418,21 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     const ipfsPath = req.url.replace('/ipfs/', '');
     getFileStream(req, res, ipfsPath);
   });
-  
+
   async function getFileStream (req, res, dataPath) {
     let splitPath = dataPath.split('.');
     if(ipfsHelper.isIpfsHash(splitPath[0])) {
       // cut extension, TODO: use regex
       dataPath = splitPath[0];
     }
-    
+
     let range = req.headers['range'];
     if(!range) {
       return geesomeApp.getFileStream(dataPath).then((stream) => {
         stream.pipe(res);
       });
     }
-    
+
     const content = await geesomeApp.getContentByStorageId(dataPath);
 
     let dataSize = content ? content.size : null;
@@ -453,7 +440,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       const stat = await geesomeApp.storage.getFileStat(dataPath);
       dataSize = stat.size;
     }
-    
+
     let chunkSize = 1024 * 1024;
     if(dataSize > chunkSize * 2) {
       chunkSize = Math.ceil(dataSize * 0.25);
@@ -469,12 +456,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     range = {start: range[0], end: range[1]};
 
     const contentLength = range.end - range.start + 1;
-    
+
     const fileStreamOptions = {
       offset: range.start,
       length: contentLength
     };
-    
+
     return geesomeApp.getFileStream(dataPath, fileStreamOptions).then((stream) => {
       //
       let resultLength = 0;
@@ -487,7 +474,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         console.log(range.start + contentLength, '/', dataSize);
         console.log(range.start + resultLength, '/', dataSize);
       });
-      
+
       res.writeHead(206, {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
@@ -505,10 +492,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     const ipnsPath = req.url.replace('/ipns/', '');
     const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
     const ipfsId = await geesomeApp.resolveStaticId(ipnsId);
-    
+
     console.log('ipnsPath', ipnsPath);
     console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
-    
+
     geesomeApp.getFileStream(ipnsPath.replace(ipnsId, ipfsId)).then((stream) => {
       stream.pipe(res);
     })
@@ -556,7 +543,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       })
     });
   }
-  
+
   function setHeaders(res) {
     res.setHeader('Strict-Transport-Security', 'max-age=0');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
