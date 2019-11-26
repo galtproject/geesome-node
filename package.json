@@ -7,6 +7,7 @@
     "start": "./node_modules/.bin/ts-node ./index.ts",
     "recreate-database": "./bash/drop-database.sh && ./bash/create-database.sh",
     "migrate-database": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
+    "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path ./components/database/mysql/migrations --name",
     "rollback-migration": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "upgrade": "./bash/upgrade-app.sh",
     "recreate-test-database": "mysql -uroot -proot -e \"drop database test_geesome_core; create database test_geesome_core;\"",
