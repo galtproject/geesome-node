@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {IGroupInput, IUserAccountInput} from "../app/interface";
+
 export interface IDatabase {
   getSessionStore(): any;
 
@@ -19,11 +21,11 @@ export interface IDatabase {
   getApiKeyByHash(valueHash: string): Promise<IUserApiKey>;
 
   getApiKeysByUser(userId: number, isDisabled?: boolean, search?: string, listParams?: IListParams): Promise<IUserApiKey[]>;
-  
+
   getApiKeysCountByUser(userId: number, isDisabled?: boolean, search?: string): Promise<number>;
 
   updateApiKey(id, updateData): Promise<void>;
-  
+
   addContent(content: IContent): Promise<IContent>;
 
   updateContent(id, updateData: any): Promise<void>;
@@ -69,7 +71,7 @@ export interface IDatabase {
   removeUserFriend(userId, friendId): Promise<void>;
 
   getUserFriends(userId, search?, limitParams?: IListParams): Promise<IUser[]>;
-  
+
   getUserFriendsCount(userId, search?): Promise<number>;
 
   getUserAccount(id): Promise<IUserAccount>;
@@ -93,7 +95,7 @@ export interface IDatabase {
   getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
 
   getRemoteGroups(): Promise<IGroup[]>;
-  
+
   getPersonalChatGroups(): Promise<IGroup[]>;
 
   addGroup(group): Promise<IGroup>;
@@ -127,6 +129,8 @@ export interface IDatabase {
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
+
+  getGroupPostsCount(groupId): Promise<number>;
 
   getPost(postId): Promise<IPost>;
 
@@ -175,9 +179,9 @@ export interface IDatabase {
   getUserLimit(userId, name): Promise<IUserLimit>;
 
   addStaticIdHistoryItem(staticIdHistoryItem): Promise<IStaticIdHistoryItem>;
-  
+
   setStaticIdPublicKey(staticId, publicKey): Promise<IStaticIdPublicKey>;
-  
+
   getStaticIdPublicKey(staticId): Promise<string>;
 
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
@@ -281,7 +285,7 @@ export interface IPost {
   staticStorageId?;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
-  
+
   authorStaticStorageId?: string;
   authorStorageId?: string;
 
@@ -325,7 +329,7 @@ export interface IUserAccount {
 }
 
 export interface IUserAuthMessage {
-  id?: number;
+  id: number;
   userAccountId: number;
   provider: string;
   address: string;
@@ -333,7 +337,7 @@ export interface IUserAuthMessage {
 }
 
 export interface IGroup {
-  id?: number;
+  id: number;
 
   name: string;
   title: string;
@@ -344,7 +348,7 @@ export interface IGroup {
   isRemote: boolean;
 
   description?: string;
-  creatorId?: number;
+  creatorId: number;
   avatarImageId?: number;
   avatarImage?: IContent;
   coverImageId?: number;
@@ -380,7 +384,6 @@ export enum GroupView {
   TelegramLike = 'telegram-like'
 }
 
-
 export interface IFileCatalogItem {
   id?: number;
   name: string;
@@ -395,7 +398,7 @@ export interface IFileCatalogItem {
   size?: number;
   manifestStorageId?: string;
   nativeStorageId?: string;
-  
+
   content?: IContent;
 }
 
@@ -438,9 +441,10 @@ export interface IUserAsyncOperation {
   errorType: string;
   errorMessage: string;
   inProcess: boolean;
-  
+
   userId: number;
-  contentId: number;
+  contentId?: number;
+  content?: IContent;
 }
 
 export interface IStaticIdHistoryItem {

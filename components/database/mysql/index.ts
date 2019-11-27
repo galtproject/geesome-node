@@ -46,11 +46,11 @@ class MysqlDatabase implements IDatabase {
   async addApiKey(apiKey) {
     return this.models.UserApiKey.create(apiKey);
   }
-  
+
   async getApiKey(id) {
     return this.models.UserApiKey.findOne({where: {id}});
   }
-  
+
   async updateApiKey(id, updateData) {
     await this.models.UserApiKey.update(updateData, {where: {id}})
   }
@@ -266,11 +266,11 @@ class MysqlDatabase implements IDatabase {
     updateData.address = updateData.address.toLowerCase();
     return this.models.UserAccount.update(updateData, {where: {id}});
   }
-  
+
   async createUserAuthMessage(authMessageData) {
     return this.models.UserAuthMessage.create(authMessageData);
   }
-  
+
   async getUserAuthMessage(id) {
     return this.models.UserAuthMessage.findOne({where: {id}});
   }
@@ -405,6 +405,12 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
+  async getGroupPostsCount(groupId) {
+    return this.models.Post.count({
+      where: {groupId},
+    });
+  }
+
   async getGroupSizeSum(id) {
     return (await this.models.Post.sum('size', {where: {groupId: id}})) || 0;
   }
@@ -439,11 +445,11 @@ class MysqlDatabase implements IDatabase {
 
   async getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId) {
     const group = await this.getGroupByManifestId(groupManifestStorageId, groupManifestStorageId);
-    
+
     if(!group) {
       return null;
     }
-    
+
     const post = await this.models.Post.findOne({
       where: { localId, groupId: group.id },
       include: [{model: this.models.Content, as: 'contents'}]
@@ -684,7 +690,7 @@ class MysqlDatabase implements IDatabase {
 
     return (await this.models.UserContentAction.sum('size', {where})) || 0;
   }
-  
+
   async addUserAsyncOperation(userLimitData) {
     return this.models.UserAsyncOperation.create(userLimitData);
   }
