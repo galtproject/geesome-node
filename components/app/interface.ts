@@ -34,15 +34,15 @@ export interface IGeesomeApp {
 
   getSecretKey(keyName): Promise<string>;
 
-  setup(userData): Promise<{user: IUser, apiKey: string}>;
+  setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
-  registerUser(userData): Promise<IUser>;
+  registerUser(userData: IUserInput): Promise<IUser>;
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
   loginAuthMessage(authMessageId, address, signature, params?): Promise<IUser>;
 
-  generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessage>;
+  generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessageResponse>;
 
   updateUser(userId, updateData): Promise<IUser>;
 
@@ -95,7 +95,7 @@ export interface IGeesomeApp {
   createGroupByRemoteStorageId(manifestStorageId): Promise<IGroup>;
 
   updateGroup(userId, id, updateData): Promise<IGroup>;
-  
+
   getGroup(groupId): Promise<IGroup>;
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
@@ -168,6 +168,34 @@ export interface IGeesomeApp {
   createStorageAccount(accountName): Promise<string>;
 
   resolveStaticId(staticId): Promise<string>;
+}
+
+export interface IUserInput {
+  name: string;
+  email?: string;
+  password?: string;
+
+  accounts: IUserAccountInput[];
+}
+
+export interface IUserAccountInput {
+  id?: number;
+  provider: string;
+  address: string;
+  description: string;
+  type?: string;
+}
+
+export interface IUserAuthResponse {
+  apiKey: string;
+  user: IUser;
+}
+
+export interface IUserAuthMessageResponse {
+  id: number;
+  provider: string;
+  address: string;
+  message: string;
 }
 
 export interface IFileCatalogListResponse {

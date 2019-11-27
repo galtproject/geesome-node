@@ -106,11 +106,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   /**
-   * @api {get} /v1/setup Setup first admin user
-   * @apiName Setup
+   * @api {post} /v1/setup Setup first admin user
+   * @apiName RunSetup
    * @apiGroup Setup
    *
-   * @apiInterface (../../database/interface.ts) {IUser}
+   * @apiInterface (../../app/interface.ts) {IUserInput} apiParam
+   * @apiInterface (../../database/interface.ts) {IUser} apiSuccess
    */
   service.post('/v1/setup', async (req, res) => {
     res.send(await geesomeApp.setup(req.body), 200);
@@ -124,6 +125,16 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
   }
 
+  /**
+   * @api {post} /v1/login/password Login by password
+   * @apiName LoginPassword
+   * @apiGroup Login
+   *
+   * @apiParam {String} login
+   * @apiParam {String} password
+   *
+   * @apiInterface (../../app/interface.ts) {IUserAuthResponse} apiSuccess
+   */
   service.post('/v1/login/password', async (req, res) => {
     geesomeApp.loginPassword(req.body.username, req.body.password)
       .then(user => handleAuthResult(res, user))
@@ -133,6 +144,32 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       });
   });
 
+  /**
+   * @api {post} /v1/generate-auth-message Generate auth message for sign by account address (Ethereum for example).
+   * @apiName GenerateAuthMessage
+   * @apiGroup Login
+   *
+   * @apiParam {String} accountProvider Provider name, "ethereum" for example
+   * @apiParam {String} accountAddress
+   *
+   * @apiInterface (../../app/interface.ts) {IUserAuthMessageResponse} apiSuccess
+   */
+  service.post('/v1/generate-auth-message', async (req, res) => {
+    res.send(await geesomeApp.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
+  });
+
+  /**
+   * @api {post} /v1/login/password Login by account signature (Ethereum for example).
+   * @apiName LoginAuthMessage
+   * @apiGroup Login
+   *
+   * @apiParam {Number} authMessageId Id that got in /v1/generate-auth-message response
+   * @apiParam {String} accountAddress
+   * @apiParam {String} signature
+   * @apiParam {Any} params Special params of provider, {fieldName: String}(field that used in message for signing) in Ethereum.
+   *
+   * @apiInterface (../../app/interface.ts) {IUserAuthResponse} apiSuccess
+   */
   service.post('/v1/login/auth-message', async (req, res) => {
     geesomeApp.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)
       .then(user => handleAuthResult(res, user))
@@ -140,10 +177,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         console.error(err);
         res.send(403)
       });
-  });
-
-  service.post('/v1/generate-auth-message', async (req, res) => {
-    res.send(await geesomeApp.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
   });
 
   service.get('/v1/user', async (req, res) => {

@@ -21,7 +21,7 @@ import {
   IUserLimit,
   CorePermissionName, IGroup, IListParams, IUser, GroupType, GroupView, IFileCatalogItem
 } from "../../database/interface";
-import {IGeesomeApp} from "../interface";
+import {IGeesomeApp, IUserAccountInput, IUserInput} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
@@ -152,7 +152,7 @@ class GeesomeApp implements IGeesomeApp {
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
-  async registerUser(userData): Promise<any> {
+  async registerUser(userData: IUserInput): Promise<any> {
     const {email, name, password} = userData;
 
     const existUserWithName = await this.database.getUserByName(name);
@@ -212,22 +212,22 @@ class GeesomeApp implements IGeesomeApp {
       }).catch(reject)
     });
   }
-  
+
   async generateUserAccountAuthMessage(accountProvider, accountAddress) {
     const userAccount = await this.database.getUserAccountByAddress(accountProvider, accountAddress);
     if(!userAccount) {
       throw new Error("not_found");
     }
-    
+
     const authMessage = await this.database.createUserAuthMessage({
       provider: accountProvider,
       address: accountAddress,
       userAccountId: userAccount.id,
       message: uuidv4()
     });
-    
+
     delete authMessage.userAccountId;
-    
+
     return authMessage;
   }
 
@@ -235,22 +235,22 @@ class GeesomeApp implements IGeesomeApp {
     if(!address) {
       throw new Error("not_valid");
     }
-    
+
     const authMessage = await this.database.getUserAuthMessage(authMessageId);
     if(!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
       throw new Error("not_valid");
     }
-    
+
     const userAccount = await this.database.getUserAccount(authMessage.userAccountId);
     if(!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
       throw new Error("not_valid");
     }
-    
+
     const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
     if(!isValid) {
       throw new Error("not_valid");
     }
-    
+
     return await this.database.getUser(userAccount.userId);
   }
 
@@ -277,17 +277,17 @@ class GeesomeApp implements IGeesomeApp {
 
     return this.database.getUser(userId);
   }
-  
-  async setUserAccount(userId, accountData) {
+
+  async setUserAccount(userId, accountData: IUserAccountInput) {
     let userAccount;
-    
+
     if(accountData.id) {
       userAccount = await this.database.getUserAccount(accountData.id);
     } else {
       userAccount = await this.database.getUserAccountByProvider(userId, accountData.provider);
     }
 
-    accountData.userId = userId;
+    accountData['userId'] = userId;
 
     if(userAccount) {
       if(userAccount.userId !== userId) {
@@ -408,7 +408,7 @@ class GeesomeApp implements IGeesomeApp {
 
     data.userId = userId;
     data.valueHash = generated.uuid;
-    
+
     await this.database.addApiKey(data);
 
     return generated.apiKey;
@@ -431,16 +431,16 @@ class GeesomeApp implements IGeesomeApp {
       total: await this.database.getApiKeysCountByUser(userId, isDisabled, search)
     };
   }
-  
+
   async updateApiKey(userId, apiKeyId, updateData) {
     const keyObj = await this.database.getApiKey(apiKeyId);
 
     if(keyObj.userId !== userId) {
       throw new Error("not_permitted");
     }
-    
+
     delete updateData.id;
-    
+
     return this.database.updateApiKey(keyObj.id, updateData);
   }
 
@@ -629,7 +629,7 @@ class GeesomeApp implements IGeesomeApp {
     delete postData.contentsIds;
 
     const user = await this.database.getUser(userId);
-    
+
     postData.authorStorageId = user.manifestStorageId;
     postData.authorStaticStorageId = user.manifestStaticStorageId;
 
@@ -639,7 +639,7 @@ class GeesomeApp implements IGeesomeApp {
     let post = await this.database.addPost(postData);
 
     await this.database.setPostContents(post.id, contentsIds);
-    
+
     let size = await this.database.getPostSizeSum(post.id);
     await this.database.updatePost(post.id, {size});
 
@@ -937,17 +937,17 @@ class GeesomeApp implements IGeesomeApp {
       return error ? reject(error) : resolve({content, type, extension});
     });
   }
-  
+
   async asyncOperationWrapper(methodName, args, options){
     if(options.apiKey) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
     }
-    
+
     if(!options.async) {
       return this[methodName].apply(this, args);
     }
-    
+
     const asyncOperation = await this.database.addUserAsyncOperation({
       userId: options.userId,
       userApiKeyId: options.userApiKeyId,
@@ -955,7 +955,7 @@ class GeesomeApp implements IGeesomeApp {
       inProcess: true,
       channel: uuidv4()
     });
-    
+
     // TODO: fix hotfix
     if(_.isObject(_.last(args))) {
       _.last(args).onProgress = (progress) => {
@@ -965,7 +965,7 @@ class GeesomeApp implements IGeesomeApp {
         });
       }
     }
-    
+
     let dataSendingPromise = new Promise((resolve, reject) => {
       if(args[0].on) {
         args[0].on('end', () => resolve());
@@ -973,9 +973,9 @@ class GeesomeApp implements IGeesomeApp {
         resolve();
       }
     });
-    
+
     const methodPromise = this[methodName].apply(this, args);
-    
+
     await dataSendingPromise;
 
     methodPromise
@@ -1001,12 +1001,12 @@ class GeesomeApp implements IGeesomeApp {
       fileName = this.getFilenameFromPath(options.path);
     }
     const extension = this.getExtensionFromName(fileName);
-    
+
     if(options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
     }
-    
+
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName),{extension, onProgress: options.onProgress});
 
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
@@ -1050,7 +1050,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     let extension = this.getExtensionFromName(name);
     let type;
-    
+
     if(options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
@@ -1221,9 +1221,9 @@ class GeesomeApp implements IGeesomeApp {
       }
       contentData.isPublic = group && group.isPublic;
     }
-    
+
     const storageContentStat = await this.storage.getFileStat(contentData.storageId);
-    
+
     contentData.size = storageContentStat.size;
 
     const content = await this.database.addContent(contentData);

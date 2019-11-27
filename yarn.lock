@@ -10,14 +10,6 @@
     is-absolute "^1.0.0"
     is-negated-glob "^1.0.0"
 
-"@geoblink/apidoc-plugin-ts@^1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@geoblink/apidoc-plugin-ts/-/apidoc-plugin-ts-1.0.2.tgz#3f3b9394f2c1699d02de467b8c32d1ecaa55dbc3"
-  integrity sha512-7kAIlINcrGTMZsuDs+gmxUWT5Uu1w2hokb5B6mXH5Y7UOTQPLpDbmkt6ISpHHd96JuUxrAfwQOvv9Q7COIXyHw==
-  dependencies:
-    ts-morph "3.1.0"
-    typescript "3.5.2"
-
 "@hapi/accept@3.x.x":
   version "3.2.2"
   resolved "https://registry.yarnpkg.com/@hapi/accept/-/accept-3.2.2.tgz#3a033af67be8196c23f8f51aa8756687b972c7cb"
@@ -262,6 +254,14 @@
     "@hapi/bourne" "1.x.x"
     "@hapi/hoek" "6.x.x"
 
+"@jonybang/apidoc-plugin-ts@^1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@jonybang/apidoc-plugin-ts/-/apidoc-plugin-ts-1.0.4.tgz#66408f268b14699a88bc3ae91767f1d40524446d"
+  integrity sha512-stREbGdPHjezmWa8rXiCZiF931v22Zj4pwyArLFhPId9otuObLDMF+yeEzMFN8zEWY26W5TC0KQnJqserQCvAw==
+  dependencies:
+    ts-morph "3.1.0"
+    typescript "3.5.2"
+
 "@microlink/youtube-dl@git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203":
   version "2.0.1"
   resolved "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203e8aeb259f9be9d8f0fbffd65f9a545b6a"
@@ -497,6 +497,10 @@ apidoc-core@~0.8.3:
     klaw-sync "^2.1.0"
     lodash "~4.17.4"
     semver "~5.3.0"
+
+"apidoc-template@https://github.com/Jonybang/apidoc-template":
+  version "0.0.0"
+  resolved "https://github.com/Jonybang/apidoc-template#c6bd83ee756aba999a5f46a0f5f10f9da62c17b2"
 
 apidoc@^0.18.0:
   version "0.18.0"

@@ -10,7 +10,7 @@
     "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path ./components/database/mysql/migrations --name",
     "rollback-migration": "( cd ./components/database/mysql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "upgrade": "./bash/upgrade-app.sh",
-    "generate-docs": "./node_modules/.bin/apidoc -i components/api/http-v1 -o docs && ./node_modules/.bin/http-server ./docs",
+    "generate-docs": "./node_modules/.bin/apidoc -i components/api/http-v1 -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
     "recreate-test-database": "mysql -uroot -proot -e \"drop database test_geesome_core; create database test_geesome_core;\"",
     "test": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
@@ -18,7 +18,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@geoblink/apidoc-plugin-ts": "^1.0.2",
     "@microlink/youtube-dl": "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.19.0",
@@ -64,6 +63,8 @@
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.5",
     "apidoc": "^0.18.0",
+    "@jonybang/apidoc-plugin-ts": "^1.0.4",
+    "apidoc-template": "https://github.com/Jonybang/apidoc-template",
     "chai": "^4.2.0",
     "chai-http": "^4.2.1",
     "http-server": "^0.12.0",
