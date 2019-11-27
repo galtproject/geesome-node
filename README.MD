@@ -112,7 +112,9 @@ or yarn:
 yarn add git://github.com/galtproject/geesome-libs.git
 ```
 
-2. Get apiKey from node by api and login pass authorization:
+2. Checkout [GeeSome API documentation](https://geesome-node.galtproject.io:7722/ipns/QmQdr2fJ1qsYHnGN2FC1G9kitypiUQ271GhLa8qEtJnSN7/)
+
+3. Get apiKey from node by api and login pass authorization:
 ```javascript
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
@@ -129,7 +131,7 @@ geesomeClient.init().then(async () => {
 Or you can generate apiKey from UI in User Profile section by "Add api key" button.
 More safer to use already generated `apiKey`, because you can always disable it and create another if there is a leak.
 
-3. Init GeeSome client and save image to your IPFS node
+4. Init GeeSome client and save image to your IPFS node
 ```javascript
 geesomeClient.init().then(async () => {
     const contentObj = await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg');
@@ -138,7 +140,7 @@ geesomeClient.init().then(async () => {
 });
 ```
 
-4. Create group and publish post via API
+5. Create group and publish post via API
 ```javascript
 geesomeClient.init().then(async () => {
     const avatarPhoto = await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg');
@@ -180,7 +182,7 @@ geesomeClient.init().then(async () => {
 });
 ```
 
-5. Create and publish IPFS site directory with content to IPNS
+6. Create and publish IPFS site directory with content to IPNS
 ```javascript
 geesomeClient.init().then(async () => {
     await geesomeClient.saveDataByUrl('https://picsum.photos/500/300.jpg', {path: '/my-site/image.jpg'});
@@ -265,7 +267,7 @@ Api available by [http://localhost:7711](http://localhost:7711) endpoint.
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)
-- [API](./components/api/http-v1/index.ts)
+- API [documentation](https://geesome-node.galtproject.io:7722/ipns/QmQdr2fJ1qsYHnGN2FC1G9kitypiUQ271GhLa8qEtJnSN7/) and [endpoints code](./components/api/http-v1/index.ts)
 - [Libs repo](https://github.com/galtproject/geesome-libs)
 
 ## Articles
