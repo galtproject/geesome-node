@@ -98,7 +98,7 @@ export interface IGeesomeApp {
 
   getGroup(groupId): Promise<IGroup>;
 
-  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
+  getGroupPosts(groupId, listParams?: IListParams): Promise<IPostListResponse>;
 
   asyncOperationWrapper(methodName, args, options);
 
