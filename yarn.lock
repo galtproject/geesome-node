@@ -254,10 +254,10 @@
     "@hapi/bourne" "1.x.x"
     "@hapi/hoek" "6.x.x"
 
-"@jonybang/apidoc-plugin-ts@^1.0.4":
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/@jonybang/apidoc-plugin-ts/-/apidoc-plugin-ts-1.0.4.tgz#66408f268b14699a88bc3ae91767f1d40524446d"
-  integrity sha512-stREbGdPHjezmWa8rXiCZiF931v22Zj4pwyArLFhPId9otuObLDMF+yeEzMFN8zEWY26W5TC0KQnJqserQCvAw==
+"@jonybang/apidoc-plugin-ts@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@jonybang/apidoc-plugin-ts/-/apidoc-plugin-ts-1.0.5.tgz#d57dc73027230e829ede0414955677c723553f38"
+  integrity sha512-Gb42nuo4YGwHffm7a3MHxkNex5Z1d9v8Wgtq0rv4HA41YhplZ7fjPMh3kM0u+BCb34BEL03U5rtgAkpuk6D+NA==
   dependencies:
     ts-morph "3.1.0"
     typescript "3.5.2"
@@ -498,9 +498,9 @@ apidoc-core@~0.8.3:
     lodash "~4.17.4"
     semver "~5.3.0"
 
-"apidoc-template@https://github.com/Jonybang/apidoc-template":
+"apidoc-template@https://github.com/Jonybang/apidoc-template#e3bcf93":
   version "0.0.0"
-  resolved "https://github.com/Jonybang/apidoc-template#c6bd83ee756aba999a5f46a0f5f10f9da62c17b2"
+  resolved "https://github.com/Jonybang/apidoc-template#e3bcf9382fe09d09c5aa8901a44ad83885f5a1b8"
 
 apidoc@^0.18.0:
   version "0.18.0"

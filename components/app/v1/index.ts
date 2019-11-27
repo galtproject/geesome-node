@@ -167,7 +167,7 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.createStorageAccount(name);
 
     const passwordHash: any = await new Promise((resolve, reject) => {
-      if(!password) {
+      if (!password) {
         return resolve(null);
       }
       bcrypt.hash(password, saltRounds, async (err, passwordHash) => {
@@ -191,7 +191,7 @@ class GeesomeApp implements IGeesomeApp {
       manifestStorageId
     });
 
-    if(userData.accounts && userData.accounts.length) {
+    if (userData.accounts && userData.accounts.length) {
       await pIteration.forEach(userData.accounts, (userAccount) => {
         return this.setUserAccount(newUser.id, userAccount);
       });
@@ -215,7 +215,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async generateUserAccountAuthMessage(accountProvider, accountAddress) {
     const userAccount = await this.database.getUserAccountByAddress(accountProvider, accountAddress);
-    if(!userAccount) {
+    if (!userAccount) {
       throw new Error("not_found");
     }
 
@@ -232,22 +232,22 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async loginAuthMessage(authMessageId, address, signature, params: any = {}) {
-    if(!address) {
+    if (!address) {
       throw new Error("not_valid");
     }
 
     const authMessage = await this.database.getUserAuthMessage(authMessageId);
-    if(!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
+    if (!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
       throw new Error("not_valid");
     }
 
     const userAccount = await this.database.getUserAccount(authMessage.userAccountId);
-    if(!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
+    if (!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
       throw new Error("not_valid");
     }
 
     const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
-    if(!isValid) {
+    if (!isValid) {
       throw new Error("not_valid");
     }
 
@@ -281,7 +281,7 @@ class GeesomeApp implements IGeesomeApp {
   async setUserAccount(userId, accountData: IUserAccountInput) {
     let userAccount;
 
-    if(accountData.id) {
+    if (accountData.id) {
       userAccount = await this.database.getUserAccount(accountData.id);
     } else {
       userAccount = await this.database.getUserAccountByProvider(userId, accountData.provider);
@@ -289,8 +289,8 @@ class GeesomeApp implements IGeesomeApp {
 
     accountData['userId'] = userId;
 
-    if(userAccount) {
-      if(userAccount.userId !== userId) {
+    if (userAccount) {
+      if (userAccount.userId !== userId) {
         throw new Error("not_permitted");
       }
       return this.database.updateUserAccount(userAccount.id, accountData);
@@ -435,7 +435,7 @@ class GeesomeApp implements IGeesomeApp {
   async updateApiKey(userId, apiKeyId, updateData) {
     const keyObj = await this.database.getApiKey(apiKeyId);
 
-    if(keyObj.userId !== userId) {
+    if (keyObj.userId !== userId) {
       throw new Error("not_permitted");
     }
 
@@ -456,16 +456,31 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  getMemberInGroups(userId, types) {
-    return this.database.getMemberInGroups(userId, types)
+  async getMemberInGroups(userId, types) {
+    // TODO: use query object instead of types
+    return {
+      list: await this.database.getMemberInGroups(userId, types),
+      total: null
+      //TODO: total, limit, offset
+    };
   }
 
-  getAdminInGroups(userId, types) {
-    return this.database.getAdminInGroups(userId, types)
+  async getAdminInGroups(userId, types) {
+    // TODO: use query object instead of types
+    return {
+      list: await this.database.getAdminInGroups(userId, types),
+      total: null
+      //TODO: total, limit, offset
+    };
   }
 
-  getPersonalChatGroups(userId) {
-    return this.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat);
+  async getPersonalChatGroups(userId) {
+    // TODO: use query object
+    return {
+      list: await this.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat),
+      total: null
+      //TODO: total, limit, offset
+    };
   }
 
   /**
@@ -625,6 +640,7 @@ class GeesomeApp implements IGeesomeApp {
       postData.publishedAt = new Date();
     }
 
+    //TODO: contentsIds => contents with additional fields
     const contentsIds = postData.contentsIds;
     delete postData.contentsIds;
 
@@ -938,13 +954,13 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  async asyncOperationWrapper(methodName, args, options){
-    if(options.apiKey) {
+  async asyncOperationWrapper(methodName, args, options) {
+    if (options.apiKey) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
     }
 
-    if(!options.async) {
+    if (!options.async) {
       return this[methodName].apply(this, args);
     }
 
@@ -957,7 +973,7 @@ class GeesomeApp implements IGeesomeApp {
     });
 
     // TODO: fix hotfix
-    if(_.isObject(_.last(args))) {
+    if (_.isObject(_.last(args))) {
       _.last(args).onProgress = (progress) => {
         console.log('onProgress', progress);
         this.database.updateUserAsyncOperation(asyncOperation.id, {
@@ -967,7 +983,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     let dataSendingPromise = new Promise((resolve, reject) => {
-      if(args[0].on) {
+      if (args[0].on) {
         args[0].on('end', () => resolve());
       } else {
         resolve();
@@ -1002,12 +1018,15 @@ class GeesomeApp implements IGeesomeApp {
     }
     const extension = this.getExtensionFromName(fileName);
 
-    if(options.apiKey && !options.userApiKeyId) {
+    if (options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
     }
 
-    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName),{extension, onProgress: options.onProgress});
+    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName), {
+      extension,
+      onProgress: options.onProgress
+    });
 
     let existsContent = await this.database.getContentByStorageId(storageFile.id);
     if (existsContent) {
@@ -1051,7 +1070,7 @@ class GeesomeApp implements IGeesomeApp {
     let extension = this.getExtensionFromName(name);
     let type;
 
-    if(options.apiKey && !options.userApiKeyId) {
+    if (options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
     }
@@ -1060,7 +1079,10 @@ class GeesomeApp implements IGeesomeApp {
     if (options.driver && options.driver != 'none') {
       const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
       type = dataToSave.type;
-      const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {extension, onProgress: options.onProgress});
+      const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {
+        extension,
+        onProgress: options.onProgress
+      });
       type = resultMimeType;
       storageFile = resultFile;
       extension = resultExtension;
@@ -1135,7 +1157,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getAsyncOperation(userId, operationId) {
     const asyncOperation = await this.database.getUserAsyncOperation(operationId);
-    if(asyncOperation.userId != userId) {
+    if (asyncOperation.userId != userId) {
       throw new Error("not_permitted");
     }
     return asyncOperation;
@@ -1608,8 +1630,11 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroupByManifestId(groupId, staticId);
   }
 
-  getGroupPosts(groupId, listParams?: IListParams) {
-    return this.database.getGroupPosts(groupId, listParams)
+  async getGroupPosts(groupId, listParams?: IListParams) {
+    return {
+      list: await this.database.getGroupPosts(groupId, listParams),
+      total: await this.database.getGroupPostsCount(groupId)
+    };
   }
 
   getContent(contentId) {

@@ -8,7 +8,7 @@
  */
 
 import {
-  GroupType,
+  GroupType, GroupView,
   IContent,
   IDatabase,
   IFileCatalogItem,
@@ -16,7 +16,7 @@ import {
   IPost,
   IUser, IUserAccount,
   IUserApiKey, IUserAuthMessage,
-  IUserLimit
+  IUserLimit, PostStatus
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
@@ -58,11 +58,11 @@ export interface IGeesomeApp {
 
   setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
 
-  getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
+  getMemberInGroups(userId, types: GroupType[]): Promise<IGroupListResponse>;
 
-  getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
+  getAdminInGroups(userId, types: GroupType[]): Promise<IGroupListResponse>;
 
-  getPersonalChatGroups(userId): Promise<IGroup[]>;
+  getPersonalChatGroups(userId): Promise<IGroupListResponse>;
 
   addUserFriendById(userId, friendId): Promise<void>;
 
@@ -198,6 +198,73 @@ export interface IUserAuthMessageResponse {
   message: string;
 }
 
+export interface IGroupInput {
+  name: string;
+  title: string;
+  type: GroupType;
+  view: GroupView;
+  theme: string;
+  isPublic: boolean;
+  description?: string;
+  avatarImageId?: number;
+  coverImageId?: number;
+}
+
+export interface IContentInput {
+  /**
+   * Bind content to specific group
+   */
+  groupId?: any;
+  /**
+   * Save in specific folder in user file catalog. Not working with "path" field.
+   */
+  folderId?: number;
+  /**
+   * Save by specific path in user file catalog. /var/www/my-site/index.html for example
+   */
+  path?: string;
+  /**
+   * Enable async operation (File will be saved in background, response will contain "asyncOperationId" property, that can be used in get-async-operation)
+   */
+  async?: boolean;
+}
+export interface IFileContentInput extends IContentInput {
+  file: File;
+}
+
+export interface IDataContentInput {
+  /**
+   * String or buffer
+   */
+  content: string;
+  fileName: string;
+  mimeType: string;
+}
+
+export interface IUrlContentInput {
+  url: string;
+  /**
+   * Upload driver from geesome-node/drivers/upload. "youtube-video" for example. Drivers can handle specific contents.
+   */
+  driver: string;
+  mimeType: string;
+}
+
+export interface IPostInput {
+  /**
+   * Bind content to specific group
+   */
+  groupId?: any;
+  /**
+   * 'published', 'queue', 'draft', 'deleted'
+   */
+  status?: string;
+  /**
+   * Content database ids array
+   */
+  contentsIds: number[];
+}
+
 export interface IFileCatalogListResponse {
   list: IFileCatalogItem[];
   total: number;
@@ -210,5 +277,15 @@ export interface IUserApiKeysListResponse {
 
 export interface IUserListResponse {
   list: IUser[];
+  total: number;
+}
+
+export interface IGroupListResponse {
+  list: IGroup[];
+  total: number;
+}
+
+export interface IPostListResponse {
+  list: IPost[];
   total: number;
 }

@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {IGroupInput, IUserAccountInput} from "../app/interface";
+
 export interface IDatabase {
   getSessionStore(): any;
 
@@ -127,6 +129,8 @@ export interface IDatabase {
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
+
+  getGroupPostsCount(groupId): Promise<number>;
 
   getPost(postId): Promise<IPost>;
 
@@ -333,7 +337,7 @@ export interface IUserAuthMessage {
 }
 
 export interface IGroup {
-  id?: number;
+  id: number;
 
   name: string;
   title: string;
@@ -344,7 +348,7 @@ export interface IGroup {
   isRemote: boolean;
 
   description?: string;
-  creatorId?: number;
+  creatorId: number;
   avatarImageId?: number;
   avatarImage?: IContent;
   coverImageId?: number;
@@ -379,7 +383,6 @@ export enum GroupView {
   TumblrLike = 'tumblr-like',
   TelegramLike = 'telegram-like'
 }
-
 
 export interface IFileCatalogItem {
   id?: number;
@@ -440,7 +443,8 @@ export interface IUserAsyncOperation {
   inProcess: boolean;
 
   userId: number;
-  contentId: number;
+  contentId?: number;
+  content?: IContent;
 }
 
 export interface IStaticIdHistoryItem {

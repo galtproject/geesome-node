@@ -7,9 +7,28 @@
     "Setup",
     "IsEmpty",
     "RunSetup",
+
     "Login",
     "LoginPassword",
     "GenerateAuthMessage",
-    "LoginAuthMessage"
+    "LoginAuthMessage",
+
+    "User",
+    "CurrentUser",
+
+    "UserContent",
+    "UserSaveFile",
+    "UserSaveData",
+    "UserSaveDataByUrl",
+
+    "UserOther",
+    "UserAsyncOperation",
+
+    "UserGroup",
+    "UserGroupCreate",
+    "UserGroupUpdate",
+    "UserGroupsForMember",
+    "UserGroupsForAdmin",
+    "UserGroupsAsPersonalChats"
   ]
 }

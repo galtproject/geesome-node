@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#5301f5c",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#6726758",
     "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#e27c725",
     "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#ff8f41b",
     "async": "^2.5.0",

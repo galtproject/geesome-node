@@ -91,6 +91,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     //TODO: output api docs
   });
 
+  /**
+   * @apiDefine ApiKey
+   *
+   * @apiHeader {String} Authorization "Bearer " + Api key from /v1/login/* response
+   */
 
   /**
    * @api {get} /v1/is-empty Request Node status
@@ -145,7 +150,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   /**
-   * @api {post} /v1/generate-auth-message Generate auth message for sign by account address (Ethereum for example).
+   * @api {post} /v1/generate-auth-message Generate auth message
+   * @apiDescription Auth messages is used to sign by account address (Ethereum for example). You have to use private key of account address to sign the message and send result to /v1/login/auth-message.
    * @apiName GenerateAuthMessage
    * @apiGroup Login
    *
@@ -159,11 +165,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   /**
-   * @api {post} /v1/login/password Login by account signature (Ethereum for example).
+   * @api {post} /v1/login/auth-message Login by account signature
+   * @apiDescription You have to sign (by MetaMask for example) "message" from /v1/generate-auth-message and send result inside "signature" field.
    * @apiName LoginAuthMessage
    * @apiGroup Login
    *
-   * @apiParam {Number} authMessageId Id that got in /v1/generate-auth-message response
+   * @apiParam {Number} authMessageId Id from /v1/generate-auth-message response
    * @apiParam {String} accountAddress
    * @apiParam {String} signature
    * @apiParam {Any} params Special params of provider, {fieldName: String}(field that used in message for signing) in Ethereum.
@@ -179,12 +186,332 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       });
   });
 
+  /**
+   * @api {get} /v1/user Get current user
+   * @apiName UserCurrent
+   * @apiGroup User
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../database/interface.ts) {IUser} apiSuccess
+   */
   service.get('/v1/user', async (req, res) => {
     if (!req.user || !req.user.id) {
       return res.send(401);
     }
     res.send(req.user, 200);
   });
+
+  service.get('/v1/user/permissions/core/is-have/:permissionName', async (req, res) => {
+    res.send({result: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
+  });
+
+  service.post('/v1/user/export-private-key', async (req, res) => {
+    res.send({result: (await geesomeApp.storage.keyLookup(req.user.manifestStaticStorageId)).marshal()});
+  });
+
+  service.get('/v1/user/get-friends', async (req, res) => {
+    res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+  });
+
+  service.post('/v1/user/add-friend', async (req, res) => {
+    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
+  });
+
+  service.post('/v1/user/remove-friend', async (req, res) => {
+    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
+  });
+
+  service.post('/v1/user/update', async (req, res) => {
+    res.send(await geesomeApp.updateUser(req.user.id, req.body));
+  });
+
+  service.post('/v1/user/set-account', async (req, res) => {
+    res.send(await geesomeApp.setUserAccount(req.user.id, req.body));
+  });
+
+  /**
+   * @api {post} /v1/user/create-group Create group
+   * @apiName UserGroupCreate
+   * @apiGroup UserGroup
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IGroupInput} apiParam
+   *
+   * @apiInterface (../../database/interface.ts) {IGroup} apiSuccess
+   */
+  service.post('/v1/user/create-group', async (req, res) => {
+    res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
+  });
+
+  /**
+   * @api {post} /v1/user/group/:groupId/update Edit group
+   * @apiDescription Can be edit by database id or storage id
+   * @apiName UserGroupUpdate
+   * @apiGroup UserGroup
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IGroupInput} apiParam
+   *
+   * @apiInterface (../../database/interface.ts) {IGroup} apiSuccess
+   */
+  service.post('/v1/user/group/:groupId/update', async (req, res) => {
+    res.send(await geesomeApp.updateGroup(req.user.id, req.params.groupId, req.body), 200);
+  });
+
+  /**
+   * @api {get} /v1/user/member-in-groups Get groups where user is member
+   * @apiName UserGroupsForMember
+   * @apiGroup UserGroup
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
+   */
+  service.get('/v1/user/member-in-groups', async (req, res) => {
+    res.send(await geesomeApp.getMemberInGroups(req.user.id, req.query.types.split(',')));
+  });
+
+  /**
+   * @api {get} /v1/user/admin-in-groups Get groups where user is admin
+   * @apiName UserGroupsForAdmin
+   * @apiGroup UserGroup
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
+   */
+  service.get('/v1/user/admin-in-groups', async (req, res) => {
+    res.send(await geesomeApp.getAdminInGroups(req.user.id, req.query.types.split(',')));
+  });
+
+  /**
+   * @api {get} /v1/user/personal-chat-groups Get personal chat groups
+   * @apiName UserGroupsAsPersonalChats
+   * @apiGroup UserGroup
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
+   */
+  service.get('/v1/user/personal-chat-groups', async (req, res) => {
+    res.send(await geesomeApp.getPersonalChatGroups(req.user.id));
+  });
+
+  service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
+    res.send({valid: await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)});
+  });
+
+  service.get('/v1/user/group/:groupId/can-edit', async (req, res) => {
+    res.send({valid: await geesomeApp.canEditGroup(req.user.id, req.params.groupId)});
+  });
+
+  /**
+   * @api {post} /v1/user/group/:groupId/create-post Create Group post
+   * @apiDescription Create post by content ids and group id.
+   * @apiName UserGroupCreatePost
+   * @apiGroup UserGroup
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IPostInput} apiParam
+   *
+   * @apiInterface (../../database/interface.ts) {IPost} apiSuccess
+   */
+  service.post('/v1/user/group/:groupId/create-post', async (req, res) => {
+    if (!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.createPost(req.user.id, req.body), 200);
+  });
+
+  service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
+    if (!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.updatePost(req.user.id, req.params.postId, req.body), 200);
+  });
+
+  service.post('/v1/user/group/:groupId/is-member', async (req, res) => {
+    res.send({result: await geesomeApp.isMemberInGroup(req.user.id, req.params.groupId)}, 200);
+  });
+
+  service.post('/v1/user/group/:groupId/join', async (req, res) => {
+    //TODO: check for private group
+    res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId), 200);
+  });
+
+  service.post('/v1/user/group/:groupId/leave', async (req, res) => {
+    res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
+  });
+
+  service.get('/v1/user/api-key-list', async (req, res) => {
+    res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+  });
+
+  service.post('/v1/user/api-key/add', async (req, res) => {
+    res.send(await geesomeApp.generateUserApiKey(req.user.id, req.body));
+  });
+
+  service.post('/v1/user/api-key/:apiKeyId/update', async (req, res) => {
+    res.send(await geesomeApp.updateApiKey(req.user.id, req.params.apiKeyId, req.body));
+  });
+
+  /**
+   * @api {post} /v1/user/save-file Save file
+   * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
+   * @apiName UserSaveFile
+   * @apiGroup UserContent
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IFileContentInput} apiParam
+   *
+   * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
+   */
+  service.post('/v1/user/save-file', async (req, res) => {
+    req.pipe(req.busboy);
+
+    const body = {};
+    req.busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
+      body[fieldname] = val;
+    });
+    req.busboy.on('file', async function (fieldname, file, filename) {
+      const options = {
+        userId: req.user.id,
+        apiKey: req.token,
+        ..._.pick(body, ['groupId', 'folderId', 'path', 'async'])
+      };
+
+      res.send(await geesomeApp.asyncOperationWrapper('saveData', [file, filename, options], options));
+    });
+  });
+
+  /**
+   * @api {post} /v1/user/save-data Save data
+   * @apiDescription Store data (string or buffer)
+   * @apiName UserSaveData
+   * @apiGroup UserContent
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IDataContentInput} apiParam
+   *
+   * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
+   */
+  service.post('/v1/user/save-data', async (req, res) => {
+    const options = {
+      userId: req.user.id,
+      apiKey: req.token,
+      ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async'])
+    };
+
+    res.send(await geesomeApp.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
+  });
+
+  /**
+   * @api {post} /v1/user/save-data-by-url Save data by url
+   * @apiDescription Download and store data by url
+   * @apiName UserSaveDataByUrl
+   * @apiGroup UserContent
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../app/interface.ts) {IUrlContentInput} apiParam
+   *
+   * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
+   */
+  service.post('/v1/user/save-data-by-url', async (req, res) => {
+    const options = {
+      userId: req.user.id,
+      apiKey: req.token,
+      ..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
+    };
+
+    res.send(await geesomeApp.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
+  });
+
+  /**
+   * @api {post} /v1/user/get-async-operation/:id Get async operation
+   * @apiDescription Get async operation info: operation type, status, percent, and content when it will be ready.
+   * @apiName UserAsyncOperation
+   * @apiGroup UserOther
+   *
+   * @apiUse ApiKey
+   *
+   * @apiInterface (../../database/interface.ts) {IUserAsyncOperation} apiSuccess
+   */
+  service.post('/v1/user/get-async-operation/:id', async (req, res) => {
+    res.send(await geesomeApp.getAsyncOperation(req.user.id, req.params.id));
+  });
+
+  service.get('/v1/user/file-catalog/', async (req, res) => {
+    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+  });
+  service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
+    res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
+  });
+
+  service.post('/v1/user/file-catalog/create-folder', async (req, res) => {
+    res.send(await geesomeApp.createUserFolder(req.user.id, req.body.parentItemId, req.body.name));
+  });
+  service.post('/v1/user/file-catalog/add-content-to-folder', async (req, res) => {
+    res.send(await geesomeApp.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
+  });
+  service.post('/v1/user/file-catalog/file-catalog-item/:itemId/update', async (req, res) => {
+    res.send(await geesomeApp.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
+  });
+
+  service.post('/v1/user/file-catalog/save-content-by-path', async (req, res) => {
+    res.send(await geesomeApp.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
+  });
+  service.post('/v1/user/file-catalog/get-content-by-path', async (req, res) => {
+    res.send(await geesomeApp.getContentByPath(req.user.id, req.body.path));
+  });
+  service.post('/v1/user/file-catalog/get-item-by-path', async (req, res) => {
+    res.send(await geesomeApp.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
+  });
+  service.post('/v1/user/file-catalog/publish-folder/:itemId', async (req, res) => {
+    res.send(await geesomeApp.publishFolder(req.user.id, req.params.itemId));
+  });
+
+  service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {
+    res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
+  });
+
+  service.post('/v1/user/regenerate-previews', async (req, res) => {
+    res.send(await geesomeApp.regenerateUserContentPreviews(req.user.id));
+  });
+
+
+  service.get('/v1/group/:groupId', async (req, res) => {
+    res.send(await geesomeApp.getGroup(req.params.groupId));
+  });
+
+  /**
+   * @api {get} /v1/group/:groupId/posts Get group posts
+   * @apiName GroupPosts
+   * @apiGroup Group
+   *
+   * @apiUse ApiKey
+   *
+   * @apiParam sortBy
+   * @apiParam sortDir
+   * @apiParam limit
+   * @apiParam offset
+   *
+   * @apiInterface (../../app/interface.ts) {IPostListResponse} apiSuccess
+   */
+  service.get('/v1/group/:groupId/posts', async (req, res) => {
+    res.send(await geesomeApp.getGroupPosts(req.params.groupId, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+  });
+
+  service.get('/v1/group/:groupId/peers', async (req, res) => {
+    res.send(await geesomeApp.getGroupPeers(req.params.groupId));
+  });
+
 
   service.post('/v1/admin/add-user', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
@@ -204,15 +531,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
     res.send(await geesomeApp.setUserLimit(req.user.id, req.body));
   });
-
-  service.get('/v1/user/permissions/core/is-have/:permissionName', async (req, res) => {
-    res.send({result: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
-  });
-
-  service.post('/v1/user/export-private-key', async (req, res) => {
-    res.send({result: (await geesomeApp.storage.keyLookup(req.user.manifestStaticStorageId)).marshal()});
-  });
-
 
   service.post('/v1/admin/permissions/core/add_permission', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
@@ -264,192 +582,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.database.getUserAccountByAddress(req.body.provider, req.body.address));
   });
 
-  service.get('/v1/node-address-list', async (req, res) => {
-    res.send({result: await geesomeApp.storage.nodeAddressList()});
-  });
-
-  service.get('/v1/user/get-friends', async (req, res) => {
-    res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
-  });
-
-  service.post('/v1/user/add-friend', async (req, res) => {
-    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
-  });
-
-  service.post('/v1/user/remove-friend', async (req, res) => {
-    res.send(await geesomeApp.addUserFriendById(req.user.id, req.body.friendId));
-  });
-
   service.get('/v1/admin/get-user/:userId/limit/:limitName', async (req, res) => {
     res.send(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName));
-  });
-
-  service.post('/v1/user/update', async (req, res) => {
-    res.send(await geesomeApp.updateUser(req.user.id, req.body));
-  });
-
-  service.post('/v1/user/set-account', async (req, res) => {
-    res.send(await geesomeApp.setUserAccount(req.user.id, req.body));
-  });
-
-  service.post('/v1/user/create-group', async (req, res) => {
-    res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
-  });
-  service.post('/v1/user/group/:groupId/update', async (req, res) => {
-    res.send(await geesomeApp.updateGroup(req.user.id, req.params.groupId, req.body), 200);
-  });
-
-  service.get('/v1/user/member-in-groups', async (req, res) => {
-    res.send(await geesomeApp.getMemberInGroups(req.user.id, req.query.types.split(',')));
-  });
-
-  service.get('/v1/user/admin-in-groups', async (req, res) => {
-    res.send(await geesomeApp.getAdminInGroups(req.user.id, req.query.types.split(',')));
-  });
-
-  service.get('/v1/user/personal-chat-groups', async (req, res) => {
-    res.send(await geesomeApp.getPersonalChatGroups(req.user.id));
-  });
-
-  service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
-    res.send({valid: await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)});
-  });
-
-  service.get('/v1/user/group/:groupId/can-edit', async (req, res) => {
-    res.send({valid: await geesomeApp.canEditGroup(req.user.id, req.params.groupId)});
-  });
-
-  service.post('/v1/user/group/:groupId/create-post', async (req, res) => {
-    if (!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
-      return res.send(403);
-    }
-    res.send(await geesomeApp.createPost(req.user.id, req.body), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
-    if (!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
-      return res.send(403);
-    }
-    res.send(await geesomeApp.updatePost(req.user.id, req.params.postId, req.body), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/is-member', async (req, res) => {
-    res.send({result: await geesomeApp.isMemberInGroup(req.user.id, req.params.groupId)}, 200);
-  });
-
-  service.post('/v1/user/group/:groupId/join', async (req, res) => {
-    //TODO: check for private group
-    res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/leave', async (req, res) => {
-    res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
-  });
-
-  service.get('/v1/user/api-key-list', async (req, res) => {
-    res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
-  });
-
-  service.post('/v1/user/api-key/add', async (req, res) => {
-    res.send(await geesomeApp.generateUserApiKey(req.user.id, req.body));
-  });
-
-  service.post('/v1/user/api-key/:apiKeyId/update', async (req, res) => {
-    res.send(await geesomeApp.updateApiKey(req.user.id, req.params.apiKeyId, req.body));
-  });
-
-  service.post('/v1/user/save-file', async (req, res) => {
-    req.pipe(req.busboy);
-
-    const body = {};
-    req.busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
-      body[fieldname] = val;
-    });
-    req.busboy.on('file', async function (fieldname, file, filename) {
-      const options = {
-        userId: req.user.id,
-        apiKey: req.token,
-        ..._.pick(body, ['groupId', 'folderId', 'async'])
-      };
-
-      res.send(await geesomeApp.asyncOperationWrapper('saveData', [file, filename, options], options));
-    });
-  });
-
-  service.post('/v1/user/save-data', async (req, res) => {
-    const options = {
-      userId: req.user.id,
-      apiKey: req.token,
-      ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async'])
-    };
-
-    res.send(await geesomeApp.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
-  });
-
-  service.post('/v1/user/save-data-by-url', async (req, res) => {
-    const options = {
-      userId: req.user.id,
-      apiKey: req.token,
-      ..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
-    };
-
-    res.send(await geesomeApp.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
-  });
-
-
-  service.post('/v1/user/get-async-operation/:id', async (req, res) => {
-    res.send(await geesomeApp.getAsyncOperation(req.user.id, req.params.id));
-  });
-
-  service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
-  });
-  service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
-  });
-
-  service.post('/v1/user/file-catalog/create-folder', async (req, res) => {
-    res.send(await geesomeApp.createUserFolder(req.user.id, req.body.parentItemId, req.body.name));
-  });
-  service.post('/v1/user/file-catalog/add-content-to-folder', async (req, res) => {
-    res.send(await geesomeApp.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
-  });
-  service.post('/v1/user/file-catalog/file-catalog-item/:itemId/update', async (req, res) => {
-    res.send(await geesomeApp.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
-  });
-
-  service.post('/v1/user/file-catalog/save-content-by-path', async (req, res) => {
-    res.send(await geesomeApp.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
-  });
-  service.post('/v1/user/file-catalog/get-content-by-path', async (req, res) => {
-    res.send(await geesomeApp.getContentByPath(req.user.id, req.body.path));
-  });
-  service.post('/v1/user/file-catalog/get-item-by-path', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
-  });
-  service.post('/v1/user/file-catalog/publish-folder/:itemId', async (req, res) => {
-    res.send(await geesomeApp.publishFolder(req.user.id, req.params.itemId));
-  });
-
-  service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {
-    res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
-  });
-
-  service.post('/v1/user/regenerate-previews', async (req, res) => {
-    res.send(await geesomeApp.regenerateUserContentPreviews(req.user.id));
-  });
-
-
-  service.get('/v1/group/:groupId', async (req, res) => {
-    res.send(await geesomeApp.getGroup(req.params.groupId));
-  });
-
-  service.get('/v1/group/:groupId/posts', async (req, res) => {
-    res.send(await geesomeApp.getGroupPosts(req.params.groupId, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
-  });
-
-  service.get('/v1/group/:groupId/peers', async (req, res) => {
-    res.send(await geesomeApp.getGroupPeers(req.params.groupId));
   });
 
   service.get('/v1/content/:contentId', async (req, res) => {
@@ -561,6 +695,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }).catch(() => {
       res.send(null, 200)
     });
+  });
+
+  service.get('/v1/node-address-list', async (req, res) => {
+    res.send({result: await geesomeApp.storage.nodeAddressList()});
   });
 
   service.get('/api/v0/refs*', (req, res) => {
