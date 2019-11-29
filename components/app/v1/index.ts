@@ -1028,7 +1028,7 @@ class GeesomeApp implements IGeesomeApp {
       onProgress: options.onProgress
     });
 
-    let existsContent = await this.database.getContentByStorageId(storageFile.id);
+    let existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewIfNotExist(existsContent);
@@ -1096,7 +1096,7 @@ class GeesomeApp implements IGeesomeApp {
         if (status !== 200) {
           throw statusText;
         }
-        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name), extension);
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name), {extension});
       });
       console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
@@ -1104,7 +1104,7 @@ class GeesomeApp implements IGeesomeApp {
       extension = resultExtension;
     }
 
-    const existsContent = await this.database.getContentByStorageId(storageFile.id);
+    const existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       await this.setContentPreviewIfNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);
@@ -1585,6 +1585,29 @@ class GeesomeApp implements IGeesomeApp {
   public async getFileCatalogItemByPath(userId, path, type: FileCatalogItemType) {
     const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, type);
     return fileCatalogItem;
+  }
+
+  public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
+    const fileCatalogItem = await this.database.getFileCatalogItem(itemId);
+    if (fileCatalogItem.userId != userId) {
+      throw new Error("not_permitted");
+    }
+
+    if(options.deleteContent) {
+      const content = await this.database.getContent(fileCatalogItem.contentId);
+      if (content.userId != userId) {
+        throw new Error("not_permitted");
+      }
+      await this.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
+      await this.storage.remove(content.storageId).catch(() => {/*not found*/});
+
+      await fileCatalogItem['destroy']();
+      await content['destroy']();
+    } else {
+      await fileCatalogItem['destroy']();
+    }
+
+    return true;
   }
 
   /**
