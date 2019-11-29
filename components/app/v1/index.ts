@@ -1028,7 +1028,7 @@ class GeesomeApp implements IGeesomeApp {
       onProgress: options.onProgress
     });
 
-    let existsContent = await this.database.getContentByStorageId(storageFile.id);
+    let existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewIfNotExist(existsContent);
@@ -1096,7 +1096,7 @@ class GeesomeApp implements IGeesomeApp {
         if (status !== 200) {
           throw statusText;
         }
-        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name), extension);
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name), {extension});
       });
       console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
@@ -1104,7 +1104,7 @@ class GeesomeApp implements IGeesomeApp {
       extension = resultExtension;
     }
 
-    const existsContent = await this.database.getContentByStorageId(storageFile.id);
+    const existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       await this.setContentPreviewIfNotExist(existsContent);
       await this.addContentToUserFileCatalog(options.userId, existsContent, options);

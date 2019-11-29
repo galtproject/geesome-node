@@ -38,6 +38,8 @@ export interface IDatabase {
 
   getContentByStorageId(storageId): Promise<IContent>;
 
+  getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
+
   getContentByManifestId(manifestId): Promise<IContent>;
 
   addPost(post: IPost): Promise<IPost>;
