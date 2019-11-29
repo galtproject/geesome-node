@@ -1587,6 +1587,29 @@ class GeesomeApp implements IGeesomeApp {
     return fileCatalogItem;
   }
 
+  public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
+    const fileCatalogItem = await this.database.getFileCatalogItem(itemId);
+    if (fileCatalogItem.userId != userId) {
+      throw new Error("not_permitted");
+    }
+
+    if(options.deleteContent) {
+      const content = await this.database.getContent(fileCatalogItem.contentId);
+      if (content.userId != userId) {
+        throw new Error("not_permitted");
+      }
+      await this.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
+      await this.storage.remove(content.storageId).catch(() => {/*not found*/});
+
+      await fileCatalogItem['destroy']();
+      await content['destroy']();
+    } else {
+      await fileCatalogItem['destroy']();
+    }
+
+    return true;
+  }
+
   /**
    ===========================================
    ETC ACTIONS

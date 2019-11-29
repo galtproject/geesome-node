@@ -463,6 +463,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.post('/v1/user/file-catalog/file-catalog-item/:itemId/update', async (req, res) => {
     res.send(await geesomeApp.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
   });
+  service.post('/v1/user/file-catalog/file-catalog-item/:itemId/delete', async (req, res) => {
+    res.send({result: await geesomeApp.deleteFileCatalogItem(req.user.id, req.params.itemId, req.body)});
+  });
 
   service.post('/v1/user/file-catalog/save-content-by-path', async (req, res) => {
     res.send(await geesomeApp.saveContentByPath(req.user.id, req.body.path, req.body.contentId));

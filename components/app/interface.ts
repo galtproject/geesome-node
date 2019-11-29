@@ -142,6 +142,8 @@ export interface IGeesomeApp {
 
   publishFolder(userId, fileCatalogId): Promise<{storageId:string, staticId:string}>;
 
+  deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
+
   regenerateUserContentPreviews(userId): Promise<void>;
 
   getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUser[]>;

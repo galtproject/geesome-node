@@ -16,7 +16,7 @@ import {EVENT_COMPLETE_MOVE_FILE_CONTAINER} from "./MoveFileCatalogItem/events";
 export default {
   name: 'file-catalog',
   template: require('./FileCatalog.html'),
-  components: {ContentManifestInfoItem, Pagination, MoveFileCatalogItemInput},//UploadContent, 
+  components: {ContentManifestInfoItem, Pagination, MoveFileCatalogItemInput},//UploadContent,
   props: ['selectMode', 'selectedIds', 'hideMethods'],
   async created() {
     this.getItems();
@@ -99,8 +99,16 @@ export default {
       } else {
         this.getItems();
       }
-      
+
       this.showNewFile = false;
+    },
+    deleteFile(fileItem) {
+      if(!confirm("Are you sure you want to delete file with content?")) {
+        return;
+      }
+      this.$coreApi.deleteFileCatalogItem(fileItem.id, {deleteContent: true}).then(() => {
+        this.getItems();
+      })
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);

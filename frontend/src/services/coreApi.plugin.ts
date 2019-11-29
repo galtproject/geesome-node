@@ -54,7 +54,8 @@ export default {
           'getGroupPeers', 'updateCurrentUser', 'userGetFriends', 'addFriend', 'removeFriend', 'getPersonalChatGroups',
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
-          'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getIpnsPeers', 'getStorageIdStat', 'getStorageIdPins'
+          'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getIpnsPeers', 'getStorageIdStat', 'getStorageIdPins',
+          'deleteFileCatalogItem'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

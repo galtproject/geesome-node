@@ -11,7 +11,7 @@ import Promise from "sequelize/types/lib/promise";
 
 export interface IStorage {
   node: any;
-  
+
   saveDirectory(path): Promise<IResultFile>;
 
   saveFileByPath(path): Promise<IResultFile>;
@@ -26,10 +26,14 @@ export interface IStorage {
 
   getFileData(filePath): Promise<any>;
 
+  unPin(hash, options?): Promise<any>;
+
+  remove(hash, options?): Promise<any>;
+
   getAccountIdByName(name): Promise<string>;
-  
+
   getAccountPeerId(key): Promise<any>;
-  
+
   getAccountPublicKey(key): Promise<Buffer>;
 
   getCurrentAccountId(): Promise<string>;
@@ -47,7 +51,7 @@ export interface IStorage {
   bindToStaticId(storageId, accountKey, options?): Promise<string>;
 
   resolveStaticId(staticStorageId): Promise<string>;
-  
+
   resolveStaticIdEntry(staticStorageId): Promise<{pubKey}>;
 
   keyLookup(ipnsId): Promise<any>;
@@ -61,9 +65,9 @@ export interface IStorage {
   nodeAddressList(): Promise<string[]>;
 
   publishEventByIpnsId(ipnsId, topic, data): Promise<void>;
-  
+
   publishEvent(topic, data): Promise<void>;
-  
+
   subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
 
   subscribeToEvent(topic, callback): Promise<void>;
@@ -73,7 +77,7 @@ export interface IStorage {
   getPubSubLs(): Promise<string[]>;
 
   getPeers(topic): Promise<string[]>;
-  
+
   makeDir(path): Promise<void>;
 
   copyFileFromId(storageId, path): Promise<void>;

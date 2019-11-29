@@ -59,7 +59,6 @@
                 <md-menu-content class="custom-menu">
                   <md-menu-item>
                     <move-file-catalog-item-input placeholder="Move to ..." :item="folder"></move-file-catalog-item-input>
-                    <!--<md-menu-item>Delete</md-menu-item>-->
                   </md-menu-item>
                 </md-menu-content>
               </md-menu>
@@ -117,6 +116,7 @@
                   <md-menu-item>
                     <move-file-catalog-item-input placeholder="Move to ..." :item="file"></move-file-catalog-item-input>
                   </md-menu-item>
+                  <md-menu-item @click="deleteFile(file)"><span style="padding: 0 5px;">Delete</span></md-menu-item>
                 </md-menu-content>
               </md-menu>
             </div>
