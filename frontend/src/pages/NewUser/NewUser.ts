@@ -11,6 +11,7 @@ import PeriodInput from "@galtproject/frontend-core/directives/PeriodInput/Perio
 import EthData from "@galtproject/frontend-core/libs/EthData";
 
 const pIteration = require('p-iteration');
+const pick = require('lodash/pick');
 
 export default {
   template: require('./NewUser.html'),
@@ -22,8 +23,13 @@ export default {
         if (!this.passwordAuth) {
           this.resultApiKey = await this.$coreApi.adminAddUserApiKey(createdUser.id, {type: 'admin_manual'});
         }
+        this.user.id = createdUser.id;
         if (this.userLimit.isActive) {
-          await this.$coreApi.adminSetUserLimit(this.user);
+          await this.$coreApi.adminSetUserLimit({
+            userId: createdUser.id,
+            value: parseFloat(this.userLimit.valueMb) * 1024 * 1024,
+            ...pick(this.userLimit, ['name', 'isActive', 'periodTimestamp'])
+          });
         }
         if (this.isAdmin) {
           const permissions = ['admin:read', 'admin:add_user', 'admin:set_permissions', 'admin:set_user_limit', 'admin:add_user_api_key'];
