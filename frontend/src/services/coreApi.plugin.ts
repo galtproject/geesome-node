@@ -145,5 +145,7 @@ export default {
         throw err;
       }
     };
+
+    Vue.prototype.$geesome = Vue.prototype.$coreApi;
   }
 }
