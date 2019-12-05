@@ -605,6 +605,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   async function getContentHead(req, res, hash) {
+    console.log('getContentHead', hash);
     setHeaders(res);
     const content = await geesomeApp.database.getContentByStorageId(hash);
     if(content) {
