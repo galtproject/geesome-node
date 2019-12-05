@@ -605,12 +605,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   async function getContentHead(req, res, hash) {
-    console.log('getContentHead', hash);
     setHeaders(res);
-    const content = await geesomeApp.database.getContentByStorageId(hash);
-    console.log('content', JSON.stringify(content));
+    const content = await geesomeApp.database.getContentByStorageId(hash, true);
     if(content) {
-      console.log('setHeader', content.mimeType);
       res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
     }
     res.send(200);
@@ -625,9 +622,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     let range = req.headers['range'];
     if(!range) {
-      const content = await geesomeApp.database.getContentByStorageId(dataPath);
+      const content = await geesomeApp.database.getContentByStorageId(dataPath, true);
       if(content) {
-        res.setHeader('Content-Type', content.mimeType);
+        res.setHeader('Content-Type', content.storageId === dataPath ? content.mimeType : content.previewMimeType);
       }
       return geesomeApp.getFileStream(dataPath).then((stream) => {
         stream.pipe(res);
@@ -676,11 +673,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         console.log(range.start + resultLength, '/', dataSize);
       });
 
+      let mimeType = '';
+      if(content) {
+        mimeType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
+      }
       res.writeHead(206, {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': 0,
-        'Content-Type': content ? content.mimeType : '',
+        'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',
         'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
         'Content-Length': contentLength

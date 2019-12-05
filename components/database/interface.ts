@@ -36,7 +36,7 @@ export interface IDatabase {
 
   getContent(id): Promise<IContent>;
 
-  getContentByStorageId(storageId): Promise<IContent>;
+  getContentByStorageId(storageId, findByPreviews?): Promise<IContent>;
 
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
