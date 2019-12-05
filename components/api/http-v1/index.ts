@@ -609,6 +609,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       // cut extension, TODO: use regex
       dataPath = splitPath[0];
     }
+    console.log('getFileStream', dataPath);
 
     let range = req.headers['range'];
     if(!range) {
