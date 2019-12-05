@@ -613,7 +613,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     let range = req.headers['range'];
     if(!range) {
       const content = await geesomeApp.database.getContentByStorageId(dataPath);
+      console.log('content', JSON.stringify(content));
       if(content) {
+        console.log('res.setHeader(\'Content-Type\'', content.mimeType);
         res.setHeader('Content-Type', content.mimeType);
       }
       return geesomeApp.getFileStream(dataPath).then((stream) => {
