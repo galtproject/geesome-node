@@ -611,7 +611,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     console.log('content', JSON.stringify(content));
     if(content) {
       console.log('setHeader', content.mimeType);
-      res.setHeader('Content-Type', content.mimeType);
+      res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
     }
     res.send(200);
   }
