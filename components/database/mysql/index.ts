@@ -144,8 +144,14 @@ class MysqlDatabase implements IDatabase {
     return this.models.Content.findOne({where: {id}});
   }
 
-  async getContentByStorageId(storageId) {
-    return this.models.Content.findOne({where: {storageId}});
+  async getContentByStorageId(storageId, findByPreviews = false) {
+    let where;
+    if(findByPreviews) {
+      where = {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]};
+    } else {
+      where = {storageId};
+    }
+    return this.models.Content.findOne({ where });
   }
 
   async getContentByStorageAndUserId(storageId, userId) {

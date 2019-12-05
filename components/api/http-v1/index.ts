@@ -78,15 +78,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.use(busboy());
 
-  service.options("/*", function (req, res, next) {
-    setHeaders(res);
-    res.send(200);
-  });
-  service.head("/*", function (req, res, next) {
-    setHeaders(res);
-    res.send(200);
-  });
-
   service.get('/v1', async (req, res) => {
     //TODO: output api docs
   });
@@ -603,6 +594,25 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     getFileStream(req, res, ipfsPath);
   });
 
+  service.head('/v1/content-data/*', async (req, res) => {
+    const dataPath = req.url.replace('/v1/content-data/', '');
+    getContentHead(req, res, dataPath);
+  });
+
+  service.head('/ipfs/*', async (req, res) => {
+    const ipfsPath = req.url.replace('/ipfs/', '');
+    getContentHead(req, res, ipfsPath);
+  });
+
+  async function getContentHead(req, res, hash) {
+    setHeaders(res);
+    const content = await geesomeApp.database.getContentByStorageId(hash, true);
+    if(content) {
+      res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
+    }
+    res.send(200);
+  }
+
   async function getFileStream (req, res, dataPath) {
     let splitPath = dataPath.split('.');
     if(ipfsHelper.isIpfsHash(splitPath[0])) {
@@ -612,9 +622,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     let range = req.headers['range'];
     if(!range) {
-      const content = await geesomeApp.database.getContentByStorageId(dataPath);
+      const content = await geesomeApp.database.getContentByStorageId(dataPath, true);
       if(content) {
-        res.setHeader('Content-Type', content.mimeType);
+        res.setHeader('Content-Type', content.storageId === dataPath ? content.mimeType : content.previewMimeType);
       }
       return geesomeApp.getFileStream(dataPath).then((stream) => {
         stream.pipe(res);
@@ -663,11 +673,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         console.log(range.start + resultLength, '/', dataSize);
       });
 
+      let mimeType = '';
+      if(content) {
+        mimeType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
+      }
       res.writeHead(206, {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': 0,
-        'Content-Type': content ? content.mimeType : '',
+        'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',
         'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
         'Content-Length': contentLength
@@ -736,6 +750,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       })
     });
   }
+
+  service.options("/*", function (req, res, next) {
+    setHeaders(res);
+    res.send(200);
+  });
+  service.head("/*", function (req, res, next) {
+    setHeaders(res);
+    res.send(200);
+  });
 
   function setHeaders(res) {
     res.setHeader('Strict-Transport-Security', 'max-age=0');
