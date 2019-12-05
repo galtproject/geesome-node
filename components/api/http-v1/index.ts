@@ -78,15 +78,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.use(busboy());
 
-  service.options("/*", function (req, res, next) {
-    setHeaders(res);
-    res.send(200);
-  });
-  service.head("/*", function (req, res, next) {
-    setHeaders(res);
-    res.send(200);
-  });
-
   service.get('/v1', async (req, res) => {
     //TODO: output api docs
   });
@@ -603,20 +594,36 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     getFileStream(req, res, ipfsPath);
   });
 
+  service.head('/v1/content-data/*', async (req, res) => {
+    const dataPath = req.url.replace('/v1/content-data/', '');
+    getContentHead(req, res, dataPath);
+  });
+
+  service.head('/ipfs/*', async (req, res) => {
+    const ipfsPath = req.url.replace('/ipfs/', '');
+    getContentHead(req, res, ipfsPath);
+  });
+
+  async function getContentHead(req, res, hash) {
+    setHeaders(res);
+    const content = await geesomeApp.database.getContentByStorageId(hash);
+    if(content) {
+      res.setHeader('Content-Type', content.mimeType);
+    }
+    res.send(200);
+  }
+
   async function getFileStream (req, res, dataPath) {
     let splitPath = dataPath.split('.');
     if(ipfsHelper.isIpfsHash(splitPath[0])) {
       // cut extension, TODO: use regex
       dataPath = splitPath[0];
     }
-    console.log('getFileStream', dataPath);
 
     let range = req.headers['range'];
     if(!range) {
       const content = await geesomeApp.database.getContentByStorageId(dataPath);
-      console.log('content', JSON.stringify(content));
       if(content) {
-        console.log('res.setHeader(\'Content-Type\'', content.mimeType);
         res.setHeader('Content-Type', content.mimeType);
       }
       return geesomeApp.getFileStream(dataPath).then((stream) => {
@@ -739,6 +746,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       })
     });
   }
+
+  service.options("/*", function (req, res, next) {
+    setHeaders(res);
+    res.send(200);
+  });
+  service.head("/*", function (req, res, next) {
+    setHeaders(res);
+    res.send(200);
+  });
 
   function setHeaders(res) {
     res.setHeader('Strict-Transport-Security', 'max-age=0');
