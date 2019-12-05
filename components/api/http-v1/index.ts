@@ -595,6 +595,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
+    const dbStorage = await geesomeApp.database.getContentByStorageId(dataPath);
+    if(dbStorage) {
+      res.setHeader('Content-Type', dbStorage.mimeType);
+    }
     getFileStream(req, res, dataPath);
   });
 
