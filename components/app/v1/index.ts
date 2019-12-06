@@ -48,6 +48,7 @@ const mime = require('mime');
 const axios = require('axios');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
+const Readable = require('stream').Readable;
 const uuidv4 = require('uuid/v4');
 const saltRounds = 10;
 
@@ -1012,7 +1013,7 @@ class GeesomeApp implements IGeesomeApp {
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
-  async saveData(fileStream, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
@@ -1021,6 +1022,16 @@ class GeesomeApp implements IGeesomeApp {
     if (options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.addApiKey(options.apiKey);
       options.userApiKeyId = apiKey.id;
+    }
+
+    let fileStream;
+    if(_.isString(dataToSave) || _.isBuffer(dataToSave)) {
+      fileStream = new Readable();
+      fileStream._read = () => {};
+      fileStream.push(dataToSave);
+      fileStream.push(null);
+    } else {
+      fileStream = dataToSave;
     }
 
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName), {
