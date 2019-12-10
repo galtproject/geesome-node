@@ -49,6 +49,11 @@
             node. You will receive api key after user creation.
           </div>
 
+          <md-field>
+            <label>Ethereum address for auth</label>
+            <md-input v-model="user.ethereumAddress" :disabled="creation"></md-input>
+          </md-field>
+
           <div>
             <div class="md-subhead">User limits</div>
 
@@ -86,7 +91,7 @@
         </md-card-content>
       </md-card>
     </div>
-    
+
     <div class="md-layout-item md-size-50 md-xsmall-size-100 faq-block">
       <p>You can create Geesome Users for:</p>
       <ul class="new-group-features-list">
