@@ -19,6 +19,9 @@ export default {
   methods: {
     create() {
       this.creation = true;
+      if(this.user.ethereumAddress) {
+        this.user.accounts = [{provider: 'ethereum', address: this.user.ethereumAddress}];
+      }
       this.$coreApi.adminCreateUser(this.user).then(async (createdUser) => {
         if (!this.passwordAuth) {
           this.resultApiKey = await this.$coreApi.adminAddUserApiKey(createdUser.id, {type: 'admin_manual'});
@@ -57,7 +60,8 @@ export default {
         name: '',
         title: '',
         email: '',
-        keyStoreMethod: 'node'
+        keyStoreMethod: 'node',
+        ethereumAddress: ''
       },
       isAdmin: false,
       passwordAuth: true,
