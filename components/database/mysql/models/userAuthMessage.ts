@@ -29,8 +29,8 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
-  UserAuthMessage.belongsTo(models.User, {as: 'userAccount', foreignKey: 'userAccountId'});
-  models.User.hasMany(UserAuthMessage, {as: 'authMessages', foreignKey: 'userAccountId'});
+  UserAuthMessage.belongsTo(models.UserAccount, {as: 'userAccount', foreignKey: 'userAccountId'});
+  models.UserAccount.hasMany(UserAuthMessage, {as: 'authMessages', foreignKey: 'userAccountId'});
 
   return UserAuthMessage.sync({});
 };
