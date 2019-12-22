@@ -944,14 +944,13 @@ class GeesomeApp implements IGeesomeApp {
   async getPreviewStreamContent(previewDriver, storageId, options): Promise<any> {
     return new Promise(async (resolve, reject) => {
       const inputStream = await this.storage.getFileStream(storageId);
-      let error = null;
       options.onError = (err) => {
-        error = err;
+        reject(err);
       };
       const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
       const content = await this.storage.saveFileByData(resultStream);
-      return error ? reject(error) : resolve({content, type, extension});
+      return resolve({content, type, extension});
     });
   }
 
