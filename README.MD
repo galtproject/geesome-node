@@ -129,7 +129,7 @@ geesomeClient.init().then(async () => {
 });
 ```
 Or you can generate apiKey from UI in User Profile section by "Add api key" button.
-More safer to use already generated `apiKey`, because you can always disable it and create another if there is a leak.
+More safer to use `apiKey` instead of login/password, because you can always disable it and create another if there is a leak.
 
 4. Init GeeSome client and save image to your IPFS node
 ```javascript
