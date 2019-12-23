@@ -1023,11 +1023,19 @@ class GeesomeApp implements IGeesomeApp {
       options.userApiKeyId = apiKey.id;
     }
 
+    if(dataToSave.type === "Buffer") {
+      dataToSave = Buffer.from(dataToSave.data)
+    }
+
+    if(_.isArray(dataToSave)) {
+      dataToSave = Buffer.from(dataToSave)
+    }
+
     let fileStream;
-    if(_.isString(dataToSave) || _.isBuffer(dataToSave) || _.isArray(dataToSave)) {
+    if(_.isString(dataToSave) || _.isBuffer(dataToSave)) {
       fileStream = new Readable();
       fileStream._read = () => {};
-      fileStream.push(_.isArray(dataToSave) ? Buffer.from(dataToSave) : dataToSave);
+      fileStream.push(dataToSave);
       fileStream.push(null);
     } else {
       fileStream = dataToSave;
@@ -1214,6 +1222,7 @@ class GeesomeApp implements IGeesomeApp {
             }
           }
         });
+        sizeCheckStream.on('error', reject);
         stream = stream.pipe(sizeCheckStream);
       }
 

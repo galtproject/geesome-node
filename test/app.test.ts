@@ -15,7 +15,7 @@ const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
 
-describe("app", function () {
+describe.only("app", function () {
   const databaseConfig = {name: 'test_geesome_core', options: {logging: false}};
 
   this.timeout(30000);
@@ -102,6 +102,11 @@ describe("app", function () {
           userId: testUser.id,
           groupId: testGroup.id
         });
+
+        await app.saveData({type: "Buffer", data: [49]}, '1.txt', {
+          userId: testUser.id,
+          groupId: testGroup.id
+        });
         
         // const contentObj = await app.saveDataByUrl('https://www.youtube.com/watch?v=rxGnonKB7TY', {userId: 1, groupId: 1, driver: 'youtube-video'});
         // console.log('contentObj', contentObj);
@@ -123,6 +128,7 @@ describe("app", function () {
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'video/mp4');
 
+        console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType)
         assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
         assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
       });
