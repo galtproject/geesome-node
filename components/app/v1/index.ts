@@ -1024,10 +1024,10 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     let fileStream;
-    if(_.isString(dataToSave) || _.isBuffer(dataToSave)) {
+    if(_.isString(dataToSave) || _.isBuffer(dataToSave) || _.isArray(dataToSave)) {
       fileStream = new Readable();
       fileStream._read = () => {};
-      fileStream.push(dataToSave);
+      fileStream.push(_.isArray(dataToSave) ? Buffer.from(dataToSave) : dataToSave);
       fileStream.push(null);
     } else {
       fileStream = dataToSave;
