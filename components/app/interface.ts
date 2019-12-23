@@ -177,7 +177,7 @@ export interface IUserInput {
   email?: string;
   password?: string;
 
-  accounts: IUserAccountInput[];
+  accounts?: IUserAccountInput[];
 }
 
 export interface IUserAccountInput {
