@@ -8,14 +8,14 @@
  */
 
 import {IGeesomeApp} from "../components/app/interface";
-import {FileCatalogItemType, UserLimitName} from "../components/database/interface";
+import {CorePermissionName, FileCatalogItemType, UserLimitName} from "../components/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
 
-describe.only("app", function () {
+describe("app", function () {
   const databaseConfig = {name: 'test_geesome_core', options: {logging: false}};
 
   this.timeout(30000);
@@ -44,7 +44,7 @@ describe.only("app", function () {
           app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
-          const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user'});
+          const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
           await app.createGroup(testUser.id, {
             name: 'test',
             title: 'Test'
@@ -114,10 +114,23 @@ describe.only("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
       
+      it('should correctly save data with only save permission', async () => {
+        const saveDataTestUser = await app.registerUser({email: 'user-save-data@user.com', name: 'user-save-data', permissions: [CorePermissionName.UserSaveData]});
+
+        const textContent = await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+
+        const contentObj = await app.storage.getObject(textContent.manifestStorageId);
+
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
+        assert.equal(contentObj.mimeType, 'text/plain');
+
+        await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+      });
+
       it('should correctly save video', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
-        
+
         const videoContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-video.mp4'), 'input-video.mp4', {
           userId: testUser.id,
           groupId: testGroup.id

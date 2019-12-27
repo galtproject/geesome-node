@@ -22,22 +22,30 @@ export default {
       if(this.user.ethereumAddress) {
         this.user.accounts = [{provider: 'ethereum', address: this.user.ethereumAddress}];
       }
+
+      this.user.permissions = [];
+
+      if(this.isAdmin) {
+        this.user.permissions = this.user.permissions.concat(['admin:read', 'admin:add_user', 'admin:set_permissions', 'admin:set_user_limit', 'admin:add_user_api_key']);
+      }
+
+      if(this.isOnlySaveData) {
+        this.user.permissions = this.user.permissions.concat(['user:save_data']);
+      } else {
+        this.user.permissions = this.user.permissions.concat(['user:all']);
+      }
+
       this.$coreApi.adminCreateUser(this.user).then(async (createdUser) => {
         if (!this.passwordAuth) {
           this.resultApiKey = await this.$coreApi.adminAddUserApiKey(createdUser.id, {type: 'admin_manual'});
         }
         this.user.id = createdUser.id;
+
         if (this.userLimit.isActive) {
           await this.$coreApi.adminSetUserLimit({
             userId: createdUser.id,
             value: parseFloat(this.userLimit.valueMb) * 1024 * 1024,
             ...pick(this.userLimit, ['name', 'isActive', 'periodTimestamp'])
-          });
-        }
-        if (this.isAdmin) {
-          const permissions = ['admin:read', 'admin:add_user', 'admin:set_permissions', 'admin:set_user_limit', 'admin:add_user_api_key'];
-          await pIteration.forEach(permissions, (permissionName) => {
-            return this.$coreApi.adminAddCorePermission(createdUser.id, permissionName)
           });
         }
         this.created = true;
@@ -64,6 +72,7 @@ export default {
         ethereumAddress: ''
       },
       isAdmin: false,
+      isOnlySaveData: false,
       passwordAuth: true,
       userLimit: {
         isActive: false,

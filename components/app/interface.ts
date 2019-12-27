@@ -8,6 +8,7 @@
  */
 
 import {
+  CorePermissionName,
   GroupType, GroupView,
   IContent,
   IDatabase,
@@ -48,7 +49,7 @@ export interface IGeesomeApp {
 
   setUserAccount(userId, accountData): Promise<IUserAccount>;
 
-  generateUserApiKey(userId, apiKeyData): Promise<string>;
+  generateUserApiKey(userId, apiKeyData, skipPermissionCheck?): Promise<string>;
 
   updateApiKey(userId, id, updateData): Promise<void>;
 
@@ -178,6 +179,7 @@ export interface IUserInput {
   password?: string;
 
   accounts?: IUserAccountInput[];
+  permissions?: CorePermissionName[];
 }
 
 export interface IUserAccountInput {

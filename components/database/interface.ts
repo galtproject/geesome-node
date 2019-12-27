@@ -469,6 +469,14 @@ export enum UserLimitName {
 }
 
 export enum CorePermissionName {
+  UserAll = 'user:all',
+  UserSaveData = 'user:save_data',
+  UserApiKeyManagement = 'user:api_key_management',
+  UserFileCatalogManagement = 'user:file_catalog_management',
+  UserGroupManagement = 'user:group_management',
+  UserFriendsManagement = 'user:friends_management',
+  UserAccountManagement = 'user:account_management',
+
   AdminRead = 'admin:read',
   AdminAddUser = 'admin:add_user',
   AdminSetPermissions = 'admin:set_permissions',

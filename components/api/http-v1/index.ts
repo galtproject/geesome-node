@@ -115,7 +115,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   async function handleAuthResult(res, user) {
     if (user) {
-      return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, {type:"password_auth"})}, 200);
+      return res.send({user, apiKey: await geesomeApp.generateUserApiKey(user.id, {type:"password_auth"}, true)}, 200);
     } else {
       return res.send(403);
     }
@@ -475,9 +475,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
   });
 
-  service.post('/v1/user/regenerate-previews', async (req, res) => {
-    res.send(await geesomeApp.regenerateUserContentPreviews(req.user.id));
-  });
+  //TODO: add limit for this action
+
+  // service.post('/v1/user/regenerate-previews', async (req, res) => {
+  //   res.send(await geesomeApp.regenerateUserContentPreviews(req.user.id));
+  // });
 
 
   service.get('/v1/group/:groupId', async (req, res) => {
@@ -506,9 +508,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getGroupPeers(req.params.groupId));
   });
 
-
+  //TODO: move permissions checks to geesomeApp class
   service.post('/v1/admin/add-user', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
+      return res.send(403);
+    }
+    if (req.body.permissions && !await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
       return res.send(403);
     }
     res.send(await geesomeApp.registerUser(req.body));
@@ -517,7 +522,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
       return res.send(403);
     }
-    res.send(await geesomeApp.generateUserApiKey(req.body.userId, req.body));
+    res.send(await geesomeApp.generateUserApiKey(req.body.userId, req.body, true));
   });
   service.post('/v1/admin/set-user-limit', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetUserLimit)) {
