@@ -91,6 +91,17 @@ module.exports = async (extendConfig) => {
 
   app.events = appEvents(app);
 
+  //TODO: delete on migrate all nodes to new version
+  const users = await app.database.getAllUserList(null, {limit: 9999, offset: 0});
+  await pIteration.forEach(users, async user => {
+    const isAdmin = await app.database.isHaveCorePermission(user.id, CorePermissionName.AdminRead);
+    if(isAdmin) {
+      await app.database.addCorePermission(user.id, CorePermissionName.UserAll);
+    } else {
+      await app.database.addCorePermission(user.id, CorePermissionName.UserSaveData);
+    }
+  });
+
   await appCron(app);
   await appListener(app);
 
@@ -146,7 +157,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     const adminUser = await this.registerUser(userData);
 
-    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode'], (permissionName) => {
+    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode', 'UserAll'], (permissionName) => {
       return this.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
 
@@ -195,6 +206,12 @@ class GeesomeApp implements IGeesomeApp {
     if (userData.accounts && userData.accounts.length) {
       await pIteration.forEach(userData.accounts, (userAccount) => {
         return this.setUserAccount(newUser.id, userAccount);
+      });
+    }
+
+    if (userData.permissions && userData.permissions.length) {
+      await pIteration.forEach(userData.permissions, (permissionName) => {
+        return this.database.addCorePermission(newUser.id, permissionName)
       });
     }
 
@@ -301,6 +318,8 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addUserFriendById(userId, friendId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
+
     friendId = await this.checkUserId(friendId, true);
 
     const user = await this.database.getUser(userId);
@@ -328,6 +347,8 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async removeUserFriendById(userId, friendId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
+
     friendId = await this.checkUserId(friendId, true);
 
     // TODO: remove personal chat group?
@@ -336,6 +357,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserFriends(userId, search?, listParams?: IListParams) {
+    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
     return {
       list: await this.database.getUserFriends(userId, search, listParams),
       total: await this.database.getUserFriendsCount(userId, search)
@@ -404,7 +426,10 @@ class GeesomeApp implements IGeesomeApp {
     return dbUser;
   }
 
-  async generateUserApiKey(userId, data) {
+  async generateUserApiKey(userId, data, skipPermissionCheck = false) {
+    if(!skipPermissionCheck) {
+      await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
+    }
     const generated = uuidAPIKey.create();
 
     data.userId = userId;
@@ -427,6 +452,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
+    await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
     return {
       list: await this.database.getApiKeysByUser(userId, isDisabled, search, listParams),
       total: await this.database.getApiKeysCountByUser(userId, isDisabled, search)
@@ -434,6 +460,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updateApiKey(userId, apiKeyId, updateData) {
+    await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
     const keyObj = await this.database.getApiKey(apiKeyId);
 
     if (keyObj.userId !== userId) {
@@ -458,6 +485,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getMemberInGroups(userId, types) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     // TODO: use query object instead of types
     return {
       list: await this.database.getMemberInGroups(userId, types),
@@ -467,6 +495,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAdminInGroups(userId, types) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     // TODO: use query object instead of types
     return {
       list: await this.database.getAdminInGroups(userId, types),
@@ -476,6 +505,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getPersonalChatGroups(userId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     // TODO: use query object
     return {
       list: await this.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat),
@@ -518,6 +548,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createGroup(userId, groupData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupData.creatorId = userId;
 
     groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
@@ -599,26 +630,31 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addMemberToGroup(userId, groupId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     await this.database.addMemberToGroup(userId, groupId);
   }
 
   async removeMemberFromGroup(userId, groupId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     await this.database.removeMemberFromGroup(userId, groupId);
   }
 
   async addAdminToGroup(userId, groupId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     await this.database.addAdminToGroup(userId, groupId);
   }
 
   async removeAdminFromGroup(userId, groupId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     await this.database.removeAdminFromGroup(userId, groupId);
   }
 
   async updateGroup(userId, groupId, updateData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     if (!(await this.canEditGroup(userId, groupId))) {
       throw new Error("not_permitted");
@@ -631,6 +667,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createPost(userId, postData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     postData.userId = userId;
     postData.groupId = await this.checkGroupId(postData.groupId);
 
@@ -699,6 +736,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updatePost(userId, postId, postData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     const contentsIds = postData.contentsIds;
     delete postData.contentsIds;
 
@@ -955,8 +993,12 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async asyncOperationWrapper(methodName, args, options) {
+    await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     if (options.apiKey) {
-      const apiKey = await this.database.addApiKey(options.apiKey);
+      const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
+      if(!apiKey) {
+        throw new Error("not_authorized");
+      }
       options.userApiKeyId = apiKey.id;
     }
 
@@ -1013,13 +1055,17 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveData(dataToSave, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+    await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
     const extension = this.getExtensionFromName(fileName);
 
     if (options.apiKey && !options.userApiKeyId) {
-      const apiKey = await this.database.addApiKey(options.apiKey);
+      const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
+      if(!apiKey) {
+        throw new Error("not_authorized");
+      }
       options.userApiKeyId = apiKey.id;
     }
 
@@ -1050,7 +1096,9 @@ class GeesomeApp implements IGeesomeApp {
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewIfNotExist(existsContent);
-      await this.addContentToUserFileCatalog(options.userId, existsContent, options);
+      if(await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
+        await this.addContentToUserFileCatalog(options.userId, existsContent, options);
+      }
       return existsContent;
     }
 
@@ -1079,6 +1127,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveDataByUrl(url, options: { userId, groupId, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+    await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     let name;
     if (options.path) {
       name = this.getFilenameFromPath(options.path);
@@ -1089,7 +1138,10 @@ class GeesomeApp implements IGeesomeApp {
     let type;
 
     if (options.apiKey && !options.userApiKeyId) {
-      const apiKey = await this.database.addApiKey(options.apiKey);
+      const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
+      if(!apiKey) {
+        throw new Error("not_authorized");
+      }
       options.userApiKeyId = apiKey.id;
     }
 
@@ -1269,7 +1321,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const content = await this.database.addContent(contentData);
 
-    if (content.userId) {
+    if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
       await this.addContentToUserFileCatalog(content.userId, content, options);
 
       await this.database.addUserContentAction({
@@ -1306,11 +1358,13 @@ class GeesomeApp implements IGeesomeApp {
    **/
 
   public async addContentToFolder(userId, contentId, folderId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const content = await this.database.getContent(contentId);
     return this.addContentToUserFileCatalog(userId, content, {folderId})
   }
 
   private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const baseType = _.first(content.mimeType.split('/'));
 
     let parentItemId;
@@ -1372,6 +1426,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createUserFolder(userId, parentItemId, folderName) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     return this.database.addFileCatalogItem({
       name: folderName,
       type: FileCatalogItemType.Folder,
@@ -1383,6 +1438,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
     if (fileCatalogItem.userId !== userId) {
       throw new Error("not_permitted");
@@ -1392,6 +1448,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     if (parentItemId == 'null') {
       parentItemId = null;
     }
@@ -1405,6 +1462,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getFileCatalogItemsBreadcrumbs(userId, itemId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const item = await this.database.getFileCatalogItem(itemId);
     if (item.userId != userId) {
       throw new Error("not_permitted");
@@ -1418,6 +1476,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async regenerateUserContentPreviews(userId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     (async () => {
       const previousIpldToNewIpld = [];
 
@@ -1466,7 +1525,6 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async makeFolderStorageDir(fileCatalogItem: IFileCatalogItem) {
-
     const breadcrumbs = await this.getFileCatalogItemsBreadcrumbs(fileCatalogItem.userId, fileCatalogItem.id);
 
     // breadcrumbs.push(fileCatalogItem);
@@ -1499,6 +1557,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async publishFolder(userId, fileCatalogId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
 
     const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
@@ -1520,6 +1579,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async findCatalogItemByPath(userId, path, type, createFoldersIfNotExists = false): Promise<{ foundCatalogItem: IFileCatalogItem, lastFolderId: number }> {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const pathArr = _.trim(path, '/').split('/');
     const foldersArr = pathArr.slice(0, -1);
     const lastItemName = pathArr.slice(-1)[0];
@@ -1569,6 +1629,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileName = _.trim(path, '/').split('/').slice(-1)[0];
     console.log('saveContentByPath', 'path:', path, 'fileName:', fileName);
 
@@ -1597,16 +1658,19 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async getContentByPath(userId, path) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File);
     return fileCatalogItem ? await this.database.getContent(fileCatalogItem.contentId) : null;
   }
 
   public async getFileCatalogItemByPath(userId, path, type: FileCatalogItemType) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, type);
     return fileCatalogItem;
   }
 
   public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(itemId);
     if (fileCatalogItem.userId != userId) {
       throw new Error("not_permitted");
@@ -1717,6 +1781,24 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("not_permitted");
     }
     return this.database.getUserLimit(userId, limitName);
+  }
+
+  async isUserCan(userId, permission) {
+    const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
+    if (userCanAll) {
+      return true;
+    }
+    return this.database.isHaveCorePermission(userId, permission);
+  }
+
+  async checkUserCan(userId, permission) {
+    const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
+    if (userCanAll) {
+      return;
+    }
+    if (!await this.database.isHaveCorePermission(userId, permission)) {
+      throw new Error("not_permitted");
+    }
   }
 
   runSeeds() {
