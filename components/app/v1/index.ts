@@ -91,17 +91,6 @@ module.exports = async (extendConfig) => {
 
   app.events = appEvents(app);
 
-  //TODO: delete on migrate all nodes to new version
-  const users = await app.database.getAllUserList(null, {limit: 9999, offset: 0});
-  await pIteration.forEach(users, async user => {
-    const isAdmin = await app.database.isHaveCorePermission(user.id, CorePermissionName.AdminRead);
-    if(isAdmin) {
-      await app.database.addCorePermission(user.id, CorePermissionName.UserAll);
-    } else {
-      await app.database.addCorePermission(user.id, CorePermissionName.UserSaveData);
-    }
-  });
-
   await appCron(app);
   await appListener(app);
 
