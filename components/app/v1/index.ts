@@ -1038,7 +1038,7 @@ class GeesomeApp implements IGeesomeApp {
         return this.database.updateUserAsyncOperation(asyncOperation.id, {
           inProcess: false,
           errorType: 'unknown',
-          errorMessage: e.message + ', ' + e.fileName + ', ' + e.lineNumber
+          errorMessage: e.message
         });
       });
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
@@ -1077,7 +1077,7 @@ class GeesomeApp implements IGeesomeApp {
       fileStream = dataToSave;
     }
 
-    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName), {
+    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName) || extension, {
       extension,
       onProgress: options.onProgress
     });
@@ -1156,7 +1156,7 @@ class GeesomeApp implements IGeesomeApp {
         if (status !== 200) {
           throw statusText;
         }
-        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name), {extension});
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension});
       });
       console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
@@ -1355,7 +1355,7 @@ class GeesomeApp implements IGeesomeApp {
 
   private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const baseType = _.first(content.mimeType.split('/'));
+    const baseType = content.mimeType ? _.first(content.mimeType.split('/')) : 'other';
 
     let parentItemId;
 
