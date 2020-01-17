@@ -1034,10 +1034,11 @@ class GeesomeApp implements IGeesomeApp {
         return this.storage.publishEvent(asyncOperation.channel, res);
       })
       .catch((e) => {
+        console.error(e);
         return this.database.updateUserAsyncOperation(asyncOperation.id, {
           inProcess: false,
           errorType: 'unknown',
-          errorMessage: e.message
+          errorMessage: e.message + ', ' + e.fileName + ', ' + e.lineNumber
         });
       });
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
