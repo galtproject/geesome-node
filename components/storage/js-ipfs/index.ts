@@ -48,7 +48,7 @@ module.exports = async (app: IGeesomeApp) => {
       toHost: '127.0.0.1',
     }].forEach((conf) => {
       net.createServer(function(from) {
-        // console.log(`forward ${conf.fromHost}:${conf.fromPort} => ${conf.toHost}:${conf.toPort}`);
+        console.log(`forward ${conf.fromHost}:${conf.fromPort} => ${conf.toHost}:${conf.toPort}`);
 
         const to = net.createConnection({
           host: conf.toHost,
