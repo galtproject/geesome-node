@@ -8,10 +8,7 @@
  */
 
 import {IStorage} from "../components/storage/interface";
-
 const assert = require('assert');
-
-const CID = require('cids');
 
 describe("storage", function () {
   this.timeout(30000);
