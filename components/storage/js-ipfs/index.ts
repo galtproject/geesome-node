@@ -20,14 +20,14 @@ module.exports = async (app: IGeesomeApp) => {
   const node = new IPFS({
     ...app.config.storageConfig.jsNode,
     // https://github.com/ipfs/go-ipfs/issues/6398
-    // config: {
-    //   Addresses: {
-    //     Swarm: [
-    //       "/ip4/0.0.0.0/tcp/49192",
-    //       "/ip4/127.0.0.1/tcp/49192/ws",
-    //     ]
-    //   }
-    // }
+    config: {
+      Addresses: {
+        Swarm: [
+          "/ip4/0.0.0.0/tcp/4002",
+          "/ip4/127.0.0.1/tcp/4003/ws",
+        ]
+      }
+    }
   });
   //
 
