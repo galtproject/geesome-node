@@ -619,6 +619,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   }
 
   async function getFileStream (req, res, dataPath) {
+    setStorageHeaders(res);
+
     let splitPath = dataPath.split('.');
     if(ipfsHelper.isIpfsHash(splitPath[0])) {
       // cut extension, TODO: use regex
@@ -683,9 +685,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         mimeType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
       }
       res.writeHead(206, {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': 0,
+        // 'Cache-Control': 'no-cache, no-store, must-revalidate',
+        // 'Pragma': 'no-cache',
+        // 'Expires': 0,
         'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',
         'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
@@ -716,6 +718,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/ipld/*', async (req, res) => {
+    setStorageHeaders(res);
     const ipldPath = req.url.replace('/ipld/', '');
     geesomeApp.getDataStructure(ipldPath).then(result => {
       res.send(_.isNumber(result) ? result.toString() : result);
@@ -729,6 +732,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/api/v0/refs*', (req, res) => {
+    setStorageHeaders(res);
     request('http://localhost:5002/api/v0/refs' + req.url.split('/api/v0/refs')[1]).pipe(res);
   });
 
@@ -771,6 +775,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  }
+
+  function setStorageHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, stale-if-error=0');
   }
 
   console.log('🚀 Start api on port', port);
