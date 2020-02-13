@@ -12,7 +12,7 @@ import {IGeesomeApp} from "../../app/interface";
 const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNode");
 
 const IPFS = require('ipfs');
-// const Gateway = require('ipfs/src/http');
+const Gateway = require('ipfs/src/http');
 //
 // const net = require('net');
 
@@ -39,8 +39,8 @@ module.exports = async (app: IGeesomeApp) => {
     });
 
     // TODO: figure out how to use it in production
-    // const gateway = new Gateway(node);
-    // await gateway.start();
+    const gateway = new Gateway(node);
+    await gateway.start();
     //
     // [{
     //   fromPort: 5001,
@@ -60,7 +60,7 @@ module.exports = async (app: IGeesomeApp) => {
     //   }).listen(conf.fromPort, conf.fromHost);
     // });
 
-    // console.log('gateway.apiAddr', gateway._apiServers);
+    console.log('gateway.apiAddr', gateway._apiServers);
 
     console.log('🎁 IPFS node have started');
   } catch (e) {
