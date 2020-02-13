@@ -12,9 +12,9 @@ import {IGeesomeApp} from "../../app/interface";
 const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNode");
 
 const IPFS = require('ipfs');
-const Gateway = require('ipfs/src/http');
-
-const net = require('net');
+// const Gateway = require('ipfs/src/http');
+//
+// const net = require('net');
 
 module.exports = async (app: IGeesomeApp) => {
   const node = new IPFS({
@@ -38,26 +38,27 @@ module.exports = async (app: IGeesomeApp) => {
       node.on('error', (err) => reject(err))
     });
 
-    const gateway = new Gateway(node);
-    await gateway.start();
-
-    [{
-      fromPort: 5001,
-      fromHost: '0.0.0.0',
-      toPort: 5002,
-      toHost: '127.0.0.1',
-    }].forEach((conf) => {
-      net.createServer(function(from) {
-        console.log(`forward ${conf.fromHost}:${conf.fromPort} => ${conf.toHost}:${conf.toPort}`);
-
-        const to = net.createConnection({
-          host: conf.toHost,
-          port: conf.toPort
-        });
-        from.pipe(to);
-        to.pipe(from);
-      }).listen(conf.fromPort, conf.fromHost);
-    });
+    // TODO: figure out how to use it in production
+    // const gateway = new Gateway(node);
+    // await gateway.start();
+    //
+    // [{
+    //   fromPort: 5001,
+    //   fromHost: '0.0.0.0',
+    //   toPort: 5002,
+    //   toHost: '127.0.0.1',
+    // }].forEach((conf) => {
+    //   net.createServer(function(from) {
+    //     console.log(`forward ${conf.fromHost}:${conf.fromPort} => ${conf.toHost}:${conf.toPort}`);
+    //
+    //     const to = net.createConnection({
+    //       host: conf.toHost,
+    //       port: conf.toPort
+    //     });
+    //     from.pipe(to);
+    //     to.pipe(from);
+    //   }).listen(conf.fromPort, conf.fromHost);
+    // });
 
     // console.log('gateway.apiAddr', gateway._apiServers);
 
