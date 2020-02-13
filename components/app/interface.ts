@@ -103,9 +103,9 @@ export interface IGeesomeApp {
 
   asyncOperationWrapper(methodName, args, options);
 
-  saveData(fileStream, fileName, options);
+  saveData(fileStream, fileName, options): Promise<IContent>;
 
-  saveDataByUrl(url, options);
+  saveDataByUrl(url, options): Promise<IContent>;
 
   getAsyncOperation(userId, id);
 
@@ -119,7 +119,7 @@ export interface IGeesomeApp {
 
   getDataStructure(dataId);
 
-  getDataStructure(dataId);
+  saveDataStructure(data);
 
   getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
 

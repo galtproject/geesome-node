@@ -103,10 +103,15 @@ describe("app", function () {
           groupId: testGroup.id
         });
 
-        await app.saveData({type: "Buffer", data: [49]}, '1.txt', {
+        const contentObj = await app.saveData({type: "Buffer", data: [49]}, '1.txt', {
           userId: testUser.id,
           groupId: testGroup.id
         });
+
+        const mainfestData = await app.getDataStructure(contentObj.manifestStorageId);
+        const savedManifestStorageId = await app.saveDataStructure(mainfestData);
+
+        assert.equal(contentObj.manifestStorageId, savedManifestStorageId);
         
         // const contentObj = await app.saveDataByUrl('https://www.youtube.com/watch?v=rxGnonKB7TY', {userId: 1, groupId: 1, driver: 'youtube-video'});
         // console.log('contentObj', contentObj);
