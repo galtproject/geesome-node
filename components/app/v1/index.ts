@@ -1758,6 +1758,10 @@ class GeesomeApp implements IGeesomeApp {
     return this.storage.getObject(dataId);
   }
 
+  saveDataStructure(data) {
+    return this.storage.saveObject(data);
+  }
+
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
