@@ -867,11 +867,24 @@ class GeesomeApp implements IGeesomeApp {
     if (!previewDriverName) {
       previewDriverName = fullType.split('/')[0];
     }
-    const extension = fullType.split('/')[1];
+    let extension = fullType.split('/')[1];
 
-    const previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
+    let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
+    }
+
+    if(previewDriverName === 'video-thumbnail') {
+      const {content: originalVideoImage, extension: imageExtension} = await this.getPreviewStreamContent(previewDriver, storageId, {
+        extension
+      });
+      storageId = originalVideoImage.id;
+      extension = imageExtension;
+      previewDriverName = 'image';
+      previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
+      if (!previewDriver) {
+        return {};
+      }
     }
     try {
       if (previewDriver.isInputSupported(DriverInput.Stream)) {
