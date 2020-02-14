@@ -14,6 +14,7 @@ const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
+const log = require('../components/log');
 
 describe("app", function () {
   const databaseConfig = {name: 'test_geesome_core', options: {logging: false}};
@@ -119,10 +120,12 @@ describe("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
       
-      it('should correctly save data with only save permission', async () => {
+      it.only('should correctly save data with only save permission', async () => {
         const saveDataTestUser = await app.registerUser({email: 'user-save-data@user.com', name: 'user-save-data', permissions: [CorePermissionName.UserSaveData]});
 
+        log('saveDataTestUser');
         const textContent = await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+        log('textContent');
 
         const contentObj = await app.storage.getObject(textContent.manifestStorageId);
 
@@ -130,6 +133,7 @@ describe("app", function () {
         assert.equal(contentObj.mimeType, 'text/plain');
 
         await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+        log('saveData');
       });
 
       it('should correctly save video', async () => {
