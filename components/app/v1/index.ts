@@ -50,6 +50,7 @@ const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
 const uuidv4 = require('uuid/v4');
+const log = require('../../log');
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
@@ -1058,7 +1059,9 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveData(dataToSave, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+    log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
+    log('checkUserCan');
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
@@ -1066,6 +1069,7 @@ class GeesomeApp implements IGeesomeApp {
 
     if (options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
+      log('apiKey');
       if(!apiKey) {
         throw new Error("not_authorized");
       }
@@ -1094,8 +1098,10 @@ class GeesomeApp implements IGeesomeApp {
       extension,
       onProgress: options.onProgress
     });
+    log('saveFileByStream');
 
     let existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
+    log('existsContent');
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewIfNotExist(existsContent);
@@ -1106,6 +1112,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
+    log('getPreview');
 
     return this.addContent({
       mediumPreviewStorageId,
@@ -1308,6 +1315,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   private async addContent(contentData: IContent, options: { groupId?, userId?, userApiKeyId? } = {}) {
+    log('addContent');
     if (options.groupId) {
       const groupId = await this.checkGroupId(options.groupId);
       let group;
@@ -1319,13 +1327,17 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     const storageContentStat = await this.storage.getFileStat(contentData.storageId);
+    log('storageContentStat');
 
     contentData.size = storageContentStat.size;
 
     const content = await this.database.addContent(contentData);
+    log('content');
 
     if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
+      log('isUserCan');
       await this.addContentToUserFileCatalog(content.userId, content, options);
+      log('addContentToUserFileCatalog');
 
       await this.database.addUserContentAction({
         name: UserContentActionName.Upload,
@@ -1334,11 +1346,13 @@ class GeesomeApp implements IGeesomeApp {
         contentId: content.id,
         userApiKeyId: options.userApiKeyId
       });
+      log('addUserContentAction');
     }
 
     if (!contentData.manifestStorageId) {
       await this.updateContentManifest(content.id);
     }
+    log('updateContentManifest');
 
     return this.database.getContent(content.id);
   }
