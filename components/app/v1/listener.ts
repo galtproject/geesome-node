@@ -22,14 +22,14 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
   const selfIpnsId = await geesomeApp.storage.getAccountIdByName('self');
   console.log('selfIpnsId', selfIpnsId);
 
-  geesomeApp.storage['fsub'].libp2p.on('peer:disconnect', (peerDisconnect) => {
+  geesomeApp.storage.node.libp2p.on('peer:disconnect', (peerDisconnect) => {
     const peerId = peerDisconnect.id._idB58String;
     const topic = getIpnsUpdatesTopic(peerId);
     if (peersToTopic[topic]) {
       console.log('❗️ Disconected from remote node!');
     }
   });
-  geesomeApp.storage['fsub'].libp2p.on('connection:start', (connectionStart) => {
+  geesomeApp.storage.node.libp2p.on('connection:start', (connectionStart) => {
     const peerId = connectionStart.id._idB58String;
     const topic = getIpnsUpdatesTopic(peerId);
     if (peersToTopic[topic]) {

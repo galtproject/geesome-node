@@ -120,7 +120,7 @@ describe("app", function () {
         // assert.notEqual(contentObj.storageAccountId, null);
       });
       
-      it.only('should correctly save data with only save permission', async () => {
+      it('should correctly save data with only save permission', async () => {
         const saveDataTestUser = await app.registerUser({email: 'user-save-data@user.com', name: 'user-save-data', permissions: [CorePermissionName.UserSaveData]});
 
         log('saveDataTestUser');
