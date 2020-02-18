@@ -1267,9 +1267,11 @@ class GeesomeApp implements IGeesomeApp {
 
   private async saveFileByStream(userId, stream, mimeType, options: any = {}): Promise<any> {
     return new Promise(async (resolve, reject) => {
+      let extension = options.extension || _.last(mimeType.split('/'));
+
       if (this.isVideoType(mimeType)) {
         const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
-          extension: _.last(mimeType.split('/')),
+          extension: extension,
           onProgress: options.onProgress,
           onError: reject
         });
@@ -1300,7 +1302,7 @@ class GeesomeApp implements IGeesomeApp {
       let resultFile;
       if(options.driver === 'archive') {
         const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
-          extension: _.last(mimeType.split('/')),
+          extension,
           onProgress: options.onProgress,
           onError: reject
         });
@@ -1308,6 +1310,8 @@ class GeesomeApp implements IGeesomeApp {
         if(uploadResult.emitFinish) {
           uploadResult.emitFinish();
         }
+        mimeType = 'directory';
+        extension = 'none';
       } else {
         resultFile = await this.storage.saveFileByData(stream);
       }
@@ -1315,7 +1319,7 @@ class GeesomeApp implements IGeesomeApp {
       resolve({
         resultFile: resultFile,
         resultMimeType: mimeType,
-        resultExtension: options.extension
+        resultExtension: extension
       });
     });
   }

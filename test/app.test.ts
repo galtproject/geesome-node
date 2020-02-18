@@ -161,6 +161,10 @@ describe("app", function () {
         const archivePath = __dirname + '/resources/test-archive.zip';
         const archiveContent = await app.saveData(fs.createReadStream(archivePath), 'archive.zip', {userId: testUser.id, driver: 'archive'});
 
+        const contentObj = await app.storage.getObject(archiveContent.manifestStorageId);
+        assert.equal(contentObj.mimeType, 'directory');
+        assert.equal(contentObj.extension, 'none');
+
         let gotIndexHtmlByFolder = await app.storage.getFileData(archiveContent.storageId + '/test.txt');
         assert.equal(gotIndexHtmlByFolder, 'Test\n');
       });
