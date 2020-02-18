@@ -17,7 +17,7 @@ const Gateway = require('ipfs/src/http');
 // const net = require('net');
 
 module.exports = async (app: IGeesomeApp) => {
-  const node = new IPFS({
+  const node = await IPFS.create({
     ...app.config.storageConfig.jsNode,
     // https://github.com/ipfs/go-ipfs/issues/6398
     config: {
@@ -29,14 +29,12 @@ module.exports = async (app: IGeesomeApp) => {
       }
     }
   });
-  //
 
-  // console.log('node', node);
   try {
-    await new Promise((resolve, reject) => {
-      node.on('ready', (err) => err ? reject(err) : resolve());
-      node.on('error', (err) => reject(err))
-    });
+    // await new Promise((resolve, reject) => {
+    //   node.on('ready', (err) => err ? reject(err) : resolve());
+    //   node.on('error', (err) => reject(err))
+    // });
 
     // TODO: figure out how to use it in production
     const gateway = new Gateway(node);
