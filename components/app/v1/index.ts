@@ -8,20 +8,26 @@
  */
 
 import {
-  IDatabase,
   ContentMimeType,
-  PostStatus,
-  ContentView,
-  IPost,
-  FileCatalogItemType,
-  IContent,
   ContentStorageType,
-  UserContentActionName,
-  UserLimitName,
+  ContentView,
+  CorePermissionName,
+  FileCatalogItemType,
+  GroupType,
+  GroupView,
+  IContent,
+  IDatabase,
+  IFileCatalogItem,
+  IGroup,
+  IListParams,
+  IPost,
+  IUser,
   IUserLimit,
-  CorePermissionName, IGroup, IListParams, IUser, GroupType, GroupView, IFileCatalogItem
+  PostStatus,
+  UserContentActionName,
+  UserLimitName
 } from "../../database/interface";
-import {IGeesomeApp, IUserAccountInput, IUserInput} from "../interface";
+import {IGeesomeApp, IUserAccountInput, IUserInput, ManifestToSave} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
@@ -46,6 +52,7 @@ const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
 const axios = require('axios');
+const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
@@ -832,16 +839,16 @@ class GeesomeApp implements IGeesomeApp {
    ===========================================
    **/
 
-  async createContentByObject(contentObject) {
+  async createContentByObject(contentObject, options: { groupId?, userId?, userApiKeyId? } = {}) {
     const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
     let dbContent = await this.database.getContentByStorageId(storageId);
     if (dbContent) {
       return dbContent;
     }
-    return this.addContent(contentObject);
+    return this.addContent(contentObject, options);
   }
 
-  async createContentByRemoteStorageId(manifestStorageId) {
+  async createContentByRemoteStorageId(manifestStorageId, options: { groupId?, userId?, userApiKeyId? } = {}) {
     let dbContent = await this.database.getContentByManifestId(manifestStorageId);
     if (dbContent) {
       return dbContent;
@@ -1331,6 +1338,10 @@ class GeesomeApp implements IGeesomeApp {
 
     contentData.size = storageContentStat.size;
 
+    if(!contentData.userId && options.userId) {
+      contentData.userId = options.userId;
+    }
+
     const content = await this.database.addContent(contentData);
     log('content');
 
@@ -1574,7 +1585,7 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  public async publishFolder(userId, fileCatalogId) {
+  public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
 
@@ -1586,6 +1597,10 @@ class GeesomeApp implements IGeesomeApp {
     const storageId = await this.storage.getDirectoryId(storageDirPath);
 
     const user = await this.database.getUser(userId);
+
+    if(!options.bindToStatic) {
+      return { storageId };
+    }
 
     const staticId = await this.createStorageAccount(await ipfsHelper.getIpfsHashFromString(user.name + '@directory:' + storageDirPath));
     await this.storage.bindToStaticId(storageId, staticId);
@@ -1673,6 +1688,18 @@ class GeesomeApp implements IGeesomeApp {
       await this.database.updateFileCatalogItem(fileItem.parentItemId, {size});
     }
     return this.database.getFileCatalogItem(fileItem.id);
+  }
+
+  public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
+    await pIteration.map(toSaveList, async (item: ManifestToSave) => {
+      const content = await this.createContentByRemoteStorageId(item.manifestStorageId, {
+        userId,
+        ...options
+      });
+      return this.saveContentByPath(userId, path.join(folderPath, item.path || content.name), content.id, options)
+    });
+
+    return this.getFileCatalogItemByPath(userId, folderPath, FileCatalogItemType.Folder);
   }
 
   public async getContentByPath(userId, path) {

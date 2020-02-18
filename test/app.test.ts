@@ -155,6 +155,24 @@ describe("app", function () {
         assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
       });
 
+      it.only("should create directory by files manifests correctly", async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+
+        const indexHtml = '<h1>Hello world</h1>';
+        const fileName = 'index.html';
+        const foldersPath = '/1/2/3/';
+
+        const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
+
+        const resultFolder = await app.saveManifestsToFolder(testUser.id, foldersPath, [{
+          manifestStorageId: indexHtmlContent.manifestStorageId
+        }]);
+        let publishFolderResult = await app.publishFolder(testUser.id, resultFolder.id,);
+
+        let gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
+        assert.equal(gotIndexHtmlByFolder, indexHtml);
+      });
+
       it("should file catalog working properly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         
@@ -164,6 +182,7 @@ describe("app", function () {
         const filePath = foldersPath + fileName;
         
         const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
+
         const indexHtmlFileItem = await app.saveContentByPath(testUser.id, filePath, indexHtmlContent.id);
         assert.equal(indexHtmlFileItem.name, fileName);
         
@@ -186,7 +205,7 @@ describe("app", function () {
         assert.equal(gotIndexHtml, indexHtml);
 
         console.log('publishFolder indexHtmlFileItem.parentItem');
-        let publishFolderResult = await app.publishFolder(testUser.id, indexHtmlFileItem.parentItemId);
+        let publishFolderResult = await app.publishFolder(testUser.id, indexHtmlFileItem.parentItemId, {bindToStatic: true});
         
         const resolvedStorageId = await app.resolveStaticId(publishFolderResult.staticId);
         
@@ -206,7 +225,7 @@ describe("app", function () {
         const firstFolder = await app.getFileCatalogItemByPath(testUser.id, '/1/', FileCatalogItemType.Folder);
 
         console.log('publishFolder firstFolder', firstFolder.name);
-        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
         
@@ -224,19 +243,19 @@ describe("app", function () {
           assert.equal(e.message, 'file does not exist');
         }
 
-        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
         indexHtml2 = '<h1>Hello world 3</h1>';
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
-        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
         
         indexHtml2 = '<h1>Hello world 2</h1>';
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
-        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id);
+        publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });

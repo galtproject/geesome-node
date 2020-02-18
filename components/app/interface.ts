@@ -141,7 +141,9 @@ export interface IGeesomeApp {
 
   getFileCatalogItemByPath(userId, path, type): Promise<IFileCatalogItem>;
 
-  publishFolder(userId, fileCatalogId): Promise<{storageId:string, staticId:string}>;
+  publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
+
+  saveManifestsToFolder(userId, path, toSaveList: ManifestToSave[], options?: { groupId? }): Promise<IFileCatalogItem>;
 
   deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
 
@@ -267,6 +269,11 @@ export interface IPostInput {
    * Content database ids array
    */
   contentsIds: number[];
+}
+
+export interface ManifestToSave {
+  manifestStorageId;
+  path?;
 }
 
 export interface IFileCatalogListResponse {
