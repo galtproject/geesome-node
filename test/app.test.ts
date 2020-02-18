@@ -155,7 +155,17 @@ describe("app", function () {
         assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
       });
 
-      it.only("should create directory by files manifests correctly", async () => {
+      it("should upload archive and unzip correctly", async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+
+        const archivePath = __dirname + '/resources/test-archive.zip';
+        const archiveContent = await app.saveData(fs.createReadStream(archivePath), 'archive.zip', {userId: testUser.id, driver: 'archive'});
+
+        let gotIndexHtmlByFolder = await app.storage.getFileData(archiveContent.storageId + '/test.txt');
+        assert.equal(gotIndexHtmlByFolder, 'Test\n');
+      });
+
+      it("should create directory by files manifests correctly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
 
         const indexHtml = '<h1>Hello world</h1>';

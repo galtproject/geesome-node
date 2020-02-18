@@ -1065,7 +1065,7 @@ class GeesomeApp implements IGeesomeApp {
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -1103,6 +1103,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName) || extension, {
       extension,
+      driver: options.driver,
       onProgress: options.onProgress
     });
     log('saveFileByStream');
@@ -1163,7 +1164,8 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     let storageFile;
-    if (options.driver && options.driver != 'none') {
+    const uploadDriver = options.driver && this.drivers.upload[options.driver] as AbstractDriver;
+    if (uploadDriver && uploadDriver.isInputSupported(DriverInput.Source)) {
       const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
       type = dataToSave.type;
       const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {
@@ -1183,7 +1185,7 @@ class GeesomeApp implements IGeesomeApp {
         if (status !== 200) {
           throw statusText;
         }
-        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension});
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension, driver: options.driver});
       });
       console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
@@ -1295,7 +1297,20 @@ class GeesomeApp implements IGeesomeApp {
         stream = stream.pipe(sizeCheckStream);
       }
 
-      const resultFile = await this.storage.saveFileByData(stream);
+      let resultFile;
+      if(options.driver === 'archive') {
+        const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
+          extension: _.last(mimeType.split('/')),
+          onProgress: options.onProgress,
+          onError: reject
+        });
+        resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
+        if(uploadResult.emitFinish) {
+          uploadResult.emitFinish();
+        }
+      } else {
+        resultFile = await this.storage.saveFileByData(stream);
+      }
 
       resolve({
         resultFile: resultFile,
@@ -1369,14 +1384,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
-    const previewDriver = this.drivers.upload[driver] as AbstractDriver;
-    if (!previewDriver) {
+    const uploadDriver = this.drivers.upload[driver] as AbstractDriver;
+    if (!uploadDriver) {
       throw new Error(driver + "_upload_driver_not_found");
     }
-    if (!_.includes(previewDriver.supportedInputs, DriverInput.Source)) {
+    if (!_.includes(uploadDriver.supportedInputs, DriverInput.Source)) {
       throw new Error(driver + "_upload_driver_input_not_correct");
     }
-    return previewDriver.processBySource(sourceLink, {});
+    return uploadDriver.processBySource(sourceLink, {});
   }
 
   /**
