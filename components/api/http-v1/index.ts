@@ -396,7 +396,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     const options = {
       userId: req.user.id,
       apiKey: req.token,
-      ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async'])
+      ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
     };
 
     res.send(await geesomeApp.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
