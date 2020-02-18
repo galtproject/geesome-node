@@ -8,20 +8,26 @@
  */
 
 import {
-  IDatabase,
   ContentMimeType,
-  PostStatus,
-  ContentView,
-  IPost,
-  FileCatalogItemType,
-  IContent,
   ContentStorageType,
-  UserContentActionName,
-  UserLimitName,
+  ContentView,
+  CorePermissionName,
+  FileCatalogItemType,
+  GroupType,
+  GroupView,
+  IContent,
+  IDatabase,
+  IFileCatalogItem,
+  IGroup,
+  IListParams,
+  IPost,
+  IUser,
   IUserLimit,
-  CorePermissionName, IGroup, IListParams, IUser, GroupType, GroupView, IFileCatalogItem
+  PostStatus,
+  UserContentActionName,
+  UserLimitName
 } from "../../database/interface";
-import {IGeesomeApp, IUserAccountInput, IUserInput} from "../interface";
+import {IGeesomeApp, IUserAccountInput, IUserInput, ManifestToSave} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
@@ -46,6 +52,7 @@ const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
 const axios = require('axios');
+const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
@@ -832,16 +839,16 @@ class GeesomeApp implements IGeesomeApp {
    ===========================================
    **/
 
-  async createContentByObject(contentObject) {
+  async createContentByObject(contentObject, options: { groupId?, userId?, userApiKeyId? } = {}) {
     const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
     let dbContent = await this.database.getContentByStorageId(storageId);
     if (dbContent) {
       return dbContent;
     }
-    return this.addContent(contentObject);
+    return this.addContent(contentObject, options);
   }
 
-  async createContentByRemoteStorageId(manifestStorageId) {
+  async createContentByRemoteStorageId(manifestStorageId, options: { groupId?, userId?, userApiKeyId? } = {}) {
     let dbContent = await this.database.getContentByManifestId(manifestStorageId);
     if (dbContent) {
       return dbContent;
@@ -1058,7 +1065,7 @@ class GeesomeApp implements IGeesomeApp {
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -1096,6 +1103,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName) || extension, {
       extension,
+      driver: options.driver,
       onProgress: options.onProgress
     });
     log('saveFileByStream');
@@ -1156,7 +1164,8 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     let storageFile;
-    if (options.driver && options.driver != 'none') {
+    const uploadDriver = options.driver && this.drivers.upload[options.driver] as AbstractDriver;
+    if (uploadDriver && uploadDriver.isInputSupported(DriverInput.Source)) {
       const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
       type = dataToSave.type;
       const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {
@@ -1176,7 +1185,7 @@ class GeesomeApp implements IGeesomeApp {
         if (status !== 200) {
           throw statusText;
         }
-        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension});
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension, driver: options.driver});
       });
       console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
@@ -1288,7 +1297,20 @@ class GeesomeApp implements IGeesomeApp {
         stream = stream.pipe(sizeCheckStream);
       }
 
-      const resultFile = await this.storage.saveFileByData(stream);
+      let resultFile;
+      if(options.driver === 'archive') {
+        const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
+          extension: _.last(mimeType.split('/')),
+          onProgress: options.onProgress,
+          onError: reject
+        });
+        resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
+        if(uploadResult.emitFinish) {
+          uploadResult.emitFinish();
+        }
+      } else {
+        resultFile = await this.storage.saveFileByData(stream);
+      }
 
       resolve({
         resultFile: resultFile,
@@ -1331,6 +1353,10 @@ class GeesomeApp implements IGeesomeApp {
 
     contentData.size = storageContentStat.size;
 
+    if(!contentData.userId && options.userId) {
+      contentData.userId = options.userId;
+    }
+
     const content = await this.database.addContent(contentData);
     log('content');
 
@@ -1358,14 +1384,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
-    const previewDriver = this.drivers.upload[driver] as AbstractDriver;
-    if (!previewDriver) {
+    const uploadDriver = this.drivers.upload[driver] as AbstractDriver;
+    if (!uploadDriver) {
       throw new Error(driver + "_upload_driver_not_found");
     }
-    if (!_.includes(previewDriver.supportedInputs, DriverInput.Source)) {
+    if (!_.includes(uploadDriver.supportedInputs, DriverInput.Source)) {
       throw new Error(driver + "_upload_driver_input_not_correct");
     }
-    return previewDriver.processBySource(sourceLink, {});
+    return uploadDriver.processBySource(sourceLink, {});
   }
 
   /**
@@ -1574,7 +1600,7 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  public async publishFolder(userId, fileCatalogId) {
+  public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
 
@@ -1586,6 +1612,10 @@ class GeesomeApp implements IGeesomeApp {
     const storageId = await this.storage.getDirectoryId(storageDirPath);
 
     const user = await this.database.getUser(userId);
+
+    if(!options.bindToStatic) {
+      return { storageId };
+    }
 
     const staticId = await this.createStorageAccount(await ipfsHelper.getIpfsHashFromString(user.name + '@directory:' + storageDirPath));
     await this.storage.bindToStaticId(storageId, staticId);
@@ -1673,6 +1703,18 @@ class GeesomeApp implements IGeesomeApp {
       await this.database.updateFileCatalogItem(fileItem.parentItemId, {size});
     }
     return this.database.getFileCatalogItem(fileItem.id);
+  }
+
+  public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
+    await pIteration.map(toSaveList, async (item: ManifestToSave) => {
+      const content = await this.createContentByRemoteStorageId(item.manifestStorageId, {
+        userId,
+        ...options
+      });
+      return this.saveContentByPath(userId, path.join(folderPath, item.path || content.name), content.id, options)
+    });
+
+    return this.getFileCatalogItemByPath(userId, folderPath, FileCatalogItemType.Folder);
   }
 
   public async getContentByPath(userId, path) {

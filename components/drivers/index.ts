@@ -13,6 +13,7 @@ import {YoutubeVideoUploadDriver} from "./upload/youtube-video";
 import {YoutubeThumbnailPreviewDriver} from "./preview/youtube-thumbnail";
 import {VideoToStreambleDriver} from "./convert/video-to-streamable";
 import {VideoThumbnail} from "./preview/video-thumbnail";
+import {ArchiveUploadDriver} from "./upload/archive";
 
 module.exports = {
   preview: {
@@ -22,7 +23,8 @@ module.exports = {
     'video-thumbnail': new VideoThumbnail()
   },
   upload: {
-    'youtube-video': new YoutubeVideoUploadDriver()
+    'youtube-video': new YoutubeVideoUploadDriver(),
+    'archive': new ArchiveUploadDriver()
   },
   convert: {
     'video-to-streamable': new VideoToStreambleDriver()

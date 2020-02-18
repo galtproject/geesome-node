@@ -458,6 +458,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: await geesomeApp.deleteFileCatalogItem(req.user.id, req.params.itemId, req.body)});
   });
 
+  service.post('/v1/user/file-catalog/save-manifests-to-folder', async (req, res) => {
+    res.send(await geesomeApp.saveManifestsToFolder(req.user.id, req.body.path, req.body.toSaveList, req.body.options));
+  });
+
   service.post('/v1/user/file-catalog/save-content-by-path', async (req, res) => {
     res.send(await geesomeApp.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
   });
@@ -468,7 +472,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
   });
   service.post('/v1/user/file-catalog/publish-folder/:itemId', async (req, res) => {
-    res.send(await geesomeApp.publishFolder(req.user.id, req.params.itemId));
+    res.send(await geesomeApp.publishFolder(req.user.id, req.params.itemId, req.body));
   });
 
   service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {

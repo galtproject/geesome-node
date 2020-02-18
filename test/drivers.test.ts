@@ -169,5 +169,31 @@ describe("drivers", function () {
       });
     });
   });
+
+  describe('upload archive', () => {
+    it("should upload and extract archive", async () => {
+      await new Promise(async (resolve, reject) => {
+
+        const archivePath = __dirname + '/resources/test-archive.zip';
+        const result = await drivers['upload']['archive'].processByStream(fs.createReadStream(archivePath), {
+          onError() {
+            assert.equal(false, true);
+            reject();
+          }
+        });
+
+        const testTxt = fs.readFileSync(result.tempPath + '/test.txt', 'utf8');
+        assert.equal(testTxt, 'Test\n');
+
+        const test2Txt = fs.readFileSync(result.tempPath + '/test2.txt', 'utf8');
+        assert.equal(test2Txt, 'Test2\n');
+
+        result.emitFinish(() => {
+          assert.equal(fs.existsSync(result.tempPath), false);
+          resolve();
+        });
+      });
+    });
+  });
 })
 ;
