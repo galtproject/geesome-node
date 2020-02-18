@@ -1299,6 +1299,8 @@ class GeesomeApp implements IGeesomeApp {
         stream = stream.pipe(sizeCheckStream);
       }
 
+      log('options.driver', options.driver);
+
       let resultFile;
       if(options.driver === 'archive') {
         const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
