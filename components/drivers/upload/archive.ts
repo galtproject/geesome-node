@@ -10,7 +10,7 @@
 import {DriverInput, OutputSize} from "../interface";
 import AbstractDriver from "../abstractDriver";
 
-const unzip = require('unzip');
+const unzip = require('unzip-stream');
 const fs = require('fs');
 const path = require('path');
 const uuidv4 = require('uuid/v4');
@@ -22,26 +22,41 @@ export class ArchiveUploadDriver extends AbstractDriver {
 
   async processByStream(inputStream, options: any = {}) {
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime();
+    let size;
 
-    await new Promise((resolve, reject) =>
-      inputStream
-        .on('error', error => {
-          if (inputStream.truncated)
-            // delete the truncated file
-            fs.unlinkSync(path);
-          reject(error);
-        })
-        .pipe(unzip.Extract({path: path}))
-        .on('close', () => resolve({path}))
-    );
+    try {
+      let unzipStream = unzip.Extract({path: path});
+      await new Promise((resolve, reject) =>
+        inputStream
+          .on('error', error => {
+            if (inputStream.truncated)
+              // delete the truncated file
+              fs.unlinkSync(path);
+            reject(error);
+          })
+          .pipe(unzipStream)
+          .on('close', () => resolve({path}))
+      );
+
+      size = getTotalSize(path);
+    } catch (e) {
+      if (options.onError) {
+        options.onError(e);
+        return;
+      } else {
+        throw e;
+      }
+    }
 
     return {
       tempPath: path,
       emitFinish: (callback) => {
-        rimraf(path, function () { callback && callback(); });
+        rimraf(path, function () {
+          callback && callback();
+        });
       },
       type: 'folder',
-      size: getTotalSize(path)
+      size
     };
   }
 }
@@ -51,7 +66,7 @@ function getAllFiles(dirPath, arrayOfFiles?) {
 
   arrayOfFiles = arrayOfFiles || [];
 
-  files.forEach(function(file) {
+  files.forEach(function (file) {
     if (fs.statSync(path.join(dirPath, file)).isDirectory()) {
       arrayOfFiles = getAllFiles(path.join(dirPath, file), arrayOfFiles)
     } else {
@@ -67,7 +82,7 @@ function getTotalSize(directoryPath) {
 
   let totalSize = 0;
 
-  arrayOfFiles.forEach(function(filePath) {
+  arrayOfFiles.forEach(function (filePath) {
     totalSize += fs.statSync(filePath).size
   });
 
