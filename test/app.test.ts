@@ -155,7 +155,7 @@ describe("app", function () {
         assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
       });
 
-      it("should upload archive and unzip correctly", async () => {
+      it.only("should upload archive and unzip correctly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
 
         const archivePath = __dirname + '/resources/test-archive.zip';
@@ -164,6 +164,7 @@ describe("app", function () {
         const contentObj = await app.storage.getObject(archiveContent.manifestStorageId);
         assert.equal(contentObj.mimeType, 'directory');
         assert.equal(contentObj.extension, 'none');
+        assert.equal(contentObj.size > 0, true);
 
         let gotIndexHtmlByFolder = await app.storage.getFileData(archiveContent.storageId + '/test.txt');
         assert.equal(gotIndexHtmlByFolder, 'Test\n');

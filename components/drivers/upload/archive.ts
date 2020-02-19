@@ -12,6 +12,7 @@ import AbstractDriver from "../abstractDriver";
 
 const unzip = require('unzip');
 const fs = require('fs');
+const path = require('path');
 const uuidv4 = require('uuid/v4');
 const rimraf = require("rimraf");
 
@@ -39,7 +40,36 @@ export class ArchiveUploadDriver extends AbstractDriver {
       emitFinish: (callback) => {
         rimraf(path, function () { callback && callback(); });
       },
-      type: 'folder'
+      type: 'folder',
+      size: getTotalSize(path)
     };
   }
+}
+
+function getAllFiles(dirPath, arrayOfFiles?) {
+  let files = fs.readdirSync(dirPath);
+
+  arrayOfFiles = arrayOfFiles || [];
+
+  files.forEach(function(file) {
+    if (fs.statSync(path.join(dirPath, file)).isDirectory()) {
+      arrayOfFiles = getAllFiles(path.join(dirPath, file), arrayOfFiles)
+    } else {
+      arrayOfFiles.push(path.join(dirPath, file))
+    }
+  });
+
+  return arrayOfFiles
+};
+
+function getTotalSize(directoryPath) {
+  const arrayOfFiles = getAllFiles(directoryPath);
+
+  let totalSize = 0;
+
+  arrayOfFiles.forEach(function(filePath) {
+    totalSize += fs.statSync(filePath).size
+  });
+
+  return totalSize
 }

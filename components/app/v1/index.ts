@@ -1140,6 +1140,7 @@ class GeesomeApp implements IGeesomeApp {
       userId: options.userId,
       view: ContentView.Contents,
       storageId: storageFile.id,
+      size: storageFile.size,
       name: fileName,
     }, options);
   }
@@ -1220,6 +1221,7 @@ class GeesomeApp implements IGeesomeApp {
       userId: options.userId,
       view: ContentView.Attachment,
       storageId: storageFile.id,
+      size: storageFile.size,
       name: name
     }, options);
   }
@@ -1314,6 +1316,8 @@ class GeesomeApp implements IGeesomeApp {
         }
         mimeType = 'directory';
         extension = 'none';
+        console.log('uploadResult', uploadResult);
+        resultFile.size = uploadResult.size;
       } else {
         resultFile = await this.storage.saveFileByData(stream);
       }
@@ -1354,10 +1358,12 @@ class GeesomeApp implements IGeesomeApp {
       contentData.isPublic = group && group.isPublic;
     }
 
-    const storageContentStat = await this.storage.getFileStat(contentData.storageId);
-    log('storageContentStat');
+    if(!contentData.size) {
+      const storageContentStat = await this.storage.getFileStat(contentData.storageId);
+      log('storageContentStat');
 
-    contentData.size = storageContentStat.size;
+      contentData.size = storageContentStat.size;
+    }
 
     if(!contentData.userId && options.userId) {
       contentData.userId = options.userId;
