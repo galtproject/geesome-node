@@ -595,22 +595,22 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
-    getFileStream(req, res, dataPath);
+    getFileStream(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
   });
 
   service.get('/ipfs/*', async (req, res) => {
     const ipfsPath = req.url.replace('/ipfs/', '');
-    getFileStream(req, res, ipfsPath);
+    getFileStream(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
   });
 
   service.head('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
-    getContentHead(req, res, dataPath);
+    getContentHead(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
   });
 
   service.head('/ipfs/*', async (req, res) => {
     const ipfsPath = req.url.replace('/ipfs/', '');
-    getContentHead(req, res, ipfsPath);
+    getContentHead(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
   });
 
   async function getContentHead(req, res, hash) {
