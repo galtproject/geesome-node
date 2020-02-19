@@ -626,6 +626,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     setStorageHeaders(res);
 
     let splitPath = dataPath.split('.');
+    console.log('isIpfsHash', splitPath[0]);
     if(ipfsHelper.isIpfsHash(splitPath[0])) {
       // cut extension, TODO: use regex
       dataPath = splitPath[0];
