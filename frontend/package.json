@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#e27c725",
+    "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#e02efd4",
     "async": "^2.5.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",
@@ -40,7 +40,6 @@
     "moment": "^2.20.1",
     "object-hash": "^1.3.1",
     "p-iteration": "^1.1.7",
-    "serialize-javascript": "^2.1.1",
     "url-search-params-polyfill": "^5.1.0",
     "vue": "^2.5.13",
     "vue-drag-drop": "^0.2.3",
