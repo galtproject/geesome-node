@@ -9,15 +9,14 @@
 
 module.exports = {
   'name': 'geesome_node',
-  'user': 'root',
-  'password': 'root',
+  'user': 'geesome',
+  'password': 'geesome',
   'options': {
-    'logging': false,
+    'logging': () => {},
     'host': 'localhost',
-    'port': 3306,
-    'dialect': 'mysql',
+    'dialect': 'postgres',
     'operatorsAliases': false,
     'pool': {'max': 5, 'min': 0, 'acquire': 30000, 'idle': 10000},
-    'dialectOptions': {'multipleStatements': true, charset: 'utf8'}
+    'dialectOptions': {'multipleStatements': true, 'charset': 'utf8'}
   }
 };

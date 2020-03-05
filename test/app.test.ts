@@ -17,7 +17,7 @@ const _ = require('lodash');
 const log = require('../components/log');
 
 describe("app", function () {
-  const databaseConfig = {name: 'test_geesome_core', options: {logging: false}};
+  const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
 
   this.timeout(30000);
 
@@ -58,7 +58,7 @@ describe("app", function () {
       
       afterEach(async () => {
         await app.database.flushDatabase();
-        await app.storage.node.stop();
+        await app.stop();
       });
 
       it("should initialized successfully", async () => {

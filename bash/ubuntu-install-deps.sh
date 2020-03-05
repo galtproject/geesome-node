@@ -2,15 +2,15 @@
 
 sudo apt-get update
 
-sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password password root'
-sudo debconf-set-selections <<< 'mysql-server-5.7 mysql-server/root_password_again password root'
-
 sudo add-apt-repository ppa:jonathonf/ffmpeg-4 -y
 sudo apt-get update
 
-sudo apt-get install python build-essential libssl-dev mysql-server-5.7 ffmpeg -y
-bash/create-database.sh
-mysql -uroot -proot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'"
+sudo apt-get install python build-essential libssl-dev postgresql postgresql-contrib ffmpeg -y
+
+createuser -s geesome
+sudo -u postgres psql -c "ALTER USER geesome PASSWORD 'geesome';"
+adduser --disabled-password --gecos "" geesome
+sudo -u geesome createdb geesome_node
 
 sudo apt-get install curl python-software-properties -y
 curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash -
