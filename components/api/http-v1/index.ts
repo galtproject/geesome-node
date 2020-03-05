@@ -788,7 +788,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   console.log('🚀 Start api on port', port);
 
-  return service.start(port);
+  await service.start(port);
+
+  return service;
 };
 
 function errorHandler (err, req, res) {

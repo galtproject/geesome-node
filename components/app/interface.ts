@@ -173,6 +173,8 @@ export interface IGeesomeApp {
   createStorageAccount(accountName): Promise<string>;
 
   resolveStaticId(staticId): Promise<string>;
+
+  stop(): Promise<void>;
 }
 
 export interface IUserInput {

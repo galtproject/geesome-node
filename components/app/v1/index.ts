@@ -103,12 +103,13 @@ module.exports = async (extendConfig) => {
   await appListener(app);
 
   console.log('Start api...');
-  require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
+  app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
   return app;
 };
 
 class GeesomeApp implements IGeesomeApp {
+  api: any;
   database: IDatabase;
   storage: IStorage;
   render: IRender;
@@ -1695,9 +1696,10 @@ class GeesomeApp implements IGeesomeApp {
 
     let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
 
+    const content = await this.database.getContent(contentId);
     if (fileItem) {
       console.log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
-      await this.database.updateFileCatalogItem(fileItem.id, {contentId});
+      await this.database.updateFileCatalogItem(fileItem.id, {contentId, size: content.size});
     } else {
       console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
       fileItem = await this.database.addFileCatalogItem({
@@ -1707,7 +1709,8 @@ class GeesomeApp implements IGeesomeApp {
         type: FileCatalogItemType.File,
         position: (await this.database.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
         parentItemId: lastFolderId,
-        groupId: options.groupId
+        groupId: options.groupId,
+        size: content.size
       });
     }
     if (fileItem.parentItemId) {
@@ -1952,5 +1955,10 @@ class GeesomeApp implements IGeesomeApp {
         throw (err);
       }
     })
+  }
+
+  async stop() {
+    await this.storage.node.stop();
+    await this.api.close();
   }
 }

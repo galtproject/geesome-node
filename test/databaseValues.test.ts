@@ -12,11 +12,11 @@ import {IDatabase} from "../components/database/interface";
 const assert = require('assert');
 
 describe("databaseValues", function () {
-  const databaseConfig = {name: 'test_geesome_core', options: {logging: true}};
+  const databaseConfig = {name: 'geesome_test', options: {logging: true}};
 
   let database: IDatabase;
 
-  const databases = ['mysql'];
+  const databases = ['sql'];
 
   databases.forEach((databaseService) => {
     describe(databaseService + ' database', () => {

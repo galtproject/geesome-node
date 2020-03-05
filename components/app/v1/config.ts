@@ -8,7 +8,7 @@
  */
 
 module.exports = {
-  databaseModule: 'mysql',
+  databaseModule: 'sql',
   databaseConfig: {},
   storageModule: 'js-ipfs',
   storageConfig: {

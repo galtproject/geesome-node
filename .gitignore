@@ -6,6 +6,6 @@ coverage
 *.log
 *.key
 test/resources
-components/database/mysql/config
+components/database/sql/config
 .jsipfs-test
 docs
