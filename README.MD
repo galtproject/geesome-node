@@ -244,7 +244,7 @@ Existing modules:
 
 ## Dependencies
 - Node 10.x
-- Mysql Server 5.7
+- Postgres 9.5
 - ffmpeg
 - Cerbot(Letsencrypt)
 
