@@ -1927,13 +1927,38 @@ class GeesomeApp implements IGeesomeApp {
     return storageAccountId;
   }
 
-  async resolveStaticId(staticId) {
+  async resolveStaticId(staticId): Promise<any> {
     this.storage.resolveStaticIdEntry(staticId).then(entry => {
-      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {/* already added */
+      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {
+        /* already added */
       });
-    });
+    }).catch(() => {});
 
-    return this.storage.resolveStaticId(staticId).then(async (dynamicId) => {
+    return new Promise(async (resolve, reject) => {
+      let alreadyHandled = false;
+
+      const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+
+      setTimeout(() => {
+        if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
+          alreadyHandled = true;
+          resolve(staticIdItem.dynamicId);
+        }
+      }, 1000);
+
+      let dynamicId;
+      try {
+        dynamicId = await this.storage.resolveStaticId(staticId);
+      } catch (err) {
+        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+        if (staticIdItem) {
+          alreadyHandled = true;
+          return resolve(staticIdItem.dynamicId);
+        } else {
+          throw (err);
+        }
+      }
+
       try {
         await this.database.addStaticIdHistoryItem({
           staticId: staticId,
@@ -1941,20 +1966,14 @@ class GeesomeApp implements IGeesomeApp {
           isActive: true,
           boundAt: new Date()
         });
-
-        return dynamicId;
+        alreadyHandled = true;
+        return resolve(dynamicId);
       } catch (e) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-        return staticIdItem.dynamicId
+        alreadyHandled = true;
+        return resolve(staticIdItem.dynamicId);
       }
-    }).catch(async (err) => {
-      const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      if (staticIdItem) {
-        return staticIdItem.dynamicId;
-      } else {
-        throw (err);
-      }
-    })
+    });
   }
 
   async stop() {
