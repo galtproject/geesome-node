@@ -703,13 +703,13 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   }
 
   service.get('/ipns/*', async (req, res) => {
-    console.log('ipns req.url', req.url);
+    // console.log('ipns req.url', req.url);
     const ipnsPath = req.url.replace('/ipns/', '').split('?')[0];
     const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
     const ipfsId = await geesomeApp.resolveStaticId(ipnsId);
 
-    console.log('ipnsPath', ipnsPath);
-    console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
+    // console.log('ipnsPath', ipnsPath);
+    // console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
 
     geesomeApp.getFileStream(ipnsPath.replace(ipnsId, ipfsId)).then((stream) => {
       stream.pipe(res);
