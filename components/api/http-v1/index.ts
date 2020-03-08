@@ -742,7 +742,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/save-object', async (req, res) => {
-    geesomeApp.storage.saveObject(req.body).then((result) => {
+    geesomeApp.saveDataStructure(req.body).then((result) => {
       res.send(result);
     }).catch(() => {
       res.send(null, 500)

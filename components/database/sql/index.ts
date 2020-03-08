@@ -110,7 +110,7 @@ class MysqlDatabase implements IDatabase {
     await pIteration.forEachSeries([
       'FileCatalogItemPermission', 'FileCatalogItem', 'Category', 'CorePermission',
       'UserContentAction', 'UserLimit', 'AutoTag', 'Tag', 'Content', 'PostsContents', 'Post', 'GroupPermission',
-      'GroupAdministrators', 'GroupMembers', 'Group', 'UserApiKey', 'User', 'Value'
+      'GroupAdministrators', 'GroupMembers', 'Group', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
@@ -160,6 +160,14 @@ class MysqlDatabase implements IDatabase {
 
   async getContentByManifestId(manifestStorageId) {
     return this.models.Content.findOne({where: {manifestStorageId}});
+  }
+
+  async getObjectByStorageId(storageId) {
+    return this.models.Object.findOne({where: {storageId}});
+  }
+
+  async addObject(object) {
+    return this.models.Object.create(object);
   }
 
   async getUsersCount() {
