@@ -139,6 +139,27 @@ describe("app", function () {
         assert.equal(ipld, textContent.manifestStorageId);
       });
 
+      it('should correctly save data structures', async () => {
+        const testObject = {foo: 'bar'};
+        const ipld1 = await app.storage.saveObject(testObject);
+        const ipld2 = await app.saveDataStructure(testObject);
+        assert.equal(ipld1, ipld2);
+
+        const object1 = await app.storage.getObject(ipld1);
+        const object2 = await app.getDataStructure(ipld2);
+        assert.deepEqual(object1, object2);
+
+        const newTestObject = {foo: 'bar', foo2: 'bar2'};
+        const newTesObjectId = await app.storage.saveObject(newTestObject);
+        let newTestObjectDbContent = await app.database.getObjectByStorageId(newTesObjectId);
+        assert.equal(newTestObjectDbContent, null);
+
+        await app.getDataStructure(newTesObjectId);
+        await new Promise((resolve) => {setTimeout(resolve, 200)});
+        newTestObjectDbContent = await app.database.getObjectByStorageId(newTesObjectId);
+        assert.deepEqual(JSON.parse(newTestObjectDbContent.data), newTestObject);
+      });
+
       it('should correctly save video', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];

@@ -19,6 +19,7 @@ module.exports = async function (sequelize) {
   models.GroupPermission = await require('./groupPermission')(sequelize, models);
   models.Post = await require('./post')(sequelize, models);
   models.Content = await require('./content')(sequelize, models);
+  models.Object = await require('./object')(sequelize, models);
 
   models.Tag = await require('./tag')(sequelize, models);
   models.AutoTag = await require('./autoTag')(sequelize, models);

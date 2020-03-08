@@ -42,6 +42,10 @@ export interface IDatabase {
 
   getContentByManifestId(manifestId): Promise<IContent>;
 
+  getObjectByStorageId(storageId): Promise<IObject>;
+
+  addObject(objectData): Promise<IObject>;
+
   addPost(post: IPost): Promise<IPost>;
 
   getPostByManifestId(manifestStorageId): Promise<IPost>;
@@ -244,6 +248,13 @@ export interface IContent {
   manifestStaticStorageId?: string;
 
   encryptedManifestStorageId?: string;
+}
+
+export interface IObject {
+  id?: number;
+
+  storageId: string;
+  data: string;
 }
 
 export enum ContentStorageType {

@@ -1787,7 +1787,7 @@ class GeesomeApp implements IGeesomeApp {
 
   private async generateAndSaveManifest(entityName, entityObj) {
     const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
-    const hash = await this.storage.saveObject(manifestContent);
+    const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
     console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
     return hash;
   }
@@ -1826,12 +1826,31 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getContentByStorageId(storageId);
   }
 
-  getDataStructure(dataId) {
-    return this.storage.getObject(dataId);
+  async getDataStructure(storageId) {
+    const dbObject = await this.database.getObjectByStorageId(storageId);
+    if(dbObject) {
+      return JSON.parse(dbObject.data);
+    }
+    return this.storage.getObject(storageId).then((result) => {
+      this.database.addObject({storageId, data: JSON.stringify(result)}).catch(() => {/* already saved */});
+      return result;
+    });
   }
 
-  saveDataStructure(data) {
-    return this.storage.saveObject(data);
+  async saveDataStructure(data, options: any = {}) {
+    const storageId = await ipfsHelper.getIpldHashFromObject(data);
+
+    await this.database.addObject({
+      data: JSON.stringify(data),
+      storageId
+    }).catch(() => {/* already saved */});
+
+    const storagePromise = this.storage.saveObject(data);
+    if(options.waitForStorage) {
+      await storagePromise;
+    }
+
+    return storageId;
   }
 
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
