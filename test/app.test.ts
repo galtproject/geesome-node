@@ -134,6 +134,9 @@ describe("app", function () {
 
         await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
         log('saveData');
+
+        const ipld = await app.storage.saveObject(contentObj);
+        assert.equal(ipld, textContent.manifestStorageId);
       });
 
       it('should correctly save video', async () => {
