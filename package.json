@@ -34,7 +34,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#6458001",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#5d4bf35",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "git://github.com/galtproject/js-ipfs.git#3e2c24d4",
     "ipfs-http-client": "^42.0.0",
