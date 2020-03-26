@@ -679,6 +679,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         resultLength += data.length;
       });
       stream.on('end', (data) => {
+        console.log('range.start', range.start);
         console.log('contentLength', contentLength);
         console.log('resultLength ', resultLength);
         console.log(range.start + contentLength, '/', dataSize);
