@@ -645,11 +645,13 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     const content = await geesomeApp.getContentByStorageId(dataPath);
 
-    let dataSize = content ? content.size : null;
-    if(!dataSize) {
+    // let dataSize = content ? content.size : null;
+    // if(!dataSize) {
       const stat = await geesomeApp.storage.getFileStat(dataPath);
-      dataSize = stat.size;
-    }
+    let dataSize = stat.size;
+    // }
+
+    console.log('dataSize', dataSize);
 
     let chunkSize = 1024 * 1024;
     if(dataSize > chunkSize * 2) {
