@@ -82,8 +82,10 @@ export class VideoToStreambleDriver extends AbstractDriver {
     transformStream.on("finish", () => {
       fs.unlinkSync(path);
     });
-    transformStream.on("error", () => {
+    transformStream.on("error", (err) => {
+      console.error('transformStream error', err);
       fs.unlinkSync(path);
+      options.onError && options.onError(err);
     });
 
     return {
