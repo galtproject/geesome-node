@@ -1976,6 +1976,8 @@ class GeesomeApp implements IGeesomeApp {
           if (staticIdItem) {
             alreadyHandled = true;
             return resolve(staticIdItem.dynamicId);
+          } else {
+            resolve(null);
           }
         }, 1000);
       } catch (err) {
