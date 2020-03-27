@@ -1975,7 +1975,7 @@ class GeesomeApp implements IGeesomeApp {
           const staticIdItem = await this.database.getActualStaticIdItem(staticId);
           if (staticIdItem) {
             alreadyHandled = true;
-            return resolve(staticIdItem.dynamicId);
+            resolve(staticIdItem.dynamicId);
           } else {
             resolve(null);
           }
