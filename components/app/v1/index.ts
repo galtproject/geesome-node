@@ -43,7 +43,7 @@ const bs58 = require('bs58');
 let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
-const appListener = require('./listener');
+// const appListener = require('./listener');
 const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
@@ -100,7 +100,7 @@ module.exports = async (extendConfig) => {
   app.events = appEvents(app);
 
   await appCron(app);
-  await appListener(app);
+  // await appListener(app);
 
   console.log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
