@@ -41,7 +41,7 @@ export default {
           manifestId = await this.$coreApi.resolveIpns(manifestId);
         }
         if (!manifestId) {
-          const objectDb = await this.$coreApi.getDbContentByStorageId(manifestId);
+          const objectDb = await this.$coreApi.getDbContentByStorageId(this.manifestId);
           manifestId = objectDb.manifestStorageId;
         }
         this.manifest = await this.$coreApi.getObject(manifestId);
