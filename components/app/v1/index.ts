@@ -1970,7 +1970,6 @@ class GeesomeApp implements IGeesomeApp {
 
       let dynamicId;
       try {
-        dynamicId = await this.storage.resolveStaticId(staticId);
         setTimeout(async () => {
           const staticIdItem = await this.database.getActualStaticIdItem(staticId);
           if (staticIdItem) {
@@ -1980,6 +1979,7 @@ class GeesomeApp implements IGeesomeApp {
             resolve(null);
           }
         }, 1000);
+        dynamicId = await this.storage.resolveStaticId(staticId);
       } catch (err) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
         if (staticIdItem) {
