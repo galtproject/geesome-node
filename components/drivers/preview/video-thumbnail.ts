@@ -38,6 +38,11 @@ export class VideoThumbnail extends AbstractDriver {
         options.onError && options.onError(err);
       })
       .run();
+
+    transformStream.on("error", (err) => {
+      console.error('transformStream error', err);
+      options.onError && options.onError(err);
+    });
     
     return {
       stream: transformStream,

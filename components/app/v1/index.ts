@@ -43,7 +43,7 @@ const bs58 = require('bs58');
 let config = require('./config');
 const appCron = require('./cron');
 const appEvents = require('./events');
-const appListener = require('./listener');
+// const appListener = require('./listener');
 const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
@@ -100,7 +100,7 @@ module.exports = async (extendConfig) => {
   app.events = appEvents(app);
 
   await appCron(app);
-  await appListener(app);
+  // await appListener(app);
 
   console.log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
@@ -1321,6 +1321,9 @@ class GeesomeApp implements IGeesomeApp {
         resultFile.size = uploadResult.size;
       } else {
         resultFile = await this.storage.saveFileByData(stream);
+        // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
+        const storageContentStat = await this.storage.getFileStat(resultFile.id);
+        resultFile.size = storageContentStat.size;
       }
 
       resolve({
@@ -1967,6 +1970,15 @@ class GeesomeApp implements IGeesomeApp {
 
       let dynamicId;
       try {
+        setTimeout(async () => {
+          const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+          if (staticIdItem) {
+            alreadyHandled = true;
+            resolve(staticIdItem.dynamicId);
+          } else {
+            resolve(null);
+          }
+        }, 1000);
         dynamicId = await this.storage.resolveStaticId(staticId);
       } catch (err) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);

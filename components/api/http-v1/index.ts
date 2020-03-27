@@ -593,6 +593,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getContent(req.params.contentId));
   });
 
+  service.get('/v1/content-by-storage-id/:contentStorageId', async (req, res) => {
+    res.send(await geesomeApp.getContentByStorageId(req.params.contentStorageId));
+  });
+
   service.get('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
     getFileStream(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
@@ -645,11 +649,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     const content = await geesomeApp.getContentByStorageId(dataPath);
 
-    let dataSize = content ? content.size : null;
-    if(!dataSize) {
+    // let dataSize = content ? content.size : null;
+    // if(!dataSize) {
+    //TODO: use content.size when all video sizes will be right in database
       const stat = await geesomeApp.storage.getFileStat(dataPath);
-      dataSize = stat.size;
-    }
+      let dataSize = stat.size;
+    // }
+
+    console.log('dataSize', dataSize);
 
     let chunkSize = 1024 * 1024;
     if(dataSize > chunkSize * 2) {
@@ -679,6 +686,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         resultLength += data.length;
       });
       stream.on('end', (data) => {
+        console.log('range.start', range.start);
         console.log('contentLength', contentLength);
         console.log('resultLength ', resultLength);
         console.log(range.start + contentLength, '/', dataSize);

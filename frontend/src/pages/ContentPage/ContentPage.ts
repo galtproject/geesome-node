@@ -40,6 +40,10 @@ export default {
         if (ipfsHelper.isIpfsHash(manifestId)) {
           manifestId = await this.$coreApi.resolveIpns(manifestId);
         }
+        if (!manifestId) {
+          const objectDb = await this.$coreApi.getDbContentByStorageId(this.manifestId);
+          manifestId = objectDb.manifestStorageId;
+        }
         this.manifest = await this.$coreApi.getObject(manifestId);
         this.type = this.manifest._type.split('-')[0];
         if (this.type === 'group') {
