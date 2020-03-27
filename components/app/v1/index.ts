@@ -1971,6 +1971,13 @@ class GeesomeApp implements IGeesomeApp {
       let dynamicId;
       try {
         dynamicId = await this.storage.resolveStaticId(staticId);
+        setTimeout(async () => {
+          const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+          if (staticIdItem) {
+            alreadyHandled = true;
+            return resolve(staticIdItem.dynamicId);
+          }
+        }, 1000);
       } catch (err) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
         if (staticIdItem) {
