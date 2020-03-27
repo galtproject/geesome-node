@@ -1321,6 +1321,9 @@ class GeesomeApp implements IGeesomeApp {
         resultFile.size = uploadResult.size;
       } else {
         resultFile = await this.storage.saveFileByData(stream);
+        // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
+        const storageContentStat = await this.storage.getFileStat(resultFile.id);
+        resultFile.size = storageContentStat.size;
       }
 
       resolve({

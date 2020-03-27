@@ -593,6 +593,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getContent(req.params.contentId));
   });
 
+  service.get('/v1/content-by-storage-id/:contentStorageId', async (req, res) => {
+    res.send(await geesomeApp.getContentByStorageId(req.params.contentStorageId));
+  });
+
   service.get('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
     getFileStream(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
@@ -647,8 +651,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     // let dataSize = content ? content.size : null;
     // if(!dataSize) {
+    //TODO: use content.size when all video sizes will be right in database
       const stat = await geesomeApp.storage.getFileStat(dataPath);
-    let dataSize = stat.size;
+      let dataSize = stat.size;
     // }
 
     console.log('dataSize', dataSize);

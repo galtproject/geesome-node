@@ -55,7 +55,7 @@ export default {
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getIpnsPeers', 'getStorageIdStat', 'getStorageIdPins',
-          'deleteFileCatalogItem'
+          'deleteFileCatalogItem', 'getDbContentByStorageId'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');
