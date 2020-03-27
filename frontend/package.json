@@ -29,7 +29,7 @@
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome.git",
     "geesome-libs": "git://github.com/galtproject/geesome-libs.git#5bc11cc",
     "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#ff8f41b",
-    "ipfs": "^0.36.0",
+    "ipfs": "git://github.com/galtproject/js-ipfs.git#816e9dbd",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",
     "js-yaml": "^3.13.1",
