@@ -329,8 +329,16 @@ describe("app", function () {
         const post = await app.createPost(testUser.id, {
           contents: [{id: postContent.id}],
           groupId: testGroup.id,
-          status: PostStatus.Published
+          status: PostStatus.Published,
+          name: 'my-post'
         });
+
+        const foundPost = await app.getPostByParams({
+          name: 'my-post',
+          groupId: testGroup.id
+        });
+
+        assert.equal(post.id, foundPost.id);
 
         let groupPosts = await app.database.getGroupPosts(testGroup.id);
         assert.equal(groupPosts.length, 1);
@@ -344,6 +352,12 @@ describe("app", function () {
           name: 'test2',
           title: 'Test2'
         });
+
+        const foundGroup2 = await app.getGroupByParams({
+          name: 'test2'
+        });
+
+        assert.equal(group2.id, foundGroup2.id);
 
         const post2Content = await app.saveData('Hello world2', null, {
           userId: testUser.id,
