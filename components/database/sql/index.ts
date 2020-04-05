@@ -451,6 +451,18 @@ class MysqlDatabase implements IDatabase {
     return (await this.models.Post.sum('size', {where: {groupId: id}})) || 0;
   }
 
+  async getGroupByParams(params) {
+    return this.models.Group.findOne({
+      where: params
+    });
+  }
+
+  async getPostByParams(params) {
+    return this.models.Post.findOne({
+      where: params
+    });
+  }
+
   async addCategory(group) {
     return this.models.Category.create(group);
   }

@@ -15,6 +15,9 @@ module.exports = async function (sequelize, models) {
     status: {
       type: Sequelize.STRING(200)
     },
+    name: {
+      type: Sequelize.STRING(200)
+    },
     publishedAt: {
       type: Sequelize.DATE
     },

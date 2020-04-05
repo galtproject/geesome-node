@@ -732,6 +732,14 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
   }
 
+  async getGroupByParams(params) {
+    return this.database.getGroupByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
+  }
+
+  async getPostByParams(params) {
+    return this.database.getPostByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
+  }
+
   async createPost(userId, postData) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     postData.userId = userId;

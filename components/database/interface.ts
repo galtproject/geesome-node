@@ -124,6 +124,10 @@ export interface IDatabase {
 
   getGroupSizeSum(id): Promise<number>;
 
+  getGroupByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IGroup>;
+
+  getPostByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
+
   getCategory(categoryId): Promise<ICategory>;
 
   getCategoryByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<ICategory>;

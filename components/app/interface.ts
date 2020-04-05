@@ -99,6 +99,10 @@ export interface IGeesomeApp {
 
   getGroup(groupId): Promise<IGroup>;
 
+  getGroupByParams(params): Promise<IGroup>;
+
+  getPostByParams(params): Promise<IPost>;
+
   getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
   getCategoryByParams(params): Promise<ICategory>;
