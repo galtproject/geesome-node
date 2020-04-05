@@ -4,16 +4,20 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     const postsTable = await queryInterface.describeTable('posts');
 
-    if(postsTable['replyOfId']) {
+    if(postsTable['name']) {
       return;
     }
+
     return Promise.all([
-      queryInterface.renameColumn('posts', 'replyOfId', 'replyToId'),
-      queryInterface.dropTable('categoryGroups')
+      queryInterface.addColumn('posts', 'name', {
+        type: Sequelize.STRING(200)
+      }).catch(() => {})
     ]);
   },
 
   down: (queryInterface, Sequelize) => {
-    return (async () => {})();
+    return Promise.all([
+      queryInterface.removeColumn('posts', 'name').catch(() => {})
+    ]);
   }
 };
