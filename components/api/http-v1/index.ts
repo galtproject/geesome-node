@@ -8,13 +8,13 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
-import {CorePermissionName} from "../../database/interface";
+import {CorePermissionName, UserLimitName} from "../../database/interface";
 
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
 const mime = require('mime');
 const bodyParser = require('body-parser');
-const busboy = require('connect-busboy');
+const Busboy = require('busboy');
 const bearerToken = require('express-bearer-token');
 const request = require('request');
 
@@ -76,7 +76,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     next();
   });
 
-  service.use(busboy());
+  // service.use(busboy());
 
   service.get('/v1', async (req, res) => {
     //TODO: output api docs
@@ -363,21 +363,29 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
    * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
    */
   service.post('/v1/user/save-file', async (req, res) => {
-    req.pipe(req.busboy);
+    const busboy = new Busboy({
+      headers: req.headers,
+      limits: {
+        fileSize: await geesomeApp.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize)
+      }
+    });
 
     const body = {};
-    req.busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
+    busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
       body[fieldname] = val;
     });
-    req.busboy.on('file', async function (fieldname, file, filename) {
+    busboy.on('file', async function (fieldname, file, filename) {
       const options = {
         userId: req.user.id,
         apiKey: req.token,
         ..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
       };
 
-      res.send(await geesomeApp.asyncOperationWrapper('saveData', [file, filename, options], options));
+      const asyncOperationRes = await geesomeApp.asyncOperationWrapper('saveData', [file, filename, options], options);
+      res.send(asyncOperationRes);
     });
+
+    req.pipe(busboy);
   });
 
   /**
@@ -528,6 +536,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
     res.send(await geesomeApp.generateUserApiKey(req.body.userId, req.body, true));
   });
+  service.get('/v1/admin/get-user-by-api-key/:apiKey', async (req, res) => {
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.getUserByApiKey(req.params.apiKey));
+  });
   service.post('/v1/admin/set-user-limit', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetUserLimit)) {
       return res.send(403);
@@ -547,6 +561,13 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       return res.send(403);
     }
     res.send(await geesomeApp.database.removeCorePermission(req.body.userId, req.body.permissionName));
+  });
+
+  service.post('/v1/admin/permissions/core/get_list', async (req, res) => {
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.database.getCorePermissions(req.body.userId));
   });
 
   service.get('/v1/admin/all-users', async (req, res) => {
@@ -586,7 +607,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/admin/get-user/:userId/limit/:limitName', async (req, res) => {
-    res.send(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName));
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+      return res.send(403);
+    }
+    const limit: any = JSON.parse(JSON.stringify(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName)));
+    limit.remained = await geesomeApp.getUserLimitRemained(req.params.userId, req.params.limitName);
+    res.send(limit);
   });
 
   service.get('/v1/content/:contentId', async (req, res) => {

@@ -1302,7 +1302,7 @@ buffers@~0.1.1:
   resolved "https://registry.yarnpkg.com/buffers/-/buffers-0.1.1.tgz#b24579c3bed4d6d396aeee6d9a8ae7f5482ab7bb"
   integrity sha1-skV5w77U1tOWru5tmorn9Ugqt7s=
 
-busboy@*:
+busboy@*, busboy@^0.3.1:
   version "0.3.1"
   resolved "https://registry.yarnpkg.com/busboy/-/busboy-0.3.1.tgz#170899274c5bf38aae27d5c62b71268cd585fd1b"
   dependencies:
@@ -2990,9 +2990,9 @@ gc-stats@^1.2.1:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#5bc11cc":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#60d594f":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#5bc11cc9d78942798da351e5b8564d03f4c9cf5a"
+  resolved "git://github.com/galtproject/geesome-libs.git#60d594fb2c8e2ea7557d833f7af402737f828040"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"

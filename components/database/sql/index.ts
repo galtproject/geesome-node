@@ -642,55 +642,86 @@ class MysqlDatabase implements IDatabase {
     return this.models.CorePermission.destroy({where: {userId, name: permissionName}})
   }
 
+  async getCorePermissions(userId) {
+    return this.models.CorePermission.findAll({where: {userId}})
+  }
+
   async isHaveCorePermission(userId, permissionName) {
     return this.models.CorePermission.findOne({where: {userId, name: permissionName}});
+  }
+
+  getAllUsersWhere(searchString) {
+    let where = {};
+    if (searchString) {
+      where = {[Op.or]: [{name: searchString}, {email: searchString}, {storageAccountId: searchString}]};
+    }
+    return where;
   }
 
   async getAllUserList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
-
-    let where = {};
-    if (searchString) {
-      where = {[Op.or]: [{name: searchString}, {email: searchString}]};
-    }
     return this.models.User.findAll({
-      where,
+      where: this.getAllUsersWhere(searchString),
       order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
+  }
+
+  async getAllUserCount(searchString) {
+    return this.models.User.count({
+      where: this.getAllUsersWhere(searchString)
+    });
+  }
+
+  getAllContentWhere(searchString) {
+    let where = {};
+    if (searchString) {
+      where = {[Op.or]: [{name: searchString}, {manifestStorageId: searchString}, {storageId: searchString}]};
+    }
+    return where;
   }
 
   async getAllContentList(searchString, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
-
-    let where = {};
-    if (searchString) {
-      where = {name: searchString};
-    }
     return this.models.Content.findAll({
-      where,
+      where: this.getAllContentWhere(searchString),
       order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
   }
 
-  async getAllGroupList(searchString, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
-    const {sortBy, sortDir, limit, offset} = listParams;
+  async getAllContentCount(searchString) {
+    return this.models.Content.count({
+      where: this.getAllContentWhere(searchString),
+    });
+  }
 
+  getAllGroupWhere(searchString) {
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {title: searchString}]};
     }
+    return where;
+  }
+
+  async getAllGroupList(searchString, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+    const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.Group.findAll({
-      where,
+      where: this.getAllGroupWhere(searchString),
       order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
+    });
+  }
+
+  async getAllGroupCount(searchString) {
+    return this.models.Group.count({
+      where: this.getAllGroupWhere(searchString)
     });
   }
 

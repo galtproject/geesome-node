@@ -1037,15 +1037,15 @@ class GeesomeApp implements IGeesomeApp {
 
     let dataSendingPromise = new Promise((resolve, reject) => {
       if (args[0].on) {
+        //TODO: close that stream on limit reached error
         args[0].on('end', () => resolve());
+        args[0].on('error', (e) => reject(e));
+        args[0].on('limit', () => reject("limit_reached"));
       } else {
         resolve();
       }
     });
-
     const methodPromise = this[methodName].apply(this, args);
-
-    await dataSendingPromise;
 
     methodPromise
       .then((res: any) => {
@@ -1056,13 +1056,23 @@ class GeesomeApp implements IGeesomeApp {
         return this.storage.publishEvent(asyncOperation.channel, res);
       })
       .catch((e) => {
-        console.error(e);
         return this.database.updateUserAsyncOperation(asyncOperation.id, {
           inProcess: false,
           errorType: 'unknown',
-          errorMessage: e.message
+          errorMessage: e && e.message ? e.message : e
         });
       });
+
+    try {
+      await dataSendingPromise;
+    } catch(e) {
+      await this.database.updateUserAsyncOperation(asyncOperation.id, {
+        inProcess: false,
+        errorType: 'unknown',
+        errorMessage: e && e.message ? e.message : e
+      });
+    }
+
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
@@ -1106,6 +1116,10 @@ class GeesomeApp implements IGeesomeApp {
       extension,
       driver: options.driver,
       onProgress: options.onProgress
+    }).catch(e => {
+      dataToSave.emit('end');
+      dataToSave.destroy && dataToSave.destroy();
+      throw e;
     });
     log('saveFileByStream');
 
@@ -1290,9 +1304,13 @@ class GeesomeApp implements IGeesomeApp {
           transform: function (chunk, encoding, callback) {
             streamSize += chunk.length;
             console.log('streamSize', streamSize);
-            if (streamSize > sizeRemained) {
+            if (streamSize >= sizeRemained) {
               console.error("limit_reached for user", userId);
-              callback("limit_reached", null)
+              // callback("limit_reached", null);
+              reject("limit_reached");
+              // stream.emit('error', "limit_reached");
+              stream.end();
+              sizeCheckStream.end();
             } else {
               callback(false, chunk);
             }
@@ -1334,7 +1352,7 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  private async getUserLimitRemained(userId, limitName: UserLimitName) {
+  async getUserLimitRemained(userId, limitName: UserLimitName) {
     const limit = await this.database.getUserLimit(userId, limitName);
     if (!limit || !limit.isActive) {
       return null;
@@ -1380,16 +1398,16 @@ class GeesomeApp implements IGeesomeApp {
       log('isUserCan');
       await this.addContentToUserFileCatalog(content.userId, content, options);
       log('addContentToUserFileCatalog');
-
-      await this.database.addUserContentAction({
-        name: UserContentActionName.Upload,
-        userId: content.userId,
-        size: content.size,
-        contentId: content.id,
-        userApiKeyId: options.userApiKeyId
-      });
-      log('addUserContentAction');
     }
+
+    await this.database.addUserContentAction({
+      name: UserContentActionName.Upload,
+      userId: content.userId,
+      size: content.size,
+      contentId: content.id,
+      userApiKeyId: options.userApiKeyId
+    });
+    log('addUserContentAction');
 
     if (!contentData.manifestStorageId) {
       await this.updateContentManifest(content.id);
@@ -1860,21 +1878,30 @@ class GeesomeApp implements IGeesomeApp {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    return this.database.getAllUserList(searchString, listParams);
+    return {
+      list: await this.database.getAllUserList(searchString, listParams),
+      total: await this.database.getAllUserCount(searchString)
+    }
   }
 
   async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    return this.database.getAllGroupList(searchString, listParams);
+    return {
+      list: await this.database.getAllGroupList(searchString, listParams),
+      total: await this.database.getAllGroupCount(searchString)
+    };
   }
 
   async getAllContentList(adminId, searchString?, listParams?: IListParams) {
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    return this.database.getAllContentList(searchString, listParams);
+    return {
+      list: await this.database.getAllContentList(searchString, listParams),
+      total: await this.database.getAllContentCount(searchString)
+    }
   }
 
   async getUserLimit(adminId, userId, limitName) {

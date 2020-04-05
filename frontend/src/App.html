@@ -60,7 +60,7 @@
           <small>{{serverAddress}}</small>
 
           <div>
-            <a v-if="user" href @click.prevent="logout()">Logout</a>
+            <a v-if="user" href @click.prevent.stop="logout()">Logout</a>
             <router-link v-else :to="{name: 'login'}">Login</router-link>
           </div>
         </div>

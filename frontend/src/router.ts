@@ -14,7 +14,7 @@ import LoginPage from "./pages/LoginPage/LoginPage";
 import GroupLayout from "./pages/GroupPage/GroupLayout/GroupLayout";
 import GroupPostPage from "./pages/GroupPage/GroupPostPage/GroupPostPage";
 import NewGroup from "./pages/GroupPage/NewGroup/NewGroup";
-import NewUser from "./pages/NewUser/NewUser";
+import NewUser from "./pages/UsersSection/NewUser/NewUser";
 import FileExplorerPage from "./pages/FileExplorerPage/FileExplorerPage";
 import ContentPage from "./pages/ContentPage/ContentPage";
 import EditGroup from "./pages/GroupPage/EditGroup/EditGroup";
@@ -22,9 +22,10 @@ import JoinedGroups from "./pages/GroupsList/JoinedGroups/JoinedGroups";
 import AdminedGroups from "./pages/GroupsList/AdminedGroups/AdminedGroups";
 import BootNodesPage from "./pages/BootNodesPage/BootNodesPage";
 import SetupPage from "./pages/SetupPage/SetupPage";
-import CurrentUserProfile from "./pages/UserProfile/CurrentUserProfile/CurrentUserProfile";
-import EditProfile from "./pages/UserProfile/EditProfile/EditProfile";
+import CurrentUserProfile from "./pages/UsersSection/UserProfile/CurrentUserProfile/CurrentUserProfile";
+import EditProfile from "./pages/UsersSection/UserProfile/EditProfile/EditProfile";
 import ChatPage from "./pages/ChatPage/ChatPage";
+import UserProfileByStaticId from "./pages/UsersSection/UserProfile/UserProfileByStaticId/UserProfileByStaticId";
 
 Vue.use(Router);
 
@@ -45,6 +46,11 @@ export default new Router({
       path: '/login',
       name: 'login',
       component: LoginPage
+    },
+    {
+      path: '/user/:staticId',
+      name: 'user-profile',
+      component: UserProfileByStaticId
     },
     {
       path: '/profile',

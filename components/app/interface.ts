@@ -17,7 +17,7 @@ import {
   IPost,
   IUser, IUserAccount,
   IUserApiKey, IUserAuthMessage,
-  IUserLimit, PostStatus
+  IUserLimit, PostStatus, UserLimitName
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
@@ -149,13 +149,15 @@ export interface IGeesomeApp {
 
   regenerateUserContentPreviews(userId): Promise<void>;
 
-  getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUser[]>;
+  getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUserListResponse>;
 
-  getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContent[]>;
+  getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContentListResponse>;
 
-  getAllGroupList(adminId, searchString, listParams?: IListParams): Promise<IGroup[]>;
+  getAllGroupList(adminId, searchString, listParams?: IListParams): Promise<IGroupListResponse>;
 
   getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
+
+  getUserLimitRemained(userId, limitName: UserLimitName): Promise<number>;
 
   getContent(contentId): Promise<IContent>;
 
@@ -295,6 +297,11 @@ export interface IUserListResponse {
 
 export interface IGroupListResponse {
   list: IGroup[];
+  total: number;
+}
+
+export interface IContentListResponse {
+  list: IContent[];
   total: number;
 }
 

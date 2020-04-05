@@ -7,8 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {EventBus, UPDATE_CURRENT_USER} from "../../../services/events";
-import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
+import {EventBus, UPDATE_CURRENT_USER} from "../../../../services/events";
+import ContentManifestItem from "../../../../directives/ContentManifestItem/ContentManifestItem";
 import ProfileForm from "../ProfileForm/ProfileForm";
 
 const _ = require('lodash');
