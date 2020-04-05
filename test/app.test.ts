@@ -304,6 +304,14 @@ describe("app", function () {
         const testGroup = (await app.database.getAllGroupList('test'))[0];
         const categoryName = 'my-category';
         const category = await app.createCategory(testUser.id, {name: categoryName});
+
+        const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
+        try {
+          await app.addGroupToCategory(newUser.id, testGroup.id, category.id);
+          assert(false);
+        } catch (e) {
+          assert(true);
+        }
         await app.addGroupToCategory(testUser.id, testGroup.id, category.id);
 
         const foundCategory = await app.getCategoryByParams({name: categoryName});
