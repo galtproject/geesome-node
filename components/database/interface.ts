@@ -124,6 +124,24 @@ export interface IDatabase {
 
   getGroupSizeSum(id): Promise<number>;
 
+  getCategory(categoryId): Promise<ICategory>;
+
+  getCategoryByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<ICategory>;
+
+  addCategory(category): Promise<ICategory>;
+
+  updateCategory(id, updateData): Promise<void>;
+
+  addAdminToCategory(userId, categoryId): Promise<void>;
+
+  removeAdminFromCategory(userId, categoryId): Promise<void>;
+
+  addGroupToCategory(groupId, categoryId): Promise<void>;
+
+  removeGroupFromCategory(groupId, categoryId): Promise<void>;
+
+  isAdminInCategory(userId, categoryId): Promise<boolean>;
+
   addCorePermission(userId, permissionName): Promise<void>;
 
   removeCorePermission(userId, permissionName): Promise<void>;
@@ -390,6 +408,25 @@ export interface IGroup {
 
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;
+}
+
+export interface ICategory {
+  id: number;
+
+  name: string;
+  title: string;
+
+  description?: string;
+  creatorId: number;
+  avatarImageId?: number;
+  avatarImage?: IContent;
+  coverImageId?: number;
+  coverImage?: IContent;
+  isGlobal?: boolean;
+  storageId?: string;
+  staticStorageId?: string;
+  manifestStorageId?: string;
+  manifestStaticStorageId?: string;
 }
 
 export enum GroupType {

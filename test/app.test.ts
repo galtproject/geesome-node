@@ -298,6 +298,30 @@ describe("app", function () {
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
+
+      it('categories should work properly', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+        const categoryName = 'my-category';
+        const category = await app.createCategory(testUser.id, {name: categoryName});
+        await app.database.addGroupToCategory(testGroup.id, category.id)
+        const saveDataTestUser = await app.registerUser({email: 'user-save-data@user.com', name: 'user-save-data', permissions: [CorePermissionName.UserSaveData]});
+
+        log('saveDataTestUser');
+        const textContent = await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+        log('textContent');
+
+        const contentObj = await app.storage.getObject(textContent.manifestStorageId);
+
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
+        assert.equal(contentObj.mimeType, 'text/plain');
+
+        await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+        log('saveData');
+
+        const ipld = await app.storage.saveObject(contentObj);
+        assert.equal(ipld, textContent.manifestStorageId);
+      });
     });
   });
 });

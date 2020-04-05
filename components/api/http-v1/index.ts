@@ -236,6 +236,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.createGroup(req.user.id, req.body), 200);
   });
 
+  service.post('/v1/category/get', async (req, res) => {
+    res.send(await geesomeApp.getCategoryByParams(req.body), 200);
+  });
+
+  service.post('/v1/user/create-category', async (req, res) => {
+    res.send(await geesomeApp.createCategory(req.user.id, req.body), 200);
+  });
+
   /**
    * @api {post} /v1/user/group/:groupId/update Edit group
    * @apiDescription Can be edit by database id or storage id

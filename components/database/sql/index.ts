@@ -433,6 +433,49 @@ class MysqlDatabase implements IDatabase {
     return (await this.models.Post.sum('size', {where: {groupId: id}})) || 0;
   }
 
+  async addCategory(group) {
+    return this.models.Category.create(group);
+  }
+
+  async updateCategory(id, updateData) {
+    return this.models.Category.update(updateData, {where: {id}});
+  }
+
+  async getCategory(id) {
+    return this.models.Category.findOne({
+      where: {id}
+    });
+  }
+
+  async getCategoryByParams(params) {
+    return this.models.Category.findOne({
+      where: params
+    });
+  }
+
+  async addAdminToCategory(userId, groupId) {
+    return (await this.getCategory(groupId)).addAdministrators([await this.getUser(userId)]);
+  }
+
+  async removeAdminFromCategory(userId, groupId) {
+    return (await this.getCategory(groupId)).removeAdministrators([await this.getUser(userId)]);
+  }
+
+  async addGroupToCategory(userId, groupId) {
+    return (await this.getCategory(groupId)).addGroups([await this.getUser(userId)]);
+  }
+
+  async removeGroupFromCategory(userId, groupId) {
+    return (await this.getCategory(groupId)).removeGroups([await this.getUser(userId)]);
+  }
+
+  async isAdminInCategory(userId, categoryId) {
+    const result = await (await this.getUser(userId)).getAdministratorInCategories({
+      where: {id: categoryId}
+    });
+    return result.length > 0;
+  }
+
   async getPost(id) {
     const post = await this.models.Post.findOne({
       where: {id},

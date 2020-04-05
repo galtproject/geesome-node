@@ -9,7 +9,7 @@
 
 import {IRender} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
-import {GroupType, IContent, IGroup, IPost, IUser, PostStatus} from "../../database/interface";
+import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../../database/interface";
 
 const _ = require('lodash');
 const bs58 = require('bs58');
@@ -70,6 +70,13 @@ class EntityJsonManifest implements IRender {
       this.setManifestMeta(groupManifest, name);
 
       return groupManifest;
+    } else if (name === 'category-manifest') {
+      const category: ICategory = data;
+      const categoryManifest = _.pick(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
+
+      this.setManifestMeta(categoryManifest, name);
+
+      return categoryManifest;
     } else if (name === 'post-manifest') {
       const post: IPost = data;
       //TODO: fix size, view and type

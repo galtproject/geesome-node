@@ -9,7 +9,7 @@
 
 import {
   CorePermissionName,
-  GroupType, GroupView,
+  GroupType, GroupView, ICategory,
   IContent,
   IDatabase,
   IFileCatalogItem,
@@ -100,6 +100,10 @@ export interface IGeesomeApp {
   getGroup(groupId): Promise<IGroup>;
 
   getGroupPosts(groupId, listParams?: IListParams): Promise<IPostListResponse>;
+
+  getCategoryByParams(params): Promise<ICategory>;
+
+  createCategory(userId, categoryData): Promise<ICategory>;
 
   asyncOperationWrapper(methodName, args, options);
 

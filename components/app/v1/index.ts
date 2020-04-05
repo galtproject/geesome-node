@@ -537,12 +537,41 @@ class GeesomeApp implements IGeesomeApp {
     return groupId;
   }
 
+  async checkCategoryId(categoryId, createIfNotExist = true) {
+    if (categoryId == 'null' || categoryId == 'undefined') {
+      return null;
+    }
+    if (!categoryId || _.isUndefined(categoryId)) {
+      return null;
+    }
+    if (!commonHelper.isNumber(categoryId)) {
+      let group = await this.getCategoryByManifestId(categoryId, categoryId);
+      if (!group && createIfNotExist) {
+        // TODO: create category by remote storage id
+        return null;
+        // group = await this.createGroupByRemoteStorageId(categoryId);
+        // return group.id;
+      } else if (group) {
+        categoryId = group.id;
+      }
+    }
+    return categoryId;
+  }
+
   async canCreatePostInGroup(userId, groupId) {
     if (!groupId) {
       return false;
     }
     groupId = await this.checkGroupId(groupId);
     return this.database.isAdminInGroup(userId, groupId);
+  }
+
+  async canAddGroupToCategory(userId, categoryId) {
+    if (!categoryId) {
+      return false;
+    }
+    categoryId = await this.checkCategoryId(categoryId);
+    return this.database.isAdminInCategory(userId, categoryId);
   }
 
   async createGroup(userId, groupData) {
@@ -662,6 +691,46 @@ class GeesomeApp implements IGeesomeApp {
     await this.updateGroupManifest(groupId);
 
     return this.database.getGroup(groupId);
+  }
+
+  async createCategory(userId, categoryData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    categoryData.creatorId = userId;
+
+    categoryData.manifestStaticStorageId = await this.createStorageAccount(categoryData['name']);
+    if (categoryData.type !== GroupType.PersonalChat) {
+      categoryData.staticStorageId = categoryData.manifestStaticStorageId;
+    }
+
+    const category = await this.database.addCategory(categoryData);
+
+    await this.database.addAdminToCategory(userId, category.id);
+
+    await this.updateCategoryManifest(category.id);
+
+    return this.database.getCategory(category.id);
+  }
+
+  async addGroupToCategory(userId, categoryData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    categoryData.creatorId = userId;
+
+    categoryData.manifestStaticStorageId = await this.createStorageAccount(categoryData['name']);
+    if (categoryData.type !== GroupType.PersonalChat) {
+      categoryData.staticStorageId = categoryData.manifestStaticStorageId;
+    }
+
+    const category = await this.database.addCategory(categoryData);
+
+    await this.database.addAdminToCategory(userId, category.id);
+
+    await this.updateCategoryManifest(category.id);
+
+    return this.database.getCategory(category.id);
+  }
+
+  async getCategoryByParams(params) {
+    return this.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
   }
 
   async createPost(userId, postData) {
@@ -785,6 +854,14 @@ class GeesomeApp implements IGeesomeApp {
       manifestStorageId,
       storageUpdatedAt,
       staticStorageUpdatedAt
+    });
+  }
+
+  async updateCategoryManifest(categoryId) {
+    const post = await this.database.getCategory(categoryId);
+
+    return this.database.updateCategory(categoryId, {
+      manifestStorageId: await this.generateAndSaveManifest('category', post)
     });
   }
 
@@ -1830,6 +1907,18 @@ class GeesomeApp implements IGeesomeApp {
       }
     }
     return this.database.getGroupByManifestId(groupId, staticId);
+  }
+
+  async getCategoryByManifestId(groupId, staticId) {
+    if (!staticId) {
+      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
+      if (historyItem) {
+        staticId = historyItem.staticId;
+      }
+    }
+    return this.database.getCategoryByParams({
+      manifestStaticStorageId: staticId
+    });
   }
 
   async getGroupPosts(groupId, listParams?: IListParams) {
