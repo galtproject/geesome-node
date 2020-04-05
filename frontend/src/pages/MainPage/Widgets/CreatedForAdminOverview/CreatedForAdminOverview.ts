@@ -9,19 +9,32 @@
 
 import PrettyName from "../../../../directives/PrettyName/PrettyName";
 
+const debounce = require('lodash/debounce');
+
 export default {
   template: require('./CreatedForAdminOverview.html'),
   components: {PrettyName},
   props: [],
   async created() {
-    this.getItems();
+    this.debounceGetItems = debounce(() => {
+      this.getItems();
+    });
+
+    this.debounceGetItems();
   },
   methods: {
     async getItems() {
       this.items = [];
       this.loading = true;
 
-      this.items = await this.$coreApi.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
+      const itemsData = await this.$coreApi.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
+      this.items = itemsData.list;
+
+      if(!itemsData.total && this.activeTab === 'users' && this.search.split('-').length === 4) {
+        const user = await this.$coreApi.getUserByApiKey(this.search);
+        this.items = [user];
+        itemsData.total = 1;
+      }
 
       this.loading = false;
     },
@@ -31,7 +44,10 @@ export default {
   },
   watch: {
     activeTab() {
-      this.getItems();
+      this.debounceGetItems();
+    },
+    search() {
+      this.debounceGetItems();
     }
   },
   computed: {},

@@ -19,6 +19,11 @@
         <md-tab id="users" md-label="Users"></md-tab>
         <md-tab id="groups" md-label="Groups"></md-tab>
       </md-tabs>
+
+      <md-field>
+        <label>Search</label>
+        <md-input v-model="search"></md-input>
+      </md-field>
     </md-card-content>
 
     <md-card-content style="padding-top: 0;" v-if="activeTab === 'content'">
@@ -57,7 +62,7 @@
           <md-table-cell>{{item.name}}</md-table-cell>
           <md-table-cell>{{item.email}}</md-table-cell>
           <md-table-cell>
-            <pretty-hex :hex="item.storageAccountId"></pretty-hex>
+            <pretty-hex :hex="item.storageAccountId" :to="{name: 'user-profile', params:{staticId: item.storageAccountId}}"></pretty-hex>
           </md-table-cell>
         </md-table-row>
       </md-table>

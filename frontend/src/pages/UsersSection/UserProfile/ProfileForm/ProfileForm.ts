@@ -7,8 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import ChooseFileContentsIdsModal from "../../../modals/ChooseFileContentsIdsModal/ChooseFileContentsIdsModal";
-import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
+import ChooseFileContentsIdsModal from "../../../../modals/ChooseFileContentsIdsModal/ChooseFileContentsIdsModal";
+import ContentManifestItem from "../../../../directives/ContentManifestItem/ContentManifestItem";
 
 export default {
   name: 'profile-form',

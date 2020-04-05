@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#e02efd4",
+    "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#59b7ccd",
     "async": "^2.5.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",
@@ -27,7 +27,7 @@
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome.git",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#5bc11cc",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#31d41fd",
     "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#ff8f41b",
     "ipfs": "git://github.com/galtproject/js-ipfs.git#816e9dbd",
     "is-ipfs": "^0.4.7",

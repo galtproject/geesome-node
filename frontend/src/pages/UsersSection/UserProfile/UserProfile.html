@@ -17,7 +17,7 @@
           <div v-if="user.avatarImage">
             <content-manifest-item :manifest="user.avatarImage.manifestStorageId" :preview-mode="true"></content-manifest-item>
           </div>
-          <img v-else src="assets/empty-profile.png">
+          <img v-else src="../../../../assets/empty-profile.png">
         </div>
         <div class="md-layout-item md-size-80 md-small-size-100">
           
@@ -28,6 +28,12 @@
             <div><label>IPNS:</label> <pretty-hex :hex="user.manifestStaticStorageId"></pretty-hex></div>
             <div><label>IPLD:</label> <pretty-hex :hex="user.manifestStorageId"></pretty-hex></div>
             <div v-for="account in user.accounts"><label>{{account.provider}}:</label> {{account.address}}</div>
+            <div v-if="permissions.length">
+              <div><label>Permissions:</label> <span v-for="(p, i) in permissions">{{i ? ', ' : ''}}{{p.name}}</span></div>
+            </div>
+            <div v-if="saveContentLimit">
+              <div><label>Content saving limit:</label> {{saveContentLimit.remained | prettySize}}/{{saveContentLimit.value | prettySize}} for {{saveContentLimit.periodTimestamp | beautyPeriod}}</div>
+            </div>
           </div>
           
           <div v-if="currentUser.id === user.id">

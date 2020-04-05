@@ -128,6 +128,8 @@ export interface IDatabase {
 
   removeCorePermission(userId, permissionName): Promise<void>;
 
+  getCorePermissions(userId): Promise<ICorePermission[]>;
+
   isHaveCorePermission(userId, permissionName): Promise<boolean>;
 
   isAdminInGroup(userId, groupId): Promise<boolean>;
@@ -164,9 +166,15 @@ export interface IDatabase {
 
   getAllUserList(searchString, listParams?: IListParams): Promise<IUser[]>;
 
+  getAllUserCount(searchString): Promise<number>;
+
   getAllContentList(searchString, listParams?: IListParams): Promise<IContent[]>;
 
+  getAllContentCount(searchString): Promise<number>;
+
   getAllGroupList(searchString, listParams?: IListParams): Promise<IGroup[]>;
+
+  getAllGroupCount(searchString): Promise<number>;
 
   addUserContentAction(userContentActionData): Promise<IUserContentAction>;
 
@@ -477,6 +485,14 @@ export interface IStaticIdPublicKey {
 
 export enum UserLimitName {
   SaveContentSize = 'save_content:size'
+}
+
+export interface ICorePermission {
+  id?: number;
+  name: string;
+  title?: string;
+  isActive: boolean;
+  userId: number;
 }
 
 export enum CorePermissionName {

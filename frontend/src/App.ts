@@ -35,8 +35,6 @@ import MoveFileCatalogItemContainer
 import Helper from "@galtproject/frontend-core/services/helper";
 import {EventBus, UPDATE_CURRENT_USER} from "./services/events";
 
-const _ = require('lodash');
-
 Vue.use(Notifications);
 
 Vue.use(coreApiPlugin);
@@ -86,10 +84,10 @@ Vue.filter('prettySize', function (bytesSize) {
   if (bytesSize < 1024 * 100) {
     return round(bytesSize / 1024) + ' Kb';
   }
-  if (bytesSize < 1024 ** 2 * 100) {
+  if (bytesSize < 1024 ** 3 * 100) {
     return round(bytesSize / (1024 ** 2)) + ' Mb';
   }
-  if (bytesSize < 1024 ** 3 * 100) {
+  if (bytesSize < 1024 ** 4 * 100) {
     return round(bytesSize / (1024 ** 3)) + ' Gb';
   }
   return round(bytesSize / (1024 ** 4)) + ' Tb';
@@ -101,6 +99,8 @@ Vue.filter('prettyFileName', function (str) {
   }
   return str ? str.slice(0, 7) + "..." + str.slice(-6) : '';
 });
+
+Vue.filter('beautyPeriod', (period) => {return Helper.beautyPeriod(period)});
 
 export default {
   template: require('./App.html'),
