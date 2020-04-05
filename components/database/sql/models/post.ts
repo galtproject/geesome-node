@@ -96,8 +96,8 @@ module.exports = async function (sequelize, models) {
   Post.belongsTo(Post, {as: 'repostOf', foreignKey: 'repostOfId'});
   Post.hasMany(Post, {as: 'reposts', foreignKey: 'repostOfId'});
 
-  Post.belongsTo(Post, {as: 'replyOf', foreignKey: 'replyOfId'});
-  Post.hasMany(Post, {as: 'replies', foreignKey: 'replyOfId'});
+  Post.belongsTo(Post, {as: 'replyTo', foreignKey: 'replyToId'});
+  Post.hasMany(Post, {as: 'replies', foreignKey: 'replyToId'});
 
   return Post.sync({});
 };

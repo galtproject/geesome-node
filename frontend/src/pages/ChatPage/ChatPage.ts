@@ -116,7 +116,7 @@ export default {
 
       this.newMessage.contentsDbIds = [];
       
-      await this.$coreApi.createPost(contentsIds, {groupId: this.selectedGroupId, status: 'published'}).then(() => {
+      await this.$coreApi.createPost({contents: contentsIds.map(id => ({id})), groupId: this.selectedGroupId, status: 'published'}).then(() => {
         this.saving = false;
         this.$emit('new-post');
         EventBus.$emit(UPDATE_GROUP, this.selectedGroupId);

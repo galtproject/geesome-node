@@ -66,7 +66,7 @@ module.exports = async function (sequelize, models) {
   models.CategoryGroups = sequelize.define('categoryGroups', {} as any, {} as any);
 
   Category.belongsToMany(models.Group, {as: 'groups', through: models.CategoryGroups});
-  models.User.belongsToMany(Category, {as: 'categories', through: models.CategoryGroups});
+  models.Group.belongsToMany(Category, {as: 'categories', through: models.CategoryGroups});
 
   models.CategoryAdministrators = sequelize.define('categoryAdministrators', {} as any, {} as any);
 

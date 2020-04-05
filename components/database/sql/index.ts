@@ -182,8 +182,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {name},
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.UserAccount, as: 'accounts'}
+        {association: 'avatarImage'},
+        {association: 'accounts'}
       ]
     });
   }
@@ -194,8 +194,8 @@ class MysqlDatabase implements IDatabase {
         [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}]
       },
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.UserAccount, as: 'accounts'}
+        {association: 'avatarImage'},
+        {association: 'accounts'}
       ]
     });
   }
@@ -204,8 +204,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {id},
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.UserAccount, as: 'accounts'}
+        {association: 'avatarImage'},
+        {association: 'accounts'}
       ]
     });
   }
@@ -224,8 +224,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {[Op.or]: whereOr},
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.UserAccount, as: 'accounts'}
+        {association: 'avatarImage'},
+        {association: 'accounts'}
       ]
     });
   }
@@ -244,7 +244,7 @@ class MysqlDatabase implements IDatabase {
     //TODO: use search and order
     return (await this.getUser(userId)).getFriends({
       include: [
-        {model: this.models.Content, as: 'avatarImage'}
+        {association: 'avatarImage'}
       ],
       limit,
       offset
@@ -297,8 +297,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findOne({
       where: {id},
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.Content, as: 'coverImage'}
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
       ]
     });
   }
@@ -317,8 +317,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findOne({
       where: {[Op.or]: whereOr},
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.Content, as: 'coverImage'}
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
       ]
     });
   }
@@ -363,8 +363,8 @@ class MysqlDatabase implements IDatabase {
         type: {[Op.in]: types}
       },
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.Content, as: 'coverImage'}
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
       ]
     });
   }
@@ -383,8 +383,8 @@ class MysqlDatabase implements IDatabase {
         type: {[Op.in]: types}
       },
       include: [
-        {model: this.models.Content, as: 'avatarImage'},
-        {model: this.models.Content, as: 'coverImage'}
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
       ]
     });
   }
@@ -409,23 +409,41 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getGroupPosts(groupId, listParams: IListParams = {}) {
+  getPostsWhere(filters) {
+    const where = {};
+    ['status', 'replyToId'].forEach((name) => {
+      if(!_.isUndefined(filters[name])) {
+        where[name] = filters[name];
+      }
+    });
+    console.log('getPostsWhere', where);
+    return where;
+  }
+
+  getGroupPostsWhere(groupId, filters) {
+    return {
+      groupId,
+      ...this.getPostsWhere(filters)
+    };
+  }
+
+  async getGroupPosts(groupId, filters = {}, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
     return this.models.Post.findAll({
-      where: {groupId},
-      include: [{model: this.models.Content, as: 'contents'}],
+      where: this.getGroupPostsWhere(groupId, filters),
+      include: [{association: 'contents'}],
       order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
     });
   }
 
-  async getGroupPostsCount(groupId) {
+  async getGroupPostsCount(groupId, filters = {}) {
     return this.models.Post.count({
-      where: {groupId},
+      where: this.getGroupPostsWhere(groupId, filters)
     });
   }
 
@@ -461,12 +479,16 @@ class MysqlDatabase implements IDatabase {
     return (await this.getCategory(groupId)).removeAdministrators([await this.getUser(userId)]);
   }
 
-  async addGroupToCategory(userId, groupId) {
-    return (await this.getCategory(groupId)).addGroups([await this.getUser(userId)]);
+  async addGroupToCategory(groupId, categoryId) {
+    return (await this.getCategory(categoryId)).addGroups([await this.getGroup(groupId)]);
   }
 
-  async removeGroupFromCategory(userId, groupId) {
-    return (await this.getCategory(groupId)).removeGroups([await this.getUser(userId)]);
+  async removeGroupFromCategory(groupId, categoryId) {
+    return (await this.getCategory(categoryId)).removeGroups([await this.getGroup(groupId)]);
+  }
+
+  async getGroupsOfCategory(categoryId) {
+    return (await this.getCategory(categoryId)).getGroups();
   }
 
   async isAdminInCategory(userId, categoryId) {
@@ -476,10 +498,46 @@ class MysqlDatabase implements IDatabase {
     return result.length > 0;
   }
 
+  async getCategoryPosts(categoryId, filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+
+    return this.models.Post.findAll({
+      where: this.getPostsWhere(filters),
+      include: [
+        {association: 'contents'},
+        {
+          association: 'group', required: true,
+          include: [
+            {association: 'categories', where: {id: categoryId}, required: true}
+          ]
+        }
+      ],
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getCategoryPostsCount(categoryId, filters = {}) {
+    return this.models.Post.count({
+      where: this.getPostsWhere(filters),
+      include: [
+        {
+          association: 'group', required: true,
+          include: [
+            {association: 'categories', where: {id: categoryId}, required: true}
+          ]
+        }
+      ]
+    });
+  }
+
   async getPost(id) {
     const post = await this.models.Post.findOne({
       where: {id},
-      include: [{model: this.models.Content, as: 'contents'}]
+      include: [{association: 'contents'}]
     });
 
     post.contents = _.orderBy(post.contents, [(content) => {
@@ -493,7 +551,7 @@ class MysqlDatabase implements IDatabase {
   async getPostByManifestId(manifestStorageId) {
     const post = await this.models.Post.findOne({
       where: { manifestStorageId },
-      include: [{model: this.models.Content, as: 'contents'}]
+      include: [{association: 'contents'}]
     });
 
     post.contents = _.orderBy(post.contents, [(content) => {
@@ -513,7 +571,7 @@ class MysqlDatabase implements IDatabase {
 
     const post = await this.models.Post.findOne({
       where: { localId, groupId: group.id },
-      include: [{model: this.models.Content, as: 'contents'}]
+      include: [{association: 'contents'}]
     });
 
     post.contents = _.orderBy(post.contents, [(content) => {
@@ -569,7 +627,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.FileCatalogItem.findAll({
       where,
       order: [[sortBy, sortDir.toUpperCase()]],
-      include: [{model: this.models.Content, as: 'content'}],
+      include: [{association: 'content'}],
       limit,
       offset
     });
@@ -628,7 +686,7 @@ class MysqlDatabase implements IDatabase {
   async getFileCatalogItem(id) {
     return this.models.FileCatalogItem.findOne({
       where: {id},
-      include: [{model: this.models.Content, as: 'content'}]
+      include: [{association: 'content'}]
     });
   }
 

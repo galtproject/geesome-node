@@ -745,9 +745,8 @@ class GeesomeApp implements IGeesomeApp {
       postData.publishedAt = new Date();
     }
 
-    //TODO: contentsIds => contents with additional fields
-    const contentsIds = postData.contentsIds;
-    delete postData.contentsIds;
+    const contentsIds = postData.contents.map(c => c.id);
+    delete postData.contents;
 
     const user = await this.database.getUser(userId);
 
@@ -757,6 +756,7 @@ class GeesomeApp implements IGeesomeApp {
     postData.groupStorageId = group.manifestStorageId;
     postData.groupStaticStorageId = group.manifestStaticStorageId;
 
+    console.log('addPost', postData);
     let post = await this.database.addPost(postData);
 
     await this.database.setPostContents(post.id, contentsIds);
@@ -783,7 +783,7 @@ class GeesomeApp implements IGeesomeApp {
         postId: encryptedText,
         groupId: group.manifestStaticStorageId,
         isEncrypted: true,
-        sentAt: post.publishedAt.toString()
+        sentAt: (post.publishedAt || post.createdAt).toString()
       });
 
       await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
@@ -795,7 +795,7 @@ class GeesomeApp implements IGeesomeApp {
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
         isEncrypted: false,
-        sentAt: post.publishedAt.toString()
+        sentAt: (post.publishedAt || post.createdAt).toString()
       });
     }
 
@@ -1921,10 +1921,10 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  async getGroupPosts(groupId, listParams?: IListParams) {
+  async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
     return {
-      list: await this.database.getGroupPosts(groupId, listParams),
-      total: await this.database.getGroupPostsCount(groupId)
+      list: await this.database.getGroupPosts(groupId, filters, listParams),
+      total: await this.database.getGroupPostsCount(groupId, filters)
     };
   }
 

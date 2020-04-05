@@ -521,7 +521,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
    * @apiInterface (../../app/interface.ts) {IPostListResponse} apiSuccess
    */
   service.get('/v1/group/:groupId/posts', async (req, res) => {
-    res.send(await geesomeApp.getGroupPosts(req.params.groupId, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
 
   service.get('/v1/group/:groupId/peers', async (req, res) => {

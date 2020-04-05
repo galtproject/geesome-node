@@ -140,6 +140,8 @@ export interface IDatabase {
 
   removeGroupFromCategory(groupId, categoryId): Promise<void>;
 
+  getGroupsOfCategory(categoryId): Promise<IGroup[]>;
+
   isAdminInCategory(userId, categoryId): Promise<boolean>;
 
   addCorePermission(userId, permissionName): Promise<void>;
@@ -154,9 +156,13 @@ export interface IDatabase {
 
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
-  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
+  getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
-  getGroupPostsCount(groupId): Promise<number>;
+  getGroupPostsCount(groupId, filters?): Promise<number>;
+
+  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPost[]>;
+
+  getCategoryPostsCount(categoryId, filters?): Promise<number>;
 
   getPost(postId): Promise<IPost>;
 
@@ -332,6 +338,9 @@ export interface IPost {
   groupStorageId?: string;
 
   encryptedManifestStorageId?: string;
+
+  createdAt;
+  updatedAt;
 }
 
 export enum PostStatus {

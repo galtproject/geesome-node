@@ -57,7 +57,7 @@ class EntityJsonManifest implements IRender {
       groupManifest.posts = {};
 
       // TODO: write all posts
-      const groupPosts = await this.app.database.getGroupPosts(group.id, {limit: 100, offset: 0});
+      const groupPosts = await this.app.database.getGroupPosts(group.id, {status: PostStatus.Published}, {limit: 100, offset: 0});
       // console.log('groupPosts', group.id, groupPosts);
       groupPosts.forEach((post: IPost) => {
         if(post.isEncrypted) {

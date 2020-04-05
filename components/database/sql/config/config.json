@@ -1,1 +1,1 @@
-{"production":{"database":"geesome_node","username":"root","password":"root","host":"localhost","dialect":"mysql"}}
+{"production":{"database":"geesome_node","username":"geesome","password":"geesome","host":"localhost","dialect":"postgres"}}

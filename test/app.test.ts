@@ -8,7 +8,7 @@
  */
 
 import {IGeesomeApp} from "../components/app/interface";
-import {CorePermissionName, FileCatalogItemType, UserLimitName} from "../components/database/interface";
+import {CorePermissionName, FileCatalogItemType, PostStatus, UserLimitName} from "../components/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
@@ -299,28 +299,73 @@ describe("app", function () {
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
 
-      it('categories should work properly', async () => {
+      it.only('categories should work properly', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
         const categoryName = 'my-category';
         const category = await app.createCategory(testUser.id, {name: categoryName});
-        await app.database.addGroupToCategory(testGroup.id, category.id)
-        const saveDataTestUser = await app.registerUser({email: 'user-save-data@user.com', name: 'user-save-data', permissions: [CorePermissionName.UserSaveData]});
+        await app.database.addGroupToCategory(testGroup.id, category.id);
 
-        log('saveDataTestUser');
-        const textContent = await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
-        log('textContent');
+        const categoryGroups = await app.database.getGroupsOfCategory(category.id);
+        assert.equal(categoryGroups.length, 1);
+        assert.equal(categoryGroups[0].id, testGroup.id);
 
-        const contentObj = await app.storage.getObject(textContent.manifestStorageId);
+        const postContent = await app.saveData('Hello world', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
 
-        assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
-        assert.equal(contentObj.mimeType, 'text/plain');
+        const post = await app.createPost(testUser.id, {
+          contents: [{id: postContent.id}],
+          groupId: testGroup.id,
+          status: PostStatus.Published
+        });
 
-        await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
-        log('saveData');
+        let groupPosts = await app.database.getGroupPosts(testGroup.id);
+        assert.equal(groupPosts.length, 1);
+        assert.equal(groupPosts[0].id, post.id);
 
-        const ipld = await app.storage.saveObject(contentObj);
-        assert.equal(ipld, textContent.manifestStorageId);
+        let categoryPosts = await app.database.getCategoryPosts(category.id);
+        assert.equal(categoryPosts.length, 1);
+        assert.equal(categoryPosts[0].id, post.id);
+
+        const group2 = await app.createGroup(testUser.id, {
+          name: 'test2',
+          title: 'Test2'
+        });
+
+        const post2Content = await app.saveData('Hello world2', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
+
+        await app.createPost(testUser.id, {
+          contents: [{id: post2Content.id}],
+          replyToId: post.id,
+          groupId: group2.id,
+          status: PostStatus.Published
+        });
+
+        groupPosts = await app.database.getGroupPosts(testGroup.id);
+        assert.equal(groupPosts.length, 1);
+        assert.equal(groupPosts[0].id, post.id);
+
+        categoryPosts = await app.database.getCategoryPosts(category.id);
+        assert.equal(categoryPosts.length, 1);
+        assert.equal(categoryPosts[0].id, post.id);
+
+        await app.database.addGroupToCategory(group2.id, category.id);
+
+        groupPosts = await app.database.getGroupPosts(testGroup.id);
+        assert.equal(groupPosts.length, 1);
+
+        categoryPosts = await app.database.getCategoryPosts(category.id);
+        assert.equal(categoryPosts.length, 2);
+
+        categoryPosts = await app.database.getCategoryPosts(category.id, {
+          replyToId: null
+        });
+        assert.equal(categoryPosts.length, 1);
       });
     });
   });
