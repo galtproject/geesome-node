@@ -299,12 +299,15 @@ describe("app", function () {
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
 
-      it.only('categories should work properly', async () => {
+      it('categories should work properly', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
         const categoryName = 'my-category';
         const category = await app.createCategory(testUser.id, {name: categoryName});
-        await app.database.addGroupToCategory(testGroup.id, category.id);
+        await app.addGroupToCategory(testUser.id, testGroup.id, category.id);
+
+        const foundCategory = await app.getCategoryByParams({name: categoryName});
+        assert.equal(foundCategory.id, category.id);
 
         const categoryGroups = await app.database.getGroupsOfCategory(category.id);
         assert.equal(categoryGroups.length, 1);
@@ -354,7 +357,7 @@ describe("app", function () {
         assert.equal(categoryPosts.length, 1);
         assert.equal(categoryPosts[0].id, post.id);
 
-        await app.database.addGroupToCategory(group2.id, category.id);
+        await app.addGroupToCategory(testUser.id, group2.id, category.id);
 
         groupPosts = await app.database.getGroupPosts(testGroup.id);
         assert.equal(groupPosts.length, 1);

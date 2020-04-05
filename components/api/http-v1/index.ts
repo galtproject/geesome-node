@@ -244,6 +244,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.createCategory(req.user.id, req.body), 200);
   });
 
+  service.post('/v1/user/category/:categoryId/add-group', async (req, res) => {
+    res.send(await geesomeApp.addGroupToCategory(req.user.id, req.body.groupId, req.params.categoryId), 200);
+  });
+
   /**
    * @api {post} /v1/user/group/:groupId/update Edit group
    * @apiDescription Can be edit by database id or storage id
@@ -526,6 +530,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/v1/group/:groupId/peers', async (req, res) => {
     res.send(await geesomeApp.getGroupPeers(req.params.groupId));
+  });
+
+  service.get('/v1/category/:categoryId/posts', async (req, res) => {
+    res.send(await geesomeApp.getCategoryPosts(req.params.categoryId, req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
   });
 
   //TODO: move permissions checks to geesomeApp class

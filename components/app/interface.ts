@@ -105,6 +105,10 @@ export interface IGeesomeApp {
 
   createCategory(userId, categoryData): Promise<ICategory>;
 
+  addGroupToCategory(userId, groupId, categoryId): Promise<void>;
+
+  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
+
   asyncOperationWrapper(methodName, args, options);
 
   saveData(fileStream, fileName, options): Promise<IContent>;

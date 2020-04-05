@@ -640,6 +640,14 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.isAdminInGroup(userId, groupId);
   }
 
+  async canEditCategory(userId, categoryId) {
+    if (!categoryId) {
+      return false;
+    }
+    categoryId = await this.checkCategoryId(categoryId);
+    return this.database.isAdminInCategory(userId, categoryId);
+  }
+
   async isMemberInGroup(userId, groupId) {
     if (!groupId) {
       return false;
@@ -711,22 +719,13 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getCategory(category.id);
   }
 
-  async addGroupToCategory(userId, categoryData) {
+  async addGroupToCategory(userId, groupId, categoryId) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    categoryData.creatorId = userId;
-
-    categoryData.manifestStaticStorageId = await this.createStorageAccount(categoryData['name']);
-    if (categoryData.type !== GroupType.PersonalChat) {
-      categoryData.staticStorageId = categoryData.manifestStaticStorageId;
+    if (!(await this.canEditCategory(userId, categoryId))) {
+      throw new Error("not_permitted");
     }
 
-    const category = await this.database.addCategory(categoryData);
-
-    await this.database.addAdminToCategory(userId, category.id);
-
-    await this.updateCategoryManifest(category.id);
-
-    return this.database.getCategory(category.id);
+    await this.database.addGroupToCategory(groupId, categoryId);
   }
 
   async getCategoryByParams(params) {
@@ -1925,6 +1924,13 @@ class GeesomeApp implements IGeesomeApp {
     return {
       list: await this.database.getGroupPosts(groupId, filters, listParams),
       total: await this.database.getGroupPostsCount(groupId, filters)
+    };
+  }
+
+  async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
+    return {
+      list: await this.database.getCategoryPosts(categoryId, filters, listParams),
+      total: await this.database.getCategoryPostsCount(categoryId, filters)
     };
   }
 
