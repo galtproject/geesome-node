@@ -8,7 +8,7 @@
  */
 
 import {IGeesomeApp} from "../components/app/interface";
-import {CorePermissionName, FileCatalogItemType, UserLimitName} from "../components/database/interface";
+import {CorePermissionName, FileCatalogItemType, PostStatus, UserLimitName} from "../components/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
@@ -297,6 +297,86 @@ describe("app", function () {
         publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
+      });
+
+      it('categories should work properly', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+        const categoryName = 'my-category';
+        const category = await app.createCategory(testUser.id, {name: categoryName});
+
+        const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
+        try {
+          await app.addGroupToCategory(newUser.id, testGroup.id, category.id);
+          assert(false);
+        } catch (e) {
+          assert(true);
+        }
+        await app.addGroupToCategory(testUser.id, testGroup.id, category.id);
+
+        const foundCategory = await app.getCategoryByParams({name: categoryName});
+        assert.equal(foundCategory.id, category.id);
+
+        const categoryGroups = await app.database.getGroupsOfCategory(category.id);
+        assert.equal(categoryGroups.length, 1);
+        assert.equal(categoryGroups[0].id, testGroup.id);
+
+        const postContent = await app.saveData('Hello world', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
+
+        const post = await app.createPost(testUser.id, {
+          contents: [{id: postContent.id}],
+          groupId: testGroup.id,
+          status: PostStatus.Published
+        });
+
+        let groupPosts = await app.database.getGroupPosts(testGroup.id);
+        assert.equal(groupPosts.length, 1);
+        assert.equal(groupPosts[0].id, post.id);
+
+        let categoryPosts = await app.database.getCategoryPosts(category.id);
+        assert.equal(categoryPosts.length, 1);
+        assert.equal(categoryPosts[0].id, post.id);
+
+        const group2 = await app.createGroup(testUser.id, {
+          name: 'test2',
+          title: 'Test2'
+        });
+
+        const post2Content = await app.saveData('Hello world2', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
+
+        await app.createPost(testUser.id, {
+          contents: [{id: post2Content.id}],
+          replyToId: post.id,
+          groupId: group2.id,
+          status: PostStatus.Published
+        });
+
+        groupPosts = await app.database.getGroupPosts(testGroup.id);
+        assert.equal(groupPosts.length, 1);
+        assert.equal(groupPosts[0].id, post.id);
+
+        categoryPosts = await app.database.getCategoryPosts(category.id);
+        assert.equal(categoryPosts.length, 1);
+        assert.equal(categoryPosts[0].id, post.id);
+
+        await app.addGroupToCategory(testUser.id, group2.id, category.id);
+
+        groupPosts = await app.database.getGroupPosts(testGroup.id);
+        assert.equal(groupPosts.length, 1);
+
+        categoryPosts = await app.database.getCategoryPosts(category.id);
+        assert.equal(categoryPosts.length, 2);
+
+        categoryPosts = await app.database.getCategoryPosts(category.id, {
+          replyToId: null
+        });
+        assert.equal(categoryPosts.length, 1);
       });
     });
   });

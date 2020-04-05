@@ -124,6 +124,26 @@ export interface IDatabase {
 
   getGroupSizeSum(id): Promise<number>;
 
+  getCategory(categoryId): Promise<ICategory>;
+
+  getCategoryByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<ICategory>;
+
+  addCategory(category): Promise<ICategory>;
+
+  updateCategory(id, updateData): Promise<void>;
+
+  addAdminToCategory(userId, categoryId): Promise<void>;
+
+  removeAdminFromCategory(userId, categoryId): Promise<void>;
+
+  addGroupToCategory(groupId, categoryId): Promise<void>;
+
+  removeGroupFromCategory(groupId, categoryId): Promise<void>;
+
+  getGroupsOfCategory(categoryId): Promise<IGroup[]>;
+
+  isAdminInCategory(userId, categoryId): Promise<boolean>;
+
   addCorePermission(userId, permissionName): Promise<void>;
 
   removeCorePermission(userId, permissionName): Promise<void>;
@@ -136,9 +156,13 @@ export interface IDatabase {
 
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
-  getGroupPosts(groupId, listParams?: IListParams): Promise<IPost[]>;
+  getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
-  getGroupPostsCount(groupId): Promise<number>;
+  getGroupPostsCount(groupId, filters?): Promise<number>;
+
+  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPost[]>;
+
+  getCategoryPostsCount(categoryId, filters?): Promise<number>;
 
   getPost(postId): Promise<IPost>;
 
@@ -314,6 +338,9 @@ export interface IPost {
   groupStorageId?: string;
 
   encryptedManifestStorageId?: string;
+
+  createdAt;
+  updatedAt;
 }
 
 export enum PostStatus {
@@ -390,6 +417,25 @@ export interface IGroup {
 
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;
+}
+
+export interface ICategory {
+  id: number;
+
+  name: string;
+  title: string;
+
+  description?: string;
+  creatorId: number;
+  avatarImageId?: number;
+  avatarImage?: IContent;
+  coverImageId?: number;
+  coverImage?: IContent;
+  isGlobal?: boolean;
+  storageId?: string;
+  staticStorageId?: string;
+  manifestStorageId?: string;
+  manifestStaticStorageId?: string;
 }
 
 export enum GroupType {

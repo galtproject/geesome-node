@@ -537,12 +537,41 @@ class GeesomeApp implements IGeesomeApp {
     return groupId;
   }
 
+  async checkCategoryId(categoryId, createIfNotExist = true) {
+    if (categoryId == 'null' || categoryId == 'undefined') {
+      return null;
+    }
+    if (!categoryId || _.isUndefined(categoryId)) {
+      return null;
+    }
+    if (!commonHelper.isNumber(categoryId)) {
+      let group = await this.getCategoryByManifestId(categoryId, categoryId);
+      if (!group && createIfNotExist) {
+        // TODO: create category by remote storage id
+        return null;
+        // group = await this.createGroupByRemoteStorageId(categoryId);
+        // return group.id;
+      } else if (group) {
+        categoryId = group.id;
+      }
+    }
+    return categoryId;
+  }
+
   async canCreatePostInGroup(userId, groupId) {
     if (!groupId) {
       return false;
     }
     groupId = await this.checkGroupId(groupId);
     return this.database.isAdminInGroup(userId, groupId);
+  }
+
+  async canAddGroupToCategory(userId, categoryId) {
+    if (!categoryId) {
+      return false;
+    }
+    categoryId = await this.checkCategoryId(categoryId);
+    return this.database.isAdminInCategory(userId, categoryId);
   }
 
   async createGroup(userId, groupData) {
@@ -611,6 +640,14 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.isAdminInGroup(userId, groupId);
   }
 
+  async canEditCategory(userId, categoryId) {
+    if (!categoryId) {
+      return false;
+    }
+    categoryId = await this.checkCategoryId(categoryId);
+    return this.database.isAdminInCategory(userId, categoryId);
+  }
+
   async isMemberInGroup(userId, groupId) {
     if (!groupId) {
       return false;
@@ -664,6 +701,37 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroup(groupId);
   }
 
+  async createCategory(userId, categoryData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    categoryData.creatorId = userId;
+
+    categoryData.manifestStaticStorageId = await this.createStorageAccount(categoryData['name']);
+    if (categoryData.type !== GroupType.PersonalChat) {
+      categoryData.staticStorageId = categoryData.manifestStaticStorageId;
+    }
+
+    const category = await this.database.addCategory(categoryData);
+
+    await this.database.addAdminToCategory(userId, category.id);
+
+    await this.updateCategoryManifest(category.id);
+
+    return this.database.getCategory(category.id);
+  }
+
+  async addGroupToCategory(userId, groupId, categoryId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    if (!(await this.canEditCategory(userId, categoryId))) {
+      throw new Error("not_permitted");
+    }
+
+    await this.database.addGroupToCategory(groupId, categoryId);
+  }
+
+  async getCategoryByParams(params) {
+    return this.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
+  }
+
   async createPost(userId, postData) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     postData.userId = userId;
@@ -676,9 +744,8 @@ class GeesomeApp implements IGeesomeApp {
       postData.publishedAt = new Date();
     }
 
-    //TODO: contentsIds => contents with additional fields
-    const contentsIds = postData.contentsIds;
-    delete postData.contentsIds;
+    const contentsIds = postData.contents.map(c => c.id);
+    delete postData.contents;
 
     const user = await this.database.getUser(userId);
 
@@ -688,6 +755,7 @@ class GeesomeApp implements IGeesomeApp {
     postData.groupStorageId = group.manifestStorageId;
     postData.groupStaticStorageId = group.manifestStaticStorageId;
 
+    console.log('addPost', postData);
     let post = await this.database.addPost(postData);
 
     await this.database.setPostContents(post.id, contentsIds);
@@ -714,7 +782,7 @@ class GeesomeApp implements IGeesomeApp {
         postId: encryptedText,
         groupId: group.manifestStaticStorageId,
         isEncrypted: true,
-        sentAt: post.publishedAt.toString()
+        sentAt: (post.publishedAt || post.createdAt).toString()
       });
 
       await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
@@ -726,7 +794,7 @@ class GeesomeApp implements IGeesomeApp {
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
         isEncrypted: false,
-        sentAt: post.publishedAt.toString()
+        sentAt: (post.publishedAt || post.createdAt).toString()
       });
     }
 
@@ -785,6 +853,14 @@ class GeesomeApp implements IGeesomeApp {
       manifestStorageId,
       storageUpdatedAt,
       staticStorageUpdatedAt
+    });
+  }
+
+  async updateCategoryManifest(categoryId) {
+    const post = await this.database.getCategory(categoryId);
+
+    return this.database.updateCategory(categoryId, {
+      manifestStorageId: await this.generateAndSaveManifest('category', post)
     });
   }
 
@@ -1832,10 +1908,29 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroupByManifestId(groupId, staticId);
   }
 
-  async getGroupPosts(groupId, listParams?: IListParams) {
+  async getCategoryByManifestId(groupId, staticId) {
+    if (!staticId) {
+      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
+      if (historyItem) {
+        staticId = historyItem.staticId;
+      }
+    }
+    return this.database.getCategoryByParams({
+      manifestStaticStorageId: staticId
+    });
+  }
+
+  async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
     return {
-      list: await this.database.getGroupPosts(groupId, listParams),
-      total: await this.database.getGroupPostsCount(groupId)
+      list: await this.database.getGroupPosts(groupId, filters, listParams),
+      total: await this.database.getGroupPostsCount(groupId, filters)
+    };
+  }
+
+  async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
+    return {
+      list: await this.database.getCategoryPosts(categoryId, filters, listParams),
+      total: await this.database.getCategoryPostsCount(categoryId, filters)
     };
   }
 

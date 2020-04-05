@@ -40,7 +40,7 @@ export default {
       const postContentsDbIds = this.postContentsDbIds;
       this.postContentsDbIds = [];
       this.saving = true;
-      this.$coreApi.createPost(postContentsDbIds, {groupId: this.group.id, status: 'published'}).then(() => {
+      this.$coreApi.createPost({contents: postContentsDbIds.map(id => ({id})), groupId: this.group.id, status: 'published'}).then(() => {
         this.saving = false;
         this.$emit('new-post');
         EventBus.$emit(UPDATE_GROUP, this.group.id);

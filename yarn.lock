@@ -1302,7 +1302,7 @@ buffers@~0.1.1:
   resolved "https://registry.yarnpkg.com/buffers/-/buffers-0.1.1.tgz#b24579c3bed4d6d396aeee6d9a8ae7f5482ab7bb"
   integrity sha1-skV5w77U1tOWru5tmorn9Ugqt7s=
 
-busboy@*, busboy@^0.3.1:
+busboy@^0.3.1:
   version "0.3.1"
   resolved "https://registry.yarnpkg.com/busboy/-/busboy-0.3.1.tgz#170899274c5bf38aae27d5c62b71268cd585fd1b"
   dependencies:
@@ -1735,12 +1735,6 @@ configstore@^5.0.1:
     unique-string "^2.0.0"
     write-file-atomic "^3.0.0"
     xdg-basedir "^4.0.0"
-
-connect-busboy@^0.0.2:
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/connect-busboy/-/connect-busboy-0.0.2.tgz#ac5c9c96672171885e576c66b2bfd95d3bb11097"
-  dependencies:
-    busboy "*"
 
 console-control-strings@^1.0.0, console-control-strings@~1.1.0:
   version "1.1.0"
