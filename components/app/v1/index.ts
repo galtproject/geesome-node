@@ -170,6 +170,10 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("username_already_exists");
     }
 
+    if (!name) {
+      throw new Error("name_cant_be_null");
+    }
+
     if (_.includes(name, '@')) {
       throw new Error("forbidden_symbols_in_name");
     }
