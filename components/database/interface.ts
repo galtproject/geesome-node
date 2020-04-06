@@ -168,6 +168,10 @@ export interface IDatabase {
 
   getCategoryPostsCount(categoryId, filters?): Promise<number>;
 
+  getAllPosts(filters?, listParams?: IListParams): Promise<IPost[]>;
+
+  getAllPostsCount(filters?): Promise<number>;
+
   getPost(postId): Promise<IPost>;
 
   getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
@@ -340,6 +344,9 @@ export interface IPost {
 
   groupStaticStorageId?: string;
   groupStorageId?: string;
+
+  replyToId?: number;
+  repostOfId?: string;
 
   encryptedManifestStorageId?: string;
 

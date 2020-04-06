@@ -326,7 +326,7 @@ describe("app", function () {
           mimeType: 'text/markdown'
         });
 
-        const post = await app.createPost(testUser.id, {
+        let post = await app.createPost(testUser.id, {
           contents: [{id: postContent.id}],
           groupId: testGroup.id,
           status: PostStatus.Published,
@@ -370,6 +370,9 @@ describe("app", function () {
           groupId: group2.id,
           status: PostStatus.Published
         });
+
+        post = await app.database.getPost(post.id);
+        assert.equal(post.repliesCount, 1);
 
         groupPosts = await app.database.getGroupPosts(testGroup.id);
         assert.equal(groupPosts.length, 1);

@@ -448,6 +448,26 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
+  async getAllPosts(filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+
+    return this.models.Post.findAll({
+      where: this.getPostsWhere(filters),
+      include: [{association: 'contents'}],
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getAllPostsCount(filters = {}) {
+    return this.models.Post.count({
+      where: this.getPostsWhere(filters)
+    });
+  }
+
   async getGroupSizeSum(id) {
     return (await this.models.Post.sum('size', {where: {groupId: id}})) || 0;
   }

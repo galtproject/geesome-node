@@ -51,6 +51,12 @@ module.exports = async function (sequelize, models) {
     peersCount: {
       type: Sequelize.INTEGER
     },
+    repliesCount: {
+      type: Sequelize.INTEGER
+    },
+    repostsCount: {
+      type: Sequelize.INTEGER
+    },
     fullyPeersCount: {
       type: Sequelize.INTEGER
     },
