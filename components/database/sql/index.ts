@@ -271,7 +271,8 @@ class MysqlDatabase implements IDatabase {
   async getUserAccountByAddress(provider, address) {
     address = address.toLowerCase();
     return this.models.UserAccount.findOne({
-      where: {provider, address}
+      where: {provider, address},
+      include: [{association: 'user'}]
     });
   }
 
