@@ -2096,11 +2096,16 @@ class GeesomeApp implements IGeesomeApp {
     // if(existsAccountId) {
     //   throw "already_exists";
     // }
-    const storageAccountId = await this.storage.createAccountIfNotExists(await ipfsHelper.getIpfsHashFromString(name));
+    const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
+    console.log('createStorageAccount', name, nameIpfsHash);
+    const storageAccountId = await this.storage.createAccountIfNotExists(nameIpfsHash);
 
-    const publicKey = await this.storage.getAccountPublicKey(storageAccountId);
-    await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
-      /*dont do anything*/
+    this.storage.getAccountPublicKey(storageAccountId).then(publicKey => {
+      return this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
+        /*dont do anything*/
+      });
+    }).catch(e => {
+      console.warn('error public key caching', e);
     });
     return storageAccountId;
   }
