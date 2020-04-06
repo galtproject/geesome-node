@@ -772,6 +772,13 @@ class GeesomeApp implements IGeesomeApp {
     console.log('addPost', postData);
     let post = await this.database.addPost(postData);
 
+    if(post.replyToId) {
+      const repliesCount = await this.database.getAllPostsCount({
+        replyToId: post.replyToId
+      });
+      await this.database.updatePost(post.replyToId, {repliesCount});
+    }
+
     await this.database.setPostContents(post.id, contentsIds);
 
     let size = await this.database.getPostSizeSum(post.id);
