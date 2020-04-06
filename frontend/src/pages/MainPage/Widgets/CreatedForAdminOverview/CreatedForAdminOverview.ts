@@ -8,6 +8,7 @@
  */
 
 import PrettyName from "../../../../directives/PrettyName/PrettyName";
+import EthData from "@galtproject/frontend-core/libs/EthData";
 
 const debounce = require('lodash/debounce');
 
@@ -30,10 +31,17 @@ export default {
       const itemsData = await this.$coreApi.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
       this.items = itemsData.list;
 
-      if(!itemsData.total && this.activeTab === 'users' && this.search.split('-').length === 4) {
-        const user = await this.$coreApi.getUserByApiKey(this.search);
-        this.items = [user];
-        itemsData.total = 1;
+      if(!itemsData.total && this.activeTab === 'users' && this.search) {
+        if(this.search.split('-').length === 4) {
+          const user = await this.$coreApi.getUserByApiKey(this.search);
+          this.items = [user];
+          itemsData.total = 1;
+        }
+        if(EthData.isAddressValid(this.search)) {
+          const {user} = await this.$coreApi.adminGetUserAccount('ethereum', this.search);
+          this.items = [user];
+          itemsData.total = 1;
+        }
       }
 
       this.loading = false;
