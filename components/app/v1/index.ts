@@ -580,6 +580,12 @@ class GeesomeApp implements IGeesomeApp {
 
   async createGroup(userId, groupData) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+
+    const existUserWithName = await this.database.getGroupByParams({name: groupData['name']});
+    if (existUserWithName) {
+      throw new Error("name_already_exists");
+    }
+
     groupData.creatorId = userId;
 
     groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
