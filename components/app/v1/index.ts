@@ -585,6 +585,9 @@ class GeesomeApp implements IGeesomeApp {
     if (existUserWithName) {
       throw new Error("name_already_exists");
     }
+    if (groupData['name']) {
+      throw new Error("name_cant_be_null");
+    }
 
     groupData.creatorId = userId;
 
