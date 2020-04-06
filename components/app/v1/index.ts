@@ -1761,7 +1761,7 @@ class GeesomeApp implements IGeesomeApp {
       return { storageId };
     }
 
-    const staticId = await this.createStorageAccount(await ipfsHelper.getIpfsHashFromString(user.name + '@directory:' + storageDirPath));
+    const staticId = await this.createStorageAccount(user.name + '@directory:' + storageDirPath);
     await this.storage.bindToStaticId(storageId, staticId);
 
     return {
@@ -2096,7 +2096,7 @@ class GeesomeApp implements IGeesomeApp {
     // if(existsAccountId) {
     //   throw "already_exists";
     // }
-    const storageAccountId = await this.storage.createAccountIfNotExists(name);
+    const storageAccountId = await this.storage.createAccountIfNotExists(await ipfsHelper.getIpfsHashFromString(name));
 
     const publicKey = await this.storage.getAccountPublicKey(storageAccountId);
     await this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
