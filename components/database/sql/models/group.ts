@@ -30,6 +30,9 @@ module.exports = async function (sequelize, models) {
     isPublic: {
       type: Sequelize.BOOLEAN
     },
+    isOpen: {
+      type: Sequelize.BOOLEAN
+    },
     type: {
       type: Sequelize.STRING(200)
     },

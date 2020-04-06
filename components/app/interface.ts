@@ -83,9 +83,9 @@ export interface IGeesomeApp {
 
   removeMemberFromGroup(userId, groupId): Promise<void>;
 
-  addAdminToGroup(userId, groupId): Promise<void>;
+  addAdminToGroup(userId, groupId, newAdminUserId): Promise<void>;
 
-  removeAdminFromGroup(userId, groupId): Promise<void>;
+  removeAdminFromGroup(userId, groupId, removeAdminUserId): Promise<void>;
 
   createPost(userId, postData);
 

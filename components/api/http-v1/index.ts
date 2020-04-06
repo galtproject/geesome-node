@@ -358,6 +358,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
   });
 
+  service.post('/v1/user/group/:groupId/add-admin', async (req, res) => {
+    res.send(await geesomeApp.addAdminToGroup(req.user.id, req.params.groupId, req.body.userId), 200);
+  });
+
+  service.post('/v1/user/group/:groupId/remove-admin', async (req, res) => {
+    res.send(await geesomeApp.removeAdminFromGroup(req.user.id, req.params.groupId, req.body.userId), 200);
+  });
+
   service.get('/v1/user/api-key-list', async (req, res) => {
     res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });
