@@ -677,16 +677,34 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.isAdminInGroup(userId, groupId);
   }
 
-  async addMemberToGroup(userId, groupId) {
+  async addMemberToGroup(userId, groupId, memberId) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
-    await this.database.addMemberToGroup(userId, groupId);
+    const group = await this.getGroup(groupId);
+    if(!(await this.isAdminInGroup(userId, groupId))) {
+      if(userId.toString() !== memberId.toString()) {
+        throw new Error("not_permitted");
+      }
+      if(!group.isPublic || !group.isOpen) {
+        throw new Error("not_permitted");
+      }
+    }
+    await this.database.addMemberToGroup(memberId, groupId);
   }
 
-  async removeMemberFromGroup(userId, groupId) {
+  async removeMemberFromGroup(userId, groupId, memberId) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
-    await this.database.removeMemberFromGroup(userId, groupId);
+    const group = await this.getGroup(groupId);
+    if(!(await this.isAdminInGroup(userId, groupId))) {
+      if(userId.toString() !== memberId.toString()) {
+        throw new Error("not_permitted");
+      }
+      if(!group.isPublic || !group.isOpen) {
+        throw new Error("not_permitted");
+      }
+    }
+    await this.database.removeMemberFromGroup(memberId, groupId);
   }
 
   async addAdminToGroup(userId, groupId, newAdminUserId) {
@@ -763,6 +781,12 @@ class GeesomeApp implements IGeesomeApp {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     postData.userId = userId;
     postData.groupId = await this.checkGroupId(postData.groupId);
+    if(
+      !(await this.isAdminInGroup(userId, postData.groupId)) &&
+      !(await this.isMemberInGroup(userId, postData.groupId))
+    ) {
+      throw new Error("not_permitted");
+    }
 
     const group = await this.database.getGroup(postData.groupId);
 
