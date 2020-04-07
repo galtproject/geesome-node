@@ -405,6 +405,7 @@ export interface IGroup {
   theme: string;
   isPublic: boolean;
   isRemote: boolean;
+  isOpen: boolean;
 
   description?: string;
   creatorId: number;

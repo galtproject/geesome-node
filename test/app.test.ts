@@ -322,11 +322,30 @@ describe("app", function () {
         assert.equal(categoryGroups[0].id, testGroup.id);
 
         const postContent = await app.saveData('Hello world', null, {
-          userId: testUser.id,
+          userId: newUser.id,
           mimeType: 'text/markdown'
         });
 
-        let post = await app.createPost(testUser.id, {
+        try {
+          await app.createPost(newUser.id, {
+            contents: [{id: postContent.id}],
+            groupId: testGroup.id,
+            status: PostStatus.Published,
+            name: 'my-post'
+          });
+          assert(false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+        try {
+          await app.addMemberToGroup(newUser.id, testGroup.id, newUser.id);
+          assert(false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+        await app.addMemberToGroup(testUser.id, testGroup.id, newUser.id);
+
+        let post = await app.createPost(newUser.id, {
           contents: [{id: postContent.id}],
           groupId: testGroup.id,
           status: PostStatus.Published,

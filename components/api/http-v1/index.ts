@@ -350,12 +350,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/user/group/:groupId/join', async (req, res) => {
-    //TODO: check for private group
-    res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId), 200);
+    res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId, req.user.id), 200);
   });
 
   service.post('/v1/user/group/:groupId/leave', async (req, res) => {
-    res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId), 200);
+    res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId, req.user.id), 200);
   });
 
   service.post('/v1/user/group/:groupId/add-admin', async (req, res) => {
@@ -364,6 +363,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.post('/v1/user/group/:groupId/remove-admin', async (req, res) => {
     res.send(await geesomeApp.removeAdminFromGroup(req.user.id, req.params.groupId, req.body.userId), 200);
+  });
+
+  service.post('/v1/user/group/:groupId/add-member', async (req, res) => {
+    res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId, req.body.userId), 200);
+  });
+
+  service.post('/v1/user/group/:groupId/remove-member', async (req, res) => {
+    res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId, req.body.userId), 200);
   });
 
   service.get('/v1/user/api-key-list', async (req, res) => {
