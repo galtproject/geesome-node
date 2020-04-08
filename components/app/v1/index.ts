@@ -57,17 +57,17 @@ const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
 const uuidv4 = require('uuid/v4');
-const log = require('../../log');
+const log = require('debug')('geesome:app')
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
   config = _.merge(config, extendConfig || {});
-  console.log('config', config);
+  // console.log('config', config);
   const app = new GeesomeApp(config);
 
   app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs');
 
-  console.log('Start storage...');
+  log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
 
   // setInterval(() => {
@@ -83,7 +83,7 @@ module.exports = async (extendConfig) => {
     app.frontendStorageId = directory.id;
   }
 
-  console.log('Start database...');
+  log('Start database...');
   app.database = await require('../../database/' + config.databaseModule)(app);
 
   app.render = await require('../../render/' + config.renderModule)(app);
@@ -102,7 +102,7 @@ module.exports = async (extendConfig) => {
   // await appCron(app);
   // await appListener(app);
 
-  console.log('Start api...');
+  log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
   return app;
@@ -789,10 +789,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createPost(userId, postData) {
+    log('createPost');
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    log('checkUserCan');
     postData.userId = userId;
     postData.groupId = await this.checkGroupId(postData.groupId);
+    log('checkGroupId');
     const group = await this.database.getGroup(postData.groupId);
+    log('getGroup');
 
     if(!(await this.canCreatePostInGroup(userId, postData.groupId))) {
       throw new Error("not_permitted");
@@ -802,11 +806,13 @@ class GeesomeApp implements IGeesomeApp {
       postData.localId = await this.getPostLocalId(postData);
       postData.publishedAt = new Date();
     }
+    log('localId');
 
     const contentsIds = postData.contents.map(c => c.id);
     delete postData.contents;
 
     const user = await this.database.getUser(userId);
+    log('getUser');
 
     postData.authorStorageId = user.manifestStorageId;
     postData.authorStaticStorageId = user.manifestStaticStorageId;
@@ -814,24 +820,31 @@ class GeesomeApp implements IGeesomeApp {
     postData.groupStorageId = group.manifestStorageId;
     postData.groupStaticStorageId = group.manifestStaticStorageId;
 
-    console.log('addPost', postData);
     let post = await this.database.addPost(postData);
+    log('addPost');
 
     if(post.replyToId) {
       const repliesCount = await this.database.getAllPostsCount({
         replyToId: post.replyToId
       });
+      log('getAllPostsCount');
       await this.database.updatePost(post.replyToId, {repliesCount});
+      log('updatePost');
     }
 
     await this.database.setPostContents(post.id, contentsIds);
+    log('setPostContents');
 
     let size = await this.database.getPostSizeSum(post.id);
+    log('getPostSizeSum');
     await this.database.updatePost(post.id, {size});
+    log('updatePost');
 
     await this.updatePostManifest(post.id);
+    log('updatePostManifest');
 
     post = await this.database.getPost(post.id);
+    log('getPost');
 
     if (group.isEncrypted && group.type === GroupType.PersonalChat) {
       // Encrypt post id
@@ -862,6 +875,7 @@ class GeesomeApp implements IGeesomeApp {
         isEncrypted: false,
         sentAt: (post.publishedAt || post.createdAt).toString()
       });
+      log('publishEventByIpnsId');
     }
 
     return post;
