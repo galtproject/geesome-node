@@ -1049,6 +1049,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     let extension = fullType.split('/')[1];
 
+    log('previewDriverName:', previewDriverName);
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
