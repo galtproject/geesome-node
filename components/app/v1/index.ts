@@ -1102,25 +1102,31 @@ class GeesomeApp implements IGeesomeApp {
           previewExtension: resultExtension
         };
       } else if (previewDriver.isInputSupported(DriverInput.Content)) {
+        log('preview DriverInput.Content');
         const data = await this.storage.getFileData(storageId);
+        log('getFileData');
 
         const {content: mediumData, type, extension: resultExtension} = await previewDriver.processByContent(data, {
           extension,
           size: OutputSize.Medium
         });
+        log('processByContent');
         const mediumFile = mediumData === data ? storageFile : await this.storage.saveFileByData(mediumData);
+        log('mediumFile saveFileByData');
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
           const {content: smallData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
           smallFile = smallData === data ? storageFile : await this.storage.saveFileByData(smallData);
         }
+        log('smallFile saveFileByData');
 
         let largeFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
           const {content: largeData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
           largeFile = largeData === data ? storageFile : await this.storage.saveFileByData(largeData);
         }
+        log('largeFile saveFileByData');
 
         return {
           smallPreviewStorageId: smallFile ? smallFile.id : null,
