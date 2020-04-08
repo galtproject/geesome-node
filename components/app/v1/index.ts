@@ -1015,7 +1015,9 @@ class GeesomeApp implements IGeesomeApp {
     return this.createContentByObject(contentObject);
   }
 
-  async getPreview(storageId, fullType, source?) {
+  async getPreview(storageFile: {size, id}, fullType, source?) {
+    let storageId = storageFile.id;
+
     let previewDriverName;
     if (source) {
       if (detecterHelper.isYoutubeUrl(source)) {
@@ -1093,18 +1095,18 @@ class GeesomeApp implements IGeesomeApp {
           extension,
           size: OutputSize.Medium
         });
-        const mediumFile = await this.storage.saveFileByData(mediumData);
+        const mediumFile = mediumData === data ? storageFile : await this.storage.saveFileByData(mediumData);
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
           const {content: smallData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
-          smallFile = await this.storage.saveFileByData(smallData);
+          smallFile = smallData === data ? storageFile : await this.storage.saveFileByData(smallData);
         }
 
         let largeFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
           const {content: largeData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
-          largeFile = await this.storage.saveFileByData(largeData);
+          largeFile = largeData === data ? storageFile : await this.storage.saveFileByData(largeData);
         }
 
         return {
@@ -1290,7 +1292,7 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, type);
     log('getPreview');
 
     return this.addContent({
@@ -1372,7 +1374,7 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type, url);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, type, url);
 
     return this.addContent({
       mediumPreviewStorageId,
@@ -1397,11 +1399,11 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async setContentPreviewIfNotExist(content) {
+  async setContentPreviewIfNotExist(content: IContent) {
     if (content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.mimeType);
     await this.database.updateContent(content.id, {
       mediumPreviewStorageId,
       mediumPreviewSize,
@@ -1725,7 +1727,7 @@ class GeesomeApp implements IGeesomeApp {
 
         await pIteration.forEach(userContents, async (content: IContent) => {
           const previousIpldToNewIpldItem = [content.manifestStorageId];
-          let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
+          let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.mimeType);
 
           await this.database.updateContent(content.id, {
             mediumPreviewStorageId,
