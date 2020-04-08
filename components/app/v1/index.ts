@@ -41,7 +41,7 @@ const detecterHelper = require('geesome-libs/src/detecter');
 const {getPersonalChatTopic} = require('geesome-libs/src/name');
 const bs58 = require('bs58');
 let config = require('./config');
-const appCron = require('./cron');
+// const appCron = require('./cron');
 const appEvents = require('./events');
 // const appListener = require('./listener');
 const ethereumAuthorization = require('../../authorization/ethereum');
@@ -99,7 +99,7 @@ module.exports = async (extendConfig) => {
 
   app.events = appEvents(app);
 
-  await appCron(app);
+  // await appCron(app);
   // await appListener(app);
 
   console.log('Start api...');
