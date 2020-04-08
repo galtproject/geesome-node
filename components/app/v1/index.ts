@@ -913,12 +913,17 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updateGroupManifest(groupId) {
+    log('updateGroupManifest');
     const group = await this.database.getGroup(groupId);
+    log('getGroup');
 
     group.size = await this.database.getGroupSizeSum(groupId);
+    log('getGroupSizeSum');
     await this.database.updateGroup(groupId, {size: group.size});
+    log('updateGroup');
 
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
+    log('generateAndSaveManifest');
     let storageUpdatedAt = group.storageUpdatedAt;
     let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
 
@@ -927,6 +932,7 @@ class GeesomeApp implements IGeesomeApp {
       staticStorageUpdatedAt = new Date();
 
       await this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
+      log('bindToStaticId');
     }
 
     return this.database.updateGroup(groupId, {
@@ -945,11 +951,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updatePostManifest(postId) {
+    log('updatePostManifest');
     const post = await this.database.getPost(postId);
+    log('getPost');
+    const manifestStorageId = await this.generateAndSaveManifest('post', post);
+    log('getPosgenerateAndSaveManifest');
 
-    await this.database.updatePost(postId, {
-      manifestStorageId: await this.generateAndSaveManifest('post', post)
-    });
+    await this.database.updatePost(postId, { manifestStorageId });
+    log('updatePost');
 
     return this.updateGroupManifest(post.groupId);
   }
