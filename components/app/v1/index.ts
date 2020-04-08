@@ -1107,25 +1107,25 @@ class GeesomeApp implements IGeesomeApp {
         const data = await this.storage.getFileData(storageId);
         log('getFileData');
 
-        const {content: mediumData, type, extension: resultExtension} = await previewDriver.processByContent(data, {
+        const {content: mediumData, type, extension: resultExtension, notChanged: mediumNotChanged} = await previewDriver.processByContent(data, {
           extension,
           size: OutputSize.Medium
         });
-        log('processByContent', mediumData, data);
-        const mediumFile = mediumData === data ? storageFile : await this.storage.saveFileByData(mediumData);
+        log('processByContent');
+        const mediumFile = mediumNotChanged ? storageFile : await this.storage.saveFileByData(mediumData);
         log('mediumFile saveFileByData');
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
-          const {content: smallData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
-          smallFile = smallData === data ? storageFile : await this.storage.saveFileByData(smallData);
+          const {content: smallData, notChanged: smallNotChanged} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
+          smallFile = smallNotChanged ? storageFile : await this.storage.saveFileByData(smallData);
         }
         log('smallFile saveFileByData');
 
         let largeFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
-          const {content: largeData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
-          largeFile = largeData === data ? storageFile : await this.storage.saveFileByData(largeData);
+          const {content: largeData, notChanged: largeNotChanged} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
+          largeFile = largeNotChanged ? storageFile : await this.storage.saveFileByData(largeData);
         }
         log('largeFile saveFileByData');
 

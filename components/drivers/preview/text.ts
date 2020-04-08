@@ -24,8 +24,17 @@ export class TextPreviewDriver extends AbstractDriver {
     // if(options.size === 'large') {
     //   previewTextLength = 500;
     // }
+    const baseText = content.toString('utf8');
+    if(baseText.length <= previewTextLength) {
+      return {
+        content: baseText,
+        type: 'text/plain',
+        extension: 'txt',
+        notChanged: true
+      };
+    }
     return {
-      content: content.toString('utf8').replace(/(<([^>]+)>)/ig, "").slice(0, previewTextLength),
+      content: baseText.replace(/(<([^>]+)>)/ig, "").slice(0, previewTextLength),
       type: 'text/plain',
       extension: 'txt'
     };
