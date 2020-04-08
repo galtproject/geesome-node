@@ -914,32 +914,33 @@ class GeesomeApp implements IGeesomeApp {
 
   async updateGroupManifest(groupId) {
     log('updateGroupManifest');
-    const group = await this.database.getGroup(groupId);
-    log('getGroup');
-
-    group.size = await this.database.getGroupSizeSum(groupId);
-    log('getGroupSizeSum');
-    await this.database.updateGroup(groupId, {size: group.size});
-    log('updateGroup');
+    const [group, size] = await Promise.all([
+      this.database.getGroup(groupId),
+      this.database.getGroupSizeSum(groupId)
+    ]);
+    group.size = size;
+    log('getGroup, getGroupSizeSum');
 
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
     log('generateAndSaveManifest');
     let storageUpdatedAt = group.storageUpdatedAt;
     let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
 
+    const promises = [];
     if (manifestStorageId != group.manifestStorageId) {
       storageUpdatedAt = new Date();
       staticStorageUpdatedAt = new Date();
 
-      await this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
-      log('bindToStaticId');
+      promises.push(this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
     }
 
-    return this.database.updateGroup(groupId, {
+    promises.push(this.database.updateGroup(groupId, {
       manifestStorageId,
       storageUpdatedAt,
-      staticStorageUpdatedAt
-    });
+      staticStorageUpdatedAt,
+      size
+    }));
+    return Promise.all(promises);
   }
 
   async updateCategoryManifest(categoryId) {
