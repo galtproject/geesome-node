@@ -815,11 +815,10 @@ class GeesomeApp implements IGeesomeApp {
       this.database.getUser(userId),
       this.database.getGroup(postData.groupId)
     ]);
-    log('getUser');
+    log('getUser, getGroup');
 
     postData.authorStorageId = user.manifestStorageId;
     postData.authorStaticStorageId = user.manifestStaticStorageId;
-
     postData.groupStorageId = group.manifestStorageId;
     postData.groupStaticStorageId = group.manifestStaticStorageId;
 
@@ -831,11 +830,10 @@ class GeesomeApp implements IGeesomeApp {
         const repliesCount = await this.database.getAllPostsCount({
           replyToId: post.replyToId
         });
-        log('getAllPostsCount');
         await this.database.updatePost(post.replyToId, {repliesCount});
-        log('updatePost');
       }
     })();
+    log('replyPostUpdatePromise');
 
     await this.database.setPostContents(post.id, contentsIds);
     log('setPostContents');
@@ -881,6 +879,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     await replyPostUpdatePromise;
+    log('replyPostUpdatePromise');
 
     return post;
   }
@@ -1418,7 +1417,7 @@ class GeesomeApp implements IGeesomeApp {
       return;
     }
     let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.mimeType);
-    await this.database.updateContent(content.id, {
+    const updateData = {
       mediumPreviewStorageId,
       mediumPreviewSize,
       smallPreviewStorageId,
@@ -1427,10 +1426,9 @@ class GeesomeApp implements IGeesomeApp {
       largePreviewSize,
       previewMimeType: previewType as any,
       previewExtension
-    });
-    await this.updateContentManifest(content.id);
-    const updatedContent = await this.database.getContent(content.id);
-    _.extend(content, updatedContent);
+    };
+    await this.database.updateContent(content.id, updateData);
+    return this.updateContentManifest(_.extend(content, updateData));
   }
 
   async getAsyncOperation(userId, operationId) {
@@ -1566,27 +1564,29 @@ class GeesomeApp implements IGeesomeApp {
     const content = await this.database.addContent(contentData);
     log('content');
 
-    if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
-      log('isUserCan');
-      await this.addContentToUserFileCatalog(content.userId, content, options);
-      log('addContentToUserFileCatalog');
-    }
+    const promises = [];
+    promises.push((async () => {
+      if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
+        log('isUserCan');
+        await this.addContentToUserFileCatalog(content.userId, content, options);
+        log('addContentToUserFileCatalog');
+      }
+    })());
 
-    await this.database.addUserContentAction({
+    promises.push(this.database.addUserContentAction({
       name: UserContentActionName.Upload,
       userId: content.userId,
       size: content.size,
       contentId: content.id,
       userApiKeyId: options.userApiKeyId
-    });
+    }));
     log('addUserContentAction');
 
     if (!contentData.manifestStorageId) {
-      await this.updateContentManifest(content.id);
+      promises.push(this.updateContentManifest(content));
     }
     log('updateContentManifest');
-
-    return this.database.getContent(content.id);
+    return _.last(await Promise.all(promises));
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
@@ -1743,7 +1743,7 @@ class GeesomeApp implements IGeesomeApp {
           const previousIpldToNewIpldItem = [content.manifestStorageId];
           let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.mimeType);
 
-          await this.database.updateContent(content.id, {
+          const updateContent = {
             mediumPreviewStorageId,
             mediumPreviewSize,
 
@@ -1755,10 +1755,10 @@ class GeesomeApp implements IGeesomeApp {
 
             previewExtension,
             previewMimeType: previewType
-          });
+          };
+          await this.database.updateContent(content.id, updateContent);
 
-          await this.updateContentManifest(content.id);
-          const updatedContent = await this.database.getContent(content.id);
+          const updatedContent = await this.updateContentManifest(_.extend(content, updateContent));
 
           previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
 
@@ -1972,10 +1972,11 @@ class GeesomeApp implements IGeesomeApp {
     return mime.getType(fileName) || ContentMimeType.Unknown;
   }
 
-  async updateContentManifest(contentId) {
-    return this.database.updateContent(contentId, {
-      manifestStorageId: await this.generateAndSaveManifest('content', await this.database.getContent(contentId))
-    });
+  async updateContentManifest(content) {
+    const manifestStorageId = await this.generateAndSaveManifest('content', content);
+    content.manifestStorageId = manifestStorageId;
+    await this.database.updateContent(content.id, {manifestStorageId});
+    return content;
   }
 
   private async generateAndSaveManifest(entityName, entityObj) {
