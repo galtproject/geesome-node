@@ -199,7 +199,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
 
-    await this.storage.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
+    await this.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
 
     await this.database.updateUser(newUser.id, {
       manifestStorageId
@@ -288,14 +288,24 @@ class GeesomeApp implements IGeesomeApp {
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
 
     if (manifestStorageId != user.manifestStorageId) {
-      await this.storage.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
+      await this.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
 
-      await this.database.updateUser(userId, {
-        manifestStorageId
-      });
+      await this.database.updateUser(userId, {manifestStorageId});
     }
 
     return this.database.getUser(userId);
+  }
+
+  bindToStaticId(dynamicId, staticId) {
+    //TODO: enable when performance will be improved
+    // this.storage.bindToStaticId(dynamicId, staticId);
+
+    return this.database.addStaticIdHistoryItem({
+      staticId,
+      dynamicId,
+      isActive: true,
+      boundAt: null
+    }).catch(() => {/* already have */})
   }
 
   async setUserAccount(userId, accountData: IUserAccountInput) {
@@ -902,7 +912,7 @@ class GeesomeApp implements IGeesomeApp {
       storageUpdatedAt = new Date();
       staticStorageUpdatedAt = new Date();
 
-      await this.storage.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
+      await this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
     }
 
     return this.database.updateGroup(groupId, {
@@ -1784,7 +1794,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     const staticId = await this.createStorageAccount(user.name + '@directory:' + storageDirPath);
-    await this.storage.bindToStaticId(storageId, staticId);
+    await this.bindToStaticId(storageId, staticId);
 
     return {
       storageId,
