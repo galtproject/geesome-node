@@ -299,7 +299,7 @@ describe("app", function () {
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
 
-      it('categories should work properly', async () => {
+      it.only('categories should work properly', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
         const categoryName = 'my-category';

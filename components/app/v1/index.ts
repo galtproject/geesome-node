@@ -567,7 +567,8 @@ class GeesomeApp implements IGeesomeApp {
       return false;
     }
     groupId = await this.checkGroupId(groupId);
-    return this.database.isAdminInGroup(userId, groupId);
+    const group = await this.getGroup(groupId);
+    return (await this.database.isAdminInGroup(userId, groupId)) || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId));
   }
 
   async canAddGroupToCategory(userId, categoryId) {
@@ -781,14 +782,11 @@ class GeesomeApp implements IGeesomeApp {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     postData.userId = userId;
     postData.groupId = await this.checkGroupId(postData.groupId);
-    if(
-      !(await this.isAdminInGroup(userId, postData.groupId)) &&
-      !(await this.isMemberInGroup(userId, postData.groupId))
-    ) {
+    const group = await this.database.getGroup(postData.groupId);
+
+    if(!(await this.canCreatePostInGroup(userId, postData.groupId))) {
       throw new Error("not_permitted");
     }
-
-    const group = await this.database.getGroup(postData.groupId);
 
     if (postData.status === PostStatus.Published) {
       postData.localId = await this.getPostLocalId(postData);
