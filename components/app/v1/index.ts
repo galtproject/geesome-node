@@ -1111,7 +1111,7 @@ class GeesomeApp implements IGeesomeApp {
           extension,
           size: OutputSize.Medium
         });
-        log('processByContent');
+        log('processByContent', mediumData, data);
         const mediumFile = mediumData === data ? storageFile : await this.storage.saveFileByData(mediumData);
         log('mediumFile saveFileByData');
 
