@@ -790,17 +790,17 @@ class GeesomeApp implements IGeesomeApp {
 
   async createPost(userId, postData) {
     log('createPost');
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    log('checkUserCan');
+    const [userCan, canCreate] = await Promise.all([
+      this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
+      this.canCreatePostInGroup(userId, postData.groupId)
+    ]);
+    if(!canCreate) {
+      throw new Error("not_permitted");
+    }
+    log('checkUserCan, canCreatePostInGroup');
     postData.userId = userId;
     postData.groupId = await this.checkGroupId(postData.groupId);
     log('checkGroupId');
-    const group = await this.database.getGroup(postData.groupId);
-    log('getGroup');
-
-    if(!(await this.canCreatePostInGroup(userId, postData.groupId))) {
-      throw new Error("not_permitted");
-    }
 
     if (postData.status === PostStatus.Published) {
       postData.localId = await this.getPostLocalId(postData);
@@ -811,7 +811,10 @@ class GeesomeApp implements IGeesomeApp {
     const contentsIds = postData.contents.map(c => c.id);
     delete postData.contents;
 
-    const user = await this.database.getUser(userId);
+    const [user, group] = await Promise.all([
+      this.database.getUser(userId),
+      this.database.getGroup(postData.groupId)
+    ]);
     log('getUser');
 
     postData.authorStorageId = user.manifestStorageId;
@@ -823,14 +826,16 @@ class GeesomeApp implements IGeesomeApp {
     let post = await this.database.addPost(postData);
     log('addPost');
 
-    if(post.replyToId) {
-      const repliesCount = await this.database.getAllPostsCount({
-        replyToId: post.replyToId
-      });
-      log('getAllPostsCount');
-      await this.database.updatePost(post.replyToId, {repliesCount});
-      log('updatePost');
-    }
+    let replyPostUpdatePromise = (async() => {
+      if(post.replyToId) {
+        const repliesCount = await this.database.getAllPostsCount({
+          replyToId: post.replyToId
+        });
+        log('getAllPostsCount');
+        await this.database.updatePost(post.replyToId, {repliesCount});
+        log('updatePost');
+      }
+    })();
 
     await this.database.setPostContents(post.id, contentsIds);
     log('setPostContents');
@@ -840,11 +845,8 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.updatePost(post.id, {size});
     log('updatePost');
 
-    await this.updatePostManifest(post.id);
+    post = await this.updatePostManifest(post.id);
     log('updatePostManifest');
-
-    post = await this.database.getPost(post.id);
-    log('getPost');
 
     if (group.isEncrypted && group.type === GroupType.PersonalChat) {
       // Encrypt post id
@@ -878,6 +880,8 @@ class GeesomeApp implements IGeesomeApp {
       log('publishEventByIpnsId');
     }
 
+    await replyPostUpdatePromise;
+
     return post;
   }
 
@@ -897,9 +901,7 @@ class GeesomeApp implements IGeesomeApp {
     postData.size = await this.database.getPostSizeSum(postId);
 
     await this.database.updatePost(postId, postData);
-    await this.updatePostManifest(postId);
-
-    return this.database.getPost(postId);
+    return this.updatePostManifest(postId);
   }
 
   async getPostLocalId(post: IPost) {
@@ -961,7 +963,9 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.updatePost(postId, { manifestStorageId });
     log('updatePost');
 
-    return this.updateGroupManifest(post.groupId);
+    await this.updateGroupManifest(post.groupId);
+    post.manifestStorageId = manifestStorageId;
+    return post;
   }
 
   async getGroupPeers(groupId) {
