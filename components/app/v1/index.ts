@@ -57,17 +57,17 @@ const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
 const uuidv4 = require('uuid/v4');
-const log = require('../../log');
+const log = require('debug')('geesome:app')
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
   config = _.merge(config, extendConfig || {});
-  console.log('config', config);
+  // console.log('config', config);
   const app = new GeesomeApp(config);
 
   app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs');
 
-  console.log('Start storage...');
+  log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
 
   // setInterval(() => {
@@ -83,7 +83,7 @@ module.exports = async (extendConfig) => {
     app.frontendStorageId = directory.id;
   }
 
-  console.log('Start database...');
+  log('Start database...');
   app.database = await require('../../database/' + config.databaseModule)(app);
 
   app.render = await require('../../render/' + config.renderModule)(app);
@@ -102,7 +102,7 @@ module.exports = async (extendConfig) => {
   // await appCron(app);
   // await appListener(app);
 
-  console.log('Start api...');
+  log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
   return app;
@@ -789,49 +789,62 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createPost(userId, postData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    postData.userId = userId;
-    postData.groupId = await this.checkGroupId(postData.groupId);
-    const group = await this.database.getGroup(postData.groupId);
-
-    if(!(await this.canCreatePostInGroup(userId, postData.groupId))) {
+    log('createPost');
+    const [userCan, canCreate] = await Promise.all([
+      this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
+      this.canCreatePostInGroup(userId, postData.groupId)
+    ]);
+    if(!canCreate) {
       throw new Error("not_permitted");
     }
+    log('checkUserCan, canCreatePostInGroup');
+    postData.userId = userId;
+    postData.groupId = await this.checkGroupId(postData.groupId);
+    log('checkGroupId');
 
     if (postData.status === PostStatus.Published) {
       postData.localId = await this.getPostLocalId(postData);
       postData.publishedAt = new Date();
     }
+    log('localId');
 
     const contentsIds = postData.contents.map(c => c.id);
     delete postData.contents;
 
-    const user = await this.database.getUser(userId);
+    const [user, group] = await Promise.all([
+      this.database.getUser(userId),
+      this.database.getGroup(postData.groupId)
+    ]);
+    log('getUser, getGroup');
 
     postData.authorStorageId = user.manifestStorageId;
     postData.authorStaticStorageId = user.manifestStaticStorageId;
-
     postData.groupStorageId = group.manifestStorageId;
     postData.groupStaticStorageId = group.manifestStaticStorageId;
 
-    console.log('addPost', postData);
     let post = await this.database.addPost(postData);
+    log('addPost');
 
-    if(post.replyToId) {
-      const repliesCount = await this.database.getAllPostsCount({
-        replyToId: post.replyToId
-      });
-      await this.database.updatePost(post.replyToId, {repliesCount});
-    }
+    let replyPostUpdatePromise = (async() => {
+      if(post.replyToId) {
+        const repliesCount = await this.database.getAllPostsCount({
+          replyToId: post.replyToId
+        });
+        await this.database.updatePost(post.replyToId, {repliesCount});
+      }
+    })();
+    log('replyPostUpdatePromise');
 
     await this.database.setPostContents(post.id, contentsIds);
+    log('setPostContents');
 
     let size = await this.database.getPostSizeSum(post.id);
+    log('getPostSizeSum');
     await this.database.updatePost(post.id, {size});
+    log('updatePost');
 
-    await this.updatePostManifest(post.id);
-
-    post = await this.database.getPost(post.id);
+    post = await this.updatePostManifest(post.id);
+    log('updatePostManifest');
 
     if (group.isEncrypted && group.type === GroupType.PersonalChat) {
       // Encrypt post id
@@ -855,14 +868,18 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
-      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
         isEncrypted: false,
         sentAt: (post.publishedAt || post.createdAt).toString()
       });
+      log('publishEventByIpnsId');
     }
+
+    await replyPostUpdatePromise;
+    log('replyPostUpdatePromise');
 
     return post;
   }
@@ -883,9 +900,7 @@ class GeesomeApp implements IGeesomeApp {
     postData.size = await this.database.getPostSizeSum(postId);
 
     await this.database.updatePost(postId, postData);
-    await this.updatePostManifest(postId);
-
-    return this.database.getPost(postId);
+    return this.updatePostManifest(postId);
   }
 
   async getPostLocalId(post: IPost) {
@@ -899,27 +914,34 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updateGroupManifest(groupId) {
-    const group = await this.database.getGroup(groupId);
-
-    group.size = await this.database.getGroupSizeSum(groupId);
-    await this.database.updateGroup(groupId, {size: group.size});
+    log('updateGroupManifest');
+    const [group, size] = await Promise.all([
+      this.database.getGroup(groupId),
+      this.database.getGroupSizeSum(groupId)
+    ]);
+    group.size = size;
+    log('getGroup, getGroupSizeSum');
 
     const manifestStorageId = await this.generateAndSaveManifest('group', group);
+    log('generateAndSaveManifest');
     let storageUpdatedAt = group.storageUpdatedAt;
     let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
 
+    const promises = [];
     if (manifestStorageId != group.manifestStorageId) {
       storageUpdatedAt = new Date();
       staticStorageUpdatedAt = new Date();
 
-      await this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId);
+      promises.push(this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
     }
 
-    return this.database.updateGroup(groupId, {
+    promises.push(this.database.updateGroup(groupId, {
       manifestStorageId,
       storageUpdatedAt,
-      staticStorageUpdatedAt
-    });
+      staticStorageUpdatedAt,
+      size
+    }));
+    return Promise.all(promises);
   }
 
   async updateCategoryManifest(categoryId) {
@@ -931,13 +953,18 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updatePostManifest(postId) {
+    log('updatePostManifest');
     const post = await this.database.getPost(postId);
+    log('getPost');
+    const manifestStorageId = await this.generateAndSaveManifest('post', post);
+    log('getPosgenerateAndSaveManifest');
 
-    await this.database.updatePost(postId, {
-      manifestStorageId: await this.generateAndSaveManifest('post', post)
-    });
+    await this.database.updatePost(postId, { manifestStorageId });
+    log('updatePost');
 
-    return this.updateGroupManifest(post.groupId);
+    await this.updateGroupManifest(post.groupId);
+    post.manifestStorageId = manifestStorageId;
+    return post;
   }
 
   async getGroupPeers(groupId) {
@@ -1001,7 +1028,9 @@ class GeesomeApp implements IGeesomeApp {
     return this.createContentByObject(contentObject);
   }
 
-  async getPreview(storageId, fullType, source?) {
+  async getPreview(storageFile: {size, id}, fullType, source?) {
+    let storageId = storageFile.id;
+
     let previewDriverName;
     if (source) {
       if (detecterHelper.isYoutubeUrl(source)) {
@@ -1020,6 +1049,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     let extension = fullType.split('/')[1];
 
+    log('previewDriverName:', previewDriverName);
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
@@ -1073,25 +1103,31 @@ class GeesomeApp implements IGeesomeApp {
           previewExtension: resultExtension
         };
       } else if (previewDriver.isInputSupported(DriverInput.Content)) {
+        log('preview DriverInput.Content');
         const data = await this.storage.getFileData(storageId);
+        log('getFileData');
 
-        const {content: mediumData, type, extension: resultExtension} = await previewDriver.processByContent(data, {
+        const {content: mediumData, type, extension: resultExtension, notChanged: mediumNotChanged} = await previewDriver.processByContent(data, {
           extension,
           size: OutputSize.Medium
         });
-        const mediumFile = await this.storage.saveFileByData(mediumData);
+        log('processByContent');
+        const mediumFile = mediumNotChanged ? storageFile : await this.storage.saveFileByData(mediumData);
+        log('mediumFile saveFileByData');
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
-          const {content: smallData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
-          smallFile = await this.storage.saveFileByData(smallData);
+          const {content: smallData, notChanged: smallNotChanged} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
+          smallFile = smallNotChanged ? storageFile : await this.storage.saveFileByData(smallData);
         }
+        log('smallFile saveFileByData');
 
         let largeFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
-          const {content: largeData} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
-          largeFile = await this.storage.saveFileByData(largeData);
+          const {content: largeData, notChanged: largeNotChanged} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
+          largeFile = largeNotChanged ? storageFile : await this.storage.saveFileByData(largeData);
         }
+        log('largeFile saveFileByData');
 
         return {
           smallPreviewStorageId: smallFile ? smallFile.id : null,
@@ -1276,7 +1312,7 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, type);
     log('getPreview');
 
     return this.addContent({
@@ -1358,7 +1394,7 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile.id, type, url);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, type, url);
 
     return this.addContent({
       mediumPreviewStorageId,
@@ -1383,12 +1419,12 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async setContentPreviewIfNotExist(content) {
+  async setContentPreviewIfNotExist(content: IContent) {
     if (content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
-    await this.database.updateContent(content.id, {
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.mimeType);
+    const updateData = {
       mediumPreviewStorageId,
       mediumPreviewSize,
       smallPreviewStorageId,
@@ -1397,10 +1433,9 @@ class GeesomeApp implements IGeesomeApp {
       largePreviewSize,
       previewMimeType: previewType as any,
       previewExtension
-    });
-    await this.updateContentManifest(content.id);
-    const updatedContent = await this.database.getContent(content.id);
-    _.extend(content, updatedContent);
+    };
+    await this.database.updateContent(content.id, updateData);
+    return this.updateContentManifest(_.extend(content, updateData));
   }
 
   async getAsyncOperation(userId, operationId) {
@@ -1536,27 +1571,29 @@ class GeesomeApp implements IGeesomeApp {
     const content = await this.database.addContent(contentData);
     log('content');
 
-    if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
-      log('isUserCan');
-      await this.addContentToUserFileCatalog(content.userId, content, options);
-      log('addContentToUserFileCatalog');
-    }
+    const promises = [];
+    promises.push((async () => {
+      if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
+        log('isUserCan');
+        await this.addContentToUserFileCatalog(content.userId, content, options);
+        log('addContentToUserFileCatalog');
+      }
+    })());
 
-    await this.database.addUserContentAction({
+    promises.push(this.database.addUserContentAction({
       name: UserContentActionName.Upload,
       userId: content.userId,
       size: content.size,
       contentId: content.id,
       userApiKeyId: options.userApiKeyId
-    });
+    }));
     log('addUserContentAction');
 
     if (!contentData.manifestStorageId) {
-      await this.updateContentManifest(content.id);
+      promises.push(this.updateContentManifest(content));
     }
     log('updateContentManifest');
-
-    return this.database.getContent(content.id);
+    return _.last(await Promise.all(promises));
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
@@ -1711,9 +1748,9 @@ class GeesomeApp implements IGeesomeApp {
 
         await pIteration.forEach(userContents, async (content: IContent) => {
           const previousIpldToNewIpldItem = [content.manifestStorageId];
-          let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(content.storageId, content.mimeType);
+          let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.mimeType);
 
-          await this.database.updateContent(content.id, {
+          const updateContent = {
             mediumPreviewStorageId,
             mediumPreviewSize,
 
@@ -1725,10 +1762,10 @@ class GeesomeApp implements IGeesomeApp {
 
             previewExtension,
             previewMimeType: previewType
-          });
+          };
+          await this.database.updateContent(content.id, updateContent);
 
-          await this.updateContentManifest(content.id);
-          const updatedContent = await this.database.getContent(content.id);
+          const updatedContent = await this.updateContentManifest(_.extend(content, updateContent));
 
           previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
 
@@ -1942,10 +1979,11 @@ class GeesomeApp implements IGeesomeApp {
     return mime.getType(fileName) || ContentMimeType.Unknown;
   }
 
-  async updateContentManifest(contentId) {
-    return this.database.updateContent(contentId, {
-      manifestStorageId: await this.generateAndSaveManifest('content', await this.database.getContent(contentId))
-    });
+  async updateContentManifest(content) {
+    const manifestStorageId = await this.generateAndSaveManifest('content', content);
+    content.manifestStorageId = manifestStorageId;
+    await this.database.updateContent(content.id, {manifestStorageId});
+    return content;
   }
 
   private async generateAndSaveManifest(entityName, entityObj) {
