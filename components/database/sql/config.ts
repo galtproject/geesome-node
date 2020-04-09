@@ -12,7 +12,7 @@ module.exports = {
   'user': 'geesome',
   'password': 'geesome',
   'options': {
-    'logging': () => {},
+    // 'logging': () => {},
     'host': 'localhost',
     'dialect': 'postgres',
     'operatorsAliases': false,
