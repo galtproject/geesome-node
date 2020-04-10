@@ -810,11 +810,8 @@ class GeesomeApp implements IGeesomeApp {
 
     let contentsIds = postData.contents.map(c => c.id).filter(id => id);
     const manifestStorageIds = postData.contents.map(c => c.manifestStorageId).filter(id => id);
-    console.log('manifestStorageIds', manifestStorageIds);
     const contentsIdsByStorageIds = await pIteration.map(manifestStorageIds, storageId => this.getContentByManifestId(storageId).then(c => c ? c.id : null));
-    console.log('contentsIdsByStorageIds', contentsIdsByStorageIds);
     contentsIds = contentsIds.concat(contentsIdsByStorageIds.filter(id => id));
-    console.log('contentsIds', contentsIds);
     delete postData.contents;
 
     const [user, group] = await Promise.all([
