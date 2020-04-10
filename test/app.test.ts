@@ -378,17 +378,25 @@ describe("app", function () {
 
         assert.equal(group2.id, foundGroup2.id);
 
-        const post2Content = await app.saveData('Hello world2', null, {
+        const post2Content1 = await app.saveData('Hello world2', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
+        const post2Content2 = await app.saveData('Hello world3', null, {
           userId: testUser.id,
           mimeType: 'text/markdown'
         });
 
-        await app.createPost(testUser.id, {
-          contents: [{id: post2Content.id}],
+        const post2 = await app.createPost(testUser.id, {
+          contents: [{id: post2Content1.id}, {manifestStorageId: post2Content2.manifestStorageId}],
           replyToId: post.id,
           groupId: group2.id,
           status: PostStatus.Published
         });
+
+        assert.equal(post2.contents.length, 2);
+        assert.equal(await app.storage.getFileData(post2.contents[0].storageId), 'Hello world2');
+        assert.equal(await app.storage.getFileData(post2.contents[1].storageId), 'Hello world3');
 
         post = await app.database.getPost(post.id);
         assert.equal(post.repliesCount, 1);
