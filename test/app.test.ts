@@ -8,7 +8,13 @@
  */
 
 import {IGeesomeApp} from "../components/app/interface";
-import {CorePermissionName, FileCatalogItemType, PostStatus, UserLimitName} from "../components/database/interface";
+import {
+  ContentView,
+  CorePermissionName,
+  FileCatalogItemType,
+  PostStatus,
+  UserLimitName
+} from "../components/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
@@ -388,7 +394,7 @@ describe("app", function () {
         });
 
         const post2 = await app.createPost(testUser.id, {
-          contents: [{id: post2Content1.id}, {manifestStorageId: post2Content2.manifestStorageId}],
+          contents: [{id: post2Content1.id, view: ContentView.Contents}, {manifestStorageId: post2Content2.manifestStorageId, view: ContentView.Attachment}],
           replyToId: post.id,
           groupId: group2.id,
           status: PostStatus.Published
@@ -396,7 +402,9 @@ describe("app", function () {
 
         assert.equal(post2.contents.length, 2);
         assert.equal(await app.storage.getFileData(post2.contents[0].storageId), 'Hello world2');
+        assert.equal(post2.contents[0].postsContents.view, ContentView.Contents);
         assert.equal(await app.storage.getFileData(post2.contents[1].storageId), 'Hello world3');
+        assert.equal(post2.contents[1].postsContents.view, ContentView.Attachment);
 
         post = await app.database.getPost(post.id);
         assert.equal(post.repliesCount, 1);

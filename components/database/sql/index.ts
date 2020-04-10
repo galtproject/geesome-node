@@ -623,10 +623,10 @@ class MysqlDatabase implements IDatabase {
     return this.models.Post.update(updateData, {where: {id}});
   }
 
-  async setPostContents(postId, contentsIds) {
-    const contents = await pIteration.map(contentsIds, async (contentId, position) => {
-      const contentObj: any = await this.getContent(contentId);
-      contentObj.postsContents = {position};
+  async setPostContents(postId, contentsData) {
+    const contents = await pIteration.map(contentsData, async (content, position) => {
+      const contentObj: any = await this.getContent(content.id);
+      contentObj.postsContents = {position, view: content.view};
       return contentObj;
     });
     return (await this.getPost(postId)).setContents(contents);
