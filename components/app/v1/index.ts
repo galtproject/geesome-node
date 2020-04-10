@@ -808,10 +808,16 @@ class GeesomeApp implements IGeesomeApp {
     }
     log('localId');
 
-    let contentsIds = postData.contents.map(c => c.id).filter(id => id);
-    const manifestStorageIds = postData.contents.map(c => c.manifestStorageId).filter(id => id);
-    const contentsIdsByStorageIds = await pIteration.map(manifestStorageIds, storageId => this.getContentByManifestId(storageId).then(c => c ? c.id : null));
-    contentsIds = contentsIds.concat(contentsIdsByStorageIds.filter(id => id));
+    let contentsData = postData.contents.filter(c => c.id);
+    console.log('contentsData', contentsData);
+    const manifestStorageContents = postData.contents.filter(c => c.manifestStorageId);
+    console.log('manifestStorageContents', manifestStorageContents);
+    const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
+      id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
+      ...c
+    }));
+    console.log('manifestStorageContents', manifestStorageContents);
+    contentsData = contentsData.concat(contentsByStorageManifests.filter(c => c.id));
     delete postData.contents;
 
     const [user, group] = await Promise.all([
@@ -838,7 +844,7 @@ class GeesomeApp implements IGeesomeApp {
     })();
     log('replyPostUpdatePromise');
 
-    await this.database.setPostContents(post.id, contentsIds);
+    await this.database.setPostContents(post.id, contentsData);
     log('setPostContents');
 
     let size = await this.database.getPostSizeSum(post.id);

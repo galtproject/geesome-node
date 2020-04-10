@@ -118,6 +118,7 @@ module.exports = async function (sequelize, models) {
 
   models.PostsContents = sequelize.define('postsContents', {
     position: {type: Sequelize.INTEGER},
+    view: {type: Sequelize.STRING(200)},
   } as any, {} as any);
 
   Content.belongsToMany(models.Post, {as: 'posts', through: models.PostsContents});
