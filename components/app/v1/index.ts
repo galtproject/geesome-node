@@ -808,7 +808,10 @@ class GeesomeApp implements IGeesomeApp {
     }
     log('localId');
 
-    const contentsIds = postData.contents.map(c => c.id);
+    let contentsIds = postData.contents.map(c => c.id).filter(id => id);
+    const manifestStorageIds = postData.contents.map(c => c.manifestStorageId).filter(id => id);
+    const contentsIdsByStorageIds = await pIteration.map(manifestStorageIds, storageId => this.getContentByManifestId(storageId).then(c => c ? c.id : null));
+    contentsIds = contentsIds.concat(contentsIdsByStorageIds.filter(id => id));
     delete postData.contents;
 
     const [user, group] = await Promise.all([
@@ -2044,6 +2047,10 @@ class GeesomeApp implements IGeesomeApp {
 
   getContentByStorageId(storageId) {
     return this.database.getContentByStorageId(storageId);
+  }
+
+  getContentByManifestId(storageId) {
+    return this.database.getContentByManifestId(storageId);
   }
 
   async getDataStructure(storageId) {
