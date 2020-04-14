@@ -296,9 +296,12 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUser(userId);
   }
 
-  bindToStaticId(dynamicId, staticId) {
+  async bindToStaticId(dynamicId, staticId) {
+    log('bindToStaticId', dynamicId, staticId);
     //TODO: enable when performance will be improved
     // this.storage.bindToStaticId(dynamicId, staticId);
+
+    // await this.database.destroyStaticIdHistory(staticId);
 
     return this.database.addStaticIdHistoryItem({
       staticId,
@@ -2204,6 +2207,7 @@ class GeesomeApp implements IGeesomeApp {
       let alreadyHandled = false;
 
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+      log('getActualStaticIdItem', staticIdItem.dynamicId, staticId);
 
       setTimeout(() => {
         if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
