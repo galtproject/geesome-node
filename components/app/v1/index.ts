@@ -301,7 +301,7 @@ class GeesomeApp implements IGeesomeApp {
     //TODO: enable when performance will be improved
     // this.storage.bindToStaticId(dynamicId, staticId);
 
-    await this.database.destroyStaticIdHistory(staticId);
+    // await this.database.destroyStaticIdHistory(staticId);
 
     return this.database.addStaticIdHistoryItem({
       staticId,
