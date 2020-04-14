@@ -234,6 +234,8 @@ export interface IDatabase {
 
   getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
 
+  destroyStaticIdHistory(staticId): Promise<void>;
+
   getValue(key: string): Promise<string>;
 
   setValue(key: string, content: string): Promise<void>;

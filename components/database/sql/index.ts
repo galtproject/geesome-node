@@ -906,6 +906,10 @@ class MysqlDatabase implements IDatabase {
     return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
   }
 
+  async destroyStaticIdHistory(staticId) {
+    return this.models.StaticIdHistory.destroy({where: {staticId}});
+  }
+
   async setStaticIdPublicKey(staticId, publicKey) {
     return this.models.StaticIdPublicKey.create({staticId, publicKey});
   }
