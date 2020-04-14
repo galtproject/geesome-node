@@ -304,7 +304,7 @@ class GeesomeApp implements IGeesomeApp {
       staticId,
       dynamicId,
       isActive: true,
-      boundAt: null
+      boundAt: new Date()
     }).catch(() => {/* already have */})
   }
 
