@@ -297,6 +297,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   bindToStaticId(dynamicId, staticId) {
+    log('bindToStaticId', dynamicId, staticId);
     //TODO: enable when performance will be improved
     // this.storage.bindToStaticId(dynamicId, staticId);
 
@@ -2204,6 +2205,7 @@ class GeesomeApp implements IGeesomeApp {
       let alreadyHandled = false;
 
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+      log('getActualStaticIdItem', staticIdItem.dynamicId, staticId);
 
       setTimeout(() => {
         if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
