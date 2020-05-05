@@ -22,7 +22,7 @@ const fs = require('fs');
 const _ = require('lodash');
 const log = require('../components/log');
 
-describe.only("app", function () {
+describe("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
 
   this.timeout(60000);
