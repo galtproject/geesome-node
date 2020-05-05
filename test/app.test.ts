@@ -25,7 +25,7 @@ const log = require('../components/log');
 describe("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
 
-  this.timeout(30000);
+  this.timeout(60000);
 
   let app: IGeesomeApp;
 
@@ -171,6 +171,25 @@ describe("app", function () {
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
         const videoContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-video.mp4'), 'input-video.mp4', {
+          userId: testUser.id,
+          groupId: testGroup.id
+        });
+
+        const contentObj = await app.storage.getObject(videoContent.manifestStorageId);
+
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
+        assert.equal(contentObj.mimeType, 'video/mp4');
+
+        console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType)
+        assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
+      });
+
+      it('should correctly save mov video', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        const videoContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-video.mov'), 'input-video.mov', {
           userId: testUser.id,
           groupId: testGroup.id
         });
