@@ -12,7 +12,7 @@
     "upgrade": "./bash/upgrade-app.sh",
     "generate-docs": "./node_modules/.bin/apidoc -i components/api/http-v1 -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
-    "test": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
+    "test": "npm run recreate-test-database; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report"
   },
   "author": "",

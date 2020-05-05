@@ -23,7 +23,7 @@ export class VideoThumbnail extends AbstractDriver {
   async processByStream(inputStream, options: any = {}) {
 
     const transformStream = new stream.Transform();
-    transformStream._transform = function (chunk,encoding,done) {
+    transformStream._transform = function (chunk, encoding, done) {
       this.push(chunk);
       done();
     };
