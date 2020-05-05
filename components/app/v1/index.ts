@@ -1059,7 +1059,7 @@ class GeesomeApp implements IGeesomeApp {
     if (!previewDriverName) {
       previewDriverName = fullType.split('/')[0];
     }
-    let extension = fullType.split('/')[1];
+    let extension = (fullType.split('/')[1] || '').toLowerCase();
 
     log('previewDriverName:', previewDriverName);
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
@@ -1463,7 +1463,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   getExtensionFromName(fileName) {
-    return (fileName || '').split('.').length > 1 ? _.last((fileName || '').split('.')) : null
+    return (fileName || '').split('.').length > 1 ? _.last((fileName || '').split('.')).toLowerCase() : null
   }
 
   isVideoType(fullType) {
@@ -1473,7 +1473,7 @@ class GeesomeApp implements IGeesomeApp {
 
   private async saveFileByStream(userId, stream, mimeType, options: any = {}): Promise<any> {
     return new Promise(async (resolve, reject) => {
-      let extension = options.extension || _.last(mimeType.split('/'));
+      let extension = (options.extension || _.last(mimeType.split('/')) || '').toLowerCase();
 
       if (this.isVideoType(mimeType)) {
         const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
