@@ -204,9 +204,9 @@ export interface IDatabase {
 
   getAllContentCount(searchString): Promise<number>;
 
-  getAllGroupList(searchString, listParams?: IListParams): Promise<IGroup[]>;
+  getAllGroupList(searchString?, listParams?: IListParams): Promise<IGroup[]>;
 
-  getAllGroupCount(searchString): Promise<number>;
+  getAllGroupCount(searchString?): Promise<number>;
 
   addUserContentAction(userContentActionData): Promise<IUserContentAction>;
 
