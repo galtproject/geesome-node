@@ -834,7 +834,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  getAllGroupWhere(searchString) {
+  getAllGroupWhere(searchString?) {
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {title: searchString}]};
@@ -842,7 +842,7 @@ class MysqlDatabase implements IDatabase {
     return where;
   }
 
-  async getAllGroupList(searchString, listParams: IListParams = {}) {
+  async getAllGroupList(searchString?, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.Group.findAll({
@@ -853,7 +853,7 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
-  async getAllGroupCount(searchString) {
+  async getAllGroupCount(searchString?) {
     return this.models.Group.count({
       where: this.getAllGroupWhere(searchString)
     });
