@@ -397,6 +397,16 @@ describe("app", function () {
           title: 'Test2'
         });
 
+        try {
+          await app.createGroup(testUser.id, {
+            name: 'test2',
+            title: 'Test2222'
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "already_exists"), true);
+        }
+
         const foundGroup2 = await app.getGroupByParams({
           name: 'test2'
         });

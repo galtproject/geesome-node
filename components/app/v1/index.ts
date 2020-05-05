@@ -350,7 +350,8 @@ class GeesomeApp implements IGeesomeApp {
       avatarImageId: friend.avatarImageId,
       view: GroupView.TelegramLike,
       isPublic: false,
-      isEncrypted: true
+      isEncrypted: true,
+      isRemote: false
     });
 
     await this.database.addMemberToGroup(userId, group.id);
@@ -604,6 +605,9 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     groupData.creatorId = userId;
+    if(!groupData.isRemote) {
+      groupData.isRemote = false;
+    }
 
     groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
     if (groupData.type !== GroupType.PersonalChat) {
@@ -834,6 +838,9 @@ class GeesomeApp implements IGeesomeApp {
     postData.groupStorageId = group.manifestStorageId;
     postData.groupStaticStorageId = group.manifestStaticStorageId;
 
+    if(!postData.isRemote) {
+      postData.isRemote = false;
+    }
     let post = await this.database.addPost(postData);
     log('addPost');
 
