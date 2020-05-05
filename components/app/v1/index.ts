@@ -90,47 +90,6 @@ module.exports = async (extendConfig) => {
 
   app.drivers = require('../../drivers');
 
-  const groups = await app.database.getAllGroupList();
-  await pIteration.forEachSeries(groups, async (group, index) => {
-    console.log('group', `${index + 1}/${groups.length}`);
-    if (!group.name) {
-      return;
-    }
-    const groupsWithSameName = await app.database.getAllGroupList(group.name);
-    if (groupsWithSameName.length === 1) {
-      return;
-    }
-    return pIteration.forEach(groupsWithSameName, async (sameNameGroup) => {
-      if(sameNameGroup.id === group.id) {
-        return;
-      }
-      const posts = await app.database.getGroupPosts(sameNameGroup.id);
-      await pIteration.forEach(posts, (post) => {
-        return post.destroy();
-      });
-      console.log('destroy', sameNameGroup.id);
-      return sameNameGroup.destroy();
-    });
-  });
-  const posts = await app.database.getAllPosts();
-  await pIteration.forEachSeries(posts, async (post, index) => {
-    console.log('post', `${index + 1}/${groups.length}`);
-    if (!post.name) {
-      return;
-    }
-    const postsWithSameName = await app.database.getAllPosts({name: post.name});
-    if (postsWithSameName.length === 1) {
-      return;
-    }
-    return pIteration.forEach(postsWithSameName, async (sameNamePost) => {
-      if(sameNamePost.id === post.id) {
-        return;
-      }
-      console.log('destroy', sameNamePost.id);
-      return sameNamePost.destroy();
-    });
-  });
-
   // if ((await app.database.getUsersCount()) === 0) {
   //   console.log('Run seeds...');
   //   await app.runSeeds();

@@ -93,6 +93,7 @@ module.exports = async function (sequelize, models) {
       // { fields: ['chainAccountAddress'] },
       // { fields: ['tokensAddress'] },
       { fields: ['name'] },
+      { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
       { fields: ['replyToId'] },
       { fields: ['repostOfId'] }
     ]
