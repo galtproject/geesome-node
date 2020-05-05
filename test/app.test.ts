@@ -324,7 +324,7 @@ describe("app", function () {
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
 
-      it('categories should work properly', async () => {
+      it.only('categories should work properly', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
         const categoryName = 'my-category';
@@ -396,6 +396,16 @@ describe("app", function () {
           name: 'test2',
           title: 'Test2'
         });
+
+        try {
+          await app.createGroup(testUser.id, {
+            name: 'test2',
+            title: 'Test2222'
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "already_exists"), true);
+        }
 
         const foundGroup2 = await app.getGroupByParams({
           name: 'test2'
