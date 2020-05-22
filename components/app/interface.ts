@@ -79,9 +79,11 @@ export interface IGeesomeApp {
 
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
-  addMemberToGroup(userId, groupId, memberId): Promise<void>;
+  addMemberToGroup(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
 
   removeMemberFromGroup(userId, groupId, memberId): Promise<void>;
+
+  setGroupPermissions(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
 
   addAdminToGroup(userId, groupId, newAdminUserId): Promise<void>;
 

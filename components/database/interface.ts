@@ -156,6 +156,16 @@ export interface IDatabase {
 
   isHaveCorePermission(userId, permissionName): Promise<boolean>;
 
+  addGroupPermission(userId, groupId, permissionName): Promise<void>;
+
+  removeGroupPermission(userId, groupId, permissionName): Promise<void>;
+
+  removeAllGroupPermission(userId, groupId): Promise<void>;
+
+  getGroupPermissions(userId, groupId): Promise<ICorePermission[]>;
+
+  isHaveGroupPermission(userId, groupId, permissionName): Promise<boolean>;
+
   isAdminInGroup(userId, groupId): Promise<boolean>;
 
   isMemberInGroup(userId, groupId): Promise<boolean>;
@@ -571,4 +581,8 @@ export enum CorePermissionName {
   AdminAddUserApiKey = 'admin:add_user_api_key',
   AdminAddBootNode = 'admin:add_boot_node',
   AdminRemoveBootNode = 'admin:remove_boot_node'
+}
+
+export enum GroupPermissionName {
+  EditGeneralData = 'group:edit_general'
 }

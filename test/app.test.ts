@@ -11,7 +11,7 @@ import {IGeesomeApp} from "../components/app/interface";
 import {
   ContentView,
   CorePermissionName,
-  FileCatalogItemType,
+  FileCatalogItemType, GroupPermissionName,
   PostStatus,
   UserLimitName
 } from "../components/database/interface";
@@ -387,7 +387,13 @@ describe("app", function () {
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
-        await app.addMemberToGroup(testUser.id, testGroup.id, newUser.id);
+        try {
+          await app.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
+          assert(false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+        await app.addMemberToGroup(testUser.id, testGroup.id, newUser.id, [GroupPermissionName.EditGeneralData]);
 
         let post = await app.createPost(newUser.id, {
           contents: [{id: postContent.id}],
@@ -402,6 +408,32 @@ describe("app", function () {
         });
 
         assert.equal(post.id, foundPost.id);
+
+        const newUser2 = await app.registerUser({email: 'new@user2.com', name: 'new2', password: 'new2', permissions: [CorePermissionName.UserAll]});
+
+        try {
+          await app.addMemberToGroup(newUser.id, testGroup.id, newUser2.id);
+          assert(false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+
+        await app.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
+
+        let group = await app.getGroup(testGroup.id);
+        assert.equal(group.title, 'new title');
+
+        await app.addMemberToGroup(testUser.id, testGroup.id, newUser2.id);
+
+        try {
+          await app.updateGroup(newUser2.id, testGroup.id, {title: 'new title 2'});
+          assert(false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+
+        group = await app.getGroup(testGroup.id);
+        assert.equal(group.title, 'new title');
 
         let groupPosts = await app.database.getGroupPosts(testGroup.id);
         assert.equal(groupPosts.length, 1);
@@ -477,6 +509,14 @@ describe("app", function () {
           replyToId: null
         });
         assert.equal(categoryPosts.length, 1);
+
+        await app.removeMemberFromGroup(testUser.id, testGroup.id, newUser.id);
+
+        try {
+          await app.updateGroup(newUser.id, testGroup.id, {title: 'new title 2'});
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
       });
     });
   });
