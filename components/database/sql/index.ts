@@ -784,6 +784,26 @@ class MysqlDatabase implements IDatabase {
     return this.models.CorePermission.findOne({where: {userId, name: permissionName}});
   }
 
+  async addGroupPermission(userId, groupId, permissionName) {
+    return this.models.GroupPermission.create({userId, groupId, name: permissionName});
+  }
+
+  async removeGroupPermission(userId, groupId, permissionName) {
+    return this.models.GroupPermission.destroy({where: {userId, groupId, name: permissionName}})
+  }
+
+  async removeAllGroupPermission(userId, groupId) {
+    return this.models.GroupPermission.destroy({where: {userId, groupId}})
+  }
+
+  async getGroupPermissions(userId, groupId) {
+    return this.models.GroupPermission.findAll({where: {userId, groupId}})
+  }
+
+  async isHaveGroupPermission(userId, groupId, permissionName) {
+    return this.models.GroupPermission.findOne({where: {userId, groupId, name: permissionName}});
+  }
+
   getAllUsersWhere(searchString) {
     let where = {};
     if (searchString) {

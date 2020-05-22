@@ -12,7 +12,7 @@ import {
   ContentStorageType,
   ContentView,
   CorePermissionName,
-  FileCatalogItemType,
+  FileCatalogItemType, GroupPermissionName,
   GroupType,
   GroupView,
   IContent,
@@ -695,7 +695,7 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.isAdminInGroup(userId, groupId);
   }
 
-  async addMemberToGroup(userId, groupId, memberId) {
+  async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
@@ -707,7 +707,12 @@ class GeesomeApp implements IGeesomeApp {
         throw new Error("not_permitted");
       }
     }
+
     await this.database.addMemberToGroup(memberId, groupId);
+
+    await pIteration.forEach(groupPermissions, (permissionName) => {
+      return this.database.addGroupPermission(memberId, groupId, permissionName);
+    });
   }
 
   async removeMemberFromGroup(userId, groupId, memberId) {
@@ -723,6 +728,20 @@ class GeesomeApp implements IGeesomeApp {
       }
     }
     await this.database.removeMemberFromGroup(memberId, groupId);
+    await this.database.removeAllGroupPermission(memberId, groupId);
+  }
+
+  async setGroupPermissions(userId, groupId, memberId, groupPermissions = []) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    groupId = await this.checkGroupId(groupId);
+    if(!(await this.isAdminInGroup(userId, groupId))) {
+      throw new Error("not_permitted");
+    }
+    await this.database.removeAllGroupPermission(memberId, groupId);
+
+    await pIteration.forEach(groupPermissions, (permissionName) => {
+      return this.database.addGroupPermission(memberId, groupId, permissionName);
+    });
   }
 
   async addAdminToGroup(userId, groupId, newAdminUserId) {
@@ -746,7 +765,7 @@ class GeesomeApp implements IGeesomeApp {
   async updateGroup(userId, groupId, updateData) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
-    if (!(await this.canEditGroup(userId, groupId))) {
+    if (!(await this.canEditGroup(userId, groupId)) && !(await this.database.isHaveGroupPermission(userId, groupId, GroupPermissionName.EditGeneralData))) {
       throw new Error("not_permitted");
     }
     await this.database.updateGroup(groupId, updateData);
