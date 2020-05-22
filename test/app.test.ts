@@ -166,6 +166,25 @@ describe("app", function () {
         assert.deepEqual(JSON.parse(newTestObjectDbContent.data), newTestObject);
       });
 
+      it('should correctly save image', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        const imageContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-image.png'), 'input-image.png', {
+          userId: testUser.id,
+          groupId: testGroup.id
+        });
+
+        const contentObj = await app.storage.getObject(imageContent.manifestStorageId);
+
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
+        assert.equal(contentObj.mimeType, 'image/png');
+
+        console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType);
+        assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
+        assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
+      });
+
       it('should correctly save video', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];

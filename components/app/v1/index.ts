@@ -1330,7 +1330,7 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, extension, resultExtension);
+    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, resultExtension, type);
     log('getPreview');
 
     return this.addContent({
