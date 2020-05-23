@@ -474,7 +474,11 @@ class MysqlDatabase implements IDatabase {
 
   async getGroupByParams(params) {
     return this.models.Group.findOne({
-      where: params
+      where: params,
+      include: [
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
+      ]
     });
   }
 
