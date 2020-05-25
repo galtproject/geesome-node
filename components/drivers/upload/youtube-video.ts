@@ -30,6 +30,7 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
     const [videoInfo] = await new Promise((resolve, reject) => {
       youtubedl.getInfo([url], function(err, info) {
         if (err) return reject(err);
+        console.log('info', info);
         resolve(info);
       });
     });
