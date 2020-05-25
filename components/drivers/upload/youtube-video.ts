@@ -12,6 +12,8 @@ import {DriverInput, OutputSize} from "../interface";
 import {Stream} from "stream";
 import AbstractDriver from "../abstractDriver";
 
+const _ = require('lodash');
+
 let youtubedl;
 try {
   youtubedl = require('@microlink/youtube-dl');
@@ -24,10 +26,20 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
   supportedOutputSizes = [OutputSize.Medium];
 
   async processBySource(url, options: any = {}) {
-    
+
+    const [videoInfo] = await new Promise((resolve, reject) => {
+      youtubedl.getInfo([process.env.URL], function(err, info) {
+        if (err) return reject(err);
+        resolve(info);
+      });
+    });
+    const bestFormat = _.orderBy(videoInfo.formats.filter(f => f.ext === 'mp4'), [(f) => f.filesize], ['desc'])[0];
+    if(!bestFormat) {
+      throw new Error('video_not_found');
+    }
     let stream = youtubedl(url,
       // Optional arguments passed to youtube-dl.
-      ['--format=best'],
+      ['--format=' + bestFormat.format_id],
       // Additional options can be given for calling `child_process.execFile()`.
       {cwd: __dirname});
     
