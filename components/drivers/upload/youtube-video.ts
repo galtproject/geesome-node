@@ -27,7 +27,7 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
     
     let stream = youtubedl(url,
       // Optional arguments passed to youtube-dl.
-      ['--format=18'],
+      ['--format=best'],
       // Additional options can be given for calling `child_process.execFile()`.
       {cwd: __dirname});
     
