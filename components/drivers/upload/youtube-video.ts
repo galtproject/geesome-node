@@ -28,7 +28,7 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
   async processBySource(url, options: any = {}) {
 
     const [videoInfo] = await new Promise((resolve, reject) => {
-      youtubedl.getInfo([process.env.URL], function(err, info) {
+      youtubedl.getInfo([url], function(err, info) {
         if (err) return reject(err);
         resolve(info);
       });
