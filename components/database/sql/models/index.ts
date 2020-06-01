@@ -15,6 +15,7 @@ module.exports = async function (sequelize) {
 
   models.CorePermission = await require('./corePermission')(sequelize, models);
 
+  models.GroupSection = await require('./groupSection')(sequelize, models);
   models.Group = await require('./group')(sequelize, models);
   models.GroupPermission = await require('./groupPermission')(sequelize, models);
   models.Post = await require('./post')(sequelize, models);

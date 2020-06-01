@@ -63,6 +63,9 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
+  models.GroupSection.belongsTo(Category, {as: 'category', foreignKey: 'categoryId'});
+  Category.hasMany(models.GroupSection, {as: 'sections', foreignKey: 'categoryId'});
+
   models.CategoryGroups = sequelize.define('categoryGroups', {} as any, {} as any);
 
   Category.belongsToMany(models.Group, {as: 'groups', through: models.CategoryGroups});
