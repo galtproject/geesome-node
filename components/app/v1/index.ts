@@ -772,7 +772,9 @@ class GeesomeApp implements IGeesomeApp {
   async updateGroup(userId, groupId, updateData) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
-    if (!(await this.canEditGroup(userId, groupId)) && !(await this.database.isHaveGroupPermission(userId, groupId, GroupPermissionName.EditGeneralData))) {
+    const groupPermission = await this.database.isHaveGroupPermission(userId, groupId, GroupPermissionName.EditGeneralData);
+    console.log('groupPermission', userId, groupId, groupPermission);
+    if (!(await this.canEditGroup(userId, groupId)) && !groupPermission) {
       throw new Error("not_permitted");
     }
     await this.database.updateGroup(groupId, updateData);
