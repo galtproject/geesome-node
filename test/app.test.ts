@@ -361,9 +361,14 @@ describe("app", function () {
         const foundCategory = await app.getCategoryByParams({name: categoryName});
         assert.equal(foundCategory.id, category.id);
 
-        const categoryGroups = await app.database.getGroupsOfCategory(category.id);
+        const categoryGroups = await app.database.getCategoryGroups(category.id);
+        console.log('categoryGroups', categoryGroups);
         assert.equal(categoryGroups.length, 1);
         assert.equal(categoryGroups[0].id, testGroup.id);
+
+        const categoryGroupsCount = await app.database.getCategoryGroupsCount(category.id);
+        console.log('categoryGroupsCount', categoryGroupsCount);
+        assert.equal(categoryGroupsCount, 1);
 
         const postContent = await app.saveData('Hello world', null, {
           userId: newUser.id,

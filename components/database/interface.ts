@@ -148,8 +148,6 @@ export interface IDatabase {
 
   removeGroupFromCategory(groupId, categoryId): Promise<void>;
 
-  getGroupsOfCategory(categoryId): Promise<IGroup[]>;
-
   isAdminInCategory(userId, categoryId): Promise<boolean>;
 
   addCorePermission(userId, permissionName): Promise<void>;

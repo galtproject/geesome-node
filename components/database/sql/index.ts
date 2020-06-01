@@ -132,9 +132,7 @@ class MysqlDatabase implements IDatabase {
     const {limit, offset} = listParams;
     return this.models.Content.findAll({
       where: {userId},
-      order: [
-        ['createdAt', 'DESC']
-      ],
+      order: [ ['createdAt', 'DESC'] ],
       limit,
       offset
     });
@@ -181,32 +179,21 @@ class MysqlDatabase implements IDatabase {
   async getUserByName(name) {
     return this.models.User.findOne({
       where: {name},
-      include: [
-        {association: 'avatarImage'},
-        {association: 'accounts'}
-      ]
+      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
     });
   }
 
   async getUserByNameOrEmail(nameOrEmail) {
     return this.models.User.findOne({
-      where: {
-        [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}]
-      },
-      include: [
-        {association: 'avatarImage'},
-        {association: 'accounts'}
-      ]
+      where: { [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}] },
+      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
     });
   }
 
   async getUser(id) {
     return this.models.User.findOne({
       where: {id},
-      include: [
-        {association: 'avatarImage'},
-        {association: 'accounts'}
-      ]
+      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
     });
   }
 
@@ -223,10 +210,7 @@ class MysqlDatabase implements IDatabase {
     }
     return this.models.User.findOne({
       where: {[Op.or]: whereOr},
-      include: [
-        {association: 'avatarImage'},
-        {association: 'accounts'}
-      ]
+      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
     });
   }
 
@@ -243,9 +227,7 @@ class MysqlDatabase implements IDatabase {
     const {limit, offset} = listParams;
     //TODO: use search and order
     return (await this.getUser(userId)).getFriends({
-      include: [
-        {association: 'avatarImage'}
-      ],
+      include: [ {association: 'avatarImage'} ],
       limit,
       offset
     });
@@ -297,10 +279,7 @@ class MysqlDatabase implements IDatabase {
   async getGroup(id) {
     return this.models.Group.findOne({
       where: {id},
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ]
+      include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
   }
 
@@ -317,10 +296,7 @@ class MysqlDatabase implements IDatabase {
     }
     return this.models.Group.findOne({
       where: {[Op.or]: whereOr},
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ]
+      include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
   }
 
@@ -368,13 +344,8 @@ class MysqlDatabase implements IDatabase {
 
   async getMemberInGroups(userId, types) {
     return (await this.getUser(userId)).getMemberInGroups({
-      where: {
-        type: {[Op.in]: types}
-      },
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ]
+      where: { type: {[Op.in]: types} },
+      include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
   }
 
@@ -388,41 +359,28 @@ class MysqlDatabase implements IDatabase {
 
   async getAdminInGroups(userId, types) {
     return (await this.getUser(userId)).getAdministratorInGroups({
-      where: {
-        type: {[Op.in]: types}
-      },
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ]
+      where: { type: {[Op.in]: types} },
+      include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
   }
 
   async isAdminInGroup(userId, groupId) {
-    const result = await (await this.getUser(userId)).getAdministratorInGroups({
-      where: {id: groupId}
-    });
+    const result = await (await this.getUser(userId)).getAdministratorInGroups({ where: {id: groupId} });
     return result.length > 0;
   }
 
   async isMemberInGroup(userId, groupId) {
-    const result = await (await this.getUser(userId)).getMemberInGroups({
-      where: {id: groupId}
-    });
+    const result = await (await this.getUser(userId)).getMemberInGroups({ where: {id: groupId} });
     return result.length > 0;
   }
 
   async isMemberInCategory(userId, groupId) {
-    const result = await (await this.getUser(userId)).getMemberInCategories({
-      where: {id: groupId}
-    });
+    const result = await (await this.getUser(userId)).getMemberInCategories({ where: {id: groupId} });
     return result.length > 0;
   }
 
   async getCreatorInGroupsByType(creatorId, type: GroupType) {
-    return this.models.Group.findAll({
-      where: {creatorId, type}
-    });
+    return this.models.Group.findAll({ where: {creatorId, type} });
   }
 
   getPostsWhere(filters) {
@@ -458,9 +416,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getGroupPostsCount(groupId, filters = {}) {
-    return this.models.Post.count({
-      where: this.getGroupPostsWhere(groupId, filters)
-    });
+    return this.models.Post.count({ where: this.getGroupPostsWhere(groupId, filters) });
   }
 
   async getAllPosts(filters = {}, listParams: IListParams = {}) {
@@ -478,9 +434,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getAllPostsCount(filters = {}) {
-    return this.models.Post.count({
-      where: this.getPostsWhere(filters)
-    });
+    return this.models.Post.count({ where: this.getPostsWhere(filters) });
   }
 
   async getGroupSizeSum(id) {
@@ -490,17 +444,15 @@ class MysqlDatabase implements IDatabase {
   async getGroupByParams(params) {
     return this.models.Group.findOne({
       where: params,
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ]
+      include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
+  }
+  async getGroupSectionByParams(params) {
+    return this.models.GroupSection.findOne({ where: params });
   }
 
   async getPostByParams(params) {
-    return this.models.Post.findOne({
-      where: params
-    });
+    return this.models.Post.findOne({ where: params });
   }
 
   async addCategory(group) {
@@ -512,15 +464,11 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getCategory(id) {
-    return this.models.Category.findOne({
-      where: {id}
-    });
+    return this.models.Category.findOne({ where: {id} });
   }
 
   async getCategoryByParams(params) {
-    return this.models.Category.findOne({
-      where: params
-    });
+    return this.models.Category.findOne({ where: params });
   }
 
   async addAdminToCategory(userId, groupId) {
@@ -539,14 +487,8 @@ class MysqlDatabase implements IDatabase {
     return (await this.getCategory(categoryId)).removeGroups([await this.getGroup(groupId)]);
   }
 
-  async getGroupsOfCategory(categoryId) {
-    return (await this.getCategory(categoryId)).getGroups();
-  }
-
   async isAdminInCategory(userId, categoryId) {
-    const result = await (await this.getUser(userId)).getAdministratorInCategories({
-      where: {id: categoryId}
-    });
+    const result = await (await this.getUser(userId)).getAdministratorInCategories({ where: {id: categoryId} });
     return result.length > 0;
   }
 
@@ -578,9 +520,7 @@ class MysqlDatabase implements IDatabase {
       include: [
         {
           association: 'group', required: true,
-          include: [
-            {association: 'categories', where: {id: categoryId}, required: true}
-          ]
+          include: [ {association: 'categories', where: {id: categoryId}, required: true} ]
         }
       ]
     });
@@ -597,17 +537,25 @@ class MysqlDatabase implements IDatabase {
     return where;
   }
 
+  getSectionsWhere(filters) {
+    const where = {};
+    ['name', 'parentSectionId'].forEach((name) => {
+      if(!_.isUndefined(filters[name])) {
+        where[name] = filters[name];
+      }
+    });
+    console.log('getSectionsWhere', where);
+    return where;
+  }
+
   async getCategoryGroups(categoryId, filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
-    return this.models.Group.findAll({
+    return (await this.getCategory(categoryId)).getGroups({
       where: this.getGroupsWhere(filters),
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ],
+      include: [ {association: 'avatarImage'}, {association: 'coverImage'} ],
       order: [[sortBy, sortDir.toUpperCase()]],
       limit,
       offset
@@ -615,12 +563,27 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getCategoryGroupsCount(categoryId, filters = {}) {
-    return this.models.Group.count({
-      where: this.getGroupsWhere(filters),
-      include: [
-        {association: 'avatarImage'},
-        {association: 'coverImage'}
-      ]
+    return (await this.getCategory(categoryId)).countGroups({
+      where: this.getGroupsWhere(filters)
+    });
+  }
+
+  async getCategorySections(categoryId, filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+
+    return this.models.GroupSection.findAll({
+      where: {...this.getSectionsWhere(filters), categoryId},
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getCategorySectionsCount(categoryId, filters = {}) {
+    return this.models.GroupSection.count({
+      where: {...this.getSectionsWhere(filters), categoryId}
     });
   }
 

@@ -10,7 +10,7 @@
 module.exports = async function (sequelize, models) {
   const Sequelize = require('sequelize');
 
-  const Group = sequelize.define('group', {
+  const GroupSection = sequelize.define('groupSection', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     name: {
       type: Sequelize.STRING(200)
@@ -21,12 +21,6 @@ module.exports = async function (sequelize, models) {
     description: {
       type: Sequelize.STRING
     },
-    avatarImageId: {
-      type: Sequelize.INTEGER
-    },
-    coverImageId: {
-      type: Sequelize.INTEGER
-    },
     isPublic: {
       type: Sequelize.BOOLEAN
     },
@@ -34,12 +28,6 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.BOOLEAN
     },
     type: {
-      type: Sequelize.STRING(200)
-    },
-    view: {
-      type: Sequelize.STRING(200)
-    },
-    theme: {
       type: Sequelize.STRING(200)
     },
     size: {
@@ -88,10 +76,6 @@ module.exports = async function (sequelize, models) {
     staticStorageUpdatedAt: {
       type: Sequelize.DATE
     },
-    publishedPostsCount: {
-      type: Sequelize.INTEGER,
-      defaultValue: 0
-    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
@@ -102,27 +86,11 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
-  Group.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
-  models.User.hasMany(Group, {as: 'createdGroups', foreignKey: 'creatorId'});
+  GroupSection.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
+  models.User.hasMany(GroupSection, {as: 'createdSections', foreignKey: 'creatorId'});
 
-  Group.belongsTo(models.GroupSection, {as: 'section', foreignKey: 'sectionId'});
-  models.GroupSection.hasMany(Group, {as: 'groups', foreignKey: 'sectionId'});
-  
-  models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {} as any);
+  GroupSection.belongsTo(GroupSection, {as: 'parentSection', foreignKey: 'parentSectionId'});
+  GroupSection.hasMany(GroupSection, {as: 'childrenSections', foreignKey: 'parentSectionId'});
 
-  Group.belongsToMany(models.User, {as: 'administrators', through: models.GroupAdministrators});
-  models.User.belongsToMany(Group, {as: 'administratorInGroups', through: models.GroupAdministrators});
-
-  models.GroupMembers = sequelize.define('groupMembers', {} as any, {} as any);
-
-  Group.belongsToMany(models.User, {as: 'members', through: models.GroupMembers});
-  models.User.belongsToMany(Group, {as: 'memberInGroups', through: models.GroupMembers});
-
-  await Group.sync({});
-
-  await models.GroupAdministrators.sync({});
-
-  await models.GroupMembers.sync({});
-
-  return Group;
+  return GroupSection.sync({});
 };
