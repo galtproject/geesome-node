@@ -2119,7 +2119,7 @@ class GeesomeApp implements IGeesomeApp {
     };
   }
 
-  async getCategoryGroups(categoryId, filters = {}, listParams?: IListParams) {
+  async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
     return {
       list: await this.database.getCategoryGroups(categoryId, filters, listParams),
       total: await this.database.getCategoryGroupsCount(categoryId, filters)
