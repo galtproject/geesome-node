@@ -388,12 +388,26 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
         try {
+          await app.addMemberToCategory(newUser.id, category.id, newUser.id);
+          assert(false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+        try {
           await app.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
           assert(false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
+
+        assert.equal(await app.isMemberInGroup(newUser.id, testGroup.id), false);
+        assert.equal(await app.isMemberInCategory(newUser.id, category.id), false);
+
         await app.addMemberToGroup(testUser.id, testGroup.id, newUser.id, [GroupPermissionName.EditGeneralData]);
+        await app.addMemberToCategory(testUser.id, category.id, newUser.id);
+
+        assert.equal(await app.isMemberInGroup(newUser.id, testGroup.id), true);
+        assert.equal(await app.isMemberInCategory(newUser.id, category.id), true);
 
         let post = await app.createPost(newUser.id, {
           contents: [{id: postContent.id}],

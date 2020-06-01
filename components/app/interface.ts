@@ -83,6 +83,12 @@ export interface IGeesomeApp {
 
   removeMemberFromGroup(userId, groupId, memberId): Promise<void>;
 
+  addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
+
+  removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
+
+  isMemberInCategory(userId, categoryId): Promise<boolean>;
+
   setGroupPermissions(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
 
   addAdminToGroup(userId, groupId, newAdminUserId): Promise<void>;
@@ -112,6 +118,8 @@ export interface IGeesomeApp {
   createCategory(userId, categoryData): Promise<ICategory>;
 
   addGroupToCategory(userId, groupId, categoryId): Promise<void>;
+
+  getCategoryGroups(userId, categoryId, filters?, listParams?: IListParams): Promise<IGroupListResponse>;
 
   getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 

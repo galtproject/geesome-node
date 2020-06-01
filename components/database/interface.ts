@@ -112,6 +112,10 @@ export interface IDatabase {
 
   removeMemberFromGroup(userId, groupId): Promise<void>;
 
+  addMemberToCategory(userId, categoryId): Promise<void>;
+
+  removeMemberFromCategory(userId, categoryId): Promise<void>;
+
   getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
   addAdminToGroup(userId, groupId): Promise<void>;
@@ -170,6 +174,8 @@ export interface IDatabase {
 
   isMemberInGroup(userId, groupId): Promise<boolean>;
 
+  isMemberInCategory(userId, categoryId): Promise<boolean>;
+
   getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
   getGroupPostsCount(groupId, filters?): Promise<number>;
@@ -177,6 +183,10 @@ export interface IDatabase {
   getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
   getCategoryPostsCount(categoryId, filters?): Promise<number>;
+
+  getCategoryGroups(categoryId, filters?, listParams?: IListParams): Promise<IGroup[]>;
+
+  getCategoryGroupsCount(categoryId, filters?): Promise<number>;
 
   getAllPosts(filters?, listParams?: IListParams): Promise<IPost[]>;
 

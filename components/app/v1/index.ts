@@ -695,6 +695,13 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.isAdminInGroup(userId, groupId);
   }
 
+  async isAdminInCategory(userId, categoryId) {
+    if (!categoryId) {
+      return false;
+    }
+    return this.database.isAdminInCategory(userId, categoryId);
+  }
+
   async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
@@ -800,6 +807,41 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     await this.database.addGroupToCategory(groupId, categoryId);
+  }
+
+  async addMemberToCategory(userId, categoryId, memberId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    // const category = await this.getGroup(categoryId);
+    if(!(await this.isAdminInCategory(userId, categoryId))) {
+      // if(userId.toString() !== memberId.toString()) {
+      throw new Error("not_permitted");
+      // }
+      //TODO: add isPublic and isOpen to category
+      // if(!category.isPublic || !category.isOpen) {
+      //   throw new Error("not_permitted");
+      // }
+    }
+
+    await this.database.addMemberToCategory(memberId, categoryId);
+  }
+
+  async removeMemberFromCategory(userId, categoryId, memberId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    // const category = await this.getGroup(categoryId);
+    if(!(await this.isAdminInCategory(userId, categoryId))) {
+      if(userId.toString() !== memberId.toString()) {
+        throw new Error("not_permitted");
+      }
+      //TODO: add isPublic and isOpen to category
+      // if(!category.isPublic || !category.isOpen) {
+      //   throw new Error("not_permitted");
+      // }
+    }
+    await this.database.removeMemberFromCategory(memberId, categoryId);
+  }
+
+  async isMemberInCategory(userId, categoryId) {
+    return this.database.isMemberInCategory(userId, categoryId);
   }
 
   async getCategoryByParams(params) {
@@ -2074,6 +2116,13 @@ class GeesomeApp implements IGeesomeApp {
     return {
       list: await this.database.getCategoryPosts(categoryId, filters, listParams),
       total: await this.database.getCategoryPostsCount(categoryId, filters)
+    };
+  }
+
+  async getCategoryGroups(categoryId, filters = {}, listParams?: IListParams) {
+    return {
+      list: await this.database.getCategoryGroups(categoryId, filters, listParams),
+      total: await this.database.getCategoryGroupsCount(categoryId, filters)
     };
   }
 

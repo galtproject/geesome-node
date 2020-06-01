@@ -358,6 +358,14 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).removeMembers([await this.getUser(userId)]);
   }
 
+  async addMemberToCategory(userId, categoryId) {
+    return (await this.getCategory(categoryId)).addMembers([await this.getUser(userId)]);
+  }
+
+  async removeMemberFromCategory(userId, categoryId) {
+    return (await this.getCategory(categoryId)).removeMembers([await this.getUser(userId)]);
+  }
+
   async getMemberInGroups(userId, types) {
     return (await this.getUser(userId)).getMemberInGroups({
       where: {
@@ -399,6 +407,13 @@ class MysqlDatabase implements IDatabase {
 
   async isMemberInGroup(userId, groupId) {
     const result = await (await this.getUser(userId)).getMemberInGroups({
+      where: {id: groupId}
+    });
+    return result.length > 0;
+  }
+
+  async isMemberInCategory(userId, groupId) {
+    const result = await (await this.getUser(userId)).getMemberInCategories({
       where: {id: groupId}
     });
     return result.length > 0;
@@ -567,6 +582,44 @@ class MysqlDatabase implements IDatabase {
             {association: 'categories', where: {id: categoryId}, required: true}
           ]
         }
+      ]
+    });
+  }
+
+  getGroupsWhere(filters) {
+    const where = {};
+    ['name'].forEach((name) => {
+      if(!_.isUndefined(filters[name])) {
+        where[name] = filters[name];
+      }
+    });
+    console.log('getGroupsWhere', where);
+    return where;
+  }
+
+  async getCategoryGroups(categoryId, filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+
+    return this.models.Group.findAll({
+      where: this.getGroupsWhere(filters),
+      include: [
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
+      ],
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getCategoryGroupsCount(categoryId, filters = {}) {
+    return this.models.Group.count({
+      where: this.getGroupsWhere(filters),
+      include: [
+        {association: 'avatarImage'},
+        {association: 'coverImage'}
       ]
     });
   }
