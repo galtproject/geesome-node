@@ -252,8 +252,24 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.createCategory(req.user.id, req.body), 200);
   });
 
+  service.get('/v1/user/category/:categoryId/groups', async (req, res) => {
+    res.send(await geesomeApp.getCategoryGroups(req.user.id, req.params.categoryId, req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+  });
+
   service.post('/v1/user/category/:categoryId/add-group', async (req, res) => {
     res.send(await geesomeApp.addGroupToCategory(req.user.id, req.body.groupId, req.params.categoryId), 200);
+  });
+
+  service.post('/v1/user/category/:categoryId/add-member', async (req, res) => {
+    res.send(await geesomeApp.addMemberToCategory(req.user.id, req.params.categoryId, req.body.userId, req.body.permissions || []), 200);
+  });
+
+  service.post('/v1/user/category/:categoryId/remove-member', async (req, res) => {
+    res.send(await geesomeApp.removeMemberFromCategory(req.user.id, req.params.categoryId, req.body.userId), 200);
+  });
+
+  service.post('/v1/user/category/:categoryId/is-member', async (req, res) => {
+    res.send({result: await geesomeApp.isMemberInCategory(req.user.id, req.params.categoryId)}, 200);
   });
 
   /**
