@@ -401,7 +401,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.updateGroupSection(req.user.id, req.params.groupSectionId, req.body), 200);
   });
 
-  service.get('/v1/user/category/:categoryId/group-sections', async (req, res) => {
+  service.get('/v1/user/group-sections', async (req, res) => {
     res.send(await geesomeApp.getGroupSectionItems(req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });
 
