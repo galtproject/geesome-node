@@ -13,7 +13,7 @@ import {
   IContent,
   IDatabase,
   IFileCatalogItem,
-  IGroup, IListParams,
+  IGroup, IGroupSection, IListParams,
   IPost,
   IUser, IUserAccount,
   IUserApiKey, IUserAuthMessage,
@@ -85,6 +85,8 @@ export interface IGeesomeApp {
 
   addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
 
+  addAdminToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
+
   removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
 
   isMemberInCategory(userId, categoryId): Promise<boolean>;
@@ -122,6 +124,12 @@ export interface IGeesomeApp {
   getCategoryGroups(userId, categoryId, filters?, listParams?: IListParams): Promise<IGroupListResponse>;
 
   getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
+
+  createGroupSection(userId, groupSectionData): Promise<IGroupSection>;
+
+  updateGroupSection(userId, groupSectionId, groupSectionData): Promise<IGroupSection>;
+
+  getGroupSectionItems(filters?, listParams?: IListParams): Promise<IGroupSectionListResponse>;
 
   asyncOperationWrapper(methodName, args, options);
 
@@ -319,6 +327,11 @@ export interface IUserListResponse {
 
 export interface IGroupListResponse {
   list: IGroup[];
+  total: number;
+}
+
+export interface IGroupSectionListResponse {
+  list: IGroupSection[];
   total: number;
 }
 
