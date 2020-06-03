@@ -63,14 +63,6 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
-  models.GroupSection.belongsTo(Category, {as: 'category', foreignKey: 'categoryId'});
-  Category.hasMany(models.GroupSection, {as: 'sections', foreignKey: 'categoryId'});
-
-  models.CategoryGroups = sequelize.define('categoryGroups', {} as any, {} as any);
-
-  Category.belongsToMany(models.Group, {as: 'groups', through: models.CategoryGroups});
-  models.Group.belongsToMany(Category, {as: 'categories', through: models.CategoryGroups});
-
   models.CategoryAdministrators = sequelize.define('categoryAdministrators', {} as any, {} as any);
 
   Category.belongsToMany(models.User, {as: 'administrators', through: models.CategoryAdministrators});
@@ -83,7 +75,6 @@ module.exports = async function (sequelize, models) {
 
   await Category.sync({});
 
-  await models.CategoryGroups.sync({});
   await models.CategoryAdministrators.sync({});
   await models.CategoryMembers.sync({});
 

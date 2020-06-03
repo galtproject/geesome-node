@@ -537,6 +537,68 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
       });
+
+      it('sections should work properly', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+        const categoryName = 'my-category';
+        const category = await app.createCategory(testUser.id, {name: categoryName});
+
+        const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
+
+        let groupSection1 = await app.createGroupSection(testUser.id, {
+          name: 'test',
+          title: 'Test2'
+        });
+
+        console.log('app.updateGroupSection(testUser.id, groupSection1.id');
+        groupSection1 = await app.updateGroupSection(testUser.id, groupSection1.id, {
+          title: 'Test2 changed'
+        });
+
+        assert.equal(groupSection1.title, 'Test2 changed');
+
+        try {
+          await app.updateGroupSection(newUser.id, groupSection1.id, { title: 'Test2 changed 2' });
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+
+        console.log('app.updateGroupSection(testUser.id, groupSection1.id');
+        groupSection1 = await app.updateGroupSection(testUser.id, groupSection1.id, {
+          title: 'Test2 changed',
+          categoryId: category.id
+        });
+        assert.equal(groupSection1.categoryId, category.id);
+
+        try {
+          await app.updateGroupSection(newUser.id, groupSection1.id, { title: 'Test2 changed 2' });
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+
+        console.log('app.addAdminToCategory(testUser.id, category.id, newUser.id)');
+        await app.addAdminToCategory(testUser.id, category.id, newUser.id);
+
+        console.log('app.updateGroupSection(newUser.id, groupSection1.id');
+        groupSection1 = await app.updateGroupSection(newUser.id, groupSection1.id, { title: 'Test2 changed 2' });
+
+        assert.equal(groupSection1.title, 'Test2 changed 2');
+
+        console.log('app.updateGroup(testUser.id, testGroup.id');
+        await app.updateGroup(testUser.id, testGroup.id, {
+          sectionId: groupSection1.id
+        });
+
+        console.log('app.createGroupSection(testUser.id');
+        await app.createGroupSection(testUser.id, {
+          name: 'test',
+          title: 'Test3'
+        });
+
+        const sectionsData = await app.getGroupSectionItems({categoryId: category.id});
+        assert.equal(sectionsData.total, 1);
+      });
     });
   });
 });

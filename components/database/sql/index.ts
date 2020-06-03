@@ -383,6 +383,18 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findAll({ where: {creatorId, type} });
   }
 
+  getGroupSection(groupSectionId) {
+    return this.models.GroupSection.findOne({ where: {id: groupSectionId} });
+  }
+
+  async addGroupSection(post) {
+    return this.models.GroupSection.create(post);
+  }
+
+  async updateGroupSection(id, updateData) {
+    return this.models.GroupSection.update(updateData, {where: {id}});
+  }
+
   getPostsWhere(filters) {
     const where = {};
     ['status', 'replyToId', 'name', 'groupId'].forEach((name) => {
@@ -449,6 +461,34 @@ class MysqlDatabase implements IDatabase {
   }
   async getGroupSectionByParams(params) {
     return this.models.GroupSection.findOne({ where: params });
+  }
+
+  getGroupSectionsWhere(filters) {
+    const where = {};
+    ['name', 'categoryId'].forEach((name) => {
+      if(!_.isUndefined(filters[name])) {
+        where[name] = filters[name];
+      }
+    });
+    console.log('getGroupSectionsWhere', where);
+    return where;
+  }
+
+  async getGroupSections(filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams);
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+
+    return this.models.GroupSection.findAll({
+      where: this.getGroupSectionsWhere(filters),
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getGroupSectionsCount(filters = {}) {
+    return this.models.GroupSection.count({ where: this.getGroupSectionsWhere(filters) });
   }
 
   async getPostByParams(params) {

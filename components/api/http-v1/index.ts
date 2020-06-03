@@ -393,6 +393,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.removeMemberFromGroup(req.user.id, req.params.groupId, req.body.userId), 200);
   });
 
+  service.post('/v1/user/group-section/create', async (req, res) => {
+    res.send(await geesomeApp.createGroupSection(req.user.id, req.body), 200);
+  });
+
+  service.post('/v1/user/group-section/:groupSectionId/update', async (req, res) => {
+    res.send(await geesomeApp.updateGroupSection(req.user.id, req.params.groupSectionId, req.body), 200);
+  });
+
+  service.get('/v1/user/category/:categoryId/groups', async (req, res) => {
+    res.send(await geesomeApp.getGroupSectionItems(req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+  });
+
   service.get('/v1/user/api-key-list', async (req, res) => {
     res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });

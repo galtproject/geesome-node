@@ -112,6 +112,16 @@ export interface IDatabase {
 
   removeMemberFromGroup(userId, groupId): Promise<void>;
 
+  getGroupSection(sectionId): Promise<IGroupSection>;
+
+  addGroupSection(section): Promise<IGroupSection>;
+
+  updateGroupSection(id, updateData): Promise<void>;
+
+  getGroupSections(filters?, listParams?): Promise<IGroupSection[]>;
+
+  getGroupSectionsCount(filters?): Promise<number>;
+
   addMemberToCategory(userId, categoryId): Promise<void>;
 
   removeMemberFromCategory(userId, categoryId): Promise<void>;
@@ -449,6 +459,26 @@ export interface IGroup {
 
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;
+}
+
+export interface IGroupSection {
+  id: number;
+
+  name: string;
+  title: string;
+
+  description?: string;
+  creatorId: number;
+  categoryId: number;
+  avatarImageId?: number;
+  avatarImage?: IContent;
+  coverImageId?: number;
+  coverImage?: IContent;
+  isGlobal?: boolean;
+  storageId?: string;
+  staticStorageId?: string;
+  manifestStorageId?: string;
+  manifestStaticStorageId?: string;
 }
 
 export interface ICategory {

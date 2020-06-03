@@ -80,14 +80,16 @@ module.exports = async function (sequelize, models) {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
-      { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
-      { fields: ['manifestStorageId'] },
-      { fields: ['manifestStaticStorageId'] }
+      { fields: ['name', 'categoryId'] },
+      { fields: ['parentSectionId'] }
     ]
   } as any);
 
   GroupSection.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
   models.User.hasMany(GroupSection, {as: 'createdSections', foreignKey: 'creatorId'});
+
+  GroupSection.belongsTo(models.Category, {as: 'category', foreignKey: 'categoryId'});
+  models.Category.hasMany(GroupSection, {as: 'sections', foreignKey: 'categoryId'});
 
   GroupSection.belongsTo(GroupSection, {as: 'parentSection', foreignKey: 'parentSectionId'});
   GroupSection.hasMany(GroupSection, {as: 'childrenSections', foreignKey: 'parentSectionId'});

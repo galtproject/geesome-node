@@ -151,7 +151,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async setup(userData) {
     if ((await this.database.getUsersCount()) > 0) {
-      throw 'already_setup';
+      throw new Error('already_setup');
     }
     const adminUser = await this.registerUser(userData);
 
@@ -827,6 +827,22 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.addMemberToCategory(memberId, categoryId);
   }
 
+  async addAdminToCategory(userId, categoryId, memberId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    // const category = await this.getGroup(categoryId);
+    if(!(await this.isAdminInCategory(userId, categoryId))) {
+      // if(userId.toString() !== memberId.toString()) {
+      throw new Error("not_permitted");
+      // }
+      //TODO: add isPublic and isOpen to category
+      // if(!category.isPublic || !category.isOpen) {
+      //   throw new Error("not_permitted");
+      // }
+    }
+
+    await this.database.addAdminToCategory(memberId, categoryId);
+  }
+
   async removeMemberFromCategory(userId, categoryId, memberId) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     // const category = await this.getGroup(categoryId);
@@ -852,6 +868,48 @@ class GeesomeApp implements IGeesomeApp {
 
   async getGroupByParams(params) {
     return this.database.getGroupByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
+  }
+
+  async createGroupSection(userId, groupSectionData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    groupSectionData.creatorId = userId;
+
+    console.log('groupSectionData.categoryId', groupSectionData.categoryId);
+    if (groupSectionData.categoryId) {
+      if (!(await this.isAdminInCategory(userId, groupSectionData.categoryId))) {
+        throw new Error("not_permitted");
+      }
+    }
+
+    return this.database.addGroupSection(groupSectionData);
+  }
+
+  async updateGroupSection(userId, groupSectionId, groupSectionData) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+
+    const dbGroup = await this.database.getGroupSection(groupSectionId);
+    if (dbGroup.categoryId || groupSectionData.categoryId) {
+      const permittedInCategory1 = !groupSectionData.categoryId || await this.isAdminInCategory(userId, groupSectionData.categoryId);
+      const permittedInCategory2 = !dbGroup.categoryId || await this.isAdminInCategory(userId, dbGroup.categoryId);
+      if (!permittedInCategory1 || !permittedInCategory2) {
+        throw new Error("not_permitted");
+      }
+    } else {
+      if(dbGroup.creatorId !== userId) {
+        throw new Error("not_permitted");
+      }
+    }
+
+    await this.database.updateGroupSection(groupSectionId, groupSectionData);
+
+    return this.database.getGroupSection(groupSectionId);
+  }
+
+  async getGroupSectionItems(filters?, listParams?: IListParams) {
+    return {
+      list: await this.database.getGroupSections(filters, listParams),
+      total: await this.database.getGroupSectionsCount(filters)
+    };
   }
 
   async getPostByParams(params) {
