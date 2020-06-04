@@ -576,7 +576,7 @@ class MysqlDatabase implements IDatabase {
 
   getGroupsWhere(filters) {
     const where = {};
-    ['name'].forEach((name) => {
+    ['name', 'sectionId'].forEach((name) => {
       if(!_.isUndefined(filters[name])) {
         where[name] = filters[name];
       }
