@@ -599,6 +599,24 @@ describe("app", function () {
         const sectionsData = await app.getGroupSectionItems({categoryId: category.id});
         assert.equal(sectionsData.total, 1);
       });
+
+      it('groups administration', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
+        const newUser2 = await app.registerUser({email: 'new2@user.com', name: 'new2', password: 'new2', permissions: [CorePermissionName.UserAll]});
+
+        assert.equal(await app.isAdminInGroup(testUser.id, testGroup.id), true);
+        assert.equal(await app.isAdminInGroup(newUser.id, testGroup.id), false);
+        assert.equal(await app.isAdminInGroup(newUser2.id, testGroup.id), false);
+
+        await app.setAdminsOfGroup(testUser.id, testGroup.id, [newUser.id, newUser2.id]);
+
+        assert.equal(await app.isAdminInGroup(testUser.id, testGroup.id), false);
+        assert.equal(await app.isAdminInGroup(newUser.id, testGroup.id), true);
+        assert.equal(await app.isAdminInGroup(newUser2.id, testGroup.id), true);
+      });
     });
   });
 });
