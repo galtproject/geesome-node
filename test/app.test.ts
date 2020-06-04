@@ -616,6 +616,10 @@ describe("app", function () {
         assert.equal(await app.isAdminInGroup(testUser.id, testGroup.id), false);
         assert.equal(await app.isAdminInGroup(newUser.id, testGroup.id), true);
         assert.equal(await app.isAdminInGroup(newUser2.id, testGroup.id), true);
+
+        await app.setMembersOfGroup(newUser.id, testGroup.id, [testUser.id]);
+
+        assert.equal(await app.isMemberInGroup(testUser.id, testGroup.id), true);
       });
     });
   });

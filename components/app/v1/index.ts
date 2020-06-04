@@ -722,6 +722,15 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+  async setMembersOfGroup(userId, groupId, newMemberUserIds) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    if (!(await this.canEditGroup(userId, groupId))) {
+      throw new Error("not_permitted");
+    }
+    groupId = await this.checkGroupId(groupId);
+    await this.database.setMembersToGroup(newMemberUserIds, groupId);
+  }
+
   async removeMemberFromGroup(userId, groupId, memberId) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);

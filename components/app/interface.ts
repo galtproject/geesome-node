@@ -81,6 +81,8 @@ export interface IGeesomeApp {
 
   addMemberToGroup(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
 
+  setMembersOfGroup(userId, groupId, memberIds): Promise<void>;
+
   removeMemberFromGroup(userId, groupId, memberId): Promise<void>;
 
   addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;

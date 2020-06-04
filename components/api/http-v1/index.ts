@@ -389,6 +389,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.addMemberToGroup(req.user.id, req.params.groupId, req.body.userId, req.body.permissions || []), 200);
   });
 
+  service.post('/v1/user/group/:groupId/set-members', async (req, res) => {
+    res.send(await geesomeApp.setMembersOfGroup(req.user.id, req.params.groupId, req.body.userIds), 200);
+  });
+
   service.post('/v1/user/group/:groupId/set-permissions', async (req, res) => {
     res.send(await geesomeApp.setGroupPermissions(req.user.id, req.params.groupId, req.body.userId, req.body.permissions), 200);
   });
