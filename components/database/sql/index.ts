@@ -353,6 +353,10 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).addAdministrators([await this.getUser(userId)]);
   }
 
+  async setAdminsToGroup(userIds, groupId) {
+    return (await this.getGroup(groupId)).setAdministrators(userIds);
+  }
+
   async removeAdminFromGroup(userId, groupId) {
     return (await this.getGroup(groupId)).removeAdministrators([await this.getUser(userId)]);
   }

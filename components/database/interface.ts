@@ -132,6 +132,8 @@ export interface IDatabase {
 
   removeAdminFromGroup(userId, groupId): Promise<void>;
 
+  setAdminsToGroup(userIds, groupId): Promise<void>;
+
   getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
 
   getCreatorInGroupsByType(userId, type: GroupType): Promise<IGroup[]>;

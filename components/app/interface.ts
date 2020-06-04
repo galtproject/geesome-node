@@ -97,6 +97,8 @@ export interface IGeesomeApp {
 
   removeAdminFromGroup(userId, groupId, removeAdminUserId): Promise<void>;
 
+  setAdminsOfGroup(userId, groupId, adminIds): Promise<void>;
+
   createPost(userId, postData);
 
   updatePost(userId, postId, postData);
