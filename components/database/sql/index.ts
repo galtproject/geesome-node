@@ -334,6 +334,10 @@ class MysqlDatabase implements IDatabase {
     return (await this.getGroup(groupId)).removeMembers([await this.getUser(userId)]);
   }
 
+  async setMembersToGroup(userIds, groupId) {
+    return (await this.getGroup(groupId)).setMembers(userIds);
+  }
+
   async addMemberToCategory(userId, categoryId) {
     return (await this.getCategory(categoryId)).addMembers([await this.getUser(userId)]);
   }

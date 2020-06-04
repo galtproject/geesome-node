@@ -112,6 +112,8 @@ export interface IDatabase {
 
   removeMemberFromGroup(userId, groupId): Promise<void>;
 
+  setMembersToGroup(userIds, groupId): Promise<void>;
+
   getGroupSection(sectionId): Promise<IGroupSection>;
 
   addGroupSection(section): Promise<IGroupSection>;
