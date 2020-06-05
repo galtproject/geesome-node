@@ -80,7 +80,7 @@ module.exports = async function (sequelize, models) {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
-      { fields: ['name', 'categoryId'] },
+      { fields: ['name', 'categoryId'], unique: true },
       { fields: ['parentSectionId'] }
     ]
   } as any);
