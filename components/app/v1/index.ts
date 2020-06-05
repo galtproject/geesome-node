@@ -582,7 +582,9 @@ class GeesomeApp implements IGeesomeApp {
     }
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
-    return (await this.database.isAdminInGroup(userId, groupId)) || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId));
+    return (await this.database.isAdminInGroup(userId, groupId))
+      || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId))
+      || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
   }
 
   async canAddGroupToCategory(userId, categoryId) {
@@ -936,7 +938,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async createPost(userId, postData) {
     log('createPost');
-    const [userCan, canCreate] = await Promise.all([
+    const [, canCreate] = await Promise.all([
       this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
       this.canCreatePostInGroup(userId, postData.groupId)
     ]);

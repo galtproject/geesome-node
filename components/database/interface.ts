@@ -461,6 +461,8 @@ export interface IGroup {
 
   encryptedManifestStorageId?: string;
 
+  membershipOfCategoryId?: number;
+
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;
 }
