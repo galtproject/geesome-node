@@ -533,6 +533,7 @@ describe("app", function () {
 
         try {
           await app.updateGroup(newUser.id, testGroup.id, {title: 'new title 2'});
+          assert.equal(true, false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
@@ -560,6 +561,7 @@ describe("app", function () {
 
         try {
           await app.updateGroupSection(newUser.id, groupSection1.id, { title: 'Test2 changed 2' });
+          assert.equal(true, false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
@@ -573,6 +575,7 @@ describe("app", function () {
 
         try {
           await app.updateGroupSection(newUser.id, groupSection1.id, { title: 'Test2 changed 2' });
+          assert.equal(true, false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
@@ -620,6 +623,50 @@ describe("app", function () {
         await app.setMembersOfGroup(newUser.id, testGroup.id, [testUser.id]);
 
         assert.equal(await app.isMemberInGroup(testUser.id, testGroup.id), true);
+
+      });
+
+      it('membershipOfCategory', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        const category = await app.createCategory(testUser.id, {name: 'category'});
+        await app.addGroupToCategory(testUser.id, testGroup.id, category.id);
+
+        const newMember = await app.registerUser({email: 'new1user.com', name: 'new1', password: 'new1', permissions: [CorePermissionName.UserAll]});
+
+        const post1Content = await app.saveData('Hello world1', null, {
+          userId: newMember.id,
+          mimeType: 'text/markdown'
+        });
+
+        const postData = {
+          contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
+          groupId: testGroup.id,
+          status: PostStatus.Published
+        };
+        try {
+          await app.createPost(newMember.id, postData);
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+
+        await app.addMemberToCategory(testUser.id, category.id, newMember.id);
+
+        try {
+          await app.createPost(newMember.id, postData);
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+
+        await app.updateGroup(testUser.id, testGroup.id, {
+          membershipOfCategoryId: category.id
+        });
+
+        const post = await app.createPost(newMember.id, postData);
+        assert.equal(post.groupId, testGroup.id);
       });
     });
   });

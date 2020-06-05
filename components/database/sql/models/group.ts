@@ -107,6 +107,9 @@ module.exports = async function (sequelize, models) {
 
   Group.belongsTo(models.GroupSection, {as: 'section', foreignKey: 'sectionId'});
   models.GroupSection.hasMany(Group, {as: 'groups', foreignKey: 'sectionId'});
+
+  Group.belongsTo(models.Category, {as: 'membershipOfCategory', foreignKey: 'membershipOfCategoryId'});
+  models.Category.hasMany(Group, {as: 'groupsWithCategoryMembership', foreignKey: 'membershipOfCategoryId'});
   
   models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {} as any);
 
