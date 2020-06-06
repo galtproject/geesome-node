@@ -101,6 +101,8 @@ export interface IGeesomeApp {
 
   setAdminsOfGroup(userId, groupId, adminIds): Promise<void>;
 
+  getPost(userId, postId);
+
   createPost(userId, postData);
 
   updatePost(userId, postId, postData);
