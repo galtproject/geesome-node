@@ -1044,6 +1044,12 @@ class GeesomeApp implements IGeesomeApp {
     return post;
   }
 
+  async getPost(userId, postId) {
+    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+    //TODO: add check for user can view post
+    return this.database.getPost(postId);
+  }
+
   async updatePost(userId, postId, postData) {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     const contentsIds = postData.contentsIds;

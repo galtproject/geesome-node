@@ -248,6 +248,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getPostByParams(req.body), 200);
   });
 
+  service.get('/v1/user/post/:postId', async (req, res) => {
+    res.send(await geesomeApp.getPost(req.user.id, req.params.postId), 200);
+  });
+
   service.post('/v1/user/create-category', async (req, res) => {
     res.send(await geesomeApp.createCategory(req.user.id, req.body), 200);
   });
