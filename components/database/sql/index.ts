@@ -500,7 +500,10 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getPostByParams(params) {
-    return this.models.Post.findOne({ where: params });
+    return this.models.Post.findOne({
+      where: params,
+      include: [{association: 'contents'}, {association: 'group'}],
+    });
   }
 
   async addCategory(group) {
@@ -638,7 +641,7 @@ class MysqlDatabase implements IDatabase {
   async getPost(id) {
     const post = await this.models.Post.findOne({
       where: {id},
-      include: [{association: 'contents'}]
+      include: [{association: 'contents'}, {association: 'group'}],
     });
 
     post.contents = _.orderBy(post.contents, [(content) => {
