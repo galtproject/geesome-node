@@ -230,7 +230,7 @@ export interface IDatabase {
 
   getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
 
-  getAllUserList(searchString, listParams?: IListParams): Promise<IUser[]>;
+  getAllUserList(searchString?, listParams?: IListParams): Promise<IUser[]>;
 
   getAllUserCount(searchString): Promise<number>;
 

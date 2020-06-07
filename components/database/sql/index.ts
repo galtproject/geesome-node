@@ -890,7 +890,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.GroupPermission.findOne({where: {userId, groupId, name: permissionName}});
   }
 
-  getAllUsersWhere(searchString) {
+  getAllUsersWhere(searchString?) {
     let where = {};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {email: searchString}, {storageAccountId: searchString}]};
@@ -898,7 +898,7 @@ class MysqlDatabase implements IDatabase {
     return where;
   }
 
-  async getAllUserList(searchString, listParams: IListParams = {}) {
+  async getAllUserList(searchString?, listParams: IListParams = {}) {
     setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.User.findAll({
