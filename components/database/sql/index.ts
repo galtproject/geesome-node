@@ -409,6 +409,9 @@ class MysqlDatabase implements IDatabase {
       if(filters[name] === 'null') {
         filters[name] = null;
       }
+      if(filters[name + 'Ne'] === 'null') {
+        filters[name + 'Ne'] = null;
+      }
       if(!_.isUndefined(filters[name])) {
         where[name] = filters[name];
       }
