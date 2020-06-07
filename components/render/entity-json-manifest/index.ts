@@ -109,6 +109,10 @@ class EntityJsonManifest implements IRender {
         userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
       }
 
+      userManifest.accounts = await this.app.database.getUserAccountList(user.id).then(list => {
+        return list.map(({provider, address}) => ({provider, address}))
+      });
+
       this.setManifestMeta(userManifest, name);
 
       console.log('userManifest', JSON.stringify(userManifest));

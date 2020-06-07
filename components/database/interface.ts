@@ -86,6 +86,8 @@ export interface IDatabase {
 
   getUserAccountByAddress(provider, address): Promise<IUserAccount>;
 
+  getUserAccountList(userId): Promise<IUserAccount[]>;
+
   createUserAccount(accountData): Promise<IUserAccount>;
 
   updateUserAccount(id, updateData): Promise<IUserAccount>;
@@ -228,7 +230,7 @@ export interface IDatabase {
 
   getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
 
-  getAllUserList(searchString, listParams?: IListParams): Promise<IUser[]>;
+  getAllUserList(searchString?, listParams?: IListParams): Promise<IUser[]>;
 
   getAllUserCount(searchString): Promise<number>;
 
