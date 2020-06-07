@@ -57,6 +57,9 @@ module.exports = async function (sequelize, models) {
     isFullyPinned: {
       type: Sequelize.BOOLEAN
     },
+    isShowAuthors: {
+      type: Sequelize.BOOLEAN
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
