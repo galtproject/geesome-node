@@ -245,7 +245,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserAccountList(userId) {
-    return this.models.UserAccount.findOne({
+    return this.models.UserAccount.findAll({
       where: { userId }
     });
   }
