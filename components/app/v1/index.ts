@@ -95,17 +95,6 @@ module.exports = async (extendConfig) => {
   //   await app.runSeeds();
   // }
 
-  const users = await app.database.getAllUserList();
-  await pIteration.forEachSeries(users, async (user) => {
-    const manifestStorageId = await app.generateAndSaveManifest('user', user);
-
-    if (manifestStorageId != user.manifestStorageId) {
-      await app.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
-
-      await app.database.updateUser(user.id, {manifestStorageId});
-    }
-  });
-
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
   app.events = appEvents(app);
