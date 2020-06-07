@@ -244,6 +244,12 @@ class MysqlDatabase implements IDatabase {
     });
   }
 
+  async getUserAccountList(userId) {
+    return this.models.UserAccount.findOne({
+      where: { userId }
+    });
+  }
+
   async getUserAccountByProvider(userId, provider) {
     return this.models.UserAccount.findOne({
       where: {userId, provider}

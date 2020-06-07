@@ -86,6 +86,8 @@ export interface IDatabase {
 
   getUserAccountByAddress(provider, address): Promise<IUserAccount>;
 
+  getUserAccountList(userId): Promise<IUserAccount[]>;
+
   createUserAccount(accountData): Promise<IUserAccount>;
 
   updateUserAccount(id, updateData): Promise<IUserAccount>;
