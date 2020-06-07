@@ -78,6 +78,9 @@ Users are creating posts and managing groups.
  "createdAt": "2019-11-10T20:02:32.000Z",
  "staticId": "QmWjfvrzec3zwxp8aeZZjATeh2KYk86EZQGC91oKHXAVJt",
  "publicKey": "2TuPVgMCHJy5atawrsADEzjP7MCVbyyCA89UW6Wvjp9HrBSRc9DQw7Lz7ezy3SwK3iv3KKm3no9oyNWovZwUo5Ceo3e62tQgdpEidjobQevjhVpzNmr1pYZzTTX2ZUpwT44LAKWYREyh5wgAevZn1BLEiucdDb9XrtFJ9G2odd4WMb48K8zSSZyVjmSmS6tuCHPHDQeoWdeYNEkvCTGdyQzJ7GLLqvbASigMKcJ5VxdDtgZbbphAHnTj9o2QuF5cVY4TwVUqy81embzMw4XWQzoz7PsAqQVNGaYAm1Q9kcveFLQ1rtFMBcTxx1w5KXxnir2VEtv9i7cZHr1rwdNg5Qc5oFsNtijXCMSaw3NP1UnoCix2AWmJwBqkjuZQZYceEvQfM1Lc3PABG1dWTA",
+ "accounts": [
+    { "provider": "ethereum", "address": "0x37da4ec7463b52e910fb5a4e9217b26de06056e2", "signature": "<SIGNATURE>" }
+ ],
  "avatarImage": {
   "/": "bafyreih3wgraxbf4ockadtz4czxmhwurwtil4yk4qgxrerwub5zak6qs4u"
  },
