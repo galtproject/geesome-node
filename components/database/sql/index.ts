@@ -406,6 +406,9 @@ class MysqlDatabase implements IDatabase {
   getPostsWhere(filters) {
     const where = {};
     ['status', 'replyToId', 'name', 'groupId'].forEach((name) => {
+      if(filters[name] === 'null') {
+        filters[name] = null;
+      }
       if(!_.isUndefined(filters[name])) {
         where[name] = filters[name];
       }
