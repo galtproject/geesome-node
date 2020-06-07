@@ -2164,7 +2164,7 @@ class GeesomeApp implements IGeesomeApp {
     return content;
   }
 
-  private async generateAndSaveManifest(entityName, entityObj) {
+  async generateAndSaveManifest(entityName, entityObj) {
     const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
     const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
     console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
