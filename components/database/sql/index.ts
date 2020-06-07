@@ -413,7 +413,7 @@ class MysqlDatabase implements IDatabase {
         where[name] = filters[name];
       }
       if(!_.isUndefined(filters[name + 'Ne'])) {
-        where[name.replace('Ne', '')] = {[Op.ne]: filters[name + 'Ne']};
+        where[name] = {[Op.ne]: filters[name + 'Ne']};
       }
     });
     console.log('getPostsWhere', where);
