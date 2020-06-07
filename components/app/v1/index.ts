@@ -97,12 +97,12 @@ module.exports = async (extendConfig) => {
 
   const users = await app.database.getAllUserList();
   await pIteration.forEachSeries(users, async (user) => {
-    const manifestStorageId = await this.generateAndSaveManifest('user', user);
+    const manifestStorageId = await app.generateAndSaveManifest('user', user);
 
     if (manifestStorageId != user.manifestStorageId) {
-      await this.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
+      await app.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
 
-      await this.database.updateUser(user.id, {manifestStorageId});
+      await app.database.updateUser(user.id, {manifestStorageId});
     }
   });
 
