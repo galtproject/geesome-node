@@ -16,6 +16,25 @@ const mediainfo = require('node-mediainfo');
 describe("drivers", function () {
   this.timeout(100000);
 
+  describe('image', () => {
+    it("should successfully get preview of jpg image", async () => {
+      const imagePath = __dirname + '/resources/input-image.jpg';
+
+      const result = await drivers['preview']['image'].processByStream(fs.createReadStream(imagePath));
+
+      const ouputStreamablePath = __dirname + '/resources/output-image.jpg';
+      await new Promise(async (resolve, reject) => {
+        const strm = fs.createWriteStream(ouputStreamablePath);
+        result.stream.pipe(strm);
+
+        strm.on('finish', resolve);
+        strm.on('error', reject);
+      });
+
+      assert.equal(fs.existsSync(ouputStreamablePath), true);
+    });
+  });
+
   describe('youtube video', () => {
 
     it("should successfully getting video from youtube", async () => {
