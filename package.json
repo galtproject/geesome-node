@@ -56,7 +56,7 @@
     "sequelize": "^5.3.0",
     "sequelize-cli": "^5.5.0",
     "serve-static": "^1.14.1",
-    "sharp": "^0.22.1",
+    "sharp": "^0.25.3",
     "typedarray-to-buffer": "^3.1.5",
     "unzip-stream": "^0.3.0",
     "uuid": "^3.3.2",

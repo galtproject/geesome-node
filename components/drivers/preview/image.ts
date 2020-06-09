@@ -32,6 +32,7 @@ export class ImagePreviewDriver extends AbstractDriver {
     }
     const resizerStream = sharp()
         .resize(_.extend(size, {withoutEnlargement: true}))
+        .withMetadata()
         .toFormat(extension);
 
     return {
