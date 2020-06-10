@@ -121,7 +121,7 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
-  getGroupUnreadPostsCount(userId, groupId);
+  getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt}>;
 
   addOrUpdateGroupRead(userId, groupReadData);
 
