@@ -700,7 +700,7 @@ describe("app", function () {
         assert.equal(post.groupId, testGroup.id);
       });
 
-      it.only('groupRead', async () => {
+      it('groupRead', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
