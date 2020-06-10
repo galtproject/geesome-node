@@ -425,12 +425,29 @@ describe("app", function () {
           name: 'my-post'
         });
 
-        const foundPost = await app.getPostByParams({
+        let foundPost = await app.getPostByParams({
           name: 'my-post',
           groupId: testGroup.id
         });
 
         assert.equal(post.id, foundPost.id);
+
+        const postContent2 = await app.saveData('Hello world2', null, {
+          userId: newUser.id,
+          mimeType: 'text/markdown'
+        });
+
+        await app.updatePost(newUser.id, post.id, {
+          contents: [{id: postContent.id}, {id: postContent2.id}]
+        });
+
+        foundPost = await app.getPostByParams({
+          name: 'my-post',
+          groupId: testGroup.id
+        });
+        assert.equal(foundPost.contents.length, 2);
+        assert.equal(foundPost.contents[0].id, postContent.id);
+        assert.equal(foundPost.contents[1].id, postContent2.id);
 
         const newUser2 = await app.registerUser({email: 'new@user2.com', name: 'new2', password: 'new2', permissions: [CorePermissionName.UserAll]});
 
@@ -470,6 +487,16 @@ describe("app", function () {
           name: 'test2',
           title: 'Test2'
         });
+
+        try {
+          await app.updatePost(newUser.id, post.id, {
+            contents: [{id: postContent.id}, {id: postContent2.id}],
+            groupId: group2.id
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
 
         try {
           await app.createGroup(testUser.id, {

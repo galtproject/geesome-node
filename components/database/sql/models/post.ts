@@ -48,6 +48,10 @@ module.exports = async function (sequelize, models) {
     isFullyPinned: {
       type: Sequelize.BOOLEAN
     },
+    isDeleted: {
+      type: Sequelize.BOOLEAN,
+      defaultValue: false
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
