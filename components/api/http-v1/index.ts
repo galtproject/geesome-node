@@ -412,7 +412,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/group/unread/:groupId', async (req, res) => {
-    res.send({count: await geesomeApp.getGroupUnreadPostsCount(req.user.id, req.params.groupId)}, 200);
+    res.send(await geesomeApp.getGroupUnreadPostsData(req.user.id, req.params.groupId), 200);
   });
 
   service.post('/v1/user/group/set-read', async (req, res) => {

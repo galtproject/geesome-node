@@ -1165,18 +1165,25 @@ class GeesomeApp implements IGeesomeApp {
     return post;
   }
 
-  async getGroupUnreadPostsCount(userId, groupId) {
+  async getGroupUnreadPostsData(userId, groupId) {
     let groupRead = await this.database.getGroupRead(userId, groupId);
     if (groupRead) {
-      return this.database.getGroupPostsCount(groupId, {
-        publishedAtGt: groupRead.readAt
-      });
+      return {
+        readAt: groupRead.readAt,
+        count: await this.database.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt })
+      };
     }
     const group = await this.database.getGroup(groupId);
     if (!group) {
-      return 0;
+      return {
+        readAt: null,
+        count: 0
+      };
     }
-    return group.publishedPostsCount;
+    return {
+      readAt: null,
+      count: group.publishedPostsCount
+    };
   }
 
   async addOrUpdateGroupRead(userId, groupReadData) {
