@@ -94,6 +94,9 @@ module.exports = async function (sequelize, models) {
     encryptedManifestStorageId: {
       type: Sequelize.TEXT
     },
+    propertiesJson: {
+      type: Sequelize.TEXT
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

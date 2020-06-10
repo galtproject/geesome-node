@@ -33,6 +33,14 @@ describe("drivers", function () {
 
       assert.equal(fs.existsSync(ouputStreamablePath), true);
     });
+
+    it("should successfully get metadata of jpg image", async () => {
+      const imagePath = __dirname + '/resources/input-image.jpg';
+
+      const result = await drivers['metadata']['image'].processByStream(fs.createReadStream(imagePath));
+
+      assert.equal(result.width > 0, true);
+    });
   });
 
   describe('youtube video', () => {
