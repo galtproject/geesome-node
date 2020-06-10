@@ -700,7 +700,7 @@ describe("app", function () {
         assert.equal(post.groupId, testGroup.id);
       });
 
-      it('groupRead', async () => {
+      it.only('groupRead', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
@@ -715,29 +715,29 @@ describe("app", function () {
         };
         let post = await app.createPost(testUser.id, postData);
 
-        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 1);
+        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 1);
 
         await app.addOrUpdateGroupRead(testUser.id, {
           groupId: testGroup.id,
           readAt: post.publishedAt
         });
 
-        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 0);
+        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
 
         await app.createPost(testUser.id, postData);
 
-        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 1);
+        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 1);
 
         post = await app.createPost(testUser.id, postData);
 
-        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 2);
+        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 2);
 
         await app.addOrUpdateGroupRead(testUser.id, {
           groupId: testGroup.id,
           readAt: post.publishedAt
         });
 
-        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 0);
+        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
       });
     });
   });
