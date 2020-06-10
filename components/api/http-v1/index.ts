@@ -411,6 +411,14 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getGroupSectionItems(req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });
 
+  service.get('/v1/user/group/unread/:groupId', async (req, res) => {
+    res.send(await geesomeApp.getGroupUnreadPostsCount(req.user.id, req.params.groupId), 200);
+  });
+
+  service.post('/v1/user/group/set-read', async (req, res) => {
+    res.send(await geesomeApp.addOrUpdateGroupRead(req.user.id, req.body), 200);
+  });
+
   service.get('/v1/user/api-key-list', async (req, res) => {
     res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
   });

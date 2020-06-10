@@ -427,6 +427,11 @@ class MysqlDatabase implements IDatabase {
         where[name] = {[Op.ne]: filters[name + 'Ne']};
       }
     });
+    if (filters.publishedAtGt) {
+      where['publishedAt'] = {
+        [Op.gt]: filters.publishedAtGt
+      }
+    }
     console.log('getPostsWhere', where);
     return where;
   }
@@ -890,6 +895,22 @@ class MysqlDatabase implements IDatabase {
 
   async isHaveGroupPermission(userId, groupId, permissionName) {
     return this.models.GroupPermission.findOne({where: {userId, groupId, name: permissionName}});
+  }
+
+  async getGroupRead(userId, groupId) {
+    return this.models.GroupRead.findOne({where: {userId, groupId}});
+  }
+
+  async addGroupRead(groupReadData) {
+    return this.models.GroupRead.create(groupReadData);
+  }
+
+  async removeGroupRead(userId, groupId) {
+    return this.models.GroupRead.destroy({where: {userId, groupId}})
+  }
+
+  async updateGroupRead(id, updateData) {
+    return this.models.GroupRead.update(updateData, {where: {id}});
   }
 
   getAllUsersWhere(searchString?) {

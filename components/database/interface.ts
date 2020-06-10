@@ -148,6 +148,14 @@ export interface IDatabase {
 
   getPostByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
 
+  getGroupRead(userId, groupId): Promise<IGroupRead>;
+
+  addGroupRead(groupReadData): Promise<IGroupRead>;
+
+  removeGroupRead(userId, groupId): Promise<any>;
+
+  updateGroupRead(id, updateData): Promise<any>;
+
   getCategory(categoryId): Promise<ICategory>;
 
   getCategoryByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<ICategory>;
@@ -520,6 +528,15 @@ export enum GroupView {
   InstagramLike = 'instagram-like',
   TumblrLike = 'tumblr-like',
   TelegramLike = 'telegram-like'
+}
+
+export interface IGroupRead {
+  id?: number;
+  readFrom?;
+  readAt?;
+  userId: number;
+  groupId: number;
+  cachedPostsCount: number;
 }
 
 export interface IFileCatalogItem {
