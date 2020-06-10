@@ -699,6 +699,46 @@ describe("app", function () {
         const post = await app.createPost(newMember.id, postData);
         assert.equal(post.groupId, testGroup.id);
       });
+
+      it('groupRead', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        const post1Content = await app.saveData('Hello world1', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
+        const postData = {
+          contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
+          groupId: testGroup.id,
+          status: PostStatus.Published
+        };
+        let post = await app.createPost(testUser.id, postData);
+
+        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 1);
+
+        await app.addOrUpdateGroupRead(testUser.id, {
+          groupId: testGroup.id,
+          readAt: post.publishedAt
+        });
+
+        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 0);
+
+        await app.createPost(testUser.id, postData);
+
+        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 1);
+
+        post = await app.createPost(testUser.id, postData);
+
+        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 2);
+
+        await app.addOrUpdateGroupRead(testUser.id, {
+          groupId: testGroup.id,
+          readAt: post.publishedAt
+        });
+
+        assert.equal(await app.getGroupUnreadPostsCount(testUser.id, testGroup.id), 0);
+      });
     });
   });
 });

@@ -121,6 +121,10 @@ export interface IGeesomeApp {
 
   getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
+  getGroupUnreadPostsCount(userId, groupId);
+
+  addOrUpdateGroupRead(userId, groupReadData);
+
   getCategoryByParams(params): Promise<ICategory>;
 
   createCategory(userId, categoryData): Promise<ICategory>;
