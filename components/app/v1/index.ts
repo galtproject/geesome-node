@@ -587,6 +587,19 @@ class GeesomeApp implements IGeesomeApp {
       || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
   }
 
+  async canEditPostInGroup(userId, groupId, postId) {
+    if (!groupId || !postId) {
+      return false;
+    }
+    groupId = await this.checkGroupId(groupId);
+    const group = await this.getGroup(groupId);
+    const post = await this.database.getPost(postId);
+    console.log('post.userId', post.userId, 'userId', userId);
+    return (await this.database.isAdminInGroup(userId, groupId))
+      || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId) && post.userId === userId)
+      || (!group.isOpen && group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId) && post.userId === userId);
+  }
+
   async canAddGroupToCategory(userId, categoryId) {
     if (!categoryId) {
       return false;
@@ -936,6 +949,22 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getPostByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
   }
 
+  async getContentsForPost(contents) {
+    if(!contents) {
+      return null;
+    }
+    let contentsData = contents.filter(c => c.id);
+    console.log('contentsData', contentsData);
+    const manifestStorageContents = contents.filter(c => c.manifestStorageId);
+    console.log('manifestStorageContents', manifestStorageContents);
+    const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
+      id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
+      ...c
+    }));
+    console.log('manifestStorageContents', manifestStorageContents);
+    return contentsData.concat(contentsByStorageManifests.filter(c => c.id));
+  }
+
   async createPost(userId, postData) {
     log('createPost');
     const [, canCreate] = await Promise.all([
@@ -956,16 +985,7 @@ class GeesomeApp implements IGeesomeApp {
     }
     log('localId');
 
-    let contentsData = postData.contents.filter(c => c.id);
-    console.log('contentsData', contentsData);
-    const manifestStorageContents = postData.contents.filter(c => c.manifestStorageId);
-    console.log('manifestStorageContents', manifestStorageContents);
-    const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
-      id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
-      ...c
-    }));
-    console.log('manifestStorageContents', manifestStorageContents);
-    contentsData = contentsData.concat(contentsByStorageManifests.filter(c => c.id));
+    const contentsData = await this.getContentsForPost(postData.contents);
     delete postData.contents;
 
     const [user, group] = await Promise.all([
@@ -995,7 +1015,9 @@ class GeesomeApp implements IGeesomeApp {
     })();
     log('replyPostUpdatePromise');
 
-    await this.database.setPostContents(post.id, contentsData);
+    if(contentsData) {
+      await this.database.setPostContents(post.id, contentsData);
+    }
     log('setPostContents');
 
     let size = await this.database.getPostSizeSum(post.id);
@@ -1051,17 +1073,27 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updatePost(userId, postId, postData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    const contentsIds = postData.contentsIds;
-    delete postData.contentsIds;
-
     const oldPost = await this.database.getPost(postId);
+
+    const [, canEdit, canEditNewGroup] = await Promise.all([
+      await this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
+      this.canEditPostInGroup(userId, oldPost.groupId, postId),
+      postData.groupId ? this.canEditPostInGroup(userId, postData.groupId, postId) : true
+    ]);
+    if (!canEdit || !canEditNewGroup) {
+      throw new Error("not_permitted");
+    }
+
+    const contentsData = await this.getContentsForPost(postData.contents);
+    delete postData.contents;
 
     if (postData.status === PostStatus.Published && !oldPost.localId) {
       postData.localId = await this.getPostLocalId(postData);
     }
 
-    await this.database.setPostContents(postId, contentsIds);
+    if(contentsData) {
+      await this.database.setPostContents(postId, contentsData);
+    }
 
     postData.size = await this.database.getPostSizeSum(postId);
 
