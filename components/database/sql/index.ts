@@ -427,9 +427,19 @@ class MysqlDatabase implements IDatabase {
         where[name] = {[Op.ne]: filters[name + 'Ne']};
       }
     });
-    if (filters.publishedAtGt) {
+    ['publishedAt'].forEach(field => {
+      ['Gt', 'Gte', 'Lt', 'Lte'].forEach((postfix) => {
+        if (filters[field + postfix]) {
+          if(!where[field]) {
+            where[field] = {};
+          }
+          where[field][[Op[postfix.toLowerCase()]]] = filters[field + postfix];
+        }
+      });
+    });
+    if (filters.publishedAtLte) {
       where['publishedAt'] = {
-        [Op.gt]: filters.publishedAtGt
+        [Op.lte]: filters.publishedAtLte
       }
     }
     console.log('getPostsWhere', where);
