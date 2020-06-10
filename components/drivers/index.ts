@@ -14,6 +14,7 @@ import {YoutubeThumbnailPreviewDriver} from "./preview/youtube-thumbnail";
 import {VideoToStreambleDriver} from "./convert/video-to-streamable";
 import {VideoThumbnail} from "./preview/video-thumbnail";
 import {ArchiveUploadDriver} from "./upload/archive";
+import {ImageMetadataDriver} from "./metadata/image";
 
 module.exports = {
   preview: {
@@ -21,6 +22,9 @@ module.exports = {
     text: new TextPreviewDriver(),
     'youtube-thumbnail': new YoutubeThumbnailPreviewDriver(),
     'video-thumbnail': new VideoThumbnail()
+  },
+  metadata: {
+    image: new ImageMetadataDriver()
   },
   upload: {
     'youtube-video': new YoutubeVideoUploadDriver(),

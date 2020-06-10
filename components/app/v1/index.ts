@@ -1455,7 +1455,7 @@ class GeesomeApp implements IGeesomeApp {
       fileStream = dataToSave;
     }
 
-    const {resultFile: storageFile, resultMimeType: type, resultExtension} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName) || extension, {
+    const {resultFile: storageFile, resultMimeType: type, resultExtension, resultProperties} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName) || extension, {
       extension,
       driver: options.driver,
       onProgress: options.onProgress
@@ -1500,6 +1500,7 @@ class GeesomeApp implements IGeesomeApp {
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
+      propertiesJson: JSON.stringify(resultProperties)
     }, options);
   }
 
@@ -1512,7 +1513,7 @@ class GeesomeApp implements IGeesomeApp {
       name = _.last(url.split('/'))
     }
     let extension = this.getExtensionFromName(name);
-    let type;
+    let type, properties;
 
     if (options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
@@ -1527,15 +1528,16 @@ class GeesomeApp implements IGeesomeApp {
     if (uploadDriver && uploadDriver.isInputSupported(DriverInput.Source)) {
       const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
       type = dataToSave.type;
-      const {resultFile, resultMimeType, resultExtension} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {
+      const {resultFile, resultMimeType, resultExtension, resultProperties} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {
         extension,
         onProgress: options.onProgress
       });
       type = resultMimeType;
       storageFile = resultFile;
       extension = resultExtension;
+      properties = resultProperties;
     } else {
-      const {resultFile, resultMimeType, resultExtension} = await axios({
+      const {resultFile, resultMimeType, resultExtension, resultProperties} = await axios({
         url,
         method: 'get',
         responseType: 'stream'
@@ -1550,6 +1552,7 @@ class GeesomeApp implements IGeesomeApp {
       type = resultMimeType;
       storageFile = resultFile;
       extension = resultExtension;
+      properties = resultProperties;
     }
 
     const existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
@@ -1580,7 +1583,8 @@ class GeesomeApp implements IGeesomeApp {
       view: ContentView.Attachment,
       storageId: storageFile.id,
       size: storageFile.size,
-      name: name
+      name: name,
+      propertiesJson: JSON.stringify(properties)
     }, options);
   }
 
@@ -1667,31 +1671,45 @@ class GeesomeApp implements IGeesomeApp {
       log('options.driver', options.driver);
 
       let resultFile;
-      if(options.driver === 'archive') {
-        const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
-          extension,
-          onProgress: options.onProgress,
-          onError: reject
-        });
-        resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
-        if(uploadResult.emitFinish) {
-          uploadResult.emitFinish();
-        }
-        mimeType = 'directory';
-        extension = 'none';
-        console.log('uploadResult', uploadResult);
-        resultFile.size = uploadResult.size;
-      } else {
-        resultFile = await this.storage.saveFileByData(stream);
-        // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
-        const storageContentStat = await this.storage.getFileStat(resultFile.id);
-        resultFile.size = storageContentStat.size;
-      }
+      let properties;
+      await Promise.all([
+        (async () => {
+          if(options.driver === 'archive') {
+            const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
+              extension,
+              onProgress: options.onProgress,
+              onError: reject
+            });
+            resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
+            if(uploadResult.emitFinish) {
+              uploadResult.emitFinish();
+            }
+            mimeType = 'directory';
+            extension = 'none';
+            console.log('uploadResult', uploadResult);
+            resultFile.size = uploadResult.size;
+          } else {
+            resultFile = await this.storage.saveFileByData(stream);
+            // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
+            const storageContentStat = await this.storage.getFileStat(resultFile.id);
+            resultFile.size = storageContentStat.size;
+          }
+        })(),
+
+        (async () => {
+          console.log('mimeType');
+          if (_.startsWith(mimeType, 'image')) {
+            properties = await this.drivers.metadata['image'].processByStream(stream);
+            console.log('metadata processByStream', properties);
+          }
+        })()
+      ]);
 
       resolve({
         resultFile: resultFile,
         resultMimeType: mimeType,
-        resultExtension: extension
+        resultExtension: extension,
+        resultProperties: properties
       });
     });
   }

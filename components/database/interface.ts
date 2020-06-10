@@ -324,6 +324,7 @@ export interface IContent {
   manifestStaticStorageId?: string;
 
   encryptedManifestStorageId?: string;
+  propertiesJson?: string;
 }
 
 export interface IObject {

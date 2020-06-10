@@ -175,10 +175,14 @@ describe("app", function () {
           groupId: testGroup.id
         });
 
+        const properties = JSON.parse(imageContent.propertiesJson);
+        assert.equal(properties.width > 0, true);
+
         const contentObj = await app.storage.getObject(imageContent.manifestStorageId);
 
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'image/png');
+        assert.equal(contentObj.properties.width > 0, true);
 
         console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType);
         assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
