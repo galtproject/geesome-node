@@ -351,17 +351,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
    *
    * @apiInterface (../../database/interface.ts) {IPost} apiSuccess
    */
-  service.post('/v1/user/group/:groupId/create-post', async (req, res) => {
-    if (!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
-      return res.send(403);
-    }
+  service.post('/v1/user/group/create-post', async (req, res) => {
     res.send(await geesomeApp.createPost(req.user.id, req.body), 200);
   });
 
-  service.post('/v1/user/group/:groupId/update-post/:postId', async (req, res) => {
-    if (!await geesomeApp.canCreatePostInGroup(req.user.id, req.params.groupId)) {
-      return res.send(403);
-    }
+  service.post('/v1/user/group/update-post/:postId', async (req, res) => {
     res.send(await geesomeApp.updatePost(req.user.id, req.params.postId, req.body), 200);
   });
 
