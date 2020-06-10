@@ -433,7 +433,7 @@ class MysqlDatabase implements IDatabase {
           if(!where[field]) {
             where[field] = {};
           }
-          where[field][[Op[postfix.toLowerCase()]]] = filters[field + postfix];
+          where[field][Op[postfix.toLowerCase()]] = filters[field + postfix];
         }
       });
     });
