@@ -202,6 +202,7 @@ describe("app", function () {
 
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'video/mp4');
+        assert.equal(contentObj.properties.width > 0, true);
 
         console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType)
         assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
@@ -291,7 +292,6 @@ describe("app", function () {
         
         assert.equal(gotIndexHtml, indexHtml);
 
-        console.log('publishFolder indexHtmlFileItem.parentItem');
         let publishFolderResult = await app.publishFolder(testUser.id, indexHtmlFileItem.parentItemId, {bindToStatic: true});
         
         const resolvedStorageId = await app.resolveStaticId(publishFolderResult.staticId);
@@ -311,7 +311,6 @@ describe("app", function () {
         
         const firstFolder = await app.getFileCatalogItemByPath(testUser.id, '/1/', FileCatalogItemType.Folder);
 
-        console.log('publishFolder firstFolder', firstFolder.name);
         publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
@@ -339,7 +338,7 @@ describe("app", function () {
         publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
         gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
-        
+
         indexHtml2 = '<h1>Hello world 2</h1>';
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
         publishFolderResult = await app.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});

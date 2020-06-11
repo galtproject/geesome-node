@@ -20,6 +20,7 @@ export class ImagePreviewDriver extends AbstractDriver {
   supportedOutputSizes = [OutputSize.Small, OutputSize.Medium, OutputSize.Large];
 
   async processByStream(inputStream, options: any = {}) {
+    console.log('ImagePreviewDriver.processByStream');
     const extension = options.extension || 'jpg';
 
     // TODO: get size by settings
@@ -35,8 +36,15 @@ export class ImagePreviewDriver extends AbstractDriver {
         .withMetadata()
         .toFormat(extension);
 
+    const resultStream = inputStream.pipe(resizerStream) as Stream;
+
+    resultStream.on("error", (err) => {
+      console.error('resultStream error', err);
+      options.onError && options.onError(err);
+    });
+
     return {
-      stream: inputStream.pipe(resizerStream) as Stream,
+      stream: resultStream,
       type: 'image/' + extension,
       extension: extension
     };
