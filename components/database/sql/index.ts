@@ -191,6 +191,9 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUser(id) {
+    if (!id) {
+      return null;
+    }
     return this.models.User.findOne({
       where: {id},
       include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
@@ -820,6 +823,9 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getFileCatalogItem(id) {
+    if (!id) {
+      return null;
+    }
     return this.models.FileCatalogItem.findOne({
       where: {id},
       include: [{association: 'content'}]

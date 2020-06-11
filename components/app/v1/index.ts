@@ -1257,6 +1257,28 @@ class GeesomeApp implements IGeesomeApp {
     return this.createContentByObject(contentObject);
   }
 
+  async prepareStorageFileForPreview(storageFile: {size, id}, extension, fullType) {
+    console.log('prepareStorageFileForPreview', extension, fullType);
+    if (this.isVideoType(fullType)) {
+      const videoThumbnailDriver = this.drivers.preview['video-thumbnail'];
+      const {storageFile: imageFile, extension: imageExtension, type: imageType, properties} = await this.getPreviewStreamContent(videoThumbnailDriver, storageFile.id, {
+        extension,
+        getProperties: true
+      });
+
+      console.log('isVideoType', imageFile, imageExtension, imageType);
+
+      return {
+        storageFile: imageFile,
+        extension: imageExtension,
+        fullType: imageType,
+        properties: _.pick(properties, ['width', 'height'])
+      }
+    } else {
+      return {storageFile, extension, fullType};
+    }
+  }
+
   async getPreview(storageFile: {size, id}, extension, fullType, source?) {
     let storageId = storageFile.id;
 
@@ -1269,37 +1291,23 @@ class GeesomeApp implements IGeesomeApp {
     if (!fullType) {
       fullType = '';
     }
-    if (this.isVideoType(fullType)) {
-      previewDriverName = 'video-thumbnail';
-    }
-    console.log('previewDriverName', previewDriverName, fullType);
     if (!previewDriverName) {
       previewDriverName = fullType.split('/')[0];
     }
+    console.log('previewDriverName', previewDriverName, fullType);
 
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
     }
 
-    if(previewDriverName === 'video-thumbnail') {
-      const {content: originalVideoImage, extension: imageExtension} = await this.getPreviewStreamContent(previewDriver, storageId, {
-        extension
-      });
-      storageId = originalVideoImage.id;
-      extension = imageExtension;
-      previewDriverName = 'image';
-      previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
-      if (!previewDriver) {
-        return {};
-      }
-    }
     try {
       if (previewDriver.isInputSupported(DriverInput.Stream)) {
-        const {content: mediumFile, type, extension: resultExtension} = await this.getPreviewStreamContent(previewDriver, storageId, {
+        const {storageFile: mediumFile, type, extension: resultExtension} = await this.getPreviewStreamContent(previewDriver, storageId, {
           extension,
           size: OutputSize.Medium
         });
+        console.log('mediumFile', mediumFile);
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
@@ -1307,7 +1315,7 @@ class GeesomeApp implements IGeesomeApp {
             extension,
             size: OutputSize.Small
           });
-          smallFile = smallFile.content;
+          smallFile = smallFile.storageFile;
         }
 
         let largeFile;
@@ -1316,7 +1324,7 @@ class GeesomeApp implements IGeesomeApp {
             extension,
             size: OutputSize.Large
           });
-          largeFile = largeFile.content;
+          largeFile = largeFile.storageFile;
         }
 
         return {
@@ -1326,7 +1334,7 @@ class GeesomeApp implements IGeesomeApp {
           largePreviewSize: smallFile ? smallFile.size : null,
           mediumPreviewStorageId: mediumFile.id,
           mediumPreviewSize: mediumFile.size,
-          previewType: type,
+          previewMimeType: type,
           previewExtension: resultExtension
         };
       } else if (previewDriver.isInputSupported(DriverInput.Content)) {
@@ -1363,7 +1371,7 @@ class GeesomeApp implements IGeesomeApp {
           largePreviewSize: smallFile ? smallFile.size : null,
           mediumPreviewStorageId: mediumFile.id,
           mediumPreviewSize: mediumFile.size,
-          previewType: type,
+          previewMimeType: type,
           previewExtension: resultExtension
         };
       } else if (previewDriver.isInputSupported(DriverInput.Source)) {
@@ -1384,12 +1392,12 @@ class GeesomeApp implements IGeesomeApp {
           largePreviewSize: null,
           mediumPreviewStorageId: storageFile.id,
           mediumPreviewSize: storageFile.size,
-          previewType: type,
+          previewMimeType: type,
           previewExtension: resultExtension
         };
       }
     } catch (e) {
-      console.error(e);
+      console.error('getPreviewStreamContent error', e);
       return {};
     }
     throw new Error(previewDriver + "_preview_driver_input_not_found");
@@ -1404,8 +1412,15 @@ class GeesomeApp implements IGeesomeApp {
       console.log('getPreviewStreamContent', options);
       const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
-      const content = await this.storage.saveFileByData(resultStream);
-      return resolve({content, type, extension});
+      const storageFile = await this.storage.saveFileByData(resultStream);
+
+      let properties;
+      if(options.getProperties && this.drivers.metadata[type.split('/')[0]]) {
+        const propertiesStream = await this.storage.getFileStream(storageFile.id);
+        properties = await this.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
+      }
+
+      return resolve({storageFile, type, extension, properties});
     });
   }
 
@@ -1534,30 +1549,17 @@ class GeesomeApp implements IGeesomeApp {
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewIfNotExist(existsContent);
+      console.log('isUserCan', options.userId);
       if(await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
         await this.addContentToUserFileCatalog(options.userId, existsContent, options);
       }
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, resultExtension, type);
-    log('getPreview');
-
-    return this.addContent({
-      mediumPreviewStorageId,
-      mediumPreviewSize,
-
-      smallPreviewStorageId,
-      smallPreviewSize,
-
-      largePreviewStorageId,
-      largePreviewSize,
-
-      previewExtension,
+    return this.addContentWithPreview(storageFile, {
       storageType: ContentStorageType.IPFS,
       extension: resultExtension,
       mimeType: type,
-      previewMimeType: previewType as any,
       userId: options.userId,
       view: ContentView.Contents,
       storageId: storageFile.id,
@@ -1625,29 +1627,31 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview(storageFile, extension, type, url);
-
-    return this.addContent({
-      mediumPreviewStorageId,
-      mediumPreviewSize,
-
-      smallPreviewStorageId,
-      smallPreviewSize,
-
-      largePreviewStorageId,
-      largePreviewSize,
-
+    return this.addContentWithPreview(storageFile, {
       extension,
-      previewExtension,
       storageType: ContentStorageType.IPFS,
       mimeType: type,
-      previewMimeType: previewType as any,
       userId: options.userId,
       view: ContentView.Attachment,
       storageId: storageFile.id,
       size: storageFile.size,
       name: name,
       propertiesJson: JSON.stringify(properties)
+    }, options, url);
+  }
+
+  async addContentWithPreview(storageFile, contentData, options, source?) {
+    const {storageFile: forPreviewStorageFile, extension: forPreviewExtension, fullType: forPreviewFullType, properties} = await this.prepareStorageFileForPreview(storageFile, contentData.extension, contentData.mimeType);
+    console.log('storageFile.id', storageFile.id, 'forPreviewStorageFile.id', forPreviewStorageFile.id);
+    let previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
+
+    if(properties) {
+      contentData.propertiesJson = JSON.stringify(properties);
+    }
+
+    return this.addContent({
+      ...contentData,
+      ...previewData
     }, options);
   }
 
@@ -1655,19 +1659,12 @@ class GeesomeApp implements IGeesomeApp {
     if (content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
-    let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-    const updateData = {
-      mediumPreviewStorageId,
-      mediumPreviewSize,
-      smallPreviewStorageId,
-      smallPreviewSize,
-      largePreviewStorageId,
-      largePreviewSize,
-      previewMimeType: previewType as any,
-      previewExtension
-    };
-    await this.database.updateContent(content.id, updateData);
-    return this.updateContentManifest(_.extend(content, updateData));
+    let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
+    await this.database.updateContent(content.id, previewData);
+    return this.updateContentManifest({
+      ...content['toJSON'](),
+      ...previewData
+    });
   }
 
   async getAsyncOperation(userId, operationId) {
@@ -1996,24 +1993,12 @@ class GeesomeApp implements IGeesomeApp {
 
         await pIteration.forEach(userContents, async (content: IContent) => {
           const previousIpldToNewIpldItem = [content.manifestStorageId];
-          let {mediumPreviewStorageId, mediumPreviewSize, smallPreviewStorageId, smallPreviewSize, largePreviewStorageId, largePreviewSize, previewType, previewExtension} = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-
-          const updateContent = {
-            mediumPreviewStorageId,
-            mediumPreviewSize,
-
-            smallPreviewStorageId,
-            smallPreviewSize,
-
-            largePreviewStorageId,
-            largePreviewSize,
-
-            previewExtension,
-            previewMimeType: previewType
-          };
-          await this.database.updateContent(content.id, updateContent);
-
-          const updatedContent = await this.updateContentManifest(_.extend(content, updateContent));
+          let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
+          await this.database.updateContent(content.id, previewData);
+          const updatedContent = await this.updateContentManifest({
+            ...content['toJSON'](),
+            ...previewData
+          });
 
           previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
 
@@ -2062,6 +2047,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
+    console.log('await this.checkUserCan(userId');
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
 
