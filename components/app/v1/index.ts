@@ -1498,7 +1498,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
-    log('saveData', dataToSave);
+    log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
     if (options.path) {
