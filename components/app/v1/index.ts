@@ -1523,6 +1523,10 @@ class GeesomeApp implements IGeesomeApp {
       dataToSave = Buffer.from(dataToSave)
     }
 
+    if(_.isNumber(dataToSave)) {
+      dataToSave = dataToSave.toString(10);
+    }
+
     let fileStream;
     if(_.isString(dataToSave) || _.isBuffer(dataToSave)) {
       fileStream = new Readable();
@@ -1725,6 +1729,7 @@ class GeesomeApp implements IGeesomeApp {
           }
         });
         sizeCheckStream.on('error', reject);
+
         stream = stream.pipe(sizeCheckStream);
       }
 
