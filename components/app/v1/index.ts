@@ -1515,6 +1515,10 @@ class GeesomeApp implements IGeesomeApp {
       options.userApiKeyId = apiKey.id;
     }
 
+    if(dataToSave._bufs) {
+      dataToSave = dataToSave._bufs[0];
+    }
+
     if(dataToSave.type === "Buffer") {
       dataToSave = Buffer.from(dataToSave.data)
     }
