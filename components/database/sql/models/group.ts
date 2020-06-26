@@ -85,6 +85,9 @@ module.exports = async function (sequelize, models) {
     encryptedManifestStorageId: {
       type: Sequelize.TEXT
     },
+    propertiesJson: {
+      type: Sequelize.TEXT
+    },
     storageUpdatedAt: {
       type: Sequelize.DATE
     },

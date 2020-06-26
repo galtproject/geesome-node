@@ -457,10 +457,11 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        await app.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
+        await app.updateGroup(newUser.id, testGroup.id, {title: 'new title', name: 'newGroupName'});
 
         let group = await app.getGroup(testGroup.id);
         assert.equal(group.title, 'new title');
+        assert.equal(group.name, testGroup.name);
 
         await app.addMemberToGroup(testUser.id, testGroup.id, newUser2.id);
 
