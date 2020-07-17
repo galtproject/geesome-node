@@ -32,7 +32,17 @@
   "new_user": {
     "limit_period": "Limit for each period"
   },
+  "set_limit_modal": {
+    "limit_period": "Limit for each period"
+  },
   "user_profile": {
     
+  },
+  "period_input": {
+    "unit_minutes": "Minutes",
+    "unit_hours": "Hours",
+    "unit_days": "Days",
+    "period_value": "Value",
+    "period_unit": "Unit"
   }
 }

@@ -8,6 +8,7 @@
  */
 
 import ApiKeyFormModal from "../../../modals/ApiKeyFormModal/ApiKeyFormModal";
+import SetLimitModal from "../modals/SetLimitModal/SetLimitModal";
 
 export default {
   template: require('./UserProfile.html'),
@@ -24,7 +25,9 @@ export default {
     },
     async getUserPermissions() {
       this.permissions = await this.$coreApi.adminGetCorePermissionList(this.user.id).catch(() => []);
-      this.saveContentLimit = await this.$coreApi.adminGetUserLimit(this.user.id, 'save_content:size');
+      this.saveContentLimit = await this.$coreApi.adminGetUserLimit(this.user.id, 'save_content:size').catch(() => null);
+
+      this.currentUserCanSetLimits = await this.$coreApi.adminIsHaveCorePermission('admin:set_user_limit');
     },
     addApiKey() {
       this.$root.$asyncModal.open({
@@ -53,6 +56,18 @@ export default {
         }
       });
     },
+    setUserLimit() {
+      this.$root.$asyncModal.open({
+        id: 'set-limit-modal',
+        component: SetLimitModal,
+        props: {
+          userId: this.user.id
+        },
+        onClose: () => {
+          this.getUserPermissions();
+        }
+      });
+    }
   },
   watch: {},
   computed: {
@@ -65,7 +80,8 @@ export default {
       localeKey: 'user_profile',
       apiKeys: [],
       permissions: [],
-      saveContentLimit: null
+      saveContentLimit: null,
+      currentUserCanSetLimits: null
     };
   }
 }
