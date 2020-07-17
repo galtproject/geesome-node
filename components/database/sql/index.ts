@@ -932,7 +932,7 @@ class MysqlDatabase implements IDatabase {
   getAllUsersWhere(searchString?) {
     let where = {};
     if (searchString) {
-      where = {[Op.or]: [{name: searchString}, {email: searchString}, {storageAccountId: searchString}]};
+      where = {[Op.or]: [{name: {[Op.like]: searchString} }, {email: {[Op.like]: searchString}}, {storageAccountId: searchString}]};
     }
     return where;
   }
