@@ -18,7 +18,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#59b7ccd",
+    "@galtproject/frontend-core": "git://github.com/galtproject/galtproject-frontend-core.git#59e57c9",
     "async": "^2.5.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.2",

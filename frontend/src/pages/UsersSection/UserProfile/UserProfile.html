@@ -34,6 +34,12 @@
             <div v-if="saveContentLimit">
               <div><label>Content saving limit:</label> {{saveContentLimit.remained | prettySize}}/{{saveContentLimit.value | prettySize}} for {{saveContentLimit.periodTimestamp | beautyPeriod}}</div>
             </div>
+            <div v-if="currentUserCanSetLimits">
+              <md-button @click="setUserLimit" class="md-primary">
+                <md-icon class="fas fa-pen"></md-icon>
+                Change user limits
+              </md-button>
+            </div>
           </div>
           
           <div v-if="currentUser.id === user.id">
