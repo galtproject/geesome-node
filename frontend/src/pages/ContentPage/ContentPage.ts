@@ -62,6 +62,8 @@ export default {
           if (this.type === 'post') {
             this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupStaticId);
           }
+        } else {
+          this.type = 'unknown';
         }
 
         if(!includes(['post','content', 'group'], this.type)) {
