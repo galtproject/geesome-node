@@ -11,14 +11,16 @@ import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/Co
 import EthData from "@galtproject/frontend-core/libs/EthData";
 import GroupItem from "../GroupsList/GroupItem/GroupItem";
 import PostItem from "../../directives/Posts/PostItem/PostItem";
+import IpldView from "./IpldView/IpldView";
 
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
-const _ = require('lodash');
+const includes = require('lodash/includes');
+const clone = require('lodash/clone');
 
 export default {
   template: require('./ContentPage.html'),
-  components: {ContentManifestInfoItem, GroupItem, PostItem},
+  components: {ContentManifestInfoItem, GroupItem, PostItem, IpldView},
   props: [],
   created() {
     this.inputManifestId = this.manifestId;
@@ -45,19 +47,25 @@ export default {
           manifestId = objectDb.manifestStorageId;
         }
         this.manifest = await this.$coreApi.getObject(manifestId);
-        this.type = this.manifest._type.split('-')[0];
-        if (this.type === 'group') {
-          await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-          await this.$coreApi.getGroupPostsAsync(manifestId, (posts) => {
-            this.subManifests = _.clone(posts);
-          }, (posts) => {
-            this.subManifests = _.clone(posts);
-            console.log('posts', posts);
-            this.loading = false;
-          })
+        if(this.manifest._type) {
+          this.type = this.manifest._type.split('-')[0];
+          if (this.type === 'group') {
+            await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
+            await this.$coreApi.getGroupPostsAsync(manifestId, (posts) => {
+              this.subManifests = clone(posts);
+            }, (posts) => {
+              this.subManifests = clone(posts);
+              console.log('posts', posts);
+              this.loading = false;
+            })
+          }
+          if (this.type === 'post') {
+            this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupStaticId);
+          }
         }
-        if (this.type === 'post') {
-          this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupStaticId);
+
+        if(!includes(['post','content', 'group'], this.type)) {
+          this.type = 'unknown';
         }
       } catch (e) {
 
