@@ -35,9 +35,6 @@
       <div v-if="manifest">
         <post-item v-if="type === 'post'" :value="manifest"></post-item>
 
-        <div>
-          
-        </div>
         <content-manifest-info-item v-if="type === 'content'" :manifest="manifest" :full-mode="true"></content-manifest-info-item>
 
         <div class="md-layout" v-if="type === 'group'">
@@ -49,6 +46,8 @@
                        v-if="subManifests[index]"></post-item>
           </div>
         </div>
+
+        <ipld-view v-if="type === 'unknown'" :ipld="manifest"></ipld-view>
       </div>
       <div v-else-if="!loading">Please input {{humanReadableType}} id to view</div>
     </div>
