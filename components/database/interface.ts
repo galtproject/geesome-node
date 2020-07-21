@@ -419,6 +419,8 @@ export interface IUser {
   avatarImage?: IContent;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+
+  accounts?: [any];
 }
 
 export interface IUserAccount {
@@ -430,6 +432,8 @@ export interface IUserAccount {
   description: string;
   address: string;
   signature: string;
+
+  toJSON?();
 }
 
 export interface IUserAuthMessage {

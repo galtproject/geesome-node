@@ -197,6 +197,12 @@ class GeesomeApp implements IGeesomeApp {
       email
     });
 
+    if (userData.accounts && userData.accounts.length) {
+      await pIteration.forEach(userData.accounts, (userAccount) => {
+        return this.setUserAccount(newUser.id, userAccount);
+      });
+    }
+
     const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
 
     await this.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
@@ -204,12 +210,6 @@ class GeesomeApp implements IGeesomeApp {
     await this.database.updateUser(newUser.id, {
       manifestStorageId
     });
-
-    if (userData.accounts && userData.accounts.length) {
-      await pIteration.forEach(userData.accounts, (userAccount) => {
-        return this.setUserAccount(newUser.id, userAccount);
-      });
-    }
 
     if (userData.permissions && userData.permissions.length) {
       await pIteration.forEach(userData.permissions, (permissionName) => {

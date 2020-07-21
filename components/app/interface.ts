@@ -232,7 +232,7 @@ export interface IUserAccountInput {
   id?: number;
   provider: string;
   address: string;
-  description: string;
+  description?: string;
   type?: string;
 }
 
