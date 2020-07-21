@@ -95,11 +95,6 @@ module.exports = async (extendConfig) => {
   //   await app.runSeeds();
   // }
 
-  const users = await app.database.getAllUserList(null, {sortBy: 'createdAt', sortDir: 'DESC', limit: 100});
-  await pIteration.forEachSeries(users, (user) => {
-    return app.updateUser(user.id, {});
-  });
-
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
   app.events = appEvents(app);
