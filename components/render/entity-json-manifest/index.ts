@@ -83,6 +83,10 @@ class EntityJsonManifest implements IRender {
       //TODO: add groupNumber
       const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type', 'size']);
 
+      if(post.propertiesJson) {
+        postManifest.properties = JSON.parse(post.propertiesJson);
+      }
+
       postManifest.groupId = post.groupStorageId;
       postManifest.groupStaticId = post.groupStaticStorageId;
       

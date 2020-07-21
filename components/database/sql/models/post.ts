@@ -64,6 +64,9 @@ module.exports = async function (sequelize, models) {
     fullyPeersCount: {
       type: Sequelize.INTEGER
     },
+    propertiesJson: {
+      type: Sequelize.TEXT
+    },
     storageId: {
       type: Sequelize.STRING(200)
     },
