@@ -378,6 +378,7 @@ export interface IPost {
   isFullyPinned?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;
+  propertiesJson?: string;
   localId?;
   storageId?;
   staticStorageId?;
