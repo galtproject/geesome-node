@@ -5402,14 +5402,10 @@ lodash.throttle@^4.1.1:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/lodash.throttle/-/lodash.throttle-4.1.1.tgz#c23e91b710242ac70c37f1e1cda9274cc39bf2f4"
 
-lodash@^4.17.11, lodash@^4.17.13, lodash@^4.17.4:
-  version "4.17.13"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.13.tgz#0bdc3a6adc873d2f4e0c4bac285df91b64fc7b93"
-
-lodash@^4.17.15, lodash@^4.17.5, lodash@~4.17.4:
-  version "4.17.15"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
-  integrity sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
+lodash@^4.17.11, lodash@^4.17.13, lodash@^4.17.15, lodash@^4.17.4, lodash@^4.17.5, lodash@~4.17.4:
+  version "4.17.19"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.19.tgz#e48ddedbe30b3321783c5b4301fbd353bc1e4a4b"
+  integrity sha512-JNvd8XER9GQX0v2qJgsaN/mzFCNA5BRe/j8JN9d+tWyGLSodKQHKFicdwNYzWwI3wjRnaKPsGj1XkBjx/F96DQ==
 
 log-update@^1.0.2:
   version "1.0.2"
@@ -6836,10 +6832,10 @@ postgres-interval@^1.1.0:
   dependencies:
     xtend "^4.0.0"
 
-prebuild-install@^5.3.3:
-  version "5.3.4"
-  resolved "https://registry.yarnpkg.com/prebuild-install/-/prebuild-install-5.3.4.tgz#6982d10084269d364c1856550b7d090ea31fa293"
-  integrity sha512-AkKN+pf4fSEihjapLEEj8n85YIw/tN6BQqkhzbDc0RvEZGdkpJBGMUYx66AAMcPG2KzmPQS7Cm16an4HVBRRMA==
+prebuild-install@^5.3.4:
+  version "5.3.5"
+  resolved "https://registry.yarnpkg.com/prebuild-install/-/prebuild-install-5.3.5.tgz#e7e71e425298785ea9d22d4f958dbaccf8bb0e1b"
+  integrity sha512-YmMO7dph9CYKi5IR/BzjOJlRzpxGGVo1EsLSUZ0mt/Mq0HWZIHOKHHcHdT69yG54C9m6i45GpItwRHpk0Py7Uw==
   dependencies:
     detect-libc "^1.0.3"
     expand-template "^2.0.3"
@@ -7532,16 +7528,16 @@ sha3@^2.0.6:
   dependencies:
     buffer "5.2.1"
 
-sharp@0.25.3:
-  version "0.25.3"
-  resolved "https://registry.yarnpkg.com/sharp/-/sharp-0.25.3.tgz#fcb4f13fa9ce7d8a2d8273ebb40f375953cad937"
-  integrity sha512-qV3n30NaBEhAjBhFo+d8h5N4X3DHteFdwxXoWUiubk72G0VKT5fX50nlcawGYjPqfFV4Z2e/G9gDPeSGAdn/gg==
+sharp@^0.25.3:
+  version "0.25.4"
+  resolved "https://registry.yarnpkg.com/sharp/-/sharp-0.25.4.tgz#1a8e542144a07ab7e9316ab89de80182b827c363"
+  integrity sha512-umSzJJ1oBwIOfwFFt/fJ7JgCva9FvrEU2cbbm7u/3hSDZhXvkME8WE5qpaJqLIe2Har5msF5UG4CzYlEg5o3BQ==
   dependencies:
     color "^3.1.2"
     detect-libc "^1.0.3"
     node-addon-api "^3.0.0"
     npmlog "^4.1.2"
-    prebuild-install "^5.3.3"
+    prebuild-install "^5.3.4"
     semver "^7.3.2"
     simple-get "^4.0.0"
     tar "^6.0.2"
