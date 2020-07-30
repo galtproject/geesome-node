@@ -1719,6 +1719,9 @@ class GeesomeApp implements IGeesomeApp {
       const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
       if (sizeRemained !== null) {
+        if(sizeRemained < 0) {
+          return reject("limit_reached");
+        }
         console.log('sizeRemained', sizeRemained);
         let streamSize = 0;
         const sizeCheckStream = new Transform({
