@@ -1796,8 +1796,7 @@ class GeesomeApp implements IGeesomeApp {
     if (limitName === UserLimitName.SaveContentSize) {
       const uploadSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp);
       const pinSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp);
-      console.log('uploadSize', uploadSize);
-      console.log('pinSize', pinSize);
+      console.log('uploadSize', uploadSize, 'pinSize', pinSize, 'limit.value', limit.value );
       return limit.value - uploadSize - pinSize;
     } else {
       throw new Error("Unknown limit");
