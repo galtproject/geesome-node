@@ -60,6 +60,9 @@ module.exports = async function (sequelize, models) {
     isShowAuthors: {
       type: Sequelize.BOOLEAN
     },
+    isReplyForbidden: {
+      type: Sequelize.BOOLEAN
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
