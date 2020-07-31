@@ -367,6 +367,7 @@ export interface IPost {
   publishedAt?;
   publishOn?;
   groupId;
+  group?: IGroup;
   userId;
   view?;
   type?;
@@ -456,6 +457,7 @@ export interface IGroup {
   isPublic: boolean;
   isRemote: boolean;
   isOpen: boolean;
+  isReplyForbidden: boolean;
 
   description?: string;
   creatorId: number;

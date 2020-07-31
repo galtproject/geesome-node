@@ -8,7 +8,7 @@
  */
 
 import {
-  CorePermissionName,
+  CorePermissionName, FileCatalogItemType,
   GroupType, GroupView, ICategory,
   IContent,
   IDatabase,
@@ -179,7 +179,7 @@ export interface IGeesomeApp {
 
   getContentByPath(userId, path): Promise<IContent>;
 
-  getFileCatalogItemByPath(userId, path, type): Promise<IFileCatalogItem>;
+  getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
 
   publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
 

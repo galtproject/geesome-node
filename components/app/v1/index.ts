@@ -587,6 +587,18 @@ class GeesomeApp implements IGeesomeApp {
       || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
   }
 
+  async canReplyToPost(userId, replyToPostId) {
+    if (!replyToPostId) {
+      return true;
+    }
+    const post = await this.database.getPost(replyToPostId);
+    if(await this.database.isAdminInGroup(userId, post.groupId)) {
+      return true;
+    }
+    console.log('post.group.isReplyForbidden', post.group.isReplyForbidden);
+    return !post.group.isReplyForbidden;
+  }
+
   async canEditPostInGroup(userId, groupId, postId) {
     if (!groupId || !postId) {
       return false;
@@ -972,11 +984,12 @@ class GeesomeApp implements IGeesomeApp {
 
   async createPost(userId, postData) {
     log('createPost');
-    const [, canCreate] = await Promise.all([
+    const [, canCreate, canReply] = await Promise.all([
       this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
-      this.canCreatePostInGroup(userId, postData.groupId)
+      this.canCreatePostInGroup(userId, postData.groupId),
+      this.canReplyToPost(userId, postData.replyToId)
     ]);
-    if(!canCreate) {
+    if(!canCreate || !canReply) {
       throw new Error("not_permitted");
     }
     log('checkUserCan, canCreatePostInGroup');
@@ -1719,6 +1732,9 @@ class GeesomeApp implements IGeesomeApp {
       const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
       if (sizeRemained !== null) {
+        if(sizeRemained < 0) {
+          return reject("limit_reached");
+        }
         console.log('sizeRemained', sizeRemained);
         let streamSize = 0;
         const sizeCheckStream = new Transform({
@@ -1796,8 +1812,7 @@ class GeesomeApp implements IGeesomeApp {
     if (limitName === UserLimitName.SaveContentSize) {
       const uploadSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp);
       const pinSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp);
-      console.log('uploadSize', uploadSize);
-      console.log('pinSize', pinSize);
+      console.log('uploadSize', uploadSize, 'pinSize', pinSize, 'limit.value', limit.value );
       return limit.value - uploadSize - pinSize;
     } else {
       throw new Error("Unknown limit");

@@ -634,6 +634,47 @@ describe("app", function () {
         assert.equal(sectionsData.total, 1);
       });
 
+      it('isReplyForbidden should work properly', async () => {
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        const postContent = await app.saveData('Hello world', null, {
+          userId: testUser.id,
+          mimeType: 'text/markdown'
+        });
+
+        const testPost = await app.createPost(testUser.id, {
+          contents: [{id: postContent.id, view: ContentView.Contents}],
+          groupId: testGroup.id,
+          status: PostStatus.Published
+        });
+
+        const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
+
+        const group2 = await app.createGroup(newUser.id, { name: 'test2', title: 'Test2' });
+
+        await app.createPost(newUser.id, {
+          contents: [{id: postContent.id, view: ContentView.Contents}],
+          replyToId: testPost.id,
+          groupId: group2.id,
+          status: PostStatus.Published
+        });
+
+        await app.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: true});
+
+        try {
+          await app.createPost(newUser.id, {
+            contents: [{id: postContent.id, view: ContentView.Contents}],
+            replyToId: testPost.id,
+            groupId: group2.id,
+            status: PostStatus.Published
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
+      });
+
       it('groups administration', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
