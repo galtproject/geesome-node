@@ -592,6 +592,12 @@ class GeesomeApp implements IGeesomeApp {
       return true;
     }
     const post = await this.database.getPost(replyToPostId);
+    if(post.isReplyForbidden) {
+      return false;
+    }
+    if(post.isReplyForbidden === false) {
+      return true;
+    }
     if(await this.database.isAdminInGroup(userId, post.groupId)) {
       return true;
     }
