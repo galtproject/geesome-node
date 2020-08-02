@@ -1194,7 +1194,7 @@ class GeesomeApp implements IGeesomeApp {
     if (groupRead) {
       return {
         readAt: groupRead.readAt,
-        count: await this.database.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt })
+        count: await this.database.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt, isDeleted: false })
       };
     }
     const group = await this.database.getGroup(groupId);
