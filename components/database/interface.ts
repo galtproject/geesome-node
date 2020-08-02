@@ -377,6 +377,7 @@ export interface IPost {
   isRemote?: boolean;
   isEncrypted?: boolean;
   isFullyPinned?: boolean;
+  isReplyForbidden?: boolean;
   peersCount?: number;
   fullyPeersCount?: number;
   propertiesJson?: string;

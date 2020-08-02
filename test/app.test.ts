@@ -673,6 +673,38 @@ describe("app", function () {
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
+
+        await app.updatePost(testUser.id, testPost.id, {isReplyForbidden: false});
+
+        await app.createPost(newUser.id, {
+          contents: [{id: postContent.id, view: ContentView.Contents}],
+          replyToId: testPost.id,
+          groupId: group2.id,
+          status: PostStatus.Published
+        });
+
+        await app.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: false});
+
+        await app.createPost(newUser.id, {
+          contents: [{id: postContent.id, view: ContentView.Contents}],
+          replyToId: testPost.id,
+          groupId: group2.id,
+          status: PostStatus.Published
+        });
+
+        await app.updatePost(testUser.id, testPost.id, {isReplyForbidden: true});
+
+        try {
+          await app.createPost(newUser.id, {
+            contents: [{id: postContent.id, view: ContentView.Contents}],
+            replyToId: testPost.id,
+            groupId: group2.id,
+            status: PostStatus.Published
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "not_permitted"), true);
+        }
       });
 
       it('groups administration', async () => {

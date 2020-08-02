@@ -52,6 +52,9 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.BOOLEAN,
       defaultValue: false
     },
+    isReplyForbidden: {
+      type: Sequelize.BOOLEAN
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
