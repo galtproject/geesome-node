@@ -101,6 +101,10 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.INTEGER,
       defaultValue: 0
     },
+    availablePostsCount: {
+      type: Sequelize.INTEGER,
+      defaultValue: 0
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

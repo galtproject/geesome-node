@@ -477,6 +477,7 @@ export interface IGroup {
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
   publishedPostsCount?: number;
+  availablePostsCount?: number;
 
   encryptedManifestStorageId?: string;
 
