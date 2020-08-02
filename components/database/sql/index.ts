@@ -416,7 +416,7 @@ class MysqlDatabase implements IDatabase {
     const where = {
       isDeleted: false
     };
-    ['status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
+    ['id', 'status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
       if(filters[name] === 'null') {
         filters[name] = null;
       }
