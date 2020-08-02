@@ -1137,9 +1137,10 @@ class GeesomeApp implements IGeesomeApp {
 
   async updateGroupManifest(groupId) {
     log('updateGroupManifest');
-    const [group, size] = await Promise.all([
+    const [group, size, availablePostsCount] = await Promise.all([
       this.database.getGroup(groupId),
-      this.database.getGroupSizeSum(groupId)
+      this.database.getGroupSizeSum(groupId),
+      this.database.getGroupPostsCount(groupId, { isDeleted: false })
     ]);
     group.size = size;
     log('getGroup, getGroupSizeSum');
@@ -1161,7 +1162,8 @@ class GeesomeApp implements IGeesomeApp {
       manifestStorageId,
       storageUpdatedAt,
       staticStorageUpdatedAt,
-      size
+      size,
+      availablePostsCount
     }));
     return Promise.all(promises);
   }
@@ -1206,7 +1208,8 @@ class GeesomeApp implements IGeesomeApp {
     }
     return {
       readAt: null,
-      count: group.publishedPostsCount
+      //TODO: delete publishedPostsCount using after migration
+      count: group.availablePostsCount || group.publishedPostsCount
     };
   }
 
