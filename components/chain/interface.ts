@@ -8,10 +8,6 @@
  */
 
 export interface IChainService {
-  getDefaultTokenAddress(): string;
-
-  getCoinbaseAddress(): string;
-
   isValidAddress(address): boolean;
 
   getCurrentBlock(): Promise<number>;
@@ -28,13 +24,9 @@ export interface IChainService {
 
   getTransactionStatus(txHash): Promise<string>;
 
-  sendTokens(tokenAddress, tokensAmount, accountAddress): Promise<string>;
-
-  getExplorerTokensBalance(address, tokenAddress?): Promise<any>;
+  sendTokens(fromPrivateKey, fromAddress, tokenAddress, tokensAmount, accountAddress): Promise<string>;
 
   getTokensTransfersSumOfAddress(address, fromBlock?): Promise<number>;
-
-  getExplorerTransactionTemplate(): string;
 
   // runAutoClaimer(): void;
 }
