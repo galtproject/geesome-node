@@ -49,12 +49,7 @@ class ChainWeb3Service implements IChainService {
       this.web3 = new Web3(this.httpProvider);
     }
 
-    this.createContractInstance();
     this.subscribeForReconnect();
-  }
-
-  getCoinbaseAddress() {
-    return config.coinbase.address;
   }
 
   getDefaultTokenAddress() {
@@ -109,9 +104,9 @@ class ChainWeb3Service implements IChainService {
     }
 
     const signedTx = await this.web3.eth.accounts.signTransaction(
-      options,
-      fromPrivateKey,
-      false,
+        options,
+        fromPrivateKey,
+        false,
     );
 
     return new Promise((resolve, reject) => {
@@ -137,14 +132,14 @@ class ChainWeb3Service implements IChainService {
   getTotalSupply() {
     return new Promise((resolve, reject) => {
       this.tokenContract.methods.totalSupply()
-        .call((err, supply) => err ? reject(err) : resolve(this.weiToEther(supply)));
+          .call((err, supply) => err ? reject(err) : resolve(this.weiToEther(supply)));
     });
   }
 
   getCrowdsaleRate(): Promise<any> {
     return new Promise((resolve, reject) => {
       this.crowdsaleContract.methods.rate()
-        .call((err, rate) => err ? reject(err) : resolve(rate.toString(10)));
+          .call((err, rate) => err ? reject(err) : resolve(rate.toString(10)));
     });
   }
 
@@ -158,7 +153,7 @@ class ChainWeb3Service implements IChainService {
     }
     return new Promise((resolve, reject) => {
       contract.methods.balanceOf(address)
-        .call((err, tokens) => err ? reject(err) : resolve(this.weiToEther(tokens)));
+          .call((err, tokens) => err ? reject(err) : resolve(this.weiToEther(tokens)));
     });
   }
 
@@ -173,22 +168,22 @@ class ChainWeb3Service implements IChainService {
     let contract = new this.web3.eth.Contract(config.tokenContractAbi, tokenAddress);
     return new Promise((resolve) => {
       contract.methods.symbol()
-        .call((err, symbol) => {
-          if (err) {
-            contract.methods._symbol().call((err, symbol) => {
-              if (err) {
-                this.symbolsCache[tokenAddress] = ' ';
-                resolve(' ');
-              } else {
-                this.symbolsCache[tokenAddress] = symbol;
-                resolve(symbol);
-              }
-            });
-          } else {
-            this.symbolsCache[tokenAddress] = symbol;
-            resolve(symbol);
-          }
-        });
+          .call((err, symbol) => {
+            if (err) {
+              contract.methods._symbol().call((err, symbol) => {
+                if (err) {
+                  this.symbolsCache[tokenAddress] = ' ';
+                  resolve(' ');
+                } else {
+                  this.symbolsCache[tokenAddress] = symbol;
+                  resolve(symbol);
+                }
+              });
+            } else {
+              this.symbolsCache[tokenAddress] = symbol;
+              resolve(symbol);
+            }
+          });
     });
   }
 
@@ -212,26 +207,12 @@ class ChainWeb3Service implements IChainService {
     return (Web3.utils.toWei(ether.toString(10), 'ether')).toString(10);
   }
 
-  // async sellTokens(tokensAddress, tokensAmount, accountAddress) {
-  //     const rate = await this.getCrowdsaleRate();
-  //     const weiToSend = new BN(this.etherToWei(tokensAmount)).div(new BN(rate));
-  //    
-  //     const { hash: txHash} = await this.sendMethod(
-  //         this.crowdsaleContract.methods.buyTokens(accountAddress),
-  //         config.crowdsaleContractAddress,
-  //         config.coinbase.address,
-  //         config.coinbase.privateKey,
-  //         weiToSend
-  //     );
-  //     return txHash;
-  // }
-
-  async sendTokens(tokensAddress, tokensAmount, accountAddress) {
+  async sendTokens(fromPrivateKey, fromAddress, tokensAddress, tokensAmount, accountAddress) {
     const {hash: txHash} = await this.sendMethod(
-      this.tokenContract.methods.transfer(accountAddress, this.etherToWei(tokensAmount)),
-      tokensAddress,
-      config.coinbase.address,
-      config.coinbase.privateKey
+        this.tokenContract.methods.transfer(accountAddress, this.etherToWei(tokensAmount)),
+        tokensAddress,
+        fromAddress,
+        fromPrivateKey
     );
     return txHash;
   }
@@ -278,9 +259,9 @@ class ChainWeb3Service implements IChainService {
     // console.log('signTransaction', options, privateKey);
 
     const signedTx = await this.web3.eth.accounts.signTransaction(
-      options,
-      privateKey,
-      false,
+        options,
+        privateKey,
+        false,
     );
 
     return new Promise((resolve, reject) => {
@@ -316,7 +297,6 @@ class ChainWeb3Service implements IChainService {
     }));
   }
 
-
   async getTransactionStatus(txHash): Promise<string> {
     const receipt = await this.web3.eth.getTransactionReceipt(txHash);
 
@@ -345,10 +325,5 @@ class ChainWeb3Service implements IChainService {
         this.subscribeForReconnect();
       }, 1000);
     });
-  }
-
-  private createContractInstance() {
-    this.tokenContract = new this.web3.eth.Contract(config.tokenContractAbi, config.tokenContractAddress);
-    this.crowdsaleContract = new this.web3.eth.Contract(config.crowdsaleContractAbi, config.crowdsaleContractAddress);
   }
 }

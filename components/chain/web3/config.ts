@@ -8,18 +8,6 @@
  */
 
 module.exports = {
-  'rpcServer': 'https://server.yalland.com:8645',
-  'coinbase': {
-    'privateKey': '0x16ba06fe4d86f008bc65e96704dc370c158e206e99ef15c0f85a74c11595fc8d',
-    'address': '0x95929F348360336c8a2224B7582cF71Ae4873776'
-  },
-  'explorerTxTpl': 'http://explorer.yalland.com/tx/<%= txHash %>',
-  'explorerTokenBalanceTpl': 'http://explorer.yalland.com/api?module=account&action=tokenbalance&contractaddress=<%= contractAddress %>&address=<%= accountAddress %>',
-  'autoClaimPeriodSeconds': 60 * 60,
-  //prod:
-  'tokenContractAddress': '0x8d4a6cd17d095ef09f460f181546fbec32e11e8b',
-  //test:
-  // 'tokenContractAddress': '0x9b815430b4a0fb2b8c53b5ee39e11db4a5fd1205',
   'tokenContractAbi': [{
     "constant": false,
     "inputs": [{"name": "spender", "type": "address"}, {"name": "value", "type": "uint256"}],
