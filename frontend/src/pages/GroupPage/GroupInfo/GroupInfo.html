@@ -11,7 +11,7 @@
   <md-card-header>
     <md-card-header-text>
       <div class="md-title">
-        <router-link :to="{'name': 'group-page', params: {groupId: group.id}}" style="text-decoration: none;">
+        <router-link :to="{'name': 'group-page', params: {groupId: group.staticId}}" style="text-decoration: none;">
           @{{group.name}}
         </router-link>
       </div>
@@ -19,7 +19,7 @@
         <pretty-hex :hex="group.staticId"></pretty-hex>
       </div>
       <div class="md-subhead">
-        <pretty-hex :hex="group.id"></pretty-hex>
+        <pretty-hex :hex="dynamicId"></pretty-hex>
       </div>
       <div class="md-subhead">Posts: {{group.postsCount}}</div>
       <div class="md-subhead">Peers: {{peers ? peers.count : '...'}}</div>

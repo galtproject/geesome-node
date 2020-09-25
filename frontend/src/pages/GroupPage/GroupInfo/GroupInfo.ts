@@ -28,6 +28,7 @@ export default {
     async fetchData() {
       // this.avatarImageSrc = await this.$coreApi.getContentLink(this.group.avatarImage);
       this.peers = await this.$coreApi.getGroupPeers(this.group.staticId);
+      this.dynamicId = await this.$coreApi.resolveIpns(this.group.staticId);
     },
     async updateIsJoined() {
       this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
@@ -52,7 +53,8 @@ export default {
     return {
       isCanEditGroup: false,
       isJoined: null,
-      peers: null
+      peers: null,
+      dynamicId: null
     }
   },
 }

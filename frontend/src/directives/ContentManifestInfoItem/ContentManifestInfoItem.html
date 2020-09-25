@@ -31,7 +31,7 @@
         <pretty-hex :hex="manifestObj.preview ? manifestObj.preview.medium.storageId : ''"></pretty-hex>
         <br>
         <b>Manifest ipld hash:</b>
-        <pretty-hex :hex="manifestObj.id" :to="{name: 'content-page', params: {manifestId: manifestObj.id}}"></pretty-hex>
+        <pretty-hex :hex="manifestId" :to="{name: 'content-page', params: {manifestId}}"></pretty-hex>
         <br>
         <a class="icon-link" :href="srcLink" @click.prevent="download">
           <md-icon class="fas fa-file-download"></md-icon>

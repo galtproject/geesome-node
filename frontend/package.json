@@ -27,7 +27,7 @@
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome.git",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#59ae1c1",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#02e5658",
     "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#ff8f41b",
     "ipfs": "git://github.com/galtproject/js-ipfs.git#816e9dbd",
     "is-ipfs": "^0.4.7",
