@@ -582,7 +582,6 @@ class GeesomeApp implements IGeesomeApp {
     }
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
-    console.log('group', 'isAdminInGroup', await this.database.isAdminInGroup(userId, groupId));
     return (await this.database.isAdminInGroup(userId, groupId))
       || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId))
       || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
@@ -2331,7 +2330,6 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getDataStructure(storageId) {
-    console.log('getDataStructure', storageId);
     const dataPathSplit = storageId.split('/');
     if(ipfsHelper.isIpfsHash(dataPathSplit[0])) {
       try {
@@ -2342,7 +2340,7 @@ class GeesomeApp implements IGeesomeApp {
         }
       } catch (e) {}
     }
-    console.log('getObjectByStorageId', storageId);
+
     const dbObject = await this.database.getObjectByStorageId(storageId);
     if(dbObject) {
       return JSON.parse(dbObject.data);

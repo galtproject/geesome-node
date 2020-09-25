@@ -28,7 +28,6 @@ export default {
         this.canCreatePosts = false;
         return;
       }
-      console.log('this.group', this.group);
       this.canCreatePosts = await this.$coreApi.getCanCreatePost(this.group.staticId);
     },
     handleUpload(data) {
