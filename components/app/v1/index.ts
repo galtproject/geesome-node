@@ -989,7 +989,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createPost(userId, postData) {
-    log('createPost');
+    log('createPost', postData);
     const [, canCreate, canReply] = await Promise.all([
       this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
       this.canCreatePostInGroup(userId, postData.groupId),
@@ -2330,6 +2330,17 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getDataStructure(storageId) {
+    const dataPathSplit = storageId.split('/');
+    if(ipfsHelper.isIpfsHash(dataPathSplit[0])) {
+      try {
+        const dynamicIdByStaticId = await this.resolveStaticId(dataPathSplit[0]);
+        if(dynamicIdByStaticId) {
+          dataPathSplit[0] = dynamicIdByStaticId;
+          storageId = dataPathSplit.join('/');
+        }
+      } catch (e) {}
+    }
+
     const dbObject = await this.database.getObjectByStorageId(storageId);
     if(dbObject) {
       return JSON.parse(dbObject.data);

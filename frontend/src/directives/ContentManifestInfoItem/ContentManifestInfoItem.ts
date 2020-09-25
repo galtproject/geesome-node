@@ -37,6 +37,7 @@ export default {
     async setContentByDbId() {
       this.loading = true;
       const dbContent = await this.$coreApi.getDbContent(this.dbId);
+      this.manifestId = dbContent.manifestStorageId;
       const manifestObj = await this.$coreApi.getObject(dbContent.manifestStorageId);
       this.setContentByManifest(manifestObj);
     },
@@ -46,6 +47,7 @@ export default {
       if (manifestObj) {
         this.manifestObj = manifestObj;
       } else if (ipfsHelper.isIpldHash(this.manifest)) {
+        this.manifestId = this.manifest;
         this.manifestObj = await this.$coreApi.getObject(this.manifest);
       } else if (this.manifest) {
         this.manifestObj = this.manifest;
@@ -114,6 +116,7 @@ export default {
   data() {
     return {
       manifestObj: null,
+      manifestId: null,
       content: '',
       srcLink: '',
       loading: true,
