@@ -4,7 +4,7 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     const postsTable = await queryInterface.describeTable('posts');
 
-    if(postsTable['replyOfId']) {
+    if(!postsTable['replyOfId']) {
       return;
     }
     return Promise.all([
