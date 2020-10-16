@@ -26,7 +26,7 @@ export default {
 
         geesomeClient = new GeesomeClient({
           server,
-          apiKey,
+          apiKey: apiKey === 'null' ? null : apiKey,
           clientStorage: new BrowserLocalClientStorage()
         });
 
