@@ -9,7 +9,7 @@
 
 import PostItem from "../../directives/Posts/PostItem/PostItem";
 import NewPostControl from "./NewPostControl/NewPostControl";
-import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
+import Pagination from "geesome-vue-components/src/directives/Pagination/Pagination";
 
 const _ = require('lodash');
 

@@ -8,7 +8,7 @@
  */
 
 import ContentManifestInfoItem from "../../directives/ContentManifestInfoItem/ContentManifestInfoItem";
-import EthData from "@galtproject/frontend-core/libs/EthData";
+import Helper from "geesome-vue-components/src/services/helper";
 import GroupItem from "../GroupsList/GroupItem/GroupItem";
 import PostItem from "../../directives/Posts/PostItem/PostItem";
 import IpldView from "./IpldView/IpldView";
@@ -86,7 +86,7 @@ export default {
       return this.$route.params.manifestId;
     },
     humanReadableType() {
-      return EthData.humanizeKey(this.type);
+      return Helper.humanizeKey(this.type);
     }
   },
   data() {

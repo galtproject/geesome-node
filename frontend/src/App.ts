@@ -11,16 +11,16 @@ import Vue from 'vue';
 import VueRouter from 'vue-router';
 import * as Vuex from 'vuex';
 import VueMaterial from 'vue-material'
-import {Modal} from "@galtproject/frontend-core/modals/AsyncModal";
+import {Modal} from 'geesome-vue-components/src/modals/AsyncModal'
 import Notifications from 'vue-notification';
 import 'url-search-params-polyfill';
 
-import httpPlugin from '@galtproject/frontend-core/services/http.plugin';
-import localePlugin from '@galtproject/frontend-core/services/locale.plugin';
-import storePlugin from '@galtproject/frontend-core/services/store.plugin';
-import "@galtproject/frontend-core/filters";
-import PrettyHex from "@galtproject/frontend-core/directives/PrettyHex/PrettyHex";
-import PrettyDoc from "@galtproject/frontend-core/directives/PrettyDoc/PrettyDoc";
+import httpPlugin from 'geesome-vue-components/src/services/http.plugin';
+import storePlugin from 'geesome-vue-components/src/services/store.plugin';
+import locale from '@galtproject/vue-locale';
+import "geesome-vue-components/src/filters";
+import PrettyHex from "geesome-vue-components/src/directives/PrettyHex/PrettyHex";
+import PrettyDoc from "geesome-vue-components/src/directives/PrettyDoc/PrettyDoc";
 
 import coreApiPlugin from './services/coreApi.plugin';
 import identitiesPlugin from './services/identities.plugin';
@@ -32,8 +32,10 @@ import {VueEditor, Quill} from 'vue2-editor'
 import UploadContent from "./directives/UploadContent/UploadContent";
 import MoveFileCatalogItemContainer
   from "./directives/FileCatalog/MoveFileCatalogItem/MoveFileCatalogItemContainer/MoveFileCatalogItemContainer";
-import Helper from "@galtproject/frontend-core/services/helper";
+import Helper from "geesome-vue-components/src/services/helper";
 import {EventBus, UPDATE_CURRENT_USER} from "./services/events";
+
+const config = require('../config');
 
 Vue.use(Notifications);
 
@@ -55,7 +57,7 @@ Vue.use(storePlugin, {
   lastPostText: {},
   lastPostLoading: {}
 });
-Vue.use(localePlugin);
+Vue.use(locale.plugin, {Vuex});
 Vue.use(identitiesPlugin);
 
 Vue.component('vue-editor', VueEditor);
@@ -74,48 +76,22 @@ Vue.component('router-view', Vue['options'].components.RouterView);
 
 Vue.use(VueMaterial);
 
-Vue.filter('prettySize', function (bytesSize) {
-  bytesSize = parseInt(bytesSize);
-
-  function round(number) {
-    return Math.round(number * 1000) / 1000;
-  }
-
-  if (bytesSize < 1024 * 100) {
-    return round(bytesSize / 1024) + ' Kb';
-  }
-  if (bytesSize < 1024 ** 3 * 100) {
-    return round(bytesSize / (1024 ** 2)) + ' Mb';
-  }
-  if (bytesSize < 1024 ** 4 * 100) {
-    return round(bytesSize / (1024 ** 3)) + ' Gb';
-  }
-  return round(bytesSize / (1024 ** 4)) + ' Tb';
-});
-
-Vue.filter('prettyFileName', function (str) {
-  if (str.length <= 20) {
-    return str;
-  }
-  return str ? str.slice(0, 7) + "..." + str.slice(-6) : '';
-});
-
-Vue.filter('beautyPeriod', (period) => {return Helper.beautyPeriod(period)});
 
 export default {
   template: require('./App.html'),
   components: {MainMenu, MoveFileCatalogItemContainer},//,ConsoleLog
   async created() {
     this.$store.commit('is_mobile', Helper.isMobile());
-    
-    this.$locale.init(this.$store, '/locale/').then(() => {
-      this.$store.commit('locale_loaded', true);
+    this.$locale.init({
+      url: '/locale/',
+      lang: 'en',
+      cacheBuster: config.buildHash
+    }).then(() => {
       this.language = this.$locale.lang;
     });
-    this.$locale.onLoad(() => {
-      this.$store.commit('locale_loaded', true);
-      this.language = this.$locale.lang;
-    });
+    if(this.$route.query.lang) {
+      this.$locale.setLang(this.$route.query.lang);
+    }
 
     this.$identities.init(this);
     await this.$coreApi.init(this);

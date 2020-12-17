@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
+import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 
 const _ = require('lodash');
 

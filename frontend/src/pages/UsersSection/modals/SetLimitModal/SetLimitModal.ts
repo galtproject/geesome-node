@@ -7,8 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ModalItem} from '@galtproject/frontend-core/modals/AsyncModal'
-import PeriodInput from "@galtproject/frontend-core/directives/PeriodInput/PeriodInput";
+import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
+import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/PeriodInput";
 
 const pick = require('lodash/pick');
 

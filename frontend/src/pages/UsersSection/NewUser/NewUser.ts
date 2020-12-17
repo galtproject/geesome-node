@@ -7,10 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import PeriodInput from "@galtproject/frontend-core/directives/PeriodInput/PeriodInput";
-import EthData from "@galtproject/frontend-core/libs/EthData";
+import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/PeriodInput";
+import Helper from "geesome-vue-components/src/services/helper";
 
-const pIteration = require('p-iteration');
 const pick = require('lodash/pick');
 
 export default {
@@ -51,7 +50,7 @@ export default {
         this.created = true;
         this.error = null;
       }).catch((e) => {
-        this.error = e && e.message && EthData.humanizeKey(e.message);
+        this.error = e && e.message && Helper.humanizeKey(e.message);
         this.creation = false;
       })
     }

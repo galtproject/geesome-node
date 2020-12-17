@@ -8,7 +8,7 @@
  */
 
 import ContentManifestInfoItem from "../ContentManifestInfoItem/ContentManifestInfoItem";
-import Pagination from "@galtproject/frontend-core/directives/Pagination/Pagination";
+import Pagination from "geesome-vue-components/src/directives/Pagination/Pagination";
 import MoveFileCatalogItemInput from "./MoveFileCatalogItem/MoveFileCatalogItemInput/MoveFileCatalogItemInput";
 import {EventBus} from "../../services/events";
 import {EVENT_COMPLETE_MOVE_FILE_CONTAINER} from "./MoveFileCatalogItem/events";
