@@ -9,7 +9,9 @@
 
 "use strict";
 
-const coreConfig = require('@galtproject/frontend-core/webpack.config');
+const coreConfig = require('geesome-vue-components/webpack.config');
+
+process.env.BUILD_HASH = (Math.random() * 10 ** 20).toString(10);
 
 const UIThread = Object.assign({}, coreConfig({
   path: __dirname,

@@ -32,7 +32,7 @@
               <div><label>Permissions:</label> <span v-for="(p, i) in permissions">{{i ? ', ' : ''}}{{p.name}}</span></div>
             </div>
             <div v-if="saveContentLimit">
-              <div><label>Content saving limit:</label> {{saveContentLimit.remained | prettySize}}/{{saveContentLimit.value | prettySize}} for {{saveContentLimit.periodTimestamp | beautyPeriod}}</div>
+              <div><label>Content saving limit:</label> {{saveContentLimit.remained | prettySize}}/{{saveContentLimit.value | prettySize}} for {{saveContentLimit.periodTimestamp | prettyPeriod}}</div>
             </div>
             <div v-if="currentUserCanSetLimits">
               <md-button @click="setUserLimit" class="md-primary">

@@ -7,8 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import Web3Manager from "@galtproject/frontend-core/libs/Web3Manager";
-import EthData from "@galtproject/frontend-core/libs/EthData";
+import Ethereum from "../../services/ethereum";
 
 export default {
   template: require('./LoginPage.html'),
@@ -24,16 +23,16 @@ export default {
       }
     },
     ethereumLogin() {
-      Web3Manager.onAccountAddressChange(async (address) => {
+      Ethereum.onAccountAddressChange(async (address) => {
         const fieldName = 'key';
-        Web3Manager.onAccountAddressChangeCallbacks = [];
+        Ethereum.onAccountAddressChangeCallbacks = [];
 
         const authMessage = await this.$coreApi.generateAuthMessage('ethereum', address);
-        const signature = await EthData.signMessage(authMessage.message, address, fieldName);
+        const signature = await Ethereum.signMessage(authMessage.message, address, fieldName);
 
         this.handleLoginPromise(this.$coreApi.loginAuthMessage(this.server, authMessage.id, address, signature, { fieldName }));
       });
-      Web3Manager.initClientWeb3();
+      Ethereum.initClientWeb3();
     },
     handleLoginPromise(promise) {
       promise.then((data) => {

@@ -8,7 +8,7 @@
  */
 
 import PrettyName from "../../../../directives/PrettyName/PrettyName";
-import EthData from "@galtproject/frontend-core/libs/EthData";
+import Ethereum from "../../../../services/ethereum";
 
 const debounce = require('lodash/debounce');
 
@@ -37,7 +37,7 @@ export default {
           this.items = [user];
           itemsData.total = 1;
         }
-        if(EthData.isAddressValid(this.search)) {
+        if(Ethereum.isAddressValid(this.search)) {
           const {user} = await this.$coreApi.adminGetUserAccount('ethereum', this.search);
           this.items = [user];
           itemsData.total = 1;

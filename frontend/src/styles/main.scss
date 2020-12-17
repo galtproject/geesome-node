@@ -18,8 +18,8 @@ $fa-font-path: "webfonts";
 @import "~font-awesome/scss/fontawesome";
 
 @import '~vue-material/dist/vue-material.min.css';
-@import '~@galtproject/frontend-core/styles/main-with-theme.scss';
-@import '~@galtproject/frontend-core/modals/AsyncModal/modal.css';
+@import '~geesome-vue-components/src/styles/main-with-theme.scss';
+@import '~geesome-vue-components/src/modals/AsyncModal/modal.css';
 
 @import "~geesome-vue-components/src/styles/media-element";
 @import "chat";
