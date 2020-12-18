@@ -7,15 +7,4 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const sigUtil = require('eth-sig-util');
-
-module.exports = {
-  getAccountAddressBySignature(signature, message, fieldName) {
-    const messageParams = [ { type: 'string', name: fieldName, value: message} ];
-    return sigUtil.recoverTypedSignatureLegacy({ data: messageParams, sig: signature })
-  },
-  isSignatureValid(address, signature, message, fieldName) {
-    const signedByAddress = this.getAccountAddressBySignature(signature, message, fieldName);
-    return signedByAddress.toLowerCase() === address.toLowerCase();
-  }
-};
+module.exports = require('geesome-libs/src/ethereum');

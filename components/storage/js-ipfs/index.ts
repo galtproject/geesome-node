@@ -10,56 +10,12 @@
 import {IGeesomeApp} from "../../app/interface";
 
 const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNode");
-
-const IPFS = require('ipfs');
-const Gateway = require('ipfs/src/http');
-//
-// const net = require('net');
+const {createDaemonNode} = require("geesome-libs/src/ipfsHelper");
 
 module.exports = async (app: IGeesomeApp) => {
-  const node = await IPFS.create({
-    ...app.config.storageConfig.jsNode,
-    // https://github.com/ipfs/go-ipfs/issues/6398
-    config: {
-      Addresses: {
-        Swarm: [
-          "/ip4/0.0.0.0/tcp/4002",
-          "/ip4/127.0.0.1/tcp/4003/ws",
-        ]
-      }
-    }
-  });
-
+  let node;
   try {
-    // await new Promise((resolve, reject) => {
-    //   node.on('ready', (err) => err ? reject(err) : resolve());
-    //   node.on('error', (err) => reject(err))
-    // });
-
-    // TODO: figure out how to use it in production
-    const gateway = new Gateway(node);
-    await gateway.start();
-    //
-    // [{
-    //   fromPort: 5001,
-    //   fromHost: '0.0.0.0',
-    //   toPort: 5002,
-    //   toHost: '127.0.0.1',
-    // }].forEach((conf) => {
-    //   net.createServer(function(from) {
-    //     console.log(`forward ${conf.fromHost}:${conf.fromPort} => ${conf.toHost}:${conf.toPort}`);
-    //
-    //     const to = net.createConnection({
-    //       host: conf.toHost,
-    //       port: conf.toPort
-    //     });
-    //     from.pipe(to);
-    //     to.pipe(from);
-    //   }).listen(conf.fromPort, conf.fromHost);
-    // });
-
-    console.log('gateway.apiAddr', gateway._apiServers);
-
+    node = await createDaemonNode({}, app.config.storageConfig.jsNode);
     console.log('🎁 IPFS node have started');
   } catch (e) {
     console.error('❌ IPFS not started', e);
