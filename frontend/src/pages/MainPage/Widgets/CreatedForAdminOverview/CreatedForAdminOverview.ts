@@ -8,7 +8,7 @@
  */
 
 import PrettyName from "../../../../directives/PrettyName/PrettyName";
-import Ethereum from "../../../../services/ethereum";
+const Ethereum = require('geesome-libs/src/ethereum');
 
 const debounce = require('lodash/debounce');
 

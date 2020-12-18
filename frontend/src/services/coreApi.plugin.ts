@@ -64,7 +64,7 @@ export default {
           this[methodName] = geesomeClient[methodName].bind ? geesomeClient[methodName].bind(geesomeClient) : geesomeClient[methodName];
         });
 
-        await geesomeClient.ipfsService.pubSubSubscribe('geesome-test', (data) => {
+        await geesomeClient.ipfsService.subscribeToEvent('geesome-test', (data) => {
           console.log('geesome-test', data);
         })
       },

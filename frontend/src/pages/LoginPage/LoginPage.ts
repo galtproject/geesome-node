@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import Ethereum from "../../services/ethereum";
+const Web3Manager = require('geesome-libs/src/web3Manager');
 
 export default {
   template: require('./LoginPage.html'),
@@ -23,16 +23,16 @@ export default {
       }
     },
     ethereumLogin() {
-      Ethereum.onAccountAddressChange(async (address) => {
+      Web3Manager.onAccountAddressChange(async (address) => {
         const fieldName = 'key';
-        Ethereum.onAccountAddressChangeCallbacks = [];
+        Web3Manager.onAccountAddressChangeCallbacks = [];
 
         const authMessage = await this.$coreApi.generateAuthMessage('ethereum', address);
-        const signature = await Ethereum.signMessage(authMessage.message, address, fieldName);
+        const signature = await Web3Manager.signMessage(authMessage.message, address, fieldName);
 
         this.handleLoginPromise(this.$coreApi.loginAuthMessage(this.server, authMessage.id, address, signature, { fieldName }));
       });
-      Ethereum.initClientWeb3();
+      Web3Manager.initClientWeb3();
     },
     handleLoginPromise(promise) {
       promise.then((data) => {
