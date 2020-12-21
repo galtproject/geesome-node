@@ -2,7 +2,8 @@
   "name": "geesome-node",
   "version": "0.2.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.ts",
+  "type": "module",
   "scripts": {
     "start": "DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
