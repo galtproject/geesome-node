@@ -9,7 +9,7 @@
 
 import {IGeesomeApp} from "../../app/interface";
 
-const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNode");
+const JsIpfsServiceNodePass = require("geesome-libs/src/JsIpfsServiceNodePass");
 const {createDaemonNode} = require("geesome-libs/src/ipfsHelper");
 
 module.exports = async (app: IGeesomeApp) => {
@@ -21,5 +21,5 @@ module.exports = async (app: IGeesomeApp) => {
     console.error('❌ IPFS not started', e);
   }
 
-  return new JsIpfsServiceNode(node);
+  return JsIpfsServiceNodePass(node, app.config.storageConfig.jsNode.pass);
 };

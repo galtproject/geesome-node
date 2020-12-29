@@ -1335,6 +1335,11 @@ blakejs@^1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/blakejs/-/blakejs-1.1.0.tgz#69df92ef953aa88ca51a32df6ab1c54a155fc7a5"
 
+blob-polyfill@^4.0.20200601:
+  version "4.0.20200601"
+  resolved "https://registry.yarnpkg.com/blob-polyfill/-/blob-polyfill-4.0.20200601.tgz#16430e9e50d63e122c6aac18b31f5f0bc8c0bf92"
+  integrity sha512-1jB6WOIp6IDxNyng5+9A8g/f0uiphib2ELCN+XAnlssinsW8s1k4VYG9b1TxIUd3pdm9RJSLQuBh6iohYmD4hA==
+
 blob-to-it@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/blob-to-it/-/blob-to-it-1.0.1.tgz#a520e21351badd50064d776589639aa197ef97e4"
@@ -1998,6 +2003,14 @@ create-hmac@^1.1.4, create-hmac@^1.1.7:
     ripemd160 "^2.0.0"
     safe-buffer "^5.0.1"
     sha.js "^2.4.8"
+
+cross-blob@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/cross-blob/-/cross-blob-2.0.0.tgz#a7cf1901c746b606ec31e0d04838d18888ea35a4"
+  integrity sha512-NWzFuyG4GTZnM9MtQvjPYVlO12lZCSBdoHIHCZl9WKShsK3CqO+bEH7nuKwlVomlByb37XvT6nVY5uQxDBmk5Q==
+  dependencies:
+    blob-polyfill "^4.0.20200601"
+    fetch-blob "^2.0.1"
 
 cross-spawn@^5.0.1:
   version "5.1.0"
@@ -2978,6 +2991,11 @@ fecha@^2.3.3:
   resolved "https://registry.yarnpkg.com/fecha/-/fecha-2.3.3.tgz#948e74157df1a32fd1b12c3a3c3cdcb6ec9d96cd"
   integrity sha512-lUGBnIamTAwk4znq5BcqsDaxSmZ9nDVJaij6NvRt/Tg4R69gERA+otPKbS86ROw9nxVMw2/mp1fnaiWqbs6Sdg==
 
+fetch-blob@^2.0.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/fetch-blob/-/fetch-blob-2.1.1.tgz#a54ab0d5ed7ccdb0691db77b6674308b23fb2237"
+  integrity sha512-Uf+gxPCe1hTOFXwkxYyckn8iUSk6CFXGy5VENZKifovUTZC9eUODWSBhOBS7zICGrAetKzdwLMr85KhIcePMAQ==
+
 file-uri-to-path@1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz#553a7b8446ff6f684359c445f1e37a05dacc33dd"
@@ -3155,9 +3173,9 @@ gauge@~2.7.3:
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#d00986d":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#5e4cd6e":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#d00986d2c4e336270fb249c973253a01f54262fb"
+  resolved "git://github.com/galtproject/geesome-libs.git#5e4cd6e104fefe975852228702aacba5f60deeaf"
   dependencies:
     axios "^0.19.0"
     base64url "^3.0.1"
