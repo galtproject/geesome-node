@@ -35,7 +35,7 @@
     "javascript-obfuscator": "^0.18.1",
     "js-yaml": "^3.13.1",
     "latlon-geohash": "^1.1.0",
-    "lodash": "^4.17.19",
+    "lodash": "^4.17.21",
     "marked": "^0.7.0",
     "mediaelement": "^4.2.9",
     "moment": "^2.20.1",
