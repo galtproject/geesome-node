@@ -19,6 +19,7 @@ module.exports = async (app: IGeesomeApp) => {
     console.log('🎁 IPFS node have started');
   } catch (e) {
     console.error('❌ IPFS not started', e);
+    return null;
   }
 
   return JsIpfsServiceNodePass(node, app.config.storageConfig.jsNode.pass);

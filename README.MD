@@ -244,7 +244,7 @@ Existing modules:
 
 ## Dependencies
 - IPFS JS 0.52.3
-- Node 12.x
+- Node 14.x
 - Postgres 9.5
 - ffmpeg
 - Cerbot(Letsencrypt)
