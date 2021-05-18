@@ -243,7 +243,8 @@ Existing modules:
 - 1 GB free HDD + space for your files
 
 ## Dependencies
-- Node 10.x
+- IPFS JS 0.52.3
+- Node 14.x
 - Postgres 9.5
 - ffmpeg
 - Cerbot(Letsencrypt)
