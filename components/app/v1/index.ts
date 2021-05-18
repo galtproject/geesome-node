@@ -2252,6 +2252,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updateContentManifest(content) {
+    content.description = content.description || '';
     const manifestStorageId = await this.generateAndSaveManifest('content', content);
     content.manifestStorageId = manifestStorageId;
     await this.database.updateContent(content.id, {manifestStorageId});

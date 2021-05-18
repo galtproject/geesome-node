@@ -20,6 +20,7 @@ const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
+const resourcesHelper = require('./helpers/resources');
 const log = require('../components/log');
 
 describe("app", function () {
@@ -150,6 +151,7 @@ describe("app", function () {
         const ipld1 = await app.storage.saveObject(testObject);
         const ipld2 = await app.saveDataStructure(testObject);
         assert.equal(ipld1, ipld2);
+        console.log('ipld1', ipld1);
 
         const object1 = await app.storage.getObject(ipld1);
         const object2 = await app.getDataStructure(ipld2);
@@ -170,7 +172,8 @@ describe("app", function () {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
-        const imageContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-image.png'), 'input-image.png', {
+        const pngImagePath = await resourcesHelper.prepare('input-image.png');
+        const imageContent = await app.saveData(fs.createReadStream(pngImagePath), 'input-image.png', {
           userId: testUser.id,
           groupId: testGroup.id
         });
@@ -193,7 +196,8 @@ describe("app", function () {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
-        const videoContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-video.mp4'), 'input-video.mp4', {
+        const inputVideo = await resourcesHelper.prepare('not-streamable-input-video.mp4');
+        const videoContent = await app.saveData(fs.createReadStream(inputVideo), 'input-video.mp4', {
           userId: testUser.id,
           groupId: testGroup.id
         });
@@ -213,7 +217,8 @@ describe("app", function () {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
-        const videoContent = await app.saveData(fs.createReadStream(__dirname + '/resources/input-video.mov'), 'input-video.mov', {
+        const inputVideoPath = await resourcesHelper.prepare('input-video.mov');
+        const videoContent = await app.saveData(fs.createReadStream(inputVideoPath), 'input-video.mov', {
           userId: testUser.id,
           groupId: testGroup.id
         });
@@ -231,7 +236,7 @@ describe("app", function () {
       it("should upload archive and unzip correctly", async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
 
-        const archivePath = __dirname + '/resources/test-archive.zip';
+        const archivePath = await resourcesHelper.prepare('test-archive.zip');
         const archiveContent = await app.saveData(fs.createReadStream(archivePath), 'archive.zip', {userId: testUser.id, driver: 'archive'});
 
         const contentObj = await app.storage.getObject(archiveContent.manifestStorageId);
@@ -239,8 +244,8 @@ describe("app", function () {
         assert.equal(contentObj.extension, 'none');
         assert.equal(contentObj.size > 0, true);
 
-        let gotIndexHtmlByFolder = await app.storage.getFileData(archiveContent.storageId + '/test.txt');
-        assert.equal(gotIndexHtmlByFolder, 'Test\n');
+        let gotTextContent = await app.storage.getFileDataText(archiveContent.storageId + '/test.txt');
+        assert.equal(gotTextContent, 'Test\n');
       });
 
       it("should create directory by files manifests correctly", async () => {

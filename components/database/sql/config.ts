@@ -12,10 +12,11 @@ module.exports = {
   'user': 'geesome',
   'password': 'geesome',
   'options': {
-    'logging': () => {},
+    'logging': (d) => {console.log(d)},
     'host': 'localhost',
-    'dialect': 'postgres',
-    'operatorsAliases': false,
+    // 'dialect': 'postgres',
+    'dialect': 'sqlite',
+    'storage': './components/database/sql/database.sqlite',
     'pool': {'max': 5, 'min': 0, 'acquire': 30000, 'idle': 10000},
     'dialectOptions': {'multipleStatements': true, 'charset': 'utf8'}
   }

@@ -26,6 +26,8 @@ export interface IStorage {
 
   getFileData(filePath): Promise<any>;
 
+  getFileDataText(filePath): Promise<any>;
+
   unPin(hash, options?): Promise<any>;
 
   remove(hash, options?): Promise<any>;
