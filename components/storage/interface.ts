@@ -32,53 +32,11 @@ export interface IStorage {
 
   remove(hash, options?): Promise<any>;
 
-  getAccountIdByName(name): Promise<string>;
-
-  getAccountPeerId(key): Promise<any>;
-
-  getAccountPublicKey(key): Promise<Buffer>;
-
-  getCurrentAccountId(): Promise<string>;
-
-  createAccountIfNotExists(name): Promise<string>;
-
-  removeAccountIfExists(name): Promise<void>;
-
   saveObject(objData: any): Promise<string>;
 
   getObject(storageId: string): Promise<any>;
 
   getObjectProp(storageId: string, propName: string): Promise<any>;
-
-  bindToStaticId(storageId, accountKey, options?): Promise<string>;
-
-  resolveStaticId(staticStorageId): Promise<string>;
-
-  resolveStaticIdEntry(staticStorageId): Promise<{pubKey}>;
-
-  keyLookup(ipnsId): Promise<any>;
-
-  getBootNodeList(): Promise<string[]>;
-
-  addBootNode(address): Promise<string[]>;
-
-  removeBootNode(address): Promise<string[]>;
-
-  nodeAddressList(): Promise<string[]>;
-
-  publishEventByIpnsId(ipnsId, topic, data): Promise<void>;
-
-  publishEvent(topic, data): Promise<void>;
-
-  subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
-
-  subscribeToEvent(topic, callback): Promise<void>;
-
-  getIpnsPeers(ipnsId): Promise<string[]>;
-
-  getPubSubLs(): Promise<string[]>;
-
-  getPeers(topic): Promise<string[]>;
 
   makeDir(path): Promise<void>;
 

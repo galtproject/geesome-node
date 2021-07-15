@@ -33,6 +33,7 @@ import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
+import {ICommunicator} from "../../communicator/interface";
 
 const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
@@ -69,6 +70,9 @@ module.exports = async (extendConfig) => {
 
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
+
+  log('Start communicator...');
+  app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
 
   // setInterval(() => {
   //   console.log('publishEvent', 'geesome-test');
@@ -112,6 +116,7 @@ class GeesomeApp implements IGeesomeApp {
   api: any;
   database: IDatabase;
   storage: IStorage;
+  communicator: ICommunicator;
   render: IRender;
   authorization: any;
   drivers: any;
@@ -1056,13 +1061,13 @@ class GeesomeApp implements IGeesomeApp {
       // Encrypt post id
       const keyForEncrypt = await this.database.getStaticIdPublicKey(group.staticStorageId);
 
-      const userKey = await this.storage.keyLookup(user.manifestStaticStorageId);
+      const userKey = await this.communicator.keyLookup(user.manifestStaticStorageId);
       const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
       const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
       const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
       const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      await this.communicator.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: encryptedText,
         groupId: group.manifestStaticStorageId,
@@ -1074,7 +1079,7 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
-      this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      this.communicator.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
@@ -1501,7 +1506,7 @@ class GeesomeApp implements IGeesomeApp {
           inProcess: false,
           contentId: res.id
         });
-        return this.storage.publishEvent(asyncOperation.channel, res);
+        return this.communicator.publishEvent(asyncOperation.channel, res);
       })
       .catch((e) => {
         return this.database.updateUserAsyncOperation(asyncOperation.id, {
@@ -2428,7 +2433,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getPeers(topic) {
-    const peers = await this.storage.getPeers(topic);
+    const peers = await this.communicator.getPeers(topic);
     return {
       count: peers.length,
       list: peers
@@ -2436,7 +2441,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getIpnsPeers(ipnsId) {
-    const peers = await this.storage.getIpnsPeers(ipnsId);
+    const peers = await this.communicator.getIpnsPeers(ipnsId);
     return {
       count: peers.length,
       list: peers
@@ -2463,9 +2468,9 @@ class GeesomeApp implements IGeesomeApp {
     // }
     const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
     console.log('createStorageAccount', name, nameIpfsHash);
-    const storageAccountId = await this.storage.createAccountIfNotExists(nameIpfsHash);
+    const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
 
-    this.storage.getAccountPublicKey(storageAccountId).then(publicKey => {
+    this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
       return this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
         /*dont do anything*/
       });
@@ -2476,7 +2481,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async resolveStaticId(staticId): Promise<any> {
-    this.storage.resolveStaticIdEntry(staticId).then(entry => {
+    this.communicator.resolveStaticIdEntry(staticId).then(entry => {
       return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {
         /* already added */
       });
@@ -2506,7 +2511,7 @@ class GeesomeApp implements IGeesomeApp {
             resolve(null);
           }
         }, 1000);
-        dynamicId = await this.storage.resolveStaticId(staticId);
+        dynamicId = await this.communicator.resolveStaticId(staticId);
       } catch (err) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
         if (staticIdItem) {
