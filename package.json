@@ -10,7 +10,7 @@
     "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path components/database/sql/migrations --name",
     "rollback-migration": "( cd components/database/sql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "upgrade": "./bash/upgrade-app.sh",
-    "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ts-node check/perfomance.ts --trace_gc",
+    "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ts-node check/geesomePerfomance.ts --trace_gc",
     "generate-docs": "./node_modules/.bin/apidoc -i components/api/http-v1 -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test && rm components/database/sql/database.sqlite",
     "test": "npm run recreate-test-database; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts' -t 5000",
