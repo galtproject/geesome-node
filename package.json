@@ -29,8 +29,6 @@
     "cids": "^0.7.0",
     "cross-blob": "^2.0.0",
     "cookie-parser": "^1.4.4",
-    "eth-sig-util": "^2.1.2",
-    "eth-crypto": "^1.8.0",
     "ethers": "^4.0.25",
     "express-bearer-token": "^2.4.0",
     "express-mysql-session": "^2.1.0",
