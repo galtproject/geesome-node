@@ -8,17 +8,22 @@
  */
 
 import {IStorage} from "../components/storage/interface";
+import {ICommunicator} from "../components/communicator/interface";
 const assert = require('assert');
 
 describe("storage", function () {
   this.timeout(30000);
 
   let storage: IStorage;
+  let communicator: ICommunicator;
 
-  const storages = ['js-ipfs'];//'ipfs-http-client'
+  const storages = ['js-ipfs'];
+  const communicators = ['ipfs'];
 
-  storages.forEach((storageService) => {
-    describe(storageService + ' storage', () => {
+  storages.forEach((storageService, index) => {
+    const communicatorService = communicators[index];
+
+    describe(storageService + ' storage, ' + communicatorService + ' communicator', () => {
       before(async () => {
         const appConfig = require('../components/app/v1/config');
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
@@ -34,6 +39,9 @@ describe("storage", function () {
         };
         
         storage = await require('../components/storage/' + storageService)({
+          config: appConfig
+        });
+        communicator = await require('../components/communicator/' + communicatorService)({
           config: appConfig
         });
       });
@@ -77,32 +85,32 @@ describe("storage", function () {
         const array = ['bar1', 'bar2'];
         const arrayId = await storage.saveObject(array);
 
-        const staticId = await storage.bindToStaticId(arrayId, 'self');
+        const staticId = await communicator.bindToStaticId(arrayId, 'self');
 
-        assert.equal(await storage.resolveStaticId(staticId), arrayId)
+        assert.equal(await communicator.resolveStaticId(staticId), arrayId)
       });
 
       it("should create account if not exists", async () => {
-        await storage.removeAccountIfExists('new-key');
+        await communicator.removeAccountIfExists('new-key');
 
-        assert.equal(await storage.getAccountIdByName('new-key'), null);
+        assert.equal(await communicator.getAccountIdByName('new-key'), null);
 
-        let accountId = await storage.createAccountIfNotExists('new-key');
+        let accountId = await communicator.createAccountIfNotExists('new-key');
 
         assert.notEqual(accountId, null);
 
-        let sameAccountId = await storage.getAccountIdByName('new-key');
+        let sameAccountId = await communicator.getAccountIdByName('new-key');
 
         assert.equal(accountId, sameAccountId);
 
-        await storage.createAccountIfNotExists('new-key');
-        sameAccountId = await storage.getAccountIdByName('new-key');
+        await communicator.createAccountIfNotExists('new-key');
+        sameAccountId = await communicator.getAccountIdByName('new-key');
 
         assert.equal(accountId, sameAccountId);
 
-        await storage.removeAccountIfExists('new-key');
+        await communicator.removeAccountIfExists('new-key');
 
-        assert.equal(await storage.getAccountIdByName('new-key'), null);
+        assert.equal(await communicator.getAccountIdByName('new-key'), null);
       });
     });
   });

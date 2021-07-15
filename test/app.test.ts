@@ -23,7 +23,7 @@ const _ = require('lodash');
 const log = require('../components/log');
 
 describe("app", function () {
-  const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
+  const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);
 

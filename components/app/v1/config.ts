@@ -28,6 +28,8 @@ module.exports = {
       protocol: 'http'
     }
   },
+  communicatorModule: 'ipfs',
+  communicatorConfig: {},
   apiModule: 'http-v1',
   apiConfig: {},
   authorizationModule: 'passport',
