@@ -209,7 +209,7 @@ export interface IGeesomeApp {
   getPeers(topic): Promise<any>;
 
   //TODO: define interface
-  getIpnsPeers(ipns): Promise<any>;
+  getStaticIdPeers(ipns): Promise<any>;
 
   //TODO: define interface
   getGroupPeers(groupId): Promise<any>;

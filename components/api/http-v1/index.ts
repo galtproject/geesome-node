@@ -198,7 +198,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/user/export-private-key', async (req, res) => {
-    res.send({result: (await geesomeApp.storage.keyLookup(req.user.manifestStaticStorageId)).marshal()});
+    res.send({result: (await geesomeApp.communicator.keyLookup(req.user.manifestStaticStorageId)).marshal()});
   });
 
   service.get('/v1/user/get-friends', async (req, res) => {
@@ -669,19 +669,19 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
       return res.send(403);
     }
-    res.send(await geesomeApp.storage.getBootNodeList());
+    res.send(await geesomeApp.communicator.getBootNodeList());
   });
   service.post('/v1/admin/boot-nodes/add', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddBootNode)) {
       return res.send(403);
     }
-    res.send(await geesomeApp.storage.addBootNode(req.body.address));
+    res.send(await geesomeApp.communicator.addBootNode(req.body.address));
   });
   service.post('/v1/admin/boot-nodes/remove', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRemoveBootNode)) {
       return res.send(403);
     }
-    res.send(await geesomeApp.storage.removeBootNode(req.body.address));
+    res.send(await geesomeApp.communicator.removeBootNode(req.body.address));
   });
 
   service.post('/v1/admin/get-user-account', async (req, res) => {
@@ -852,7 +852,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/node-address-list', async (req, res) => {
-    res.send({result: await geesomeApp.storage.nodeAddressList()});
+    res.send({result: await geesomeApp.communicator.nodeAddressList()});
   });
 
   service.get('/api/v0/refs*', (req, res) => {

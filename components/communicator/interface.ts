@@ -40,15 +40,15 @@ export interface ICommunicator {
 
   nodeAddressList(): Promise<string[]>;
 
-  publishEventByIpnsId(ipnsId, topic, data): Promise<void>;
+  publishEventByStaticId(ipnsId, topic, data): Promise<void>;
 
   publishEvent(topic, data): Promise<void>;
 
-  subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
+  subscribeToStaticIdUpdates(ipnsId, callback): Promise<void>;
 
   subscribeToEvent(topic, callback): Promise<void>;
 
-  getIpnsPeers(ipnsId): Promise<string[]>;
+  getStaticIdPeers(ipnsId): Promise<string[]>;
 
   getPubSubLs(): Promise<string[]>;
 

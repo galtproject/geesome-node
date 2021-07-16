@@ -35,7 +35,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
     if (peersToTopic[topic]) {
       console.log('✅️ Connected to remote node!');
       Array.from(peersToTopic[topic]).forEach((ipnsId) => {
-        subscribeToIpnsUpdates(ipnsId);
+        subscribeToStaticIdUpdates(ipnsId);
       })
     }
   });
@@ -64,7 +64,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
   geesomeApp.events.on(geesomeApp.events.NewPersonalGroup, subscribeForPersonalGroupUpdates);
 
   function subscribeForGroupUpdates(group: IGroup) {
-    subscribeToIpnsUpdates(group.manifestStaticStorageId);
+    subscribeToStaticIdUpdates(group.manifestStaticStorageId);
   }
 
   async function subscribeForPersonalGroupUpdates(group: IGroup) {
@@ -83,14 +83,14 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
   const connectionIntervals = {};
 
-  function subscribeToIpnsUpdates(ipnsId) {
-    console.log('📡 subscribeToIpnsUpdates', ipnsId);
-    geesomeApp.storage.subscribeToIpnsUpdates(ipnsId, (message) => {
+  function subscribeToStaticIdUpdates(ipnsId) {
+    console.log('📡 subscribeToStaticIdUpdates', ipnsId);
+    geesomeApp.storage.subscribeToStaticIdUpdates(ipnsId, (message) => {
       handleIpnsUpdate(ipnsId, message);
     });
 
     handleUnsubscribe(getIpnsUpdatesTopic(ipnsId), () => {
-      subscribeToIpnsUpdates(ipnsId);
+      subscribeToStaticIdUpdates(ipnsId);
     })
   }
   

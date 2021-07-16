@@ -9,4 +9,4 @@ test/resources
 components/database/sql/config
 .jsipfs-test
 docs
-database.sqlite
+*.sqlite

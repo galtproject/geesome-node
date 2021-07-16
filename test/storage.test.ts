@@ -42,7 +42,8 @@ describe("storage", function () {
           config: appConfig
         });
         communicator = await require('../components/communicator/' + communicatorService)({
-          config: appConfig
+          config: appConfig,
+          storage
         });
       });
 

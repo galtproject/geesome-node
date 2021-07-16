@@ -5148,9 +5148,9 @@ gauge@~2.7.3:
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#405a15e":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#a09453e":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#405a15eb119c07c273ccfc2b3c909aa2c5930d03"
+  resolved "git://github.com/galtproject/geesome-libs.git#a09453e7c749c0c41d36f306e59b12697afdf2ec"
   dependencies:
     axios "^0.21.1"
     base64url "^3.0.1"

@@ -1067,7 +1067,7 @@ class GeesomeApp implements IGeesomeApp {
       const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
       const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-      await this.communicator.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      await this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: encryptedText,
         groupId: group.manifestStaticStorageId,
@@ -1079,14 +1079,14 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
-      this.communicator.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
         isEncrypted: false,
         sentAt: (post.publishedAt || post.createdAt).toString()
       });
-      log('publishEventByIpnsId');
+      log('publishEventByStaticId');
     }
 
     await replyPostUpdatePromise;
@@ -1236,7 +1236,7 @@ class GeesomeApp implements IGeesomeApp {
       const group = await this.database.getGroup(groupId);
       ipnsId = group.manifestStaticStorageId;
     }
-    return this.getIpnsPeers(ipnsId);
+    return this.getStaticIdPeers(ipnsId);
   }
 
   async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
@@ -2440,8 +2440,8 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  async getIpnsPeers(ipnsId) {
-    const peers = await this.communicator.getIpnsPeers(ipnsId);
+  async getStaticIdPeers(ipnsId) {
+    const peers = await this.communicator.getStaticIdPeers(ipnsId);
     return {
       count: peers.length,
       list: peers
