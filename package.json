@@ -10,6 +10,7 @@
     "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path components/database/sql/migrations --name",
     "rollback-migration": "( cd components/database/sql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "upgrade": "./bash/upgrade-app.sh",
+    "compile-aqua-communicator": "aqua-cli -i ./components/communicator/fluence/aqua -o ./components/communicator/fluence",
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ts-node check/geesomePerfomance.ts --trace_gc",
     "generate-docs": "./node_modules/.bin/apidoc -i components/api/http-v1 -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
@@ -25,10 +26,10 @@
     "bcrypt": "^5.0.0",
     "body-parser": "^1.19.0",
     "busboy": "^0.3.1",
-    "debug": "^4.1.0",
     "cids": "^0.7.0",
-    "cross-blob": "^2.0.0",
     "cookie-parser": "^1.4.4",
+    "cross-blob": "^2.0.0",
+    "debug": "^4.1.0",
     "ethers": "^4.0.25",
     "express-bearer-token": "^2.4.0",
     "express-mysql-session": "^2.1.0",
@@ -36,7 +37,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#a09453e",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#4e9a460",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "git://github.com/galtproject/js-ipfs.git#f8ebea3",
     "lodash": "^4.17.13",
@@ -62,9 +63,14 @@
     "unzip-stream": "^0.3.0",
     "uuid": "^3.3.2",
     "uuid-apikey": "^1.4.3",
-    "xkcd-password": "^2.0.0"
+    "xkcd-password": "^2.0.0",
+    "@fluencelabs/aqua-lib": "^0.1.9",
+    "@fluencelabs/fluence": "^0.9.53",
+    "@fluencelabs/aqua-dht": "^0.1.34",
+    "@fluencelabs/fluence-network-environment": "^1.0.10"
   },
   "devDependencies": {
+    "@fluencelabs/aqua-cli": "^0.1.9-162",
     "@jonybang/apidoc-plugin-ts": "^1.0.5",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.5",
@@ -75,7 +81,7 @@
     "http-server": "^0.12.0",
     "lerna": "^3.22.1",
     "mocha": "^5.2.0",
-    "ts-node": "^7.0.1",
+    "ts-node": "8.10.2",
     "typings": "^2.1.1"
   }
 }

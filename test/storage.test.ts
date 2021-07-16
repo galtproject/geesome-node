@@ -11,14 +11,16 @@ import {IStorage} from "../components/storage/interface";
 import {ICommunicator} from "../components/communicator/interface";
 const assert = require('assert');
 
-describe("storage", function () {
+describe.only("storage", function () {
   this.timeout(30000);
 
   let storage: IStorage;
   let communicator: ICommunicator;
 
   const storages = ['js-ipfs'];
-  const communicators = ['ipfs'];
+  const communicators = ['fluence'];
+  // const storages = ['js-ipfs'];
+  // const communicators = ['ipfs'];
 
   storages.forEach((storageService, index) => {
     const communicatorService = communicators[index];
@@ -82,7 +84,7 @@ describe("storage", function () {
         assert.deepEqual(await storage.getObjectProp(objectId, 'fooArray'), array);
       });
 
-      it("should allow to bind id to static", async () => {
+      it.only("should allow to bind id to static", async () => {
         const array = ['bar1', 'bar2'];
         const arrayId = await storage.saveObject(array);
 
