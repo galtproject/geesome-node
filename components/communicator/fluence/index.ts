@@ -79,8 +79,8 @@ module.exports = async (app: IGeesomeApp) => {
                     accountKey = AccountsStorage.getAccountPublicBase58(accountKey);
                 }
             }
-            const res = await dhtApi.initTopicAndSubscribeNode(client, client.relayPeerId, accountKey, storageId, null);
-            console.log('initTopicAndSubscribeNode result', client.relayPeerId, accountKey, res);
+            const res = await dhtApi.initTopicAndSubscribe(client, client.relayPeerId, accountKey, storageId, null);
+            console.log('initTopicAndSubscribe result', client.relayPeerId, accountKey, res);
             return accountKey;
         }
         async resolveStaticId(staticStorageId): Promise<string> {
