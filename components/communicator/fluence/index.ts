@@ -1,6 +1,6 @@
 import {IGeesomeApp} from "../../app/interface";
 
-import { testNet } from '@fluencelabs/fluence-network-environment';
+import { krasnodar } from '@fluencelabs/fluence-network-environment';
 import { createClient, FluenceClient } from '@fluencelabs/fluence';
 const dhtApi = require('./dht-api');
 import {ICommunicator} from "../interface";
@@ -9,7 +9,7 @@ const _ = require('lodash');
 const fs = require('fs');
 
 module.exports = async (app: IGeesomeApp) => {
-    const relayNode = testNet[0];
+    const relayNode = krasnodar[1];
     const client = await createClient(relayNode);
     // let neighbours = await dhtApi.getNeighbours(client, nodeId, 'topic')
 
@@ -79,13 +79,12 @@ module.exports = async (app: IGeesomeApp) => {
                     accountKey = AccountsStorage.getAccountPublicBase58(accountKey);
                 }
             }
-            const res = await dhtApi.initTopicAndSubscribe(client, client.relayPeerId, accountKey, storageId, null);
+            const res = await dhtApi.initTopicAndSubscribe(client, client.relayPeerId, accountKey, storageId, client.relayPeerId);
             console.log('initTopicAndSubscribe result', client.relayPeerId, accountKey, res);
             return accountKey;
         }
         async resolveStaticId(staticStorageId): Promise<string> {
-            console.log('findSubscribers result', client.relayPeerId, staticStorageId, await dhtApi.findSubscribers(client, client.relayPeerId, staticStorageId));
-            return dhtApi.findSubscribers(client, client.relayPeerId, staticStorageId).then(results => results[0]) as any;
+            return dhtApi.findSubscribers(client, client.relayPeerId, staticStorageId).then(results => results[0].value) as any;
         }
         removeAccountIfExists(name): Promise<void> {
             return AccountsStorage.setAccount(name, null);

@@ -27,16 +27,24 @@ func initTopic(node_id: PeerId, topic: string):
         t <- Peer.timestamp_sec()
         AquaDHT.register_key(topic, t, false, 0)
 
+service DHTOp("op"):
+  identity(result: DhtResult) -> DhtResult
+
 -- Create a topic and subscribe to it
 -- %init_peer_id% (current client) will become a subscriber
-func initTopicAndSubscribe(node_id: PeerId, topic: string, value: string, relay_id: ?PeerId, service_id: ?string):
+func initTopicAndSubscribe(node_id: PeerId, topic: string, value: string, relay_id: ?PeerId, service_id: ?string, notify: -> ()) -> DhtResult:
+  results: *DhtResult
   nodes <- getNeighbours(node_id, topic)
   for n <- nodes par:
     on n:
       try:
         t <- Peer.timestamp_sec()
         AquaDHT.register_key(topic, t, false, 0)
-        AquaDHT.put_value(topic, value, t, relay_id, service_id, 0)
+        result <- AquaDHT.put_value(topic, value, t, relay_id, service_id, 0)
+        if result.success:
+          results <- DHTOp.identity(result)
+          co notify()
+  <- results!0
 
 -- Create a topic and make the given node a subscriber to it
 func initTopicAndSubscribeNode(subscriber_node_id: PeerId, topic: string, value: string, service_id: ?string):
