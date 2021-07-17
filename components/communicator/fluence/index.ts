@@ -79,12 +79,15 @@ module.exports = async (app: IGeesomeApp) => {
                     accountKey = AccountsStorage.getAccountPublicBase58(accountKey);
                 }
             }
-            const res = await dhtApi.initTopicAndSubscribe(client, client.relayPeerId, accountKey, storageId, client.relayPeerId);
-            console.log('initTopicAndSubscribe result', client.relayPeerId, accountKey, res);
+
+            await dhtApi.initTopicAndSubscribe(client, client.relayPeerId, accountKey, storageId, client.relayPeerId, null, () => {});
             return accountKey;
         }
         async resolveStaticId(staticStorageId): Promise<string> {
-            return dhtApi.findSubscribers(client, client.relayPeerId, staticStorageId).then(results => results[0].value) as any;
+            return dhtApi.findSubscribers(client, client.relayPeerId, staticStorageId).then(results => {
+                console.log("subscriber", results[0]);
+                return results[0].value;
+            }) as any;
         }
         removeAccountIfExists(name): Promise<void> {
             return AccountsStorage.setAccount(name, null);
