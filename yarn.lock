@@ -710,11 +710,6 @@
     unique-filename "^1.1.1"
     which "^1.3.1"
 
-"@fluencelabs/aqua-cli@^0.1.9-164":
-  version "0.1.9-164"
-  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-cli/-/aqua-cli-0.1.9-164.tgz#a12999eccff8a2ac1ea81afcf80f91e3e571a913"
-  integrity sha512-lX7+m7kbDXD5/rOxPInF9ftF7MmZrgGhliKAg6lzT6xFbGcUar4+KacgpFwEqsgswkDJBfqkZOV+1tHgR707gQ==
-
 "@fluencelabs/aqua-dht@^0.1.34":
   version "0.1.34"
   resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-dht/-/aqua-dht-0.1.34.tgz#970c8ee708cb7e83f30455eb71a35223ad9d316f"
@@ -5561,10 +5556,14 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#a1923fd":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#9c19aa9":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#a1923fddd9e3b56b87002c38326badf247e8c683"
+  resolved "git://github.com/galtproject/geesome-libs.git#9c19aa970d7dea05cf4c62d912bb23e8f3f74021"
   dependencies:
+    "@fluencelabs/aqua-dht" "^0.1.34"
+    "@fluencelabs/aqua-lib" "^0.1.9"
+    "@fluencelabs/fluence" "^0.9.53"
+    "@fluencelabs/fluence-network-environment" "^1.0.10"
     axios "^0.21.1"
     base64url "^3.0.1"
     bn.js "^4.0.0"

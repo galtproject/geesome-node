@@ -58,7 +58,7 @@ describe("app", function () {
             title: 'Test'
           });
         } catch (e) {
-          console.error(e);
+          console.error('error', e);
           assert.equal(true, false);
         }
       });
