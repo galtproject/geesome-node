@@ -710,10 +710,10 @@
     unique-filename "^1.1.1"
     which "^1.3.1"
 
-"@fluencelabs/aqua-cli@^0.1.9-162":
-  version "0.1.9-163"
-  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-cli/-/aqua-cli-0.1.9-163.tgz#6033d5b7bf918fa0dee6affbdaac2bc7323c5362"
-  integrity sha512-OgKIwelqasxOBamr5jzhaI8GBDk1d4Bky9wyuBPUwwHED/yWi/32D9J0iZ3zZxpzitYQIvqT2KDB3OUkzk2+fQ==
+"@fluencelabs/aqua-cli@^0.1.9-164":
+  version "0.1.9-164"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-cli/-/aqua-cli-0.1.9-164.tgz#a12999eccff8a2ac1ea81afcf80f91e3e571a913"
+  integrity sha512-lX7+m7kbDXD5/rOxPInF9ftF7MmZrgGhliKAg6lzT6xFbGcUar4+KacgpFwEqsgswkDJBfqkZOV+1tHgR707gQ==
 
 "@fluencelabs/aqua-dht@^0.1.34":
   version "0.1.34"
@@ -5561,9 +5561,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#98ec0cd":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#a1923fd":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#98ec0cdda0f4c71000315a2d570391eada64f5ad"
+  resolved "git://github.com/galtproject/geesome-libs.git#a1923fddd9e3b56b87002c38326badf247e8c683"
   dependencies:
     axios "^0.21.1"
     base64url "^3.0.1"
@@ -5601,7 +5601,9 @@ gc-stats@^1.4.0:
     stable "^0.1.8"
     strip-hex-prefix "^1.0.0"
     uint8arrays "^2.1.3"
+    uuid "^3.3.2"
     web3-utils "^1.3.1"
+    xkcd-password "^2.0.0"
 
 genfun@^5.0.0:
   version "5.0.0"

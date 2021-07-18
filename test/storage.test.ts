@@ -9,23 +9,27 @@
 
 import {IStorage} from "../components/storage/interface";
 import {ICommunicator} from "../components/communicator/interface";
+import {IDatabase} from "../components/database/interface";
 const assert = require('assert');
 
-describe.only("storage", function () {
+describe("storage", function () {
   this.timeout(30000);
 
   let storage: IStorage;
   let communicator: ICommunicator;
+  let database: IDatabase;
 
   const storages = ['js-ipfs'];
   const communicators = ['fluence'];
-  // const storages = ['js-ipfs'];
+  const databases = ['sql'];
+// const storages = ['js-ipfs'];
   // const communicators = ['ipfs'];
 
   storages.forEach((storageService, index) => {
     const communicatorService = communicators[index];
+    const databaseService = databases[index];
 
-    describe(storageService + ' storage, ' + communicatorService + ' communicator', () => {
+    describe(storageService + ' storage, ' + communicatorService + ' communicator, ' + databaseService + ' database', () => {
       before(async () => {
         const appConfig = require('../components/app/v1/config');
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
@@ -43,9 +47,13 @@ describe.only("storage", function () {
         storage = await require('../components/storage/' + storageService)({
           config: appConfig
         });
+        database = await require('../components/database/' + databaseService)({
+          config: appConfig
+        });
         communicator = await require('../components/communicator/' + communicatorService)({
           config: appConfig,
-          storage
+          storage,
+          database
         });
       });
 
@@ -74,17 +82,10 @@ describe.only("storage", function () {
           }
         };
         const objectId = await storage.saveObject(obj);
-
-        console.log('await storage.getObject(objectId)', await storage.getObject(objectId))
-        // assert.deepEqual(await storage.getObject(objectId), {
-        //     foo: 'bar',
-        //     fooArray: ['bar1', 'bar2']
-        // });
-
         assert.deepEqual(await storage.getObjectProp(objectId, 'fooArray'), array);
       });
 
-      it.only("should allow to bind id to static", async () => {
+      it("should allow to bind id to static", async () => {
         const array = ['bar1', 'bar2'];
         const arrayId = await storage.saveObject(array);
 
