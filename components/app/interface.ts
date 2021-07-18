@@ -35,7 +35,7 @@ export interface IGeesomeApp {
 
   frontendStorageId;
 
-  getSecretKey(keyName): Promise<string>;
+  getSecretKey(keyName, mode): Promise<string>;
 
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 

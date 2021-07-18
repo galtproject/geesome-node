@@ -128,7 +128,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
       boundAt: message.data.validity.toString('utf8')
     }).catch(() => {/* already exists */});
 
-    geesomeApp.database.setStaticIdPublicKey(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
+    geesomeApp.database.setStaticIdKey(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
   }
   
   async function handlePersonalChatUpdate(personalGroup: IGroup, message) {

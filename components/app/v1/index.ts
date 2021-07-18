@@ -57,7 +57,6 @@ const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
-const uuidv4 = require('uuid/v4');
 const log = require('debug')('geesome:app')
 const saltRounds = 10;
 
@@ -66,7 +65,8 @@ module.exports = async (extendConfig) => {
   // console.log('config', config);
   const app = new GeesomeApp(config);
 
-  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs');
+  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
+  app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
 
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
@@ -129,7 +129,7 @@ class GeesomeApp implements IGeesomeApp {
   ) {
   }
 
-  async getSecretKey(keyName) {
+  async getSecretKey(keyName, mode) {
     const keyPath = `${__dirname}/${keyName}.key`;
     let secretKey;
     try {
@@ -137,10 +137,8 @@ class GeesomeApp implements IGeesomeApp {
       if (secretKey) {
         return secretKey;
       }
-    } catch (e) {
-
-    }
-    secretKey = (await xkcdPassword.generate({numWords: 8, minLength: 5, maxLength: 8})).join(' ');
+    } catch (e) {}
+    secretKey = await commonHelper.random(mode);
     await new Promise((resolve, reject) => {
       fs.writeFile(keyPath, secretKey, resolve);
     });
@@ -248,7 +246,7 @@ class GeesomeApp implements IGeesomeApp {
       provider: accountProvider,
       address: accountAddress,
       userAccountId: userAccount.id,
-      message: uuidv4()
+      message: await commonHelper.random()
     });
 
     delete authMessage.userAccountId;
@@ -1475,7 +1473,7 @@ class GeesomeApp implements IGeesomeApp {
       userApiKeyId: options.userApiKeyId,
       name: 'save-data',
       inProcess: true,
-      channel: uuidv4()
+      channel: await commonHelper.random()
     });
 
     // TODO: fix hotfix
@@ -2471,7 +2469,7 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
 
     this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
-      return this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
+      return this.database.setStaticIdKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
         /*dont do anything*/
       });
     }).catch(e => {
@@ -2482,7 +2480,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async resolveStaticId(staticId): Promise<any> {
     this.communicator.resolveStaticIdEntry(staticId).then(entry => {
-      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {
+      return this.database.setStaticIdKey(staticId, bs58.encode(entry.pubKey)).catch(() => {
         /* already added */
       });
     }).catch(() => {});
