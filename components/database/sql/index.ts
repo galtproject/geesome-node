@@ -1055,16 +1055,46 @@ class MysqlDatabase implements IDatabase {
     return this.models.StaticIdHistory.destroy({where: {staticId}});
   }
 
-  async setStaticIdPublicKey(staticId, publicKey) {
-    return this.models.StaticIdPublicKey.create({staticId, publicKey});
-  }
-
-  async getStaticIdPublicKey(staticId) {
-    return this.models.StaticIdPublicKey.findOne({where: {staticId}}).then(item => item ? item.publicKey : null);
-  }
-
   async getStaticIdItemByDynamicId(dynamicId) {
     return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]});
+  }
+
+  async setStaticIdKey(staticId, publicKey, name = null, encryptedPrivateKey = null) {
+    return this.models.StaticIdKey.create({staticId, publicKey, name, encryptedPrivateKey});
+  }
+
+  async getStaticIdByName(name) {
+    return this.models.StaticIdKey.findOne({where: { name }}).then(item => item ? item.staticId : null);
+  }
+
+  async getStaticIdPublicKey(staticId = null, name = null) {
+    if (!staticId && !name) {
+      return null;
+    }
+    const or = [];
+    staticId && or.push({staticId});
+    name && or.push({name});
+    return this.models.StaticIdKey.findOne({ where: {[Op.or]: or} }).then(item => item ? item.publicKey : null);
+  }
+
+  async getStaticIdEncryptedPrivateKey(staticId = null, name = null) {
+    if (!staticId && !name) {
+      return null;
+    }
+    const or = [];
+    staticId && or.push({staticId});
+    name && or.push({name});
+    return this.models.StaticIdKey.findOne({ where: {[Op.or]: or} }).then(item => item ? item.encryptedPrivateKey : null);
+  }
+
+  async destroyStaticId(staticId = null, name = null) {
+    if (!staticId && !name) {
+      return null;
+    }
+    const or = [];
+    staticId && or.push({staticId});
+    name && or.push({name});
+    return this.models.StaticIdKey.destroy({ where: {[Op.or]: or} });
   }
 
   async getValue(key: string) {

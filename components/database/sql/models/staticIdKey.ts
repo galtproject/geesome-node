@@ -10,22 +10,27 @@
 module.exports = async function (sequelize, models) {
   const Sequelize = require('sequelize');
 
-  const StaticIdPublicKey = sequelize.define('staticIdPublicKey', {
+  const StaticIdKey = sequelize.define('staticIdKey', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+    name: {
+      type: Sequelize.STRING(100)
+    },
     staticId: {
-      type: Sequelize.STRING(200)
+      type: Sequelize.STRING(50)
     },
     publicKey: {
+      type: Sequelize.STRING(400)
+    },
+    encryptedPrivateKey: {
       type: Sequelize.TEXT
-    }
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
-      // { fields: ['tokensAddress'] },
-      {fields: ['staticId'], unique: true}
+      { fields: ['name'] },
+      { fields: ['staticId'], unique: true }
     ]
   } as any);
 
-  return StaticIdPublicKey.sync({});
+  return StaticIdKey.sync({});
 };
