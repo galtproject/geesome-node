@@ -25,4 +25,5 @@ RUN cd frontend && yarn && npm run dev-build
 
 ENV STORAGE_REPO=/root/.jsipfs
 ENV STORAGE_HOST=ipfs
+ENV STORAGE_MODULE=ipfs-http-client
 RUN npm start

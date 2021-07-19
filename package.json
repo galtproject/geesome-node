@@ -16,7 +16,8 @@
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
     "test": "rm -rf components/database/sql/database-test.sqlite; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report",
-    "docker": "mkdir -p .ipfs-staging && mkdir -p .ipfs && STORAGE_MODULE=ipfs-http-client STORAGE_STAGING=$PWD/.ipfs-staging STORAGE_DATA=$PWD/.ipfs docker-compose up"
+    "docker": "mkdir -p .ipfs-staging && mkdir -p .ipfs && STORAGE_STAGING=$PWD/.ipfs-staging STORAGE_DATA=$PWD/.ipfs docker-compose up",
+    "docker-build": "docker-compose build --no-cache"
   },
   "author": "",
   "license": "ISC",
@@ -38,9 +39,10 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#f8e1489",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#b6c8fb2",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "0.54.4",
+    "ipfs-http-client": "^50.1.2",
     "lodash": "^4.17.13",
     "mime": "^2.4.3",
     "morgan": "^1.9.1",
