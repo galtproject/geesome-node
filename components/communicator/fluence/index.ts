@@ -4,7 +4,6 @@ import { krasnodar } from '@fluencelabs/fluence-network-environment';
 import { createClient } from '@fluencelabs/fluence';
 import DatabaseAccountStorage from "../../accontStorage/database";
 const FluenceService = require('geesome-libs/src/fluenceService');
-const _ = require('lodash');
 
 module.exports = async (app: IGeesomeApp) => {
     const relayNode = krasnodar[1];
