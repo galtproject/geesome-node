@@ -1,15 +1,19 @@
 version: "3.9"
 services:
   web:
+    container_name: geesome
     build: .
-    ports:
+    command: npm start
       - "5000:5000"
+    depends_on:
+      - ipfs
   ipfs:
+    container_name: go_ipfs
     image: "ipfs/go-ipfs"
-    ports:
-      - "5001:5001"
-      - "4001:4001"
-      - "8080:8080"
+    expose:
+      - "5001"
+      - "4001"
+      - "8080"
     volumes:
       - "${STORAGE_STAGING}:/export"
       - "${STORAGE_DATA}:/data/ipfs"
