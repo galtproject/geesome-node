@@ -68,6 +68,9 @@ module.exports = async (extendConfig) => {
   app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
   app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
 
+  log('Start database...');
+  app.database = await require('../../database/' + config.databaseModule)(app);
+
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
 
@@ -86,9 +89,6 @@ module.exports = async (extendConfig) => {
     const directory = await app.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;
   }
-
-  log('Start database...');
-  app.database = await require('../../database/' + config.databaseModule)(app);
 
   app.render = await require('../../render/' + config.renderModule)(app);
 
