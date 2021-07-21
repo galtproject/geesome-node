@@ -5,7 +5,7 @@ services:
     build: .
     command: npm start
     ports:
-      - "5000:5000"
+      - "7711:7711"
     depends_on:
       - ipfs
     volumes:
