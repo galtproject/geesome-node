@@ -4,9 +4,12 @@ services:
     container_name: geesome
     build: .
     command: npm start
+    ports:
       - "5000:5000"
     depends_on:
       - ipfs
+    volumes:
+      - "${STORAGE_DATA}:/database.sqlite"
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs"

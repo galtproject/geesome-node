@@ -10,3 +10,5 @@ components/database/sql/config
 .jsipfs-test
 docs
 *.sqlite
+.ipfs
+.ipfs-staging
