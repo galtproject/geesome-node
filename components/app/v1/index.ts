@@ -37,10 +37,10 @@ import {ICommunicator} from "../../communicator/interface";
 
 const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
+const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
 const {getPersonalChatTopic} = require('geesome-libs/src/name');
-const bs58 = require('bs58');
 let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events');
@@ -48,7 +48,6 @@ const appEvents = require('./events');
 const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
-const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
@@ -65,11 +64,11 @@ module.exports = async (extendConfig) => {
   // console.log('config', config);
   const app = new GeesomeApp(config);
 
-  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
-  app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
-
   log('Start database...');
   app.database = await require('../../database/' + config.databaseModule)(app);
+
+  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
+  app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
 
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
@@ -1062,7 +1061,7 @@ class GeesomeApp implements IGeesomeApp {
       const userKey = await this.communicator.keyLookup(user.manifestStaticStorageId);
       const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
       const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
-      const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
+      const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
       const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
       await this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
@@ -2469,7 +2468,7 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
 
     this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
-      return this.database.setStaticIdKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
+      return this.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
         /*dont do anything*/
       });
     }).catch(e => {
@@ -2480,7 +2479,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async resolveStaticId(staticId): Promise<any> {
     this.communicator.resolveStaticIdEntry(staticId).then(entry => {
-      return this.database.setStaticIdKey(staticId, bs58.encode(entry.pubKey)).catch(() => {
+      return this.database.setStaticIdKey(staticId, peerIdHelper.publicKeyToBase64(entry.pubKey)).catch(() => {
         /* already added */
       });
     }).catch(() => {});
