@@ -2478,11 +2478,12 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async resolveStaticId(staticId): Promise<any> {
-    this.communicator.resolveStaticIdEntry(staticId).then(entry => {
-      return this.database.setStaticIdKey(staticId, peerIdHelper.publicKeyToBase64(entry.pubKey)).catch(() => {
-        /* already added */
-      });
-    }).catch(() => {});
+    //TODO: make it work
+    // this.communicator.resolveStaticIdEntry(staticId).then(entry => {
+    //   return this.database.setStaticIdKey(staticId, peerIdHelper.publicKeyToBase64(entry.pubKey)).catch(() => {
+    //     /* already added */
+    //   });
+    // }).catch(() => {});
 
     return new Promise(async (resolve, reject) => {
       let alreadyHandled = false;
