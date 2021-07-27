@@ -3,13 +3,14 @@ services:
   web:
     container_name: geesome
     build: .
-    command: npm start
+    command: npm run in-docker-start
     ports:
       - "7711:7711"
     depends_on:
       - ipfs
     volumes:
       - "${GEESOME_DATA}:/geesome-node/data"
+      - "${GEESOME_DATA}/frontend-dist:/geesome-node/frontend/docker-dist"
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs"

@@ -5,6 +5,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "yarn && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
+    "in-docker-start": "cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "migrate-database": "( cd components/database/sql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
     "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path components/database/sql/migrations --name",
