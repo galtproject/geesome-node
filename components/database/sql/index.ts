@@ -11,6 +11,7 @@ import {GroupType, IDatabase, IListParams} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
+const fs = require("fs");
 const Sequelize = require("sequelize");
 const pIteration = require("p-iteration");
 const Op = Sequelize.Op;
