@@ -129,7 +129,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getSecretKey(keyName, mode) {
-    const keyPath = `${__dirname}/${keyName}.key`;
+    const keyPath = `./data/${keyName}.key`;
     let secretKey;
     try {
       secretKey = fs.readFileSync(keyPath).toString();
