@@ -30,13 +30,13 @@ const { generateRandomData } = require('./helpers');
     log('generateRandomData');
     const randomData = generateRandomData(megabyte);
     const before = new Date().getTime();
-    // await sendPost('/v1/user/save-data', geesomeClient.apiKey, JSON.stringify({
-    //   content: randomData,
-    //   fileName: 'text.txt',
-    // }))
-    const textContent = await geesomeClient.saveContentData(randomData, {
-      fileName: 'text.txt'
-    });
+    await sendPost('/v1/user/save-data', geesomeClient.apiKey, JSON.stringify({
+      content: randomData,
+      fileName: 'text.txt',
+    }))
+    // const textContent = await geesomeClient.saveContentData(randomData, {
+    //   fileName: 'text.txt'
+    // });
     const after = new Date().getTime();
     // const contentObj = await app.storage.getObject(textContent.manifestStorageId);
     log(after - before);

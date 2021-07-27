@@ -9,7 +9,7 @@ services:
     depends_on:
       - ipfs
     volumes:
-      - "${STORAGE_DATA}:/database.sqlite"
+      - "${GEESOME_DATA}:/geesome-node/data"
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs"

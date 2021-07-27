@@ -16,6 +16,7 @@
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
     "test": "rm -rf database-test.sqlite; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report",
+    "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/ts-node -P tsconfig.json check/geesomeClientPerfomance.ts",
     "docker": "mkdir -p .docker-data && STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome_data docker-compose up --attach-dependencies --no-recreate",
     "docker-build": "docker-compose down --rmi all && docker-compose build --no-cache"
   },
