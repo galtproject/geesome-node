@@ -10,7 +10,7 @@ services:
       - ipfs
     volumes:
       - "${GEESOME_DATA}:/geesome-node/data"
-      - "${GEESOME_DATA}/frontend-dist:/geesome-node/frontend/docker-dist"
+      - "${GEESOME_DATA}/frontend:/geesome-node/frontend/docker-dist"
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs"
