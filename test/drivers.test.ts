@@ -46,7 +46,7 @@ describe("drivers", function () {
 
   describe('youtube video', () => {
 
-    it.only("should successfully getting video from youtube", async () => {
+    it("should successfully getting video from youtube", async () => {
       const ouputStreamablePath = __dirname + '/resources/output-youtube-video.mp4';
       
       async function downloadVideo() {

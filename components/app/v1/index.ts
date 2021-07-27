@@ -300,8 +300,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async bindToStaticId(dynamicId, staticId) {
     log('bindToStaticId', dynamicId, staticId);
-    //TODO: enable when performance will be improved
-    // this.storage.bindToStaticId(dynamicId, staticId);
+    await this.communicator.bindToStaticId(dynamicId, staticId);
 
     // await this.database.destroyStaticIdHistory(staticId);
 
@@ -2093,7 +2092,6 @@ class GeesomeApp implements IGeesomeApp {
 
     const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
 
-    console.log('publishFolder storageDirPath', storageDirPath);
     await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
 
     const storageId = await this.storage.getDirectoryId(storageDirPath);
@@ -2489,7 +2487,7 @@ class GeesomeApp implements IGeesomeApp {
       let alreadyHandled = false;
 
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      log('getActualStaticIdItem', staticIdItem.dynamicId, staticId);
+      log('getActualStaticIdItem', staticIdItem, staticId);
 
       setTimeout(() => {
         if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
