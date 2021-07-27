@@ -16,7 +16,7 @@
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
     "test": "rm -rf components/database/sql/database-test.sqlite; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report",
-    "docker": "mkdir -p .ipfs-staging && mkdir -p .ipfs && STORAGE_STAGING=$PWD/.ipfs-staging STORAGE_DATA=$PWD/.ipfs docker-compose up --attach-dependencies --no-recreate",
+    "docker": "mkdir -p .docker-data && STORAGE_STAGING=$PWD/.ipfs-staging STORAGE_DATA=$PWD/.ipfs GEESOME_DATA=$PWD/geesome_data docker-compose up --attach-dependencies --no-recreate",
     "docker-build": "docker-compose down --rmi all && docker-compose build --no-cache"
   },
   "author": "",

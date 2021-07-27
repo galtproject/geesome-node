@@ -19,6 +19,9 @@ const commonHelpers = require('geesome-libs/src/common');
 let config = require('./config');
 
 module.exports = async function (app: IGeesomeApp) {
+  if (!fs.existsSync('./data')) {
+    fs.mkdirSync('./data');
+  }
   config = _.merge(config, app.config.databaseConfig || {});
   let sequelize = new Sequelize(config.name, config.user, config.password, config.options);
 
