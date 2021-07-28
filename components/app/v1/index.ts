@@ -374,11 +374,16 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserFriends(userId, search?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
     return {
       list: await this.database.getUserFriends(userId, search, listParams),
       total: await this.database.getUserFriendsCount(userId, search)
     };
+  }
+
+  prepareListParams(listParams?: IListParams): IListParams {
+    return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
   }
 
   async checkUserId(userId, createIfNotExist = true) {
@@ -469,6 +474,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
     return {
       list: await this.database.getApiKeysByUser(userId, isDisabled, search, listParams),
@@ -737,6 +743,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
+    groupPermissions = groupPermissions || [];
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
@@ -963,6 +970,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupSectionItems(filters?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getGroupSections(filters, listParams),
       total: await this.database.getGroupSectionsCount(filters)
@@ -1988,6 +1996,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     if (parentItemId == 'null') {
       parentItemId = null;
@@ -2298,6 +2307,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getGroupPosts(groupId, filters, listParams),
       total: await this.database.getGroupPostsCount(groupId, filters)
@@ -2305,6 +2315,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getCategoryPosts(categoryId, filters, listParams),
       total: await this.database.getCategoryPostsCount(categoryId, filters)
@@ -2312,6 +2323,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getCategoryGroups(categoryId, filters, listParams),
       total: await this.database.getCategoryGroupsCount(categoryId, filters)
@@ -2369,6 +2381,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
@@ -2379,6 +2392,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
@@ -2389,6 +2403,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAllContentList(adminId, searchString?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
@@ -2533,6 +2548,32 @@ class GeesomeApp implements IGeesomeApp {
         return resolve(staticIdItem.dynamicId);
       }
     });
+  }
+
+  async getBootNodes(userId) {
+    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRead)) {
+      throw new Error("not_permitted");
+    }
+    //TODO: separate by types
+    return (await this.storage.getBootNodeList()).concat(await this.communicator.getBootNodeList());
+  }
+
+  async addBootNode(userId, address, type = 'multi-address') {
+    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAddBootNode)) {
+      throw new Error("not_permitted");
+    }
+    //TODO: separate by types
+    await this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
+    return this.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
+  }
+
+  async removeBootNode(userId, address, type = 'multi-address') {
+    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRemoveBootNode)) {
+      throw new Error("not_permitted");
+    }
+    //TODO: separate by types
+    await this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
+    return this.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
   }
 
   async stop() {

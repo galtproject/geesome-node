@@ -43,6 +43,12 @@ export interface IStorage {
   copyFileFromId(storageId, path): Promise<void>;
 
   getDirectoryId(path): Promise<string>;
+
+  getBootNodeList(): Promise<string[]>;
+
+  addBootNode(address): Promise<string[]>;
+
+  removeBootNode(address): Promise<string[]>;
 }
 
 interface IResultFile {

@@ -202,7 +202,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/get-friends', async (req, res) => {
-    res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getUserFriends(req.user.id, req.query.search, req.query));
   });
 
   service.post('/v1/user/add-friend', async (req, res) => {
@@ -257,7 +257,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/category/:categoryId/groups', async (req, res) => {
-    res.send(await geesomeApp.getCategoryGroups(req.user.id, req.params.categoryId, req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+    res.send(await geesomeApp.getCategoryGroups(req.user.id, req.params.categoryId, req.query, req.query), 200);
   });
 
   service.post('/v1/user/category/:categoryId/add-group', async (req, res) => {
@@ -408,7 +408,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/group-sections', async (req, res) => {
-    res.send(await geesomeApp.getGroupSectionItems(req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+    res.send(await geesomeApp.getGroupSectionItems(req.query, req.query), 200);
   });
 
   service.get('/v1/user/group/unread/:groupId', async (req, res) => {
@@ -420,7 +420,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/api-key-list', async (req, res) => {
-    res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])), 200);
+    res.send(await geesomeApp.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, req.query), 200);
   });
 
   service.post('/v1/user/api-key/add', async (req, res) => {
@@ -528,7 +528,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query));
   });
   service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
     res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
@@ -594,7 +594,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
    * @apiInterface (../../app/interface.ts) {IPostListResponse} apiSuccess
    */
   service.get('/v1/group/:groupId/posts', async (req, res) => {
-    res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getGroupPosts(req.params.groupId, req.query, req.query));
   });
 
   service.get('/v1/group/:groupId/peers', async (req, res) => {
@@ -602,7 +602,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/category/:categoryId/posts', async (req, res) => {
-    res.send(await geesomeApp.getCategoryPosts(req.params.categoryId, req.query, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getCategoryPosts(req.params.categoryId, req.query, req.query));
   });
 
   //TODO: move permissions checks to geesomeApp class
@@ -656,32 +656,26 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/admin/all-users', async (req, res) => {
-    res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getAllUserList(req.user.id, req.query.search, req.query));
   });
   service.get('/v1/admin/all-content', async (req, res) => {
-    res.send(await geesomeApp.getAllContentList(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getAllContentList(req.user.id, req.query.search, req.query));
   });
   service.get('/v1/admin/all-groups', async (req, res) => {
-    res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, _.pick(req.query, ['sortBy', 'sortDir', 'limit', 'offset'])));
+    res.send(await geesomeApp.getAllGroupList(req.user.id, req.query.search, req.query));
   });
 
+
   service.get('/v1/admin/boot-nodes', async (req, res) => {
-    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
-      return res.send(403);
-    }
-    res.send(await geesomeApp.communicator.getBootNodeList());
+    res.send(await geesomeApp.getBootNodes(req.user.id));
   });
+
   service.post('/v1/admin/boot-nodes/add', async (req, res) => {
-    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddBootNode)) {
-      return res.send(403);
-    }
-    res.send(await geesomeApp.communicator.addBootNode(req.body.address));
+    res.send(await geesomeApp.addBootNode(req.user.id, req.body.address));
   });
+
   service.post('/v1/admin/boot-nodes/remove', async (req, res) => {
-    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRemoveBootNode)) {
-      return res.send(403);
-    }
-    res.send(await geesomeApp.communicator.removeBootNode(req.body.address));
+    res.send(await geesomeApp.removeBootNode(req.user.id, req.body.address));
   });
 
   service.post('/v1/admin/get-user-account', async (req, res) => {

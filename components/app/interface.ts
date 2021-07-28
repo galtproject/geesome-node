@@ -214,6 +214,12 @@ export interface IGeesomeApp {
   //TODO: define interface
   getGroupPeers(groupId): Promise<any>;
 
+  getBootNodes(userId): Promise<string[]>;
+
+  addBootNode(userId, address, type?): Promise<any>;
+
+  removeBootNode(userId, address, type?): Promise<any>;
+
   createStorageAccount(accountName): Promise<string>;
 
   resolveStaticId(staticId): Promise<string>;
