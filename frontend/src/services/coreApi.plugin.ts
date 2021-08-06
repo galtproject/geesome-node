@@ -8,6 +8,10 @@
  */
 
 const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
+const FluenceService = require('geesome-libs/src/fluenceService');
+const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
+import { krasnodar } from '@fluencelabs/fluence-network-environment';
+import { createClient } from '@fluencelabs/fluence';
 
 export default {
   install(Vue, options: any = {}) {
@@ -40,7 +44,11 @@ export default {
         await geesomeClient.init();
         await geesomeClient.initBrowserIpfsNode();
 
-        // TODO: call directly from geesomeClient?
+        const storage = new SimpleAccountStorage();
+        const client = await createClient(krasnodar[1]);
+        await geesomeClient.setCommunicator(new FluenceService(storage, client));
+
+        // TODO: solve extending class problem: https://stackoverflow.com/q/51860043
         [
           'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup',
           'saveObject', 'createPost', 'getContentData', 'getDbContent',
