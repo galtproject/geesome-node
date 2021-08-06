@@ -137,7 +137,7 @@ class GeesomeApp implements IGeesomeApp {
         return secretKey;
       }
     } catch (e) {}
-    secretKey = await commonHelper.random(mode);
+    secretKey = commonHelper.random(mode);
     await new Promise((resolve, reject) => {
       fs.writeFile(keyPath, secretKey, resolve);
     });

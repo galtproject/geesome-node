@@ -2,7 +2,7 @@ import {IGeesomeApp} from "../../app/interface";
 
 import { krasnodar } from '@fluencelabs/fluence-network-environment';
 import { createClient } from '@fluencelabs/fluence';
-import DatabaseAccountStorage from "../../accontStorage/database";
+import DatabaseAccountStorage from "../../accountStorage/database";
 const FluenceService = require('geesome-libs/src/fluenceService');
 
 module.exports = async (app: IGeesomeApp) => {
