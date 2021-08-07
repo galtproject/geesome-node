@@ -24,7 +24,7 @@ sudo mkdir -p $DOMAIN_DIR || :
 sudo chown -R www-data:www-data $DOMAIN_DIR
 
 rootDir=`pwd`
-appFrontendDir="$rootDir/.docker-data/geesome-data/frontend"
+appFrontendDir="$rootDir/.docker-data/geesome_data/frontend"
 
 sudo chmod -R 755 $appFrontendDir
 sudo chown -R www-data:www-data $appFrontendDir

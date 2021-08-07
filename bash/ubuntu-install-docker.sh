@@ -19,3 +19,4 @@ docker-compose build --no-cache && mkdir -p .docker-data
 sudo sed "s|/root/geesome-node|$PWD|g" < bash/geesome-docker.service > /etc/systemd/system/geesome-docker.service
 
 systemctl enable geesome-docker
+systemctl start geesome-docker
