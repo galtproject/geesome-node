@@ -32,7 +32,7 @@ sudo service nginx restart
 sudo add-apt-repository universe -y
 sudo add-apt-repository ppa:certbot/certbot -y
 sudo apt-get update -y
-sudo apt-get install certbot python-certbot-nginx  -y
+sudo apt-get install certbot python3-certbot-nginx  -y
 
 sudo mkdir -p /var/www/$DOMAIN/ || :
 sudo chown -R www-data:www-data /var/www/
