@@ -91,7 +91,7 @@ git clone https://github.com/galtproject/geesome-node.git
 3. Run script with parameters: domain and email for letsencrypt
 ```
 cd geesome-node
-sudo chmod +x bash/* && sudo bash/ubuntu-install-docker.sh
+sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 export DOMAIN="your-site.com" EMAIL="info@your-site.com"; sudo bash/ubuntu-install-nginx.sh 
 ```
 There is additional parameters that can be used in export:

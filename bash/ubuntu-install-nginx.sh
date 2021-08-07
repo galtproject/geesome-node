@@ -7,20 +7,22 @@ sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 [ -z "$DOMAIN" ] && read -p "Enter Your Domain: " DOMAIN
 
 rootDir=`pwd`
-parentDir=`dirname "$rootDir"`
-appDir="$rootDir/frontend/dist/"
+frontendDir="$rootDir/frontend"
+appDir="$frontendDir/dist/"
+
+parentDir="/var/www"
+wwwAppDir="$parentDir/geesome-frontend"
+
+mkdir -p $wwwAppDir
+ln -s $appDir $wwwAppDir
 
 [ -z "$EMAIL" ] && read -p "Enter Your Email: " EMAIL
 
 sudo chown www-data:$USER $parentDir
 sudo chmod g+r $parentDir
-sudo chown www-data:$USER $rootDir
-sudo chmod g+r $rootDir
-sudo chown www-data:$USER $rootDir/frontend
-sudo chmod g+r $rootDir/frontend
 
-sudo chown -R www-data:www-data $rootDir/frontend/dist
-sudo chmod -R 755 $rootDir/frontend/dist
+sudo chown -R www-data:www-data $wwwAppDir
+sudo chmod -R 755 $wwwAppDir
 
 sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
 sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
