@@ -12,6 +12,8 @@ import Promise from "sequelize/types/lib/promise";
 export interface IStorage {
   node: any;
 
+  isStreamAddSupport(): boolean;
+
   saveDirectory(path): Promise<IResultFile>;
 
   saveFileByPath(path): Promise<IResultFile>;

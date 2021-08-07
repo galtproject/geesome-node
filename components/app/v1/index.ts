@@ -1797,15 +1797,28 @@ class GeesomeApp implements IGeesomeApp {
             console.log('uploadResult', uploadResult);
             resultFile.size = uploadResult.size;
           } else {
-            resultFile = await this.storage.saveFileByData(stream);
+            if (this.storage.isStreamAddSupport()) {
+              resultFile = await this.storage.saveFileByData(stream);
+            } else {
+              const uploadResult = await this.drivers.upload['file'].processByStream(stream, {
+                extension,
+                onProgress: options.onProgress,
+                onError: reject
+              });
+              resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
+              if (uploadResult.emitFinish) {
+                uploadResult.emitFinish();
+              }
+            }
             // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
             const storageContentStat = await this.storage.getFileStat(resultFile.id);
             resultFile.size = storageContentStat.size;
+            console.log('resultFile.size', resultFile.size);
           }
         })(),
 
         (async () => {
-          console.log('mimeType');
+          console.log('mimeType', mimeType);
           if (_.startsWith(mimeType, 'image')) {
             properties = await this.drivers.metadata['image'].processByStream(stream);
             console.log('metadata processByStream', properties);

@@ -172,6 +172,10 @@ describe("app", function () {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
 
+        app.storage.isStreamAddSupport = () => {
+          return false;
+        };
+
         const pngImagePath = await resourcesHelper.prepare('input-image.png');
         const imageContent = await app.saveData(fs.createReadStream(pngImagePath), 'input-image.png', {
           userId: testUser.id,

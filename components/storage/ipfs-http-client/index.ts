@@ -16,5 +16,9 @@ const { create } = require('ipfs-http-client');
 module.exports = async (app: IGeesomeApp) => {
   const node = create(app.config.storageConfig.goNode);
   console.log('🎁 IPFS node have connected');
-  return new JsIpfsServiceNode(node);
+  const service = new JsIpfsServiceNode(node);
+  service.isStreamAddSupport = () => {
+    return false;
+  };
+  return service;
 };
