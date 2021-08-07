@@ -34,7 +34,7 @@ sudo add-apt-repository ppa:certbot/certbot -y
 sudo apt-get update -y
 sudo apt-get install certbot python-certbot-nginx  -y
 
-sudo mkdir /var/www/$DOMAIN/ || :
+sudo mkdir -p /var/www/$DOMAIN/ || :
 sudo chown -R www-data:www-data /var/www/
 
 certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$DOMAIN/ --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
