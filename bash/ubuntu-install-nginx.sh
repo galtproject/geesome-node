@@ -5,24 +5,7 @@ sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
 [ -z "$DOMAIN" ] && read -p "Enter Your Domain: " DOMAIN
-
-rootDir=`pwd`
-frontendDir="$rootDir/frontend"
-appDir="$frontendDir/dist/"
-
-parentDir="/var/www"
-wwwAppDir="$parentDir/geesome-frontend"
-
-mkdir -p $wwwAppDir
-ln -s $appDir $wwwAppDir
-
 [ -z "$EMAIL" ] && read -p "Enter Your Email: " EMAIL
-
-sudo chown www-data:$USER $parentDir
-sudo chmod g+r $parentDir
-
-sudo chown -R www-data:www-data $wwwAppDir
-sudo chmod -R 755 $wwwAppDir
 
 sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
 sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
@@ -34,8 +17,19 @@ sudo add-apt-repository ppa:certbot/certbot -y
 sudo apt-get update -y
 sudo apt-get install certbot python3-certbot-nginx  -y
 
-sudo mkdir -p /var/www/$DOMAIN/ || :
-sudo chown -R www-data:www-data /var/www/
+DOMAIN_DIR="/var/www/$DOMAIN"
+DOMAIN_FRONTEND_DIR="$DOMAIN/dist"
+
+sudo mkdir -p $DOMAIN_DIR || :
+sudo chown -R www-data:www-data $DOMAIN_DIR
+
+rootDir=`pwd`
+appFrontendDir="$rootDir/.docker-data/geesome-data/frontend"
+
+sudo chmod -R 755 $appFrontendDir
+sudo chown -R www-data:www-data $appFrontendDir
+
+ln -s $appFrontendDir $DOMAIN_FRONTEND_DIR
 
 certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$DOMAIN/ --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
 
@@ -46,7 +40,7 @@ then
     sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
     
     sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-    sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
+    sudo sed -i -e "s~\%app_dir\%~$DOMAIN_FRONTEND_DIR~g" /etc/nginx/sites-enabled/default
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     
