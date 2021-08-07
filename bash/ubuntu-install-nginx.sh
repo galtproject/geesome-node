@@ -27,6 +27,9 @@ sudo chown -R www-data:www-data $appFrontendDir
 
 ln -s $appFrontendDir $DOMAIN_FRONTEND_DIR
 
+sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
+sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
+
 sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
 sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
 
