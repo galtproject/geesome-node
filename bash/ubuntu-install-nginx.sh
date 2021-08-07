@@ -41,7 +41,7 @@ then
     sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
     
     sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-    sudo sed -i -e "s~\%app_dir\%~$DOMAIN_FRONTEND_DIR~g" /etc/nginx/sites-enabled/default
+    sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     
