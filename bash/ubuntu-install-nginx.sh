@@ -18,7 +18,7 @@ sudo apt-get update -y
 sudo apt-get install certbot python3-certbot-nginx  -y
 
 DOMAIN_DIR="/var/www/$DOMAIN"
-DOMAIN_FRONTEND_DIR="$DOMAIN/dist"
+DOMAIN_FRONTEND_DIR="$DOMAIN/frontend"
 
 sudo mkdir -p $DOMAIN_DIR || :
 sudo chown -R www-data:www-data $DOMAIN_DIR
@@ -29,6 +29,8 @@ appFrontendDir="$rootDir/.docker-data/geesome_data/frontend"
 sudo chmod -R 755 $appFrontendDir
 sudo chown -R www-data:www-data $appFrontendDir
 
+echo "appFrontendDir: $appFrontendDir"
+echo "DOMAIN_FRONTEND_DIR: $DOMAIN_FRONTEND_DIR"
 ln -s $appFrontendDir $DOMAIN_FRONTEND_DIR
 
 certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$DOMAIN/ --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
