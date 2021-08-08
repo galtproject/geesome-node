@@ -35,7 +35,7 @@ import MoveFileCatalogItemContainer
 import Helper from "geesome-vue-components/src/services/helper";
 import {EventBus, UPDATE_CURRENT_USER} from "./services/events";
 
-window['Ipfs'] = require('browser-ipfs');
+window['Ipfs'] = require('ipfs');
 // console.log('require(\'browser-ipfs\')', require('browser-ipfs'));
 const config = require('../config');
 

@@ -11,6 +11,7 @@ import {GroupType, IDatabase, IListParams} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
+const fs = require("fs");
 const Sequelize = require("sequelize");
 const pIteration = require("p-iteration");
 const Op = Sequelize.Op;
@@ -19,6 +20,9 @@ const commonHelpers = require('geesome-libs/src/common');
 let config = require('./config');
 
 module.exports = async function (app: IGeesomeApp) {
+  if (!fs.existsSync('./data')) {
+    fs.mkdirSync('./data');
+  }
   config = _.merge(config, app.config.databaseConfig || {});
   let sequelize = new Sequelize(config.name, config.user, config.password, config.options);
 
@@ -1055,16 +1059,46 @@ class MysqlDatabase implements IDatabase {
     return this.models.StaticIdHistory.destroy({where: {staticId}});
   }
 
-  async setStaticIdPublicKey(staticId, publicKey) {
-    return this.models.StaticIdPublicKey.create({staticId, publicKey});
-  }
-
-  async getStaticIdPublicKey(staticId) {
-    return this.models.StaticIdPublicKey.findOne({where: {staticId}}).then(item => item ? item.publicKey : null);
-  }
-
   async getStaticIdItemByDynamicId(dynamicId) {
     return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]});
+  }
+
+  async setStaticIdKey(staticId, publicKey, name = null, encryptedPrivateKey = null) {
+    return this.models.StaticIdKey.create({staticId, publicKey, name, encryptedPrivateKey});
+  }
+
+  async getStaticIdByName(name) {
+    return this.models.StaticIdKey.findOne({where: { name }}).then(item => item ? item.staticId : null);
+  }
+
+  async getStaticIdPublicKey(staticId = null, name = null) {
+    if (!staticId && !name) {
+      return null;
+    }
+    const or = [];
+    staticId && or.push({staticId});
+    name && or.push({name});
+    return this.models.StaticIdKey.findOne({ where: {[Op.or]: or} }).then(item => item ? item.publicKey : null);
+  }
+
+  async getStaticIdEncryptedPrivateKey(staticId = null, name = null) {
+    if (!staticId && !name) {
+      return null;
+    }
+    const or = [];
+    staticId && or.push({staticId});
+    name && or.push({name});
+    return this.models.StaticIdKey.findOne({ where: {[Op.or]: or} }).then(item => item ? item.encryptedPrivateKey : null);
+  }
+
+  async destroyStaticId(staticId = null, name = null) {
+    if (!staticId && !name) {
+      return null;
+    }
+    const or = [];
+    staticId && or.push({staticId});
+    name && or.push({name});
+    return this.models.StaticIdKey.destroy({ where: {[Op.or]: or} });
   }
 
   async getValue(key: string) {

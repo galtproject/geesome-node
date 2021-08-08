@@ -13,7 +13,7 @@ module.exports = {
             return dir + name;
         }
         const hashes = {
-            'input-image.png': 'QmNTKe2CkWCCnwrBi2XnzYURjtJsmz4wSGrhUggPP41QHV',
+            'input-image.png': 'QmSnpR15Bdm3jVQWpmiGqRyqFGqararwGrvi1WdEmZzJRC',
             'input-image.jpg': 'QmchuFYLjNxHLrPiQkGnYouDWLxrT1xTpJsr2GT3QDJp21',
             'test-archive.zip': 'QmabvdMeL3wb1P71FP2AAnyzbvD9u2sucphtFoQH8vJStN',
             'input-video.mov': 'QmYNiAJyK9ZzQ3DVwRJ7vB3jNuKqumrAZmjyWzaTRMTzxm',

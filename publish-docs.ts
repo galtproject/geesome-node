@@ -11,7 +11,6 @@ import {IGeesomeApp} from "./components/app/interface";
 
 const {spawn} = require('child_process');
 const fs = require('fs');
-const pIteration = require('p-iteration');
 
 module.exports = (app: IGeesomeApp) => {
   if(!fs.existsSync(__dirname + '/node_modules/.bin/apidoc')) {
@@ -27,8 +26,8 @@ module.exports = (app: IGeesomeApp) => {
 
     console.log('Docs IPFS:', result.id);
 
-    const geesomeDocsAcc = await app.storage.createAccountIfNotExists('geesome.docs');
-    await app.storage.bindToStaticId(result.id, geesomeDocsAcc);
+    const geesomeDocsAcc = await app.communicator.createAccountIfNotExists('geesome.docs');
+    await app.communicator.bindToStaticId(result.id, geesomeDocsAcc);
 
     console.log('Docs IPNS:', geesomeDocsAcc);
   });

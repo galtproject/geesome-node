@@ -33,13 +33,14 @@ import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
+import {ICommunicator} from "../../communicator/interface";
 
 const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
+const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
 const {getPersonalChatTopic} = require('geesome-libs/src/name');
-const bs58 = require('bs58');
 let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events');
@@ -47,7 +48,6 @@ const appEvents = require('./events');
 const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
-const xkcdPassword = require('xkcd-password')();
 const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
@@ -56,7 +56,6 @@ const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
-const uuidv4 = require('uuid/v4');
 const log = require('debug')('geesome:app')
 const saltRounds = 10;
 
@@ -65,10 +64,17 @@ module.exports = async (extendConfig) => {
   // console.log('config', config);
   const app = new GeesomeApp(config);
 
-  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs');
+  log('Start database...');
+  app.database = await require('../../database/' + config.databaseModule)(app);
+
+  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
+  app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
 
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
+
+  log('Start communicator...');
+  app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
 
   // setInterval(() => {
   //   console.log('publishEvent', 'geesome-test');
@@ -82,9 +88,6 @@ module.exports = async (extendConfig) => {
     const directory = await app.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;
   }
-
-  log('Start database...');
-  app.database = await require('../../database/' + config.databaseModule)(app);
 
   app.render = await require('../../render/' + config.renderModule)(app);
 
@@ -112,6 +115,7 @@ class GeesomeApp implements IGeesomeApp {
   api: any;
   database: IDatabase;
   storage: IStorage;
+  communicator: ICommunicator;
   render: IRender;
   authorization: any;
   drivers: any;
@@ -124,18 +128,16 @@ class GeesomeApp implements IGeesomeApp {
   ) {
   }
 
-  async getSecretKey(keyName) {
-    const keyPath = `${__dirname}/${keyName}.key`;
+  async getSecretKey(keyName, mode) {
+    const keyPath = `${__dirname}/../../../data/${keyName}.key`;
     let secretKey;
     try {
       secretKey = fs.readFileSync(keyPath).toString();
       if (secretKey) {
         return secretKey;
       }
-    } catch (e) {
-
-    }
-    secretKey = (await xkcdPassword.generate({numWords: 8, minLength: 5, maxLength: 8})).join(' ');
+    } catch (e) {}
+    secretKey = commonHelper.random(mode);
     await new Promise((resolve, reject) => {
       fs.writeFile(keyPath, secretKey, resolve);
     });
@@ -243,7 +245,7 @@ class GeesomeApp implements IGeesomeApp {
       provider: accountProvider,
       address: accountAddress,
       userAccountId: userAccount.id,
-      message: uuidv4()
+      message: await commonHelper.random()
     });
 
     delete authMessage.userAccountId;
@@ -298,8 +300,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async bindToStaticId(dynamicId, staticId) {
     log('bindToStaticId', dynamicId, staticId);
-    //TODO: enable when performance will be improved
-    // this.storage.bindToStaticId(dynamicId, staticId);
+    await this.communicator.bindToStaticId(dynamicId, staticId);
 
     // await this.database.destroyStaticIdHistory(staticId);
 
@@ -373,11 +374,16 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserFriends(userId, search?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
     return {
       list: await this.database.getUserFriends(userId, search, listParams),
       total: await this.database.getUserFriendsCount(userId, search)
     };
+  }
+
+  prepareListParams(listParams?: IListParams): IListParams {
+    return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
   }
 
   async checkUserId(userId, createIfNotExist = true) {
@@ -468,6 +474,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
     return {
       list: await this.database.getApiKeysByUser(userId, isDisabled, search, listParams),
@@ -736,6 +743,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
+    groupPermissions = groupPermissions || [];
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
@@ -962,6 +970,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupSectionItems(filters?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getGroupSections(filters, listParams),
       total: await this.database.getGroupSectionsCount(filters)
@@ -1056,13 +1065,13 @@ class GeesomeApp implements IGeesomeApp {
       // Encrypt post id
       const keyForEncrypt = await this.database.getStaticIdPublicKey(group.staticStorageId);
 
-      const userKey = await this.storage.keyLookup(user.manifestStaticStorageId);
+      const userKey = await this.communicator.keyLookup(user.manifestStaticStorageId);
       const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
       const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
-      const publicKeyForEncrypt = await pgpHelper.transformKey(bs58.decode(keyForEncrypt), true);
+      const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
       const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-      await this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      await this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: encryptedText,
         groupId: group.manifestStaticStorageId,
@@ -1074,14 +1083,14 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
-      this.storage.publishEventByIpnsId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
         type: 'new_post',
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
         isEncrypted: false,
         sentAt: (post.publishedAt || post.createdAt).toString()
       });
-      log('publishEventByIpnsId');
+      log('publishEventByStaticId');
     }
 
     await replyPostUpdatePromise;
@@ -1231,7 +1240,7 @@ class GeesomeApp implements IGeesomeApp {
       const group = await this.database.getGroup(groupId);
       ipnsId = group.manifestStaticStorageId;
     }
-    return this.getIpnsPeers(ipnsId);
+    return this.getStaticIdPeers(ipnsId);
   }
 
   async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
@@ -1470,7 +1479,7 @@ class GeesomeApp implements IGeesomeApp {
       userApiKeyId: options.userApiKeyId,
       name: 'save-data',
       inProcess: true,
-      channel: uuidv4()
+      channel: await commonHelper.random()
     });
 
     // TODO: fix hotfix
@@ -1501,7 +1510,7 @@ class GeesomeApp implements IGeesomeApp {
           inProcess: false,
           contentId: res.id
         });
-        return this.storage.publishEvent(asyncOperation.channel, res);
+        return this.communicator.publishEvent(asyncOperation.channel, res);
       })
       .catch((e) => {
         return this.database.updateUserAsyncOperation(asyncOperation.id, {
@@ -1788,15 +1797,28 @@ class GeesomeApp implements IGeesomeApp {
             console.log('uploadResult', uploadResult);
             resultFile.size = uploadResult.size;
           } else {
-            resultFile = await this.storage.saveFileByData(stream);
+            if (this.storage.isStreamAddSupport()) {
+              resultFile = await this.storage.saveFileByData(stream);
+            } else {
+              const uploadResult = await this.drivers.upload['file'].processByStream(stream, {
+                extension,
+                onProgress: options.onProgress,
+                onError: reject
+              });
+              resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
+              if (uploadResult.emitFinish) {
+                uploadResult.emitFinish();
+              }
+            }
             // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
             const storageContentStat = await this.storage.getFileStat(resultFile.id);
             resultFile.size = storageContentStat.size;
+            console.log('resultFile.size', resultFile.size);
           }
         })(),
 
         (async () => {
-          console.log('mimeType');
+          console.log('mimeType', mimeType);
           if (_.startsWith(mimeType, 'image')) {
             properties = await this.drivers.metadata['image'].processByStream(stream);
             console.log('metadata processByStream', properties);
@@ -1987,6 +2009,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     if (parentItemId == 'null') {
       parentItemId = null;
@@ -2091,7 +2114,6 @@ class GeesomeApp implements IGeesomeApp {
 
     const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
 
-    console.log('publishFolder storageDirPath', storageDirPath);
     await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
 
     const storageId = await this.storage.getDirectoryId(storageDirPath);
@@ -2298,6 +2320,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getGroupPosts(groupId, filters, listParams),
       total: await this.database.getGroupPostsCount(groupId, filters)
@@ -2305,6 +2328,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getCategoryPosts(categoryId, filters, listParams),
       total: await this.database.getCategoryPostsCount(categoryId, filters)
@@ -2312,6 +2336,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getCategoryGroups(categoryId, filters, listParams),
       total: await this.database.getCategoryGroupsCount(categoryId, filters)
@@ -2369,6 +2394,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
@@ -2379,6 +2405,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
@@ -2389,6 +2416,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getAllContentList(adminId, searchString?, listParams?: IListParams) {
+    listParams = this.prepareListParams(listParams);
     if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
@@ -2428,15 +2456,15 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getPeers(topic) {
-    const peers = await this.storage.getPeers(topic);
+    const peers = await this.communicator.getPeers(topic);
     return {
       count: peers.length,
       list: peers
     }
   }
 
-  async getIpnsPeers(ipnsId) {
-    const peers = await this.storage.getIpnsPeers(ipnsId);
+  async getStaticIdPeers(ipnsId) {
+    const peers = await this.communicator.getStaticIdPeers(ipnsId);
     return {
       count: peers.length,
       list: peers
@@ -2463,10 +2491,10 @@ class GeesomeApp implements IGeesomeApp {
     // }
     const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
     console.log('createStorageAccount', name, nameIpfsHash);
-    const storageAccountId = await this.storage.createAccountIfNotExists(nameIpfsHash);
+    const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
 
-    this.storage.getAccountPublicKey(storageAccountId).then(publicKey => {
-      return this.database.setStaticIdPublicKey(storageAccountId, bs58.encode(publicKey)).catch(() => {
+    this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
+      return this.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
         /*dont do anything*/
       });
     }).catch(e => {
@@ -2476,17 +2504,18 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async resolveStaticId(staticId): Promise<any> {
-    this.storage.resolveStaticIdEntry(staticId).then(entry => {
-      return this.database.setStaticIdPublicKey(staticId, bs58.encode(entry.pubKey)).catch(() => {
-        /* already added */
-      });
-    }).catch(() => {});
+    //TODO: make it work
+    // this.communicator.resolveStaticIdEntry(staticId).then(entry => {
+    //   return this.database.setStaticIdKey(staticId, peerIdHelper.publicKeyToBase64(entry.pubKey)).catch(() => {
+    //     /* already added */
+    //   });
+    // }).catch(() => {});
 
     return new Promise(async (resolve, reject) => {
       let alreadyHandled = false;
 
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      log('getActualStaticIdItem', staticIdItem.dynamicId, staticId);
+      log('getActualStaticIdItem', staticIdItem, staticId);
 
       setTimeout(() => {
         if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
@@ -2506,7 +2535,7 @@ class GeesomeApp implements IGeesomeApp {
             resolve(null);
           }
         }, 1000);
-        dynamicId = await this.storage.resolveStaticId(staticId);
+        dynamicId = await this.communicator.resolveStaticId(staticId);
       } catch (err) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
         if (staticIdItem) {
@@ -2532,6 +2561,32 @@ class GeesomeApp implements IGeesomeApp {
         return resolve(staticIdItem.dynamicId);
       }
     });
+  }
+
+  async getBootNodes(userId) {
+    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRead)) {
+      throw new Error("not_permitted");
+    }
+    //TODO: separate by types
+    return (await this.storage.getBootNodeList()).concat(await this.communicator.getBootNodeList());
+  }
+
+  async addBootNode(userId, address, type = 'multi-address') {
+    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAddBootNode)) {
+      throw new Error("not_permitted");
+    }
+    //TODO: separate by types
+    await this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
+    return this.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
+  }
+
+  async removeBootNode(userId, address, type = 'multi-address') {
+    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRemoveBootNode)) {
+      throw new Error("not_permitted");
+    }
+    //TODO: separate by types
+    await this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
+    return this.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
   }
 
   async stop() {

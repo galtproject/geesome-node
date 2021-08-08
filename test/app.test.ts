@@ -24,7 +24,7 @@ const resourcesHelper = require('./helpers/resources');
 const log = require('../components/log');
 
 describe("app", function () {
-  const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
+  const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);
 
@@ -58,7 +58,7 @@ describe("app", function () {
             title: 'Test'
           });
         } catch (e) {
-          console.error(e);
+          console.error('error', e);
           assert.equal(true, false);
         }
       });
@@ -171,6 +171,10 @@ describe("app", function () {
       it('should correctly save image', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testGroup = (await app.database.getAllGroupList('test'))[0];
+
+        app.storage.isStreamAddSupport = () => {
+          return false;
+        };
 
         const pngImagePath = await resourcesHelper.prepare('input-image.png');
         const imageContent = await app.saveData(fs.createReadStream(pngImagePath), 'input-image.png', {

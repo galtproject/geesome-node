@@ -12,6 +12,8 @@ import Promise from "sequelize/types/lib/promise";
 export interface IStorage {
   node: any;
 
+  isStreamAddSupport(): boolean;
+
   saveDirectory(path): Promise<IResultFile>;
 
   saveFileByPath(path): Promise<IResultFile>;
@@ -32,59 +34,23 @@ export interface IStorage {
 
   remove(hash, options?): Promise<any>;
 
-  getAccountIdByName(name): Promise<string>;
-
-  getAccountPeerId(key): Promise<any>;
-
-  getAccountPublicKey(key): Promise<Buffer>;
-
-  getCurrentAccountId(): Promise<string>;
-
-  createAccountIfNotExists(name): Promise<string>;
-
-  removeAccountIfExists(name): Promise<void>;
-
   saveObject(objData: any): Promise<string>;
 
   getObject(storageId: string): Promise<any>;
 
   getObjectProp(storageId: string, propName: string): Promise<any>;
 
-  bindToStaticId(storageId, accountKey, options?): Promise<string>;
+  makeDir(path): Promise<void>;
 
-  resolveStaticId(staticStorageId): Promise<string>;
+  copyFileFromId(storageId, path): Promise<void>;
 
-  resolveStaticIdEntry(staticStorageId): Promise<{pubKey}>;
-
-  keyLookup(ipnsId): Promise<any>;
+  getDirectoryId(path): Promise<string>;
 
   getBootNodeList(): Promise<string[]>;
 
   addBootNode(address): Promise<string[]>;
 
   removeBootNode(address): Promise<string[]>;
-
-  nodeAddressList(): Promise<string[]>;
-
-  publishEventByIpnsId(ipnsId, topic, data): Promise<void>;
-
-  publishEvent(topic, data): Promise<void>;
-
-  subscribeToIpnsUpdates(ipnsId, callback): Promise<void>;
-
-  subscribeToEvent(topic, callback): Promise<void>;
-
-  getIpnsPeers(ipnsId): Promise<string[]>;
-
-  getPubSubLs(): Promise<string[]>;
-
-  getPeers(topic): Promise<string[]>;
-
-  makeDir(path): Promise<void>;
-
-  copyFileFromId(storageId, path): Promise<void>;
-
-  getDirectoryId(path): Promise<string>;
 }
 
 interface IResultFile {

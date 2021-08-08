@@ -189,7 +189,7 @@ class EntityJsonManifest implements IRender {
       group.manifestStaticStorageId = manifest.staticId;
 
       //TODO: check ipns for valid bound to ipld
-      await this.app.database.setStaticIdPublicKey(manifest.staticId, manifest.publicKey).catch(() => {});
+      await this.app.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
       await this.app.database.addStaticIdHistoryItem({
         staticId: manifest.staticId,
         dynamicId: manifestId,
@@ -210,7 +210,7 @@ class EntityJsonManifest implements IRender {
       user.manifestStaticStorageId = manifest.staticId;
       
       //TODO: check ipns for valid bound to ipld
-      await this.app.database.setStaticIdPublicKey(manifest.staticId, manifest.publicKey).catch(() => {});
+      await this.app.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
       await this.app.database.addStaticIdHistoryItem({
         staticId: manifest.staticId, 
         dynamicId: manifestId, 

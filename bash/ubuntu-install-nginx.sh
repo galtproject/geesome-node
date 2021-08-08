@@ -5,37 +5,35 @@ sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
 [ -z "$DOMAIN" ] && read -p "Enter Your Domain: " DOMAIN
-
-rootDir=`pwd`
-parentDir=`dirname "$rootDir"`
-appDir="$rootDir/frontend/dist/"
-
 [ -z "$EMAIL" ] && read -p "Enter Your Email: " EMAIL
-
-sudo chown www-data:$USER $parentDir
-sudo chmod g+r $parentDir
-sudo chown www-data:$USER $rootDir
-sudo chmod g+r $rootDir
-sudo chown www-data:$USER $rootDir/frontend
-sudo chmod g+r $rootDir/frontend
-
-sudo chown -R www-data:www-data $rootDir/frontend/dist
-sudo chmod -R 755 $rootDir/frontend/dist
-
-sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
-
-sudo service nginx restart
 
 sudo add-apt-repository universe -y
 sudo add-apt-repository ppa:certbot/certbot -y
 sudo apt-get update -y
-sudo apt-get install certbot python-certbot-nginx  -y
+sudo apt-get install certbot python3-certbot-nginx  -y
 
-sudo mkdir /var/www/$DOMAIN/ || :
-sudo chown -R www-data:www-data /var/www/
+DOMAIN_FRONTEND_DIR="/var/www/geesome-frontend"
+DOMAIN_DIST_DIR="$DOMAIN_FRONTEND_DIR/dist"
 
-certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$DOMAIN/ --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
+WWW_DOMAIN="/var/www/$DOMAIN/"
+
+sudo mkdir -p $WWW_DOMAIN || :
+sudo chown -R www-data:www-data $WWW_DOMAIN
+sudo chmod -R 755 $WWW_DOMAIN
+
+sudo mkdir -p $DOMAIN_FRONTEND_DIR || :
+sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
+sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
+
+sudo chmod -R 755 $DOMAIN_DIST_DIR
+sudo chown -R www-data:www-data $DOMAIN_DIST_DIR
+
+sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
+sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
+
+sudo service nginx restart
+
+certbotOutput=$( sudo certbot --webroot certonly -w=$WWW_DOMAIN --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
 
 echo "$certbotOutput";
 
@@ -44,7 +42,7 @@ then
     sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
     
     sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-    sudo sed -i -e "s~\%app_dir\%~$appDir~g" /etc/nginx/sites-enabled/default
+    sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     

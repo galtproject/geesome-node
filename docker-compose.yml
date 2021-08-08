@@ -1,0 +1,23 @@
+version: "3.9"
+services:
+  web:
+    container_name: geesome
+    build: .
+    command: npm run in-docker-start
+    ports:
+      - "7711:7711"
+    depends_on:
+      - ipfs
+    volumes:
+      - "${GEESOME_DATA}:/geesome-node/data"
+      - "${GEESOME_FRONTEND_DIST}:/geesome-node/frontend/docker-dist"
+  ipfs:
+    container_name: go_ipfs
+    image: "ipfs/go-ipfs"
+    expose:
+      - "5001"
+      - "4001"
+      - "8080"
+    volumes:
+      - "${STORAGE_STAGING}:/export"
+      - "${STORAGE_DATA}:/data/ipfs"

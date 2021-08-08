@@ -12,7 +12,7 @@ import {IDatabase} from "../components/database/interface";
 const assert = require('assert');
 
 describe("databaseValues", function () {
-  const databaseConfig = {name: 'geesome_test', options: {logging: true}};
+  const databaseConfig = {name: 'geesome_test', options: {logging: true, storage: 'database-test.sqlite'}};
 
   let database: IDatabase;
 

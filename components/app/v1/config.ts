@@ -10,24 +10,22 @@
 module.exports = {
   databaseModule: 'sql',
   databaseConfig: {},
-  storageModule: 'js-ipfs',
+  storageModule: process.env.STORAGE_MODULE || 'js-ipfs',
   storageConfig: {
     jsNode: {
       // getting by getSecretKey
       pass: '',
       // repo: '~/.jsipfs',
-      EXPERIMENTAL: {
-        pubsub: true,
-        ipnsPubsub: true
-      }
     },
     goNode: {
       // host: 'ipfs.infura.io', port: '5001', protocol: 'https'
-      host: 'localhost',
-      port: '5001',
-      protocol: 'http'
+      host: process.env.STORAGE_HOST || 'localhost',
+      port: process.env.STORAGE_PORT || '5001',
+      protocol: process.env.STORAGE_PORT || 'http'
     }
   },
+  communicatorModule: 'fluence',
+  communicatorConfig: {},
   apiModule: 'http-v1',
   apiConfig: {},
   authorizationModule: 'passport',

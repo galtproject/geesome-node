@@ -22,18 +22,20 @@ import {
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
 import {IRender} from "../render/interface";
+import {ICommunicator} from "../communicator/interface";
 
 export interface IGeesomeApp {
   config: any;
   database: IDatabase;
   storage: IStorage;
+  communicator: ICommunicator;
   events: GeesomeEmitter;
   render: IRender;
   authorization: any;
 
   frontendStorageId;
 
-  getSecretKey(keyName): Promise<string>;
+  getSecretKey(keyName, mode): Promise<string>;
 
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
@@ -207,10 +209,16 @@ export interface IGeesomeApp {
   getPeers(topic): Promise<any>;
 
   //TODO: define interface
-  getIpnsPeers(ipns): Promise<any>;
+  getStaticIdPeers(ipns): Promise<any>;
 
   //TODO: define interface
   getGroupPeers(groupId): Promise<any>;
+
+  getBootNodes(userId): Promise<string[]>;
+
+  addBootNode(userId, address, type?): Promise<any>;
+
+  removeBootNode(userId, address, type?): Promise<any>;
 
   createStorageAccount(accountName): Promise<string>;
 

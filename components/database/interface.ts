@@ -268,9 +268,15 @@ export interface IDatabase {
 
   addStaticIdHistoryItem(staticIdHistoryItem: IStaticIdHistoryItem): Promise<IStaticIdHistoryItem>;
 
-  setStaticIdPublicKey(staticId, publicKey): Promise<IStaticIdPublicKey>;
+  setStaticIdKey(staticId, publicKey, name?, encryptedPrivateKey?): Promise<IStaticIdKey>;
 
-  getStaticIdPublicKey(staticId): Promise<string>;
+  getStaticIdPublicKey(staticId, name?): Promise<string>;
+
+  getStaticIdByName(name): Promise<string>;
+
+  getStaticIdEncryptedPrivateKey(staticId, name?): Promise<string>;
+
+  destroyStaticId(staticId, name?): Promise<void>;
 
   getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
 
@@ -620,10 +626,12 @@ export interface IStaticIdHistoryItem {
   boundAt: Date;
 }
 
-export interface IStaticIdPublicKey {
+export interface IStaticIdKey {
   id?: number;
+  name?: number;
   staticId: string;
   publicKey: string;
+  encryptedPrivateKey?: string;
 }
 
 export enum UserLimitName {
