@@ -5,7 +5,7 @@ services:
     build: .
     command: npm run in-docker-start
     ports:
-      - "7711:7711"
+      - "7711"
     depends_on:
       - ipfs
     volumes:
@@ -14,9 +14,10 @@ services:
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs"
+    ports:
+      - "4001"
     expose:
       - "5001"
-      - "4001"
       - "8080"
     volumes:
       - "${STORAGE_STAGING}:/export"
