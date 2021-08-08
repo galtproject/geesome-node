@@ -2563,30 +2563,37 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  async getBootNodes(userId) {
+  async getBootNodes(userId, type = 'ipfs') {
     if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRead)) {
       throw new Error("not_permitted");
     }
-    //TODO: separate by types
-    return (await this.storage.getBootNodeList()).concat(await this.communicator.getBootNodeList());
+    if (type === 'ipfs') {
+      return this.storage.getBootNodeList();
+    } else {
+      return this.communicator.getBootNodeList();
+    }
   }
 
-  async addBootNode(userId, address, type = 'multi-address') {
+  async addBootNode(userId, address, type = 'ipfs') {
     if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAddBootNode)) {
       throw new Error("not_permitted");
     }
-    //TODO: separate by types
-    await this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
-    return this.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
+    if (type === 'ipfs') {
+      return this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
+    } else {
+      return this.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
+    }
   }
 
-  async removeBootNode(userId, address, type = 'multi-address') {
+  async removeBootNode(userId, address, type = 'ipfs') {
     if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRemoveBootNode)) {
       throw new Error("not_permitted");
     }
-    //TODO: separate by types
-    await this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
-    return this.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
+    if (type === 'ipfs') {
+      return this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
+    } else {
+      return this.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
+    }
   }
 
   async stop() {
