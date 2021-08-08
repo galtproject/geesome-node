@@ -20,7 +20,7 @@
   "dependencies": {
     "@galtproject/vue-locale": "0.1.10",
     "async": "^2.5.0",
-    "axios": "^0.18.1",
+    "axios": "^0.21.1",
     "bluebird": "^3.5.2",
     "default-passive-events": "^1.0.7",
     "dexie": "^2.0.4",
@@ -34,7 +34,7 @@
     "javascript-obfuscator": "^0.18.1",
     "js-yaml": "^3.13.1",
     "latlon-geohash": "^1.1.0",
-    "lodash": "^4.17.19",
+    "lodash": "^4.17.21",
     "marked": "^0.7.0",
     "mediaelement": "^4.2.9",
     "moment": "^2.20.1",
