@@ -6,7 +6,8 @@ After=docker.service
 [Service]
 Environment=STORAGE_STAGING=/root/geesome-node/.docker-data/ipfs-staging
 Environment=STORAGE_DATA=/root/geesome-node/.docker-data/ipfs
-Environment=GEESOME_DATA=/root/geesome-node/.docker-data/geesome_data
+Environment=GEESOME_DATA=/root/geesome-node/.docker-data/geesome-data
+Environment=GEESOME_FRONTEND_DIST=/var/www/geesome-frontend
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/root/geesome-node

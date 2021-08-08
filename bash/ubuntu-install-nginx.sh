@@ -12,23 +12,14 @@ sudo add-apt-repository ppa:certbot/certbot -y
 sudo apt-get update -y
 sudo apt-get install certbot python3-certbot-nginx  -y
 
-DOMAIN_DIR="/var/www/$DOMAIN"
-DOMAIN_FRONTEND_DIR="$DOMAIN_DIR/frontend"
+DOMAIN_FRONTEND_DIR="/var/www/geesome-frontend"
 DOMAIN_DIST_DIR="$DOMAIN_FRONTEND_DIR/dist"
 
-sudo mkdir -p $DOMAIN_DIR || :
-sudo chown -R www-data:www-data $DOMAIN_DIR
-
-rootDir=`pwd`
-appFrontendDir="$rootDir/.docker-data/geesome_data/frontend"
-
-sudo chmod -R 755 $appFrontendDir
-sudo chown -R www-data:www-data $appFrontendDir
-
-ln -s $appFrontendDir $DOMAIN_FRONTEND_DIR
-
-sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
+sudo mkdir -p $DOMAIN_FRONTEND_DIR || :
 sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
+
+sudo chmod -R 755 $DOMAIN_DIST_DIR
+sudo chown -R www-data:www-data $DOMAIN_DIST_DIR
 
 sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
 sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
