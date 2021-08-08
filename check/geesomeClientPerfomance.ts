@@ -32,7 +32,6 @@ const port = isHttps ? 7722 : 7711;
 
   console.log('boot nodes', await geesomeClient.adminGetBootNodes());
 
-  return;
   const randomMegabyte = randomSize * 1024 * 1024;
   log('saveDataTestUser');
   for (let i = 0; i < 100; i++) {
