@@ -882,7 +882,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async addCorePermission(userId, permissionName) {
-    return this.models.CorePermission.create({userId, name: permissionName});
+    return this.models.CorePermission.create({userId, name: permissionName, isActive: true});
   }
 
   async removeCorePermission(userId, permissionName) {
