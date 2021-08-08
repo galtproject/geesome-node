@@ -86,11 +86,10 @@ Currently its storing in GeeSome node, but need to improve it.
 1. Set DNS settings for domain: ip address of server
 2. Clone repo to server that bound to domain
 ```
-git clone https://github.com/galtproject/geesome-node.git
+git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
 ```
 3. Run script with parameters: domain and email for letsencrypt
 ```
-cd geesome-node
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 sudo bash/ubuntu-install-nginx.sh 
 ```
@@ -244,7 +243,7 @@ Existing modules:
 - 1 GB free HDD + space for your files
 
 ## Dependencies
-- IPFS JS 0.52.3
+- GO IPFS or IPFS JS
 - Node 14.x
 - Postgres 9.5
 - ffmpeg
