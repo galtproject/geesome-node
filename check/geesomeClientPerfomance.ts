@@ -30,6 +30,7 @@ const port = isHttps ? 7722 : 7711;
     await geesomeClient.loginPassword("admin", password);
   }
 
+  console.log('node address', await geesomeClient.getNodeAddressList());
   console.log('boot nodes', await geesomeClient.adminGetBootNodes());
 
   const randomMegabyte = randomSize * 1024 * 1024;
