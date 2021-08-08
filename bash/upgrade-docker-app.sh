@@ -3,6 +3,6 @@
 git checkout -- .
 git pull
 
-./bash/docker-build.sh
+sudo chmod +x bash/*.sh && ./bash/docker-build.sh
 
 systemctl restart geesome-docker
