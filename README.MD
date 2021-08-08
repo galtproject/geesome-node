@@ -92,7 +92,7 @@ git clone https://github.com/galtproject/geesome-node.git
 ```
 cd geesome-node
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
-export DOMAIN="your-site.com" EMAIL="info@your-site.com"; sudo bash/ubuntu-install-nginx.sh 
+sudo bash/ubuntu-install-nginx.sh 
 ```
 There is additional parameters that can be used in export:
 

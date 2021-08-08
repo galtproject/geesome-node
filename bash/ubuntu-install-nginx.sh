@@ -15,8 +15,15 @@ sudo apt-get install certbot python3-certbot-nginx  -y
 DOMAIN_FRONTEND_DIR="/var/www/geesome-frontend"
 DOMAIN_DIST_DIR="$DOMAIN_FRONTEND_DIR/dist"
 
+WWW_DOMAIN="/var/www/$DOMAIN/"
+
+sudo mkdir -p $WWW_DOMAIN || :
+sudo chown -R www-data:www-data $WWW_DOMAIN
+sudo chmod -R 755 $WWW_DOMAIN
+
 sudo mkdir -p $DOMAIN_FRONTEND_DIR || :
 sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
+sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
 
 sudo chmod -R 755 $DOMAIN_DIST_DIR
 sudo chown -R www-data:www-data $DOMAIN_DIST_DIR
@@ -26,7 +33,7 @@ sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/defau
 
 sudo service nginx restart
 
-certbotOutput=$( sudo certbot --webroot certonly -w=/var/www/$DOMAIN/ --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
+certbotOutput=$( sudo certbot --webroot certonly -w=$WWW_DOMAIN --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
 
 echo "$certbotOutput";
 
