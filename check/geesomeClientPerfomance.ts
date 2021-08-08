@@ -13,15 +13,20 @@ const log = require('../components/log');
 const http = require('http');
 const { generateRandomData } = require('./helpers');
 
+const hostname = process.env.HOST || 'localhost';
+const password = process.env.PASS || 'admin';
+const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));
+const port = isHttps ? 7722 : 7711;
+
 (async () => {
-  const geesomeClient = new GeesomeClient({ server: 'http://localhost:7711' });
+  const geesomeClient = new GeesomeClient({ server: (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port });
 
   await geesomeClient.init();
 
   if (await geesomeClient.isNodeEmpty()) {
-    await geesomeClient.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+    await geesomeClient.setup({email: 'admin@admin.com', name: 'admin', password});
   } else {
-    await geesomeClient.loginPassword("admin", "admin");
+    await geesomeClient.loginPassword("admin", password);
   }
 
   const megabyte = 100 * 1024 * 1024;
@@ -50,8 +55,8 @@ function sendPost(path, apiKey, data) {
   return new Promise((resolve, reject) => {
     const options = {
       path,
-      hostname: 'localhost',
-      port: 7711,
+      hostname,
+      port,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -76,4 +81,7 @@ function sendPost(path, apiKey, data) {
     req.write(data);
     req.end();
   })
+}
+function isIpAddress(str) {
+  return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(str);
 }
