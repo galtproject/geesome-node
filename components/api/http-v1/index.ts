@@ -667,15 +667,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
 
   service.get('/v1/admin/boot-nodes', async (req, res) => {
-    res.send(await geesomeApp.getBootNodes(req.user.id));
+    res.send(await geesomeApp.getBootNodes(req.user.id, req.query.type));
   });
 
   service.post('/v1/admin/boot-nodes/add', async (req, res) => {
-    res.send(await geesomeApp.addBootNode(req.user.id, req.body.address));
+    res.send(await geesomeApp.addBootNode(req.user.id, req.body.address, req.body.type));
   });
 
   service.post('/v1/admin/boot-nodes/remove', async (req, res) => {
-    res.send(await geesomeApp.removeBootNode(req.user.id, req.body.address));
+    res.send(await geesomeApp.removeBootNode(req.user.id, req.body.address, req.body.type));
   });
 
   service.post('/v1/admin/get-user-account', async (req, res) => {

@@ -214,7 +214,7 @@ export interface IGeesomeApp {
   //TODO: define interface
   getGroupPeers(groupId): Promise<any>;
 
-  getBootNodes(userId): Promise<string[]>;
+  getBootNodes(userId, type?): Promise<string[]>;
 
   addBootNode(userId, address, type?): Promise<any>;
 
