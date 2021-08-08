@@ -13,6 +13,7 @@ const log = require('../components/log');
 const http = require('http');
 const { generateRandomData } = require('./helpers');
 
+const randomSize = parseFloat(process.env.RANDOM_SIZE) || 100;
 const hostname = process.env.HOST || 'localhost';
 const password = process.env.PASS || 'admin';
 const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));
@@ -29,11 +30,11 @@ const port = isHttps ? 7722 : 7711;
     await geesomeClient.loginPassword("admin", password);
   }
 
-  const megabyte = 100 * 1024 * 1024;
+  const randomMegabyte = randomSize * 1024 * 1024;
   log('saveDataTestUser');
   for (let i = 0; i < 100; i++) {
-    log('generateRandomData');
-    const randomData = generateRandomData(megabyte);
+    log('generateRandomData', randomSize + 'mb');
+    const randomData = generateRandomData(randomMegabyte);
     const before = new Date().getTime();
     await sendPost('/v1/user/save-data', geesomeClient.apiKey, JSON.stringify({
       content: randomData,
@@ -44,7 +45,7 @@ const port = isHttps ? 7722 : 7711;
     // });
     const after = new Date().getTime();
     // const contentObj = await app.storage.getObject(textContent.manifestStorageId);
-    log(after - before);
+    log(Math.round((after - before) / 1000), 'seconds');
   }
 })().catch(e => {
   console.error('catch', e);
