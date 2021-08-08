@@ -846,7 +846,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/node-address-list', async (req, res) => {
-    res.send({result: await geesomeApp.communicator.nodeAddressList()});
+    res.send({
+      result: await geesomeApp[req.query.type === 'ipfs' ? 'storage' : 'communicator'].nodeAddressList()
+    });
   });
 
   service.get('/api/v0/refs*', (req, res) => {

@@ -51,6 +51,8 @@ export interface IStorage {
   addBootNode(address): Promise<string[]>;
 
   removeBootNode(address): Promise<string[]>;
+
+  nodeAddressList(): Promise<string[]>;
 }
 
 interface IResultFile {
