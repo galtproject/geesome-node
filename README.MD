@@ -96,7 +96,7 @@ sudo bash/ubuntu-install-nginx.sh
 Recommend actions after install:
 ```
 sudo bash/ubuntu-init-swapfile.sh # Init 2GB Swapfile
-PORT=4242 sudo bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
+PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 ```
 4. Open your-site.com/#/setup and create first admin user
 
