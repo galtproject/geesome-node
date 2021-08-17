@@ -6,7 +6,7 @@ git pull
 yarn
 
 # frontend
-( cd frontend && yarn && npm run dev-build )
+( cd frontend && yarn && npm run build-prod )
 
 # backend
 npm run migrate-database

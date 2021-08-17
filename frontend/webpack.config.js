@@ -10,17 +10,30 @@
 "use strict";
 
 const coreConfig = require('geesome-vue-components/webpack.config');
+const SpeedMeasurePlugin = require("speed-measure-webpack-plugin");
+const smp = new SpeedMeasurePlugin();
+
+const entry = {
+  'babel-polyfill': 'babel-polyfill',
+  'app.js': './src/main.ts'
+};
 
 process.env.BUILD_HASH = (Math.random() * 10 ** 20).toString(10);
 
 const UIThread = Object.assign({}, coreConfig({
   path: __dirname,
   disableObfuscator: true,
-  // domainLock: ['localhost', '127.0.0.1'],
   cacheGroups: {
     vue: {
       test: /[\\/]node_modules\/(vue.*)[\\/]/,
       name: 'vue.js',
+      chunks: 'all',
+      enforce: true,
+      priority: -5
+    },
+    ipfs: {
+      test: /[\\/]node_modules\/(ipfs.*)[\\/]/,
+      name: 'ipfs.js',
       chunks: 'all',
       enforce: true,
       priority: -5
@@ -60,13 +73,6 @@ const UIThread = Object.assign({}, coreConfig({
       enforce: true,
       priority: -5
     },
-    sentry: {
-      test: /[\\/]node_modules\/(.*sentry.*)[\\/]/,
-      name: 'sentry.js',
-      chunks: 'all',
-      enforce: true,
-      priority: -5
-    },
     moment: {
       test: /[\\/]node_modules\/(moment.*)[\\/]/,
       name: 'moment.js',
@@ -102,6 +108,20 @@ const UIThread = Object.assign({}, coreConfig({
       enforce: true,
       priority: -5
     },
+    web3: {
+      test: /[\\/]node_modules\/(web3.*)[\\/]/,
+      name: 'web3.js',
+      chunks: 'all',
+      enforce: true,
+      priority: -5
+    },
+    nedb: {
+      test: /[\\/]node_modules\/(nedb.*)[\\/]/,
+      name: 'nedb.js',
+      chunks: 'all',
+      enforce: true,
+      priority: -5
+    },
     galtproject: {
       test: /[\\/]node_modules\/(.*galtproject.*)[\\/]/,
       name: 'galtproject.js',
@@ -116,19 +136,14 @@ const UIThread = Object.assign({}, coreConfig({
     {from: "./node_modules/font-awesome/webfonts", to: "./build/webfonts"},
     //TODO: exclude .js files from mediaelement
     {from: "./node_modules/mediaelement/build", to: "./build"},
-    // {from: "./node_modules/@galtproject/space-renderer/public/model-assets/", to: "./model-assets/"},
   ]
 }), {
   name: "Geesome UI",
   //https://github.com/vuematerial/vue-material/issues/1182#issuecomment-345764031
-  entry: {
-    'babel-polyfill': 'babel-polyfill',
-    'app.js': './src/main.ts',
-    // 'changelog.temp': './CHANGELOG.MD'
-  },
+  entry,
   output: {
     filename: './build/[name]'
   }
 });
 
-module.exports = [UIThread];
+module.exports = smp.wrap(UIThread);
