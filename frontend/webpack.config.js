@@ -52,20 +52,6 @@ const UIThread = Object.assign({}, coreConfig({
       enforce: true,
       priority: -5
     },
-    bluebird: {
-      test: /[\\/]node_modules\/(bluebird.*)[\\/]/,
-      name: 'bluebird.js',
-      chunks: 'all',
-      enforce: true,
-      priority: -5
-    },
-    bignumber: {
-      test: /[\\/]node_modules\/(bignumber.*)[\\/]/,
-      name: 'bignumber.js',
-      chunks: 'all',
-      enforce: true,
-      priority: -5
-    },
     axios: {
       test: /[\\/]node_modules\/(axios.*)[\\/]/,
       name: 'axios.js',
@@ -87,13 +73,6 @@ const UIThread = Object.assign({}, coreConfig({
       enforce: true,
       priority: -5
     },
-    indexeddbshim: {
-      test: /[\\/]node_modules\/(indexeddbshim.*)[\\/]/,
-      name: 'indexeddbshim.js',
-      chunks: 'all',
-      enforce: true,
-      priority: -5
-    },
     openpgp: {
       test: /[\\/]node_modules\/(openpgp.*)[\\/]/,
       name: 'openpgp.js',
@@ -111,13 +90,6 @@ const UIThread = Object.assign({}, coreConfig({
     web3: {
       test: /[\\/]node_modules\/(web3.*)[\\/]/,
       name: 'web3.js',
-      chunks: 'all',
-      enforce: true,
-      priority: -5
-    },
-    nedb: {
-      test: /[\\/]node_modules\/(nedb.*)[\\/]/,
-      name: 'nedb.js',
       chunks: 'all',
       enforce: true,
       priority: -5
