@@ -9,7 +9,8 @@
     "local": "NODE_ENV=local ./node_modules/.bin/webpack-dev-server",
     "dev-build": "yarn --network-timeout 100000 && NODE_ENV=development node ./node_modules/.bin/webpack",
     "build": "yarn --network-timeout 100000 && NODE_ENV=production node ./node_modules/.bin/webpack",
-    "build-serve": "NODE_ENV=production node ./node_modules/.bin/webpack &&  ./node_modules/.bin/http-server ./dist"
+    "serve": "./node_modules/.bin/http-server ./dist",
+    "build-prod": "yarn --network-timeout 100000 && NODE_ENV=production PROD=1 node --max-old-space-size=4096 ./node_modules/.bin/webpack && node ./run-terser.js"
   },
   "engines": {
     "node": ">= 4.0.0",
@@ -28,7 +29,7 @@
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome.git",
     "geesome-libs": "git://github.com/galtproject/geesome-libs.git#7b90ced",
-    "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#2ead921",
+    "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#8d9570e",
     "ipfs": "0.54.4",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",
@@ -40,6 +41,8 @@
     "moment": "^2.20.1",
     "object-hash": "^1.3.1",
     "p-iteration": "^1.1.7",
+    "speed-measure-webpack-plugin": "^1.5.0",
+    "terser": "^5.7.1",
     "url-search-params-polyfill": "^5.1.0",
     "vue": "2.6.11",
     "vue-drag-drop": "^0.2.3",
@@ -66,7 +69,7 @@
     "cheerio": "^1.0.0-rc.3",
     "circular-dependency-plugin": "^5.2.0",
     "copy-webpack-plugin": "^4.2.3",
-    "css-loader": "2.1.1",
+    "css-loader": "^0.28.7",
     "dotenv": "^6.0.0",
     "extract-loader": "^3.0.0",
     "file-loader": "^2.0.0",

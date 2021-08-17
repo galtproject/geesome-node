@@ -20,7 +20,7 @@ WORKDIR "/geesome-node"
 RUN yarn
 RUN npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
-RUN cd frontend && yarn && npm run dev-build
+RUN cd frontend && yarn && npm run build-prod
 
 ENV STORAGE_REPO=/root/.jsipfs
 ENV STORAGE_HOST=go_ipfs
