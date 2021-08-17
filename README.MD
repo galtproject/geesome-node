@@ -93,13 +93,11 @@ git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 sudo bash/ubuntu-install-nginx.sh 
 ```
-There is additional parameters that can be used in export:
-
-| Parameter | Description |
-|-----|-------------|
-| DATABASE_NAME | Database name to store app data. Default: `geesome-node` |
-| STORAGE_REPO | Directory to store IPFS content. Default: `~/.jsipfs`  |
-
+Recommend actions after install:
+```
+sudo bash/ubuntu-init-swapfile.sh # Init 2GB Swapfile
+PORT=4242 sudo bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
+```
 4. Open your-site.com/#/setup and create first admin user
 
 ## Getting started with GeeSome Node API
