@@ -12,7 +12,6 @@ import {IGeesomeApp} from "../../app/interface";
 import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../../database/interface";
 
 const _ = require('lodash');
-const bs58 = require('bs58');
 const pIteration = require('p-iteration');
 const treeLib = require('geesome-libs/src/base36Trie');
 
@@ -95,6 +94,7 @@ class EntityJsonManifest implements IRender {
 
       postManifest.contents = post.contents.map((content: IContent) => {
         return {
+          view: content.view,
           storageId: content.manifestStorageId //this.getStorageRef(content.manifestStorageId)
         };
       });
