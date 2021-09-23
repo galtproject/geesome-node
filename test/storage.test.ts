@@ -77,9 +77,7 @@ describe("storage", function () {
 
         const obj = {
           foo: 'bar',
-          fooArray: {
-            '/': arrayId
-          }
+          fooArray: arrayId
         };
         const objectId = await storage.saveObject(obj);
         assert.deepEqual(await storage.getObjectProp(objectId, 'fooArray'), array);

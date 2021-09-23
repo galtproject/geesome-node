@@ -14,6 +14,7 @@ services:
       - "${GEESOME_FRONTEND_DIST}:/geesome-node/frontend/docker-dist"
     environment:
       - IPFS_PROFILE
+      - DEBUG
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs"
