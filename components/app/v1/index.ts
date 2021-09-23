@@ -56,7 +56,7 @@ const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
-const log = require('debug')('geesome:app')
+const log = require('debug')('geesome:app');
 const saltRounds = 10;
 
 module.exports = async (extendConfig) => {
@@ -394,9 +394,13 @@ class GeesomeApp implements IGeesomeApp {
       return null;
     }
     if (!commonHelper.isNumber(userId)) {
+      log('checkUserId:getUserByManifestId', userId);
       let user = await this.getUserByManifestId(userId, userId);
+      log('checkUserId:getUserByManifestId::user', user && user.id);
       if (!user && createIfNotExist) {
+        log('checkUserId:createUserByRemoteStorageId', userId);
         user = await this.createUserByRemoteStorageId(userId);
+        log('checkUserId:createUserByRemoteStorageId::user', user && user.id);
         return user.id;
       } else if (user) {
         userId = user.id;
@@ -419,6 +423,7 @@ class GeesomeApp implements IGeesomeApp {
     let staticStorageId;
     if (ipfsHelper.isIpfsHash(manifestStorageId)) {
       staticStorageId = manifestStorageId;
+      log('createUserByRemoteStorageId::resolveStaticId', staticStorageId);
       manifestStorageId = await this.resolveStaticId(staticStorageId);
     }
 
@@ -427,7 +432,9 @@ class GeesomeApp implements IGeesomeApp {
       //TODO: update user if necessary
       return dbUser;
     }
+    log('createUserByRemoteStorageId::manifestIdToDbObject', staticStorageId);
     const userObject: IUser = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
+    log('createUserByRemoteStorageId::userObject', userObject);
     userObject.isRemote = true;
     return this.createUserByObject(userObject);
   }
@@ -938,7 +945,6 @@ class GeesomeApp implements IGeesomeApp {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     groupSectionData.creatorId = userId;
 
-    console.log('groupSectionData.categoryId', groupSectionData.categoryId);
     if (groupSectionData.categoryId) {
       if (!(await this.isAdminInCategory(userId, groupSectionData.categoryId))) {
         throw new Error("not_permitted");
@@ -986,14 +992,11 @@ class GeesomeApp implements IGeesomeApp {
       return null;
     }
     let contentsData = contents.filter(c => c.id);
-    console.log('contentsData', contentsData);
     const manifestStorageContents = contents.filter(c => c.manifestStorageId);
-    console.log('manifestStorageContents', manifestStorageContents);
     const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
       id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
       ...c
     }));
-    console.log('manifestStorageContents', manifestStorageContents);
     return contentsData.concat(contentsByStorageManifests.filter(c => c.id));
   }
 
@@ -1294,15 +1297,12 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async prepareStorageFileForPreview(storageFile: {size, id}, extension, fullType) {
-    console.log('prepareStorageFileForPreview', extension, fullType);
     if (this.isVideoType(fullType)) {
       const videoThumbnailDriver = this.drivers.preview['video-thumbnail'];
       const {storageFile: imageFile, extension: imageExtension, type: imageType, properties} = await this.getPreviewStreamContent(videoThumbnailDriver, storageFile.id, {
         extension,
         getProperties: true
       });
-
-      console.log('isVideoType', imageFile, imageExtension, imageType);
 
       return {
         storageFile: imageFile,
@@ -1330,8 +1330,6 @@ class GeesomeApp implements IGeesomeApp {
     if (!previewDriverName) {
       previewDriverName = fullType.split('/')[0];
     }
-    console.log('previewDriverName', previewDriverName, fullType);
-
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
@@ -1343,7 +1341,6 @@ class GeesomeApp implements IGeesomeApp {
           extension,
           size: OutputSize.Medium
         });
-        console.log('mediumFile', mediumFile);
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
@@ -1412,7 +1409,6 @@ class GeesomeApp implements IGeesomeApp {
         };
       } else if (previewDriver.isInputSupported(DriverInput.Source)) {
         const {content: resultData, path, extension: resultExtension, type} = await previewDriver.processBySource(source, {});
-        console.log('path', path);
         let storageFile;
         if (path) {
           storageFile = await this.storage.saveFileByPath(path);
@@ -1657,7 +1653,6 @@ class GeesomeApp implements IGeesomeApp {
         }
         return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension, driver: options.driver});
       });
-      console.log('resultFile, resultMimeType, resultExtension', resultFile, resultMimeType, resultExtension);
       type = resultMimeType;
       storageFile = resultFile;
       extension = resultExtension;
@@ -1686,7 +1681,6 @@ class GeesomeApp implements IGeesomeApp {
 
   async addContentWithPreview(storageFile, contentData, options, source?) {
     const {storageFile: forPreviewStorageFile, extension: forPreviewExtension, fullType: forPreviewFullType, properties} = await this.prepareStorageFileForPreview(storageFile, contentData.extension, contentData.mimeType);
-    console.log('storageFile.id', storageFile.id, 'forPreviewStorageFile.id', forPreviewStorageFile.id);
     let previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
 
     if(properties) {
@@ -2091,8 +2085,6 @@ class GeesomeApp implements IGeesomeApp {
   public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
     const fileCatalogChildrenFolders = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
 
-    console.log('makeFolderChildrenStorageDirsAndCopyFiles sPath', storageDirPath);
-    console.log('fileCatalogChildrenFolders.length', fileCatalogChildrenFolders.length);
     await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
       const sPath = await this.makeFolderStorageDir(fItem);
       return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
@@ -2100,15 +2092,12 @@ class GeesomeApp implements IGeesomeApp {
 
     const fileCatalogChildrenFiles = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
 
-    console.log('fileCatalogChildrenFiles.length', fileCatalogChildrenFiles.length);
     await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
-      console.log('copy', storageDirPath + fileCatalogItem.name);
       await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
     });
   }
 
   public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
-    console.log('await this.checkUserCan(userId');
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
 
@@ -2139,12 +2128,9 @@ class GeesomeApp implements IGeesomeApp {
     const foldersArr = pathArr.slice(0, -1);
     const lastItemName = pathArr.slice(-1)[0];
 
-    console.log('foldersArr', foldersArr);
-    console.log('lastItemName', lastItemName);
     let currentFolderId = null;
     let breakSearch = false;
     await pIteration.forEachSeries(foldersArr, async (name) => {
-      console.log('name', name, 'breakSearch', breakSearch, 'currentFolderId', currentFolderId);
       if (breakSearch) {
         return;
       }
@@ -2490,7 +2476,6 @@ class GeesomeApp implements IGeesomeApp {
     //   throw "already_exists";
     // }
     const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
-    console.log('createStorageAccount', name, nameIpfsHash);
     const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
 
     this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {

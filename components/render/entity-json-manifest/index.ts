@@ -14,6 +14,8 @@ import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const treeLib = require('geesome-libs/src/base36Trie');
+const ipfsHelper = require('geesome-libs/src/ipfsHelper');
+const log = require('debug')('geesome:app');
 
 module.exports = async (app: IGeesomeApp) => {
 
@@ -29,7 +31,7 @@ class EntityJsonManifest implements IRender {
     if (name === 'group-manifest') {
       //TODO: size => postsSize
       const group: IGroup = data;
-      const groupManifest = _.pick(group, ['name', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
+      const groupManifest = ipfsHelper.pickObjectFields(group, ['name', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
 
       if(data.isEncrypted) {
         groupManifest.isEncrypted = true;
@@ -71,7 +73,7 @@ class EntityJsonManifest implements IRender {
       return groupManifest;
     } else if (name === 'category-manifest') {
       const category: ICategory = data;
-      const categoryManifest = _.pick(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
+      const categoryManifest = ipfsHelper.pickObjectFields(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
 
       this.setManifestMeta(categoryManifest, name);
 
@@ -80,7 +82,7 @@ class EntityJsonManifest implements IRender {
       const post: IPost = data;
       //TODO: fix size, view and type
       //TODO: add groupNumber
-      const postManifest = _.pick(post, ['status', 'publishedAt', 'view', 'type', 'size']);
+      const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'size']);
 
       if(post.propertiesJson) {
         postManifest.properties = JSON.parse(post.propertiesJson);
@@ -104,7 +106,7 @@ class EntityJsonManifest implements IRender {
       return postManifest;
     } else if (name === 'user-manifest') {
       const user: IUser = data;
-      const userManifest = _.pick(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
+      const userManifest = ipfsHelper.pickObjectFields(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
       userManifest.staticId = user.manifestStaticStorageId;
       userManifest.publicKey = await this.app.database.getStaticIdPublicKey(userManifest.staticId);
@@ -119,12 +121,10 @@ class EntityJsonManifest implements IRender {
 
       this.setManifestMeta(userManifest, name);
 
-      console.log('userManifest', JSON.stringify(userManifest));
-      
       return userManifest;
     } else if (name === 'content-manifest') {
       const content: IContent = data;
-      const contentManifest = _.pick(content, ['name', 'description', 'mimeType', 'storageType', 'size', 'extension']);
+      const contentManifest = ipfsHelper.pickObjectFields(content, ['name', 'description', 'mimeType', 'storageType', 'size', 'extension']);
 
       if(content.propertiesJson) {
         contentManifest.properties = JSON.parse(content.propertiesJson);
@@ -132,27 +132,27 @@ class EntityJsonManifest implements IRender {
       contentManifest.storageId = content.storageId;
       contentManifest.preview = {
         medium: {
-          storageId: content.mediumPreviewStorageId,
-          mimeType: content.previewMimeType,
-          extension: content.previewExtension,
-          size: content.mediumPreviewSize
+          storageId: content.mediumPreviewStorageId || null,
+          mimeType: content.previewMimeType || null,
+          extension: content.previewExtension || null,
+          size: content.mediumPreviewSize || null
         }
       };
 
       if (content.smallPreviewStorageId) {
         contentManifest.preview.small = {
-          storageId: content.smallPreviewStorageId,
-          mimeType: content.previewMimeType,
-          extension: content.previewExtension,
-          size: content.smallPreviewSize
+          storageId: content.smallPreviewStorageId || null,
+          mimeType: content.previewMimeType || null,
+          extension: content.previewExtension || null,
+          size: content.smallPreviewSize || null
         };
       }
       if (content.largePreviewStorageId) {
         contentManifest.preview.large = {
-          storageId: content.largePreviewStorageId,
-          mimeType: content.previewMimeType,
-          extension: content.previewExtension,
-          size: content.largePreviewSize
+          storageId: content.largePreviewStorageId || null,
+          mimeType: content.previewMimeType || null,
+          extension: content.previewExtension || null,
+          size: content.largePreviewSize || null
         };
       }
       this.setManifestMeta(contentManifest, name);
@@ -167,15 +167,17 @@ class EntityJsonManifest implements IRender {
     let manifest: any = {};
 
     if(!options.isEncrypted) {
+      log('manifestIdToDbObject:getObject', type, manifestId);
       manifest = await this.app.storage.getObject(manifestId);
-      
+      log('manifestIdToDbObject:manifest', manifest);
+
       if(!type) {
         type = manifest._type;
       }
     }
     
     if (type === 'group-manifest') {
-      const group: IGroup = _.pick(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
+      const group: IGroup = ipfsHelper.pickObjectFields(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
       group.manifestStorageId = manifestId;
 
       if (manifest.avatarImage) {
@@ -200,7 +202,7 @@ class EntityJsonManifest implements IRender {
       //TODO: import posts too
       return group;
     } else if (type === 'user-manifest') {
-      const user: IUser = _.pick(manifest, ['name', 'title', 'email', 'description']);
+      const user: IUser = ipfsHelper.pickObjectFields(manifest, ['name', 'title', 'email', 'description']);
       user.manifestStorageId = manifestId;
 
       if (manifest.avatarImage) {
@@ -208,7 +210,8 @@ class EntityJsonManifest implements IRender {
       }
 
       user.manifestStaticStorageId = manifest.staticId;
-      
+      log('manifestIdToDbObject:user', user);
+
       //TODO: check ipns for valid bound to ipld
       await this.app.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
       await this.app.database.addStaticIdHistoryItem({
@@ -225,7 +228,7 @@ class EntityJsonManifest implements IRender {
       if(options.isEncrypted) {
         post = { ...options, isEncrypted: true, encryptedManifestStorageId: manifestId };
       } else {
-        post = _.pick(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
+        post = ipfsHelper.pickObjectFields(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
 
         post.manifestStorageId = manifestId;
         
@@ -247,7 +250,7 @@ class EntityJsonManifest implements IRender {
       
       return post;
     } else if (type === 'content-manifest') {
-      const content: IContent = _.pick(manifest, ['name', 'mimeType', 'storageType', 'view', 'size', 'extension']);
+      const content: IContent = ipfsHelper.pickObjectFields(manifest, ['name', 'mimeType', 'storageType', 'view', 'size', 'extension']);
 
       if(manifest.isEncrypted) {
         content.encryptedManifestStorageId = manifestId;
