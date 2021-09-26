@@ -37,17 +37,23 @@ export default {
       this.loading = true;
       let manifestId = this.manifestId;
       this.manifest = null;
+      this.contentType = 'image';
       this.subManifests = [];
       try {
         if (ipfsHelper.isIpfsHash(manifestId)) {
           manifestId = await this.$coreApi.resolveIpns(manifestId);
         }
+
         if (!manifestId) {
           const objectDb = await this.$coreApi.getDbContentByStorageId(this.manifestId);
           manifestId = objectDb.manifestStorageId;
         }
-        this.manifest = await this.$coreApi.getObject(manifestId);
-        if(this.manifest._type) {
+
+        if (manifestId) {
+          this.manifest = await this.$coreApi.getObject(manifestId);
+        }
+
+        if (this.manifest && this.manifest._type) {
           this.type = this.manifest._type.split('-')[0];
           if (this.type === 'group') {
             await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
@@ -93,6 +99,8 @@ export default {
     return {
       localeKey: 'content_page',
       inputManifestId: '',
+      contentType: null,
+      contentExtension: null,
       manifest: null,
       subManifests: [],
       type: '',
