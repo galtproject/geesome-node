@@ -17,7 +17,7 @@ services:
       - DEBUG
   ipfs:
     container_name: go_ipfs
-    image: "ipfs/go-ipfs"
+    image: "ipfs/go-ipfs:v0.9.1"
     restart: always
     environment:
       - IPFS_PROFILE

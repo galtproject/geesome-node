@@ -21,7 +21,9 @@ module.exports = async (app: IGeesomeApp) => {
     return false;
   };
 
-  await service.node.config.profiles.apply(process.env.IPFS_PROFILE);
+  if (process.env.IPFS_PROFILE) {
+    await service.node.config.profiles.apply(process.env.IPFS_PROFILE);
+  }
 
   return service;
 };
