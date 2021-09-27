@@ -7,18 +7,20 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-$fa-font-path: "node_modules/font-awesome/webfonts";
-$me-controls-path: "../../node_modules/mediaelement/build";
-//@import "node_modules/font-awesome/scss/solid";
-//@import "node_modules/font-awesome/scss/regular";
-//@import "node_modules/font-awesome/scss/brands";
-//@import "node_modules/font-awesome/scss/fontawesome";
-
 @import 'node_modules/vue-material/dist/vue-material.min';
+
+$fa-font-path: "../../node_modules/font-awesome/webfonts";
+@import "node_modules/font-awesome/scss/solid";
+@import "node_modules/font-awesome/scss/regular";
+@import "node_modules/font-awesome/scss/brands";
+@import "node_modules/font-awesome/scss/fontawesome";
+
+$me-controls-path: "../../node_modules/mediaelement/build";
+@import "node_modules/geesome-vue-components/src/styles/media-element";
+
 @import 'node_modules/geesome-vue-components/src/styles/main-with-theme';
 @import 'node_modules/geesome-vue-components/src/modals/AsyncModal/modal';
 
-@import "node_modules/geesome-vue-components/src/styles/media-element";
 @import "chat";
 
 .md-app-content {
