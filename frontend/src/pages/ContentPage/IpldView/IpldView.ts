@@ -12,7 +12,7 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const isObject = require('lodash/isObject');
 
 export default {
-  template: require('./IpldView.html'),
+  template: require('./IpldView.template'),
   components: {},
   props: ['ipld'],
   created() {

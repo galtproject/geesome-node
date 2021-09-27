@@ -14,7 +14,7 @@ const _ = require('lodash');
 const moment = require('moment');
 
 export default {
-  template: require('./PostItem.html'),
+  template: require('./PostItem.template'),
   props: ['value'],
   async created() {
     this.getGroup();

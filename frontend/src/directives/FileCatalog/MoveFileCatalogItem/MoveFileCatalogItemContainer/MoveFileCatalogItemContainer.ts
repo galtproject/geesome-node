@@ -23,7 +23,7 @@ const _ = require('lodash');
 
 export default {
   // name: 'autocomplete-container',
-  template: require('./MoveFileCatalogItemContainer.html'),
+  template: require('./MoveFileCatalogItemContainer.template'),
   props: [],
   mounted() {
     this.$refs.container.addEventListener('click', () => {

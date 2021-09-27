@@ -13,7 +13,7 @@ import GroupInfo from "../GroupInfo/GroupInfo";
 import {EventBus, UPDATE_GROUP} from "../../../services/events";
 
 export default {
-  template: require('./GroupLayout.html'),
+  template: require('./GroupLayout.template'),
   components: {GroupHeader, GroupInfo},
   async created() {
     this.getGroup();

@@ -14,7 +14,7 @@ import ProfileForm from "../ProfileForm/ProfileForm";
 const _ = require('lodash');
 
 export default {
-  template: require('./EditProfile.html'),
+  template: require('./EditProfile.template'),
   components: {ContentManifestItem, ProfileForm},
   async created() {
     this.user = await this.$coreApi.getCurrentUser();

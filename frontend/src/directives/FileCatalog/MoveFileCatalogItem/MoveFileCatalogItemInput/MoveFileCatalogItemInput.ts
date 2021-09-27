@@ -21,7 +21,7 @@ import {
 
 export default {
   // name: 'autocomplete-input',
-  template: require('./MoveFileCatalogItemInput.html'),
+  template: require('./MoveFileCatalogItemInput.template'),
   props: ['item', 'placeholder', 'disabled', 'emptyLabel'],
   async created() {
     this.uniqId = Math.random().toString(36).substr(2, 9);

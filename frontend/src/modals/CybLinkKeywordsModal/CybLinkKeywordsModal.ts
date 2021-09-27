@@ -10,7 +10,7 @@
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 
 export default {
-  template: require('./CybLinkKeywordsModal.html'),
+  template: require('./CybLinkKeywordsModal.template'),
   props: ['contentHash'],
   components: {
     ModalItem

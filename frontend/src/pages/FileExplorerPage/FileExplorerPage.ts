@@ -10,7 +10,7 @@
 import FileCatalog from "../../directives/FileCatalog/FileCatalog";
 
 export default {
-  template: require('./FileExplorerPage.html'),
+  template: require('./FileExplorerPage.template'),
   components: {FileCatalog},
   props: [],
   async created() {

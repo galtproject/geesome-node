@@ -12,7 +12,7 @@
 import GroupItem from "../GroupItem/GroupItem";
 
 export default {
-  template: require('./AdminedGroups.html'),
+  template: require('./AdminedGroups.template'),
   components: {GroupItem},
   props: [],
   async created() {

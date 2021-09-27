@@ -15,7 +15,7 @@ const fileSaver = require('file-saver');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
-  template: require('./ContentManifestInfoItem.html'),
+  template: require('./ContentManifestInfoItem.template'),
   props: ['manifest', 'dbId', 'verticalMode', 'mini', 'fullMode'],
   components: {PrettyName},
   async created() {

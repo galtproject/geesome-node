@@ -11,7 +11,7 @@ import ApiKeyFormModal from "../../../modals/ApiKeyFormModal/ApiKeyFormModal";
 import SetLimitModal from "../modals/SetLimitModal/SetLimitModal";
 
 export default {
-  template: require('./UserProfile.html'),
+  template: require('./UserProfile.template'),
   components: {},
   props: ['user'],
   async created() {

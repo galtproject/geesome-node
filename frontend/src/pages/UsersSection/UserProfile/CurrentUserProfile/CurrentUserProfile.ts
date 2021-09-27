@@ -10,7 +10,7 @@
 import UserProfile from "../UserProfile";
 
 export default {
-  template: require('./CurrentUserProfile.html'),
+  template: require('./CurrentUserProfile.template'),
   components: {UserProfile},
   props: [],
   async created() {

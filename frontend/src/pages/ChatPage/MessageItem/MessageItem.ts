@@ -11,7 +11,7 @@ const _ = require('lodash');
 const moment = require('moment');
 
 export default {
-  template: require('./MessageItem.html'),
+  template: require('./MessageItem.template'),
   props: ['message', 'messagesAuthors'],
   async created() {
 

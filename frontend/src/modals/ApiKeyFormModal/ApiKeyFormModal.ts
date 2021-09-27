@@ -12,7 +12,7 @@ import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 const _ = require('lodash');
 
 export default {
-  template: require('./ApiKeyFormModal.html'),
+  template: require('./ApiKeyFormModal.template'),
   props: ['apiKeyInput'],
   components: {
     ModalItem

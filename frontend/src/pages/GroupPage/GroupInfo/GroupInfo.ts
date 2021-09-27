@@ -10,7 +10,7 @@
 import {EventBus, UPDATE_MEMBER_GROUPS} from "../../../services/events";
 
 export default {
-  template: require('./GroupInfo.html'),
+  template: require('./GroupInfo.template'),
   props: ['group'],
   async created() {
     this.fetchData();

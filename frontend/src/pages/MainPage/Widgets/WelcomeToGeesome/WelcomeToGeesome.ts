@@ -10,7 +10,7 @@
 import GeesomeNodeServerModal from "../../../../modals/GeesomeNodeServerModal/GeesomeNodeServerModal";
 
 export default {
-  template: require('./WelcomeToGeesome.html'),
+  template: require('./WelcomeToGeesome.template'),
   components: {},
   props: [],
   async created() {

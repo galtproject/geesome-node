@@ -11,7 +11,7 @@ import CreatedForAdminOverview from "./Widgets/CreatedForAdminOverview/CreatedFo
 import WelcomeToGeesome from "./Widgets/WelcomeToGeesome/WelcomeToGeesome";
 
 export default {
-  template: require('./MainPage.html'),
+  template: require('./MainPage.template'),
   components: {CreatedForAdminOverview, WelcomeToGeesome},
   methods: {},
   data() {

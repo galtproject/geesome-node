@@ -9,6 +9,7 @@
       "es2017"
     ]
   },
+  "presets": ["@babel/preset-typescript"],
   "include": [
     "./**/*", "./node_modules/@galtproject/**/*"
   ]

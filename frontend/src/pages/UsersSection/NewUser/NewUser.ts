@@ -13,7 +13,7 @@ import Helper from "geesome-vue-components/src/services/helper";
 const pick = require('lodash/pick');
 
 export default {
-  template: require('./NewUser.html'),
+  template: require('./NewUser.template'),
   components: {PeriodInput},
   methods: {
     create() {

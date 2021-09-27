@@ -10,7 +10,7 @@
 const Web3Manager = require('geesome-libs/src/web3Manager');
 
 export default {
-  template: require('./LoginPage.html'),
+  template: require('./LoginPage.template'),
   created() {
     this.server = this.stateServerAddress;
   },

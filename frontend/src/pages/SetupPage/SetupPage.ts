@@ -8,7 +8,7 @@
  */
 
 export default {
-  template: require('./SetupPage.html'),
+  template: require('./SetupPage.template'),
   components: {},
   methods: {
     setup() {

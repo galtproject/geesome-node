@@ -19,7 +19,7 @@ const includes = require('lodash/includes');
 const clone = require('lodash/clone');
 
 export default {
-  template: require('./ContentPage.html'),
+  template: require('./ContentPage.template'),
   components: {ContentManifestInfoItem, GroupItem, PostItem, IpldView},
   props: [],
   created() {
@@ -52,6 +52,7 @@ export default {
         if (manifestId) {
           this.manifest = await this.$coreApi.getObject(manifestId);
         }
+        console.log('this.manifest', this.manifest);
 
         if (this.manifest && this.manifest._type) {
           this.type = this.manifest._type.split('-')[0];

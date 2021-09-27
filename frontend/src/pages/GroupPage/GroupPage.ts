@@ -14,7 +14,7 @@ import Pagination from "geesome-vue-components/src/directives/Pagination/Paginat
 const _ = require('lodash');
 
 export default {
-  template: require('./GroupPage.html'),
+  template: require('./GroupPage.template'),
   components: {PostItem, NewPostControl, Pagination},
   props: ['group'],
   async created() {

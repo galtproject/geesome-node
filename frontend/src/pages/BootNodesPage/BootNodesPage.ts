@@ -10,7 +10,7 @@
 import AddBootNodeModal from "../../modals/AddBootNodeModal/AddBootNodeModal";
 
 export default {
-  template: require('./BootNodesPage.html'),
+  template: require('./BootNodesPage.template'),
   components: {},
   props: [],
   async created() {

@@ -11,3 +11,4 @@ components/database/sql/config
 docs
 *.sqlite
 .docker-data
+frontend/.parcel-cache
