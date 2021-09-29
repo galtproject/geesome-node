@@ -18,16 +18,13 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
   template: require('./ContentManifestItem.html'),
-  props: ['manifest', 'dbId', 'previewMode'],
+  props: ['manifest', 'dbId', 'previewMode', 'storageId', 'type', 'extension'],
   components: {MediaElement, PrettyName, ImageModal},
   async created() {
+  },
+  async mounted() {
     this.setContent();
   },
-
-  async mounted() {
-
-  },
-
   methods: {
     setContent() {
       if (this.dbId) {
@@ -58,19 +55,23 @@ export default {
       } else {
         this.manifestObj = this.manifest;
       }
-      
-      if(!this.manifestObj) {
+
+      let contentId = this.storageId || this.manifestContentId;
+
+      if (!this.manifestObj && !contentId) {
         return;
       }
 
-      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.storageId);
-      this.previewSrcLink = await this.$coreApi.getContentLink(this.manifestObj.preview ? this.manifestObj.preview.medium.storageId : null);
+      let previewStorageId = this.manifestPreviewContentId || contentId;
 
-      if (this.type == 'text') {
-        this.content = await this.$coreApi.getContentData(this.contentId);
+      this.srcLink = await this.$coreApi.getContentLink(contentId);
+      this.previewSrcLink = await this.$coreApi.getContentLink(previewStorageId);
+
+      if (this.resultType == 'text') {
+        this.content = await this.$coreApi.getContentData(contentId);
       }
-      if (this.type == 'image' || this.type == 'video' || this.type == 'audio' || this.type == 'file') {
-        this.content = this.srcLink + '.' + this.manifestObj.extension;
+      if (this.resultType == 'image' || this.resultType == 'video' || this.resultType == 'audio' || this.resultType == 'file') {
+        this.content = this.srcLink + (this.resultExtension ? '.' + this.resultExtension : '');
       }
       this.loading = false;
     },
@@ -88,7 +89,10 @@ export default {
   },
 
   watch: {
-    type() {
+    extension() {
+      this.setContent();
+    },
+    resultType() {
       this.setContent();
     },
     manifest() {
@@ -100,16 +104,16 @@ export default {
   },
 
   computed: {
+    resultType() {
+      return this.type || this.manifestType;
+    },
+    resultExtension() {
+      return this.extension || this.manifestExtension;
+    },
     filename() {
       return _.last(this.srcLink.split('/')) + '.' + this.extension;
     },
-    extension() {
-      if (!this.manifestObj) {
-        return null;
-      }
-      return this.manifestObj.extension || mime.getExtension(this.manifestObj.mimeType) || '';
-    },
-    type() {
+    manifestType() {
       if (!this.manifestObj) {
         return null;
       }
@@ -130,8 +134,17 @@ export default {
     contentType() {
       return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview.medium.mimeType : this.manifestObj.mimeType;
     },
-    contentId() {
-      return this.previewMode && this.manifestObj.preview ? this.manifestObj.preview.medium.storageId : this.manifestObj.storageId;
+    manifestPreviewContentId() {
+      return this.manifestObj && this.manifestObj.preview && this.manifestObj.preview.medium.storageId;
+    },
+    manifestContentId() {
+      return (this.previewMode ? this.manifestPreviewContentId : null) || this.manifestObj.storageId;
+    },
+    manifestExtension() {
+      if (!this.manifestObj) {
+        return null;
+      }
+      return this.manifestObj.extension || mime.getExtension(this.manifestObj.mimeType) || '';
     }
   },
   data() {
