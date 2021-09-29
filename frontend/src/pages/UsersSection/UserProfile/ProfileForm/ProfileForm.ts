@@ -12,7 +12,7 @@ import ContentManifestItem from "../../../../directives/ContentManifestItem/Cont
 
 export default {
   name: 'profile-form',
-  template: require('./ProfileForm.html'),
+  template: require('./ProfileForm.template'),
   components: {ContentManifestItem},
   props: ['user', 'invalid'],
   methods: {

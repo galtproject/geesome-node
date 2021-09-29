@@ -15,7 +15,7 @@ import {EVENT_COMPLETE_MOVE_FILE_CONTAINER} from "./MoveFileCatalogItem/events";
 
 export default {
   name: 'file-catalog',
-  template: require('./FileCatalog.html'),
+  template: require('./FileCatalog.template'),
   components: {ContentManifestInfoItem, Pagination, MoveFileCatalogItemInput},//UploadContent,
   props: ['selectMode', 'selectedIds', 'hideMethods'],
   async created() {

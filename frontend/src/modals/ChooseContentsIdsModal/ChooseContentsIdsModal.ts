@@ -11,7 +11,7 @@ import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 import FileCatalog from "../../directives/FileCatalog/FileCatalog";
 
 export default {
-  template: require('./ChooseContentsIdsModal.html'),
+  template: require('./ChooseContentsIdsModal.template'),
   props: [],
   components: {
     ModalItem,

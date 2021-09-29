@@ -13,7 +13,7 @@ const Ethereum = require('geesome-libs/src/ethereum');
 const debounce = require('lodash/debounce');
 
 export default {
-  template: require('./CreatedForAdminOverview.html'),
+  template: require('./CreatedForAdminOverview.template'),
   components: {PrettyName},
   props: [],
   async created() {

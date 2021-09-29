@@ -17,7 +17,7 @@ const _ = require('lodash');
 
 export default {
   name: 'chat-page',
-  template: require('./ChatPage.html'),
+  template: require('./ChatPage.template'),
   components: {GroupItem, MessageItem, ContentManifestInfoItem},
   async created() {
     

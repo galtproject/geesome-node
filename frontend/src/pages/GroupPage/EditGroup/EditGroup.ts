@@ -12,7 +12,7 @@ import ContentManifestItem from "../../../directives/ContentManifestItem/Content
 import GroupForm from "../GroupForm/GroupForm";
 
 export default {
-  template: require('./EditGroup.html'),
+  template: require('./EditGroup.template'),
   components: {ContentManifestItem, GroupForm},
   async created() {
     this.group = await this.$coreApi.getDbGroup(this.$route.params.groupId);

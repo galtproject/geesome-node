@@ -17,7 +17,7 @@ const _ = require('lodash');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 export default {
-  template: require('./ContentManifestItem.html'),
+  template: require('./ContentManifestItem.template'),
   props: ['manifest', 'dbId', 'previewMode', 'storageId', 'type', 'extension'],
   components: {MediaElement, PrettyName, ImageModal},
   async created() {

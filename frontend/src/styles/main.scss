@@ -7,38 +7,21 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-//@import "~font-awesome/web-fonts-with-css/scss/fontawesome";
-//@import "~font-awesome/web-fonts-with-css/scss/fa-solid";
-//@import "fonts";
+@import 'node_modules/vue-material/dist/vue-material.min';
 
-$fa-font-path: "webfonts";
-@import "~font-awesome/scss/solid";
-@import "~font-awesome/scss/regular";
-@import "~font-awesome/scss/brands";
-@import "~font-awesome/scss/fontawesome";
+$fa-font-path: "../../node_modules/font-awesome/webfonts";
+@import "node_modules/font-awesome/scss/solid";
+@import "node_modules/font-awesome/scss/regular";
+@import "node_modules/font-awesome/scss/brands";
+@import "node_modules/font-awesome/scss/fontawesome";
 
-@import '~vue-material/dist/vue-material.min.css';
-@import '~geesome-vue-components/src/styles/main-with-theme.scss';
-@import '~geesome-vue-components/src/modals/AsyncModal/modal.css';
+$me-controls-path: "../../node_modules/mediaelement/build";
+@import "node_modules/geesome-vue-components/src/styles/media-element";
 
-@import "~geesome-vue-components/src/styles/media-element";
+@import 'node_modules/geesome-vue-components/src/styles/main-with-theme';
+@import 'node_modules/geesome-vue-components/src/modals/AsyncModal/modal';
+
 @import "chat";
-
-//.fas:before {
-//  position: relative;
-//  top: 2px;
-//  right: 1px;
-//}
-
-//body {
-//  position: relative;
-//  &:after {
-//    content: " ";
-//    background-image: url("../assets/space-mascot.png");
-//    position: absolute;
-//    bottom: -10px;
-//  }
-//}
 
 .md-app-content {
   display: flex;

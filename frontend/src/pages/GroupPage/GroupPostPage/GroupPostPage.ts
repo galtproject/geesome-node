@@ -10,7 +10,7 @@
 import PostItem from "../../../directives/Posts/PostItem/PostItem";
 
 export default {
-  template: require('./GroupPostPage.html'),
+  template: require('./GroupPostPage.template'),
   components: {PostItem},
   props: ['group'],
   async created() {

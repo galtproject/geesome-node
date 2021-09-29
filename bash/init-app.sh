@@ -6,7 +6,7 @@ yarn
 npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
 # frontend
-( cd frontend && yarn && npm run build-prod )
+( cd frontend && yarn && npm run build )
 
 # backend
 [ -z "$STORAGE_REPO" ] && STORAGE_REPO=``

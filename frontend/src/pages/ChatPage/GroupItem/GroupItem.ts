@@ -12,7 +12,7 @@ const _ = require('lodash');
 
 export default {
   name: 'group-item',
-  template: require('./GroupItem.html'),
+  template: require('./GroupItem.template'),
   props: ['active', 'group', 'to'],
   // components: {TariffPayingControl},
   async mounted() {

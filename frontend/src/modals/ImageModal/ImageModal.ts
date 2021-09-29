@@ -10,7 +10,7 @@
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 
 export default {
-  template: require('./ImageModal.html'),
+  template: require('./ImageModal.template'),
   props: ['images'],
   components: {
     ModalItem

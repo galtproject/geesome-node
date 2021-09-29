@@ -13,7 +13,7 @@ import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/Perio
 const pick = require('lodash/pick');
 
 export default {
-  template: require('./SetLimitModal.html'),
+  template: require('./SetLimitModal.template'),
   props: ['userId'],
   components: {
     ModalItem,

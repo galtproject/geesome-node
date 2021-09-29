@@ -8,7 +8,7 @@
  */
 
 export default {
-  template: require('./PostsContainer.html'),
+  template: require('./PostsContainer.template'),
   props: ['mode'],
   async created() {
 

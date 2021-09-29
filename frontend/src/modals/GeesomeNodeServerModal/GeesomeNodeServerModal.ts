@@ -10,7 +10,7 @@
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 
 export default {
-  template: require('./GeesomeNodeServerModal.html'),
+  template: require('./GeesomeNodeServerModal.template'),
   props: [],
   components: {
     ModalItem

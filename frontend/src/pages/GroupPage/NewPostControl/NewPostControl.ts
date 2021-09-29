@@ -11,7 +11,7 @@ import ContentManifestInfoItem from "../../../directives/ContentManifestInfoItem
 import {EventBus, UPDATE_GROUP} from "../../../services/events";
 
 export default {
-  template: require('./NewPostControl.html'),
+  template: require('./NewPostControl.template'),
   props: ['group'],
   components: {ContentManifestInfoItem},
   async created() {

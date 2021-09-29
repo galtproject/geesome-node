@@ -10,8 +10,8 @@
 const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
 const FluenceService = require('geesome-libs/src/fluenceService');
 const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
-import { krasnodar } from '@fluencelabs/fluence-network-environment';
-import { createClient } from '@fluencelabs/fluence';
+const { krasnodar } = require('@fluencelabs/fluence-network-environment');
+const { FluencePeer } = require("@fluencelabs/fluence");
 
 export default {
   install(Vue, options: any = {}) {
@@ -45,8 +45,11 @@ export default {
         await geesomeClient.initBrowserIpfsNode();
 
         const storage = new SimpleAccountStorage();
-        const client = await createClient(krasnodar[1]);
-        await geesomeClient.setCommunicator(new FluenceService(storage, client));
+        const peer = new FluencePeer();
+        await peer.start({
+          connectTo: krasnodar[1],
+        });
+        await geesomeClient.setCommunicator(new FluenceService(storage, peer));
 
         // TODO: solve extending class problem: https://stackoverflow.com/q/51860043
         [

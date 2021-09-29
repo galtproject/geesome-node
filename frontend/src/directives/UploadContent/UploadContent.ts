@@ -15,7 +15,7 @@ const detecterLib = require('geesome-libs/src/detecter');
 
 export default {
   name: 'upload-content',
-  template: require('./UploadContent.html'),
+  template: require('./UploadContent.template'),
   props: ['contentId', 'groupId', 'folderId', 'hideMethods'],
   async created() {
 

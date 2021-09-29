@@ -8,7 +8,7 @@
  */
 
 export default {
-  template: require('./GroupHeader.html'),
+  template: require('./GroupHeader.template'),
   props: ['group'],
   async created() {
     this.fetchData();

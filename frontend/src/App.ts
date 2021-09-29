@@ -78,14 +78,15 @@ Vue.component('router-view', Vue['options'].components.RouterView);
 
 Vue.use(VueMaterial);
 
-
 export default {
-  template: require('./App.html'),
+  template: require('./App.template'),
   components: {MainMenu, MoveFileCatalogItemContainer},//,ConsoleLog
   async created() {
     this.$store.commit('is_mobile', Helper.isMobile());
     this.$locale.init({
-      url: '/locale/',
+      extend: {
+        'en': require('../locale/en.json')
+      },
       lang: 'en',
       cacheBuster: config.buildHash
     }).then(() => {

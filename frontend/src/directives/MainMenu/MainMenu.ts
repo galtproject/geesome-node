@@ -11,7 +11,7 @@ import {EventBus, UPDATE_ADMIN_GROUPS, UPDATE_MEMBER_GROUPS} from "../../service
 
 export default {
   name: 'main-menu',
-  template: require('./MainMenu.html'),
+  template: require('./MainMenu.template'),
   components: {},
   props: ['menuVisible', 'menuMinimized'],
   async created() {

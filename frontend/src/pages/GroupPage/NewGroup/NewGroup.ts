@@ -12,7 +12,7 @@ import ContentManifestItem from "../../../directives/ContentManifestItem/Content
 import GroupForm from "../GroupForm/GroupForm";
 
 export default {
-  template: require('./NewGroup.html'),
+  template: require('./NewGroup.template'),
   components: {ContentManifestItem, GroupForm},
   methods: {
     create() {

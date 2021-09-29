@@ -10,7 +10,7 @@
 import {EventBus, UPDATE_MEMBER_GROUPS} from "../../../services/events";
 
 export default {
-  template: require('./GroupItem.html'),
+  template: require('./GroupItem.template'),
   props: ['group'],
   async created() {
     try {
