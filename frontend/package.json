@@ -4,7 +4,7 @@
   "scripts": {
     "start": "yarn && npm run dev",
     "dev": "./node_modules/.bin/parcel ./index.html",
-    "build": "yarn && rm -rf ./dist && node  --max-old-space-size=8192 ./node_modules/.bin/parcel build ./index.html --dist-dir ./dist && cp package.json ./dist/",
+    "build": "yarn && rm -rf ./dist && node --max-old-space-size=8192 ./node_modules/.bin/parcel build ./index.html --dist-dir ./dist --reporter @parcel/reporter-bundle-analyzer && cp package.json ./dist/",
     "build-new-ver": "touch dist/package.json > /dev/null 2>&1; DIST_VERSION=$(node -p -e \"require('./dist/package.json').version\"); CUR_VERSION=$(node -p -e \"require('./package.json').version\"); if [ \"$DIST_VERSION\" != \"$CUR_VERSION\" ]; then npm run build; fi",
     "serve": "./node_modules/.bin/http-server ./dist"
   },
@@ -15,9 +15,9 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/vue-locale": "0.1.10",
     "@fluencelabs/fluence": "^0.12.0",
     "@fluencelabs/fluence-network-environment": "^1.0.10",
+    "@galtproject/vue-locale": "0.1.10",
     "@swc/helpers": "^0.2.13",
     "async": "^2.5.0",
     "axios": "^0.21.1",
@@ -29,7 +29,6 @@
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome.git",
     "geesome-libs": "git://github.com/galtproject/geesome-libs.git#4a856e8",
     "geesome-vue-components": "git://github.com/galtproject/geesome-vue-components.git#92ef183",
-    "ipfs": "0.54.4",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",
     "js-yaml": "^3.13.1",
@@ -62,6 +61,7 @@
     "@babel/preset-es2015": "^7.0.0-beta.53",
     "@babel/preset-react": "^7.14.5",
     "@babel/preset-typescript": "^7.15.0",
+    "@parcel/reporter-bundle-analyzer": "^2.0.0-nightly.1694",
     "@parcel/transformer-image": "2.0.0-rc.0",
     "@parcel/transformer-sass": "2.0.0-rc.0",
     "@types/chai": "^4.1.3",

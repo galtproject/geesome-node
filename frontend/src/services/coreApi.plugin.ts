@@ -8,10 +8,7 @@
  */
 
 const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
-const FluenceService = require('geesome-libs/src/fluenceService');
 const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
-const { krasnodar } = require('@fluencelabs/fluence-network-environment');
-const { FluencePeer } = require("@fluencelabs/fluence");
 
 export default {
   install(Vue, options: any = {}) {
@@ -22,6 +19,10 @@ export default {
 
     Vue.prototype.$coreApi = {
       async init($vueInstance) {
+        const FluenceService = require('geesome-libs/src/fluenceService');
+        const { krasnodar } = require('@fluencelabs/fluence-network-environment');
+        const { FluencePeer } = require("@fluencelabs/fluence");
+
         appStore = $vueInstance.$store;
         notify = $vueInstance.$notify;
 
