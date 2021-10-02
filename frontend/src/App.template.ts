@@ -38,7 +38,7 @@ module.exports = `<div style="height: 100%;">
             <div v-if="user.avatarImage">
               <content-manifest-item :manifest="user.avatarImage.manifestStorageId" :preview-mode="true"></content-manifest-item>
             </div>
-            <img v-else src="../assets/empty-profile.png">
+            <img v-else src="${require('../assets/empty-profile.png')}">
           </div>
           <div class="info">
             <div class="profile-name"><b>{{user.title || '@' + user.name}}</b></div>
@@ -79,7 +79,7 @@ module.exports = `<div style="height: 100%;">
             <md-icon class="fas fa-bars"></md-icon>
           </md-button>
 
-          <span class="logo"><img src="../assets/logo-circle-only.png"></span>
+          <span class="logo"><img src="${require('../assets/logo-circle-only.png')}"></span>
 
           <h3 class="md-title" v-locale="localeKey + '.navbar_title'"></h3>
           <span style="margin-left: 5px;"><h5>v{{version}}</h5></span>
