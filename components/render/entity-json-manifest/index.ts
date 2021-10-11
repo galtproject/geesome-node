@@ -298,9 +298,7 @@ class EntityJsonManifest implements IRender {
     if (!storageId) {
       return null;
     }
-    return {
-      '/': storageId
-    }
+    return storageId;
   }
 
   setManifestMeta(manifest, type) {

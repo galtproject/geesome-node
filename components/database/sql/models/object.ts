@@ -17,11 +17,16 @@ module.exports = async function (sequelize, models) {
     },
     data: {
       type: Sequelize.TEXT
+    },
+    resolveProp: {
+      type: Sequelize.BOOLEAN,
+      defaultValue: false,
     }
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       { fields: ['storageId'], unique: true },
+      { fields: ['storageId', 'resolveProp'], unique: true },
     ]
   } as any);
 

@@ -7,8 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import Promise from "sequelize/types/lib/promise";
-
 export interface IStorage {
   node: any;
 
@@ -36,9 +34,9 @@ export interface IStorage {
 
   saveObject(objData: any): Promise<string>;
 
-  getObject(storageId: string): Promise<any>;
+  getObject(storageId: string, resolveProp?: boolean): Promise<any>;
 
-  getObjectProp(storageId: string, propName: string): Promise<any>;
+  getObjectProp(storageId: string, propName: string, resolveProp?: boolean): Promise<any>;
 
   makeDir(path): Promise<void>;
 

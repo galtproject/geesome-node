@@ -838,7 +838,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   service.get('/ipld/*', async (req, res) => {
     setStorageHeaders(res);
     const ipldPath = req.url.replace('/ipld/', '');
-    geesomeApp.getDataStructure(ipldPath).then(result => {
+    geesomeApp.getDataStructure(ipldPath, req.query.isResolve).then(result => {
       res.send(_.isNumber(result) ? result.toString() : result);
     }).catch(() => {
       res.send(null, 200)

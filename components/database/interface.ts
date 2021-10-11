@@ -7,8 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGroupInput, IUserAccountInput} from "../app/interface";
-
 export interface IDatabase {
   getSessionStore(): any;
 
@@ -42,7 +40,7 @@ export interface IDatabase {
 
   getContentByManifestId(manifestId): Promise<IContent>;
 
-  getObjectByStorageId(storageId): Promise<IObject>;
+  getObjectByStorageId(storageId, resolveProp?): Promise<IObject>;
 
   addObject(objectData): Promise<IObject>;
 

@@ -591,11 +591,13 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async canCreatePostInGroup(userId, groupId) {
+    console.log('canCreatePostInGroup', userId, groupId);
     if (!groupId) {
       return false;
     }
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
+    console.log('isAdminInGroup', await this.database.isAdminInGroup(userId, groupId));
     return (await this.database.isAdminInGroup(userId, groupId))
       || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId))
       || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
@@ -1491,11 +1493,11 @@ class GeesomeApp implements IGeesomeApp {
     let dataSendingPromise = new Promise((resolve, reject) => {
       if (args[0].on) {
         //TODO: close that stream on limit reached error
-        args[0].on('end', () => resolve());
+        args[0].on('end', () => resolve(true));
         args[0].on('error', (e) => reject(e));
         args[0].on('limit', () => reject("limit_reached"));
       } else {
-        resolve();
+        resolve(true);
       }
     });
     const methodPromise = this[methodName].apply(this, args);
@@ -2341,24 +2343,29 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getContentByManifestId(storageId);
   }
 
-  async getDataStructure(storageId) {
+  async getDataStructure(storageId, isResolve = true) {
     const dataPathSplit = storageId.split('/');
-    if(ipfsHelper.isIpfsHash(dataPathSplit[0])) {
+    if (ipfsHelper.isIpfsHash(dataPathSplit[0])) {
       try {
         const dynamicIdByStaticId = await this.resolveStaticId(dataPathSplit[0]);
-        if(dynamicIdByStaticId) {
+        if (dynamicIdByStaticId) {
           dataPathSplit[0] = dynamicIdByStaticId;
           storageId = dataPathSplit.join('/');
         }
       } catch (e) {}
     }
 
-    const dbObject = await this.database.getObjectByStorageId(storageId);
+    const isPath = dataPathSplit.length > 1;
+    const resolveProp = isPath ? isResolve : false;
+
+    const dbObject = await this.database.getObjectByStorageId(storageId, resolveProp);
     if(dbObject) {
-      return JSON.parse(dbObject.data);
+      const { data } = dbObject;
+      return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
     }
-    return this.storage.getObject(storageId).then((result) => {
-      this.database.addObject({storageId, data: JSON.stringify(result)}).catch(() => {/* already saved */});
+    const getObjectPromise = resolveProp ? this.storage.getObject(storageId) : this.storage.getObjectProp(dataPathSplit[0], dataPathSplit.slice(1).join('/'), resolveProp);
+    return getObjectPromise.then((result) => {
+      this.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
     });
   }
