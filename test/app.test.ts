@@ -17,6 +17,7 @@ import {
 } from "../components/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
+const trieHelper = require("geesome-libs/src/base36Trie");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
@@ -432,6 +433,17 @@ describe("app", function () {
           status: PostStatus.Published,
           name: 'my-post'
         });
+
+        const manifestId = await app.communicator.resolveStaticId(testGroup.staticStorageId);
+        console.log('testGroup.staticStorageId', testGroup.staticStorageId, 'manifestId', manifestId);
+        const groupManifest = await app.storage.getObject(manifestId);
+        console.log('groupManifest', groupManifest);
+
+        const postNumberPath = trieHelper.getTreePostCidPath(manifestId, 1);
+        const postManifest = await app.storage.getObject(postNumberPath);
+        assert.equal(postManifest.contents[0].storageId, postContent.manifestStorageId);
+        const postManifestStorageId = await app.storage.getObject(postNumberPath, false);
+        assert.equal(postManifestStorageId, post.manifestStorageId);
 
         let foundPost = await app.getPostByParams({
           name: 'my-post',

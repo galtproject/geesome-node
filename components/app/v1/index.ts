@@ -40,7 +40,7 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
-const {getPersonalChatTopic} = require('geesome-libs/src/name');
+const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events');
@@ -591,11 +591,13 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async canCreatePostInGroup(userId, groupId) {
+    console.log('canCreatePostInGroup', userId, groupId);
     if (!groupId) {
       return false;
     }
     groupId = await this.checkGroupId(groupId);
     const group = await this.getGroup(groupId);
+    console.log('isAdminInGroup', await this.database.isAdminInGroup(userId, groupId));
     return (await this.database.isAdminInGroup(userId, groupId))
       || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId))
       || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
@@ -1086,7 +1088,7 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
-      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
         type: 'new_post',
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
@@ -1491,11 +1493,11 @@ class GeesomeApp implements IGeesomeApp {
     let dataSendingPromise = new Promise((resolve, reject) => {
       if (args[0].on) {
         //TODO: close that stream on limit reached error
-        args[0].on('end', () => resolve());
+        args[0].on('end', () => resolve(true));
         args[0].on('error', (e) => reject(e));
         args[0].on('limit', () => reject("limit_reached"));
       } else {
-        resolve();
+        resolve(true);
       }
     });
     const methodPromise = this[methodName].apply(this, args);
@@ -2341,24 +2343,29 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getContentByManifestId(storageId);
   }
 
-  async getDataStructure(storageId) {
+  async getDataStructure(storageId, isResolve = true) {
     const dataPathSplit = storageId.split('/');
-    if(ipfsHelper.isIpfsHash(dataPathSplit[0])) {
+    if (ipfsHelper.isIpfsHash(dataPathSplit[0])) {
       try {
         const dynamicIdByStaticId = await this.resolveStaticId(dataPathSplit[0]);
-        if(dynamicIdByStaticId) {
+        if (dynamicIdByStaticId) {
           dataPathSplit[0] = dynamicIdByStaticId;
           storageId = dataPathSplit.join('/');
         }
       } catch (e) {}
     }
 
-    const dbObject = await this.database.getObjectByStorageId(storageId);
+    const isPath = dataPathSplit.length > 1;
+    const resolveProp = isPath ? isResolve : false;
+
+    const dbObject = await this.database.getObjectByStorageId(storageId, resolveProp);
     if(dbObject) {
-      return JSON.parse(dbObject.data);
+      const { data } = dbObject;
+      return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
     }
-    return this.storage.getObject(storageId).then((result) => {
-      this.database.addObject({storageId, data: JSON.stringify(result)}).catch(() => {/* already saved */});
+    const getObjectPromise = resolveProp ? this.storage.getObject(storageId) : this.storage.getObjectProp(dataPathSplit[0], dataPathSplit.slice(1).join('/'), resolveProp);
+    return getObjectPromise.then((result) => {
+      this.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
     });
   }
@@ -2489,61 +2496,49 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async resolveStaticId(staticId): Promise<any> {
-    //TODO: make it work
-    // this.communicator.resolveStaticIdEntry(staticId).then(entry => {
-    //   return this.database.setStaticIdKey(staticId, peerIdHelper.publicKeyToBase64(entry.pubKey)).catch(() => {
-    //     /* already added */
-    //   });
-    // }).catch(() => {});
-
     return new Promise(async (resolve, reject) => {
       let alreadyHandled = false;
 
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      log('getActualStaticIdItem', staticIdItem, staticId);
 
       setTimeout(() => {
-        if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
-          alreadyHandled = true;
-          resolve(staticIdItem.dynamicId);
+        if(alreadyHandled) {
+          return;
         }
+        alreadyHandled = true;
+        log('resolve by timeout', staticId, '=>', staticIdItem ? staticIdItem.dynamicId : null);
       }, 1000);
 
       let dynamicId;
       try {
-        setTimeout(async () => {
-          const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-          if (staticIdItem) {
-            alreadyHandled = true;
-            resolve(staticIdItem.dynamicId);
-          } else {
-            resolve(null);
-          }
-        }, 1000);
-        dynamicId = await this.communicator.resolveStaticId(staticId);
+        let dynamicItem = await this.communicator.resolveStaticItem(staticId);
+        if (staticIdItem && dynamicItem && dynamicItem.createdAt > staticIdItem.boundAt.getTime() / 1000) {
+          dynamicId = dynamicItem.value;
+          log('resolve by communicator', staticId, '=>', dynamicId);
+        } else if (staticIdItem) {
+          dynamicId = staticIdItem.dynamicId;
+          log('resolve by database', staticId, '=>', dynamicId);
+        }
       } catch (err) {
-        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+        console.error('communicator.resolveStaticId error', err);
         if (staticIdItem) {
           alreadyHandled = true;
+          log('resolve by catch', staticId, '=>', staticIdItem.dynamicId);
           return resolve(staticIdItem.dynamicId);
         } else {
           throw (err);
         }
       }
 
-      try {
-        await this.database.addStaticIdHistoryItem({
+      resolve(dynamicId);
+      alreadyHandled = true;
+      if (dynamicId && dynamicId !== 'null') {
+        return this.database.addStaticIdHistoryItem({
           staticId: staticId,
           dynamicId: dynamicId,
           isActive: true,
           boundAt: new Date()
         });
-        alreadyHandled = true;
-        return resolve(dynamicId);
-      } catch (e) {
-        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-        alreadyHandled = true;
-        return resolve(staticIdItem.dynamicId);
       }
     });
   }
@@ -2583,6 +2578,6 @@ class GeesomeApp implements IGeesomeApp {
 
   async stop() {
     await this.storage.node.stop();
-    await this.api.close();
+    this.api.close();
   }
 }

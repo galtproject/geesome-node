@@ -5,7 +5,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "yarn && npm run aqua-compile-communicator && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
-    "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run start",
+    "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
     "migrate-database": "( cd components/database/sql && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
@@ -24,7 +24,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@microlink/youtube-dl": "git://github.com/przemyslawpluta/node-youtube-dl.git#7a74203",
+    "@microlink/youtube-dl": "git://github.com/przemyslawpluta/node-youtube-dl.git#05ecd7f",
     "@types/es6-promise": "^3.3.0",
     "axios": "^0.21.1",
     "bcrypt": "^5.0.0",
@@ -41,7 +41,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#4a856e8",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#ad2934e",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "0.54.4",
     "ipfs-http-client": "^50.1.2",

@@ -33,6 +33,10 @@ export default {
         this.posts = _.clone(posts);
         this.loading = false;
       });
+
+      this.$coreApi.subscribeToGroupUpdates(this.groupId, (update) => {
+        console.log('update', update);
+      })
     }
   },
   watch: {

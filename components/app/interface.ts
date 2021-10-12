@@ -159,7 +159,7 @@ export interface IGeesomeApp {
 
   checkStorageId(storageId): string;
 
-  getDataStructure(dataId);
+  getDataStructure(dataId, isResolve?);
 
   saveDataStructure(data);
 
