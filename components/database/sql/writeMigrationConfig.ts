@@ -15,6 +15,9 @@ const fs = require('fs');
 if (!fs.existsSync(`${__dirname}/config/`)) {
   fs.mkdirSync(`${__dirname}/config/`);
 }
+
+const storage = config.options.storage ? __dirname.replace('components/database/sql', '') + config.options.storage : undefined;
+
 fs.writeFileSync(`${__dirname}/config/config.json`, JSON.stringify({
   production: {
     database: config.name,
@@ -22,6 +25,12 @@ fs.writeFileSync(`${__dirname}/config/config.json`, JSON.stringify({
     password: config.password,
     host: config.options.host,
     dialect: config.options.dialect,
-    storage: config.options.storage ? __dirname.replace('components/database/sql', '') + config.options.storage : undefined
+    storage
   }
 }));
+
+if (storage) {
+  if (!fs.existsSync(storage)) {
+    process.exit(1);
+  }
+}

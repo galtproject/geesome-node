@@ -3,7 +3,7 @@ module.exports = `
   <md-card-header>
     <div class="md-layout" style="justify-content: space-between;">
       <div class="md-subhead">
-        <router-link :to="{name: 'group-page', params: {groupId: value.groupId}}">{{group ? '@' + group.name : '...'}}
+        <router-link :to="{name: 'group-page', params: {groupId: value.groupId}}">{{localGroup ? '@' + localGroup.name : '...'}}
         </router-link>
       </div>
       <div>

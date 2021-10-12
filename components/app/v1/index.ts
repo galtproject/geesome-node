@@ -2511,9 +2511,16 @@ class GeesomeApp implements IGeesomeApp {
 
       let dynamicId;
       try {
-        dynamicId = await this.communicator.resolveStaticId(staticId);
+        let dynamicItem = await this.communicator.resolveStaticItem(staticId);
+        if (staticIdItem && dynamicItem && dynamicItem.createdAt > staticIdItem.boundAt.getTime() / 1000) {
+          dynamicId = dynamicItem.value;
+          log('resolve by communicator', staticId, '=>', dynamicId);
+        } else if (staticIdItem) {
+          dynamicId = staticIdItem.dynamicId;
+          log('resolve by database', staticId, '=>', dynamicId);
+        }
       } catch (err) {
-        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+        console.error('communicator.resolveStaticId error', err);
         if (staticIdItem) {
           alreadyHandled = true;
           log('resolve by catch', staticId, '=>', staticIdItem.dynamicId);
@@ -2525,13 +2532,14 @@ class GeesomeApp implements IGeesomeApp {
 
       resolve(dynamicId);
       alreadyHandled = true;
-      log('resolve by communicator', staticId, '=>', dynamicId);
-      return this.database.addStaticIdHistoryItem({
-        staticId: staticId,
-        dynamicId: dynamicId,
-        isActive: true,
-        boundAt: new Date()
-      });
+      if (dynamicId && dynamicId !== 'null') {
+        return this.database.addStaticIdHistoryItem({
+          staticId: staticId,
+          dynamicId: dynamicId,
+          isActive: true,
+          boundAt: new Date()
+        });
+      }
     });
   }
 

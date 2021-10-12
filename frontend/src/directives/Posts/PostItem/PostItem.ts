@@ -15,7 +15,7 @@ const moment = require('moment');
 
 export default {
   template: require('./PostItem.template'),
-  props: ['value'],
+  props: ['value', 'group'],
   async created() {
     this.getGroup();
   },
@@ -26,15 +26,15 @@ export default {
 
   methods: {
     async getGroup() {
-      if (this.value.group) {
-        this.group = this.value.group;
+      if (this.group) {
+        this.localGroup = this.group;
         return;
       }
       if (!this.value.groupId) {
-        this.group = null;
+        this.localGroup = null;
         return;
       }
-      this.group = await this.$coreApi.getGroup(this.value.groupId);
+      this.localGroup = await this.$coreApi.getGroup(this.value.groupId);
     },
     link() {
       this.$root.$asyncModal.open({
@@ -61,15 +61,15 @@ export default {
       return _.orderBy(this.value.contents, ['position'], ['asc']);
     },
     date() {
-      return moment(this.value.publishedAt).format('DD.MM.YYYY h:mm:ss');
+      return moment(this.value.publishedAt * 1000).format('DD.MM.YYYY h:mm:ss');
     },
     cybActive() {
       return this.$store.state.cybActive;
-    }
+    },
   },
   data() {
     return {
-      group: null,
+      localGroup: null,
       content: ''
     }
   },

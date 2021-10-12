@@ -7,8 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import Promise from "sequelize/types/lib/promise";
-
 export interface ICommunicator {
   node: any;
 
@@ -27,6 +25,8 @@ export interface ICommunicator {
   bindToStaticId(storageId, accountKey, options?): Promise<string>;
 
   resolveStaticId(staticStorageId): Promise<string>;
+
+  resolveStaticItem(staticStorageId): Promise<{value: string, createdAt: number}>;
 
   resolveStaticIdEntry(staticStorageId): Promise<{pubKey}>;
 
