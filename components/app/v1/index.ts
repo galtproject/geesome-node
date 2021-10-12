@@ -2590,6 +2590,6 @@ class GeesomeApp implements IGeesomeApp {
 
   async stop() {
     await this.storage.node.stop();
-    await this.api.close();
+    this.api.close();
   }
 }

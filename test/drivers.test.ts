@@ -44,7 +44,7 @@ describe("drivers", function () {
     });
   });
 
-  describe('youtube video', () => {
+  describe.skip('youtube video', () => {
 
     it("should successfully getting video from youtube", async () => {
       const ouputStreamablePath = __dirname + '/resources/output-youtube-video.mp4';
@@ -218,7 +218,7 @@ describe("drivers", function () {
 
         result.emitFinish(() => {
           assert.equal(fs.existsSync(result.tempPath), false);
-          resolve();
+          resolve(true);
         });
       });
     });

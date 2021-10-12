@@ -435,14 +435,15 @@ describe("app", function () {
         });
 
         const manifestId = await app.communicator.resolveStaticId(testGroup.staticStorageId);
+        console.log('testGroup.staticStorageId', testGroup.staticStorageId, 'manifestId', manifestId);
         const groupManifest = await app.storage.getObject(manifestId);
         console.log('groupManifest', groupManifest);
 
         const postNumberPath = trieHelper.getTreePostCidPath(manifestId, 1);
         const postManifest = await app.storage.getObject(postNumberPath);
+        assert.equal(postManifest.contents[0].storageId, postContent.manifestStorageId);
         const postManifestStorageId = await app.storage.getObject(postNumberPath, false);
         assert.equal(postManifestStorageId, post.manifestStorageId);
-        assert.equal(postManifest.contents[0].storageId, postContent.manifestStorageId);
 
         let foundPost = await app.getPostByParams({
           name: 'my-post',
