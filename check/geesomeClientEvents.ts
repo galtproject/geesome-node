@@ -7,50 +7,43 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {EventBus, UPDATE_GROUP} from "../frontend/src/services/events";
+
 export {};
 
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
 const log = require('../components/log');
 const http = require('http');
-const { generateRandomData } = require('./helpers');
 
-const randomSize = parseFloat(process.env.RANDOM_SIZE) || 100;
 const hostname = process.env.HOST || 'localhost';
-const password = process.env.PASS || 'admin';
 const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));
 const port = isHttps ? 7722 : 7711;
 
 (async () => {
-  const geesomeClient = new GeesomeClient({ server: (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port });
+  const geesomeClient = new GeesomeClient({ server: (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port, apiKey: process.env.API_KEY });
 
   await geesomeClient.init();
-
-  if (await geesomeClient.isNodeEmpty()) {
-    await geesomeClient.setup({email: 'admin@admin.com', name: 'admin', password});
-  } else {
-    await geesomeClient.loginPassword("admin", password);
-  }
 
   console.log('node address', await geesomeClient.getNodeAddressList());
   console.log('boot nodes', await geesomeClient.adminGetBootNodes());
 
-  const randomMegabyte = randomSize * 1024 * 1024;
-  log('saveDataTestUser');
-  for (let i = 0; i < 100; i++) {
-    log('generateRandomData', randomSize + 'mb');
-    const randomData = generateRandomData(randomMegabyte);
-    const before = new Date().getTime();
-    await sendPost('/v1/user/save-data', geesomeClient.apiKey, JSON.stringify({
-      content: randomData,
-      fileName: 'text.txt',
-    }))
-    // const textContent = await geesomeClient.saveContentData(randomData, {
-    //   fileName: 'text.txt'
-    // });
-    const after = new Date().getTime();
-    // const contentObj = await app.storage.getObject(textContent.manifestStorageId);
-    log(Math.round((after - before) / 1000), 'seconds');
+  const allGroups = await geesomeClient.getAdminInChannels();
+
+  let testGroup = allGroups.filter(i => i.name === 'test')[0];
+  if (!testGroup) {
+    testGroup = await geesomeClient.createGroup({name: 'test', title: 'Test', type: 'channel', isPublic: true});
+  }
+
+  while (true) {
+    const text = 'test ' + Math.random();
+    const textContent = await geesomeClient.saveContentData(text, {
+      groupId: testGroup.id,
+      mimeType: 'text/markdown'
+    });
+
+    console.log('send', text);
+    await geesomeClient.createPost({contents: [textContent.id].map(id => ({id})), groupId: testGroup.id || testGroup.staticId, status: 'published'});
   }
 })().catch(e => {
   console.error('catch', e);

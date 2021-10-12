@@ -18,11 +18,11 @@ module.exports = (geesomeApp) => {
   const updateOutdatedForSeconds = 60;
   const bindStaticForHours = 24;
 
-  updateStaticIdsOfGroups();
-
-  cron.schedule('* * * * *', () => {
-    updateStaticIdsOfGroups();
-  });
+  // updateStaticIdsOfGroups();
+  //
+  // cron.schedule('* * * * *', () => {
+  //   updateStaticIdsOfGroups();
+  // });
 
   async function updateStaticIdsOfGroups() {
     console.log('updateStaticIdsOfGroups');

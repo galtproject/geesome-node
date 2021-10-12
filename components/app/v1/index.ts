@@ -40,7 +40,7 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
-const {getPersonalChatTopic} = require('geesome-libs/src/name');
+const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events');
@@ -1088,7 +1088,7 @@ class GeesomeApp implements IGeesomeApp {
       await this.updateGroupManifest(group.id);
     } else {
       // Send plain post id
-      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
         type: 'new_post',
         postId: post.manifestStorageId,
         groupId: group.manifestStaticStorageId,
