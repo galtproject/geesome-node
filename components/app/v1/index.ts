@@ -2496,62 +2496,42 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async resolveStaticId(staticId): Promise<any> {
-    //TODO: make it work
-    // this.communicator.resolveStaticIdEntry(staticId).then(entry => {
-    //   return this.database.setStaticIdKey(staticId, peerIdHelper.publicKeyToBase64(entry.pubKey)).catch(() => {
-    //     /* already added */
-    //   });
-    // }).catch(() => {});
-
     return new Promise(async (resolve, reject) => {
       let alreadyHandled = false;
 
       const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-      log('getActualStaticIdItem', staticIdItem, staticId);
 
       setTimeout(() => {
-        if(staticIdItem && staticIdItem.dynamicId && !alreadyHandled) {
-          alreadyHandled = true;
-          resolve(staticIdItem.dynamicId);
+        if(alreadyHandled) {
+          return;
         }
+        alreadyHandled = true;
+        log('resolve by timeout', staticId, '=>', staticIdItem ? staticIdItem.dynamicId : null);
       }, 1000);
 
       let dynamicId;
       try {
-        setTimeout(async () => {
-          const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-          if (staticIdItem) {
-            alreadyHandled = true;
-            resolve(staticIdItem.dynamicId);
-          } else {
-            resolve(null);
-          }
-        }, 1000);
         dynamicId = await this.communicator.resolveStaticId(staticId);
       } catch (err) {
         const staticIdItem = await this.database.getActualStaticIdItem(staticId);
         if (staticIdItem) {
           alreadyHandled = true;
+          log('resolve by catch', staticId, '=>', staticIdItem.dynamicId);
           return resolve(staticIdItem.dynamicId);
         } else {
           throw (err);
         }
       }
 
-      try {
-        await this.database.addStaticIdHistoryItem({
-          staticId: staticId,
-          dynamicId: dynamicId,
-          isActive: true,
-          boundAt: new Date()
-        });
-        alreadyHandled = true;
-        return resolve(dynamicId);
-      } catch (e) {
-        const staticIdItem = await this.database.getActualStaticIdItem(staticId);
-        alreadyHandled = true;
-        return resolve(staticIdItem.dynamicId);
-      }
+      resolve(dynamicId);
+      alreadyHandled = true;
+      log('resolve by communicator', staticId, '=>', dynamicId);
+      return this.database.addStaticIdHistoryItem({
+        staticId: staticId,
+        dynamicId: dynamicId,
+        isActive: true,
+        boundAt: new Date()
+      });
     });
   }
 

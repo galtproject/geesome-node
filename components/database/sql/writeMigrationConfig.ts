@@ -21,6 +21,7 @@ fs.writeFileSync(`${__dirname}/config/config.json`, JSON.stringify({
     username: config.user,
     password: config.password,
     host: config.options.host,
-    dialect: config.options.dialect
+    dialect: config.options.dialect,
+    storage: config.options.storage ? __dirname.replace('components/database/sql', '') + config.options.storage : undefined
   }
 }));
