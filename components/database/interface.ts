@@ -8,6 +8,8 @@
  */
 
 export interface IDatabase {
+  getDriver():  Promise<any>;
+
   getSessionStore(): any;
 
   flushDatabase(): Promise<void>;

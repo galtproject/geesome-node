@@ -47,6 +47,14 @@ class MysqlDatabase implements IDatabase {
     this.config = _config;
   }
 
+  async getDriver() {
+    return {
+      type: 'sql',
+      models: this.models,
+      sequelize: this.sequelize,
+    };
+  }
+
   async addApiKey(apiKey) {
     return this.models.UserApiKey.create(apiKey);
   }
