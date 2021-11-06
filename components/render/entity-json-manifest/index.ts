@@ -11,7 +11,6 @@ import {IRender} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../../database/interface";
 
-const _ = require('lodash');
 const pIteration = require('p-iteration');
 const treeLib = require('geesome-libs/src/base36Trie');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');

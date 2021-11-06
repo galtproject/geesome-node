@@ -999,7 +999,7 @@ class GeesomeApp implements IGeesomeApp {
       id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
       ...c
     }));
-    return contentsData.concat(contentsByStorageManifests.filter(c => c.id));
+    return _.uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');
   }
 
   async createPost(userId, postData) {
@@ -1053,6 +1053,7 @@ class GeesomeApp implements IGeesomeApp {
     })();
     log('replyPostUpdatePromise');
 
+    console.log('contentsData', contentsData);
     if(contentsData) {
       await this.database.setPostContents(post.id, contentsData);
     }

@@ -12,6 +12,8 @@ const { StringSession } = require("telegram/sessions");
 const { computeCheck } = require("telegram/Password");
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
+const find = require('lodash/find');
+const max = require('lodash/max');
 
 class Telegram {
 	models;
@@ -78,15 +80,53 @@ class Telegram {
 		return userAcc ? userAcc.update(accData) : this.models.Account.create(accData);
 	}
 	async getMessages(userId, channelName, messagesIds) {
+		const client = await this.getClient(userId);
+		return client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
+			return messages.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action'])).filter(m => m.date);
+		});
+	}
+	async getClient(userId) {
 		let {sessionKey, apiId, apiHash} = await this.models.Account.findOne({where: {userId}});
 		apiId = parseInt(apiId);
 		const session = new StringSession(sessionKey); // You should put your string session here
 		const client = new TelegramClient(session, apiId, apiHash, {});
 		await client.connect(); // This assumes you have already authenticated with .start()
-
-		return client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
-			return messages.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action']))
-		});
+		return client;
+	}
+	async downloadMedia(userId, media) {
+		const client = await this.getClient(userId);
+		let file;
+		let fileSize: number;
+		let mimeType;
+		if (media.photo || (media.webpage && media.webpage.photo)) {
+			file = media.photo || media.webpage.photo;
+			const ySize = find(file.sizes, s => s.sizes && s.sizes.length);
+			fileSize = max(ySize.sizes);
+			mimeType = 'image/jpg';
+		} else if (media.document) {
+			file = media.document;
+			fileSize = file.size;
+			mimeType = file.mimeType;
+		} else {
+			// console.log('media', media);
+		}
+		console.log('media.webpage', media.webpage);
+		return {
+			mimeType,
+			fileSize,
+			content: await client.downloadFile(
+				new Api['InputPhotoFileLocation']({
+					id: file.id,
+					accessHash: file.accessHash,
+					fileReference: file.fileReference,
+					thumbSize: 'y'
+				}),
+				{
+					dcId: file.dcId,
+					fileSize,
+				}
+			),
+		};
 	}
 }
 
