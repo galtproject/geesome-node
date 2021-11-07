@@ -53,9 +53,9 @@ const _ = require('lodash');
     // })
   }
 
-  const TelegramClient = require('../components/socNetClient/telegram');
-  const telegram = new TelegramClient();
-  await telegram.init(await app.database.getDriver());
+  // const TelegramClient = require('../components/socNetClient/telegram');
+  // const telegram = new TelegramClient();
+  // await telegram.init(await app.database.getDriver());
 
   // https://my.telegram.org/
   // const res = await telegram.login(user.id, {
@@ -68,52 +68,55 @@ const _ = require('lodash');
   // });
   // console.log('res', res);
 
-  const messages = await telegram.getMessages(2, 'inside_microwave', [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]);
-  await pIteration.forEachSeries(messages, async (m) => {
-    let contents = [];
+  // const messages = await telegram.getMessages(2, 'inside_microwave', [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]);
+  // await pIteration.forEachSeries(messages, async (m) => {
+  //   let contents = [];
+  //
+  //   if (m.media) {
+  //     // console.log('m.media.mimeType', m.media);
+  //     // console.log('downloadMedia', await telegram.downloadMedia(2, m.media));
+  //     if(m.media.document) {
+  //       //TODO: fix FILE_REFERENCE_EXPIRED
+  //       return;
+  //     }
+  //     const file = await telegram.downloadMedia(2, m.media);
+  //     const content = await app.saveData(file.content, '', {
+  //       mimeType: file.mimeType,
+  //       userId: 3,
+  //     });
+  //     contents.push(content);
+  //
+  //     if (m.media.webpage) {
+  //       //TODO: add view type - link
+  //       const content = await app.saveData(m.media.webpage.url, '', {
+  //         mimeType: 'text/plain',
+  //         userId: 3,
+  //       });
+  //       contents.push(content);
+  //     }
+  //   }
+  //
+  //   if (m.message) {
+  //     const content = await app.saveData(m.message, '', {
+  //       mimeType: 'text/plain',
+  //       userId: 3,
+  //     });
+  //     contents.push(content);
+  //   }
+  //
+  //   console.log('contents', contents.map(c => c.id));
+  //
+  //   if (contents.length) {
+  //     return app.createPost(4, {
+  //       groupId: 2,
+  //       contents,
+  //     })
+  //   }
+  // });
 
-    if (m.media) {
-      // console.log('m.media.mimeType', m.media);
-      // console.log('downloadMedia', await telegram.downloadMedia(2, m.media));
-      if(m.media.document) {
-        //TODO: fix FILE_REFERENCE_EXPIRED
-        return;
-      }
-      const file = await telegram.downloadMedia(2, m.media);
-      const content = await app.saveData(file.content, '', {
-        mimeType: file.mimeType,
-        userId: 3,
-      });
-      contents.push(content);
-
-      if (m.media.webpage) {
-        //TODO: add view type - link
-        const content = await app.saveData(m.media.webpage.url, '', {
-          mimeType: 'text/plain',
-          userId: 3,
-        });
-        contents.push(content);
-      }
-    }
-
-    if (m.message) {
-      const content = await app.saveData(m.message, '', {
-        mimeType: 'text/plain',
-        userId: 3,
-      });
-      contents.push(content);
-    }
-
-    console.log('contents', contents.map(c => c.id));
-
-    if (contents.length) {
-      return app.createPost(4, {
-        groupId: 2,
-        contents,
-      })
-    }
-  });
+  const ssg = await require('../components/render/static-site-generator')(app);
+  await ssg.generateContent('group', 2);
 
   // await app.database.flushDatabase();
-  await app.stop();
+  // await app.stop();
 })();
