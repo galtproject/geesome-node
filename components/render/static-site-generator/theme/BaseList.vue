@@ -13,18 +13,15 @@
           >
             <meta itemprop="mainEntityOfPage" :content="page.path" />
 
-            <header class="ui-post-title" itemprop="name headline">
-              <nav-link :link="page.path">{{ page.title }}</nav-link>
-            </header>
+            <router-link :to="page.path" class="post-date">{{ resolvePostDate(page.date) }}</router-link>
+
+            <p class="post-intro">{{ page.title }}</p>
+<!--            <header class="ui-post-title" itemprop="name headline">-->
+<!--              <nav-link :link="page.path">{{ page.title }}</nav-link>-->
+<!--            </header>-->
 
             <div v-if="page.excerpt || page.images || page.videos">
               <!-- eslint-disable vue/no-v-html -->
-              <p v-if="page.excerpt"
-                  class="ui-post-summary"
-                  itemprop="description"
-                  v-html="page.excerpt"
-              />
-
               <div v-if="page.images && page.images.length">
                 <img :src="page.images[0].url" class="post-image">
               </div>
@@ -126,7 +123,8 @@ export default {
     },
     frontmatter() {
       return usePageFrontmatter();
-    }
+    },
+
   },
 
   methods: {

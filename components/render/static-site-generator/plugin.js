@@ -88,6 +88,7 @@ module.exports = function(posts, settings) {
                     $pagesList: postPages.slice(interval[0], interval[1]).map(page => ({
                         key: page.key,
                         path: page.permalink,
+                        date: page.frontmatter.date,
                         title: page.frontmatter.title,
                         excerpt: page.frontmatter.description,
                         images: page.frontmatter.images,

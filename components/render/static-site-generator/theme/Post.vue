@@ -8,9 +8,9 @@
             itemtype="https://schema.org/BlogPosting"
         >
           <header>
-            <h1 class="post-title" itemprop="name headline">
-              {{ $frontmatter.title }}
-            </h1>
+<!--            <h1 class="post-title" itemprop="name headline">-->
+<!--              {{ $frontmatter.title }}-->
+<!--            </h1>-->
             <PostMeta
                 :tags="$frontmatter.tags"
                 :author="$frontmatter.author"
@@ -18,23 +18,20 @@
                 :location="$frontmatter.location"
             />
           </header>
-          <Content />
+          <div class="post-page-content">
+            <Content />
 
-          <div v-if="$frontmatter.images && $frontmatter.images.length">
-            <img v-for="img in $frontmatter.images" :src="img.url" class="post-image">
-          </div>
+            <div v-if="$frontmatter.images && $frontmatter.images.length">
+              <img v-for="img in $frontmatter.images" :src="img.url" class="post-image">
+            </div>
 
-          <div v-if="$frontmatter.videos && $frontmatter.videos.length">
-            <video v-for="video in $frontmatter.videos" controls>
-              <source :src="video.url + '.mp4'" type="video/mp4">
-              Your browser does not support the video tag.
-            </video>
+            <div v-if="$frontmatter.videos && $frontmatter.videos.length">
+              <video v-for="video in $frontmatter.videos" controls>
+                <source :src="video.url + '.mp4'" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </div>
-<!--          <footer>-->
-<!--            <Newsletter v-if="$service.email.enabled" />-->
-<!--            <hr />-->
-<!--            <Comment />-->
-<!--          </footer>-->
         </article>
 <!--        <Toc />-->
       </div>
@@ -64,7 +61,7 @@ export default {
       return page;
     },
     $frontmatter() {
-      return usePageFrontmatter();
+      return usePageFrontmatter()._value;
     },
   }
 }

@@ -154,3 +154,10 @@ article {
     }
   }
 }
+
+.post-page-content {
+  img, video {
+    max-width: 100%;
+    display: block;
+  }
+}
