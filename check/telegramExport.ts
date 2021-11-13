@@ -68,68 +68,68 @@ const _ = require('lodash');
   // });
   // console.log('res', res);
 
-  await app.database['models'].Post.destroy({where: {}});
-
-  let groupedId = null;
-  let groupedContent = [];
-  const messages = await telegram.getMessages(2, 'inside_microwave', [3,4,5,6,7,8]); //1,2,3,4,5,,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25
-  await pIteration.forEachSeries(messages, async (m, i) => {
-    let contents = [];
-
-    if (m.media) {
-      // console.log('m.media.mimeType', m.media);
-      // console.log('downloadMedia', await telegram.downloadMedia(2, m.media));
-      const file = await telegram.downloadMedia(2, m.media);
-      const content = await app.saveData(file.content, '', {
-        mimeType: file.mimeType,
-        userId: 3,
-      });
-      contents.push(content);
-
-      if (m.media.webpage) {
-        //TODO: add view type - link
-        const content = await app.saveData(m.media.webpage.url, '', {
-          mimeType: 'text/plain',
-          userId: 3,
-        });
-        contents.push(content);
-      }
-    }
-
-    if (m.message) {
-      const content = await app.saveData(m.message, '', {
-        mimeType: 'text/plain',
-        userId: 3,
-      });
-      contents.push(content);
-    }
-
-    console.log('m.groupedId', m.groupedId && m.groupedId.toString());
-    if (
-        (groupedId && !m.groupedId) || // group ended
-        (groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
-        i === messages.length - 1 // messages end
-    ) {
-      await app.createPost(4, {
-        groupId: 2,
-        contents: groupedContent,
-      });
-      groupedContent = [];
-      groupedId = null;
-    }
-
-    if (m.groupedId) {
-      groupedContent = groupedContent.concat(contents);
-      groupedId = m.groupedId.toString();
-    } else {
-      if (contents.length) {
-        return app.createPost(4, {
-          groupId: 2,
-          contents,
-        })
-      }
-    }
-  });
+  // await app.database['models'].Post.destroy({where: {}});
+  //
+  // let groupedId = null;
+  // let groupedContent = [];
+  // const {client, result: messages} = await telegram.getMessagesByUserId(2, 'inside_microwave', [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]); //1,2,3,4,5,
+  // await pIteration.forEachSeries(messages, async (m, i) => {
+  //   let contents = [];
+  //
+  //   if (m.media) {
+  //     // console.log('m.media.mimeType', m.media);
+  //     // console.log('downloadMedia', await telegram.downloadMedia(2, m.media));
+  //     const {result: file} = await telegram.downloadMediaByClient(client, m.media);
+  //     const content = await app.saveData(file.content, '', {
+  //       mimeType: file.mimeType,
+  //       userId: 3,
+  //     });
+  //     contents.push(content);
+  //
+  //     if (m.media.webpage) {
+  //       //TODO: add view type - link
+  //       const content = await app.saveData(m.media.webpage.url, '', {
+  //         mimeType: 'text/plain',
+  //         userId: 3,
+  //       });
+  //       contents.push(content);
+  //     }
+  //   }
+  //
+  //   if (m.message) {
+  //     const content = await app.saveData(m.message, '', {
+  //       mimeType: 'text/plain',
+  //       userId: 3,
+  //     });
+  //     contents.push(content);
+  //   }
+  //
+  //   console.log('m.groupedId', m.groupedId && m.groupedId.toString());
+  //   if (
+  //       (groupedId && !m.groupedId) || // group ended
+  //       (groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
+  //       i === messages.length - 1 // messages end
+  //   ) {
+  //     await app.createPost(4, {
+  //       groupId: 2,
+  //       contents: groupedContent,
+  //     });
+  //     groupedContent = [];
+  //     groupedId = null;
+  //   }
+  //
+  //   if (m.groupedId) {
+  //     groupedContent = groupedContent.concat(contents);
+  //     groupedId = m.groupedId.toString();
+  //   } else {
+  //     if (contents.length) {
+  //       return app.createPost(4, {
+  //         groupId: 2,
+  //         contents,
+  //       })
+  //     }
+  //   }
+  // });
 
   const ssg = await require('../components/render/static-site-generator')(app);
   await ssg.generateContent('group', 2);

@@ -79,15 +79,6 @@ class Telegram {
 		const userAcc = await this.models.Account.findOne({where: {userId: accData.userId}});
 		return userAcc ? userAcc.update(accData) : this.models.Account.create(accData);
 	}
-	async getMessages(userId, channelName, messagesIds) {
-		const client = await this.getClient(userId);
-		return client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
-			return messages.map(m => {
-				// console.log('m', m);
-				return pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']);
-			}).filter(m => m.date);
-		});
-	}
 	async getClient(userId) {
 		let {sessionKey, apiId, apiHash} = await this.models.Account.findOne({where: {userId}});
 		apiId = parseInt(apiId);
@@ -96,8 +87,25 @@ class Telegram {
 		await client.connect(); // This assumes you have already authenticated with .start()
 		return client;
 	}
-	async downloadMedia(userId, media) {
+	async getMessagesByUserId(userId, channelName, messagesIds) {
 		const client = await this.getClient(userId);
+		return this.getMessagesByClient(client, channelName, messagesIds);
+	}
+	async getMessagesByClient(client, channelName, messagesIds) {
+		return {
+			client,
+			result: await client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
+				return messages.map(m => {
+					// console.log('m', m);
+					return pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']);
+				}).filter(m => m.date);
+			})
+		};
+	}
+	async downloadMediaByUserId(userId, media) {
+		return this.downloadMediaByClient(await this.getClient(userId), media)
+	}
+	async downloadMediaByClient(client, media) {
 		let file;
 		let fileSize: number;
 		let mimeType;
@@ -115,20 +123,23 @@ class Telegram {
 		}
 		console.log('media.webpage', media.webpage);
 		return {
-			mimeType,
-			fileSize,
-			content: await client.downloadFile(
-				new Api[media.document ? 'InputDocumentFileLocation' : 'InputPhotoFileLocation']({
-					id: file.id,
-					accessHash: file.accessHash,
-					fileReference: file.fileReference,
-					thumbSize: 'y'
-				}),
-				{
-					dcId: file.dcId,
-					fileSize,
-				}
-			),
+			client,
+			result: {
+				mimeType,
+				fileSize,
+				content: await client.downloadFile(
+					new Api[media.document ? 'InputDocumentFileLocation' : 'InputPhotoFileLocation']({
+						id: file.id,
+						accessHash: file.accessHash,
+						fileReference: file.fileReference,
+						thumbSize: 'y'
+					}),
+					{
+						dcId: file.dcId,
+						fileSize,
+					}
+				),
+			}
 		};
 	}
 }
