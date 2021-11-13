@@ -29,9 +29,9 @@ module.exports = function(posts, settings) {
                         head: [],
                         title,
                         description,
-                        ..._.pick(post, ['date', 'lang', 'id'])
+                        ..._.pick(post, ['date', 'lang', 'id', 'images', 'videos'])
                     },
-                    content: posts[i].content,
+                    content: post.content,
                 });
 
                 app.pages.push(page);
@@ -89,7 +89,9 @@ module.exports = function(posts, settings) {
                         key: page.key,
                         path: page.permalink,
                         title: page.frontmatter.title,
-                        excerpt: page.frontmatter.description
+                        excerpt: page.frontmatter.description,
+                        images: page.frontmatter.images,
+                        videos: page.frontmatter.videos
                     })),
                     $pagination: {
                         pages: intervallers.map((interval, i) => {

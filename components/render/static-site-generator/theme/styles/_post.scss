@@ -102,3 +102,55 @@ article {
     color: #fff;
   }
 }
+
+.post-image {
+  max-width: 100%;
+  max-height: 300px;
+}
+.video_file_wrap, .animated_wrap {
+  position: relative;
+
+  .video_play_bg {
+    background: rgba(0, 0, 0, .4);
+    width: 40px;
+    height: 40px;
+    line-height: 0;
+    position: absolute;
+    z-index: 2;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: -20px auto 0 -20px;
+    top: 50%;
+    left: 50%;
+    pointer-events: none;
+
+    .video_play {
+      position: absolute;
+      display: inline-block;
+      top: 50%;
+      left: 50%;
+      margin-left: -5px;
+      margin-top: -9px;
+      z-index: 1;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 9px 0 9px 14px;
+      border-color: transparent transparent transparent #fff;
+    }
+    .video_duration {
+      background: rgba(0, 0, 0, .4);
+      padding: 0px 5px;
+      position: absolute;
+      z-index: 2;
+      border-radius: 2px;
+      right: 3px;
+      bottom: 3px;
+      color: #ffffff;
+      font-size: 11px;
+    }
+    .video_preview, .animated_preview {
+      display: block;
+    }
+  }
+}

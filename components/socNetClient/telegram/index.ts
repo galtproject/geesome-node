@@ -82,7 +82,10 @@ class Telegram {
 	async getMessages(userId, channelName, messagesIds) {
 		const client = await this.getClient(userId);
 		return client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
-			return messages.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action'])).filter(m => m.date);
+			return messages.map(m => {
+				// console.log('m', m);
+				return pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']);
+			}).filter(m => m.date);
 		});
 	}
 	async getClient(userId) {
@@ -115,7 +118,7 @@ class Telegram {
 			mimeType,
 			fileSize,
 			content: await client.downloadFile(
-				new Api['InputPhotoFileLocation']({
+				new Api[media.document ? 'InputDocumentFileLocation' : 'InputPhotoFileLocation']({
 					id: file.id,
 					accessHash: file.accessHash,
 					fileReference: file.fileReference,

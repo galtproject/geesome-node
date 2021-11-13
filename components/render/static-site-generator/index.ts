@@ -27,6 +27,7 @@ class StaticSiteGenerator {
     async generateContent(name, data, options = {}) {
         const group = await this.app.database.getGroup(data);
         const groupPosts = await this.app.database.getGroupPosts(data, {limit: 100, offset: 0, sortBy: 'publishedAt', sortDir: 'desc'});
+        const baseStorageUri = 'http://localhost:7711/v1/content-data/';
 
         const posts = await pIteration.mapSeries(groupPosts, async (gp) => {
             let content = '';
@@ -34,15 +35,28 @@ class StaticSiteGenerator {
             if (textContent) {
                 content = await this.app.storage.getFileDataText(textContent.storageId);
             }
+            const images = [];
+            const videos = [];
             gp.contents.forEach((c) => {
                 if (_.includes(c.mimeType, 'image')) {
-                    content += '\n![An image](http://localhost:7711/v1/content-data/' + c.storageId + ')';
+                    images.push({
+                        manifestId: c.manifestStorageId,
+                        url: baseStorageUri + c.storageId
+                    });
+                } else if (_.includes(c.mimeType, 'video')) {
+                    videos.push({
+                        manifestId: c.manifestStorageId,
+                        previewUrl: baseStorageUri + c.mediumPreviewStorageId,
+                        url: baseStorageUri + c.storageId
+                    });
                 }
             });
             return {
                 id: gp.id, //TODO: use localId
                 lang: 'ru', //TODO: get lang from group
                 content,
+                images,
+                videos,
                 date: gp.createdAt
             }
         });

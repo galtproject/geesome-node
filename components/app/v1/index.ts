@@ -74,7 +74,7 @@ module.exports = async (extendConfig) => {
   app.storage = await require('../../storage/' + config.storageModule)(app);
 
   log('Start communicator...');
-  // app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
+  app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
 
   // setInterval(() => {
   //   console.log('publishEvent', 'geesome-test');

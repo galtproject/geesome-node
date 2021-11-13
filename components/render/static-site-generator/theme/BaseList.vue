@@ -17,15 +17,28 @@
               <nav-link :link="page.path">{{ page.title }}</nav-link>
             </header>
 
-            <client-only v-if="page.excerpt">
+            <div v-if="page.excerpt || page.images || page.videos">
               <!-- eslint-disable vue/no-v-html -->
-              <p
+              <p v-if="page.excerpt"
                   class="ui-post-summary"
                   itemprop="description"
                   v-html="page.excerpt"
               />
+
+              <div v-if="page.images && page.images.length">
+                <img :src="page.images[0].url" class="post-image">
+              </div>
+
+              <div v-if="page.videos && page.videos.length">
+                <video controls>
+                  <source :src="page.videos[0].url + '.mp4'" type="video/mp4">
+                  Your browser does not support the video tag.
+                </video>
+              </div>
               <!-- eslint-enable vue/no-v-html -->
-            </client-only>
+            </div>
+
+
 
             <!--        <footer>-->
             <!--          <div-->

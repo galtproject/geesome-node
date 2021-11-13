@@ -19,6 +19,17 @@
             />
           </header>
           <Content />
+
+          <div v-if="$frontmatter.images && $frontmatter.images.length">
+            <img v-for="img in $frontmatter.images" :src="img.url" class="post-image">
+          </div>
+
+          <div v-if="$frontmatter.videos && $frontmatter.videos.length">
+            <video v-for="video in $frontmatter.videos" controls>
+              <source :src="video.url + '.mp4'" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </div>
 <!--          <footer>-->
 <!--            <Newsletter v-if="$service.email.enabled" />-->
 <!--            <hr />-->
