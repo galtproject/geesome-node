@@ -14,6 +14,8 @@ module.exports = function(posts, settings) {
 
             postPages = [];
             intervallers = getIntervallers(posts.length, postListSettings.postsPerPage);
+            console.log('getIntervallers', posts.length, postListSettings.postsPerPage);
+            console.log('intervallers', intervallers);
 
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
@@ -29,7 +31,8 @@ module.exports = function(posts, settings) {
                         head: [],
                         title,
                         description,
-                        ..._.pick(post, ['date', 'lang', 'id', 'images', 'videos'])
+                        date: post.date.toString(),
+                        ..._.pick(post, ['lang', 'id', 'images', 'videos'])
                     },
                     content: post.content,
                 });
@@ -69,7 +72,7 @@ module.exports = function(posts, settings) {
                 $themeConfig: {
                     dateFormat,
                     nav: [
-                        {text: 'Blog', link: settings.site.base}
+                        {text: 'Blog', link: site.base}
                     ]
                 },
                 $site: site,
@@ -85,7 +88,7 @@ module.exports = function(posts, settings) {
                 const interval = page.frontmatter.home ? intervallers[0] : intervallers[pageNumber - 1];
                 return {
                     ...globalPageData,
-                    $pagesList: postPages.slice(interval[0], interval[1]).map(page => ({
+                    $pagesList: postPages.slice(interval[0] - 1, interval[1]).map(page => ({
                         key: page.key,
                         path: page.permalink,
                         date: page.frontmatter.date,
@@ -121,8 +124,8 @@ function getIntervallers(max, interval) {
             : Math.floor(max / interval) + 1;
     const arr = [...new Array(count)];
     return arr.map((_, index) => {
-        const start = index * interval;
-        const end = (index + 1) * interval - 1;
+        const start = index * interval + 1;
+        const end = (index + 1) * interval;
         return [start, end > max ? max : end];
     });
 }

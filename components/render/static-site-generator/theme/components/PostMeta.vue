@@ -11,9 +11,7 @@
       <span v-if="location" itemprop="address"> &nbsp; in {{ location }}</span>
     </div>
     <div v-if="date" class="post-meta-date">
-      <time pubdate itemprop="datePublished" :datetime="date">
-        {{ resolvedDate }}
-      </time>
+      <router-link :to="page.path" class="post-date">{{ resolvedDate }}</router-link>
     </div>
     <ul v-if="tags" class="post-meta-tags" itemprop="keywords">
       <PostTag v-for="tag in resolvedTags" :key="tag" :tag="tag" />
@@ -51,8 +49,8 @@ export default {
   },
   computed: {
     resolvedDate() {
-      return dayjs
-          .utc(this.date)
+      console.log('resolvedDate', this.page.frontmatter.date);
+      return dayjs(this.page.frontmatter.date)
           .format(this.$themeConfig.dateFormat || 'ddd MMM DD YYYY')
     },
     resolvedTags() {
@@ -61,6 +59,9 @@ export default {
     },
     $themeConfig() {
       return page._value.$themeConfig;
+    },
+    page() {
+      return page._value;
     }
   },
 }

@@ -22,7 +22,7 @@
             <Content />
 
             <div v-if="$frontmatter.images && $frontmatter.images.length">
-              <img v-for="img in $frontmatter.images" :src="img.url" class="post-image">
+              <img v-for="img in $frontmatter.images" :src="img.url">
             </div>
 
             <div v-if="$frontmatter.videos && $frontmatter.videos.length">

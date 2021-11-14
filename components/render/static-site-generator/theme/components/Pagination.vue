@@ -126,7 +126,7 @@
         return pages;
       },
       currentPage() {
-        return _.includes(this.currentHref, 'page') ? parseInt(_.last(this.currentHref.split('/'))) : 1;
+        return _.includes(this.currentHref, 'page') ? parseInt(_.last(_.trim(this.currentHref, '/').split('/'))) : 1;
       }
     },
   }

@@ -14,6 +14,7 @@ const includes = require('lodash/includes');
 const pick = require('lodash/pick');
 const find = require('lodash/find');
 const max = require('lodash/max');
+const isNumber = require('lodash/isNumber');
 
 class Telegram {
 	models;
@@ -87,6 +88,20 @@ class Telegram {
 		await client.connect(); // This assumes you have already authenticated with .start()
 		return client;
 	}
+	async getChannelInfoByUserId(userId, channelName) {
+		const client = await this.getClient(userId);
+		return this.getChannelInfoByClient(client, channelName);
+	}
+	async getChannelInfoByClient(client, channelName) {
+		return {
+			client,
+			result: await client.invoke(
+				new Api.channels.GetFullChannel({
+					channel: channelName,
+				})
+			)
+		}
+	}
 	async getMessagesByUserId(userId, channelName, messagesIds) {
 		const client = await this.getClient(userId);
 		return this.getMessagesByClient(client, channelName, messagesIds);
@@ -96,7 +111,7 @@ class Telegram {
 			client,
 			result: await client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
 				return messages.map(m => {
-					// console.log('m', m);
+					console.log('m', m);
 					return pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']);
 				}).filter(m => m.date);
 			})
@@ -109,10 +124,17 @@ class Telegram {
 		let file;
 		let fileSize: number;
 		let mimeType;
+		let thumbSize = 'y';
 		if (media.photo || (media.webpage && media.webpage.photo)) {
 			file = media.photo || media.webpage.photo;
-			const ySize = find(file.sizes, s => s.sizes && s.sizes.length);
-			fileSize = max(ySize.sizes);
+			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
+			if (isNumber(ySize.sizes[0])) {
+				fileSize = max(ySize.sizes);
+			} else {
+				const maxSize = max(ySize.sizes, s => s.size);
+				fileSize = maxSize.size
+				thumbSize = maxSize.type;
+			}
 			mimeType = 'image/jpg';
 		} else if (media.document) {
 			file = media.document;
@@ -132,7 +154,7 @@ class Telegram {
 						id: file.id,
 						accessHash: file.accessHash,
 						fileReference: file.fileReference,
-						thumbSize: 'y'
+						thumbSize
 					}),
 					{
 						dcId: file.dcId,

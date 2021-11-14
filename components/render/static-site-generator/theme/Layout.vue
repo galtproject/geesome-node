@@ -1,12 +1,27 @@
 <template>
   <div id="vuepress-theme-blog__global-layout">
-    <Header />
-    <MobileHeader
-        :is-open="isMobileHeaderOpen"
-        @toggle-sidebar="isMobileHeaderOpen = !isMobileHeaderOpen"
-    />
+<!--    <Header />-->
+<!--    <MobileHeader-->
+<!--        :is-open=avatarUrl"isMobileHeaderOpen"-->
+<!--        @toggle-sidebar="isMobileHeaderOpen = !isMobileHeaderOpen"-->
+<!--    />-->
+
     <div class="content-wrapper" @click="isMobileHeaderOpen = false">
-      <slot name="page"/>
+      <div class="content-info">
+        <div class="site-info">
+          <div class="avatar-row">
+            <div class="avatar"><img :src="$site.avatarUrl"></div>
+            <div class="title">
+              <div class="main-title">{{$site.title}}</div>
+              <div class="sub-title">Posts: {{$site.postsCount}}</div>
+            </div>
+          </div>
+          <div class="description-row">{{$site.description}}</div>
+        </div>
+      </div>
+      <div class="content-data">
+        <slot name="page"/>
+      </div>
     </div>
 <!--    <Footer />-->
   </div>
@@ -16,6 +31,8 @@
   // import GlobalLayout from '@app/components/GlobalLayout.vue'
   import Header from './components/Header.vue'
   import MobileHeader from './components/MobileHeader.vue'
+  import {usePageData} from "@vuepress/client";
+  const page = usePageData();
   // import Footer from './components/Footer.vue'
   export default {
     components: {
@@ -28,6 +45,11 @@
       return {
         isMobileHeaderOpen: false,
       }
+    },
+    computed: {
+      $site() {
+        return page._value.$site;
+      },
     },
     mounted() {
       this.$router.afterEach(() => {

@@ -81,7 +81,7 @@
           </article>
         </div>
 
-        <pagination :pages-count="pages.length" :current-href="curPage.permalink" only-regular="true" :base-href="pages[0].baseHref"></pagination>
+        <pagination :pages-count="pages.length" :current-href="curPath" only-regular="true" :base-href="pages[0].baseHref"></pagination>
       </div>
     </template>
   </layout>
@@ -121,6 +121,9 @@ export default {
     curPage() {
       return page;
     },
+    curPath() {
+      return this.curPage._value.path;
+    },
     frontmatter() {
       return usePageFrontmatter();
     },
@@ -129,8 +132,7 @@ export default {
 
   methods: {
     resolvePostDate(date) {
-      return dayjs
-          .utc(date)
+      return dayjs(date)
           .format(page._value.$themeConfig.dateFormat || 'ddd MMM DD YYYY')
     },
 

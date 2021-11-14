@@ -57,6 +57,19 @@ const _ = require('lodash');
   const telegram = new TelegramClient();
   await telegram.init(await app.database.getDriver());
 
+  // const {client, result: channelInfo} = await telegram.getChannelInfoByUserId(2, 'inside_microwave'); //1,2,3,4,5,
+  // const {result: file} = await telegram.downloadMediaByClient(client, { photo: channelInfo.fullChat.chatPhoto });
+  // const content = await app.saveData(file.content, '', {
+  //   mimeType: file.mimeType,
+  //   userId: 3,
+  // });
+  // await app.updateGroup(4, 2, {
+  //   title: channelInfo.chats[0].title,
+  //   name: channelInfo.chats[0].username,
+  //   description: channelInfo.fullChat.about,
+  //   avatarImageId: content.id
+  // });
+
   // https://my.telegram.org/
   // const res = await telegram.login(user.id, {
   //   phoneNumber: '',
@@ -67,10 +80,14 @@ const _ = require('lodash');
   //   phoneCode: ''
   // });
   // console.log('res', res);
-
+  // await app.updateGroup(4, 2, {
+  //   publishedPostsCount: 0,
+  // });
+  //
   // await app.database['models'].Post.destroy({where: {}});
   //
   // let groupedId = null;
+  // let groupedDate = null;
   // let groupedContent = [];
   // const {client, result: messages} = await telegram.getMessagesByUserId(2, 'inside_microwave', [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]); //1,2,3,4,5,
   // await pIteration.forEachSeries(messages, async (m, i) => {
@@ -104,30 +121,43 @@ const _ = require('lodash');
   //     contents.push(content);
   //   }
   //
+  //   const postData = {
+  //     groupId: 2,
+  //     status: 'published',
+  //     propertiesJson: JSON.stringify({
+  //       source: 'telegram',
+  //       originalUrl: ''
+  //     })
+  //   }
+  //
   //   console.log('m.groupedId', m.groupedId && m.groupedId.toString());
   //   if (
   //       (groupedId && !m.groupedId) || // group ended
   //       (groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
   //       i === messages.length - 1 // messages end
   //   ) {
-  //     await app.createPost(4, {
-  //       groupId: 2,
-  //       contents: groupedContent,
-  //     });
+  //     if (groupedContent.length) {
+  //       await app.createPost(4, {
+  //         publishedAt: groupedDate * 1000,
+  //         contents: groupedContent,
+  //         ...postData
+  //       });
+  //     }
   //     groupedContent = [];
   //     groupedId = null;
+  //     groupedDate = null;
   //   }
   //
   //   if (m.groupedId) {
   //     groupedContent = groupedContent.concat(contents);
   //     groupedId = m.groupedId.toString();
-  //   } else {
-  //     if (contents.length) {
-  //       return app.createPost(4, {
-  //         groupId: 2,
-  //         contents,
-  //       })
-  //     }
+  //     groupedDate = m.date;
+  //   } else if (contents.length) {
+  //     return app.createPost(4, {
+  //       publishedAt: m.date * 1000,
+  //       contents,
+  //       ...postData
+  //     });
   //   }
   // });
 

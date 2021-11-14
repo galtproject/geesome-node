@@ -3,8 +3,6 @@
 .vuepress-blog-theme-content {
   font-size: 16px;
   letter-spacing: 0px;
-  font-family: PT Serif, Serif;
-  color: $textColor;
   position: relative;
 }
 article {
@@ -103,9 +101,20 @@ article {
   }
 }
 
+.ui-posts {
+  video, img {
+    max-width: 100%;
+    max-height: 300px;
+  }
+}
+
 .post-image {
   max-width: 100%;
   max-height: 300px;
+}
+.post-date {
+  font-size: 12px;
+  text-decoration: none;
 }
 .video_file_wrap, .animated_wrap {
   position: relative;
@@ -159,5 +168,8 @@ article {
   img, video {
     max-width: 100%;
     display: block;
+    & + img, video {
+      margin-top: 15px;
+    }
   }
 }

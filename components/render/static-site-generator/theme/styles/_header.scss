@@ -1,5 +1,51 @@
 @import "vars";
 
+.vuepress-theme-blog__global-layout {
+  position: relative;
+}
+.content-wrapper {
+  position: relative;
+  .content-info {
+    position: absolute;
+    top: 30px;
+    left: -280px;;
+    width: 250px;
+  }
+}
+
+.site-info {
+  .avatar-row {
+    display: flex;
+    align-content: center;
+
+    .avatar {
+      margin-right: 10px;
+
+      img {
+        width: 80px;
+        height: 80px;
+        border-radius: 100%;
+        display: block;
+      }
+    }
+
+    .title {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+
+      .sub-title {
+        opacity: 0.5;
+        margin-top: 5px;
+      }
+    }
+  }
+  .description-row {
+    margin-top: 10px;
+    white-space: pre-line;
+  }
+}
+
 #header {
   z-index: 12;
   position: fixed;

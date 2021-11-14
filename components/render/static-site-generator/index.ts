@@ -27,7 +27,7 @@ class StaticSiteGenerator {
     async generateContent(name, data, options = {}) {
         const group = await this.app.database.getGroup(data);
         const groupPosts = await this.app.database.getGroupPosts(data, {limit: 100, offset: 0, sortBy: 'publishedAt', sortDir: 'desc'});
-        const baseStorageUri = 'http://localhost:7711/v1/content-data/';
+        const baseStorageUri = 'http://localhost:7771/v1/content-data/';
 
         const posts = await pIteration.mapSeries(groupPosts, async (gp) => {
             let content = '';
@@ -52,25 +52,29 @@ class StaticSiteGenerator {
                 }
             });
             return {
-                id: gp.id, //TODO: use localId
+                id: gp.localId,
                 lang: 'ru', //TODO: get lang from group
                 content,
                 images,
                 videos,
-                date: gp.createdAt
+                date: gp.publishedAt.getTime()
             }
         });
         const settings = {
             dateFormat: 'ddd MMM DD YYYY',
             post: {
-                titleLength: 100,
+                titleLength: 200,
                 descriptionLength: 200,
             },
             postList: {
-                postsPerPage: 5,
+                postsPerPage: 10,
             },
             site: {
                 title: group.title,
+                username: group.name,
+                description: group.description,
+                avatarUrl: baseStorageUri + group.avatarImage.storageId,
+                postsCount: group.publishedPostsCount,
                 base
             }
         };
