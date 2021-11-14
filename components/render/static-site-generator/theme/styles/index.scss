@@ -139,7 +139,7 @@ th, td {
   word-wrap: break-word;
 }
 .content-wrapper {
-  padding: 30px 15px 80px;
+  padding: 10px 15px 80px;
   min-height: calc(100vh - 80px - 60px - 160px);
   max-width: $contentWidth;
   margin: 0 auto;
@@ -148,6 +148,31 @@ th, td {
   .content-wrapper {
     padding: 100px 15px 20px 15px;
     min-height: calc(100vh - 20px - 60px - 100px);
+  }
+}
+
+.tabs {
+  background: white;
+  padding: 5px;
+  display: flex;
+  margin-bottom: 30px;
+  & > a {
+    display: block;
+    padding: 10px;
+    position: relative;
+    text-decoration: none;
+    &:first-child {
+      padding-left: 0;
+    }
+    &:after {
+      content: " ";
+      position: absolute;
+      width: 20px;
+      height: 2px;
+      background: #000;
+      bottom: 0;
+      left: 6px;
+    }
   }
 }
 

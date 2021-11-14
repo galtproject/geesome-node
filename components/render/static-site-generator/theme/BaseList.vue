@@ -112,20 +112,20 @@ export default {
   },
 
   computed: {
+    curPage() {
+      return page._value;
+    },
     pagesList() {
-      return page._value.$pagesList;
+      return this.curPage.$pagesList;
     },
     pages() {
-      return page._value.$pagination.pages;
-    },
-    curPage() {
-      return page;
+      return this.curPage.$pagination.pages;
     },
     curPath() {
-      return this.curPage._value.path;
+      return this.curPage.path;
     },
     frontmatter() {
-      return usePageFrontmatter();
+      return this.curPage.frontmatter;
     },
 
   },
@@ -133,7 +133,7 @@ export default {
   methods: {
     resolvePostDate(date) {
       return dayjs(date)
-          .format(page._value.$themeConfig.dateFormat || 'ddd MMM DD YYYY')
+          .format(this.curPage.$themeConfig.dateFormat || 'ddd MMM DD YYYY')
     },
 
     resolvePostTags(tags) {

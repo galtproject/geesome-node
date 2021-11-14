@@ -16,7 +16,7 @@
 </template>
 
 <script>
-  import {usePageData, usePageFrontmatter} from "@vuepress/client";
+  import {usePageData} from "@vuepress/client";
   const page = usePageData();
   import Sticker from './Sticker.vue'
   let initTop
@@ -46,7 +46,7 @@
         return page;
       },
       $frontmatter() {
-        return usePageFrontmatter();
+        return $page.frontmatter;
       },
       visible() {
         return (

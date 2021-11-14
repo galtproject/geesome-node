@@ -44,7 +44,7 @@
 import PostMeta from './components/PostMeta.vue'
 // import { Comment } from '@vuepress/plugin-blog/lib/client/components'
 
-import {usePageData, usePageFrontmatter} from "@vuepress/client";
+import {usePageData} from "@vuepress/client";
 import Layout from "./Layout";
 const page = usePageData();
 
@@ -58,10 +58,10 @@ export default {
   },
   computed: {
     $page() {
-      return page;
+      return page._value;
     },
     $frontmatter() {
-      return usePageFrontmatter()._value;
+      return this.$page.frontmatter;
     },
   }
 }

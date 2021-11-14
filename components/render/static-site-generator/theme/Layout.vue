@@ -20,6 +20,9 @@
         </div>
       </div>
       <div class="content-data">
+        <div class="tabs">
+          <a :href="$site.base" target="_self">Latest posts</a>
+        </div>
         <slot name="page"/>
       </div>
     </div>

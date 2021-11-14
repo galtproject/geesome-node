@@ -31,7 +31,7 @@ module.exports = function(posts, settings) {
                         head: [],
                         title,
                         description,
-                        date: post.date.toString(),
+                        date: post.date,
                         ..._.pick(post, ['lang', 'id', 'images', 'videos'])
                     },
                     content: post.content,
