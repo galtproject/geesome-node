@@ -10,4 +10,14 @@
       border-radius: 0;
     }
   }
+  .content-wrapper {
+    padding: 15px 15px 20px;
+    .content-info {
+      position: static;
+      margin-bottom: 20px;
+    }
+    .description-row {
+      display: none;
+    }
+  }
 }
