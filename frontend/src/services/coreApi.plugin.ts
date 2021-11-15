@@ -81,6 +81,12 @@ export default {
         })
       },
 
+      async setup(setupData) {
+        const result = await geesomeClient.setup(setupData);
+        localStorage.setItem('geesome-api-key', result.apiKey);
+        return result;
+      },
+
       async loginPassword(server, username, password) {
         localStorage.setItem('geesome-server', server);
         appStore.commit('serverAddress', server);

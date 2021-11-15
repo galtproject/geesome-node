@@ -55,7 +55,7 @@ const _ = require('lodash');
 
   const TelegramClient = require('../components/socNetClient/telegram');
   const telegram = new TelegramClient();
-  await telegram.init(await app.database.getDriver());
+  await telegram.init(app.api);
 
   // const {client, result: channelInfo} = await telegram.getChannelInfoByUserId(2, 'inside_microwave'); //1,2,3,4,5,
   // const {result: file} = await telegram.downloadMediaByClient(client, { photo: channelInfo.fullChat.chatPhoto });

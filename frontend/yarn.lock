@@ -1775,22 +1775,29 @@
     "@ethersproject/properties" "^5.0.3"
     "@ethersproject/strings" "^5.0.4"
 
-"@fluencelabs/aqua-dht@0.2.3":
-  version "0.2.3"
-  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-dht/-/aqua-dht-0.2.3.tgz#a58ecdd57a4ad5ae539b46d106f26f5f317ed090"
-  integrity sha512-MgEzBWzU9ZbZ4Hn+RbDkWSGb9x7n2n8C8DFXv7uU9OPNqN6AGOx9cz9QcWdUxuAD/4c2hgbikcEbcqphlWGZNg==
+"@fluencelabs/aqua-dht@0.2.4":
+  version "0.2.4"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-dht/-/aqua-dht-0.2.4.tgz#56816a23d7c4d34c68b9a8fcf039616fb6511f04"
+  integrity sha512-tTBjtgSO6VuEExPAJGLrRt65+DQuaopjuXJmD/GSqQcOPXJB8szA+qrsyjV/7qRpBgRFIjQaX8GGfKkF++peCQ==
   dependencies:
     "@fluencelabs/aqua-lib" "^0.1.14"
 
-"@fluencelabs/aqua-lib@0.1.14", "@fluencelabs/aqua-lib@^0.1.14":
+"@fluencelabs/aqua-lib@0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-lib/-/aqua-lib-0.2.0.tgz#e0d5636bd1aa5212e839737dcee2e3fc5dec7359"
+  integrity sha512-5eJYQQM/6yzNsrBnATYkhpzK5AA0XBSv19eNOkKoyKZpVbh0WK2jjegzWQY2+X+fSk5fh6fcqy7G9xh2a7Lcbg==
+
+"@fluencelabs/aqua-lib@^0.1.14":
   version "0.1.14"
   resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-lib/-/aqua-lib-0.1.14.tgz#55b9624f173b570b306d36de01006eef27b2fb9a"
   integrity sha512-H2Q4gIvociUxc4J2mwmH0D+mrU2N2Z+enKCHgBCanMVEE2wZDsZ80GTbDKsQjEq+gpqbnJIk8lJBYW6lyvLJTg==
 
-"@fluencelabs/aqua@0.3.1-228":
-  version "0.3.1-228"
-  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua/-/aqua-0.3.1-228.tgz#83bde0823491a6b6f9b6dd0267864bc361eab808"
-  integrity sha512-uTgCNa+tBhUyl18Ejq0CpoJxxD3CsOI4+BU64Hdkm9LNE9nu94k8JDYtTKKIAJdhk4kQ3qHy6HHtwVSWTPDPHQ==
+"@fluencelabs/aqua@0.4.1-240":
+  version "0.4.1-240"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua/-/aqua-0.4.1-240.tgz#71efc61f80079e33de15000f6fe8054d4a028c0f"
+  integrity sha512-UaeljcyIuAXWL8CpF2p+jnD0YSVyp3lZYaOfTZoqL5XeFdhf0D8C6VhioUwyT0kU0JOziaPe3m9JxzL3atfpfg==
+  dependencies:
+    "@fluencelabs/fluence" "0.12.1"
 
 "@fluencelabs/avm@0.14.4":
   version "0.14.4"
@@ -1799,12 +1806,19 @@
   dependencies:
     base64-js "1.5.1"
 
+"@fluencelabs/avm@0.16.7":
+  version "0.16.7"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/avm/-/avm-0.16.7.tgz#7f29ac94dc2edf9c7634ddba50a87fd81dd10411"
+  integrity sha512-tSbEBRdHTz6PCxLuzEWe3ayZQeDiuJu/Dw0qJmdpYe6eJf0jSwUnAnRaEOv2d0ILnzT1b4us9tCKOhac41YlLg==
+  dependencies:
+    base64-js "1.5.1"
+
 "@fluencelabs/fluence-network-environment@^1.0.10":
   version "1.0.10"
   resolved "https://registry.yarnpkg.com/@fluencelabs/fluence-network-environment/-/fluence-network-environment-1.0.10.tgz#c5453e906c0c266accd1fcbac5f7f585090c9df6"
   integrity sha512-aaWZDDFIIasSTgdFdw1KEz+boZMSn7pXffUENZNLX4DrP11rC3AEX4c8GnIJQbWqGsouOFZOPna2DSG6o2rLNQ==
 
-"@fluencelabs/fluence@^0.12.0":
+"@fluencelabs/fluence@0.12.1", "@fluencelabs/fluence@^0.12.0":
   version "0.12.1"
   resolved "https://registry.yarnpkg.com/@fluencelabs/fluence/-/fluence-0.12.1.tgz#075959726b0aed66a6611349b2d071fbe03d26a8"
   integrity sha512-JrMKMHjYILAHQsLLd5H0fLt/UMZv+/PQYxJYe6h9HFyJlZrN1bUV+EcZnUw1u3DZE5k/RXBx0udfmkahggwrqA==
@@ -1824,6 +1838,30 @@
     loglevel "1.7.0"
     multiaddr "10.0.0"
     peer-id "0.15.3"
+    uuid "8.3.0"
+
+"@fluencelabs/fluence@0.14.3":
+  version "0.14.3"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/fluence/-/fluence-0.14.3.tgz#79747edd8a941c9fbb6722f42d8e3e544c10f39f"
+  integrity sha512-JlF/B9Wtz0VMBJIfA+hZYZt44nX5AIJzgkhfbT1fKfwzb1CvS6IYaaH6PE8vLcBm556sJic94yYL++FpQrJUmQ==
+  dependencies:
+    "@chainsafe/libp2p-noise" "4.0.0"
+    "@fluencelabs/avm" "0.16.7"
+    async "3.2.0"
+    base64-js "1.5.1"
+    bs58 "4.0.1"
+    cids "0.8.1"
+    it-length-prefixed "3.0.1"
+    it-pipe "1.1.0"
+    libp2p "0.32.3"
+    libp2p-crypto "0.19.7"
+    libp2p-mplex "0.10.4"
+    libp2p-websockets "0.16.1"
+    loglevel "1.7.0"
+    multiaddr "10.0.0"
+    peer-id "0.15.3"
+    rxjs "^7.3.0"
+    ts-pattern "^3.3.3"
     uuid "8.3.0"
 
 "@galtproject/vue-locale@0.1.10":
@@ -6496,14 +6534,14 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#506edb9":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#f615096":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#506edb92f1a74271704ef9e066128bdd9d9c5ff5"
+  resolved "git://github.com/galtproject/geesome-libs.git#f615096e07df9b7faa9d7de7c3d5a849c57cd2eb"
   dependencies:
-    "@fluencelabs/aqua" "0.3.1-228"
-    "@fluencelabs/aqua-dht" "0.2.3"
-    "@fluencelabs/aqua-lib" "0.1.14"
-    "@fluencelabs/fluence" "^0.12.0"
+    "@fluencelabs/aqua" "0.4.1-240"
+    "@fluencelabs/aqua-dht" "0.2.4"
+    "@fluencelabs/aqua-lib" "0.2.0"
+    "@fluencelabs/fluence" "0.14.3"
     "@fluencelabs/fluence-network-environment" "^1.0.10"
     "@ipld/dag-cbor" "^6.0.10"
     axios "^0.21.1"
@@ -12496,6 +12534,13 @@ rx@^4.1.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/rx/-/rx-4.1.0.tgz#a5f13ff79ef3b740fe30aa803fb09f98805d4782"
 
+rxjs@^7.3.0:
+  version "7.4.0"
+  resolved "https://registry.yarnpkg.com/rxjs/-/rxjs-7.4.0.tgz#a12a44d7eebf016f5ff2441b87f28c9a51cebc68"
+  integrity sha512-7SQDi7xeTMCJpqViXh8gL/lebcwlp3d831F05+9B44A4B0WfsEwUQHR64gsH1kvJ+Ep/J9K2+n1hVl1CsGN23w==
+  dependencies:
+    tslib "~2.1.0"
+
 safe-buffer@^5.0.1, safe-buffer@^5.1.0, safe-buffer@^5.1.2, safe-buffer@~5.1.0, safe-buffer@~5.1.1:
   version "5.1.2"
   resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.1.2.tgz#991ec69d296e0313747d59bdfd2b745c35f8828d"
@@ -13646,6 +13691,11 @@ truncate-utf8-bytes@^1.0.0:
   dependencies:
     utf8-byte-length "^1.0.1"
 
+ts-pattern@^3.3.3:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/ts-pattern/-/ts-pattern-3.3.3.tgz#d15f4417b3f9161089da945885771c13606fd06a"
+  integrity sha512-Z5EFi6g6wyX3uDFHqxF5W5c5h663oZg9O6aOiAT7fqNu0HPSfCxtHzrQ7SblTy738Mrg2Ezorky8H5aUOm8Pvg==
+
 tslib@1.9.3, tslib@^1.8.0, tslib@^1.8.1:
   version "1.9.3"
   resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.9.3.tgz#d7e4dd79245d85428c4d7e4822a79917954ca286"
@@ -13654,6 +13704,11 @@ tslib@^2.0.3:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.3.0.tgz#803b8cdab3e12ba581a4ca41c8839bbb0dacb09e"
   integrity sha512-N82ooyxVNm6h1riLCoyS9e3fuJ3AMG2zIZs2Gd1ATcSFjSA23Q0fzjjZeh0jbJvWVDZ0cJT8yaNNaaXHzueNjg==
+
+tslib@~2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.1.0.tgz#da60860f1c2ecaa5703ab7d39bc05b6bf988b97a"
+  integrity sha512-hcVC3wYEziELGGmEEXue7D75zbwIIVUMWAVbHItGPx0ziyXxrOMQx4rQEVEV45Ut/1IotuEvwqPopzIOkDMf0A==
 
 tslint@^5.18.0:
   version "5.18.0"

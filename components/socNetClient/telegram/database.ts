@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-module.exports = async function (sequelize, models) {
+module.exports = async function (sequelize) {
 	const Sequelize = require('sequelize');
 
 	const Account = sequelize.define('socNetClient_telegram_account', {

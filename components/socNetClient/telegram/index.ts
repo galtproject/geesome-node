@@ -15,16 +15,36 @@ const pick = require('lodash/pick');
 const find = require('lodash/find');
 const max = require('lodash/max');
 const isNumber = require('lodash/isNumber');
+const Sequelize = require("sequelize");
 
 class Telegram {
 	models;
 
-	async init(databaseDriver) {
-		if (databaseDriver.type === 'sql') {
-			this.models = await require("./database")(databaseDriver.sequelize, databaseDriver.models);
-		} else {
-			throw new Error('socNetClient:telegram:unknown_database_driver_type');
-		}
+	async init(appApi) {
+		let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', {
+			'dialect': 'sqlite',
+			'storage': 'data/soc-net-database.sqlite'
+		});
+		this.models = await require("./database")(sequelize);
+
+		appApi.post('/v1/soc-net/telegram/login', async (req, res) => {
+			if (!req.user || !req.user.id) {
+				return res.send(401);
+			}
+			res.send(await this.login(req.user.id, req.body), 200);
+		});
+
+		appApi.post('/v1/soc-net/telegram/get-user', async (req, res) => {
+			if (!req.user || !req.user.id) {
+				return res.send(401);
+			}
+			if (req.body.username === 'me') {
+				const client = await this.getClient(req.user.id);
+				res.send(await client.getMe(), 200);
+			} else {
+				return this.getUserInfoByUserId(req.user.id, req.body.username);
+			}
+		});
 	}
 	async login(userId, loginData) {
 		let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash } = loginData;
@@ -47,7 +67,7 @@ class Telegram {
 					}) as any
 				);
 			} catch (e) {
-				if (!includes(e.message, 'SESSION_PASSWORD_NEEDED')) {
+				if (!includes(e.message, 'SESSION_PASSWORD_NEEDED') || !password) {
 					throw e;
 				}
 				const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
@@ -87,6 +107,16 @@ class Telegram {
 		const client = new TelegramClient(session, apiId, apiHash, {});
 		await client.connect(); // This assumes you have already authenticated with .start()
 		return client;
+	}
+	async getUserInfoByUserId(userId, userName) {
+		const client = await this.getClient(userId);
+		return this.getUserInfoByClient(client, userName);
+	}
+	async getUserInfoByClient(client, userName) {
+		return {
+			client,
+			result: await client.invoke(new Api['users'].GetFullUser({ id: userName }))
+		}
 	}
 	async getChannelInfoByUserId(userId, channelName) {
 		const client = await this.getClient(userId);

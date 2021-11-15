@@ -25,6 +25,7 @@ import {IRender} from "../render/interface";
 import {ICommunicator} from "../communicator/interface";
 
 export interface IGeesomeApp {
+  api: any;
   config: any;
   database: IDatabase;
   storage: IStorage;
