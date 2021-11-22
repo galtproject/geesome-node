@@ -52,7 +52,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     };
 
     if (
-      (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin'))
+      (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin') || _.startsWith(req.url, '/v1/soc-net'))
       && !_.startsWith(req.url, '/v1/login')
       && req.method !== 'OPTIONS' && req.method !== 'HEAD'
     ) {
@@ -690,7 +690,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       return res.send(403);
     }
     const limit: any = JSON.parse(JSON.stringify(await geesomeApp.getUserLimit(req.user.id, req.params.userId, req.params.limitName)));
-    limit.remained = await geesomeApp.getUserLimitRemained(req.params.userId, req.params.limitName);
+    if (limit) {
+      limit.remained = await geesomeApp.getUserLimitRemained(req.params.userId, req.params.limitName);
+    }
     res.send(limit);
   });
 
@@ -849,6 +851,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({
       result: await geesomeApp[req.query.type === 'ipfs' ? 'storage' : 'communicator'].nodeAddressList()
     });
+  });
+
+  service.get('/v1/soc-net-list', async (req, res) => {
+    res.send({ result: geesomeApp.config.socNetClientList });
   });
 
   service.get('/api/v0/refs*', (req, res) => {

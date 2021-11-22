@@ -31,5 +31,6 @@ module.exports = {
   authorizationModule: 'passport',
   authorizationConfig: {},
   renderModule: 'entity-json-manifest',
-  renderConfig: {}
+  renderConfig: {},
+  socNetClientList: ['telegram']
 };

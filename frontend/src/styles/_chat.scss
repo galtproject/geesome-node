@@ -155,7 +155,7 @@
 
     .chat {
       height: calc(100vh - 64px - #{$new-message-height});
-      overflow: scroll;
+      //overflow: scroll;
       padding: 15px;
       display: flex;
       flex-direction: column-reverse;

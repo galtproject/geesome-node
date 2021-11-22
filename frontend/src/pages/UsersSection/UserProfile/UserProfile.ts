@@ -7,8 +7,10 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import ApiKeyFormModal from "../../../modals/ApiKeyFormModal/ApiKeyFormModal";
+import ApiKeyFormModal from "../modals/ApiKeyFormModal/ApiKeyFormModal";
 import SetLimitModal from "../modals/SetLimitModal/SetLimitModal";
+import AddSocNetClientModal from "../modals/AddSocNetClientModal/AddSocNetClientModal";
+const pIteration = require('p-iteration');
 
 export default {
   template: require('./UserProfile.template'),
@@ -17,17 +19,34 @@ export default {
   async created() {
     this.getApiKeys();
     this.getUserPermissions();
+    this.getSocNetsAccounts();
   },
   methods: {
     async getApiKeys() {
       const apiKeys = await this.$coreApi.getUserApiKeys();
       this.apiKeys = apiKeys.list;
     },
+    async getSocNetsAccounts() {
+      this.socNetAccounts = await this.$coreApi.socNetAccountList('telegram');
+    },
+    async updateSocNetAccount(acc) {
+      await this.$coreApi.socNetUpdateUser('telegram', acc);
+      this.getSocNetsAccounts();
+    },
     async getUserPermissions() {
       this.permissions = await this.$coreApi.adminGetCorePermissionList(this.user.id).catch(() => []);
       this.saveContentLimit = await this.$coreApi.adminGetUserLimit(this.user.id, 'save_content:size').catch(() => null);
 
       this.currentUserCanSetLimits = await this.$coreApi.adminIsHaveCorePermission('admin:set_user_limit');
+    },
+    addSocNetClient() {
+      this.$root.$asyncModal.open({
+        id: 'add-soc-net-client-modal',
+        component: AddSocNetClientModal,
+        onClose: async (resultApiKey) => {
+          this.getSocNetsAccounts();
+        }
+      });
     },
     addApiKey() {
       this.$root.$asyncModal.open({
@@ -79,6 +98,7 @@ export default {
     return {
       localeKey: 'user_profile',
       apiKeys: [],
+      socNetAccounts: [],
       permissions: [],
       saveContentLimit: null,
       currentUserCanSetLimits: null

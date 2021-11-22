@@ -34,6 +34,7 @@ import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
 import {ICommunicator} from "../../communicator/interface";
+import {ISocNetClient} from "../../socNetClient/interface";
 
 const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
@@ -108,6 +109,13 @@ module.exports = async (extendConfig) => {
   log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
+  app.socNetClients = await pIteration.map(config.socNetClientList, async name => {
+    const SocNetClientClass = require('../../socNetClient/' + name);
+    const client = new SocNetClientClass();
+    await client.init(app.api);
+    return client;
+  });
+
   return app;
 };
 
@@ -120,6 +128,7 @@ class GeesomeApp implements IGeesomeApp {
   authorization: any;
   drivers: any;
   events: GeesomeEmitter;
+  socNetClients: ISocNetClient[];
 
   frontendStorageId;
 

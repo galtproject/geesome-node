@@ -21,6 +21,12 @@ module.exports = async function (sequelize) {
 		phoneNumber: {
 			type: Sequelize.STRING(200)
 		},
+		username: {
+			type: Sequelize.STRING(200)
+		},
+		fullName: {
+			type: Sequelize.STRING(200)
+		},
 		apiId: {
 			type: Sequelize.STRING(200)
 		},
@@ -33,8 +39,7 @@ module.exports = async function (sequelize) {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['userId'], unique: true },
-			{ fields: ['phoneNumber'], unique: true },
+			{ fields: ['userId', 'phoneNumber'], unique: true },
 		]
 	} as any);
 

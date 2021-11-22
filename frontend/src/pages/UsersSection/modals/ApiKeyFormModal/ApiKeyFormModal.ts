@@ -9,7 +9,7 @@
 
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 
-const _ = require('lodash');
+const clone = require('lodash/clone');
 
 export default {
   template: require('./ApiKeyFormModal.template'),
@@ -18,7 +18,7 @@ export default {
     ModalItem
   },
   created() {
-    this.apiKey = _.clone(this.apiKeyInput);
+    this.apiKey = clone(this.apiKeyInput);
   },
   methods: {
     async ok() {

@@ -120,15 +120,16 @@ export default {
     getCurrentUser() {
       this.$coreApi.getCurrentUser().then(async (user) => {
         this.$store.commit('user', user);
-
-        this.$store.commit('haveAdminReadPermission', await this.$coreApi.adminIsHaveCorePermission('admin:read'));
-
+        this.getPermissions();
         this.loading = false;
       }).catch(() => {
         this.$store.commit('user', null);
         // this.$router.push({name: 'login'});
         this.loading = false;
       });
+    },
+    async getPermissions() {
+      this.$store.commit('haveAdminReadPermission', await this.$coreApi.adminIsHaveCorePermission('admin:read'));
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);
