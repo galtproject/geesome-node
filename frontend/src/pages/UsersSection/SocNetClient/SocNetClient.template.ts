@@ -16,6 +16,8 @@ module.exports = `
 			  <h3>My channels</h3>
 			</div>
 	
+	    	<md-checkbox v-model="onlyAdmined">Only admined</md-checkbox>
+
 			<md-table>
 			  <md-table-row>
 				<md-table-head>Title</md-table-head>
@@ -23,7 +25,7 @@ module.exports = `
 				<md-table-head></md-table-head>
 			  </md-table-row>
 	
-			  <md-table-row v-for="item in channels">
+			  <md-table-row v-for="item in showChannels">
 				<md-table-cell>{{item.title}}</md-table-cell>
 				<md-table-cell>{{item.username}}</md-table-cell>
 				<md-table-cell>

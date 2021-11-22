@@ -29,12 +29,19 @@ export default {
 		currentUser() {
 			return this.$store.state.user;
 		},
+		showChannels() {
+			if (this.onlyAdmined) {
+				return this.channels.filter(c => c.adminRights);
+			}
+			return this.channels;
+		}
 	},
 	data() {
 		return {
 			localeKey: 'user_profile',
 			account: null,
 			channels: [],
+			onlyAdmined: true,
 		};
 	}
 }

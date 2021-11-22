@@ -59,13 +59,8 @@ class Telegram {
 				}
 				if (method === 'channels') {
 					const client = await this.getClient(req.user.id, req.body.userData);
-					const channels = await client.invoke(
-						new Api.channels.GetAdminedPublicChannels({
-							byLocation: false,
-							checkLimit: false,
-						}) as any
-					);
-					return res.send(channels.chats, 200);
+					const channels = await client.invoke(new Api.messages.GetAllChats({ exceptIds: [] }) as any);
+					return res.send(channels.chats.filter(c => c.className === 'Channel' && !c.megagroup), 200);
 				}
 			});
 		});
