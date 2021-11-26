@@ -32,80 +32,84 @@ class Telegram {
 				if (!req.user || !req.user.id) {
 					return res.send(401);
 				}
+				const userId = req.user.id;
 				if (method === 'login') {
-					return res.send(await this.login(req.user.id, req.body), 200);
+					return res.send(await this.wrapApiResult(this.login(userId, req.body)), 200);
 				}
 				if (method === 'get-account') {
-					return res.send(await this.models.Account.findOne({where: {userId: req.user.id, id: req.body.userData.id}}), 200);
+					return res.send(await this.models.Account.findOne({where: {...req.body.userData, userId}}), 200);
 				}
 				if (method === 'account-list') {
-					return res.send(await this.models.Account.findAll({where: {userId: req.user.id}}), 200);
+					return res.send(await this.models.Account.findAll({where: {userId}}), 200);
 				}
 				if (method === 'get-user') {
 					if (req.body.username === 'me') {
-						const client = await this.getClient(req.user.id, req.body.userData);
-						return res.send(await client.getMe(), 200);
+						return res.send(await this.wrapApiResult(this.getMeByUserId(userId, req.body.userData)), 200);
 					} else {
-						return this.getUserInfoByUserId(req.user.id, req.body.userData, req.body.username);
+						return res.send(await this.wrapApiResult(this.getUserInfoByUserId(userId, req.body.userData, req.body.username)), 200);
 					}
 				}
 				if (method === 'update-account') {
-					const client = await this.getClient(req.user.id, req.body.userData);
-					const user = await client.getMe();
+					const user = await this.wrapApiResult(this.getMeByUserId(userId, req.body.userData));
 					const username = user['username'];
 					const fullName = res.user['firstName'] + ' ' + res.user['lastName'];
-					await this.createOrUpdateAccount({...req.body.userData, userId: req.user.id, username, fullName});
-					return res.send(await this.models.Account.findOne({where: {...req.body.userData, userId: req.user.id}}), 200);
+					await this.createOrUpdateAccount({...req.body.userData, userId, username, fullName});
+					return res.send(await this.models.Account.findOne({where: {...req.body.userData, userId}}), 200);
 				}
 				if (method === 'channels') {
-					const client = await this.getClient(req.user.id, req.body.userData);
-					const channels = await client.invoke(new Api.messages.GetAllChats({ exceptIds: [] }) as any);
-					return res.send(channels.chats.filter(c => c.className === 'Channel' && !c.megagroup), 200);
+					return res.send(await this.wrapApiResult(this.getUserChannelsByUserId(userId, req.body.userData)), 200);
 				}
 			});
 		});
 	}
 	async login(userId, loginData) {
 		console.log('loginData', loginData);
-		let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash } = loginData;
+		let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey } = loginData;
 		apiId = parseInt(apiId);
 
-		const acc = await this.models.Account.findOne({where: {userId, phoneNumber}});
-		console.log('acc', JSON.stringify(acc));
-		const stringSession = new StringSession(acc && acc.sessionKey ? acc.sessionKey : '');
+		let acc = await this.models.Account.findOne({where: {userId, phoneNumber}});
+		sessionKey = sessionKey || (acc && acc.sessionKey) || '';
+		const stringSession = new StringSession(sessionKey);
 		const client = new TelegramClient(stringSession, apiId, apiHash, {});
+
+		if (isEncrypted) {
+			sessionKey = encryptedSessionKey;
+		}
 
 		await client.connect();
 
+		let response;
 		if (phoneCodeHash) {
-			let res;
 			try {
-				res = await client.invoke(new Api.auth.SignIn({ phoneNumber, phoneCodeHash, phoneCode }) as any);
+				response = await client.invoke(new Api.auth.SignIn({ phoneNumber, phoneCodeHash, phoneCode }) as any);
 			} catch (e) {
 				if (!includes(e.message, 'SESSION_PASSWORD_NEEDED') || !password) {
 					throw e;
 				}
 				const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
 				const passwordSrpCheck = await computeCheck(passwordSrpResult, password);
-				res = await client.invoke(new Api.auth.CheckPassword({ password: passwordSrpCheck }) as any);
+				response = await client.invoke(new Api.auth.CheckPassword({ password: passwordSrpCheck }) as any);
 			}
 			try {
-				const sessionKey = client.session.save();
-				const username = res.user ? res.user.username : null;
-				const fullName = res.user ? res.user.firstName + ' ' + res.user.lastName: null;
-				await this.createOrUpdateAccount({userId, phoneNumber, apiId, apiHash, sessionKey, username, fullName});
+				if (!isEncrypted) {
+					sessionKey = client.session.save();
+				}
+				const username = response.user ? response.user.username : null;
+				const fullName = response.user ? response.user.firstName + ' ' + response.user.lastName: null;
+				acc = await this.createOrUpdateAccount({userId, phoneNumber, apiId, apiHash, sessionKey, username, fullName, isEncrypted});
 			} catch (e) {}
-			return res;
+			return { client, result: { response, sessionKey: client.session.save(), account: acc } };
 		} else {
-			const res = await client.sendCode({apiId, apiHash}, phoneNumber);
+			response = await client.sendCode({apiId, apiHash}, phoneNumber);
 			try {
-				const sessionKey = client.session.save();
-				console.log('sendCode sessionKey', sessionKey);
-				await this.createOrUpdateAccount({userId, phoneNumber, sessionKey});
+				if (!isEncrypted) {
+					sessionKey = client.session.save();
+				}
+				acc = await this.createOrUpdateAccount({userId, phoneNumber, sessionKey, isEncrypted});
 			} catch (e) {
 				console.error('sendCode error', e);
 			}
-			return res;
+			return { client, result: { response, sessionKey: client.session.save(), account: acc } };
 		}
 	}
 	async createOrUpdateAccount(accData) {
@@ -115,19 +119,23 @@ class Telegram {
 		}
 		console.log('where', where);
 		const userAcc = await this.models.Account.findOne({where});
-		return userAcc ? userAcc.update(accData) : this.models.Account.create(accData);
+		return userAcc ? userAcc.update(accData).then(() => this.models.Account.findOne({where})) : this.models.Account.create(accData);
 	}
-	async getClient(userId, userData = {}) {
-		let {sessionKey, apiId, apiHash} = await this.models.Account.findOne({where: {...userData, userId}});
+	async getClient(userId, userData: any = {}) {
+		let {sessionKey} = userData;
+		delete userData['sessionKey'];
+		const acc = await this.models.Account.findOne({where: {...userData, userId}});
+		let {apiId, apiHash} = acc;
+		if (!sessionKey) {
+			sessionKey = acc.sessionKey;
+		}
 		apiId = parseInt(apiId);
-		const session = new StringSession(sessionKey); // You should put your string session here
-		const client = new TelegramClient(session, apiId, apiHash, {});
-		await client.connect(); // This assumes you have already authenticated with .start()
+		const client = new TelegramClient(new StringSession(sessionKey), apiId, apiHash, {});
+		await client.connect();
 		return client;
 	}
 	async getUserInfoByUserId(userId, userData, userName) {
-		const client = await this.getClient(userId, userData);
-		return this.getUserInfoByClient(client, userName);
+		return this.getUserInfoByClient(await this.getClient(userId, userData), userName);
 	}
 	async getUserInfoByClient(client, userName) {
 		return {
@@ -136,8 +144,7 @@ class Telegram {
 		}
 	}
 	async getChannelInfoByUserId(userId, userData, channelName) {
-		const client = await this.getClient(userId, userData);
-		return this.getChannelInfoByClient(client, channelName);
+		return this.getChannelInfoByClient(await this.getClient(userId, userData), channelName);
 	}
 	async getChannelInfoByClient(client, channelName) {
 		return {
@@ -150,8 +157,7 @@ class Telegram {
 		}
 	}
 	async getMessagesByUserId(userId, userData, channelName, messagesIds) {
-		const client = await this.getClient(userId, userData);
-		return this.getMessagesByClient(client, channelName, messagesIds);
+		return this.getMessagesByClient(await this.getClient(userId, userData), channelName, messagesIds);
 	}
 	async getMessagesByClient(client, channelName, messagesIds) {
 		return {
@@ -210,6 +216,26 @@ class Telegram {
 				),
 			}
 		};
+	}
+	async getMeByUserId(userId, userData) {
+		const client = await this.getClient(userId, userData);
+		return {
+			result: await client.getMe(),
+			client
+		};
+	}
+	async getUserChannelsByUserId(userId, userData) {
+		const client = await this.getClient(userId, userData);
+		const channels = await client.invoke(new Api.messages.GetAllChats({ exceptIds: [] }) as any);
+		return {
+			result: channels.chats.filter(c => c.className === 'Channel' && !c.megagroup),
+			client
+		}
+	}
+	async wrapApiResult(promise) {
+		const {result, client} = await promise;
+		await client.disconnect();
+		return result;
 	}
 }
 

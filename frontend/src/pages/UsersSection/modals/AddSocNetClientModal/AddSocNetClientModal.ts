@@ -24,13 +24,17 @@ export default {
   methods: {
     async login() {
       try {
-        const result = await this.$coreApi.socNetLogin(this.socnet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password']));
+        const result = await this.$coreApi.socNetLogin(this.socnet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted']));
         console.log('result', result);
-        if (result.phoneCodeHash) {
-          this.phoneCodeHash = result.phoneCodeHash;
+        if (result.response.phoneCodeHash) {
+          this.phoneCodeHash = result.response.phoneCodeHash;
           this.phoneCodeRequired = true;
-        } else if (result.user) {
-          this.close()
+        } else if (result.response.user) {
+          this.close();
+          this.$notify({
+            type: 'success',
+            title: "Success"
+          });
         }
       } catch (e) {
         console.error('e', e);
@@ -57,6 +61,7 @@ export default {
       phoneCodeHash: '',
       phoneCode: '',
       password: '',
+      isEncrypted: true,
       phoneCodeRequired: false,
       passwordRequired: false,
       socnet: 'telegram'

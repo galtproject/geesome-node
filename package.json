@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "start": "yarn && npm run aqua-compile-communicator && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
+    "start": "yarn && npm run aqua-compile-communicator && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts > logs.log",
     "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",

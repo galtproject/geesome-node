@@ -12,7 +12,7 @@ module.exports = `
   <div class="modal-body" slot="body">
     <p>Social network clients in Geesome allows you to backup your content for using in Geesome groups or static sites.</p>
 
-    <p>Please, enter your social network data only if you trust this Geesome node, or if it's your personal node.</p>
+    <p>Please, enter your social network data only if you trust this Geesome node, or if it's your personal secured node.</p>
     
     <p>Visit <a href="https://my.telegram.org/" target="_blank">Telegram Client cabinet</a> for register app and get </p>
 
@@ -30,14 +30,16 @@ module.exports = `
   
     <md-field>
       <label>App hash</label>
-      <md-input v-model="apiHash"></md-input>
+      <md-input v-model="apiHash" type="password"></md-input>
     </md-field>
   
     <md-field>
       <label>Phone</label>
       <md-input v-model="phoneNumber"></md-input>
     </md-field>
-  
+    
+	<md-checkbox v-model="isEncrypted">Encrypt session key (will disable background jobs)</md-checkbox>
+
     <md-field v-if="phoneCodeRequired">
       <label>Phone code</label>
       <md-input v-model="phoneCode"></md-input>
@@ -45,7 +47,7 @@ module.exports = `
   
     <md-field v-if="passwordRequired">
       <label>Password</label>
-      <md-input v-model="password"></md-input>
+      <md-input v-model="password" type="password"></md-input>
     </md-field>
 
     <div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">

@@ -34,7 +34,10 @@ module.exports = async function (sequelize) {
 			type: Sequelize.STRING(200)
 		},
 		sessionKey: {
-			type: Sequelize.STRING(200)
+			type: Sequelize.TEXT
+		},
+		isEncrypted: {
+			type: Sequelize.BOOLEAN
 		},
 	} as any, {
 		indexes: [
