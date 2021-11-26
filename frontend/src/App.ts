@@ -115,6 +115,7 @@ export default {
   methods: {
     async logout() {
       await this.$coreApi.logout();
+      this.$router.push({name: 'main-page'})
       location.reload();
     },
     getCurrentUser() {

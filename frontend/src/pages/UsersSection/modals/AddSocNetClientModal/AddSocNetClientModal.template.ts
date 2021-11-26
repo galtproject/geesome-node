@@ -14,7 +14,7 @@ module.exports = `
 
     <p>Please, enter your social network data only if you trust this Geesome node, or if it's your personal secured node.</p>
     
-    <p>Visit <a href="https://my.telegram.org/" target="_blank">Telegram Client cabinet</a> for register app and get </p>
+    <p>Visit <a href="https://my.telegram.org/" target="_blank">Telegram Client cabinet</a> to register app and get app id and app hash.</p>
 
 	<md-field>
 		<label>Type</label>

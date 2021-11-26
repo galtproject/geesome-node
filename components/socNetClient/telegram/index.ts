@@ -68,13 +68,16 @@ class Telegram {
 		apiId = parseInt(apiId);
 
 		let acc = await this.models.Account.findOne({where: {userId, phoneNumber}});
-		sessionKey = sessionKey || (acc && acc.sessionKey) || '';
+		sessionKey = isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
+		console.log('1 sessionKey', sessionKey);
 		const stringSession = new StringSession(sessionKey);
 		const client = new TelegramClient(stringSession, apiId, apiHash, {});
 
+		console.log('encryptedSessionKey', encryptedSessionKey);
 		if (isEncrypted) {
 			sessionKey = encryptedSessionKey;
 		}
+		console.log('2 sessionKey', sessionKey);
 
 		await client.connect();
 
@@ -105,6 +108,7 @@ class Telegram {
 				if (!isEncrypted) {
 					sessionKey = client.session.save();
 				}
+				console.log('3 sessionKey', sessionKey);
 				acc = await this.createOrUpdateAccount({userId, phoneNumber, sessionKey, isEncrypted});
 			} catch (e) {
 				console.error('sendCode error', e);
@@ -117,7 +121,7 @@ class Telegram {
 		if (accData.phoneNumber) {
 			where['phoneNumber'] = accData.phoneNumber;
 		}
-		console.log('where', where);
+		console.log('where', where, 'accData', accData);
 		const userAcc = await this.models.Account.findOne({where});
 		return userAcc ? userAcc.update(accData).then(() => this.models.Account.findOne({where})) : this.models.Account.create(accData);
 	}

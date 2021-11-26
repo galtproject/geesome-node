@@ -14,12 +14,17 @@ const includes = require('lodash/includes');
 
 export default {
   template: require('./AddSocNetClientModal.template'),
-  props: [],
+  props: ['account'],
   components: {
     ModalItem
   },
   created() {
-
+    if (this.account) {
+      this.apiId = this.account.apiId;
+      this.apiHash = this.account.apiHash;
+      this.phoneNumber = this.account.phoneNumber;
+      this.isEncrypted = !!this.account.isEncrypted;
+    }
   },
   methods: {
     async login() {
