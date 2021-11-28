@@ -1043,6 +1043,17 @@ class MysqlDatabase implements IDatabase {
     return this.models.UserAsyncOperation.findOne({where: {id}});
   }
 
+  async getUserAsyncOperationList(userId, name = null, channelLike = null) {
+    const where = {userId, inProcess: true};
+    if (name) {
+      where['name'] = name;
+    }
+    if (channelLike) {
+      where['channel'] = {[Op.like]: channelLike};
+    }
+    return this.models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 100});
+  }
+
   async addUserLimit(userLimitData) {
     return this.models.UserLimit.create(userLimitData);
   }

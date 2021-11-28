@@ -27,9 +27,9 @@ export default class AbstractDriver implements IDriver {
     return false;
   }
   
-  processByStream?(inputSteam, options?) { return null; };
+  processByStream?(inputSteam, options?): Promise<any> { return null; };
 
-  processByContent?(inputContent, options?) { return null; };
+  processByContent?(inputContent, options?): Promise<any> { return null; };
 
-  processBySource?(sourceLink, options?) { return null; };
+  processBySource?(sourceLink, options?): Promise<any> { return null; };
 }

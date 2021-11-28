@@ -112,7 +112,7 @@ module.exports = async (extendConfig) => {
   app.socNetClients = await pIteration.map(config.socNetClientList, async name => {
     const SocNetClientClass = require('../../socNetClient/' + name);
     const client = new SocNetClientClass();
-    await client.init(app.api);
+    await client.init(app);
     return client;
   });
 
@@ -1459,7 +1459,7 @@ class GeesomeApp implements IGeesomeApp {
       const storageFile = await this.storage.saveFileByData(resultStream);
 
       let properties;
-      if(options.getProperties && this.drivers.metadata[type.split('/')[0]]) {
+      if (options.getProperties && this.drivers.metadata[type.split('/')[0]]) {
         const propertiesStream = await this.storage.getFileStream(storageFile.id);
         properties = await this.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
       }
@@ -1468,15 +1468,17 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+  async getApyKeyId(apiKey) {
+    const apiKeyDb = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(apiKey));
+    if(!apiKeyDb) {
+      throw new Error("not_authorized");
+    }
+    return apiKeyDb.id;
+  }
+
   async asyncOperationWrapper(methodName, args, options) {
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
-    if (options.apiKey) {
-      const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
-      if(!apiKey) {
-        throw new Error("not_authorized");
-      }
-      options.userApiKeyId = apiKey.id;
-    }
+    options.userApiKeyId = await this.getApyKeyId(options.apiKey);
 
     if (!options.async) {
       return this[methodName].apply(this, args);
@@ -1723,6 +1725,10 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("not_permitted");
     }
     return asyncOperation;
+  }
+
+  async findAsyncOperations(userId, name, channelLike) {
+    return this.database.getUserAsyncOperationList(userId, name, channelLike);
   }
 
   getFilenameFromPath(path) {
@@ -2446,6 +2452,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async checkUserCan(userId, permission) {
     const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
+    console.log('userCanAll', userCanAll);
     if (userCanAll) {
       return;
     }

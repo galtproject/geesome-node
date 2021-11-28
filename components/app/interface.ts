@@ -154,6 +154,8 @@ export interface IGeesomeApp {
 
   getAsyncOperation(userId, id);
 
+  findAsyncOperations(userId, name?, channelLike?);
+
   createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
 
   createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;

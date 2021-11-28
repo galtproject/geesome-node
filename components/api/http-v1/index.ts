@@ -527,6 +527,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getAsyncOperation(req.user.id, req.params.id));
   });
 
+  service.post('/v1/user/find-async-operations', async (req, res) => {
+    res.send(await geesomeApp.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
+  });
+
   service.get('/v1/user/file-catalog/', async (req, res) => {
     res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query));
   });

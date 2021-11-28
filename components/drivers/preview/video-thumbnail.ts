@@ -9,7 +9,6 @@
 
 import {DriverInput, OutputSize} from "../interface";
 
-import {Stream} from "stream";
 import AbstractDriver from "../abstractDriver";
 
 const ffmpeg = require('fluent-ffmpeg');
@@ -31,7 +30,7 @@ export class VideoThumbnail extends AbstractDriver {
     ffmpeg()
       .input(inputStream)
       .inputFormat(options.extension)
-      .outputOptions(["-movflags faststart", '-f image2', '-vframes 1', '-vcodec png', '-f rawvideo', '-ss 00:00:05'])//, '-s 320x240'
+      .outputOptions(["-movflags faststart", '-f image2', '-vframes 1', '-vcodec png', '-f rawvideo', '-ss 00:00:00'])//, '-s 320x240'
       .output(transformStream)
       .on('error', function (err, stdout, stderr) {
         console.error('An error occurred: ' + err.message, err, stderr);

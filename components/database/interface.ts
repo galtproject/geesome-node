@@ -260,6 +260,8 @@ export interface IDatabase {
 
   getUserAsyncOperation(operationId): Promise<IUserAsyncOperation>;
 
+  getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
+
   addUserLimit(limitData): Promise<IUserLimit>;
 
   updateUserLimit(limitId, limitData): Promise<void>;

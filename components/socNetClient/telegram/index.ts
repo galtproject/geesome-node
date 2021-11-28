@@ -10,25 +10,31 @@
 const { Api, TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { computeCheck } = require("telegram/Password");
+const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
 const find = require('lodash/find');
 const max = require('lodash/max');
 const isNumber = require('lodash/isNumber');
 const Sequelize = require("sequelize");
+const commonHelper = require('geesome-libs/src/common');
+const bigInt = require('big-integer');
 
 class Telegram {
 	models;
+	app;
 
-	async init(appApi) {
+	async init(app) {
+		this.app = app;
+
 		let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', {
 			'dialect': 'sqlite',
 			'storage': 'data/soc-net-database.sqlite'
 		});
 		this.models = await require("./database")(sequelize);
 
-		['login', 'account-list', 'get-account', 'get-user', 'update-account', 'channels'].forEach(method => {
-			appApi.post('/v1/soc-net/telegram/' + method, async (req, res) => {
+		['login', 'db-account', 'db-account-list', 'db-channel', 'get-user', 'update-account', 'channels', 'channel-info', 'run-channel-import'].forEach(method => {
+			app.api.post('/v1/soc-net/telegram/' + method, async (req, res) => {
 				if (!req.user || !req.user.id) {
 					return res.send(401);
 				}
@@ -36,28 +42,37 @@ class Telegram {
 				if (method === 'login') {
 					return res.send(await this.wrapApiResult(this.login(userId, req.body)), 200);
 				}
-				if (method === 'get-account') {
-					return res.send(await this.models.Account.findOne({where: {...req.body.userData, userId}}), 200);
+				if (method === 'db-account') {
+					return res.send(await this.models.Account.findOne({where: {...req.body.accountData, userId}}), 200);
 				}
-				if (method === 'account-list') {
+				if (method === 'db-account-list') {
 					return res.send(await this.models.Account.findAll({where: {userId}}), 200);
 				}
-				if (method === 'get-user') {
+				if (method === 'db-channel') {
+					return res.send(await this.models.Channel.findOne({where: {...req.body.channelData, userId}}), 200);
+				}
+				if (method === 'user-info') {
 					if (req.body.username === 'me') {
-						return res.send(await this.wrapApiResult(this.getMeByUserId(userId, req.body.userData)), 200);
+						return res.send(await this.wrapApiResult(this.getMeByUserId(userId, req.body.accountData)), 200);
 					} else {
-						return res.send(await this.wrapApiResult(this.getUserInfoByUserId(userId, req.body.userData, req.body.username)), 200);
+						return res.send(await this.wrapApiResult(this.getUserInfoByUserId(userId, req.body.accountData, req.body.username)), 200);
 					}
 				}
 				if (method === 'update-account') {
-					const user = await this.wrapApiResult(this.getMeByUserId(userId, req.body.userData));
+					const user = await this.wrapApiResult(this.getMeByUserId(userId, req.body.accountData));
 					const username = user['username'];
 					const fullName = res.user['firstName'] + ' ' + res.user['lastName'];
-					await this.createOrUpdateAccount({...req.body.userData, userId, username, fullName});
-					return res.send(await this.models.Account.findOne({where: {...req.body.userData, userId}}), 200);
+					await this.createOrUpdateAccount({...req.body.accountData, userId, username, fullName});
+					return res.send(await this.models.Account.findOne({where: {...req.body.accountData, userId}}), 200);
 				}
 				if (method === 'channels') {
-					return res.send(await this.wrapApiResult(this.getUserChannelsByUserId(userId, req.body.userData)), 200);
+					return res.send(await this.wrapApiResult(this.getUserChannelsByUserId(userId, req.body.accountData)), 200);
+				}
+				if (method === 'channel-info') {
+					return res.send(await this.wrapApiResult(this.getChannelInfoByUserId(userId, req.body.accountData, req.body.channelId)), 200);
+				}
+				if (method === 'run-channel-import') {
+					return res.send(await this.runChannelImport(userId, req.token, req.body.accountData, req.body.channelId).then(r => r.result), 200);
 				}
 			});
 		});
@@ -125,10 +140,10 @@ class Telegram {
 		const userAcc = await this.models.Account.findOne({where});
 		return userAcc ? userAcc.update(accData).then(() => this.models.Account.findOne({where})) : this.models.Account.create(accData);
 	}
-	async getClient(userId, userData: any = {}) {
-		let {sessionKey} = userData;
-		delete userData['sessionKey'];
-		const acc = await this.models.Account.findOne({where: {...userData, userId}});
+	async getClient(userId, accData: any = {}) {
+		let {sessionKey} = accData;
+		delete accData['sessionKey'];
+		const acc = await this.models.Account.findOne({where: {...accData, userId}});
 		let {apiId, apiHash} = acc;
 		if (!sessionKey) {
 			sessionKey = acc.sessionKey;
@@ -138,8 +153,8 @@ class Telegram {
 		await client.connect();
 		return client;
 	}
-	async getUserInfoByUserId(userId, userData, userName) {
-		return this.getUserInfoByClient(await this.getClient(userId, userData), userName);
+	async getUserInfoByUserId(userId, accData, userName) {
+		return this.getUserInfoByClient(await this.getClient(userId, accData), userName);
 	}
 	async getUserInfoByClient(client, userName) {
 		return {
@@ -147,26 +162,56 @@ class Telegram {
 			result: await client.invoke(new Api['users'].GetFullUser({ id: userName }))
 		}
 	}
-	async getChannelInfoByUserId(userId, userData, channelName) {
-		return this.getChannelInfoByClient(await this.getClient(userId, userData), channelName);
+	async getChannelInfoByUserId(userId, accData, channelId) {
+		return this.getChannelInfoByClient(await this.getClient(userId, accData), channelId);
 	}
-	async getChannelInfoByClient(client, channelName) {
+	async getChannelLastMessageId(client, channel) {
+		const channelHistory = await client.invoke(
+			new Api.messages.GetHistory({
+				peer: channel,
+				offsetId: 0,
+				offsetDate: 2147483647,
+				addOffset: 0,
+				limit: 1,
+				maxId: 0,
+				minId: 0,
+				hash: 0,
+			})
+		);
+		return channelHistory.messages[0].id;
+	}
+	async getChannelEntity(client, channelId) {
+		return client.getInputEntity(
+			new Api['PeerChannel']({ channelId: parseInt(channelId), accessHash: bigInt.zero })
+		);
+	}
+	async getChannelInfoByClient(client, channelId) {
+		const channel = await this.getChannelEntity(client, channelId);
+		const [response, messagesCount] = await Promise.all([
+			client.invoke(new Api.channels.GetFullChannel({channel})).then(r => r.chats),
+			this.getChannelLastMessageId(client, channel),
+		]);
+
 		return {
 			client,
-			result: await client.invoke(
-				new Api.channels.GetFullChannel({
-					channel: channelName,
-				})
-			)
+			result: {
+				...response[0],
+				chat: response[1],
+				messagesCount
+			}
 		}
 	}
-	async getMessagesByUserId(userId, userData, channelName, messagesIds) {
-		return this.getMessagesByClient(await this.getClient(userId, userData), channelName, messagesIds);
+	async getMessagesByUserId(userId, accData, channelName, messagesIds) {
+		return this.getMessagesByClient(await this.getClient(userId, accData), channelName, messagesIds);
 	}
-	async getMessagesByClient(client, channelName, messagesIds) {
+	async getMessagesByClient(client, channelId, messagesIds) {
+		let channel = channelId;
+		if (commonHelper.isNumber(channel)) {
+			channel = await this.getChannelEntity(client, channelId);
+		}
 		return {
 			client,
-			result: await client.invoke(new Api.channels.GetMessages({ channel: channelName, id: messagesIds }) as any).then(({messages}) => {
+			result: await client.invoke(new Api.channels.GetMessages({ channel, id: messagesIds }) as any).then(({messages}) => {
 				return messages.map(m => {
 					console.log('m', m);
 					return pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']);
@@ -174,8 +219,8 @@ class Telegram {
 			})
 		};
 	}
-	async downloadMediaByUserId(userId, userData, media) {
-		return this.downloadMediaByClient(await this.getClient(userId, userData), media)
+	async downloadMediaByUserId(userId, accData, media) {
+		return this.downloadMediaByClient(await this.getClient(userId, accData), media)
 	}
 	async downloadMediaByClient(client, media) {
 		let file;
@@ -221,15 +266,15 @@ class Telegram {
 			}
 		};
 	}
-	async getMeByUserId(userId, userData) {
-		const client = await this.getClient(userId, userData);
+	async getMeByUserId(userId, accData) {
+		const client = await this.getClient(userId, accData);
 		return {
 			result: await client.getMe(),
 			client
 		};
 	}
-	async getUserChannelsByUserId(userId, userData) {
-		const client = await this.getClient(userId, userData);
+	async getUserChannelsByUserId(userId, accData) {
+		const client = await this.getClient(userId, accData);
 		const channels = await client.invoke(new Api.messages.GetAllChats({ exceptIds: [] }) as any);
 		return {
 			result: channels.chats.filter(c => c.className === 'Channel' && !c.megagroup),
@@ -240,6 +285,150 @@ class Telegram {
 		const {result, client} = await promise;
 		await client.disconnect();
 		return result;
+	}
+
+	async runChannelImport(userId, apiKey, accData, channelId) {
+		console.log('runChannelImport', userId, apiKey, accData, channelId);
+		const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
+		console.log('runChannelImport 2', channel);
+
+		let dbChannel = await this.models.Channel.findOne({where: {userId, channelId: channel.id}});
+		let group;
+		if (dbChannel) {
+			group = await this.app.getGroup(dbChannel.groupId);
+		} else {
+			group = await this.app.createGroup(userId, {
+				name: channel.username,
+				title: channel.title,
+				isPublic: true
+			});
+			dbChannel = await this.models.Channel.create({
+				userId,
+				groupId: group.id,
+				channelId: channel.id,
+				title: channel.title,
+				lastMessageId: 0,
+				postsCounts: 0,
+			});
+		}
+
+		const lastMessageId = channel.messagesCount;
+		if (dbChannel.lastMessageId === lastMessageId) {
+			throw new Error('already_done');
+		}
+
+		const asyncOperation = await this.app.database.addUserAsyncOperation({
+			userId,
+			userApiKeyId: await this.app.getApyKeyId(apiKey),
+			name: 'run-telegram-channel-import',
+			inProcess: true,
+			channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
+		});
+
+		const startMessageId = dbChannel ? dbChannel.lastMessageId : 0;
+		const totalCountToFetch = lastMessageId - startMessageId;
+		let currentMessageId = startMessageId;
+		(async () => {
+			while (currentMessageId < lastMessageId) {
+				let countToFetch = lastMessageId - currentMessageId;
+				if (countToFetch > 50) {
+					countToFetch = 50;
+				}
+				await this.importChannel(client, userId, group.id, accData, dbChannel, currentMessageId, countToFetch);
+				currentMessageId += countToFetch;
+				await this.app.database.updateUserAsyncOperation(asyncOperation.id, {
+					percent: (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100
+				});
+			}
+		})().then(() => {
+			return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
+				percent: 100,
+				inProcess: false,
+				finishedAt: new Date()
+			});
+		}).catch((e) => {
+			console.error('run-telegram-channel-import error', e);
+			return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
+				percent: 100,
+				inProcess: false,
+				errorMessage: e.message,
+				finishedAt: new Date()
+			});
+		});
+
+		return {
+			result: {asyncOperation},
+			client
+		}
+	}
+
+	async importChannel(client, userId, groupId, accData, dbChannel, startPost = 0, postsCount = 50) {
+		const messagesIds = Array.from({length: postsCount}, (_, i) => i + startPost);
+
+		let groupedId = null;
+		let groupedDate = null;
+		let groupedContent = [];
+		const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
+		await pIteration.forEachSeries(messages, async (m, i) => {
+			let contents = [];
+
+			console.log('m', m);
+			if (m.media) {
+				const {result: file} = await this.downloadMediaByClient(client, m.media);
+				const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
+				contents.push(content);
+
+				if (m.media.webpage) {
+					//TODO: add view type - link
+					const content = await this.app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId });
+					contents.push(content);
+				}
+			}
+
+			if (m.message) {
+				const content = await this.app.saveData(m.message, '', { mimeType: 'text/plain', userId });
+				contents.push(content);
+			}
+
+			const postData = {
+				groupId,
+				status: 'published',
+				propertiesJson: JSON.stringify({
+					source: 'telegram',
+					originalUrl: ''
+				})
+			}
+
+			console.log('m.groupedId', m.groupedId && m.groupedId.toString());
+			if (
+				(groupedId && !m.groupedId) || // group ended
+				(groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
+				i === messages.length - 1 // messages end
+			) {
+				if (groupedContent.length) {
+					await this.app.createPost(userId, {
+						publishedAt: groupedDate * 1000,
+						contents: groupedContent,
+						...postData
+					});
+				}
+				groupedContent = [];
+				groupedId = null;
+				groupedDate = null;
+			}
+
+			if (m.groupedId) {
+				groupedContent = groupedContent.concat(contents);
+				groupedId = m.groupedId.toString();
+				groupedDate = m.date;
+			} else if (contents.length) {
+				return this.app.createPost(userId, {
+					publishedAt: m.date * 1000,
+					contents,
+					...postData
+				});
+			}
+		});
 	}
 }
 
