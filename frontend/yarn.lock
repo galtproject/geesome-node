@@ -7382,9 +7382,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#73b7d07":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#7fc1bb5":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#73b7d079772510af10ab0de879fd4ec4c43ce9c9"
+  resolved "git://github.com/galtproject/geesome-libs.git#7fc1bb5ca043995c33d537351e263db3907e4d92"
   dependencies:
     "@fluencelabs/aqua" "0.4.1-240"
     "@fluencelabs/aqua-dht" "0.2.4"

@@ -36,7 +36,7 @@ export default {
 			const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
 			console.log('this.importResponse', asyncOperation);
 			// this.$coreApi.waitForAsyncOperation(asyncOperation.id, (operation) => {
-			// 	console.log('operation', operation);
+			// 	console.log('operation.percent', operation.percent);
 			// })
 		}
 	},

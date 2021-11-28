@@ -198,6 +198,26 @@ describe("drivers", function () {
     });
   });
 
+  describe('preview gif-thumbnail', () => {
+    it("should get gif screenshot correctly", async () => {
+      await new Promise(async (resolve, reject) => {
+        const gifPath = await resourcesHelper.prepare('test-gif.gif');
+        const result = await drivers['preview']['gif'].processByStream(fs.createReadStream(gifPath), {
+          extension: 'jpg',
+          onError() {
+            assert.equal(false, true);
+          }
+        });
+
+        const strm = fs.createWriteStream(__dirname + '/resources/output-gif-screenshot.jpg');
+        result.stream.pipe(strm);
+
+        strm.on('finish', resolve);
+        strm.on('error', reject);
+      });
+    });
+  });
+
   describe('upload archive', () => {
     it("should upload and extract archive", async () => {
       await new Promise(async (resolve, reject) => {
@@ -223,5 +243,4 @@ describe("drivers", function () {
       });
     });
   });
-})
-;
+});

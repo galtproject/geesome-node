@@ -212,10 +212,9 @@ class Telegram {
 		return {
 			client,
 			result: await client.invoke(new Api.channels.GetMessages({ channel, id: messagesIds }) as any).then(({messages}) => {
-				return messages.map(m => {
-					console.log('m', m);
-					return pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']);
-				}).filter(m => m.date);
+				return messages
+					.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']))
+					.filter(m => m.date);
 			})
 		};
 	}
@@ -230,10 +229,12 @@ class Telegram {
 		if (media.photo || (media.webpage && media.webpage.photo)) {
 			file = media.photo || media.webpage.photo;
 			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
+			console.log('ySize', ySize);
 			if (isNumber(ySize.sizes[0])) {
 				fileSize = max(ySize.sizes);
 			} else {
-				const maxSize = max(ySize.sizes, s => s.size);
+				const maxSize = max(ySize.sizes.filter(s => s.size), s => s.size);
+				console.log('maxSize', maxSize);
 				fileSize = maxSize.size
 				thumbSize = maxSize.type;
 			}
@@ -246,6 +247,13 @@ class Telegram {
 			// console.log('media', media);
 		}
 		console.log('media.webpage', media.webpage);
+		console.log('file', file, 'thumbSize', thumbSize, 'fileSize', fileSize);
+		if (!file) {
+			return {
+				client,
+				result: null
+			}
+		}
 		return {
 			client,
 			result: {
@@ -253,9 +261,7 @@ class Telegram {
 				fileSize,
 				content: await client.downloadFile(
 					new Api[media.document ? 'InputDocumentFileLocation' : 'InputPhotoFileLocation']({
-						id: file.id,
-						accessHash: file.accessHash,
-						fileReference: file.fileReference,
+						...pick(file, ['id', 'accessHash', 'fileReference']),
 						thumbSize
 					}),
 					{
@@ -334,10 +340,11 @@ class Telegram {
 				if (countToFetch > 50) {
 					countToFetch = 50;
 				}
-				await this.importChannel(client, userId, group.id, accData, dbChannel, currentMessageId, countToFetch);
-				currentMessageId += countToFetch;
-				await this.app.database.updateUserAsyncOperation(asyncOperation.id, {
-					percent: (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100
+				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, (m, post) => {
+					currentMessageId = m.id;
+					return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
+						percent: (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100
+					});
 				});
 			}
 		})().then(() => {
@@ -349,7 +356,6 @@ class Telegram {
 		}).catch((e) => {
 			console.error('run-telegram-channel-import error', e);
 			return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
-				percent: 100,
 				inProcess: false,
 				errorMessage: e.message,
 				finishedAt: new Date()
@@ -362,21 +368,35 @@ class Telegram {
 		}
 	}
 
-	async importChannel(client, userId, groupId, accData, dbChannel, startPost = 0, postsCount = 50) {
+	async importChannelPosts(client, userId, groupId, dbChannel, startPost = 1, postsCount = 50, onMessageProcess = null) {
 		const messagesIds = Array.from({length: postsCount}, (_, i) => i + startPost);
+		const dbChannelId = dbChannel.id;
 
 		let groupedId = null;
+		let groupedReplyTo = null;
 		let groupedDate = null;
 		let groupedContent = [];
+		let groupedMessageIds = [];
 		const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 		await pIteration.forEachSeries(messages, async (m, i) => {
+			const msgId = m.id;
+			const existsChannelMessage = await this.models.Message.findOne({where: {msgId, dbChannelId, userId}});
+			if (existsChannelMessage) {
+				return;
+			}
 			let contents = [];
 
 			console.log('m', m);
 			if (m.media) {
+				if (m.media.poll) {
+					//TODO: handle and save polls (325)
+					return;
+				}
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
-				const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
-				contents.push(content);
+				if (file) {
+					const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
+					contents.push(content);
+				}
 
 				if (m.media.webpage) {
 					//TODO: add view type - link
@@ -390,43 +410,75 @@ class Telegram {
 				contents.push(content);
 			}
 
+			const properties = {
+				source: 'telegram',
+				date: groupedDate || m.date,
+				originalUrl: '',
+				msgId: groupedMessageIds.length ? groupedMessageIds[0] : msgId
+			};
+			if (groupedReplyTo) {
+				properties['replyToMsgId'] = groupedReplyTo;
+			} else if (m.replyTo) {
+				properties['replyToMsgId'] = m.replyTo.replyToMsgId;
+			}
+			if (groupedMessageIds.length) {
+				properties['groupedMsgIds'] = groupedMessageIds;
+			}
+
 			const postData = {
 				groupId,
 				status: 'published',
-				propertiesJson: JSON.stringify({
-					source: 'telegram',
-					originalUrl: ''
-				})
+				propertiesJson: JSON.stringify(properties)
 			}
 
+			let post;
 			console.log('m.groupedId', m.groupedId && m.groupedId.toString());
 			if (
 				(groupedId && !m.groupedId) || // group ended
 				(groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
 				i === messages.length - 1 // messages end
 			) {
+				let postId = null;
 				if (groupedContent.length) {
-					await this.app.createPost(userId, {
+					post = await this.app.createPost(userId, {
 						publishedAt: groupedDate * 1000,
 						contents: groupedContent,
 						...postData
 					});
+					postId = post.id;
 				}
+
+				await pIteration.forEach(groupedMessageIds,
+					(msgId) => this.models.Message.create({msgId, dbChannelId, userId, groupedId, postId, replyToMsgId: groupedReplyTo})
+				);
+
 				groupedContent = [];
+				groupedMessageIds = [];
 				groupedId = null;
 				groupedDate = null;
+				groupedReplyTo = null;
 			}
 
 			if (m.groupedId) {
 				groupedContent = groupedContent.concat(contents);
+				groupedMessageIds.push(msgId);
 				groupedId = m.groupedId.toString();
 				groupedDate = m.date;
+				if (m.replyTo) {
+					groupedReplyTo = m.replyTo.replyToMsgId;
+				}
 			} else if (contents.length) {
-				return this.app.createPost(userId, {
+				post = await this.app.createPost(userId, {
 					publishedAt: m.date * 1000,
 					contents,
 					...postData
 				});
+				this.models.Message.create({msgId, dbChannelId, userId, groupedId, post: post.id, replyToMsgId: properties['replyToMsgId']});
+			} else {
+				this.models.Message.create({msgId, dbChannelId, userId, groupedId, replyToMsgId: properties['replyToMsgId']});
+			}
+			if (onMessageProcess) {
+				onMessageProcess(m, post);
 			}
 		});
 	}

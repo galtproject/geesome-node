@@ -309,8 +309,12 @@ class GeesomeApp implements IGeesomeApp {
 
   async bindToStaticId(dynamicId, staticId) {
     log('bindToStaticId', dynamicId, staticId);
-    await this.communicator.bindToStaticId(dynamicId, staticId);
-
+    try {
+      await this.communicator.bindToStaticId(dynamicId, staticId);
+      log('bindToStaticId:communicator finish');
+    } catch (e) {
+      log('bindToStaticId:communicator error', e.message);
+    }
     // await this.database.destroyStaticIdHistory(staticId);
 
     return this.database.addStaticIdHistoryItem({
@@ -1340,8 +1344,13 @@ class GeesomeApp implements IGeesomeApp {
       fullType = '';
     }
     if (!previewDriverName) {
-      previewDriverName = fullType.split('/')[0];
+      const splitType = fullType.split('/');
+      previewDriverName = this.drivers.preview[splitType[1]] ? splitType[1] : splitType[0];
     }
+    if (previewDriverName === 'gif') {
+      extension = 'jpg';
+    }
+    log('previewDriverName', previewDriverName);
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
@@ -1550,7 +1559,7 @@ class GeesomeApp implements IGeesomeApp {
     if (options.path) {
       fileName = this.getFilenameFromPath(options.path);
     }
-    const extension = this.getExtensionFromName(fileName);
+    const extensionFromName = this.getExtensionFromName(fileName);
 
     if (options.apiKey && !options.userApiKeyId) {
       const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
@@ -1587,8 +1596,8 @@ class GeesomeApp implements IGeesomeApp {
       fileStream = dataToSave;
     }
 
-    const {resultFile: storageFile, resultMimeType: type, resultExtension, resultProperties} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.getType(fileName) || extension, {
-      extension,
+    const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
+      extension: extensionFromName,
       driver: options.driver,
       onProgress: options.onProgress
     }).catch(e => {
@@ -1596,7 +1605,7 @@ class GeesomeApp implements IGeesomeApp {
       dataToSave.destroy && dataToSave.destroy();
       throw e;
     });
-    log('saveFileByStream', resultExtension);
+    log('saveFileByStream extension', extension, 'mimeType', mimeType);
 
     let existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     log('existsContent');
@@ -1611,9 +1620,9 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     return this.addContentWithPreview(storageFile, {
+      extension,
+      mimeType,
       storageType: ContentStorageType.IPFS,
-      extension: resultExtension,
-      mimeType: type,
       userId: options.userId,
       view: ContentView.Contents,
       storageId: storageFile.id,
@@ -1694,7 +1703,12 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addContentWithPreview(storageFile, contentData, options, source?) {
-    const {storageFile: forPreviewStorageFile, extension: forPreviewExtension, fullType: forPreviewFullType, properties} = await this.prepareStorageFileForPreview(storageFile, contentData.extension, contentData.mimeType);
+    const {
+      storageFile: forPreviewStorageFile,
+      extension: forPreviewExtension,
+      fullType: forPreviewFullType,
+      properties
+    } = await this.prepareStorageFileForPreview(storageFile, contentData.extension, contentData.mimeType);
     let previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
 
     if(properties) {
@@ -2452,7 +2466,6 @@ class GeesomeApp implements IGeesomeApp {
 
   async checkUserCan(userId, permission) {
     const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
-    console.log('userCanAll', userCanAll);
     if (userCanAll) {
       return;
     }
