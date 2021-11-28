@@ -1,5 +1,6 @@
 module.exports = `
 <div id="profile-page" class="container-page">
+  <router-link :to="{name: 'current-user-profile'}" class="back">< Back</router-link>
   <h3>Social Network Account</h3>
   
   <md-card v-if="account">
@@ -31,7 +32,7 @@ module.exports = `
 			  </md-table-row>
 	
 			  <md-table-row v-for="item in showChannels">
-				<md-table-cell>{{item.title}}</md-table-cell>
+				<md-table-cell><router-link :to="{name: 'soc-net-channel', params: {channelId: item.id}}">{{item.title}}</router-link></md-table-cell>
 				<md-table-cell>{{item.username}}</md-table-cell>
 				<md-table-cell>
 <!--				<md-button class="md-accent md-icon-button" @click="editApiKey(item)"><md-icon>sync</md-icon></md-button>-->

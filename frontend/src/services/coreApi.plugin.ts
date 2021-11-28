@@ -68,7 +68,9 @@ export default {
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
           'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
-          'socNetNamesList', 'socNetLogin', 'socNetAccountList', 'socNetGetUser', 'socNetGetAccount', 'socNetUpdateAccount', 'socNetGetChannels', 'isSocNetSessionKeyCorrect'
+          'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
+          'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetDbChannel',
+          'waitForAsyncOperation', 'findAsyncOperations'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

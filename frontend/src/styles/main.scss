@@ -558,4 +558,12 @@ a.icon-link {
     font-weight: bold;
   }
 }
+a.back {
+  display: block;
+  margin-bottom: 15px;
+  text-decoration: none !important;
+  &:hover {
+    text-decoration: underline !important;
+  }
+}
 @import "adaptive";

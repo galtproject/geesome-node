@@ -27,6 +27,7 @@ import EditProfile from "./pages/UsersSection/UserProfile/EditProfile/EditProfil
 import ChatPage from "./pages/ChatPage/ChatPage";
 import UserProfileByStaticId from "./pages/UsersSection/UserProfile/UserProfileByStaticId/UserProfileByStaticId";
 import SocNetClient from "./pages/UsersSection/SocNetClient/SocNetClient";
+import SocNetChannel from "./pages/UsersSection/SocNetChannel/SocNetChannel";
 
 Vue.use(Router);
 
@@ -59,9 +60,14 @@ export default new Router({
       component: CurrentUserProfile
     },
     {
-      path: '/profile/soc-net-client/:socNet/:id',
+      path: '/profile/soc-net-client/:socNet/:accId',
       name: 'soc-net-client',
       component: SocNetClient
+    },
+    {
+      path: '/profile/soc-net-client/:socNet/:accId/:channelId',
+      name: 'soc-net-channel',
+      component: SocNetChannel
     },
     {
       path: '/profile/edit',

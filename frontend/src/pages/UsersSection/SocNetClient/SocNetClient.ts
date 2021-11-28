@@ -9,8 +9,6 @@
 
 import AddSocNetClientModal from "../modals/AddSocNetClientModal/AddSocNetClientModal";
 
-const includes = require('lodash/includes');
-
 export default {
 	template: require('./SocNetClient.template'),
 	components: {},
@@ -20,12 +18,12 @@ export default {
 	},
 	methods: {
 		async getAccount() {
-			this.account = await this.$coreApi.socNetGetAccount(this.$route.params.socNet, {id: this.$route.params.id});
+			this.account = await this.$coreApi.socNetDbAccount(this.$route.params.socNet, {id: this.$route.params.accId});
 			console.log('this.account', this.account);
 			this.incorrectSessionKey = !this.$coreApi.isSocNetSessionKeyCorrect(this.account);
 		},
 		async getChannels() {
-			this.channels = await this.$coreApi.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.id});
+			this.channels = await this.$coreApi.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.accId});
 			console.log('this.channels', this.channels);
 		},
 		login() {

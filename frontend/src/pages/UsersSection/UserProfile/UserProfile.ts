@@ -27,7 +27,7 @@ export default {
       this.apiKeys = apiKeys.list;
     },
     async getSocNetsAccounts() {
-      this.socNetAccounts = await this.$coreApi.socNetAccountList('telegram');
+      this.socNetAccounts = await this.$coreApi.socNetDbAccountList('telegram');
     },
     async updateSocNetAccount(acc) {
       await this.$coreApi.socNetUpdateUser('telegram', acc);
