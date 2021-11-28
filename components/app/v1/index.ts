@@ -8,7 +8,6 @@
  */
 
 import {
-  ContentMimeType,
   ContentStorageType,
   ContentView,
   CorePermissionName,
@@ -1674,7 +1673,7 @@ class GeesomeApp implements IGeesomeApp {
         if (status !== 200) {
           throw statusText;
         }
-        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.getType(name) || extension, {extension, driver: options.driver});
+        return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.lookup(name) || extension, {extension, driver: options.driver});
       });
       type = resultMimeType;
       storageFile = resultFile;
@@ -1952,7 +1951,7 @@ class GeesomeApp implements IGeesomeApp {
 
   private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const baseType = content.mimeType ? _.first(content.mimeType.split('/')) : 'other';
+    const baseType = content.mimeType ? _.first(content.mimeType['split']('/')) : 'other';
 
     let parentItemId;
 
@@ -2285,11 +2284,6 @@ class GeesomeApp implements IGeesomeApp {
    ETC ACTIONS
    ===========================================
    **/
-
-  private detectType(storageId, fileName) {
-    // const ext = _.last(fileName.split('.')).toLowerCase();
-    return mime.getType(fileName) || ContentMimeType.Unknown;
-  }
 
   async updateContentManifest(content) {
     content.description = content.description || '';

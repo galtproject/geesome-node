@@ -10,6 +10,9 @@
 const EventEmitter = require('events');
 
 export class GeesomeEmitter extends EventEmitter {
+  constructor() {
+    super();
+  }
   NewRemoteGroup = 'NewRemoteGroup';
   NewRemoteUser = 'NewRemoteUser';
   NewPersonalGroup = 'NewPersonalGroup';
