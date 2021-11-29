@@ -733,6 +733,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     const content = await geesomeApp.database.getContentByStorageId(hash, true);
     if(content) {
       res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     }
     res.send(200);
   }
