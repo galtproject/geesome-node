@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {GroupType} from "../../database/interface";
+
 const { Api, TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { computeCheck } = require("telegram/Password");
@@ -306,7 +308,8 @@ class Telegram {
 			group = await this.app.createGroup(userId, {
 				name: channel.username,
 				title: channel.title,
-				isPublic: true
+				isPublic: true,
+				type: GroupType.Channel
 			});
 			dbChannel = await this.models.Channel.create({
 				userId,
