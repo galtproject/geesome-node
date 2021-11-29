@@ -16,7 +16,7 @@ const pick = require('lodash/pick');
 const find = require('lodash/find');
 const max = require('lodash/max');
 const isNumber = require('lodash/isNumber');
-const Sequelize = require("sequelize");
+const Sequelize: any = require("sequelize");
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 
@@ -342,6 +342,7 @@ class Telegram {
 				}
 				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, (m, post) => {
 					currentMessageId = m.id;
+					dbChannel.update({ lastMessageId: currentMessageId });
 					return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
 						percent: (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100
 					});
@@ -382,7 +383,7 @@ class Telegram {
 			const msgId = m.id;
 			const existsChannelMessage = await this.models.Message.findOne({where: {msgId, dbChannelId, userId}});
 			if (existsChannelMessage) {
-				return;
+				return onMessageProcess(m, null);
 			}
 			let contents = [];
 

@@ -20,24 +20,40 @@ export default {
 			console.log('this.info', this.info);
 		},
 		async getPendingOperations() {
-			const dbChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {channelId: this.$route.params.channelId});
-			console.log('dbChannel', dbChannel);
-			if (!dbChannel) {
+			this.dbChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {channelId: this.$route.params.channelId});
+			console.log('dbChannel', this.dbChannel);
+			if (!this.dbChannel) {
 				this.pendingOperations = [];
 				return;
 			}
-			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-telegram-channel-import', 'id:' + dbChannel.id + ';%');
+			this.getGroup();
+			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-telegram-channel-import', 'id:' + this.dbChannel.id + ';%');
 			console.log('this.pendingOperations', this.pendingOperations);
+			this.waitForOperation(this.pendingOperations[0]);
+		},
+		async getGroup() {
+			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId);
 		},
 		async getPosts() {
 
 		},
 		async runImport() {
 			const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
-			console.log('this.importResponse', asyncOperation);
-			// this.$coreApi.waitForAsyncOperation(asyncOperation.id, (operation) => {
-			// 	console.log('operation.percent', operation.percent);
-			// })
+			this.waitForOperation(asyncOperation);
+		},
+		waitForOperation(operation) {
+			this.curOperation = operation;
+			this.$coreApi.waitForAsyncOperation(operation.id, (op) => {
+				//TODO: cancel wait on new operation
+				if (op.id < this.curOperation.id) {
+					return;
+				}
+				console.log('op', op)
+				if (op.percent > this.curOperation.percent) {
+					this.getGroup();
+				}
+				this.curOperation = op;
+			})
 		}
 	},
 	watch: {},
@@ -45,14 +61,20 @@ export default {
 		currentUser() {
 			return this.$store.state.user;
 		},
+		percent() {
+			return Math.round(this.curOperation.percent);
+		},
 	},
 	data() {
 		return {
 			localeKey: 'soc_net_channel',
 			info: null,
+			dbChannel: null,
+			dbGroup: null,
 			posts: [],
 			totalPostsCount: 0,
 			pendingOperations: [],
+			curOperation: null,
 		};
 	}
 }

@@ -63,12 +63,6 @@ module.exports = async function (sequelize) {
 		lastMessageId: {
 			type: Sequelize.INTEGER
 		},
-		postsCounts: {
-			type: Sequelize.INTEGER
-		},
-		lastPostId: {
-			type: Sequelize.INTEGER
-		},
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
