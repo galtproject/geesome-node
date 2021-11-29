@@ -1,0 +1,26 @@
+{
+  "name": "vuepress-blog-2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "serve": "http-serve .vuepress/dist"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vuepress/bundler-webpack": "2.0.0-beta.27",
+    "@vuepress/client": "^2.0.0-beta.27",
+    "@vuepress/core": "^2.0.0-beta.27",
+    "@vuepress/utils": "^2.0.0-beta.27",
+    "dayjs": "^1.10.7",
+    "lodash": "^4.17.21",
+    "markdown-it": "^12.2.0",
+    "sass": "^1.43.4",
+    "sass-loader": "^12.3.0",
+    "vue-feather-icons": "^5.1.0"
+  },
+  "devDependencies": {
+    "http-serve": "^1.0.1"
+  }
+}

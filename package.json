@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "start": "yarn && npm run aqua-compile-communicator && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
+    "start": "yarn && npm run aqua-compile-communicator && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts > logs.log",
     "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
@@ -41,7 +41,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#ad2934e",
+    "geesome-libs": "git://github.com/galtproject/geesome-libs.git#49f75cc",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "0.54.4",
     "ipfs-http-client": "^50.1.2",
@@ -64,9 +64,19 @@
     "serve-static": "^1.14.1",
     "sharp": "^0.25.3",
     "sqlite3": "^5.0.2",
+    "telegram": "^1.9.6",
     "typedarray-to-buffer": "^3.1.5",
     "unzip-stream": "^0.3.0",
-    "uuid-apikey": "^1.4.3"
+    "uuid-apikey": "^1.4.3",
+    "@vuepress/bundler-webpack": "2.0.0-beta.27",
+    "@vuepress/client": "^2.0.0-beta.27",
+    "@vuepress/core": "^2.0.0-beta.27",
+    "@vuepress/utils": "^2.0.0-beta.27",
+    "dayjs": "^1.10.7",
+    "markdown-it": "^12.2.0",
+    "sass": "^1.43.4",
+    "sass-loader": "^12.3.0",
+    "vue-feather-icons": "^5.1.0"
   },
   "devDependencies": {
     "@jonybang/apidoc-plugin-ts": "^1.0.5",

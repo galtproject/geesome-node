@@ -8,8 +8,9 @@
  */
 
 import {IGeesomeApp} from "./components/app/interface";
-
+import log from 'loglevel';
 (async () => {
+  log.setLevel('trace');
   const databaseConfig: any = {};
   if (process.env.DATABASE_NAME) {
     databaseConfig.name = process.env.DATABASE_NAME;

@@ -16,10 +16,12 @@ import {VideoThumbnail} from "./preview/video-thumbnail";
 import {ArchiveUploadDriver} from "./upload/archive";
 import {ImageMetadataDriver} from "./metadata/image";
 import {FileUploadDriver} from "./upload/file";
+import {GifPreviewDriver} from "./preview/gif";
 
 module.exports = {
   preview: {
     image: new ImagePreviewDriver(),
+    gif: new GifPreviewDriver(),
     text: new TextPreviewDriver(),
     'youtube-thumbnail': new YoutubeThumbnailPreviewDriver(),
     'video-thumbnail': new VideoThumbnail()

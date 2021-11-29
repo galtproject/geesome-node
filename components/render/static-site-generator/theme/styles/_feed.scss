@@ -1,0 +1,10 @@
+@import "vars";
+
+.feed {
+  display: flex;
+  align-items: center;
+  color: inherit;
+}
+.feed:hover {
+  color: $accentColor;
+}

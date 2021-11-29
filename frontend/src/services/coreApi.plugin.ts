@@ -54,7 +54,7 @@ export default {
 
         // TODO: solve extending class problem: https://stackoverflow.com/q/51860043
         [
-          'getCurrentUser', 'setup', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup',
+          'getCurrentUser', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup',
           'saveObject', 'createPost', 'getContentData', 'getDbContent',
           'getMemberInGroups', 'getMemberInChannels', 'getMemberInChats', 'getAdminInGroups', 'getAdminInChannels', 'getAdminInChats',
           'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink',
@@ -67,7 +67,10 @@ export default {
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
-          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit'
+          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
+          'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
+          'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetDbChannel',
+          'waitForAsyncOperation', 'findAsyncOperations'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');
@@ -79,6 +82,13 @@ export default {
         await geesomeClient.ipfsService.subscribeToEvent('geesome-test', (data) => {
           console.log('geesome-test', data);
         })
+      },
+
+      async setup(setupData) {
+        const result = await geesomeClient.setup(setupData);
+        localStorage.setItem('geesome-api-key', result.apiKey);
+        console.log('geesomeClient.apiKey', geesomeClient.apiKey);
+        return result;
       },
 
       async loginPassword(server, username, password) {

@@ -19,6 +19,7 @@ module.exports = {
             'input-video.mov': 'QmYNiAJyK9ZzQ3DVwRJ7vB3jNuKqumrAZmjyWzaTRMTzxm',
             'not-streamable-input-video.mp4': 'QmYP1UGu9gTQZ5hjG7h7Em2ejQAEpmLWA3cfFg5UkjLYCQ',
             'streamable-input-video.mp4': 'QmWasM9o4RGMvVs1MPxcabw8QAtxanHpmDKv4bMVVfiXSF',
+            'test-gif.gif': 'QmWMx1u1CcNwt79rfKiWHqPQbTJjqB7moiePJVQddUP7PB'
         };
         const writer = fs.createWriteStream(dir + name)
 

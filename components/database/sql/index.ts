@@ -47,6 +47,14 @@ class MysqlDatabase implements IDatabase {
     this.config = _config;
   }
 
+  async getDriver() {
+    return {
+      type: 'sql',
+      models: this.models,
+      sequelize: this.sequelize,
+    };
+  }
+
   async addApiKey(apiKey) {
     return this.models.UserApiKey.create(apiKey);
   }
@@ -1033,6 +1041,17 @@ class MysqlDatabase implements IDatabase {
 
   async getUserAsyncOperation(id) {
     return this.models.UserAsyncOperation.findOne({where: {id}});
+  }
+
+  async getUserAsyncOperationList(userId, name = null, channelLike = null) {
+    const where = {userId, inProcess: true};
+    if (name) {
+      where['name'] = name;
+    }
+    if (channelLike) {
+      where['channel'] = {[Op.like]: channelLike};
+    }
+    return this.models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 100});
   }
 
   async addUserLimit(userLimitData) {

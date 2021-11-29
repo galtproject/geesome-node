@@ -8,6 +8,8 @@
  */
 
 export interface IDatabase {
+  getDriver():  Promise<any>;
+
   getSessionStore(): any;
 
   flushDatabase(): Promise<void>;
@@ -257,6 +259,8 @@ export interface IDatabase {
   updateUserAsyncOperation(id, updateData): Promise<IUserAsyncOperation>;
 
   getUserAsyncOperation(operationId): Promise<IUserAsyncOperation>;
+
+  getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
 
   addUserLimit(limitData): Promise<IUserLimit>;
 

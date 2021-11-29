@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {EventBus, UPDATE_CURRENT_USER} from "../../services/events";
+
 export default {
   template: require('./SetupPage.template'),
   components: {},
@@ -14,10 +16,8 @@ export default {
     setup() {
       this.$coreApi.setup(this.setupData).then(() => {
         // EventBus.$emit(UPDATE_ADMIN_GROUPS);
-        this.$coreApi.getCurrentUser().then((user) => {
-          this.$store.commit('user', user);
-          this.$router.push({name: 'main-page'});
-        });
+        EventBus.$emit(UPDATE_CURRENT_USER);
+        this.$router.push({name: 'main-page'});
       }).catch(() => {
         this.error = 'failed';
       })

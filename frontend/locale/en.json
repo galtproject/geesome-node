@@ -44,5 +44,8 @@
     "unit_days": "Days",
     "period_value": "Value",
     "period_unit": "Unit"
+  },
+  "soc_net_channel": {
+    "run_import": "Run import"
   }
 }

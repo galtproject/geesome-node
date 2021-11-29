@@ -1,0 +1,36 @@
+$contentClass: '.content__default';
+
+$accentColor: #6724d0;
+
+$textColor: #2c3e50;
+$darkTextColor: #000;
+
+$borderColor: rgba($darkTextColor,.05);
+$darkBorderColor: $darkTextColor;
+
+$codeBgColor: $darkTextColor;
+
+$bgColor: #fff;
+$headerBgColor: $bgColor;
+
+$footerBgColor: $darkTextColor;
+$footerColor: #828282;
+
+$newsletterBgColor: #f8f8f8;
+
+$postTagBgColor: #ededed;
+$postTagColor: darken($postTagBgColor,50%);
+
+// layout
+$headerHeight: 80px;
+
+$contentWidth: 600px;
+
+// responsive breakpoints
+$MQNarrow: 959px;
+$MQMobile: 719px;
+$MQMobileNarrow: 419px;
+
+// code
+$lineNumbersWrapperWidth: 3.5rem;
+//$codeLang = js ts html md vue css sass scss less stylus go java c sh yaml py docker dockerfile makefile
