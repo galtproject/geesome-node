@@ -731,9 +731,9 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   async function getContentHead(req, res, hash) {
     setHeaders(res);
     const content = await geesomeApp.database.getContentByStorageId(hash, true);
-    if(content) {
+    if (content) {
       res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
-      // res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     }
     res.send(200);
   }
@@ -813,6 +813,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         // 'Cache-Control': 'no-cache, no-store, must-revalidate',
         // 'Pragma': 'no-cache',
         // 'Expires': 0,
+        'Cross-Origin-Resource-Policy': 'cross-origin',
         'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',
         'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
@@ -906,10 +907,13 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.setHeader('Connection', 'close'); //TODO: determine the best solution https://serverfault.com/questions/708319/chrome-requests-get-stuck-pending
   }
 
   function setStorageHeaders(res) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, stale-if-error=0');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Connection', 'close'); //TODO: determine the best solution https://serverfault.com/questions/708319/chrome-requests-get-stuck-pending
   }
 
   console.log('🚀 Start api on port', port);

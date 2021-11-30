@@ -12,5 +12,5 @@ module.exports = async (app: IGeesomeApp) => {
         connectTo: testNet[1],
     });
     const databaseAccountStorage = new DatabaseAccountStorage(app.database, app.config.storageConfig.jsNode.pass);
-    return new FluenceService(databaseAccountStorage, peer, {logLevel: 'debug'});
+    return new FluenceService(databaseAccountStorage, peer, {logLevel: null /*'debug'*/});
 }

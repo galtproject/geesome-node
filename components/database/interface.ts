@@ -262,6 +262,8 @@ export interface IDatabase {
 
   getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
 
+  closeAllAsyncOperation(): Promise<any>;
+
   addUserLimit(limitData): Promise<IUserLimit>;
 
   updateUserLimit(limitId, limitData): Promise<void>;

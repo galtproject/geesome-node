@@ -19,9 +19,12 @@ export default {
 			this.info = await this.$coreApi.socNetGetChannelInfo(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
 			console.log('this.info', this.info);
 		},
-		async getPendingOperations() {
+		async getDbChannel() {
 			this.dbChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {channelId: this.$route.params.channelId});
 			console.log('dbChannel', this.dbChannel);
+		},
+		async getPendingOperations() {
+			await this.getDbChannel();
 			if (!this.dbChannel) {
 				this.pendingOperations = [];
 				return;
@@ -29,7 +32,9 @@ export default {
 			this.getGroup();
 			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-telegram-channel-import', 'id:' + this.dbChannel.id + ';%');
 			console.log('this.pendingOperations', this.pendingOperations);
-			this.waitForOperation(this.pendingOperations[0]);
+			if (this.pendingOperations.length) {
+				this.waitForOperation(this.pendingOperations[0]);
+			}
 		},
 		async getGroup() {
 			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId);
@@ -38,8 +43,12 @@ export default {
 
 		},
 		async runImport() {
+			this.loading = true;
 			const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
+			await this.getDbChannel();
+			this.getGroup();
 			this.waitForOperation(asyncOperation);
+			this.loading = false;
 		},
 		waitForOperation(operation) {
 			this.curOperation = operation;
@@ -53,6 +62,9 @@ export default {
 					this.getGroup();
 				}
 				this.curOperation = op;
+				if (!op.inProcess) {
+					this.curOperation = null;
+				}
 			})
 		}
 	},
@@ -68,6 +80,7 @@ export default {
 	data() {
 		return {
 			localeKey: 'soc_net_channel',
+			loading: false,
 			info: null,
 			dbChannel: null,
 			dbGroup: null,

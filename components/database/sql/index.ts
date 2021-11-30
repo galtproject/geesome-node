@@ -1039,6 +1039,10 @@ class MysqlDatabase implements IDatabase {
     return this.models.UserAsyncOperation.update(updateData, {where: {id}});
   }
 
+  async closeAllAsyncOperation() {
+    return this.models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true}});
+  }
+
   async getUserAsyncOperation(id) {
     return this.models.UserAsyncOperation.findOne({where: {id}});
   }
