@@ -67,6 +67,8 @@ module.exports = async (extendConfig) => {
   log('Start database...');
   app.database = await require('../../database/' + config.databaseModule)(app);
 
+  await app.database.closeAllAsyncOperation();
+
   app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
   app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
 
@@ -1569,7 +1571,7 @@ class GeesomeApp implements IGeesomeApp {
       options.userApiKeyId = apiKey.id;
     }
 
-    if(dataToSave._bufs) {
+    if (dataToSave._bufs) {
       dataToSave = dataToSave._bufs[0];
     }
 
@@ -2383,14 +2385,18 @@ class GeesomeApp implements IGeesomeApp {
     const resolveProp = isPath ? isResolve : false;
 
     const dbObject = await this.database.getObjectByStorageId(storageId, resolveProp);
-    if(dbObject) {
+    console.log('dbObject', dbObject);
+    if (dbObject) {
       const { data } = dbObject;
       return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
     }
-    const getObjectPromise = resolveProp ? this.storage.getObject(storageId) : this.storage.getObjectProp(dataPathSplit[0], dataPathSplit.slice(1).join('/'), resolveProp);
-    return getObjectPromise.then((result) => {
+    console.log('getObject', storageId);
+    return this.storage.getObject(storageId, resolveProp).then((result) => {
+      console.log('result', result);
       this.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
+    }).catch(e => {
+      console.error('getObject error', e)
     });
   }
 
@@ -2562,7 +2568,7 @@ class GeesomeApp implements IGeesomeApp {
           dynamicId: dynamicId,
           isActive: true,
           boundAt: new Date()
-        });
+        }).catch(() => {/* already have */});
       }
     });
   }

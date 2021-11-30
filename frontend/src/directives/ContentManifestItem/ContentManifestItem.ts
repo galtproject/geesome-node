@@ -138,7 +138,7 @@ export default {
       return this.manifestObj && this.manifestObj.preview && this.manifestObj.preview.medium.storageId;
     },
     manifestContentId() {
-      return (this.previewMode ? this.manifestPreviewContentId : null) || this.manifestObj.storageId;
+      return (this.previewMode ? this.manifestPreviewContentId : null) || (this.manifestObj || {})['storageId'];
     },
     manifestExtension() {
       if (!this.manifestObj) {

@@ -19,7 +19,7 @@ module.exports = `
 			  <h3>Import channel to IPFS</h3>
 			</div>
 			
-			<md-button @click="runImport" class="md-raised md-accent"><span v-locale="localeKey + '.run_import'"></span></md-button>
+			<md-button :disabled="loading || !!curOperation" @click="runImport" class="md-raised md-accent"><span v-locale="localeKey + '.run_import'"></span></md-button>
 
 			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
 			

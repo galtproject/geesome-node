@@ -361,8 +361,7 @@ class Telegram {
 			console.error('run-telegram-channel-import error', e);
 			return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
 				inProcess: false,
-				errorMessage: e.message,
-				finishedAt: new Date()
+				errorMessage: e.message
 			});
 		});
 
@@ -397,12 +396,12 @@ class Telegram {
 					return;
 				}
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
-				if (file) {
+				if (file && file.content) {
 					const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
 					contents.push(content);
 				}
 
-				if (m.media.webpage) {
+				if (m.media.webpage && m.media.webpage.url) {
 					//TODO: add view type - link
 					const content = await this.app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId });
 					contents.push(content);
