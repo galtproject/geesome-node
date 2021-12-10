@@ -8,6 +8,7 @@
  */
 
 import {GroupType} from "../../database/interface";
+import {IGeesomeApp} from "../../app/interface";
 
 const { Api, TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
@@ -24,7 +25,7 @@ const bigInt = require('big-integer');
 
 class Telegram {
 	models;
-	app;
+	app: IGeesomeApp;
 
 	async init(app) {
 		this.app = app;
@@ -35,7 +36,7 @@ class Telegram {
 		});
 		this.models = await require("./database")(sequelize);
 
-		['login', 'db-account', 'db-account-list', 'db-channel', 'get-user', 'update-account', 'channels', 'channel-info', 'run-channel-import'].forEach(method => {
+		['login', 'db-account', 'db-account-list', 'db-channel', 'user-info', 'update-account', 'channels', 'channel-info', 'run-channel-import'].forEach(method => {
 			app.api.post('/v1/soc-net/telegram/' + method, async (req, res) => {
 				if (!req.user || !req.user.id) {
 					return res.send(401);
@@ -80,21 +81,17 @@ class Telegram {
 		});
 	}
 	async login(userId, loginData) {
-		console.log('loginData', loginData);
 		let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey } = loginData;
 		apiId = parseInt(apiId);
 
 		let acc = await this.models.Account.findOne({where: {userId, phoneNumber}});
 		sessionKey = isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
-		console.log('1 sessionKey', sessionKey);
 		const stringSession = new StringSession(sessionKey);
 		const client = new TelegramClient(stringSession, apiId, apiHash, {});
 
-		console.log('encryptedSessionKey', encryptedSessionKey);
 		if (isEncrypted) {
 			sessionKey = encryptedSessionKey;
 		}
-		console.log('2 sessionKey', sessionKey);
 
 		await client.connect();
 
@@ -125,7 +122,6 @@ class Telegram {
 				if (!isEncrypted) {
 					sessionKey = client.session.save();
 				}
-				console.log('3 sessionKey', sessionKey);
 				acc = await this.createOrUpdateAccount({userId, phoneNumber, sessionKey, isEncrypted});
 			} catch (e) {
 				console.error('sendCode error', e);
@@ -138,7 +134,6 @@ class Telegram {
 		if (accData.phoneNumber) {
 			where['phoneNumber'] = accData.phoneNumber;
 		}
-		console.log('where', where, 'accData', accData);
 		const userAcc = await this.models.Account.findOne({where});
 		return userAcc ? userAcc.update(accData).then(() => this.models.Account.findOne({where})) : this.models.Account.create(accData);
 	}
@@ -190,15 +185,17 @@ class Telegram {
 	async getChannelInfoByClient(client, channelId) {
 		const channel = await this.getChannelEntity(client, channelId);
 		const [response, messagesCount] = await Promise.all([
-			client.invoke(new Api.channels.GetFullChannel({channel})).then(r => r.chats),
+			client.invoke(new Api.channels.GetFullChannel({channel})),
 			this.getChannelLastMessageId(client, channel),
 		]);
+		const {chats, fullChat} = response;
 
 		return {
 			client,
 			result: {
-				...response[0],
-				chat: response[1],
+				...chats[0],
+				photo: fullChat['chatPhoto'],
+				chat: chats[1],
 				messagesCount
 			}
 		}
@@ -276,6 +273,9 @@ class Telegram {
 	}
 	async getMeByUserId(userId, accData) {
 		const client = await this.getClient(userId, accData);
+		return this.getMeByClient(client);
+	}
+	async getMeByClient(client) {
 		return {
 			result: await client.getMe(),
 			client
@@ -296,20 +296,27 @@ class Telegram {
 	}
 
 	async runChannelImport(userId, apiKey, accData, channelId) {
-		console.log('runChannelImport', userId, apiKey, accData, channelId);
 		const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
-		console.log('runChannelImport 2', channel);
 
 		let dbChannel = await this.models.Channel.findOne({where: {userId, channelId: channel.id}});
 		let group;
 		if (dbChannel) {
 			group = await this.app.getGroup(dbChannel.groupId);
 		} else {
+			const [{result: file}, {result: user}] = await Promise.all([
+				this.downloadMediaByClient(client, channel),
+				this.getMeByClient(client)
+			]);
+			const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
 			group = await this.app.createGroup(userId, {
 				name: channel.username,
 				title: channel.title,
 				isPublic: true,
-				type: GroupType.Channel
+				type: GroupType.Channel,
+			  	avatarImageId: content.id,
+				propertiesJson: JSON.stringify({
+					lang: user.langCode || 'en'
+				})
 			});
 			dbChannel = await this.models.Channel.create({
 				userId,
@@ -326,11 +333,9 @@ class Telegram {
 			throw new Error('already_done');
 		}
 
-		const asyncOperation = await this.app.database.addUserAsyncOperation({
-			userId,
+		const asyncOperation = await this.app.addAsyncOperation(userId, {
 			userApiKeyId: await this.app.getApyKeyId(apiKey),
 			name: 'run-telegram-channel-import',
-			inProcess: true,
 			channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
 		});
 
@@ -346,23 +351,14 @@ class Telegram {
 				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, (m, post) => {
 					currentMessageId = m.id;
 					dbChannel.update({ lastMessageId: currentMessageId });
-					return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
-						percent: (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100
-					});
+					return this.app.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 				});
 			}
 		})().then(() => {
-			return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
-				percent: 100,
-				inProcess: false,
-				finishedAt: new Date()
-			});
+			return this.app.finishAsyncOperation(userId, asyncOperation.id);
 		}).catch((e) => {
 			console.error('run-telegram-channel-import error', e);
-			return this.app.database.updateUserAsyncOperation(asyncOperation.id, {
-				inProcess: false,
-				errorMessage: e.message
-			});
+			return this.app.errorAsyncOperation(userId, asyncOperation.id, e.message);
 		});
 
 		return {
