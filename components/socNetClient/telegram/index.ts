@@ -195,6 +195,7 @@ class Telegram {
 			result: {
 				...chats[0],
 				photo: fullChat['chatPhoto'],
+				about: fullChat['about'],
 				chat: chats[1],
 				messagesCount
 			}
@@ -300,17 +301,26 @@ class Telegram {
 
 		let dbChannel = await this.models.Channel.findOne({where: {userId, channelId: channel.id}});
 		let group;
+
+		const [{result: file}, {result: user}] = await Promise.all([
+			this.downloadMediaByClient(client, channel),
+			this.getMeByClient(client)
+		]);
+		const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
+
 		if (dbChannel) {
 			group = await this.app.getGroup(dbChannel.groupId);
+			await this.app.updateGroup(userId, dbChannel.groupId, {
+				name: channel.username,
+				title: channel.title,
+				description: channel.about,
+				avatarImageId: content.id,
+			});
 		} else {
-			const [{result: file}, {result: user}] = await Promise.all([
-				this.downloadMediaByClient(client, channel),
-				this.getMeByClient(client)
-			]);
-			const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
 			group = await this.app.createGroup(userId, {
 				name: channel.username,
 				title: channel.title,
+				description: channel.about,
 				isPublic: true,
 				type: GroupType.Channel,
 			  	avatarImageId: content.id,

@@ -17,7 +17,7 @@ module.exports = `
     <p>Visit <a href="https://my.telegram.org/" target="_blank">Telegram Client cabinet</a> to register app and get app id and app hash.</p>
 
 	<md-field>
-		<label>Type</label>
+		<label>Social Network</label>
 		<md-select v-model="socnet">
 			<md-option value="telegram">Telegram</md-option>
 		</md-select>
@@ -57,7 +57,7 @@ module.exports = `
 
   <template slot="footer">
     <md-button @click="close" class="md-raised"><span>Close</span></md-button>
-    <md-button @click="login" class="md-raised md-accent" :disabled="loginDisabled">Login</md-button>
+    <md-button @click="login" class="md-raised md-accent" :disabled="loginDisabled || loading">Login</md-button>
   </template>
 </modal-item>
 `;

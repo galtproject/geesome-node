@@ -17,7 +17,7 @@ import {
   IPost,
   IUser, IUserAccount,
   IUserApiKey, IUserAuthMessage,
-  IUserLimit, PostStatus, UserLimitName
+  IUserLimit, IUserOperationQueue, PostStatus, UserLimitName
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
@@ -57,6 +57,8 @@ export interface IGeesomeApp {
   generateUserApiKey(userId, apiKeyData, skipPermissionCheck?): Promise<string>;
 
   updateApiKey(userId, id, updateData): Promise<void>;
+
+  getApyKeyId(apiKey): Promise<number>;
 
   getUserByApiKey(apiKey): Promise<IUser>;
 
@@ -152,9 +154,29 @@ export interface IGeesomeApp {
 
   saveDataByUrl(url, options): Promise<IContent>;
 
+  saveDirectoryToStorage(userId, dirPath, options): Promise<IContent>;
+
   getAsyncOperation(userId, id);
 
+  addAsyncOperation(userId, asyncOperationData);
+
+  updateAsyncOperation(userId, asyncOperationId, percent);
+
+  finishAsyncOperation(userId, asyncOperationId, contentId?);
+
+  errorAsyncOperation(userId, asyncOperationId, errorMessage);
+
   findAsyncOperations(userId, name?, channelLike?);
+
+  addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+
+  getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
+
+  getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
+
+  setAsyncOperationToUserOperationQueue(userOperationQueueId, userAsyncOperationId): Promise<any>;
+
+  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
 
   createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
 

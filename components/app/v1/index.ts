@@ -40,6 +40,7 @@ const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
+const {getDirSize} = require('../../drivers/helpers');
 const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 let config = require('./config');
 // const appCron = require('./cron');
@@ -117,6 +118,8 @@ module.exports = async (extendConfig) => {
     return client;
   });
 
+  app.generatorsList = await pIteration.map(config.generatorsList, async name =>  require('../../render/' + name)(app));
+
   return app;
 };
 
@@ -130,6 +133,7 @@ class GeesomeApp implements IGeesomeApp {
   drivers: any;
   events: GeesomeEmitter;
   socNetClients: ISocNetClient[];
+  generatorsList: IRender[];
 
   frontendStorageId;
 
@@ -1624,7 +1628,6 @@ class GeesomeApp implements IGeesomeApp {
       extension,
       mimeType,
       storageType: ContentStorageType.IPFS,
-      userId: options.userId,
       view: ContentView.Contents,
       storageId: storageFile.id,
       size: storageFile.size,
@@ -1694,7 +1697,6 @@ class GeesomeApp implements IGeesomeApp {
       extension,
       storageType: ContentStorageType.IPFS,
       mimeType: type,
-      userId: options.userId,
       view: ContentView.Attachment,
       storageId: storageFile.id,
       size: storageFile.size,
@@ -1746,6 +1748,66 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUserAsyncOperationList(userId, name, channelLike);
   }
 
+  async addAsyncOperation(userId, asyncOperationData) {
+    return this.database.addUserAsyncOperation({
+      ...asyncOperationData,
+      userId,
+      inProcess: true,
+    });
+  }
+
+  async updateAsyncOperation(userId, asyncOperationId, percent) {
+    await this.getAsyncOperation(userId, asyncOperationId);
+    return this.database.updateUserAsyncOperation(asyncOperationId, { percent });
+  }
+
+  async finishAsyncOperation(userId, asyncOperationId, contentId = null) {
+    await this.getAsyncOperation(userId, asyncOperationId);
+    return this.database.updateUserAsyncOperation(asyncOperationId, {
+      contentId,
+      percent: 100,
+      inProcess: false,
+      finishedAt: new Date()
+    });
+  }
+
+  async errorAsyncOperation(userId, asyncOperationId, errorMessage) {
+    await this.getAsyncOperation(userId, asyncOperationId);
+    return this.database.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
+  }
+
+  addUserOperationQueue(userId, module, userApiKeyId, input) {
+    const inputJson = JSON.stringify(input);
+    return this.database.addUserOperationQueue({
+      userId,
+      module,
+      inputJson,
+      userApiKeyId,
+      inputHash: commonHelper.hash(inputJson),
+      isWaiting: true,
+    });
+  }
+
+  getWaitingOperationByModule(module) {
+    return this.database.getWaitingOperationQueueByModule(module);
+  }
+
+  async getUserOperationQueue(userId, userOperationQueueId) {
+    const userOperationQueue = await this.database.getUserOperationQueue(userOperationQueueId);
+    if (userOperationQueue.userId != userId) {
+      throw new Error("not_permitted");
+    }
+    return userOperationQueue;
+  }
+
+  setAsyncOperationToUserOperationQueue(userOperationQueueId, asyncOperationId) {
+    return this.database.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
+  }
+
+  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId) {
+    return this.database.updateUserOperationQueueByAsyncOperationId(userAsyncOperationId, { isWaiting: false });
+  }
+
   getFilenameFromPath(path) {
     return _.trim(path, '/').split('/').slice(-1)[0];
   }
@@ -1757,6 +1819,24 @@ class GeesomeApp implements IGeesomeApp {
   isVideoType(fullType) {
     //TODO: detect more video types
     return _.startsWith(fullType, 'video') || _.endsWith(fullType, 'mp4') || _.endsWith(fullType, 'avi') || _.endsWith(fullType, 'mov') || _.endsWith(fullType, 'quicktime');
+  }
+
+  async saveDirectoryToStorage(userId, dirPath, options: { groupId?, userId?, userApiKeyId? } = {}) {
+    let group;
+    if (options.groupId) {
+      group = await this.database.getGroup(options.groupId)
+    }
+    options.userId = userId;
+    const resultFile = await this.storage.saveDirectory(dirPath);
+    return this.addContentWithPreview(resultFile, {
+      extension: 'none',
+      mimeType: 'directory',
+      storageType: ContentStorageType.IPFS,
+      view: ContentView.Contents,
+      storageId: resultFile.id,
+      size: getDirSize(dirPath),
+      name: group ? group.name : null,
+    }, options);
   }
 
   private async saveFileByStream(userId, stream, mimeType, options: any = {}): Promise<any> {
@@ -1922,10 +2002,12 @@ class GeesomeApp implements IGeesomeApp {
     log('addUserContentAction');
 
     if (!contentData.manifestStorageId) {
+      log('updateContentManifest');
       promises.push(this.updateContentManifest(content));
+      return _.last(await Promise.all(promises));
+    } else {
+      return content;
     }
-    log('updateContentManifest');
-    return _.last(await Promise.all(promises));
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {

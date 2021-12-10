@@ -7377,9 +7377,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#f6a5b2e":
+"geesome-libs@git://github.com/galtproject/geesome-libs.git#6d8f490":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#f6a5b2eb56d8afb99ee5b2b14302ef84aef87510"
+  resolved "git://github.com/galtproject/geesome-libs.git#6d8f490a3b35d5b57d19cb7e74011f4e26c1df06"
   dependencies:
     "@fluencelabs/aqua" "0.5.0-247"
     "@fluencelabs/aqua-dht" "0.2.4"
@@ -7427,9 +7427,9 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-vue-components@git://github.com/galtproject/geesome-vue-components.git#92ef183":
+"geesome-vue-components@git://github.com/galtproject/geesome-vue-components.git#43d330c":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-vue-components.git#92ef183670759b2922e2a146898913264d6b80c6"
+  resolved "git://github.com/galtproject/geesome-vue-components.git#43d330cc9db2dda3e87a69c7d92831a46554d7cb"
   dependencies:
     axios "^0.21.0"
     bs58 "^4.0.1"

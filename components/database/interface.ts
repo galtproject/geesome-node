@@ -254,7 +254,7 @@ export interface IDatabase {
 
   getUserContentActionsSizeSum(userId, name, periodTimestamp?): Promise<number>;
 
-  addUserAsyncOperation(userLimitData): Promise<IUserAsyncOperation>;
+  addUserAsyncOperation(userAsyncOperation): Promise<IUserAsyncOperation>;
 
   updateUserAsyncOperation(id, updateData): Promise<IUserAsyncOperation>;
 
@@ -263,6 +263,16 @@ export interface IDatabase {
   getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
 
   closeAllAsyncOperation(): Promise<any>;
+
+  addUserOperationQueue(userOperationQueue): Promise<IUserOperationQueue>;
+
+  updateUserOperationQueue(id, updateData): Promise<any>;
+
+  updateUserOperationQueueByAsyncOperationId(asyncOperationId, updateData): Promise<any>;
+
+  getWaitingOperationQueueByModule(module): Promise<IUserOperationQueue>;
+
+  getUserOperationQueue(id): Promise<IUserOperationQueue>;
 
   addUserLimit(limitData): Promise<IUserLimit>;
 
@@ -495,6 +505,8 @@ export interface IGroup {
 
   storageUpdatedAt: Date;
   staticStorageUpdatedAt: Date;
+
+  propertiesJson?: string;
 }
 
 export interface IGroupSection {
@@ -619,6 +631,19 @@ export interface IUserAsyncOperation {
   userId: number;
   contentId?: number;
   content?: IContent;
+}
+
+export interface IUserOperationQueue {
+  id?: number;
+  module: string;
+  inputHash: string;
+  startedAt: Date;
+  inputJson: string;
+  isWaiting: boolean;
+  userId: number;
+  asyncOperationId: number;
+  userApiKeyId: number;
+  asyncOperation?: IUserAsyncOperation;
 }
 
 export interface IStaticIdHistoryItem {
