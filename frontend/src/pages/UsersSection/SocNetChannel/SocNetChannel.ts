@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+const includes = require('lodash/includes');
+
 export default {
 	template: require('./SocNetChannel.template'),
 	components: {},
@@ -18,6 +20,7 @@ export default {
 		async getChannelInfo() {
 			this.info = await this.$coreApi.socNetGetChannelInfo(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
 			console.log('this.info', this.info);
+			console.log('socNetUserInfo', await this.$coreApi.socNetUserInfo(this.$route.params.socNet, {id: this.$route.params.accId}));
 		},
 		async getDbChannel() {
 			this.dbChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {channelId: this.$route.params.channelId});
@@ -44,10 +47,19 @@ export default {
 		},
 		async runImport() {
 			this.loading = true;
-			const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
-			await this.getDbChannel();
-			this.getGroup();
-			this.waitForOperation(asyncOperation);
+			try {
+				const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
+				await this.getDbChannel();
+				this.getGroup();
+				this.waitForOperation(asyncOperation);
+			} catch (e) {
+				if (!includes(e.message, 'already_done')) {
+					this.$notify({
+						type: 'error',
+						title: e.message
+					});
+				}
+			}
 			this.loading = false;
 		},
 		waitForOperation(operation) {

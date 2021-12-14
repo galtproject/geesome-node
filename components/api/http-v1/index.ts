@@ -52,7 +52,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     };
 
     if (
-      (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin') || _.startsWith(req.url, '/v1/soc-net'))
+      (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin') || _.startsWith(req.url, '/v1/soc-net') || _.startsWith(req.url, '/v1/render'))
       && !_.startsWith(req.url, '/v1/login')
       && req.method !== 'OPTIONS' && req.method !== 'HEAD'
     ) {

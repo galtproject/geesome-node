@@ -65,6 +65,16 @@ module.exports = function(posts, settings) {
                 title: 'Home',
                 content: 'Welcome',
             }));
+
+            app.pages.push(await createPage(app, {
+                path: '/404.html',
+                frontmatter: {
+                    layout: '404',
+                    permalink: '/404',
+                },
+                title: '404',
+                content: '404',
+            }));
         },
         extendsPageData(page) {
             console.log('page.permalink', page.permalink);

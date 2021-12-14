@@ -28,6 +28,8 @@ export default {
   },
   methods: {
     async login() {
+      this.loading = true;
+      console.log('loading', this.loading);
       try {
         const result = await this.$coreApi.socNetLogin(this.socnet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted']));
         console.log('result', result);
@@ -47,6 +49,7 @@ export default {
           this.passwordRequired = true;
         }
       }
+      this.loading = false;
     },
     async close() {
       this.$root.$asyncModal.close('add-soc-net-client-modal');
@@ -60,6 +63,7 @@ export default {
   },
   data: function () {
     return {
+      loading: false,
       apiId: '',
       apiHash: '',
       phoneNumber: '',

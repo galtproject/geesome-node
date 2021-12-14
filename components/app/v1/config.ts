@@ -32,5 +32,6 @@ module.exports = {
   authorizationConfig: {},
   renderModule: 'entity-json-manifest',
   renderConfig: {},
-  socNetClientList: ['telegram']
+  socNetClientList: ['telegram'],
+  generatorsList: ['static-site-generator']
 };

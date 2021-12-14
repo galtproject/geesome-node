@@ -1031,8 +1031,8 @@ class MysqlDatabase implements IDatabase {
     return (await this.models.UserContentAction.sum('size', {where})) || 0;
   }
 
-  async addUserAsyncOperation(userLimitData) {
-    return this.models.UserAsyncOperation.create(userLimitData);
+  async addUserAsyncOperation(asyncOperationData) {
+    return this.models.UserAsyncOperation.create(asyncOperationData);
   }
 
   async updateUserAsyncOperation(id, updateData) {
@@ -1056,6 +1056,26 @@ class MysqlDatabase implements IDatabase {
       where['channel'] = {[Op.like]: channelLike};
     }
     return this.models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 100});
+  }
+
+  async addUserOperationQueue(userLimitData) {
+    return this.models.UserOperationQueue.create(userLimitData);
+  }
+
+  async updateUserOperationQueue(id, updateData) {
+    return this.models.UserOperationQueue.update(updateData, {where: {id}});
+  }
+
+  async updateUserOperationQueueByAsyncOperationId(asyncOperationId, updateData) {
+    return this.models.UserOperationQueue.update(updateData, {where: {asyncOperationId}});
+  }
+
+  async getWaitingOperationQueueByModule(module) {
+    return this.models.UserOperationQueue.findOne({where: {module, isWaiting: true}, order: [['createdAt', 'ASC']], include: [ {association: 'asyncOperation'} ]});
+  }
+
+  async getUserOperationQueue(id) {
+    return this.models.UserOperationQueue.findOne({where: {id}, include: [ {association: 'asyncOperation'} ]});
   }
 
   async addUserLimit(userLimitData) {
