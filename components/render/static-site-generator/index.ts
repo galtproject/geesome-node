@@ -4,11 +4,6 @@ import {IContent} from "../../database/interface";
 const {createBuildApp} = require('@vuepress/core');
 const { path } = require('@vuepress/utils');
 
-const posts = [];
-for (let i = 1; i <= 20; i++) {
-    posts.push({id: i, content: '#Post title ' + i + '\n\nPost content ' + i, date: new Date('2020-01-' + (i > 9 ? i : '0' + i)), lang: 'ru'});
-}
-
 const base = '/';
 const plugin = require('./plugin');
 const pIteration = require('p-iteration');
@@ -113,7 +108,7 @@ class StaticSiteGenerator {
     }
 
     getDefaultOptions(group, baseStorageUri = null) {
-        baseStorageUri = baseStorageUri || 'http://localhost:7771/v1/content-data/';
+        baseStorageUri = baseStorageUri || 'http://localhost:7711/v1/content-data/';
         return {
             baseStorageUri,
             lang: 'en',
@@ -164,13 +159,16 @@ class StaticSiteGenerator {
         } catch (e) { }
         options = this.getResultOptions(group, _.merge(properties, options));
 
-        const groupPosts = await this.app.database.getGroupPosts(data, {offset: 0, sortBy: 'publishedAt', sortDir: 'desc'});
+        const groupPosts = await this.app.database.getGroupPosts(data, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
+        console.log('groupPosts.length', groupPosts.length);
         const { baseStorageUri } = options;
 
-        const posts = await pIteration.mapSeries(groupPosts, async (gp) => {
+        const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
+            console.log('groupPosts i', i);
             let content = '';
             const textContent = _.find(gp.contents, c => c.mimeType === 'text/plain');
             if (textContent) {
+                console.log('textContent.storageId', textContent.storageId);
                 content = await this.app.storage.getFileDataText(textContent.storageId);
             }
             const images = [];
@@ -189,6 +187,12 @@ class StaticSiteGenerator {
                     });
                 }
             });
+
+            if (options.asyncOperationId && i % 10 === 0) {
+                console.log('updateAsyncOperation');
+                await this.app.updateAsyncOperation(options.userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
+            }
+
             return {
                 id: gp.localId,
                 lang: options.lang,
@@ -199,16 +203,16 @@ class StaticSiteGenerator {
             }
         });
 
-        if (options.asyncOperationId) {
-            await this.app.updateAsyncOperation(options.userId, options.asyncOperationId, 5);
-        }
-
         const staticSiteApp = createBuildApp({
             base,
             source: __dirname,
             theme: path.resolve(__dirname, './theme'),
             templateSSR: path.resolve(__dirname, './theme/index.ssr.html'),
-            plugins: [plugin(posts, options)]
+            plugins: [plugin(posts, options)],
+            bundler: '@galtproject/vite',
+            bundlerConfig: {
+                baseStorageUri
+            },
         })
 
         // initialize and prepare
@@ -216,7 +220,7 @@ class StaticSiteGenerator {
         await staticSiteApp.prepare();
 
         if (options.asyncOperationId) {
-            await this.app.updateAsyncOperation(options.userId, options.asyncOperationId, 15);
+            await this.app.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
         }
         // build
         // TODO: update percent on build process

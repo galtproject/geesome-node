@@ -45,7 +45,7 @@ import PostMeta from './components/PostMeta.vue'
 // import { Comment } from '@vuepress/plugin-blog/lib/client/components'
 
 import {usePageData} from "@vuepress/client";
-import Layout from "./Layout";
+import Layout from "./Layout.vue";
 const page = usePageData();
 
 export default {

@@ -5,7 +5,7 @@
 </template>
 
 <script>
-import BlockTag from './BlockTag';
+import BlockTag from './BlockTag.vue';
 export default {
   props: ['tags'],
   components: { BlockTag },

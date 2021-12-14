@@ -29,8 +29,8 @@
 import {usePageData} from "@vuepress/client";
 const page = usePageData();
 
-import Feed from './Feed'
-import NavLink from "./NavLink";
+import Feed from './Feed.vue'
+import NavLink from "./NavLink.vue";
 export default {
   components: {
     Feed,

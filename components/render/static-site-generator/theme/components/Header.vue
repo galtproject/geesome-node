@@ -25,8 +25,8 @@
 
 <script>
 // import SearchBox from '@SearchBox';
-import Feed from './Feed';
-import NavLink from './NavLink';
+import Feed from './Feed.vue';
+import NavLink from './NavLink.vue';
 import {usePageData} from "@vuepress/client";
 const page = usePageData();
 export default {

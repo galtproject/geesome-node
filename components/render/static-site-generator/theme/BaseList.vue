@@ -94,9 +94,9 @@ import { usePageData, usePageFrontmatter } from '@vuepress/client'
 import dayjs from 'dayjs';
 import dayjsPluginUTC from 'dayjs/plugin/utc';
 // import { NavigationIcon, ClockIcon, TagIcon } from 'vue-feather-icons';
-import Pagination from './components/Pagination';
-import NavLink from "./components/NavLink";
-import Layout from "./Layout";
+import Pagination from './components/Pagination.vue';
+import NavLink from "./components/NavLink.vue";
+import Layout from "./Layout.vue";
 
 dayjs.extend(dayjsPluginUTC);
 

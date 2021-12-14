@@ -41,7 +41,7 @@ export default {
 		async runGenerate() {
 			this.loading = true;
 			const res = await this.$coreApi.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
-			this.getGroup();
+			// this.getGroup();
 			// if (res && res.asyncOperation) {
 			// 	this.waitForOperation(res.asyncOperation);
 			// 	this.loading = false;
@@ -68,6 +68,7 @@ export default {
 				this.curOperation = op;
 				if (!op.inProcess) {
 					this.curOperation = null;
+					this.loading = false;
 				}
 			})
 		}
@@ -100,6 +101,9 @@ export default {
 		},
 		staticSiteStorageId() {
 			return this.staticSiteManifest ? this.staticSiteManifest.storageId : '';
+		},
+		percent() {
+			return this.curOperation ? this.curOperation.percent : 0;
 		}
 	},
 	data() {
@@ -112,7 +116,6 @@ export default {
 			staticSiteManifest: null,
 			defaultOptions: null,
 			options: null,
-			percent: null,
 			siteLink: null,
 		};
 	}
