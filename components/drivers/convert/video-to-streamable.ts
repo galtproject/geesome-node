@@ -50,7 +50,8 @@ export class VideoToStreambleDriver extends AbstractDriver {
         stream: resultStream,
         type: 'video/' + options.extension,
         extension: options.extension,
-        processed: false
+        processed: false,
+        duration: durationSeconds
       };
     }
 
@@ -94,7 +95,8 @@ export class VideoToStreambleDriver extends AbstractDriver {
       stream: transformStream,
       type: 'video/mp4',
       extension: 'mp4',
-      processed: true
+      processed: true,
+      duration: durationSeconds
     };
   }
 }

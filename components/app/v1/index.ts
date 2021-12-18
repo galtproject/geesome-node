@@ -1318,6 +1318,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async prepareStorageFileForPreview(storageFile: {size, id}, extension, fullType) {
+    console.log('prepareStorageFileForPreview');
     if (this.isVideoType(fullType)) {
       const videoThumbnailDriver = this.drivers.preview['video-thumbnail'];
       const {storageFile: imageFile, extension: imageExtension, type: imageType, properties} = await this.getPreviewStreamContent(videoThumbnailDriver, storageFile.id, {
@@ -1613,7 +1614,7 @@ class GeesomeApp implements IGeesomeApp {
     log('saveFileByStream extension', extension, 'mimeType', mimeType);
 
     let existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
-    log('existsContent');
+    log('existsContent', !!existsContent);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
       await this.setContentPreviewIfNotExist(existsContent);
@@ -1624,6 +1625,7 @@ class GeesomeApp implements IGeesomeApp {
       return existsContent;
     }
 
+    log('this.addContentWithPreview(storageFile, {resultProperties', resultProperties);
     return this.addContentWithPreview(storageFile, {
       extension,
       mimeType,
@@ -1632,7 +1634,7 @@ class GeesomeApp implements IGeesomeApp {
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
-      propertiesJson: JSON.stringify(resultProperties)
+      propertiesJson: JSON.stringify(resultProperties || {})
     }, options);
   }
 
@@ -1706,12 +1708,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addContentWithPreview(storageFile, contentData, options, source?) {
+    console.log('addContentWithPreview');
     const {
       storageFile: forPreviewStorageFile,
       extension: forPreviewExtension,
       fullType: forPreviewFullType,
       properties
     } = await this.prepareStorageFileForPreview(storageFile, contentData.extension, contentData.mimeType);
+    console.log('getPreview');
     let previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
 
     if(properties) {
@@ -1843,7 +1847,9 @@ class GeesomeApp implements IGeesomeApp {
     return new Promise(async (resolve, reject) => {
       let extension = (options.extension || _.last(mimeType.split('/')) || '').toLowerCase();
 
+      let properties;
       if (this.isVideoType(mimeType)) {
+        log('video-to-streamable processByStream');
         const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
           extension: extension,
           onProgress: options.onProgress,
@@ -1852,11 +1858,13 @@ class GeesomeApp implements IGeesomeApp {
         stream = convertResult.stream;
         extension = convertResult.extension;
         mimeType = convertResult.type;
+        properties =  {duration: convertResult.duration };
       }
 
       const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
       if (sizeRemained !== null) {
+        log('sizeRemained', sizeRemained);
         if(sizeRemained < 0) {
           return reject("limit_reached");
         }
@@ -1886,10 +1894,10 @@ class GeesomeApp implements IGeesomeApp {
       log('options.driver', options.driver);
 
       let resultFile;
-      let properties;
       await Promise.all([
         (async () => {
           if(options.driver === 'archive') {
+            log('upload archive processByStream');
             const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
               extension,
               onProgress: options.onProgress,
@@ -1904,6 +1912,7 @@ class GeesomeApp implements IGeesomeApp {
             console.log('uploadResult', uploadResult);
             resultFile.size = uploadResult.size;
           } else {
+            log('this.storage.isStreamAddSupport()', this.storage.isStreamAddSupport());
             if (this.storage.isStreamAddSupport()) {
               resultFile = await this.storage.saveFileByData(stream);
             } else {
@@ -1912,12 +1921,14 @@ class GeesomeApp implements IGeesomeApp {
                 onProgress: options.onProgress,
                 onError: reject
               });
+              log('saveDirectory(uploadResult.tempPath)');
               resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
               if (uploadResult.emitFinish) {
                 uploadResult.emitFinish();
               }
             }
             // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
+            log('getFileStat', resultFile, 'resultFile', resultFile);
             const storageContentStat = await this.storage.getFileStat(resultFile.id);
             resultFile.size = storageContentStat.size;
             console.log('resultFile.size', resultFile.size);
