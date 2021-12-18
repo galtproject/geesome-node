@@ -1928,7 +1928,7 @@ class GeesomeApp implements IGeesomeApp {
               }
             }
             // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
-            log('getFileStat', resultFile, 'resultFile', resultFile);
+            log('getFileStat', resultFile, 'resultFile');
             const storageContentStat = await this.storage.getFileStat(resultFile.id);
             resultFile.size = storageContentStat.size;
             console.log('resultFile.size', resultFile.size);
