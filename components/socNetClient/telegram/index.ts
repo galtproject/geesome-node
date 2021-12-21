@@ -299,7 +299,7 @@ class Telegram {
 	async runChannelImport(userId, apiKey, accData, channelId) {
 		const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
 
-		let dbChannel = await this.models.Channel.findOne({where: {userId, channelId: channel.id}});
+		let dbChannel = await this.models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 		let group;
 
 		const [{result: file}, {result: user}] = await Promise.all([
@@ -331,7 +331,7 @@ class Telegram {
 			dbChannel = await this.models.Channel.create({
 				userId,
 				groupId: group.id,
-				channelId: channel.id,
+				channelId: channel.id.toString(),
 				title: channel.title,
 				lastMessageId: 0,
 				postsCounts: 0,
@@ -359,7 +359,7 @@ class Telegram {
 					countToFetch = 50;
 				}
 				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, (m, post) => {
-					currentMessageId = m.id;
+					currentMessageId = parseInt(m.id.toString());
 					dbChannel.update({ lastMessageId: currentMessageId });
 					return this.app.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 				});
@@ -388,7 +388,7 @@ class Telegram {
 		let groupedMessageIds = [];
 		const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 		await pIteration.forEachSeries(messages, async (m, i) => {
-			const msgId = m.id;
+			const msgId = m.id.toString();
 			const existsChannelMessage = await this.models.Message.findOne({where: {msgId, dbChannelId, userId}});
 			if (existsChannelMessage) {
 				return onMessageProcess(m, null);
@@ -428,7 +428,7 @@ class Telegram {
 			if (groupedReplyTo) {
 				properties['replyToMsgId'] = groupedReplyTo;
 			} else if (m.replyTo) {
-				properties['replyToMsgId'] = m.replyTo.replyToMsgId;
+				properties['replyToMsgId'] = m.replyTo.replyToMsgId.toString();
 			}
 			if (groupedMessageIds.length) {
 				properties['groupedMsgIds'] = groupedMessageIds;
@@ -474,7 +474,7 @@ class Telegram {
 				groupedId = m.groupedId.toString();
 				groupedDate = m.date;
 				if (m.replyTo) {
-					groupedReplyTo = m.replyTo.replyToMsgId;
+					groupedReplyTo = m.replyTo.replyToMsgId.toString();
 				}
 			} else if (contents.length) {
 				post = await this.app.createPost(userId, {

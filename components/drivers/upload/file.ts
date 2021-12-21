@@ -19,7 +19,7 @@ export class FileUploadDriver extends AbstractDriver {
   supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(inputStream, options: any = {}) {
-    const path = `/tmp/` + uuidv4() + '-' + new Date().getTime();
+    const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
     let size;
 
     try {
