@@ -8133,9 +8133,9 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs.git#b516d2a":
+"geesome-libs@https://github.com/galtproject/geesome-libs.git#ae7d00e":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs.git#b516d2a6bee0413be1bb78a83434313cb72c0326"
+  resolved "https://github.com/galtproject/geesome-libs.git#ae7d00e35508a28f1572597e382ccac0c7ff8f0d"
   dependencies:
     "@fluencelabs/aqua" "0.5.0-247"
     "@fluencelabs/aqua-dht" "0.2.4"
@@ -8150,7 +8150,7 @@ gc-stats@^1.4.0:
     cryptiles "4.1.3"
     es6-promisify "^6.0.1"
     eth-crypto "^1.8.0"
-    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client.git#a34de98"
+    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client.git#c95cf1c"
     hat "^0.0.3"
     ipfs "0.58.4"
     ipfs-http-client "52.0.3"
@@ -8200,10 +8200,9 @@ gc-stats@^1.4.0:
     pbkdf2 "^3.1.1"
     web3-provider-engine "git://github.com/galtproject/web3-provider-engine.git#d611db5"
 
-"geesome-wallet-client@https://github.com/galtproject/geesome-wallet-client.git#a34de98":
+"geesome-wallet-client@https://github.com/galtproject/geesome-wallet-client.git#c95cf1c":
   version "1.0.0"
-  uid a34de986717dc847af20e85ad9607b801ac9fc55
-  resolved "https://github.com/galtproject/geesome-wallet-client.git#a34de986717dc847af20e85ad9607b801ac9fc55"
+  resolved "https://github.com/galtproject/geesome-wallet-client.git#c95cf1c1c40e7b45f82b3da01d5c689cf9296e91"
   dependencies:
     aes-js "^3.1.2"
     async "^3.1.0"
@@ -8216,7 +8215,7 @@ gc-stats@^1.4.0:
     lodash "^4.17.11"
     p-iteration "^1.1.8"
     pbkdf2 "^3.1.1"
-    web3-provider-engine "git://github.com/galtproject/web3-provider-engine.git#d611db5"
+    web3-provider-engine "https://github.com/galtproject/web3-provider-engine.git#d611db5"
 
 genfun@^5.0.0:
   version "5.0.0"
@@ -19211,6 +19210,34 @@ web-encoding@^1.0.2, web-encoding@^1.0.6:
 "web3-provider-engine@git://github.com/galtproject/web3-provider-engine.git#d611db5":
   version "15.0.12"
   resolved "git://github.com/galtproject/web3-provider-engine.git#d611db5950cd3433470f08d5c4b80f42a6199f49"
+  dependencies:
+    async "^2.5.0"
+    backoff "^2.5.0"
+    clone "^2.0.0"
+    cross-fetch "^2.1.0"
+    eth-block-tracker "^4.4.2"
+    eth-json-rpc-errors "^2.0.2"
+    eth-json-rpc-filters "^4.1.1"
+    eth-json-rpc-infura "^4.0.1"
+    eth-json-rpc-middleware "^4.1.5"
+    eth-sig-util "^1.4.2"
+    ethereumjs-block "^1.2.2"
+    ethereumjs-tx "^1.2.0"
+    ethereumjs-util "^5.1.5"
+    ethereumjs-vm "^2.3.4"
+    json-stable-stringify "^1.0.1"
+    promise-to-callback "^1.0.0"
+    readable-stream "^2.2.9"
+    request "^2.85.0"
+    semaphore "^1.0.3"
+    ws "^5.1.1"
+    xhr "^2.2.0"
+    xtend "^4.0.1"
+
+"web3-provider-engine@https://github.com/galtproject/web3-provider-engine.git#d611db5":
+  version "15.0.12"
+  uid d611db5950cd3433470f08d5c4b80f42a6199f49
+  resolved "https://github.com/galtproject/web3-provider-engine.git#d611db5950cd3433470f08d5c4b80f42a6199f49"
   dependencies:
     async "^2.5.0"
     backoff "^2.5.0"
