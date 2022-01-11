@@ -10,7 +10,7 @@ RUN apt-get update
 
 RUN apt-get install python build-essential libssl-dev ffmpeg git -y
 
-RUN curl -sL https://deb.nodesource.com/setup_15.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
 RUN apt-get install nodejs -y
 
 RUN npm i -g yarn
