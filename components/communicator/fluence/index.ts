@@ -9,7 +9,7 @@ module.exports = async (app: IGeesomeApp) => {
     // let neighbours = await dhtApi.getNeighbours(client, nodeId, 'topic')
     const peer = new FluencePeer();
     await peer.start({
-        connectTo: testNet[1],
+        connectTo: testNet[2],
     });
     const databaseAccountStorage = new DatabaseAccountStorage(app.database, app.config.storageConfig.jsNode.pass);
     return new FluenceService(databaseAccountStorage, peer, {logLevel: null /*'debug'*/});

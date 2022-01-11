@@ -23,7 +23,10 @@ module.exports = `
   </md-card-header>
 
   <md-card-actions>
-    <md-button v-if="isCanEditGroup" :to="{'name': 'edit-group', params: {groupId: group.id}}">Edit</md-button>
+  	<div v-if="isCanEditGroup">
+  	    <md-button :to="{name: 'edit-group', params: {groupId: group.staticId}}">Edit</md-button>
+		<md-button :to="{name: 'static-site-manager', params: {type: 'group', id: group.staticId}}">Static site manager</md-button>
+	</div>
     <div v-else>
       <md-button class="md-accent" v-if="isJoined" @click="leaveGroup">Unsubscribe</md-button>
       <md-button class="md-primary" v-else @click="joinGroup">Subscribe</md-button>

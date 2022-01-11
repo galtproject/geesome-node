@@ -51,7 +51,8 @@
     },
     computed: {
       $site() {
-        return page._value.$site;
+        console.log('page._value', page._value);
+        return page._value.site;
       },
     },
     mounted() {

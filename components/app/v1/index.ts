@@ -2467,6 +2467,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
+    groupId = await this.checkGroupId(groupId);
     listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getGroupPosts(groupId, filters, listParams),

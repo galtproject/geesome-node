@@ -25,5 +25,15 @@ module.exports = async (app: IGeesomeApp) => {
     await service.node.config.profiles.apply(process.env.IPFS_PROFILE);
   }
 
+  while (true) {
+    try {
+      await service.getBootNodeList();
+      break;
+    } catch (e) {
+      console.warn('getBootNodeList error, trying to reconnect...', e.message);
+      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+    }
+  }
+
   return service;
 };

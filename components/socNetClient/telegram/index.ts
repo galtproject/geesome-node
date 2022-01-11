@@ -162,26 +162,6 @@ class Telegram {
 	async getChannelInfoByUserId(userId, accData, channelId) {
 		return this.getChannelInfoByClient(await this.getClient(userId, accData), channelId);
 	}
-	async getChannelLastMessageId(client, channel) {
-		const channelHistory = await client.invoke(
-			new Api.messages.GetHistory({
-				peer: channel,
-				offsetId: 0,
-				offsetDate: 2147483647,
-				addOffset: 0,
-				limit: 1,
-				maxId: 0,
-				minId: 0,
-				hash: 0,
-			})
-		);
-		return channelHistory.messages[0].id;
-	}
-	async getChannelEntity(client, channelId) {
-		return client.getInputEntity(
-			new Api['PeerChannel']({ channelId: parseInt(channelId), accessHash: bigInt.zero })
-		);
-	}
 	async getChannelInfoByClient(client, channelId) {
 		const channel = await this.getChannelEntity(client, channelId);
 		const [response, messagesCount] = await Promise.all([
@@ -200,6 +180,26 @@ class Telegram {
 				messagesCount
 			}
 		}
+	}
+	async getChannelEntity(client, channelId) {
+		return client.getInputEntity(
+			new Api['PeerChannel']({ channelId: parseInt(channelId), accessHash: bigInt.zero })
+		);
+	}
+	async getChannelLastMessageId(client, channel) {
+		const channelHistory = await client.invoke(
+			new Api.messages.GetHistory({
+				peer: channel,
+				offsetId: 0,
+				offsetDate: 2147483647,
+				addOffset: 0,
+				limit: 1,
+				maxId: 0,
+				minId: 0,
+				hash: 0,
+			})
+		);
+		return channelHistory.messages[0].id;
 	}
 	async getMessagesByUserId(userId, accData, channelName, messagesIds) {
 		return this.getMessagesByClient(await this.getClient(userId, accData), channelName, messagesIds);
