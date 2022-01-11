@@ -150,7 +150,7 @@ class StaticSiteGenerator {
         const distPath = path.resolve(__dirname, './.vuepress/dist');
         rmDir(distPath);
 
-        const group = await this.app.database.getGroup(data);
+        const group = await this.app.getGroup(data);
         let properties = {};
         try {
             if (group.propertiesJson) {
@@ -159,7 +159,8 @@ class StaticSiteGenerator {
         } catch (e) { }
         options = this.getResultOptions(group, _.merge(properties, options));
 
-        const groupPosts = await this.app.database.getGroupPosts(data, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
+        console.log('ggetGroupPosts', data);
+        const {list: groupPosts} = await this.app.getGroupPosts(data, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
         console.log('groupPosts.length', groupPosts.length);
         const { baseStorageUri } = options;
 
@@ -203,6 +204,7 @@ class StaticSiteGenerator {
             }
         });
 
+        console.log('createBuildApp');
         const staticSiteApp = createBuildApp({
             base,
             source: __dirname,
@@ -216,7 +218,9 @@ class StaticSiteGenerator {
         })
 
         // initialize and prepare
+        console.log('staticSiteApp.init');
         await staticSiteApp.init();
+        console.log('staticSiteApp.prepare');
         await staticSiteApp.prepare();
 
         if (options.asyncOperationId) {
@@ -224,9 +228,11 @@ class StaticSiteGenerator {
         }
         // build
         // TODO: update percent on build process
+        console.log('staticSiteApp.build');
         await staticSiteApp.build();
 
         // process onGenerated hook
+        console.log('staticSiteApp.pluginApi.hooks.onGenerated.process');
         await staticSiteApp.pluginApi.hooks.onGenerated.process(staticSiteApp);
 
         return this.app.saveDirectoryToStorage(options.userId, distPath, {

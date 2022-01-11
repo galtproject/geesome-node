@@ -14,9 +14,9 @@ export default {
   props: ['group'],
   async created() {
     this.fetchData();
-    this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
+    this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id || this.group.staticId);
     if (!this.isCanEditGroup) {
-      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id || this.group.staticId);
     }
   },
 

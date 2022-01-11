@@ -1080,7 +1080,7 @@
     ts-pattern "^3.3.3"
     uuid "8.3.0"
 
-"@galtproject/vuepress-bundler-vite@^2.0.0-beta.27.10":
+"@galtproject/vuepress-bundler-vite@2.0.0-beta.27.10":
   version "2.0.0-beta.27.10"
   resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.27.10.tgz#b60a1a11ddba1098f7ef3de27a96bcecea3f9267"
   integrity sha512-CmytuUBYEIgUVr+QxyD5lhaHZ4UhKwdV8gFTh8G84+LDZpZsTNM0VgwNu+HAQWmtGE4HTuE8PL0s6Qcw9lPdRQ==
@@ -2978,7 +2978,7 @@
     "@vue/compiler-ssr" "3.2.26"
     "@vue/shared" "3.2.26"
 
-"@vue/shared@3.2.26", "@vue/shared@^3.2.20", "@vue/shared@^3.2.24":
+"@vue/shared@3.2.26", "@vue/shared@^3.2.20":
   version "3.2.26"
   resolved "https://registry.yarnpkg.com/@vue/shared/-/shared-3.2.26.tgz#7acd1621783571b9a82eca1f041b4a0a983481d9"
   integrity sha512-vPV6Cq+NIWbH5pZu+V+2QHE9y1qfuTq49uNWw4f7FDEeZaDU2H2cx5jcUZOAKW7qTrUS4k6qZPbMy1x4N96nbA==
@@ -3047,15 +3047,6 @@
     vue "^3.2.20"
     vue-router "^4.0.12"
 
-"@vuepress/client@2.0.0-beta.29", "@vuepress/client@^2.0.0-beta.27":
-  version "2.0.0-beta.29"
-  resolved "https://registry.yarnpkg.com/@vuepress/client/-/client-2.0.0-beta.29.tgz#a7c273eb18113795feb62fcbf7d66b269a2cbebe"
-  integrity sha512-hBXcsrEb63mJt8Qb9hGIu2nvXLF5z+HlweiRgXrIkkeJjbumJhXCfm5kqq+VIw8qNgRpVKOBcINCXN2XjjT3gQ==
-  dependencies:
-    "@vuepress/shared" "2.0.0-beta.28"
-    vue "^3.2.24"
-    vue-router "^4.0.12"
-
 "@vuepress/core@2.0.0-beta.27":
   version "2.0.0-beta.27"
   resolved "https://registry.yarnpkg.com/@vuepress/core/-/core-2.0.0-beta.27.tgz#35f266da4c3c8d7da2cb6325c6e6abb3b69d9522"
@@ -3065,18 +3056,6 @@
     "@vuepress/markdown" "2.0.0-beta.27"
     "@vuepress/shared" "2.0.0-beta.27"
     "@vuepress/utils" "2.0.0-beta.27"
-    gray-matter "^4.0.3"
-    toml "^3.0.0"
-
-"@vuepress/core@^2.0.0-beta.27":
-  version "2.0.0-beta.29"
-  resolved "https://registry.yarnpkg.com/@vuepress/core/-/core-2.0.0-beta.29.tgz#73b16a3eabe512b6c43c3efcf62ea547e129917c"
-  integrity sha512-4c58aU6eu+SW9I8XaOs/2n+NxkyR9ZMfvI3ZVu56Oai0/MIWtScBj1MMiGe2lrsU2sVPgqx/qRBODkAi9+ZNQg==
-  dependencies:
-    "@vuepress/client" "2.0.0-beta.29"
-    "@vuepress/markdown" "2.0.0-beta.29"
-    "@vuepress/shared" "2.0.0-beta.28"
-    "@vuepress/utils" "2.0.0-beta.28"
     gray-matter "^4.0.3"
     toml "^3.0.0"
 
@@ -3093,32 +3072,12 @@
     markdown-it-emoji "^2.0.0"
     mdurl "^1.0.1"
 
-"@vuepress/markdown@2.0.0-beta.29":
-  version "2.0.0-beta.29"
-  resolved "https://registry.yarnpkg.com/@vuepress/markdown/-/markdown-2.0.0-beta.29.tgz#367d98070f5a7fd8f6cdfaacb8401091a70755e6"
-  integrity sha512-BgFCiDfhM4bTKcMRLpvMtbxxUT5Xj4EPN1WQs9+WzFdWPPcq69PsuzA89yJlYxDk+3E+GBXGuA5Ztm2q6hMqsQ==
-  dependencies:
-    "@types/markdown-it" "^12.2.3"
-    "@vuepress/shared" "2.0.0-beta.28"
-    "@vuepress/utils" "2.0.0-beta.28"
-    markdown-it "^12.2.0"
-    markdown-it-anchor "^8.4.1"
-    markdown-it-emoji "^2.0.0"
-    mdurl "^1.0.1"
-
 "@vuepress/shared@2.0.0-beta.27":
   version "2.0.0-beta.27"
   resolved "https://registry.yarnpkg.com/@vuepress/shared/-/shared-2.0.0-beta.27.tgz#d40ebb57c885328e80c421578155811de7bfee9d"
   integrity sha512-WvP76yNWik9Y3J9o8flY2bWJCPwqifhl4xjYtP73O5+Yze2r/tf0gO0IJ0ccYUNLDu46ZGlnn5Jett4BABlwBg==
   dependencies:
     "@vue/shared" "^3.2.20"
-
-"@vuepress/shared@2.0.0-beta.28":
-  version "2.0.0-beta.28"
-  resolved "https://registry.yarnpkg.com/@vuepress/shared/-/shared-2.0.0-beta.28.tgz#9722d8578b5f861a100b5a89593a3b74e24be9d7"
-  integrity sha512-EXEIw8JjSNlhe+/kqWy6e66E7fE28z/ooJY8+b0Br7HCRBh09M3Kbon3JrUG+KeRFabxZSMr0AL2cmHYzL+tfA==
-  dependencies:
-    "@vue/shared" "^3.2.24"
 
 "@vuepress/utils@2.0.0-beta.27":
   version "2.0.0-beta.27"
@@ -3131,23 +3090,6 @@
     "@vuepress/shared" "2.0.0-beta.27"
     chalk "^4.1.2"
     debug "^4.3.2"
-    fs-extra "^10.0.0"
-    globby "^11.0.4"
-    hash-sum "^2.0.0"
-    ora "^5.4.1"
-    upath "^2.0.1"
-
-"@vuepress/utils@2.0.0-beta.28", "@vuepress/utils@^2.0.0-beta.27":
-  version "2.0.0-beta.28"
-  resolved "https://registry.yarnpkg.com/@vuepress/utils/-/utils-2.0.0-beta.28.tgz#bcfbf5d2e044cdd00b8215e3185e2c899cb360d1"
-  integrity sha512-Kho1I20Unc61oniulapxjla30q6SmtMkqAk3X9KJ87Myd7qmXrSvZXHwz5e+IW8rh18yDgWz2FyRFCqNmKvbzA==
-  dependencies:
-    "@types/debug" "^4.1.7"
-    "@types/fs-extra" "^9.0.13"
-    "@types/hash-sum" "^1.0.0"
-    "@vuepress/shared" "2.0.0-beta.28"
-    chalk "^4.1.2"
-    debug "^4.3.3"
     fs-extra "^10.0.0"
     globby "^11.0.4"
     hash-sum "^2.0.0"
@@ -5820,7 +5762,7 @@ debug@3.1.0, debug@=3.1.0, debug@~3.1.0:
   dependencies:
     ms "2.0.0"
 
-debug@4, debug@^4.0.1, debug@^4.1.0, debug@^4.1.1, debug@^4.2.0, debug@^4.3.0, debug@^4.3.1, debug@^4.3.2, debug@^4.3.3, debug@~4.3.1, debug@~4.3.2:
+debug@4, debug@^4.0.1, debug@^4.1.0, debug@^4.1.1, debug@^4.2.0, debug@^4.3.0, debug@^4.3.1, debug@^4.3.2, debug@~4.3.1, debug@~4.3.2:
   version "4.3.3"
   resolved "https://registry.yarnpkg.com/debug/-/debug-4.3.3.tgz#04266e0b70a98d4462e6e288e38259213332b664"
   integrity sha512-/zxw5+vh1Tfv+4Qn7a5nsbcJKPaSvCDhojn6FEl9vupwK2VCSDtEiEtqr8DFtzYFOdz63LBkxec7DYuc2jon6Q==
@@ -18176,10 +18118,10 @@ tdigest@^0.1.1:
   dependencies:
     bintrees "1.0.1"
 
-telegram@^1.9.6:
-  version "1.11.1"
-  resolved "https://registry.yarnpkg.com/telegram/-/telegram-1.11.1.tgz#c1a4aaed483c8ee99b411528dde883772e0b19ac"
-  integrity sha512-5Qh3ajIN0DC3Lk5TPcE+4pjx1wy7LMig0xC+HcunUcA3gyliaHUvtPl8n/hTdW0hXZJ8EUJqYmQoH6VZJz6adA==
+telegram@2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/telegram/-/telegram-2.1.0.tgz#98c3fa18696cccff3e99938fd8508cb13822978c"
+  integrity sha512-VNUfzRh4Mup6Rxr30kGmFYXkOtcibiL2ICg90+QggtKQdp2jH4fw7SpOfix0wQMetd3mzANlOPQuJpYp2PIlsA==
   dependencies:
     "@cryptography/aes" "^0.1.1"
     async-mutex "^0.3.0"
@@ -19206,7 +19148,7 @@ vue-router@^4.0.12:
   dependencies:
     "@vue/devtools-api" "^6.0.0-beta.18"
 
-vue@^3.2.20, vue@^3.2.24:
+vue@^3.2.20:
   version "3.2.26"
   resolved "https://registry.yarnpkg.com/vue/-/vue-3.2.26.tgz#5db575583ecae495c7caa5c12fd590dffcbb763e"
   integrity sha512-KD4lULmskL5cCsEkfhERVRIOEDrfEL9CwAsLYpzptOGjaGFNWo3BQ9g8MAb7RaIO71rmVOziZ/uEN/rHwcUIhg==

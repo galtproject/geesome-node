@@ -196,6 +196,24 @@ describe("drivers", function () {
         strm.on('error', reject);
       });
     });
+    it("should get video screenshot correctly with path", async () => {
+      await new Promise(async (resolve, reject) => {
+
+        const videoPath = await resourcesHelper.prepare('streamable-input-video.mp4');
+        const result = await drivers['preview']['video-thumbnail'].processByPath(videoPath, {
+          extension: 'mp4',
+          onError() {
+            assert.equal(false, true);
+          }
+        });
+
+        const strm = fs.createWriteStream(__dirname + '/resources/output-screenshot.png');
+        result.stream.pipe(strm);
+
+        strm.on('finish', resolve);
+        strm.on('error', reject);
+      });
+    });
   });
 
   describe('preview gif-thumbnail', () => {

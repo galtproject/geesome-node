@@ -26,6 +26,7 @@ export class ImageMetadataDriver extends AbstractDriver {
       });
     });
 
+    console.log('processByStream sharp(buffer).metadata()')
     const metadata = await sharp(buffer).metadata();
 
     return _.pick(metadata, ['format', 'width', 'height', 'space', 'channels', 'depth', 'density', 'chromaSubsampling', 'isProgressive', 'hasProfile', 'hasAlpha', 'orientation']);

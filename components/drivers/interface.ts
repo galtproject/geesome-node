@@ -31,7 +31,8 @@ export enum OutputSize {
 export enum DriverInput {
   Stream = 'stream',
   Content = 'content',
-  Source = 'source'
+  Source = 'source',
+  Path = 'path'
 }
 
 export interface IDriverResponse {
