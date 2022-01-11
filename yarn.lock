@@ -1080,10 +1080,10 @@
     ts-pattern "^3.3.3"
     uuid "8.3.0"
 
-"@galtproject/vuepress-bundler-vite@2.0.0-beta.27.10":
-  version "2.0.0-beta.27.10"
-  resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.27.10.tgz#b60a1a11ddba1098f7ef3de27a96bcecea3f9267"
-  integrity sha512-CmytuUBYEIgUVr+QxyD5lhaHZ4UhKwdV8gFTh8G84+LDZpZsTNM0VgwNu+HAQWmtGE4HTuE8PL0s6Qcw9lPdRQ==
+"@galtproject/vuepress-bundler-vite@2.0.0-beta.27.11":
+  version "2.0.0-beta.27.11"
+  resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.27.11.tgz#5c507967e2eefc8d8f0862d6c098b88007524453"
+  integrity sha512-FcJj9MYJBzS+YlsAKNqJ+8QXZW7f0sFIEYr19iokmbBlfRtKardTAJ7jDjp9kWrRQHl3uDYTkbyNSmxfIoNIEA==
   dependencies:
     "@vitejs/plugin-vue" "^1.9.3"
     "@vue/compiler-sfc" "^3.2.20"
@@ -1094,7 +1094,7 @@
     "@vuepress/utils" "2.0.0-beta.27"
     autoprefixer "^10.3.7"
     connect-history-api-fallback "^1.6.0"
-    geesome-libs "git://github.com/galtproject/geesome-libs.git#a34edf5"
+    geesome-libs "https://github.com/galtproject/geesome-libs.git#58ea9b6"
     postcss "^8.3.11"
     postcss-csso "^5.0.1"
     rollup "^2.58.3"
@@ -8083,9 +8083,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git://github.com/galtproject/geesome-libs.git#a34edf5":
+"geesome-libs@git+https://github.com/galtproject/geesome-libs.git#58ea9b6":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-libs.git#a34edf552ad9ecb69cdcd5780586ca1b67f5ad4a"
+  resolved "git+https://github.com/galtproject/geesome-libs.git#58ea9b6280e795a6f0ecf8262db7e3f07b603ba6"
   dependencies:
     "@fluencelabs/aqua" "0.5.0-247"
     "@fluencelabs/aqua-dht" "0.2.4"
