@@ -7264,6 +7264,10 @@ follow-redirects@^1.10.0:
   resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.13.1.tgz#5f69b813376cee4fd0474a3aba835df04ab763b7"
   integrity sha512-SSG5xmZh1mkPGyKzjZP8zLjltIfpW32Y5QpdNJyjcfGxK3qo3NDDkZOZSFiGn1A6SclQxY9GzEwAHQ3dmYRWpg==
 
+"font-awesome@https://github.com/FortAwesome/Font-Awesome":
+  version "0.0.0"
+  resolved "https://github.com/FortAwesome/Font-Awesome#7cbd7f9951be31f9d06b6ac97739a700320b9130"
+
 "font-awesome@https://github.com/FortAwesome/Font-Awesome.git":
   version "0.0.0"
   resolved "https://github.com/FortAwesome/Font-Awesome.git#299abb1fb101f4e1cfd1d2fccc461782ff84b13d"
@@ -7404,9 +7408,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs.git#ae7d00e":
+"geesome-libs@https://github.com/galtproject/geesome-libs#38f61c3":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs.git#ae7d00e35508a28f1572597e382ccac0c7ff8f0d"
+  resolved "https://github.com/galtproject/geesome-libs#38f61c3a4740525c62360dd5345dc3e645997550"
   dependencies:
     "@fluencelabs/aqua" "0.5.0-247"
     "@fluencelabs/aqua-dht" "0.2.4"
@@ -7421,7 +7425,7 @@ gc-stats@^1.4.0:
     cryptiles "4.1.3"
     es6-promisify "^6.0.1"
     eth-crypto "^1.8.0"
-    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client.git#c95cf1c"
+    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client#c95cf1c"
     hat "^0.0.3"
     ipfs "0.58.4"
     ipfs-http-client "52.0.3"
@@ -7454,9 +7458,9 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-vue-components@https://github.com/galtproject/geesome-vue-components.git#43d330c":
+"geesome-vue-components@https://github.com/galtproject/geesome-vue-components#43d330c":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-vue-components.git#43d330cc9db2dda3e87a69c7d92831a46554d7cb"
+  resolved "https://github.com/galtproject/geesome-vue-components#43d330cc9db2dda3e87a69c7d92831a46554d7cb"
   dependencies:
     axios "^0.21.0"
     bs58 "^4.0.1"
@@ -7472,9 +7476,9 @@ gc-stats@^1.4.0:
     vuex "3.1.0"
     web3-utils "^1.3.0"
 
-"geesome-wallet-client@https://github.com/galtproject/geesome-wallet-client.git#c95cf1c":
+"geesome-wallet-client@https://github.com/galtproject/geesome-wallet-client#c95cf1c":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-wallet-client.git#c95cf1c1c40e7b45f82b3da01d5c689cf9296e91"
+  resolved "https://github.com/galtproject/geesome-wallet-client#c95cf1c1c40e7b45f82b3da01d5c689cf9296e91"
   dependencies:
     aes-js "^3.1.2"
     async "^3.1.0"

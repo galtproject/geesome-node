@@ -1080,10 +1080,10 @@
     ts-pattern "^3.3.3"
     uuid "8.3.0"
 
-"@galtproject/vuepress-bundler-vite@2.0.0-beta.27.11":
-  version "2.0.0-beta.27.11"
-  resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.27.11.tgz#5c507967e2eefc8d8f0862d6c098b88007524453"
-  integrity sha512-FcJj9MYJBzS+YlsAKNqJ+8QXZW7f0sFIEYr19iokmbBlfRtKardTAJ7jDjp9kWrRQHl3uDYTkbyNSmxfIoNIEA==
+"@galtproject/vuepress-bundler-vite@2.0.0-beta.27.13":
+  version "2.0.0-beta.27.13"
+  resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.27.13.tgz#29aae3fc66763258163cea98d67bc84adaff336f"
+  integrity sha512-0zhg5deBEsTs/qD9+McilLxphQ+Nk7jHiobkzOncXfmpzVZ1YadGAuh6RKYDDE6WEta6pyPehuLUg+c7oWbJZg==
   dependencies:
     "@vitejs/plugin-vue" "^1.9.3"
     "@vue/compiler-sfc" "^3.2.20"
@@ -1094,7 +1094,7 @@
     "@vuepress/utils" "2.0.0-beta.27"
     autoprefixer "^10.3.7"
     connect-history-api-fallback "^1.6.0"
-    geesome-libs "https://github.com/galtproject/geesome-libs.git#58ea9b6"
+    geesome-libs "https://github.com/galtproject/geesome-libs#38f61c3"
     postcss "^8.3.11"
     postcss-csso "^5.0.1"
     rollup "^2.58.3"
@@ -2133,9 +2133,9 @@
   resolved "https://registry.yarnpkg.com/@metamask/safe-event-emitter/-/safe-event-emitter-2.0.0.tgz#af577b477c683fad17c619a78208cede06f9605c"
   integrity sha512-/kSXhY692qiV1MXu6EeOZvg5nECLclxNXcKCxJ3cXQgYuRymRHpdx/t7JXfsK+JLjwA1e1c1/SBrlQYpusC29Q==
 
-"@microlink/youtube-dl@git://github.com/przemyslawpluta/node-youtube-dl.git#05ecd7f":
+"@microlink/youtube-dl@https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f":
   version "3.5.0"
-  resolved "git://github.com/przemyslawpluta/node-youtube-dl.git#05ecd7f7a49575d2b098507ce87e56e8216f18dc"
+  resolved "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f7a49575d2b098507ce87e56e8216f18dc"
   dependencies:
     bin-version-check-cli "~2.0.0"
     execa "~5.0.0"
@@ -8083,9 +8083,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs.git#58ea9b6":
+"geesome-libs@git+https://github.com/galtproject/geesome-libs.git#38f61c3":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs.git#58ea9b6280e795a6f0ecf8262db7e3f07b603ba6"
+  resolved "git+https://github.com/galtproject/geesome-libs.git#38f61c3a4740525c62360dd5345dc3e645997550"
   dependencies:
     "@fluencelabs/aqua" "0.5.0-247"
     "@fluencelabs/aqua-dht" "0.2.4"
@@ -8100,7 +8100,7 @@ gc-stats@^1.4.0:
     cryptiles "4.1.3"
     es6-promisify "^6.0.1"
     eth-crypto "^1.8.0"
-    geesome-wallet-client "git://github.com/galtproject/geesome-wallet-client.git#a34de98"
+    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client#c95cf1c"
     hat "^0.0.3"
     ipfs "0.58.4"
     ipfs-http-client "52.0.3"
@@ -8133,9 +8133,9 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs.git#ae7d00e":
+"geesome-libs@https://github.com/galtproject/geesome-libs#38f61c3":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs.git#ae7d00e35508a28f1572597e382ccac0c7ff8f0d"
+  resolved "https://github.com/galtproject/geesome-libs#38f61c3a4740525c62360dd5345dc3e645997550"
   dependencies:
     "@fluencelabs/aqua" "0.5.0-247"
     "@fluencelabs/aqua-dht" "0.2.4"
@@ -8150,7 +8150,7 @@ gc-stats@^1.4.0:
     cryptiles "4.1.3"
     es6-promisify "^6.0.1"
     eth-crypto "^1.8.0"
-    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client.git#c95cf1c"
+    geesome-wallet-client "https://github.com/galtproject/geesome-wallet-client#c95cf1c"
     hat "^0.0.3"
     ipfs "0.58.4"
     ipfs-http-client "52.0.3"
@@ -8183,26 +8183,9 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-wallet-client@git://github.com/galtproject/geesome-wallet-client.git#a34de98":
+"geesome-wallet-client@https://github.com/galtproject/geesome-wallet-client#c95cf1c":
   version "1.0.0"
-  resolved "git://github.com/galtproject/geesome-wallet-client.git#a34de986717dc847af20e85ad9607b801ac9fc55"
-  dependencies:
-    aes-js "^3.1.2"
-    async "^3.1.0"
-    axios "^0.19.0"
-    eth-sig-util "^2.5.3"
-    ethereumjs-common "^1.5.1"
-    ethereumjs-tx "^2.1.2"
-    ethereumjs-util "^7.0.2"
-    ethers "^5.0.2"
-    lodash "^4.17.11"
-    p-iteration "^1.1.8"
-    pbkdf2 "^3.1.1"
-    web3-provider-engine "git://github.com/galtproject/web3-provider-engine.git#d611db5"
-
-"geesome-wallet-client@https://github.com/galtproject/geesome-wallet-client.git#c95cf1c":
-  version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-wallet-client.git#c95cf1c1c40e7b45f82b3da01d5c689cf9296e91"
+  resolved "https://github.com/galtproject/geesome-wallet-client#c95cf1c1c40e7b45f82b3da01d5c689cf9296e91"
   dependencies:
     aes-js "^3.1.2"
     async "^3.1.0"
@@ -19207,36 +19190,8 @@ web-encoding@^1.0.2, web-encoding@^1.0.6:
   optionalDependencies:
     "@zxing/text-encoding" "0.9.0"
 
-"web3-provider-engine@git://github.com/galtproject/web3-provider-engine.git#d611db5":
-  version "15.0.12"
-  resolved "git://github.com/galtproject/web3-provider-engine.git#d611db5950cd3433470f08d5c4b80f42a6199f49"
-  dependencies:
-    async "^2.5.0"
-    backoff "^2.5.0"
-    clone "^2.0.0"
-    cross-fetch "^2.1.0"
-    eth-block-tracker "^4.4.2"
-    eth-json-rpc-errors "^2.0.2"
-    eth-json-rpc-filters "^4.1.1"
-    eth-json-rpc-infura "^4.0.1"
-    eth-json-rpc-middleware "^4.1.5"
-    eth-sig-util "^1.4.2"
-    ethereumjs-block "^1.2.2"
-    ethereumjs-tx "^1.2.0"
-    ethereumjs-util "^5.1.5"
-    ethereumjs-vm "^2.3.4"
-    json-stable-stringify "^1.0.1"
-    promise-to-callback "^1.0.0"
-    readable-stream "^2.2.9"
-    request "^2.85.0"
-    semaphore "^1.0.3"
-    ws "^5.1.1"
-    xhr "^2.2.0"
-    xtend "^4.0.1"
-
 "web3-provider-engine@https://github.com/galtproject/web3-provider-engine.git#d611db5":
   version "15.0.12"
-  uid d611db5950cd3433470f08d5c4b80f42a6199f49
   resolved "https://github.com/galtproject/web3-provider-engine.git#d611db5950cd3433470f08d5c4b80f42a6199f49"
   dependencies:
     async "^2.5.0"
