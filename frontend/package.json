@@ -32,7 +32,7 @@
     "js-yaml": "^3.13.1",
     "latlon-geohash": "^1.1.0",
     "lodash": "^4.17.21",
-    "marked": "^0.7.0",
+    "marked": "^4.0.10",
     "mediaelement": "^4.2.9",
     "mime": "^2.5.2",
     "moment": "^2.20.1",
