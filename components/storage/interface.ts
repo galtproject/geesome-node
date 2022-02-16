@@ -12,11 +12,11 @@ export interface IStorage {
 
   isStreamAddSupport(): boolean;
 
-  saveDirectory(path): Promise<IResultFile>;
+  saveDirectory(path, options?): Promise<IResultFile>;
 
-  saveFileByPath(path): Promise<IResultFile>;
+  saveFileByPath(path, options?): Promise<IResultFile>;
 
-  saveFileByData(content): Promise<IResultFile>;
+  saveFileByData(content, options?): Promise<IResultFile>;
 
   saveFileByUrl(url): Promise<IResultFile>;
 

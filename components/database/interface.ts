@@ -369,6 +369,7 @@ export enum ContentStorageType {
 
 export enum ContentMimeType {
   Unknown = 'unknown',
+  Directory = 'directory',
   Text = 'text',
   TextHtml = 'text/html',
   TextMarkdown = 'text/md',

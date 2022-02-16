@@ -1,5 +1,5 @@
 import {IGeesomeApp} from "../../app/interface";
-import {IContent} from "../../database/interface";
+import {ContentMimeType, IContent} from "../../database/interface";
 
 const {createBuildApp} = require('@vuepress/core');
 const { path } = require('@vuepress/utils');
@@ -159,7 +159,7 @@ class StaticSiteGenerator {
         } catch (e) { }
         options = this.getResultOptions(group, _.merge(properties, options));
 
-        console.log('ggetGroupPosts', data);
+        console.log('getGroupPosts', data);
         const {list: groupPosts} = await this.app.getGroupPosts(data, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
         console.log('groupPosts.length', groupPosts.length);
         const { baseStorageUri } = options;
@@ -204,6 +204,17 @@ class StaticSiteGenerator {
             }
         });
 
+        const storeAsset = async (assetContent) => {
+            const data = await this.app.saveData(assetContent, '', {
+                userId: options.userId,
+                groupId: group.id,
+                mimeType: ContentMimeType.Text,
+                waitForPin: true,
+            });
+            console.log('storeAsset', data.storageId);
+            return data.storageId;
+        }
+
         console.log('createBuildApp');
         const staticSiteApp = createBuildApp({
             base,
@@ -213,7 +224,8 @@ class StaticSiteGenerator {
             plugins: [plugin(posts, options)],
             bundler: '@galtproject/vite',
             bundlerConfig: {
-                baseStorageUri
+                baseStorageUri,
+                storeAsset
             },
         })
 
