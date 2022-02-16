@@ -708,6 +708,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getContentByStorageId(req.params.contentStorageId));
   });
 
+  service.get('/v1/content-stats/*', async (req, res) => {
+    const dataPath = req.url.replace('/v1/content-stats/', '');
+    return geesomeApp.storage.getFileStat(dataPath).then(d => res.send(d));
+  });
+
   service.get('/v1/content-data/*', async (req, res) => {
     const dataPath = req.url.replace('/v1/content-data/', '');
     getFileStream(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
