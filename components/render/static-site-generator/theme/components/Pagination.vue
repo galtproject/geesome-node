@@ -1,12 +1,13 @@
 <template>
   <div class="pagination">
-    <a :href="baseHref + page.number" v-for="page in pagesButtons"
-       :class="{'current': page.number == currentPage && page.type === 'regular'}">
-      <span v-if="page.type === 'regular'">{{ page.number }}</span>
+    <span v-for="page in pagesButtons">
       <span v-if="page.type === 'dots'">...</span>
-      <span v-if="page.type === 'prev'">Prev</span>
-      <span v-if="page.type === 'next'">Next</span>
-    </a>
+      <a v-else :href="baseHref + page.number" :class="{'current': page.number === currentPage}">
+        <span v-if="page.type === 'regular'">{{ page.number }}</span>
+        <span v-if="page.type === 'prev'">Prev</span>
+        <span v-if="page.type === 'next'">Next</span>
+      </a>
+    </span>
   </div>
 </template>
 
@@ -19,7 +20,8 @@
     created() {
     },
     watch: {},
-    methods: {},
+    methods: {
+    },
     computed: {
       _displayPagesBefore() {
         return this.displayPagesBefore || Math.round(this.displayPages / 2);
@@ -46,7 +48,7 @@
           return pages;
         }
 
-        if (this.onlyRegular || this.pagesCount > this._displayPagesAfter) {
+        if (this.onlyRegular) {
           return Array.from(Array(this.pagesCount).keys()).map(i => {
             return {
               number: i + 1,

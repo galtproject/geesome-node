@@ -227,7 +227,7 @@ class StaticSiteGenerator {
                 baseStorageUri,
                 storeAsset
             },
-        })
+        });
 
         // initialize and prepare
         console.log('staticSiteApp.init');
