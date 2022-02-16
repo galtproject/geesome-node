@@ -41,18 +41,18 @@ export default {
 		async runGenerate() {
 			this.loading = true;
 			const res = await this.$coreApi.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
-			// this.getGroup();
-			// if (res && res.asyncOperation) {
-			// 	this.waitForOperation(res.asyncOperation);
-			// 	this.loading = false;
-			// } else {
-			// 	const interval = setInterval(async () => {
-			// 		const isFound = await this.getPendingOperations();
-			// 		if (isFound) {
-			// 			clearInterval(interval);
-			// 		}
-			// 	}, 10 * 1000)
-			// }
+			this.getGroup();
+			if (res && res.asyncOperation) {
+				this.waitForOperation(res.asyncOperation);
+				this.loading = false;
+			} else {
+				const interval = setInterval(async () => {
+					const isFound = await this.getPendingOperations();
+					if (isFound) {
+						clearInterval(interval);
+					}
+				}, 10 * 1000)
+			}
 		},
 		waitForOperation(operation) {
 			this.curOperation = operation;

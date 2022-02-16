@@ -8,7 +8,7 @@
  */
 
 import {IGeesomeApp} from "../../app/interface";
-import {CorePermissionName, UserLimitName} from "../../database/interface";
+import {ContentMimeType, CorePermissionName, UserLimitName} from "../../database/interface";
 
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
@@ -743,16 +743,20 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     let splitPath = dataPath.split('.');
     console.log('isIpfsHash', splitPath[0]);
-    if(ipfsHelper.isIpfsHash(splitPath[0])) {
+    if (ipfsHelper.isIpfsHash(splitPath[0])) {
       // cut extension, TODO: use regex
       dataPath = splitPath[0];
     }
 
     let range = req.headers['range'];
-    if(!range) {
+    if (!range) {
       const content = await geesomeApp.database.getContentByStorageId(dataPath, true);
-      if(content) {
+      if (content) {
+        console.log('content.mimeType', dataPath, content.mimeType);
         res.setHeader('Content-Type', content.storageId === dataPath ? content.mimeType : content.previewMimeType);
+        if (content.mimeType === ContentMimeType.Directory) {
+          dataPath += '/index.html';
+        }
       }
       return geesomeApp.getFileStream(dataPath).then((stream) => {
         stream.pipe(res);
@@ -760,12 +764,18 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
 
     const content = await geesomeApp.getContentByStorageId(dataPath);
+    console.log('content.mimeType', dataPath, content.mimeType);
 
-    // let dataSize = content ? content.size : null;
-    // if(!dataSize) {
-    //TODO: use content.size when all video sizes will be right in database
+    if (content.mimeType === ContentMimeType.Directory) {
+      dataPath += '/index.html';
+    }
+
+    let dataSize = content ? content.size : null;
+    // if (!dataSize) {
+    //   console.log('dataSize is null', dataPath, dataSize);
+      //TODO: check if some size not correct
       const stat = await geesomeApp.storage.getFileStat(dataPath);
-      let dataSize = stat.size;
+      dataSize = stat.size;
     // }
 
     console.log('dataSize', dataSize);
@@ -832,9 +842,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     // console.log('ipnsPath', ipnsPath);
     // console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
 
-    geesomeApp.getFileStream(ipnsPath.replace(ipnsId, ipfsId)).then((stream) => {
-      stream.pipe(res);
-    })
+    getFileStream(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
   });
 
   service.get('/resolve/:storageId', async (req, res) => {
@@ -885,10 +893,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       if (!path || path === '/') {
         path = '/index.html';
       }
-      res.setHeader('Content-Type', mime.getType(path));
-      geesomeApp.getFileStream(geesomeApp.frontendStorageId + path).then((stream) => {
-        stream.pipe(res);
-      })
+      getFileStream(req, res, geesomeApp.frontendStorageId + path).catch((e) => {console.error(e); res.send(400)});
     });
   }
 

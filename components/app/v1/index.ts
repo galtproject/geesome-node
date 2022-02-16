@@ -1593,7 +1593,7 @@ class GeesomeApp implements IGeesomeApp {
     return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -1640,7 +1640,8 @@ class GeesomeApp implements IGeesomeApp {
     const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
       extension: extensionFromName,
       driver: options.driver,
-      onProgress: options.onProgress
+      onProgress: options.onProgress,
+      waitForPin: options.waitForPin
     }).catch(e => {
       dataToSave.emit('end');
       dataToSave.destroy && dataToSave.destroy();
@@ -1930,21 +1931,23 @@ class GeesomeApp implements IGeesomeApp {
 
         stream = stream.pipe(sizeCheckStream);
       }
-
-      log('options.driver', options.driver);
+      const storageOptions = {
+        waitForPin: options.waitForPin
+      };
+      log('options.driver', options.driver, 'storageOptions', storageOptions);
 
       let resultFile: IStorageFile;
       await Promise.all([
         (async () => {
-          if(options.driver === 'archive') {
+          if (options.driver === 'archive') {
             log('upload archive processByStream');
             const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
               extension,
               onProgress: options.onProgress,
               onError: reject
             });
-            resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
-            if(uploadResult.emitFinish) {
+            resultFile = await this.storage.saveDirectory(uploadResult.tempPath, storageOptions);
+            if (uploadResult.emitFinish) {
               uploadResult.emitFinish();
             }
             mimeType = 'directory';
@@ -1954,7 +1957,7 @@ class GeesomeApp implements IGeesomeApp {
           } else {
             log('this.storage.isStreamAddSupport()', this.storage.isStreamAddSupport());
             if (this.storage.isStreamAddSupport()) {
-              resultFile = await this.storage.saveFileByData(stream);
+              resultFile = await this.storage.saveFileByData(stream, storageOptions);
             } else {
               const uploadResult = await this.drivers.upload['file'].processByStream(stream, {
                 extension,
@@ -1962,7 +1965,7 @@ class GeesomeApp implements IGeesomeApp {
                 onError: reject
               });
               log('saveDirectory(uploadResult.tempPath)');
-              resultFile = await this.storage.saveDirectory(uploadResult.tempPath);
+              resultFile = await this.storage.saveDirectory(uploadResult.tempPath, storageOptions);
               resultFile.tempPath = uploadResult.tempPath;
               resultFile.emitFinish = uploadResult.emitFinish;
             }
