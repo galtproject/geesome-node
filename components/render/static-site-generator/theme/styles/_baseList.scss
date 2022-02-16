@@ -78,8 +78,10 @@
 
 .pagination {
   display: flex;
-  a {
+  & > span {
     margin-right: 10px;
+  }
+  a {
     font-size: 12px;
     text-decoration: none;
     &.current {

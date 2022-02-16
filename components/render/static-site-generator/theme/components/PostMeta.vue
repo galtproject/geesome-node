@@ -41,7 +41,7 @@ export default {
       type: String,
     },
     date: {
-      type: String,
+      type: [Number, String],
     },
     location: {
       type: String,
@@ -49,7 +49,6 @@ export default {
   },
   computed: {
     resolvedDate() {
-      console.log('resolvedDate', this.page.frontmatter.date);
       return dayjs(this.page.frontmatter.date)
           .format(this.$themeConfig.dateFormat || 'ddd MMM DD YYYY')
     },
