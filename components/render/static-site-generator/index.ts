@@ -215,17 +215,27 @@ class StaticSiteGenerator {
             return data.storageId;
         }
 
+        const storeFolder = async (dirPath) => {
+            const data = await this.app.saveDirectoryToStorage(options.userId, dirPath, {
+                userId: options.userId,
+                groupId: group.id,
+                waitForPin: true,
+            });
+            return data.storageId;
+        }
+
         console.log('createBuildApp');
         const staticSiteApp = createBuildApp({
             base,
             source: __dirname,
             theme: path.resolve(__dirname, './theme'),
-            templateSSR: path.resolve(__dirname, './theme/index.ssr.html'),
+            templateBuild: path.resolve(__dirname, './theme/index.ssr.html'),
             plugins: [plugin(posts, options)],
             bundler: '@galtproject/vite',
             bundlerConfig: {
                 baseStorageUri,
-                storeAsset
+                storeAsset,
+                storeFolder,
             },
         });
 

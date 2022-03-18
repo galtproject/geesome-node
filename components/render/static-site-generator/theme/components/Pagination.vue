@@ -48,7 +48,7 @@
           return pages;
         }
 
-        if (this.onlyRegular) {
+        if (this.onlyRegular || this.displayPages >= this.pagesCount) {
           return Array.from(Array(this.pagesCount).keys()).map(i => {
             return {
               number: i + 1,
@@ -59,62 +59,24 @@
 
         let groupSizeBefore = this._displayPagesBefore;
         let groupSizeAfter = this._displayPagesAfter;
-        let currentGroup = Math.ceil(this.currentPage / groupSizeBefore);
 
-        // let lastGroup = Math.ceil(this.pagesCount / groupSizeBefore);
-        // if(currentGroup === lastGroup) {
-        //     currentGroup--;
-        // }
-
-        let lastPage = currentGroup === 1 ? 1 : (currentGroup - 1) * groupSizeBefore;
-
-        let currentPage = lastPage;
-
-        if (this.showEdges) {
+        for (let i = 1; i <= groupSizeBefore; i++) {
           pages.push({
-            number: 1,
-            type: 'first',
-            disabled: this.currentPage == 1
-          });
-        }
-
-        if (lastPage != 1) {
-          pages.push({
-            number: lastPage,
-            type: 'dots'
-          });
-          currentPage++;
-        }
-
-        lastPage = currentPage;
-
-        for (; currentPage - lastPage < groupSizeBefore && currentPage <= this.pagesCount; currentPage++) {
-          pages.push({
-            number: currentPage,
+            number: i,
             type: 'regular'
           });
         }
 
-        if (this.pagesCount > currentPage) {
-          const restPagesCount = this.pagesCount - currentPage;
+        pages.push({
+          number: this.pagesCount - groupSizeAfter,
+          type: 'dots'
+        });
 
-          if (restPagesCount > groupSizeAfter) {
-            pages.push({
-              number: currentPage,
-              type: 'dots'
-            });
-
-            currentPage = this.pagesCount - groupSizeAfter + 1;
-          }
-
-          lastPage = currentPage;
-
-          for (; currentPage - lastPage < groupSizeAfter; currentPage++) {
-            pages.push({
-              number: currentPage,
-              type: 'regular'
-            });
-          }
+        for (let i = this.pagesCount - groupSizeAfter + 1; i <= this.pagesCount; i++) {
+          pages.push({
+            number: i,
+            type: 'regular'
+          });
         }
 
         if (this.showEdges) {
