@@ -18,7 +18,7 @@
     "@galtproject/vue-locale": "0.1.10",
     "@swc/helpers": "^0.2.13",
     "async": "^2.5.0",
-    "axios": "^0.21.1",
+    "axios": "^0.21.2",
     "bluebird": "^3.5.2",
     "default-passive-events": "^1.0.7",
     "dexie": "^2.0.4",
