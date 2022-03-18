@@ -23,7 +23,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.15",
+    "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.16",
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",
     "@types/es6-promise": "^3.3.0",
     "@vuepress/bundler-vite": "2.0.0-beta.35",

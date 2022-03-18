@@ -112,7 +112,7 @@ class StaticSiteGenerator {
         return {
             baseStorageUri,
             lang: 'en',
-            dateFormat: 'ddd MMM DD YYYY',
+            dateFormat: 'DD.MM.YYYY hh:mm:ss',
             post: {
                 titleLength: 200,
                 descriptionLength: 200,

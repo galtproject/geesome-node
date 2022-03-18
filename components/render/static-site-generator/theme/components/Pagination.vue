@@ -1,8 +1,8 @@
 <template>
   <div class="pagination">
     <span v-for="page in pagesButtons">
-      <span v-if="page.type === 'dots'">...</span>
-      <a v-else :href="baseHref + page.number" :class="{'current': page.number === currentPage}">
+      <a :href="baseHref + page.number" :class="{'current': page.number === currentPage}">
+        <span v-if="page.type === 'dots'">...</span>
         <span v-if="page.type === 'regular'">{{ page.number }}</span>
         <span v-if="page.type === 'prev'">Prev</span>
         <span v-if="page.type === 'next'">Next</span>
@@ -60,6 +60,13 @@
         let groupSizeBefore = this._displayPagesBefore;
         let groupSizeAfter = this._displayPagesAfter;
 
+        let groupSizeMiddle = 0;
+        if (this.currentPage >= groupSizeBefore && this.currentPage <= this.pagesCount - groupSizeAfter) {
+          groupSizeBefore = Math.floor(groupSizeBefore / 2);
+          groupSizeAfter = groupSizeBefore;
+          groupSizeMiddle = this.displayPages - groupSizeBefore - groupSizeAfter;
+        }
+
         for (let i = 1; i <= groupSizeBefore; i++) {
           pages.push({
             number: i,
@@ -67,12 +74,42 @@
           });
         }
 
+        const groupAfterStartPosition = () => {
+          let position = this.pagesCount - groupSizeAfter + 1;
+          // if (position === this.currentPage) {
+          //   position--;
+          // }
+          return position;
+        }
+
+        if (groupSizeMiddle) {
+          const curPagePosition = Math.floor(groupSizeMiddle / 2);
+          let middleGroupStartNumber = this.currentPage - curPagePosition;
+          if (middleGroupStartNumber <= groupSizeBefore) {
+            middleGroupStartNumber = groupSizeBefore + 2;
+          }
+          pages.push({
+            number: middleGroupStartNumber - 1,
+            type: 'dots'
+          });
+          let middleGroupFinishNumber = middleGroupStartNumber + groupSizeMiddle;
+          if (middleGroupFinishNumber >= groupAfterStartPosition()) {
+            middleGroupFinishNumber = groupAfterStartPosition() - 1;
+          }
+          for (let i = middleGroupStartNumber; i <= middleGroupFinishNumber; i++) {
+            pages.push({
+              number: i,
+              type: 'regular'
+            });
+          }
+        }
+
         pages.push({
-          number: this.pagesCount - groupSizeAfter,
+          number: groupAfterStartPosition() - 1,
           type: 'dots'
         });
 
-        for (let i = this.pagesCount - groupSizeAfter + 1; i <= this.pagesCount; i++) {
+        for (let i = groupAfterStartPosition(); i <= this.pagesCount; i++) {
           pages.push({
             number: i,
             type: 'regular'

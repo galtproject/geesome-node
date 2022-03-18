@@ -1095,10 +1095,10 @@
     ts-pattern "^3.3.3"
     uuid "8.3.0"
 
-"@galtproject/vuepress-bundler-vite@2.0.0-beta.35.5":
-  version "2.0.0-beta.35.5"
-  resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.35.5.tgz#526f4fb530f01d177df7158b8f652d95452bd5a4"
-  integrity sha512-jO4XTvqTH6MGgjn3J74dSOZtedgWQC6N2nUUx5qO3SeAx2RM5GL1nuEa/tRWjBrgSI+bNtmGCKunMshJnHpZLA==
+"@galtproject/vuepress-bundler-vite@2.0.0-beta.35.16":
+  version "2.0.0-beta.35.16"
+  resolved "https://registry.yarnpkg.com/@galtproject/vuepress-bundler-vite/-/vuepress-bundler-vite-2.0.0-beta.35.16.tgz#39e30feb5ecb871bb9c55e2aafafbf963fbf8d6e"
+  integrity sha512-tiKPl7g0NqSfujFhokChJ3zi8utoylMtB1o6rheEpecG2Ml/Xj2z5FMJkL3wtjHdWkUDSn5GPmZxFHOBZiJbdg==
   dependencies:
     "@vitejs/plugin-vue" "^2.1.0"
     "@vue/compiler-sfc" "^3.2.28"
@@ -1109,7 +1109,7 @@
     "@vuepress/utils" "2.0.0-beta.35"
     autoprefixer "^10.4.2"
     connect-history-api-fallback "^1.6.0"
-    geesome-libs "https://github.com/galtproject/geesome-libs#cdf350e"
+    geesome-libs "https://github.com/galtproject/geesome-libs#1cb9783"
     postcss "^8.4.5"
     postcss-csso "^6.0.0"
     rollup "^2.66.0"
@@ -8374,9 +8374,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git+https://github.com/galtproject/geesome-libs.git#cdf350e":
+"geesome-libs@git+https://github.com/galtproject/geesome-libs.git#1cb9783":
   version "1.0.0"
-  resolved "git+https://github.com/galtproject/geesome-libs.git#cdf350eccf719b6f868053084fa9cd2f80f36b27"
+  resolved "git+https://github.com/galtproject/geesome-libs.git#1cb978349900c76c476af11d6f9bac89b1d2e28e"
   dependencies:
     "@fluencelabs/aqua" "0.6.0-272"
     "@fluencelabs/aqua-dht" "0.2.5"
@@ -8424,9 +8424,10 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#cdf350e":
+"geesome-libs@https://github.com/galtproject/geesome-libs#1cb9783":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#cdf350eccf719b6f868053084fa9cd2f80f36b27"
+  uid "1cb978349900c76c476af11d6f9bac89b1d2e28e"
+  resolved "https://github.com/galtproject/geesome-libs#1cb978349900c76c476af11d6f9bac89b1d2e28e"
   dependencies:
     "@fluencelabs/aqua" "0.6.0-272"
     "@fluencelabs/aqua-dht" "0.2.5"

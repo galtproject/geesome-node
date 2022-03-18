@@ -51,7 +51,6 @@
     },
     computed: {
       $site() {
-        console.log('page', page);
         return page._value.$site;
       },
     },
