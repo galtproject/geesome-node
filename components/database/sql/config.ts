@@ -6,13 +6,14 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+const log = require('debug')('geesome:database');
 
 module.exports = {
   'name': 'geesome_node',
   'user': 'geesome',
   'password': 'geesome',
   'options': {
-    'logging': (d) => {console.log(d)},
+    'logging': (d) => {log(d)},
     'host': 'localhost',
     // 'dialect': 'postgres',
     'dialect': 'sqlite',

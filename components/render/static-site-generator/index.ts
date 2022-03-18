@@ -124,7 +124,7 @@ class StaticSiteGenerator {
                 title: group.title,
                 username: group.name,
                 description: group.description,
-                avatarUrl: baseStorageUri + group.avatarImage.storageId,
+                avatarUrl: group.avatarImage ? baseStorageUri + group.avatarImage.storageId : null,
                 postsCount: group.publishedPostsCount,
                 base
             }
@@ -167,7 +167,7 @@ class StaticSiteGenerator {
         const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
             console.log('groupPosts i', i);
             let content = '';
-            const textContent = _.find(gp.contents, c => c.mimeType === 'text/plain');
+            const textContent = _.find(gp.contents, c => c.mimeType.startsWith('text/'));
             if (textContent) {
                 console.log('textContent.storageId', textContent.storageId);
                 content = await this.app.storage.getFileDataText(textContent.storageId);
