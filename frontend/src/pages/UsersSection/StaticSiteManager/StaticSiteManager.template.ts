@@ -10,7 +10,7 @@ module.exports = `
           <div class="properties">
             <div><label>Group title:</label> <span>{{dbGroup.title}}</span></div>
 		  	<div><label>Group posts count:</label> <span>{{dbGroup.publishedPostsCount}}</span></div>
-		  	<div v-if="staticSiteStorageId"><label>Link to site:</label> <a :href="siteLink" target="_blank"><pretty-hex :hex="staticSiteStorageId"></pretty-hex></a></div>
+		  	<div v-if="staticSiteStorageId"><label>Link to site:</label> <pretty-hex :href="siteLink" :hex="staticSiteStorageId"></pretty-hex></div>
 		  </div>
         </div>
         <div class="md-layout-item md-size-80 md-small-size-100">
@@ -46,6 +46,8 @@ module.exports = `
 			<md-button :disabled="loading || !!curOperation" @click="runGenerate" class="md-raised md-accent"><span v-locale="localeKey + '.generate'"></span></md-button>
 
 			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+			
+	  		<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site bellow.</div>
         </div>
       </div>
     </md-card-content>
