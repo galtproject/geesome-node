@@ -119,7 +119,7 @@ module.exports = async (extendConfig) => {
     return client;
   });
 
-  app.generatorsList = await pIteration.map(config.generatorsList, async name =>  require('../../render/' + name)(app));
+  app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
 
   return app;
 };
