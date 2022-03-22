@@ -22,6 +22,7 @@ const isNumber = require('lodash/isNumber');
 const Sequelize: any = require("sequelize");
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
+const telegramHelpers = require('./helpers');
 
 class Telegram {
 	models;
@@ -213,7 +214,7 @@ class Telegram {
 			client,
 			result: await client.invoke(new Api.channels.GetMessages({ channel, id: messagesIds }) as any).then(({messages}) => {
 				return messages
-					.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'media', 'action', 'groupedId']))
+					.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'entities', 'media', 'action', 'groupedId']))
 					.filter(m => m.date);
 			})
 		};
@@ -230,6 +231,12 @@ class Telegram {
 			file = media.photo || media.webpage.photo;
 			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
 			console.log('ySize', ySize);
+			if (!ySize || !ySize.sizes) {
+				return {
+					client,
+					result: null
+				}
+			}
 			if (isNumber(ySize.sizes[0])) {
 				fileSize = max(ySize.sizes);
 			} else {
@@ -302,28 +309,31 @@ class Telegram {
 		let dbChannel = await this.models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 		let group;
 
-		const [{result: file}, {result: user}] = await Promise.all([
+		const [{result: avatarFile}, {result: user}] = await Promise.all([
 			this.downloadMediaByClient(client, channel),
 			this.getMeByClient(client)
 		]);
-		const content = await this.app.saveData(file.content, '', { mimeType: file.mimeType, userId });
-
+		let avatarContent;
+		if (avatarFile) {
+			avatarContent = await this.app.saveData(avatarFile.content, '', { mimeType: avatarFile.mimeType, userId });
+		}
+		console.log('channel', channel);
 		if (dbChannel) {
 			group = await this.app.getGroup(dbChannel.groupId);
 			await this.app.updateGroup(userId, dbChannel.groupId, {
 				name: channel.username,
 				title: channel.title,
 				description: channel.about,
-				avatarImageId: content.id,
+				avatarImageId: avatarContent ? avatarContent.id : null,
 			});
 		} else {
 			group = await this.app.createGroup(userId, {
-				name: channel.username,
+				name: channel.username || channel.id.toString(),
 				title: channel.title,
 				description: channel.about,
 				isPublic: true,
 				type: GroupType.Channel,
-			  	avatarImageId: content.id,
+			  	avatarImageId: avatarContent ? avatarContent.id : null,
 				propertiesJson: JSON.stringify({
 					lang: user.langCode || 'en'
 				})
@@ -339,6 +349,8 @@ class Telegram {
 		}
 
 		const lastMessageId = channel.messagesCount;
+		console.log('dbChannel', dbChannel);
+		dbChannel.lastMessageId = 0;
 		if (dbChannel.lastMessageId === lastMessageId) {
 			throw new Error('already_done');
 		}
@@ -379,6 +391,7 @@ class Telegram {
 
 	async importChannelPosts(client, userId, groupId, dbChannel, startPost = 1, postsCount = 50, onMessageProcess = null) {
 		const messagesIds = Array.from({length: postsCount}, (_, i) => i + startPost);
+		console.log('messagesIds', messagesIds);
 		const dbChannelId = dbChannel.id;
 
 		let groupedId = null;
@@ -387,9 +400,11 @@ class Telegram {
 		let groupedContent = [];
 		let groupedMessageIds = [];
 		const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
+		console.log('messages', messages);
 		await pIteration.forEachSeries(messages, async (m, i) => {
 			const msgId = m.id.toString();
 			const existsChannelMessage = await this.models.Message.findOne({where: {msgId, dbChannelId, userId}});
+			console.log('existsChannelMessage', existsChannelMessage);
 			if (existsChannelMessage) {
 				return onMessageProcess(m, null);
 			}
@@ -415,8 +430,13 @@ class Telegram {
 			}
 
 			if (m.message) {
-				const content = await this.app.saveData(m.message, '', { mimeType: 'text/plain', userId });
-				contents.push(content);
+				console.log('m.message', m.message, 'm.entities', m.entities);
+				let text = m.message;
+				if (m.entities) {
+					text = telegramHelpers.messageWithEntitiesToHtml(text, m.entities);
+				}
+				const textContent = await this.app.saveData(text, '', { mimeType: 'text/html', userId });
+				contents.push(textContent);
 			}
 
 			const properties = {

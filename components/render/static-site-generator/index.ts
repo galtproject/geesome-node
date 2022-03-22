@@ -112,7 +112,7 @@ class StaticSiteGenerator {
         return {
             baseStorageUri,
             lang: 'en',
-            dateFormat: 'ddd MMM DD YYYY',
+            dateFormat: 'DD.MM.YYYY hh:mm:ss',
             post: {
                 titleLength: 200,
                 descriptionLength: 200,
@@ -124,7 +124,7 @@ class StaticSiteGenerator {
                 title: group.title,
                 username: group.name,
                 description: group.description,
-                avatarUrl: baseStorageUri + group.avatarImage.storageId,
+                avatarUrl: group.avatarImage ? baseStorageUri + group.avatarImage.storageId : null,
                 postsCount: group.publishedPostsCount,
                 base
             }
@@ -167,7 +167,7 @@ class StaticSiteGenerator {
         const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
             console.log('groupPosts i', i);
             let content = '';
-            const textContent = _.find(gp.contents, c => c.mimeType === 'text/plain');
+            const textContent = _.find(gp.contents, c => c.mimeType.startsWith('text/'));
             if (textContent) {
                 console.log('textContent.storageId', textContent.storageId);
                 content = await this.app.storage.getFileDataText(textContent.storageId);
@@ -215,17 +215,27 @@ class StaticSiteGenerator {
             return data.storageId;
         }
 
+        const storeFolder = async (dirPath) => {
+            const data = await this.app.saveDirectoryToStorage(options.userId, dirPath, {
+                userId: options.userId,
+                groupId: group.id,
+                waitForPin: true,
+            });
+            return data.storageId;
+        }
+
         console.log('createBuildApp');
         const staticSiteApp = createBuildApp({
             base,
             source: __dirname,
             theme: path.resolve(__dirname, './theme'),
-            templateSSR: path.resolve(__dirname, './theme/index.ssr.html'),
+            templateBuild: path.resolve(__dirname, './theme/index.ssr.html'),
             plugins: [plugin(posts, options)],
             bundler: '@galtproject/vite',
             bundlerConfig: {
                 baseStorageUri,
-                storeAsset
+                storeAsset,
+                storeFolder,
             },
         });
 

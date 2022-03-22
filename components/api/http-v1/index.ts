@@ -755,11 +755,17 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
     let range = req.headers['range'];
     if (!range) {
-      const content = await geesomeApp.database.getContentByStorageId(dataPath, true);
+      let content = await geesomeApp.database.getContentByStorageId(dataPath, false);
+      if (!content && dataPath.split('/').length > 1) {
+        content = await geesomeApp.database.getContentByStorageId(dataPath.split('/')[0], false);
+      }
       if (content) {
         console.log('content.mimeType', dataPath, content.mimeType);
-        res.setHeader('Content-Type', content.storageId === dataPath ? content.mimeType : content.previewMimeType);
-        if (content.mimeType === ContentMimeType.Directory) {
+        const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
+        if (contentType) {
+          res.setHeader('Content-Type', contentType);
+        }
+        if (content.mimeType === ContentMimeType.Directory && !_.includes(_.last(dataPath.split('/')), '.')) {
           dataPath += '/index.html';
         }
       }

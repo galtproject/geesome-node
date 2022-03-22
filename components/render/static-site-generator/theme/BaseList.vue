@@ -15,7 +15,7 @@
 
             <router-link :to="page.path" class="post-date">{{ resolvePostDate(page.date) }}</router-link>
 
-            <p class="post-intro">{{ page.title }}</p>
+            <p class="post-intro" v-html="page.title"></p>
 <!--            <header class="ui-post-title" itemprop="name headline">-->
 <!--              <nav-link :link="page.path">{{ page.title }}</nav-link>-->
 <!--            </header>-->

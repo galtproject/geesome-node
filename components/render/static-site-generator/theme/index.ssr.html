@@ -16,5 +16,39 @@
 <body>
 <div id="app"><!--vuepress-ssr-app--></div>
 <!--vuepress-ssr-scripts-->
+
+<script>
+    docReady(function() {
+        let pathname = document.location.pathname;
+        if (pathname.endsWith('/')) {
+            pathname = pathname.slice(0, -1);
+        }
+        const splitPathname = pathname.split('/');
+        let ipfsHashIndex = -1;
+        splitPathname.some((chunk, index) => {
+            if(chunk.startsWith('Qm') && /^\w+$/.test(chunk)) {
+                ipfsHashIndex = index;
+            }
+        });
+
+        pathname = splitPathname.slice(0, ipfsHashIndex + 1).join('/');
+
+        document.querySelectorAll('a').forEach((el) => {
+            let href = el.getAttribute("href");
+            if (href.startsWith('/')) {
+                href = pathname + href;
+                el.setAttribute("href", href);
+            }
+        });
+    });
+
+    function docReady(fn) {
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            setTimeout(fn, 1);
+        } else {
+            document.addEventListener("DOMContentLoaded", fn);
+        }
+    }
+</script>
 </body>
 </html>

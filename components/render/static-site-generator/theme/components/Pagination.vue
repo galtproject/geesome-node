@@ -1,8 +1,8 @@
 <template>
   <div class="pagination">
     <span v-for="page in pagesButtons">
-      <span v-if="page.type === 'dots'">...</span>
-      <a v-else :href="baseHref + page.number" :class="{'current': page.number === currentPage}">
+      <a :href="baseHref + page.number" :class="{'current': page.number === currentPage}">
+        <span v-if="page.type === 'dots'">...</span>
         <span v-if="page.type === 'regular'">{{ page.number }}</span>
         <span v-if="page.type === 'prev'">Prev</span>
         <span v-if="page.type === 'next'">Next</span>
@@ -48,7 +48,7 @@
           return pages;
         }
 
-        if (this.onlyRegular) {
+        if (this.onlyRegular || this.displayPages >= this.pagesCount) {
           return Array.from(Array(this.pagesCount).keys()).map(i => {
             return {
               number: i + 1,
@@ -59,62 +59,61 @@
 
         let groupSizeBefore = this._displayPagesBefore;
         let groupSizeAfter = this._displayPagesAfter;
-        let currentGroup = Math.ceil(this.currentPage / groupSizeBefore);
 
-        // let lastGroup = Math.ceil(this.pagesCount / groupSizeBefore);
-        // if(currentGroup === lastGroup) {
-        //     currentGroup--;
-        // }
-
-        let lastPage = currentGroup === 1 ? 1 : (currentGroup - 1) * groupSizeBefore;
-
-        let currentPage = lastPage;
-
-        if (this.showEdges) {
-          pages.push({
-            number: 1,
-            type: 'first',
-            disabled: this.currentPage == 1
-          });
+        let groupSizeMiddle = 0;
+        if (this.currentPage >= groupSizeBefore && this.currentPage <= this.pagesCount - groupSizeAfter) {
+          groupSizeBefore = Math.floor(groupSizeBefore / 2);
+          groupSizeAfter = groupSizeBefore;
+          groupSizeMiddle = this.displayPages - groupSizeBefore - groupSizeAfter;
         }
 
-        if (lastPage != 1) {
+        for (let i = 1; i <= groupSizeBefore; i++) {
           pages.push({
-            number: lastPage,
-            type: 'dots'
-          });
-          currentPage++;
-        }
-
-        lastPage = currentPage;
-
-        for (; currentPage - lastPage < groupSizeBefore && currentPage <= this.pagesCount; currentPage++) {
-          pages.push({
-            number: currentPage,
+            number: i,
             type: 'regular'
           });
         }
 
-        if (this.pagesCount > currentPage) {
-          const restPagesCount = this.pagesCount - currentPage;
+        const groupAfterStartPosition = () => {
+          let position = this.pagesCount - groupSizeAfter + 1;
+          // if (position === this.currentPage) {
+          //   position--;
+          // }
+          return position;
+        }
 
-          if (restPagesCount > groupSizeAfter) {
-            pages.push({
-              number: currentPage,
-              type: 'dots'
-            });
-
-            currentPage = this.pagesCount - groupSizeAfter + 1;
+        if (groupSizeMiddle) {
+          const curPagePosition = Math.floor(groupSizeMiddle / 2);
+          let middleGroupStartNumber = this.currentPage - curPagePosition;
+          if (middleGroupStartNumber <= groupSizeBefore) {
+            middleGroupStartNumber = groupSizeBefore + 2;
           }
-
-          lastPage = currentPage;
-
-          for (; currentPage - lastPage < groupSizeAfter; currentPage++) {
+          pages.push({
+            number: middleGroupStartNumber - 1,
+            type: 'dots'
+          });
+          let middleGroupFinishNumber = middleGroupStartNumber + groupSizeMiddle;
+          if (middleGroupFinishNumber >= groupAfterStartPosition()) {
+            middleGroupFinishNumber = groupAfterStartPosition() - 1;
+          }
+          for (let i = middleGroupStartNumber; i <= middleGroupFinishNumber; i++) {
             pages.push({
-              number: currentPage,
+              number: i,
               type: 'regular'
             });
           }
+        }
+
+        pages.push({
+          number: groupAfterStartPosition() - 1,
+          type: 'dots'
+        });
+
+        for (let i = groupAfterStartPosition(); i <= this.pagesCount; i++) {
+          pages.push({
+            number: i,
+            type: 'regular'
+          });
         }
 
         if (this.showEdges) {

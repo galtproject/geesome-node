@@ -40,6 +40,7 @@ export default {
 		},
 		async runGenerate() {
 			this.loading = true;
+			this.done = false;
 			const res = await this.$coreApi.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
 			this.getGroup();
 			if (res && res.asyncOperation) {
@@ -69,6 +70,7 @@ export default {
 				if (!op.inProcess) {
 					this.curOperation = null;
 					this.loading = false;
+					this.done = true;
 				}
 			})
 		}
@@ -117,6 +119,7 @@ export default {
 			defaultOptions: null,
 			options: null,
 			siteLink: null,
+			done: false,
 		};
 	}
 }

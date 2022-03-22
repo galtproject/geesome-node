@@ -76,53 +76,47 @@ module.exports = function(posts, settings) {
                 content: '404',
             }));
         },
-        extendsPageData(page) {
+        extendsPage(page) {
             console.log('page.permalink', page.permalink);
-            const globalPageData = {
-                $themeConfig: {
-                    dateFormat,
-                    nav: [
-                        {text: 'Blog', link: site.base}
-                    ]
-                },
-                $site: site,
+            page.data.$themeConfig = {
+                dateFormat,
+                nav: [
+                    {text: 'Blog', link: site.base}
+                ]
             };
+            page.data.$site = site;
             if (page.permalink === null) {
-                return {
-                    ...globalPageData,
-                }
+                return;
             }
             const splitLink = _.trim(page.permalink, '/').split('/');
             if (page.frontmatter.layout === 'BaseList') {
                 const pageNumber = parseInt(splitLink[splitLink.length - 1]);
                 const interval = page.frontmatter.home ? intervallers[0] : intervallers[pageNumber - 1];
-                return {
-                    ...globalPageData,
-                    $pagesList: postPages.slice(interval[0] - 1, interval[1]).map(page => ({
-                        key: page.key,
-                        path: page.permalink,
-                        date: page.frontmatter.date,
-                        title: page.frontmatter.title,
-                        excerpt: page.frontmatter.description,
-                        images: page.frontmatter.images,
-                        videos: page.frontmatter.videos
-                    })),
-                    $pagination: {
-                        pages: intervallers.map((interval, i) => {
-                            const page = i + 1;
-                            const baseHref = '/posts/page/';
-                            return {
-                                page,
-                                baseHref,
-                                path: baseHref + page
-                            }
-                        })
-                    }
-                }
+
+                page.data.$pagesList = postPages.slice(interval[0] - 1, interval[1]).map(page => ({
+                    key: page.key,
+                    path: page.permalink,
+                    date: page.frontmatter.date,
+                    title: page.frontmatter.title,
+                    excerpt: page.frontmatter.description,
+                    images: page.frontmatter.images,
+                    videos: page.frontmatter.videos
+                }));
+                page.data.$pagination = {
+                    pages: intervallers.map((interval, i) => {
+                        const page = i + 1;
+                        const baseHref = '/posts/page/';
+                        return {
+                            page,
+                            baseHref,
+                            path: baseHref + page
+                        }
+                    })
+                };
             } else if (page.frontmatter.layout === 'Post') {
-                return globalPageData;
+                return;
             }
-            return globalPageData;
+            return;
         }
     };
 };
