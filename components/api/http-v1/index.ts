@@ -52,24 +52,17 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     };
 
     if (
-      (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin') || _.startsWith(req.url, '/v1/soc-net') || _.startsWith(req.url, '/v1/render'))
+      (_.startsWith(req.url, '/v1/user') || _.startsWith(req.url, '/v1/group') || _.startsWith(req.url, '/v1/admin') || _.startsWith(req.url, '/v1/soc-net'))
       && !_.startsWith(req.url, '/v1/login')
       && req.method !== 'OPTIONS' && req.method !== 'HEAD'
     ) {
       if (!req.token) {
-        return res.send({
-          error: "Need authorization token",
-          errorCode: 1
-        }, 401);
+        return res.send({ error: "Need authorization token", errorCode: 1}, 401);
       }
 
       req.user = await geesomeApp.getUserByApiKey(req.token);
-
       if (!req.user) {
-        return res.send({
-          error: "Incorrect api token",
-          errorCode: 2
-        }, 403);
+        return res.send({ error: "Incorrect api token", errorCode: 2 }, 403);
       }
     }
 

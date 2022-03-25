@@ -473,6 +473,7 @@ export interface IGroup {
 
   name: string;
   title: string;
+  homePage: string;
   type: GroupType;
   view: GroupView;
   theme: string;

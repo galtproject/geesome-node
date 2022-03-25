@@ -126,6 +126,8 @@ export interface IGeesomeApp {
 
   getPostByParams(params): Promise<IPost>;
 
+  getPostContent(baseStorageUri: string, post: IPost): Promise<{text, images, videos}>;
+
   getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
   getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt}>;

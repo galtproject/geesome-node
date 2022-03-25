@@ -24,6 +24,10 @@ class StaticSiteGenerator {
 
         ['run-for-group', 'get-default-options'].forEach(method => {
             _app.api.post(`/v1/render/${this.moduleName}/` + method, async (req, res) => {
+                if (!req.token) {
+                    return res.send({ error: "Need authorization token", errorCode: 1 }, 401);
+                }
+                req.user = await this.app.getUserByApiKey(req.token);
                 if (!req.user || !req.user.id) {
                     return res.send(401);
                 }
@@ -165,29 +169,7 @@ class StaticSiteGenerator {
         const { baseStorageUri } = options;
 
         const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-            console.log('groupPosts i', i);
-            let content = '';
-            const textContent = _.find(gp.contents, c => c.mimeType.startsWith('text/'));
-            if (textContent) {
-                console.log('textContent.storageId', textContent.storageId);
-                content = await this.app.storage.getFileDataText(textContent.storageId);
-            }
-            const images = [];
-            const videos = [];
-            gp.contents.forEach((c) => {
-                if (_.includes(c.mimeType, 'image')) {
-                    images.push({
-                        manifestId: c.manifestStorageId,
-                        url: baseStorageUri + c.storageId
-                    });
-                } else if (_.includes(c.mimeType, 'video')) {
-                    videos.push({
-                        manifestId: c.manifestStorageId,
-                        previewUrl: baseStorageUri + c.mediumPreviewStorageId,
-                        url: baseStorageUri + c.storageId
-                    });
-                }
-            });
+            const {text: content, images, videos} = await this.app.getPostContent(gp, baseStorageUri);
 
             if (options.asyncOperationId && i % 10 === 0) {
                 console.log('updateAsyncOperation');

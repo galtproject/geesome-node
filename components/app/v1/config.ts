@@ -33,5 +33,5 @@ module.exports = {
   renderModule: 'entity-json-manifest',
   renderConfig: {},
   socNetClientList: ['telegram'],
-  generatorsList: ['static-site-generator']
+  generatorsList: ['static-site-generator', 'rss']
 };
