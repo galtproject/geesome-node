@@ -10,15 +10,20 @@
 import {EventBus, UPDATE_ADMIN_GROUPS} from "../../../services/events";
 import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
 import GroupForm from "../GroupForm/GroupForm";
+import common from "../../../libs/common";
 
 export default {
   template: require('./NewGroup.template'),
   components: {ContentManifestItem, GroupForm},
   methods: {
     create() {
-      this.$coreApi.createGroup(this.group).then((createdGroup) => {
+      this.$coreApi.createGroup(this.group).then(async (createdGroup) => {
         EventBus.$emit(UPDATE_ADMIN_GROUPS);
-        this.$router.push({name: 'group-page', params: {groupId: createdGroup.manifestStaticStorageId}})
+        await this.$coreApi.updateGroup({
+          id: createdGroup.id,
+          homePage: common.getGroupHomePage(this.$router, createdGroup.manifestStaticStorageId)
+        });
+        this.$router.push({name: 'group-page', params: {groupId: createdGroup.manifestStaticStorageId}});
       }).catch(() => {
         this.error = 'failed';
       })
