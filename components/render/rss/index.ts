@@ -72,7 +72,7 @@ class RssGenerator {
                             { title: text.slice(0, 50) + (text.length > 50 ? '...' : '')  },
                             { pubDate: new Date(post.publishedAt).toUTCString() },
                             { guid: [ { _attr: { isPermaLink: true } }, `${homePage}/posts/${post.localId}/` ] },
-                            { description: { _cdata: text + images.map(src => `<div><img src="${src}" style="max-width: 100%;"></div>`) } },
+                            { description: { _cdata: text + images.map(src => `<div><img src="${src.url}" style="max-width: 100%;"></div>`) } },
                         ],
                     }
                 });

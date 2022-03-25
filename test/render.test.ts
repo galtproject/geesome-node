@@ -16,7 +16,9 @@ import {
 } from "../components/database/interface";
 
 const assert = require('assert');
+const fs = require('fs');
 const includes = require('lodash/includes');
+const resourcesHelper = require('./helpers/resources');
 
 describe.only("renders", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
@@ -50,7 +52,7 @@ describe.only("renders", function () {
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
           await app.createGroup(testUser.id, {
             name: 'test',
-            title: 'Test'
+            title: 'Test 1 group'
           });
         } catch (e) {
           console.error('error', e);
@@ -114,6 +116,39 @@ describe.only("renders", function () {
           const storageId = await app.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
           return app.storage.getFileDataText(storageId + '/index.html');
         }
+      });
+
+      it('rss', async () => {
+        app.storage.isStreamAddSupport = () => {
+          return false;
+        };
+
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        let testGroup = (await app.database.getAllGroupList('test'))[0];
+        const rssRender = await require('../components/render/rss')(app);
+
+        const test1PostText = 'Test 1 post';
+        const post1Content = await app.saveData(test1PostText, null, {
+          userId: testUser.id,
+          mimeType: 'text/html'
+        });
+
+        const pngImagePath = await resourcesHelper.prepare('input-image.png');
+        const imageContent = await app.saveData(fs.createReadStream(pngImagePath), 'input-image.png', {
+          userId: testUser.id,
+          groupId: testGroup.id
+        });
+
+        await app.createPost(testUser.id, {
+          contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}, {manifestStorageId: imageContent.manifestStorageId, view: ContentView.Attachment}],
+          groupId: testGroup.id,
+          status: PostStatus.Published
+        });
+
+        const resultXml = await rssRender.groupRss(testGroup.id, 'http://localhost:1234');
+        assert.equal(includes(resultXml, "Test 1 group"), true);
+        assert.equal(includes(resultXml, "Test 1 post"), true);
+        assert.equal(includes(resultXml, imageContent.storageId), true);
       });
     });
   });
