@@ -27,9 +27,13 @@ class RssGenerator {
         return groupId ? groupUrl.replace(':id', groupId) : groupUrl;
     }
 
-    async groupRss(groupId, host) {
+    async groupRss(groupId, host, forUserId?) {
         console.log('groupId', groupId);
         const group = await this.app.getGroup(groupId);
+        // TODO: check permission to read not public groups by user id
+        if (!forUserId && !group.isPublic) {
+            throw new Error('GROUP_NOT_PUBLIC');
+        }
         const {list: groupPosts} = await this.app.getGroupPosts(groupId, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
 
         const feedObject = {

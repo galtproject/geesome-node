@@ -169,7 +169,7 @@ class StaticSiteGenerator {
         const { baseStorageUri } = options;
 
         const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-            const {text: content, images, videos} = await this.app.getPostContent(gp, baseStorageUri);
+            const {text: content, images, videos} = await this.app.getPostContent(baseStorageUri, gp);
 
             if (options.asyncOperationId && i % 10 === 0) {
                 console.log('updateAsyncOperation');
