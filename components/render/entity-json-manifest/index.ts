@@ -30,7 +30,7 @@ class EntityJsonManifest implements IRender {
     if (name === 'group-manifest') {
       //TODO: size => postsSize
       const group: IGroup = data;
-      const groupManifest = ipfsHelper.pickObjectFields(group, ['name', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
+      const groupManifest = ipfsHelper.pickObjectFields(group, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
 
       if(data.isEncrypted) {
         groupManifest.isEncrypted = true;
@@ -176,7 +176,7 @@ class EntityJsonManifest implements IRender {
     }
     
     if (type === 'group-manifest') {
-      const group: IGroup = ipfsHelper.pickObjectFields(manifest, ['name', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
+      const group: IGroup = ipfsHelper.pickObjectFields(manifest, ['name', 'homePage', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
       group.manifestStorageId = manifestId;
 
       if (manifest.avatarImage) {

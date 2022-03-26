@@ -10,6 +10,7 @@
 import {EventBus, UPDATE_ADMIN_GROUPS} from "../../../services/events";
 import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
 import GroupForm from "../GroupForm/GroupForm";
+import common from "../../../libs/common";
 
 export default {
   template: require('./EditGroup.template'),
@@ -19,7 +20,11 @@ export default {
   },
   methods: {
     update() {
-      this.$coreApi.updateGroup(this.group).then((updatedGroup) => {
+      console.log('common.getGroupHomePage(this.$router, this.group.manifestStaticStorageId)', common.getGroupHomePage(this.$router, this.group.manifestStaticStorageId));
+      this.$coreApi.updateGroup({
+        ...this.group,
+        homePage: common.getGroupHomePage(this.$router, this.group.manifestStaticStorageId)
+      }).then((updatedGroup) => {
         EventBus.$emit(UPDATE_ADMIN_GROUPS);
         this.$router.push({name: 'group-page', params: {groupId: updatedGroup.manifestStaticStorageId}})
       }).catch(() => {

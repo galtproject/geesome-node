@@ -45,7 +45,7 @@ const {getDirSize} = require('../../drivers/helpers');
 const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 let config = require('./config');
 // const appCron = require('./cron');
-const appEvents = require('./events');
+const appEvents = require('./events') as Function;
 // const appListener = require('./listener');
 const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
@@ -119,7 +119,7 @@ module.exports = async (extendConfig) => {
     return client;
   });
 
-  app.generatorsList = await pIteration.map(config.generatorsList, async name =>  require('../../render/' + name)(app));
+  app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
 
   return app;
 };
@@ -719,7 +719,7 @@ class GeesomeApp implements IGeesomeApp {
     if (!dbCover) {
       dbCover = await this.createContentByObject(groupObject.coverImage);
     }
-    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'isPublic', 'isRemote', 'description', 'size'];
+    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
     const dbGroup = await this.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
       avatarImageId: dbAvatar ? dbAvatar.id : null,
       coverImageId: dbCover ? dbCover.id : null
@@ -1128,6 +1128,35 @@ class GeesomeApp implements IGeesomeApp {
     await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
     //TODO: add check for user can view post
     return this.database.getPost(postId);
+  }
+
+  async getPostContent(baseStorageUri: string, post: IPost): Promise<{text, images, videos}> {
+    let text = '';
+    const textContent = _.find(post.contents, c => c.mimeType.startsWith('text/'));
+    if (textContent) {
+      text = await this.storage.getFileDataText(textContent.storageId);
+    }
+    const images = [];
+    const videos = [];
+    post.contents.forEach((c) => {
+      if (_.includes(c.mimeType, 'image')) {
+        images.push({
+          manifestId: c.manifestStorageId,
+          url: baseStorageUri + c.storageId
+        });
+      } else if (_.includes(c.mimeType, 'video')) {
+        videos.push({
+          manifestId: c.manifestStorageId,
+          previewUrl: baseStorageUri + c.mediumPreviewStorageId,
+          url: baseStorageUri + c.storageId
+        });
+      }
+    });
+    return {
+      text,
+      images,
+      videos
+    }
   }
 
   async updatePost(userId, postId, postData) {

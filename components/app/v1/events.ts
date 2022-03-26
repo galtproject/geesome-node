@@ -9,7 +9,7 @@
 
 const EventEmitter = require('events');
 
-export class GeesomeEmitter extends EventEmitter {
+export class GeesomeEmitter extends EventEmitter.EventEmitter {
   constructor() {
     super();
   }
@@ -18,7 +18,7 @@ export class GeesomeEmitter extends EventEmitter {
   NewPersonalGroup = 'NewPersonalGroup';
 }
 
-module.exports = (geesomeApp) => {
+module.exports = function (geesomeApp) {
 
   return new GeesomeEmitter();
 };

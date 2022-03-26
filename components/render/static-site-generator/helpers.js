@@ -19,10 +19,8 @@ const includes = require('lodash/includes');
 
 const isDir = path => {
     try {
-        console.log('isDir 1', path, statSync(path).isDirectory())
         return statSync(path).isDirectory();
     } catch (error) {
-        console.log('isDir 2', path, false)
         return false;
     }
 };
@@ -47,7 +45,6 @@ const rmDir = path => {
             throw e;
         }
     }
-    console.log('path', path);
     getFiles(path).map(file => unlinkSync(file));
     rmdirSync(path);
 };

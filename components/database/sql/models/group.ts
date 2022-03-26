@@ -42,6 +42,9 @@ module.exports = async function (sequelize, models) {
     theme: {
       type: Sequelize.STRING(200)
     },
+    homePage: {
+      type: Sequelize.STRING(200)
+    },
     size: {
       type: Sequelize.INTEGER
     },

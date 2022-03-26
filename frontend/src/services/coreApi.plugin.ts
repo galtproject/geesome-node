@@ -47,10 +47,11 @@ export default {
 
         const storage = new SimpleAccountStorage();
         const peer = new FluencePeer();
-        await peer.start({
+        peer.start({
           connectTo: krasnodar[1],
+        }).then(() => {
+          return geesomeClient.setCommunicator(new FluenceService(storage, peer));
         });
-        await geesomeClient.setCommunicator(new FluenceService(storage, peer));
 
         // TODO: solve extending class problem: https://stackoverflow.com/q/51860043
         [
