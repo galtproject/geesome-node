@@ -462,11 +462,6 @@ class MysqlDatabase implements IDatabase {
         }
       });
     });
-    if (filters.publishedAtLte) {
-      where['publishedAt'] = {
-        [Op.lte]: filters.publishedAtLte
-      }
-    }
     console.log('getPostsWhere', where);
     return where;
   }
