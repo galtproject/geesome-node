@@ -24,7 +24,7 @@ const _ = require('lodash');
 const resourcesHelper = require('./helpers/resources');
 const log = require('../components/log');
 
-describe.only("app", function () {
+describe("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);

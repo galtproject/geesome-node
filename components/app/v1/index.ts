@@ -2777,11 +2777,8 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async stop() {
-    await this.storage.node.stop().catch(e => {
-      if(!_.includes(e.message, '')) {
-        throw e;
-      }
-    });
+    await this.storage.stop();
+    await this.communicator.stop();
     this.api.close();
   }
 }

@@ -1012,6 +1012,16 @@
   resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-lib/-/aqua-lib-0.3.4.tgz#973b96474f7524f25ce26fd34eee0d6fc167cab6"
   integrity sha512-DH7TZgflTJDxK18URlELnHI65jYtZf7b5e25gjRL9AiT/nvdodQqSvCcdVKK/jvhPy9q3RXM/rOcHfqh5mmpSQ==
 
+"@fluencelabs/aqua-lib@0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-lib/-/aqua-lib-0.4.0.tgz#f15bc2d7a27614ada3133ec8016b4316dfb76872"
+  integrity sha512-bad282cCZrE//I+Hzsl/vWgudwXuNiaqJOonv11xkgOBBvL7Gg3SIap8HioNvkaDxIvylVB+POjYJ7E5sGNoVQ==
+
+"@fluencelabs/aqua-lib@0.4.3":
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-lib/-/aqua-lib-0.4.3.tgz#ecc42b839ae0b02cf250f05fb9746b152898ae09"
+  integrity sha512-IKhxn4UUWQnrxnZgLVXiO6O+49E+9TAN8RTfRGjJk02JJor854+4WbtfhaapOdx7R6SXq074PVFTbrfnFVhRcQ==
+
 "@fluencelabs/aqua-lib@^0.1.14":
   version "0.1.14"
   resolved "https://registry.yarnpkg.com/@fluencelabs/aqua-lib/-/aqua-lib-0.1.14.tgz#55b9624f173b570b306d36de01006eef27b2fb9a"
@@ -1028,10 +1038,30 @@
     "@fluencelabs/fluence" "0.19.0"
     ipfs-http-client "50.1.2"
 
+"@fluencelabs/aqua@0.7.1-288":
+  version "0.7.1-288"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/aqua/-/aqua-0.7.1-288.tgz#d673c05ae4797285d090bd4132feabbc1dd017b8"
+  integrity sha512-ilf1yuZoYR0BK5q+Y6uiIOmNKh+zwsOBVrOig03WbbW6F/XpullIfwi/ddqDiooqhMywokVIRTbTJtfXzDIe1g==
+  dependencies:
+    "@fluencelabs/aqua-ipfs" "0.5.2"
+    "@fluencelabs/aqua-lib" "0.4.0"
+    "@fluencelabs/fluence" "0.21.5"
+    "@fluencelabs/fluence-network-environment" "1.0.13"
+    ipfs-http-client "50.1.2"
+
 "@fluencelabs/avm-runner-background@0.1.2":
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/@fluencelabs/avm-runner-background/-/avm-runner-background-0.1.2.tgz#f2c6b8f9826ad8b8e1dfca365f51e5e60180f3c0"
   integrity sha512-06E8l6ZLkWkpWas1TTojVrs+tekOg/OvnNI6/GKdm4zJL/9ePxW1WYE8Ieg1dIk6FpcP+ZxcEfZZKDoDwn68pQ==
+  dependencies:
+    "@fluencelabs/avm-runner-interface" "^0.2.0"
+    browser-or-node "^2.0.0"
+    threads "^1.7.0"
+
+"@fluencelabs/avm-runner-background@0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/avm-runner-background/-/avm-runner-background-0.2.0.tgz#d6ab3f6970c1d9a0877714bb33b01945d7d5d15a"
+  integrity sha512-IP4979IlS+1KwNX9zpDF6maLK112lBjd+Go1D/JIt7yP7o12Ch4CREmx2OxZwWOTxQVwoIRuD7Y+K3iTd4AL7Q==
   dependencies:
     "@fluencelabs/avm-runner-interface" "^0.2.0"
     browser-or-node "^2.0.0"
@@ -1051,6 +1081,11 @@
   version "0.20.2"
   resolved "https://registry.yarnpkg.com/@fluencelabs/avm/-/avm-0.20.2.tgz#591d56d69bb53ba7ce504071edda54f03c363f35"
   integrity sha512-u438Gpw6KoEugXlMch0hOupRqGGeQIcjxDi3QAavbUb1csG2eKkk/iYD1ka9Qbc1hLnrCFXpD2tw/LwNEX3Aew==
+
+"@fluencelabs/avm@^0.21.3":
+  version "0.21.7"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/avm/-/avm-0.21.7.tgz#926b608dfcd899c56492fc4f7571089ae63dc154"
+  integrity sha512-amBX2hBhWA5aVCqHfAbmpgovWAZgDgY1xCToZJ6JPpnViFPwJdDyLkzr86dlXij7sXE+jlq2hVNcMIZQQmPnAw==
 
 "@fluencelabs/fluence-network-environment@1.0.13":
   version "1.0.13"
@@ -1106,6 +1141,69 @@
     rxjs "^7.3.0"
     ts-pattern "^3.3.3"
     uuid "8.3.0"
+
+"@fluencelabs/fluence@0.21.5":
+  version "0.21.5"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/fluence/-/fluence-0.21.5.tgz#6220408ca801b530644e6cbf61647bb3ad19d5c9"
+  integrity sha512-Zldn2I09ENp+F4MDYxsIMkJQOIQyfpiYmcAmVl60yTdKls78GmmnSyvAI+dZxUcNrhPqscnrtaENJoKwGwgm+Q==
+  dependencies:
+    "@chainsafe/libp2p-noise" "^4.1.1"
+    "@fluencelabs/avm" "^0.21.3"
+    "@fluencelabs/avm-runner-background" "0.2.0"
+    "@fluencelabs/avm-runner-interface" "^0.2.0"
+    "@fluencelabs/marine-js" "0.1.0"
+    async "3.2.0"
+    browser-or-node "^2.0.0"
+    bs58 "4.0.1"
+    buffer "^6.0.3"
+    cids "0.8.1"
+    it-length-prefixed "3.0.1"
+    it-pipe "1.1.0"
+    libp2p "=0.33.0"
+    libp2p-crypto "=0.20.0"
+    libp2p-mplex "=0.10.2"
+    libp2p-websockets "^0.16.2"
+    loglevel "1.7.0"
+    multiaddr "^10.0.1"
+    multiformats "^9.6.4"
+    peer-id "=0.15.4"
+    rxjs "^7.3.0"
+    ts-pattern "^3.3.3"
+    uuid "8.3.0"
+
+"@fluencelabs/fluence@0.21.6":
+  version "0.21.6"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/fluence/-/fluence-0.21.6.tgz#4a0902963fd789a2cc842b80f6230bd7dbd9e4fa"
+  integrity sha512-g0nbg6IeBdivcU7jutb3M6UdNrUvVX4IIQKsZ80y6yzVqeWTqHbYsb+6q0zzv12q4OllpO4lcUWKUbUQyl4QMg==
+  dependencies:
+    "@chainsafe/libp2p-noise" "^4.1.1"
+    "@fluencelabs/avm" "^0.21.3"
+    "@fluencelabs/avm-runner-background" "0.2.0"
+    "@fluencelabs/avm-runner-interface" "^0.2.0"
+    "@fluencelabs/marine-js" "0.1.0"
+    async "3.2.0"
+    browser-or-node "^2.0.0"
+    bs58 "4.0.1"
+    buffer "^6.0.3"
+    cids "0.8.1"
+    it-length-prefixed "3.0.1"
+    it-pipe "1.1.0"
+    libp2p "=0.33.0"
+    libp2p-crypto "=0.20.0"
+    libp2p-mplex "=0.10.2"
+    libp2p-websockets "^0.16.2"
+    loglevel "1.7.0"
+    multiaddr "^10.0.1"
+    multiformats "^9.6.4"
+    peer-id "=0.15.4"
+    rxjs "^7.3.0"
+    ts-pattern "^3.3.3"
+    uuid "8.3.0"
+
+"@fluencelabs/marine-js@0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/marine-js/-/marine-js-0.1.0.tgz#e2d353e2b3488fe25ba38e6e2d39d0e1d41e68cc"
+  integrity sha512-vpjrwYLhd54xsvKp24SpY+szgzqNg/t2J+q4NyHCeQkhJK9nVlXfZBvaa60Ji2MYTQ6ikWrCUVldmk0xN/Q0uQ==
 
 "@galtproject/vuepress-bundler-vite@2.0.0-beta.35.17":
   version "2.0.0-beta.35.17"
@@ -8381,14 +8479,14 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@git+https://github.com/galtproject/geesome-libs.git#d7bbc87":
+"geesome-libs@https://github.com/galtproject/geesome-libs#386e2ca":
   version "1.0.0"
-  resolved "git+https://github.com/galtproject/geesome-libs.git#d7bbc87c79ab2eced1fba2d2bf07d407d82a1d6a"
+  resolved "https://github.com/galtproject/geesome-libs#386e2ca0be8dd325a0ebb949b18deb9450e97092"
   dependencies:
-    "@fluencelabs/aqua" "0.6.0-272"
+    "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
-    "@fluencelabs/aqua-lib" "0.3.4"
-    "@fluencelabs/fluence" "0.19.1"
+    "@fluencelabs/aqua-lib" "0.4.3"
+    "@fluencelabs/fluence" "0.21.6"
     "@fluencelabs/fluence-network-environment" "1.0.13"
     "@ipld/dag-cbor" "^6.0.10"
     axios "^0.21.1"
@@ -8433,7 +8531,6 @@ gc-stats@^1.4.0:
 
 "geesome-libs@https://github.com/galtproject/geesome-libs#d7bbc87":
   version "1.0.0"
-  uid d7bbc87c79ab2eced1fba2d2bf07d407d82a1d6a
   resolved "https://github.com/galtproject/geesome-libs#d7bbc87c79ab2eced1fba2d2bf07d407d82a1d6a"
   dependencies:
     "@fluencelabs/aqua" "0.6.0-272"
@@ -14367,6 +14464,11 @@ multiformats@^9.0.0, multiformats@^9.0.2, multiformats@^9.0.4, multiformats@^9.1
   version "9.5.4"
   resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-9.5.4.tgz#bf60eee834f7bcbd3a61b1c61d7e8d6b158a0f63"
   integrity sha512-MFT8e8BOLX7OZKfSBGm13FwYvJVI6MEcZ7hujUCpyJwvYyrC1anul50A0Ee74GdeJ77aYTO6YU1vO+oF8NqSIw==
+
+multiformats@^9.6.4:
+  version "9.6.4"
+  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-9.6.4.tgz#5dce1f11a407dbb69aa612cb7e5076069bb759ca"
+  integrity sha512-fCCB6XMrr6CqJiHNjfFNGT0v//dxOBMrOMqUIzpPc/mmITweLEyhvMpY9bF+jZ9z3vaMAau5E8B68DW77QMXkg==
 
 multihashes@^3.0.1, multihashes@^3.1.1:
   version "3.1.2"
