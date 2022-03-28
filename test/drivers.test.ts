@@ -14,7 +14,7 @@ const drivers = require('../components/drivers');
 const mediainfo = require('node-mediainfo');
 const resourcesHelper = require('./helpers/resources');
 
-describe.only("drivers", function () {
+describe("drivers", function () {
   this.timeout(100000);
 
   describe('image', () => {
