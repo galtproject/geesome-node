@@ -445,6 +445,17 @@ export interface IUser {
   manifestStaticStorageId?: string;
 
   accounts?: [any];
+
+  addFriends?(users: IUser[]);
+  removeFriends?(users: IUser[]);
+  getFriends?(options): IUser[];
+  countFriends?(options?): number;
+
+  getMemberInGroups?(options): IGroup[];
+  getAdministratorInGroups?(options): IGroup[];
+
+  getMemberInCategories?(options): ICategory[];
+  getAdministratorInCategories?(options): ICategory[];
 }
 
 export interface IUserAccount {
@@ -509,6 +520,18 @@ export interface IGroup {
   staticStorageUpdatedAt: Date;
 
   propertiesJson?: string;
+
+  addMembers?(users: IUser[]);
+  removeMembers?(users: IUser[]);
+  setMembers?(users: IUser[]);
+  getMembers?(options): IUser[];
+  countMembers?(options?): number;
+
+  addAdministrators?(users: IUser[]);
+  removeAdministrators?(users: IUser[]);
+  setAdministrators?(users: IUser[]);
+  getAdministrators?(options): IUser[];
+  countAdministrators?(options?): number;
 }
 
 export interface IGroupSection {
@@ -548,6 +571,23 @@ export interface ICategory {
   staticStorageId?: string;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+
+  addAdministrators?(users: IUser[]);
+  removeAdministrators?(users: IUser[]);
+  setAdministrators?(users: IUser[]);
+  getAdministrators?(options): IUser[];
+  countAdministrators?(): number;
+
+  addGroups?(users: IGroup[]);
+  removeGroups?(users: IGroup[]);
+  setGroups?(users: IGroup[]);
+  getGroups?(options): IGroup[];
+  countGroups?(options?): number;
+
+  addMembers?(users: IUser[]);
+  removeMembers?(users: IUser[]);
+  getMembers?(options): IUser[];
+  countMembers?(options?): number;
 }
 
 export enum GroupType {
