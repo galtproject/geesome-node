@@ -20,13 +20,12 @@ export class VideoThumbnail extends AbstractDriver {
   supportedOutputSizes = [OutputSize.Small, OutputSize.Medium, OutputSize.Large];
 
   async processByStream(inputStream, options: any = {}) {
-
     const transformStream = new stream.Transform();
     transformStream._transform = function (chunk, encoding, done) {
       this.push(chunk);
       done();
     };
-    
+
     ffmpeg()
       .input(inputStream)
       .inputFormat(options.extension)
@@ -42,7 +41,7 @@ export class VideoThumbnail extends AbstractDriver {
       console.error('transformStream error', err);
       options.onError && options.onError(err);
     });
-    
+
     return {
       stream: transformStream,
       type: 'image/png',

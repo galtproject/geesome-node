@@ -14,12 +14,12 @@ module.exports = {
         }
         const hashes = {
             'input-image.png': 'QmSnpR15Bdm3jVQWpmiGqRyqFGqararwGrvi1WdEmZzJRC',
-            'input-image.jpg': 'QmchuFYLjNxHLrPiQkGnYouDWLxrT1xTpJsr2GT3QDJp21',
+            'input-image.jpg': 'QmSRYP2MaJxT3uHWLDkanQF2Uhi1K2zTf3Ppr5fPdEqsYt',
             'test-archive.zip': 'QmabvdMeL3wb1P71FP2AAnyzbvD9u2sucphtFoQH8vJStN',
             'input-video.mov': 'QmYNiAJyK9ZzQ3DVwRJ7vB3jNuKqumrAZmjyWzaTRMTzxm',
             'not-streamable-input-video.mp4': 'QmYP1UGu9gTQZ5hjG7h7Em2ejQAEpmLWA3cfFg5UkjLYCQ',
             'streamable-input-video.mp4': 'QmWasM9o4RGMvVs1MPxcabw8QAtxanHpmDKv4bMVVfiXSF',
-            'test-gif.gif': 'QmWMx1u1CcNwt79rfKiWHqPQbTJjqB7moiePJVQddUP7PB'
+            'test-gif.gif': 'QmSKLRGPHRhUYpBxZzQeTnV9eJvTimmuXzBNTeh7idZkjg'
         };
         const writer = fs.createWriteStream(dir + name)
 

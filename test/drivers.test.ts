@@ -178,7 +178,7 @@ describe("drivers", function () {
     it("should get video screenshot correctly", async () => {
       await new Promise(async (resolve, reject) => {
 
-        const videoPath = __dirname + '/resources/streamable-input-video.mp4';
+        const videoPath = await resourcesHelper.prepare('streamable-input-video.mp4');
         let videoInfo = await mediainfo(videoPath);
         assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
 
@@ -196,11 +196,12 @@ describe("drivers", function () {
         strm.on('error', reject);
       });
     });
+
     it("should get video screenshot correctly with path", async () => {
       await new Promise(async (resolve, reject) => {
 
         const videoPath = await resourcesHelper.prepare('streamable-input-video.mp4');
-        const result = await drivers['preview']['video-thumbnail'].processByPath(videoPath, {
+        const result = await drivers['preview']['video-thumbnail'].processByStream(fs.createReadStream(videoPath), {
           extension: 'mp4',
           onError() {
             assert.equal(false, true);
@@ -217,10 +218,11 @@ describe("drivers", function () {
   });
 
   describe('preview gif-thumbnail', () => {
-    it("should get gif screenshot correctly", async () => {
+    it.skip("should get gif screenshot correctly", async () => {
+      //https://github.com/lovell/sharp/issues/3161
       await new Promise(async (resolve, reject) => {
         const gifPath = await resourcesHelper.prepare('test-gif.gif');
-        const result = await drivers['preview']['gif'].processByStream(fs.createReadStream(gifPath), {
+        const result = await drivers['preview']['gif'].processByPath(gifPath, {
           extension: 'jpg',
           onError() {
             assert.equal(false, true);

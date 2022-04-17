@@ -8,27 +8,26 @@
  */
 
 import {DriverInput, OutputSize} from "../interface";
-
-import {Stream} from "stream";
 import AbstractDriver from "../abstractDriver";
 
 const sharp = require('sharp');
 const _ = require('lodash');
+const uuidv4 = require('uuid/v4');
+const fs = require('fs');
 
 export class GifPreviewDriver extends AbstractDriver {
-  supportedInputs = [DriverInput.Stream];
+  supportedInputs = [DriverInput.Stream, DriverInput.Path];
   supportedOutputSizes = [OutputSize.Small, OutputSize.Medium, OutputSize.Large];
 
-  async processByStream(inputStream, options: any = {}) {
+  async processByPath(path, options: any = {}) {
+    console.log(sharp.format.magick);
     console.log('GifPreviewDriver.processByStream');
     const extension = options.extension || 'jpg';
 
-    const resizerStream = sharp()
+    const resultStream = sharp(_.endsWith(path, '.gif') ? path : path + '.gif')
         .jpeg()
         .withMetadata()
         .toFormat(extension);
-
-    const resultStream = inputStream.pipe(resizerStream) as Stream;
 
     resultStream.on("error", (err) => {
       console.error('resultStream error', err);
@@ -40,5 +39,16 @@ export class GifPreviewDriver extends AbstractDriver {
       type: 'image/' + extension,
       extension: extension
     };
+  }
+
+  async processByStream(stream, options: any = {}) {
+    const resultPath = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.gif';
+    console.log('resultPath', resultPath);
+    stream.pipe(fs.createWriteStream(resultPath));
+    return new Promise((resolve, reject) => {
+      stream
+          .on('end', () => resolve(this.processByPath(resultPath).then(r => {fs.unlinkSync(resultPath); return r})))
+          .on('error', (e) => reject(e));
+    });
   }
 }
