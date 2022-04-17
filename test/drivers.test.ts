@@ -218,21 +218,20 @@ describe("drivers", function () {
   });
 
   describe('preview gif-thumbnail', () => {
-    it.skip("should get gif screenshot correctly", async () => {
-      //https://github.com/lovell/sharp/issues/3161
+    it("should get gif screenshot correctly", async () => {
       await new Promise(async (resolve, reject) => {
         const gifPath = await resourcesHelper.prepare('test-gif.gif');
         const result = await drivers['preview']['gif'].processByPath(gifPath, {
-          extension: 'jpg',
+          extension: 'png',
           onError() {
             assert.equal(false, true);
           }
         });
 
-        const strm = fs.createWriteStream(__dirname + '/resources/output-gif-screenshot.jpg');
+        const strm = fs.createWriteStream(__dirname + '/resources/output-gif-screenshot.png');
         result.stream.pipe(strm);
 
-        strm.on('finish', resolve);
+        strm.on('finish', () => result.emitFinish(resolve));
         strm.on('error', reject);
       });
     });

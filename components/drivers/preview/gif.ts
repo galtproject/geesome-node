@@ -14,6 +14,7 @@ const sharp = require('sharp');
 const _ = require('lodash');
 const uuidv4 = require('uuid/v4');
 const fs = require('fs');
+const { exec } = require("child_process");
 
 export class GifPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream, DriverInput.Path];
@@ -22,23 +23,38 @@ export class GifPreviewDriver extends AbstractDriver {
   async processByPath(path, options: any = {}) {
     console.log(sharp.format.magick);
     console.log('GifPreviewDriver.processByStream');
-    const extension = options.extension || 'jpg';
+    const extension = options.extension || 'png';
 
-    const resultStream = sharp(_.endsWith(path, '.gif') ? path : path + '.gif')
-        .jpeg()
-        .withMetadata()
-        .toFormat(extension);
-
-    resultStream.on("error", (err) => {
-      console.error('resultStream error', err);
-      options.onError && options.onError(err);
+    return new Promise((resolve, reject) => {
+      const resultPath = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.' + extension;
+      exec(`convert '${path}[0]' ${resultPath}`, (error, stdout, stderr) => {
+        if (error) {
+          return reject(error);
+        }
+        if (stderr) {
+          return reject(new Error(stderr));
+        }
+        resolve({
+          stream: fs.createReadStream(resultPath),
+          type: 'image/' + extension,
+          emitFinish: (callback) => {
+            fs.unlinkSync(path);
+            callback();
+          },
+          extension: extension
+        });
+      });
     });
-
-    return {
-      stream: resultStream,
-      type: 'image/' + extension,
-      extension: extension
-    };
+    //https://github.com/lovell/sharp/issues/3161
+    // const resultStream = sharp(_.endsWith(path, '.gif') ? path : path + '.gif')
+    //     .jpeg()
+    //     .withMetadata()
+    //     .toFormat(extension);
+    //
+    // resultStream.on("error", (err) => {
+    //   console.error('resultStream error', err);
+    //   options.onError && options.onError(err);
+    // });
   }
 
   async processByStream(stream, options: any = {}) {
