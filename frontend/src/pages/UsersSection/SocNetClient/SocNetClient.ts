@@ -9,6 +9,8 @@
 
 import AddSocNetClientModal from "../modals/AddSocNetClientModal/AddSocNetClientModal";
 
+const includes = require('lodash/includes');
+
 export default {
 	template: require('./SocNetClient.template'),
 	components: {},
@@ -21,9 +23,19 @@ export default {
 			this.account = await this.$coreApi.socNetDbAccount(this.$route.params.socNet, {id: this.$route.params.accId});
 			console.log('this.account', this.account);
 			this.incorrectSessionKey = !this.$coreApi.isSocNetSessionKeyCorrect(this.account);
+			console.log('this.incorrectSessionKey', this.incorrectSessionKey);
 		},
 		async getChannels() {
-			this.channels = await this.$coreApi.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.accId});
+			this.channels = await this.$coreApi.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.accId}).catch(e => {
+				if (includes(e.message, "Not a valid string") || includes(e.message, "AUTH_KEY")) {
+					this.incorrectSessionKey = true;
+				}
+				this.$notify({
+					type: 'error',
+					title: e.message,
+				})
+				return [];
+			});
 			console.log('this.channels', this.channels);
 		},
 		login() {

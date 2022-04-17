@@ -12,7 +12,6 @@ import {ContentMimeType, CorePermissionName, UserLimitName} from "../../database
 
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const _ = require('lodash');
-const mime = require('mime');
 const bodyParser = require('body-parser');
 const Busboy = require('busboy');
 const bearerToken = require('express-bearer-token');
@@ -522,6 +521,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.post('/v1/user/find-async-operations', async (req, res) => {
     res.send(await geesomeApp.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
+  });
+
+  service.post('/v1/user/cancel-async-operation/:id', async (req, res) => {
+    res.send(await geesomeApp.cancelAsyncOperation(req.user.id, req.params.id));
   });
 
   service.get('/v1/user/file-catalog/', async (req, res) => {

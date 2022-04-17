@@ -489,6 +489,9 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserByApiKey(apiKey) {
+    if (!apiKey || apiKey === 'null') {
+      return null;
+    }
     const valueHash = uuidAPIKey.toUUID(apiKey);
 
     const keyObj = await this.database.getApiKeyByHash(valueHash);
@@ -1834,6 +1837,11 @@ class GeesomeApp implements IGeesomeApp {
   async updateAsyncOperation(userId, asyncOperationId, percent) {
     await this.getAsyncOperation(userId, asyncOperationId);
     return this.database.updateUserAsyncOperation(asyncOperationId, { percent });
+  }
+
+  async cancelAsyncOperation(userId, asyncOperationId) {
+    await this.getAsyncOperation(userId, asyncOperationId);
+    return this.database.updateUserAsyncOperation(asyncOperationId, { cancel: true });
   }
 
   async finishAsyncOperation(userId, asyncOperationId, contentId = null) {

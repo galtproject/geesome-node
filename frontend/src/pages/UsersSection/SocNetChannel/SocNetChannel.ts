@@ -42,9 +42,6 @@ export default {
 		async getGroup() {
 			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId);
 		},
-		async getPosts() {
-
-		},
 		async runImport() {
 			this.loading = true;
 			try {
@@ -62,6 +59,9 @@ export default {
 			}
 			this.loading = false;
 		},
+		async stopImport() {
+			await this.$coreApi.cancelAsyncOperation(this.curOperation.id);
+		},
 		waitForOperation(operation) {
 			this.curOperation = operation;
 			this.$coreApi.waitForAsyncOperation(operation.id, (op) => {
@@ -70,7 +70,7 @@ export default {
 					return;
 				}
 				console.log('op', op)
-				if (op.percent > this.curOperation.percent) {
+				if (op.percent > this.curOperation.percent || !op.inProcess) {
 					this.getGroup();
 				}
 				this.curOperation = op;

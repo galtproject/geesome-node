@@ -31,8 +31,9 @@ export default {
       this.loading = true;
       console.log('loading', this.loading);
       try {
-        const result = await this.$coreApi.socNetLogin(this.socnet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted']));
+        const result = await this.$coreApi.socNetLogin(this.socnet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted', 'firstStage']));
         console.log('result', result);
+        this.firstStage = false;
         if (result.response.phoneCodeHash) {
           this.phoneCodeHash = result.response.phoneCodeHash;
           this.phoneCodeRequired = true;
@@ -45,6 +46,10 @@ export default {
         }
       } catch (e) {
         console.error('e', e);
+        this.$notify({
+          type: 'error',
+          title: e.message
+        });
         if (includes(e.message, 'SESSION_PASSWORD_NEEDED')) {
           this.passwordRequired = true;
         }
@@ -73,6 +78,7 @@ export default {
       isEncrypted: true,
       phoneCodeRequired: false,
       passwordRequired: false,
+      firstStage: true,
       socnet: 'telegram'
     }
   }

@@ -47,6 +47,7 @@
   },
   "soc_net_channel": {
     "run_import": "Run import",
+    "stop_import": "Stop import",
     "static_site_manager": "Static site manager"
   },
   "static_site_manager": {
