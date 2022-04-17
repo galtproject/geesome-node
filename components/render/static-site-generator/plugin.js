@@ -143,13 +143,21 @@ function getPaginationPostPath(pageNumber) {
 
 function getTitleAndDescription(content, postSettings) {
     const {titleLength, descriptionLength} = postSettings;
-    let title = _.trimStart(content.split('\n')[0], '#');
+    let title = content.split('\n')[0];
     let description = '';
+    let dotsAdded = false;
     if (title.length > titleLength) {
         title = title.slice(0, titleLength) + '...';
+        dotsAdded = true;
         description = '...' + title.slice(titleLength, titleLength + descriptionLength);
     } else if (content.split('\n')[1]) {
         description = _.trimStart(content.split('\n')[1], '#').slice(descriptionLength);
+        if (description.length + title.length < content.length) {
+            description += '...';
+        }
+    }
+    if (content.length > title.length && !dotsAdded) {
+        title += '...';
     }
     return {title, description};
 }
