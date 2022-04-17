@@ -53,6 +53,8 @@ export interface ICommunicator {
   getPubSubLs(): Promise<string[]>;
 
   getPeers(topic): Promise<string[]>;
+
+  stop(): Promise<any>;
 }
 
 interface IResultFile {

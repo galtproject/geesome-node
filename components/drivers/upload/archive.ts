@@ -25,16 +25,16 @@ export class ArchiveUploadDriver extends AbstractDriver {
     let size;
 
     try {
-      let unzipStream = unzip.Extract({path: path});
+      let unzipStream = unzip.Extract({ path });
       await new Promise((resolve, reject) =>
         inputStream
           .on('error', error => {
-            if (inputStream.truncated)
-              // delete the truncated file
-              fs.unlinkSync(path);
+            if (inputStream.truncated && fs.existsSync(path))
+              fs.unlinkSync(path); // delete the truncated file
             reject(error);
           })
           .pipe(unzipStream)
+          .on('data', (data) => console.log(data))
           .on('close', () => resolve({path}))
       );
 
@@ -51,9 +51,7 @@ export class ArchiveUploadDriver extends AbstractDriver {
     return {
       tempPath: path,
       emitFinish: (callback) => {
-        rimraf(path, function () {
-          callback && callback();
-        });
+        rimraf(path, () => callback && callback());
       },
       type: 'folder',
       size

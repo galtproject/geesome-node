@@ -1022,6 +1022,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createPost(userId, postData) {
+    postData = _.clone(postData);
     log('createPost', postData);
     const [, canCreate, canReply] = await Promise.all([
       this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
@@ -1255,7 +1256,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getGroupUnreadPostsData(userId, groupId) {
-    let groupRead = await this.database.getGroupRead(userId, groupId);
+    const groupRead = await this.database.getGroupRead(userId, groupId);
     if (groupRead) {
       return {
         readAt: groupRead.readAt,
@@ -1975,6 +1976,9 @@ class GeesomeApp implements IGeesomeApp {
               onProgress: options.onProgress,
               onError: reject
             });
+            if (!uploadResult) {
+              return; // onError handled
+            }
             resultFile = await this.storage.saveDirectory(uploadResult.tempPath, storageOptions);
             if (uploadResult.emitFinish) {
               uploadResult.emitFinish();
@@ -2773,7 +2777,8 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async stop() {
-    await this.storage.node.stop();
+    await this.storage.stop();
+    await this.communicator.stop();
     this.api.close();
   }
 }
