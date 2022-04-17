@@ -66,8 +66,7 @@ describe("renders", function () {
         await app.stop();
       });
 
-      it.skip('static-site-generator', async () => {
-        // TODO: deal with issue https://github.com/vuepress/vuepress-next/issues/772
+      it('static-site-generator', async () => {
         const testUser = (await app.database.getAllUserList('user'))[0];
         let testGroup = (await app.database.getAllGroupList('test'))[0];
         const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
