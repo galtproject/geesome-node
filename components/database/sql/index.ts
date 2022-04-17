@@ -7,14 +7,24 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {GroupType, IDatabase, IListParams} from "../interface";
+import {
+  GroupType, ICategory,
+  IContent,
+  IDatabase, IFileCatalogItem, IGroup, IGroupRead, IGroupSection,
+  IListParams,
+  IObject, IPost, IStaticIdHistoryItem,
+  IUser,
+  IUserAccount,
+  IUserApiKey, IUserAsyncOperation,
+  IUserAuthMessage, IUserLimit, IUserOperationQueue
+} from "../interface";
 import {IGeesomeApp} from "../../app/interface";
 
 const _ = require("lodash");
 const fs = require("fs");
-const Sequelize = require("sequelize");
+const {Sequelize} = require("sequelize");
+const Op = require("sequelize").Op;
 const pIteration = require("p-iteration");
-const Op = Sequelize.Op;
 const commonHelpers = require('geesome-libs/src/common');
 
 let config = require('./config');
@@ -60,7 +70,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getApiKey(id) {
-    return this.models.UserApiKey.findOne({where: {id}});
+    return this.models.UserApiKey.findOne({where: {id}}) as IUserApiKey;
   }
 
   async updateApiKey(id, updateData) {
@@ -68,7 +78,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getApiKeyByHash(valueHash) {
-    return this.models.UserApiKey.findOne({where: {valueHash, isDisabled: false}});
+    return this.models.UserApiKey.findOne({where: {valueHash, isDisabled: false}}) as IUserApiKey;
   }
 
   async getApiKeysByUser(userId, isDisabled?, search?, listParams: IListParams = {}) {
@@ -151,7 +161,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getContent(id) {
-    return this.models.Content.findOne({where: {id}});
+    return this.models.Content.findOne({where: {id}}) as IContent;
   }
 
   async getContentByStorageId(storageId, findByPreviews = false) {
@@ -161,19 +171,19 @@ class MysqlDatabase implements IDatabase {
     } else {
       where = {storageId};
     }
-    return this.models.Content.findOne({ where });
+    return this.models.Content.findOne({ where }) as IContent;
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
-    return this.models.Content.findOne({where: {storageId, userId}});
+    return this.models.Content.findOne({where: {storageId, userId}}) as IContent;
   }
 
   async getContentByManifestId(manifestStorageId) {
-    return this.models.Content.findOne({where: {manifestStorageId}});
+    return this.models.Content.findOne({where: {manifestStorageId}}) as IContent;
   }
 
   async getObjectByStorageId(storageId, resolveProp = false) {
-    return this.models.Object.findOne({where: {storageId, resolveProp}});
+    return this.models.Object.findOne({where: {storageId, resolveProp}}) as IObject;
   }
 
   async addObject(object) {
@@ -192,14 +202,14 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {name},
       include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
-    });
+    }) as IUser;
   }
 
   async getUserByNameOrEmail(nameOrEmail) {
     return this.models.User.findOne({
       where: { [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}] },
       include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
-    });
+    }) as IUser;
   }
 
   async getUser(id) {
@@ -209,7 +219,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {id},
       include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
-    });
+    }) as IUser;
   }
 
   async getUserByManifestId(id, staticId?) {
@@ -226,7 +236,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.User.findOne({
       where: {[Op.or]: whereOr},
       include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
-    });
+    }) as IUser;
   }
 
   async addUserFriend(userId, friendId) {
@@ -256,7 +266,7 @@ class MysqlDatabase implements IDatabase {
   async getUserAccount(id) {
     return this.models.UserAccount.findOne({
       where: { id }
-    });
+    }) as IUserAccount;
   }
 
   async getUserAccountList(userId) {
@@ -268,7 +278,7 @@ class MysqlDatabase implements IDatabase {
   async getUserAccountByProvider(userId, provider) {
     return this.models.UserAccount.findOne({
       where: {userId, provider}
-    });
+    }) as IUserAccount;
   }
 
   async getUserAccountByAddress(provider, address) {
@@ -276,7 +286,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.UserAccount.findOne({
       where: {provider, address},
       include: [{association: 'user'}]
-    });
+    }) as IUserAccount;
   }
 
   async createUserAccount(accountData) {
@@ -294,14 +304,14 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserAuthMessage(id) {
-    return this.models.UserAuthMessage.findOne({where: {id}});
+    return this.models.UserAuthMessage.findOne({where: {id}}) as IUserAuthMessage;
   }
 
   async getGroup(id) {
     return this.models.Group.findOne({
       where: {id},
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
-    });
+    }) as IGroup;
   }
 
   async getGroupByManifestId(id?, staticId?) {
@@ -318,7 +328,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findOne({
       where: {[Op.or]: whereOr},
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
-    });
+    }) as IGroup;
   }
 
   async getGroupWhereStaticOutdated(outdatedForSeconds) {
@@ -412,8 +422,8 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findAll({ where: {creatorId, type} });
   }
 
-  getGroupSection(groupSectionId) {
-    return this.models.GroupSection.findOne({ where: {id: groupSectionId} });
+  async getGroupSection(groupSectionId) {
+    return this.models.GroupSection.findOne({ where: {id: groupSectionId} }) as IGroupSection;
   }
 
   async addGroupSection(post) {
@@ -512,7 +522,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.Group.findOne({
       where: params,
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
-    });
+    }) as IGroup;
   }
   async getGroupSectionByParams(params) {
     return this.models.GroupSection.findOne({ where: params });
@@ -550,7 +560,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.Post.findOne({
       where: params,
       include: [{association: 'contents'}, {association: 'group'}],
-    });
+    }) as IPost;
   }
 
   async addCategory(group) {
@@ -562,11 +572,11 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getCategory(id) {
-    return this.models.Category.findOne({ where: {id} });
+    return this.models.Category.findOne({ where: {id} }) as ICategory;
   }
 
   async getCategoryByParams(params) {
-    return this.models.Category.findOne({ where: params });
+    return this.models.Category.findOne({ where: params }) as ICategory;
   }
 
   async addAdminToCategory(userId, groupId) {
@@ -758,7 +768,7 @@ class MysqlDatabase implements IDatabase {
   async getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor) {
     return this.models.FileCatalogItem.findOne({
       where: {userId, defaultFolderFor}
-    });
+    }) as IFileCatalogItem;
   }
 
   async getFileCatalogItems(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
@@ -811,7 +821,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
-    return this.models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId}});
+    return this.models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId}}).then(r => !!r);
   }
 
   async getFileCatalogItemsBreadcrumbs(childItemId) {
@@ -841,7 +851,7 @@ class MysqlDatabase implements IDatabase {
     return this.models.FileCatalogItem.findOne({
       where: {id},
       include: [{association: 'content'}]
-    });
+    }) as IFileCatalogItem;
   }
 
   async addFileCatalogItem(item) {
@@ -902,7 +912,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async isHaveCorePermission(userId, permissionName) {
-    return this.models.CorePermission.findOne({where: {userId, name: permissionName}});
+    return this.models.CorePermission.findOne({where: {userId, name: permissionName}}).then(r => !!r);
   }
 
   async addGroupPermission(userId, groupId, permissionName) {
@@ -922,11 +932,11 @@ class MysqlDatabase implements IDatabase {
   }
 
   async isHaveGroupPermission(userId, groupId, permissionName) {
-    return this.models.GroupPermission.findOne({where: {userId, groupId, name: permissionName}});
+    return this.models.GroupPermission.findOne({where: {userId, groupId, name: permissionName}}).then(r => !!r);
   }
 
   async getGroupRead(userId, groupId) {
-    return this.models.GroupRead.findOne({where: {userId, groupId}});
+    return this.models.GroupRead.findOne({where: {userId, groupId}}) as IGroupRead;
   }
 
   async addGroupRead(groupReadData) {
@@ -1044,7 +1054,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserAsyncOperation(id) {
-    return this.models.UserAsyncOperation.findOne({where: {id}});
+    return this.models.UserAsyncOperation.findOne({where: {id}}) as IUserAsyncOperation;
   }
 
   async getUserAsyncOperationList(userId, name = null, channelLike = null) {
@@ -1071,11 +1081,11 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getWaitingOperationQueueByModule(module) {
-    return this.models.UserOperationQueue.findOne({where: {module, isWaiting: true}, order: [['createdAt', 'ASC']], include: [ {association: 'asyncOperation'} ]});
+    return this.models.UserOperationQueue.findOne({where: {module, isWaiting: true}, order: [['createdAt', 'ASC']], include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
   }
 
   async getUserOperationQueue(id) {
-    return this.models.UserOperationQueue.findOne({where: {id}, include: [ {association: 'asyncOperation'} ]});
+    return this.models.UserOperationQueue.findOne({where: {id}, include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
   }
 
   async addUserLimit(userLimitData) {
@@ -1087,7 +1097,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getUserLimit(userId, name) {
-    return this.models.UserLimit.findOne({where: {userId, name}});
+    return this.models.UserLimit.findOne({where: {userId, name}}) as IUserLimit;
   }
 
   async addStaticIdHistoryItem(staticIdItem) {
@@ -1095,7 +1105,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getActualStaticIdItem(staticId) {
-    return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]});
+    return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
   }
 
   async destroyStaticIdHistory(staticId) {
@@ -1103,7 +1113,7 @@ class MysqlDatabase implements IDatabase {
   }
 
   async getStaticIdItemByDynamicId(dynamicId) {
-    return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]});
+    return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
   }
 
   async setStaticIdKey(staticId, publicKey, name = null, encryptedPrivateKey = null) {
