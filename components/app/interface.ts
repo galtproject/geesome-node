@@ -16,7 +16,7 @@ import {
   IGroup, IGroupSection, IListParams,
   IPost,
   IUser, IUserAccount,
-  IUserApiKey, IUserAuthMessage,
+  IUserApiKey, IUserAsyncOperation, IUserAuthMessage,
   IUserLimit, IUserOperationQueue, PostStatus, UserLimitName
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
@@ -158,17 +158,19 @@ export interface IGeesomeApp {
 
   saveDirectoryToStorage(userId, dirPath, options): Promise<IContent>;
 
-  getAsyncOperation(userId, id);
+  getAsyncOperation(userId, id): Promise<IUserAsyncOperation>;
 
-  addAsyncOperation(userId, asyncOperationData);
+  addAsyncOperation(userId, asyncOperationData): Promise<IUserAsyncOperation>;
 
   updateAsyncOperation(userId, asyncOperationId, percent);
+
+  cancelAsyncOperation(userId, asyncOperationId);
 
   finishAsyncOperation(userId, asyncOperationId, contentId?);
 
   errorAsyncOperation(userId, asyncOperationId, errorMessage);
 
-  findAsyncOperations(userId, name?, channelLike?);
+  findAsyncOperations(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
 
   addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
 

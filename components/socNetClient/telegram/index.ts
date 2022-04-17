@@ -82,7 +82,7 @@ class Telegram {
 		});
 	}
 	async login(userId, loginData) {
-		let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey } = loginData;
+		let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage } = loginData;
 		apiId = parseInt(apiId);
 
 		let acc = await this.models.Account.findOne({where: {userId, phoneNumber}});
@@ -92,6 +92,9 @@ class Telegram {
 
 		if (isEncrypted) {
 			sessionKey = encryptedSessionKey;
+		}
+		if (firstStage) {
+			sessionKey = '';
 		}
 
 		await client.connect();
@@ -219,6 +222,17 @@ class Telegram {
 			})
 		};
 	}
+	async getMessageLink(client, channelId, messageId) {
+		let channel = channelId;
+		if (commonHelper.isNumber(channel)) {
+			channel = await this.getChannelEntity(client, channelId);
+		}
+		messageId = parseInt(messageId);
+		return {
+			client,
+			result: await client.invoke(new Api.channels.ExportMessageLink({ channel, id: messageId, thread: true, }) as any)
+		};
+	}
 	async downloadMediaByUserId(userId, accData, media) {
 		return this.downloadMediaByClient(await this.getClient(userId, accData), media)
 	}
@@ -335,7 +349,10 @@ class Telegram {
 				type: GroupType.Channel,
 			  	avatarImageId: avatarContent ? avatarContent.id : null,
 				propertiesJson: JSON.stringify({
-					lang: user.langCode || 'en'
+					lang: user.langCode || 'en',
+					source: 'telegram',
+					sourceId: channel.id.toString(),
+					sourceUsername: channel.username,
 				})
 			});
 			dbChannel = await this.models.Channel.create({
@@ -355,7 +372,7 @@ class Telegram {
 			throw new Error('already_done');
 		}
 
-		const asyncOperation = await this.app.addAsyncOperation(userId, {
+		let asyncOperation = await this.app.addAsyncOperation(userId, {
 			userApiKeyId: await this.app.getApyKeyId(apiKey),
 			name: 'run-telegram-channel-import',
 			channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
@@ -370,9 +387,14 @@ class Telegram {
 				if (countToFetch > 50) {
 					countToFetch = 50;
 				}
-				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, (m, post) => {
+				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, async (m, post) => {
 					currentMessageId = parseInt(m.id.toString());
 					dbChannel.update({ lastMessageId: currentMessageId });
+					asyncOperation = await this.app.getAsyncOperation(userId, asyncOperation.id);
+					if (asyncOperation.cancel) {
+						await this.app.errorAsyncOperation(userId, asyncOperation.id, "canceled");
+						throw new Error("import_canceled");
+					}
 					return this.app.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 				});
 			}
@@ -389,6 +411,14 @@ class Telegram {
 		}
 	}
 
+	async getDbPostIdByTelegramMsgId(dbChannelId, msgId) {
+		if (!msgId) {
+			return;
+		}
+		msgId = parseInt(msgId);
+		return this.models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
+	}
+
 	async importChannelPosts(client, userId, groupId, dbChannel, startPost = 1, postsCount = 50, onMessageProcess = null) {
 		const messagesIds = Array.from({length: postsCount}, (_, i) => i + startPost);
 		console.log('messagesIds', messagesIds);
@@ -401,12 +431,19 @@ class Telegram {
 		let groupedMessageIds = [];
 		const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 		console.log('messages', messages);
+		let messageLinkTpl;
 		await pIteration.forEachSeries(messages, async (m, i) => {
 			const msgId = m.id.toString();
+			if (!messageLinkTpl) {
+				messageLinkTpl = await this.getMessageLink(client, dbChannel.channelId, msgId)
+					.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
+			}
+			const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
 			const existsChannelMessage = await this.models.Message.findOne({where: {msgId, dbChannelId, userId}});
 			console.log('existsChannelMessage', existsChannelMessage);
 			if (existsChannelMessage) {
-				return onMessageProcess(m, null);
+				await onMessageProcess(m, null);
+				return;
 			}
 			let contents = [];
 
@@ -439,12 +476,8 @@ class Telegram {
 				contents.push(textContent);
 			}
 
-			const properties = {
-				source: 'telegram',
-				date: groupedDate || m.date,
-				originalUrl: '',
-				msgId: groupedMessageIds.length ? groupedMessageIds[0] : msgId
-			};
+			const properties = { sourceLink };
+
 			if (groupedReplyTo) {
 				properties['replyToMsgId'] = groupedReplyTo;
 			} else if (m.replyTo) {
@@ -457,8 +490,14 @@ class Telegram {
 			const postData = {
 				groupId,
 				status: 'published',
-				propertiesJson: JSON.stringify(properties)
+				propertiesJson: JSON.stringify(properties),
+				source: 'telegram',
+				sourceChannelId: dbChannel.channelId,
+				sourcePostId: groupedMessageIds.length ? groupedMessageIds[0] : msgId,
+				sourceDate: new Date(parseInt(groupedDate || m.date) * 1000),
+				replyToId: await this.getDbPostIdByTelegramMsgId(dbChannelId, properties['replyToMsgId']),
 			}
+			console.log('postData', postData);
 
 			let post;
 			console.log('m.groupedId', m.groupedId && m.groupedId.toString());
@@ -507,7 +546,7 @@ class Telegram {
 				this.models.Message.create({msgId, dbChannelId, userId, groupedId, replyToMsgId: properties['replyToMsgId']});
 			}
 			if (onMessageProcess) {
-				onMessageProcess(m, post);
+				await onMessageProcess(m, post);
 			}
 		});
 	}

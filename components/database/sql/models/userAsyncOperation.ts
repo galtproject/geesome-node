@@ -36,6 +36,9 @@ module.exports = async function (sequelize, models) {
     inProcess: {
       type: Sequelize.BOOLEAN
     },
+    cancel: {
+      type: Sequelize.BOOLEAN
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

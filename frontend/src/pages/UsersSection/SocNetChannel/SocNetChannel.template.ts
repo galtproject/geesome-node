@@ -20,15 +20,20 @@ module.exports = `
 			  <h3>Import channel to IPFS</h3>
 			</div>
 			
-			<md-button :disabled="loading || !!curOperation" @click="runImport" class="md-raised md-accent"><span v-locale="localeKey + '.run_import'"></span></md-button>
-
-			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+			<div style="position: relative;">
+				<md-button :disabled="loading || !!curOperation" @click="runImport" class="md-raised md-accent"><span v-locale="localeKey + '.run_import'"></span></md-button>
+				<md-button style="position: absolute; top: 0; right: 0;" v-if="curOperation" @click="stopImport" class="md-warn"><span v-locale="localeKey + '.stop_import'"></span></md-button>
+			</div>
 			
+			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+
 			<div style="display: flex; justify-content: space-between;">
 			  <h3>Generate static site and upload to IPFS</h3>
 			</div>
 			
-			<md-button :disabled="loading || !!curOperation || !dbGroup" :to="{name: 'static-site-manager', params: {type: 'group', id: dbGroup && dbGroup.id}}" class="md-raised md-accent"><span v-locale="localeKey + '.static_site_manager'"></span></md-button>
+			<div>
+				<md-button :disabled="loading || !!curOperation || !dbGroup" :to="{name: 'static-site-manager', params: {type: 'group', id: dbGroup && dbGroup.id}}" class="md-raised md-accent"><span v-locale="localeKey + '.static_site_manager'"></span></md-button>
+			</div>
 
 <!--			<md-table>-->
 <!--			  <md-table-row>-->
