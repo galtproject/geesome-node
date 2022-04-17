@@ -5,8 +5,10 @@ RUN apt-get update
 
 RUN apt-get install curl software-properties-common -y
 
-RUN add-apt-repository ppa:jonathonf/ffmpeg-4 -y
-RUN apt-get update
+RUN add-apt-repository ppa:savoury1/ffmpeg4 -y
+RUN add-apt-repository ppa:savoury1/graphics -y
+RUN add-apt-repository ppa:savoury1/multimedia -y
+RUN apt full-upgrade
 
 RUN apt-get install python build-essential pkg-config libglib2.0-dev libexpat1-dev libssl-dev cgif imagemagick libimagequant ffmpeg git -y
 
