@@ -417,6 +417,11 @@ export interface IPost {
   replyToId?: number;
   repostOfId?: string;
 
+  source?: string;
+  sourceChannelId?: string;
+  sourcePostId?: string;
+  sourceDate?;
+
   encryptedManifestStorageId?: string;
 
   createdAt;
@@ -669,6 +674,7 @@ export interface IUserAsyncOperation {
   errorType: string;
   errorMessage: string;
   inProcess: boolean;
+  cancel: boolean;
 
   userId: number;
   contentId?: number;

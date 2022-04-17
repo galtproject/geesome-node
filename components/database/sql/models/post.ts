@@ -96,7 +96,19 @@ module.exports = async function (sequelize, models) {
     },
     authorStaticStorageId: {
       type: Sequelize.STRING(200)
-    }
+    },
+    source: {
+      type: Sequelize.STRING(200)
+    },
+    sourceChannelId: {
+      type: Sequelize.STRING(200)
+    },
+    sourcePostId: {
+      type: Sequelize.STRING(200)
+    },
+    sourceDate: {
+      type: Sequelize.DATE
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
@@ -105,7 +117,10 @@ module.exports = async function (sequelize, models) {
       { fields: ['name'] },
       { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
       { fields: ['replyToId'] },
-      { fields: ['repostOfId'] }
+      { fields: ['repostOfId'] },
+      { fields: ['source', 'sourceDate'] },
+      { fields: ['source', 'sourceChannelId'] },
+      { fields: ['source', 'sourceChannelId', 'sourcePostId'] }
     ]
   } as any);
 
