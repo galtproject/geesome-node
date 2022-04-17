@@ -30,6 +30,7 @@ export default {
 				this.$coreApi.staticSiteGetDefaultOptions(this.type, this.dbGroupId)
 			]);
 			this.options = {
+				baseStorageUri: document.location['hostname'] === 'localhost' ? this.defaultOptions.baseStorageUri : document.location['origin'] + ':7722/v1/content-data/',
 				site: {
 					title: this.dbGroup.title,
 					description: this.dbGroup.description,
