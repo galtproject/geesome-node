@@ -83,6 +83,11 @@ Currently its storing in GeeSome node, but need to improve it.
 | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469801-5080ac00-b799-11e9-8fa7-374d2186665d.png) | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469811-55ddf680-b799-11e9-9138-219be5cf1364.png) | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469812-55ddf680-b799-11e9-8116-1c6692040422.png) | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469813-56768d00-b799-11e9-87c5-7664103a2460.png) |
 
 ## Install with domain to your server
+Recommend actions before install:
+```
+sudo bash/ubuntu-init-swapfile.sh # Init 8GB Swapfile
+PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
+```
 1. Set DNS settings for domain: ip address of server
 2. Clone repo to server that bound to domain
 ```
@@ -92,11 +97,6 @@ git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
 ```
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 sudo bash/ubuntu-install-nginx.sh 
-```
-Recommend actions after install:
-```
-sudo bash/ubuntu-init-swapfile.sh # Init 2GB Swapfile
-PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 ```
 4. Open your-site.com/#/setup and create first admin user
 
@@ -237,7 +237,7 @@ Existing modules:
 
 ## Minimal requirements
 - System: Ubuntu 16.04
-- 2 GB RAM
+- 8 GB RAM
 - 1 GB free HDD + space for your files
 
 ## Dependencies
