@@ -1385,7 +1385,7 @@ class GeesomeApp implements IGeesomeApp {
       previewDriverName = this.drivers.preview[splitType[1]] ? splitType[1] : splitType[0];
     }
     if (previewDriverName === 'gif') {
-      extension = 'jpg';
+      extension = 'png';
     }
     log('previewDriverName', previewDriverName);
     let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;

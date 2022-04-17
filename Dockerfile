@@ -8,7 +8,11 @@ RUN apt-get install curl software-properties-common -y
 RUN add-apt-repository ppa:jonathonf/ffmpeg-4 -y
 RUN apt-get update
 
-RUN apt-get install python build-essential libssl-dev ffmpeg git -y
+RUN apt-get install python build-essential pkg-config libglib2.0-dev libexpat1-dev libssl-dev cgif imagemagick libimagequant ffmpeg git -y
+
+# https://github.com/lovell/sharp/issues/3161
+#RUN curl -OL https://github.com/libvips/libvips/releases/download/v8.12.2/vips-8.12.2.tar.gz && tar xf vips-8.12.2.tar.gz
+#RUN cd vips-8.12.2 && ./configure && make && make install
 
 RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
 RUN apt-get install nodejs -y
