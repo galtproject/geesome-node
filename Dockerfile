@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ubuntu:bionic
+FROM ubuntu:focal
 
 RUN apt-get update
 
