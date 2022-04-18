@@ -39,7 +39,12 @@ echo "$certbotOutput";
 
 if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet due for renewal"*) ]]; 
 then
-    sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
+    if [ ! -z "$CF" ]
+    then
+        sudo cp bash/cf-nginx.conf /etc/nginx/sites-enabled/default
+    else
+        sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
+    fi
     
     sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
     sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
