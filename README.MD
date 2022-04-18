@@ -96,7 +96,7 @@ PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 3. Run script with parameters: domain and email for letsencrypt
 ```
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
-sudo bash/ubuntu-install-nginx.sh 
+sudo bash/ubuntu-install-nginx.sh # add CF=1 before script to install for cloudflare
 ```
 4. Open your-site.com/#/setup and create first admin user
 
