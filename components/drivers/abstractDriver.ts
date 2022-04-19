@@ -54,7 +54,6 @@ export default class AbstractDriver implements IDriver {
             .pipe(fs.createWriteStream(resultPath))
             .on('close', () => resolve({path: resultPath}))
     );
-    console.log('processByPath result', result);
     result.path = resultPath;
     return result;
   }

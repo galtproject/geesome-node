@@ -268,7 +268,7 @@ class Telegram {
 			// console.log('media', media);
 		}
 		console.log('media.webpage', media.webpage);
-		console.log('file', file, 'thumbSize', thumbSize, 'fileSize', fileSize);
+		// console.log('file', file, 'thumbSize', thumbSize, 'fileSize', fileSize);
 		if (!file) {
 			return {
 				client,
