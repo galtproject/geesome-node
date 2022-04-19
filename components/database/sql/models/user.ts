@@ -36,6 +36,9 @@ module.exports = async function (sequelize, models) {
     avatarImageId: {
       type: Sequelize.INTEGER
     },
+    joinedByInviteId: {
+      type: Sequelize.INTEGER
+    },
     manifestStorageId: {
       type: Sequelize.STRING(200)
     },

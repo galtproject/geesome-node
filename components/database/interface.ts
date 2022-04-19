@@ -64,6 +64,18 @@ export interface IDatabase {
 
   updateUser(id, updateData: any): Promise<void>;
 
+  addInvite(invite): Promise<IInvite>;
+
+  updateInvite(id, updateData): Promise<void>;
+
+  findInviteByCode(code): Promise<IInvite>;
+
+  getJoinedByInviteCount(joinedByInviteId): Promise<number>;
+
+  getUserInvites(createdById, filters, listParams: IListParams): Promise<IInvite[]>;
+
+  getAllInvites(filters, listParams: IListParams): Promise<IInvite[]>;
+
   getUserByName(name): Promise<IUser>;
 
   getUserByNameOrEmail(nameOrEmail): Promise<IUser>;
@@ -305,6 +317,18 @@ export interface IDatabase {
   clearValue(key: string): Promise<void>;
 }
 
+export interface IInvite {
+  id?: number;
+  title?: string;
+  code?: string;
+  limits?: string;
+  permissions?: string;
+  groupsToJoin?: string;
+  maxCount?: number;
+  isActive?: boolean;
+  createdById?: number;
+}
+
 export interface IListParams {
   limit?: number;
   offset?: number;
@@ -448,6 +472,8 @@ export interface IUser {
   avatarImage?: IContent;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+
+  joinedByInviteId?: number;
 
   accounts?: [any];
 
@@ -732,6 +758,7 @@ export enum CorePermissionName {
   UserFriendsManagement = 'user:friends_management',
   UserAccountManagement = 'user:account_management',
 
+  AdminAll = 'admin:all',
   AdminRead = 'admin:read',
   AdminAddUser = 'admin:add_user',
   AdminSetPermissions = 'admin:set_permissions',

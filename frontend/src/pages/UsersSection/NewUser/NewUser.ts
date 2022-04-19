@@ -25,7 +25,7 @@ export default {
       this.user.permissions = [];
 
       if(this.isAdmin) {
-        this.user.permissions = this.user.permissions.concat(['admin:read', 'admin:add_user', 'admin:set_permissions', 'admin:set_user_limit', 'admin:add_user_api_key']);
+        this.user.permissions.push('admin:all');
       }
 
       if(this.isOnlySaveData) {

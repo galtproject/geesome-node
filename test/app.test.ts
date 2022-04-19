@@ -23,6 +23,7 @@ const fs = require('fs');
 const _ = require('lodash');
 const resourcesHelper = require('./helpers/resources');
 const log = require('../components/log');
+const commonHelper = require('geesome-libs/src/common');
 
 describe("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
@@ -858,6 +859,102 @@ describe("app", function () {
         assert.equal(userObject.accounts.length, 1);
         assert.equal(userObject.accounts[0].provider, 'ethereum');
         assert.equal(userObject.accounts[0].address, userAccountAddress.toLowerCase());
+      });
+
+      it('user invites should work properly', async () => {
+        const userAccountAddress = '0x2FAa9af0dbD9d32722C494bAD6B4A2521d132003';
+        const testGroup = (await app.database.getAllGroupList('test'))[0];
+        const testUser = (await app.database.getAllUserList('user'))[0];
+        const testAdmin = (await app.database.getAllUserList('admin'))[0];
+
+        const invite = await app.createInvite(testAdmin.id, {
+          title: 'test invite',
+          limits: JSON.stringify([{ name: UserLimitName.SaveContentSize, value: 100 * (10 ** 3), periodTimestamp: 60, isActive: true }]),
+          permissions: JSON.stringify([CorePermissionName.UserAll]),
+          groupsToJoin: JSON.stringify([testGroup.manifestStaticStorageId]),
+          maxCount: 1,
+          isActive: true
+        });
+
+        const newMember = await app.registerUserByInviteCode(invite.code, {
+          email: 'new2user.com',
+          name: 'new2',
+          password: 'new2',
+          permissions: [CorePermissionName.UserAll],
+          accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+        });
+        assert.equal(newMember.joinedByInviteId, invite.id);
+        assert.equal(newMember.accounts.length, 1);
+        assert.equal(newMember.accounts[0].provider, 'ethereum');
+        assert.equal(newMember.accounts[0].address, userAccountAddress.toLowerCase());
+
+        console.log('getUserLimit')
+        const userLimit = await app.getUserLimit(testAdmin.id, newMember.id, UserLimitName.SaveContentSize);
+        assert.equal(userLimit.isActive, true);
+        assert.equal(userLimit.periodTimestamp, 60);
+        assert.equal(userLimit.value, 100 * (10 ** 3));
+
+        assert.equal(await app.database.isHaveCorePermission(newMember.id, CorePermissionName.UserAll), true);
+
+        assert.equal(await app.isMemberInGroup(newMember.id, testGroup.id), false);
+
+        await app.addAdminToGroup(testUser.id, testGroup.id, testAdmin.id);
+
+        try {
+          await app.registerUserByInviteCode(commonHelper.random('hash'), {
+            email: 'new3user.com',
+            name: 'new3',
+            password: 'new3',
+            permissions: [CorePermissionName.UserAll],
+            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "invite_not_found"), true);
+        }
+
+        try {
+          await app.registerUserByInviteCode(invite.code, {
+            email: 'new3user.com',
+            name: 'new3',
+            password: 'new3',
+            permissions: [CorePermissionName.UserAll],
+            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "invite_max_count"), true);
+        }
+
+        await app.updateInvite(testAdmin.id, invite.id, {maxCount: 3});
+        const foundInvite = await app.database.findInviteByCode(invite.code);
+        assert.equal(foundInvite.maxCount, 3);
+
+        const newMember3 = await app.registerUserByInviteCode(invite.code, {
+          email: 'new3user.com',
+          name: 'new3',
+          password: 'new3',
+          permissions: [CorePermissionName.UserAll],
+          accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+        });
+
+        assert.equal(await app.isMemberInGroup(newMember.id, testGroup.id), false);
+        assert.equal(await app.isMemberInGroup(newMember3.id, testGroup.id), true);
+
+        await app.updateInvite(testAdmin.id, invite.id, {isActive: false});
+
+        try {
+          await app.registerUserByInviteCode(invite.code, {
+            email: 'new4user.com',
+            name: 'new4',
+            password: 'new4',
+            permissions: [CorePermissionName.UserAll],
+            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "invite_not_active"), true);
+        }
       });
     });
   });

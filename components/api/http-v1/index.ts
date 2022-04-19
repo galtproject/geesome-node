@@ -628,9 +628,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.getUserByApiKey(req.params.apiKey));
   });
   service.post('/v1/admin/set-user-limit', async (req, res) => {
-    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetUserLimit)) {
-      return res.send(403);
-    }
     res.send(await geesomeApp.setUserLimit(req.user.id, req.body));
   });
 

@@ -13,7 +13,7 @@ import {
   IContent,
   IDatabase,
   IFileCatalogItem,
-  IGroup, IGroupSection, IListParams,
+  IGroup, IGroupSection, IInvite, IListParams,
   IPost,
   IUser, IUserAccount,
   IUserApiKey, IUserAsyncOperation, IUserAuthMessage,
@@ -43,6 +43,12 @@ export interface IGeesomeApp {
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
   registerUser(userData: IUserInput): Promise<IUser>;
+
+  registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<IUser>;
+
+  createInvite(userId, inviteData: IInvite): Promise<IInvite>;
+
+  updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
@@ -265,6 +271,8 @@ export interface IUserInput {
 
   accounts?: IUserAccountInput[];
   permissions?: CorePermissionName[];
+
+  joinedByInviteId?: number;
 }
 
 export interface IUserAccountInput {

@@ -172,14 +172,14 @@ class GeesomeApp implements IGeesomeApp {
     }
     const adminUser = await this.registerUser(userData);
 
-    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode', 'UserAll'], (permissionName) => {
+    await pIteration.forEach(['AdminAll', 'UserAll'], (permissionName) => {
       return this.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
 
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
-  async registerUser(userData: IUserInput): Promise<any> {
+  async registerUser(userData: IUserInput, joinedByInviteId = null): Promise<any> {
     const {email, name, password} = userData;
 
     const existUserWithName = await this.database.getUserByName(name);
@@ -211,7 +211,8 @@ class GeesomeApp implements IGeesomeApp {
       manifestStaticStorageId: storageAccountId,
       passwordHash,
       name,
-      email
+      email,
+      joinedByInviteId
     });
 
     if (userData.accounts && userData.accounts.length) {
@@ -224,17 +225,63 @@ class GeesomeApp implements IGeesomeApp {
 
     await this.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
 
-    await this.database.updateUser(newUser.id, {
-      manifestStorageId
-    });
+    await this.database.updateUser(newUser.id, { manifestStorageId });
 
     if (userData.permissions && userData.permissions.length) {
       await pIteration.forEach(userData.permissions, (permissionName) => {
-        return this.database.addCorePermission(newUser.id, permissionName)
+        return this.database.addCorePermission(newUser.id, permissionName);
       });
     }
 
     return this.database.getUser(newUser.id);
+  }
+
+  public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
+    const invite = await this.database.findInviteByCode(inviteCode);
+    if (!invite) {
+      throw new Error("invite_not_found");
+    }
+    if (!invite.isActive) {
+      throw new Error("invite_not_active");
+    }
+    const joinedByInviteCount = await this.database.getJoinedByInviteCount(invite.id);
+    console.log('joinedByInviteCount', joinedByInviteCount);
+    console.log('invite.maxCount', invite.maxCount);
+    if (joinedByInviteCount >= invite.maxCount) {
+      throw new Error("invite_max_count");
+    }
+
+    const user = await this.registerUser({
+      ...userData,
+      permissions: JSON.parse(invite.permissions),
+    }, invite.id);
+
+    await pIteration.forEachSeries(JSON.parse(invite.limits), (limitData) => {
+      return this.setUserLimit(invite.createdById, {
+        ...limitData,
+        userId: user.id,
+      });
+    });
+
+    await pIteration.forEachSeries(JSON.parse(invite.groupsToJoin), (groupId) => {
+      return this.addMemberToGroup(invite.createdById, groupId, user.id).catch(e => {/*ignore, because it's optional*/});
+    });
+
+    return user;
+  }
+
+  async createInvite(userId, inviteData) {
+    await this.checkUserCan(userId, CorePermissionName.AdminAddUser);
+    inviteData.code = commonHelper.random('hash');
+    inviteData.createdById = userId;
+    return await this.database.addInvite(inviteData);
+  }
+
+  async updateInvite(userId, inviteId, inviteData) {
+    await this.checkUserCan(userId, CorePermissionName.AdminAddUser);
+    delete inviteData.code;
+    delete inviteData.createdById;
+    return await this.database.updateInvite(inviteId, inviteData);
   }
 
   async loginPassword(usernameOrEmail, password): Promise<any> {
@@ -526,6 +573,7 @@ class GeesomeApp implements IGeesomeApp {
 
   public async setUserLimit(adminId, limitData: IUserLimit) {
     limitData.adminId = adminId;
+    await this.checkUserCan(adminId, CorePermissionName.AdminSetUserLimit);
 
     const existLimit = await this.database.getUserLimit(limitData.userId, limitData.name);
     if (existLimit) {
@@ -2596,9 +2644,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
     listParams = this.prepareListParams(listParams);
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
       list: await this.database.getAllUserList(searchString, listParams),
       total: await this.database.getAllUserCount(searchString)
@@ -2607,9 +2653,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
     listParams = this.prepareListParams(listParams);
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
       list: await this.database.getAllGroupList(searchString, listParams),
       total: await this.database.getAllGroupCount(searchString)
@@ -2618,9 +2662,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getAllContentList(adminId, searchString?, listParams?: IListParams) {
     listParams = this.prepareListParams(listParams);
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
       list: await this.database.getAllContentList(searchString, listParams),
       total: await this.database.getAllContentCount(searchString)
@@ -2628,9 +2670,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserLimit(adminId, userId, limitName) {
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return this.database.getUserLimit(userId, limitName);
   }
 
@@ -2643,9 +2683,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async checkUserCan(userId, permission) {
-    const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
-    if (userCanAll) {
-      return;
+    if (_.startsWith(permission, 'admin:')) {
+      if (await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAll)) {
+        return;
+      }
+    } else { // user:
+      if (await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll)) {
+        return;
+      }
     }
     if (!await this.database.isHaveCorePermission(userId, permission)) {
       throw new Error("not_permitted");
@@ -2752,9 +2797,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getBootNodes(userId, type = 'ipfs') {
-    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(userId, CorePermissionName.AdminRead);
     if (type === 'ipfs') {
       return this.storage.getBootNodeList();
     } else {
@@ -2763,9 +2806,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addBootNode(userId, address, type = 'ipfs') {
-    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAddBootNode)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(userId, CorePermissionName.AdminAddBootNode);
     if (type === 'ipfs') {
       return this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
     } else {
@@ -2774,9 +2815,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async removeBootNode(userId, address, type = 'ipfs') {
-    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRemoveBootNode)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(userId, CorePermissionName.AdminRemoveBootNode);
     if (type === 'ipfs') {
       return this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
     } else {
