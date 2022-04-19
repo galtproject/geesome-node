@@ -215,6 +215,8 @@ geesomeClient.init().then(async () => {
 - IPNS caching for fast resolving
 - IPFS and IPNS directories for HTML sites and more
 - Ethereum authentication by signature
+- Import telegram channel's posts
+- Generate static sites from groups with posts and upload to IPFS
 
 ## TODO:
 - Share folder by ipld, ipns manifest
