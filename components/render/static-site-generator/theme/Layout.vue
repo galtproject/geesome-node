@@ -18,6 +18,8 @@
           </div>
           <div class="description-row">{{$site.description}}</div>
         </div>
+
+        <div class="powered">Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></div>
       </div>
       <div class="content-data">
         <div class="tabs">

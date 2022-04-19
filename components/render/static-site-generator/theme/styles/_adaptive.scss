@@ -14,10 +14,20 @@
     padding: 15px 15px 20px;
     .content-info {
       position: static;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       margin-bottom: 20px;
     }
     .description-row {
       display: none;
     }
+  }
+  .powered {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    margin-top: 0;
   }
 }
