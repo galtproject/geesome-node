@@ -1,4 +1,4 @@
-import {IGeesomeApp} from "../../interface";
+import {IGeesomeApp, IGeesomeGroupModule} from "../../interface";
 import {
 	CorePermissionName,
 	GroupPermissionName,
@@ -17,7 +17,8 @@ const pgpHelper = require('geesome-libs/src/pgpHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 
 module.exports = (app: IGeesomeApp) => {
-	class GroupModule {
+
+	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 

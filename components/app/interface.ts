@@ -41,6 +41,7 @@ export interface IGeesomeApp {
 
   //modules
   ms: {
+    asyncOperation: IGeesomeAsyncOperationModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
     groupCategory: IGeesomeGroupCategoryModule;
@@ -81,37 +82,11 @@ export interface IGeesomeApp {
 
   checkUserCan(userId, permission): Promise<void>;
 
-  asyncOperationWrapper(methodName, args, options);
-
   saveData(fileStream, fileName, options): Promise<IContent>;
 
   saveDataByUrl(url, options): Promise<IContent>;
 
   saveDirectoryToStorage(userId, dirPath, options): Promise<IContent>;
-
-  getAsyncOperation(userId, id): Promise<IUserAsyncOperation>;
-
-  addAsyncOperation(userId, asyncOperationData): Promise<IUserAsyncOperation>;
-
-  updateAsyncOperation(userId, asyncOperationId, percent);
-
-  cancelAsyncOperation(userId, asyncOperationId);
-
-  finishAsyncOperation(userId, asyncOperationId, contentId?);
-
-  errorAsyncOperation(userId, asyncOperationId, errorMessage);
-
-  findAsyncOperations(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
-
-  addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
-
-  getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
-
-  getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
-
-  setAsyncOperationToUserOperationQueue(userOperationQueueId, userAsyncOperationId): Promise<any>;
-
-  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
 
   createContentByRemoteStorageId(manifestStorageId, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
 
@@ -164,6 +139,35 @@ export interface IGeesomeApp {
   resolveStaticId(staticId): Promise<string>;
 
   stop(): Promise<void>;
+}
+
+export interface IGeesomeAsyncOperationModule {
+
+  asyncOperationWrapper(methodName, args, options);
+
+  getAsyncOperation(userId, id): Promise<IUserAsyncOperation>;
+
+  addAsyncOperation(userId, asyncOperationData): Promise<IUserAsyncOperation>;
+
+  updateAsyncOperation(userId, asyncOperationId, percent);
+
+  cancelAsyncOperation(userId, asyncOperationId);
+
+  finishAsyncOperation(userId, asyncOperationId, contentId?);
+
+  errorAsyncOperation(userId, asyncOperationId, errorMessage);
+
+  findAsyncOperations(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
+
+  addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+
+  getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
+
+  getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
+
+  setAsyncOperationToUserOperationQueue(userOperationQueueId, userAsyncOperationId): Promise<any>;
+
+  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
 }
 
 export interface IGeesomeFileCatalogModule {

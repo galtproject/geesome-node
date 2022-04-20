@@ -30,7 +30,7 @@ class Telegram {
 
 	async init(app) {
 		this.app = app;
-		app.checkModules(['group']);
+		app.checkModules(['asyncOperation', 'group']);
 
 		let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', {
 			'dialect': 'sqlite',
@@ -373,7 +373,7 @@ class Telegram {
 			throw new Error('already_done');
 		}
 
-		let asyncOperation = await this.app.addAsyncOperation(userId, {
+		let asyncOperation = await this.app.ms.asyncOperation.addAsyncOperation(userId, {
 			userApiKeyId: await this.app.getApyKeyId(apiKey),
 			name: 'run-telegram-channel-import',
 			channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
@@ -391,19 +391,19 @@ class Telegram {
 				await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, async (m, post) => {
 					currentMessageId = parseInt(m.id.toString());
 					dbChannel.update({ lastMessageId: currentMessageId });
-					asyncOperation = await this.app.getAsyncOperation(userId, asyncOperation.id);
+					asyncOperation = await this.app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id);
 					if (asyncOperation.cancel) {
-						await this.app.errorAsyncOperation(userId, asyncOperation.id, "canceled");
+						await this.app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
 						throw new Error("import_canceled");
 					}
-					return this.app.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
+					return this.app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 				});
 			}
 		})().then(() => {
-			return this.app.finishAsyncOperation(userId, asyncOperation.id);
+			return this.app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
 		}).catch((e) => {
 			console.error('run-telegram-channel-import error', e);
-			return this.app.errorAsyncOperation(userId, asyncOperation.id, e.message);
+			return this.app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
 		});
 
 		return {

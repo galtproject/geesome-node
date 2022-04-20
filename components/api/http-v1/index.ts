@@ -454,7 +454,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
         ..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
       };
 
-      const asyncOperationRes = await geesomeApp.asyncOperationWrapper('saveData', [file, filename, options], options);
+      const asyncOperationRes = await geesomeApp.ms.asyncOperation.asyncOperationWrapper('saveData', [file, filename, options], options);
       res.send(asyncOperationRes);
     });
 
@@ -480,7 +480,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
     };
 
-    res.send(await geesomeApp.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
+    res.send(await geesomeApp.ms.asyncOperation.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
   });
 
   /**
@@ -502,7 +502,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       ..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
     };
 
-    res.send(await geesomeApp.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
+    res.send(await geesomeApp.ms.asyncOperation.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
   });
 
   /**
@@ -516,15 +516,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
    * @apiInterface (../../database/interface.ts) {IUserAsyncOperation} apiSuccess
    */
   service.post('/v1/user/get-async-operation/:id', async (req, res) => {
-    res.send(await geesomeApp.getAsyncOperation(req.user.id, req.params.id));
+    res.send(await geesomeApp.ms.asyncOperation.getAsyncOperation(req.user.id, req.params.id));
   });
 
   service.post('/v1/user/find-async-operations', async (req, res) => {
-    res.send(await geesomeApp.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
+    res.send(await geesomeApp.ms.asyncOperation.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
   });
 
   service.post('/v1/user/cancel-async-operation/:id', async (req, res) => {
-    res.send(await geesomeApp.cancelAsyncOperation(req.user.id, req.params.id));
+    res.send(await geesomeApp.ms.asyncOperation.cancelAsyncOperation(req.user.id, req.params.id));
   });
 
   service.get('/v1/user/file-catalog/', async (req, res) => {

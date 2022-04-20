@@ -1,4 +1,4 @@
-import {IGeesomeApp, IUserInput} from "../../interface";
+import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../interface";
 import {CorePermissionName} from "../../../database/interface";
 const commonHelper = require('geesome-libs/src/common');
 const pIteration = require('p-iteration');
@@ -6,7 +6,7 @@ const pIteration = require('p-iteration');
 module.exports = (app: IGeesomeApp) => {
 	app.checkModules(['group']);
 
-	class InviteModule {
+	class InviteModule implements IGeesomeInviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
 			const invite = await app.database.findInviteByCode(inviteCode);
 			if (!invite) {

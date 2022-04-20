@@ -109,7 +109,7 @@ describe("renders", function () {
 
           while (userOperationQueue.isWaiting) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
-            userOperationQueue = await app.getUserOperationQueue(testUser.id, userOperationQueue.id);
+            userOperationQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, userOperationQueue.id);
           }
 
           group = await app.ms.group.getGroup(group.id);

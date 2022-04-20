@@ -21,7 +21,7 @@ import {
   UserLimitName
 } from "../../database/interface";
 import {
-  IGeesomeApp, IGeesomeFileCatalogModule,
+  IGeesomeApp, IGeesomeAsyncOperationModule, IGeesomeFileCatalogModule,
   IGeesomeGroupCategoryModule, IGeesomeGroupModule,
   IGeesomeInviteModule,
   IUserAccountInput,
@@ -98,7 +98,7 @@ module.exports = async (extendConfig) => {
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
   app.ms = {} as any;
-  ['group', 'groupCategory', 'fileCatalog', 'invite'].forEach(moduleName => {
+  ['asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite'].forEach(moduleName => {
     app.ms[moduleName] = require('./modules/' + moduleName)(app);
   })
 
@@ -129,7 +129,8 @@ class GeesomeApp implements IGeesomeApp {
   frontendStorageId;
 
   ms: {
-    fileCatalog: IGeesomeFileCatalogModule
+    asyncOperation: IGeesomeAsyncOperationModule,
+    fileCatalog: IGeesomeFileCatalogModule,
     invite: IGeesomeInviteModule,
     group: IGeesomeGroupModule,
     groupCategory: IGeesomeGroupCategoryModule
@@ -713,7 +714,6 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-
   async regenerateUserContentPreviews(userId) {
     await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
     (async () => {
@@ -757,73 +757,6 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("not_authorized");
     }
     return apiKeyDb.id;
-  }
-
-  async asyncOperationWrapper(methodName, args, options) {
-    await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
-    options.userApiKeyId = await this.getApyKeyId(options.apiKey);
-
-    if (!options.async) {
-      return this[methodName].apply(this, args);
-    }
-
-    const asyncOperation = await this.database.addUserAsyncOperation({
-      userId: options.userId,
-      userApiKeyId: options.userApiKeyId,
-      name: 'save-data',
-      inProcess: true,
-      channel: await commonHelper.random()
-    });
-
-    // TODO: fix hotfix
-    if (_.isObject(_.last(args))) {
-      _.last(args).onProgress = (progress) => {
-        console.log('onProgress', progress);
-        this.database.updateUserAsyncOperation(asyncOperation.id, {
-          percent: progress.percent
-        });
-      }
-    }
-
-    let dataSendingPromise = new Promise((resolve, reject) => {
-      if (args[0].on) {
-        //TODO: close that stream on limit reached error
-        args[0].on('end', () => resolve(true));
-        args[0].on('error', (e) => reject(e));
-        args[0].on('limit', () => reject("limit_reached"));
-      } else {
-        resolve(true);
-      }
-    });
-    const methodPromise = this[methodName].apply(this, args);
-
-    methodPromise
-      .then((res: any) => {
-        this.database.updateUserAsyncOperation(asyncOperation.id, {
-          inProcess: false,
-          contentId: res.id
-        });
-        return this.communicator.publishEvent(asyncOperation.channel, res);
-      })
-      .catch((e) => {
-        return this.database.updateUserAsyncOperation(asyncOperation.id, {
-          inProcess: false,
-          errorType: 'unknown',
-          errorMessage: e && e.message ? e.message : e
-        });
-      });
-
-    try {
-      await dataSendingPromise;
-    } catch(e) {
-      await this.database.updateUserAsyncOperation(asyncOperation.id, {
-        inProcess: false,
-        errorType: 'unknown',
-        errorMessage: e && e.message ? e.message : e
-      });
-    }
-
-    return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
   async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
@@ -1012,83 +945,6 @@ class GeesomeApp implements IGeesomeApp {
       ...content['toJSON'](),
       ...previewData
     });
-  }
-
-  async getAsyncOperation(userId, operationId) {
-    const asyncOperation = await this.database.getUserAsyncOperation(operationId);
-    if (asyncOperation.userId != userId) {
-      throw new Error("not_permitted");
-    }
-    return asyncOperation;
-  }
-
-  async findAsyncOperations(userId, name, channelLike) {
-    return this.database.getUserAsyncOperationList(userId, name, channelLike);
-  }
-
-  async addAsyncOperation(userId, asyncOperationData) {
-    return this.database.addUserAsyncOperation({
-      ...asyncOperationData,
-      userId,
-      inProcess: true,
-    });
-  }
-
-  async updateAsyncOperation(userId, asyncOperationId, percent) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, { percent });
-  }
-
-  async cancelAsyncOperation(userId, asyncOperationId) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, { cancel: true });
-  }
-
-  async finishAsyncOperation(userId, asyncOperationId, contentId = null) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, {
-      contentId,
-      percent: 100,
-      inProcess: false,
-      finishedAt: new Date()
-    });
-  }
-
-  async errorAsyncOperation(userId, asyncOperationId, errorMessage) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
-  }
-
-  addUserOperationQueue(userId, module, userApiKeyId, input) {
-    const inputJson = JSON.stringify(input);
-    return this.database.addUserOperationQueue({
-      userId,
-      module,
-      inputJson,
-      userApiKeyId,
-      inputHash: commonHelper.hash(inputJson),
-      isWaiting: true,
-    });
-  }
-
-  getWaitingOperationByModule(module) {
-    return this.database.getWaitingOperationQueueByModule(module);
-  }
-
-  async getUserOperationQueue(userId, userOperationQueueId) {
-    const userOperationQueue = await this.database.getUserOperationQueue(userOperationQueueId);
-    if (userOperationQueue.userId != userId) {
-      throw new Error("not_permitted");
-    }
-    return userOperationQueue;
-  }
-
-  setAsyncOperationToUserOperationQueue(userOperationQueueId, asyncOperationId) {
-    return this.database.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
-  }
-
-  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId) {
-    return this.database.updateUserOperationQueueByAsyncOperationId(userAsyncOperationId, { isWaiting: false });
   }
 
   getFilenameFromPath(path) {
@@ -1317,12 +1173,6 @@ class GeesomeApp implements IGeesomeApp {
     }
     return uploadDriver.processBySource(sourceLink, {});
   }
-
-  /**
-   ===========================================
-   FILE CATALOG ACTIONS
-   ===========================================
-   **/
 
   /**
    ===========================================

@@ -21,7 +21,7 @@ class StaticSiteGenerator {
 
     constructor(_app: IGeesomeApp) {
         this.app = _app;
-        _app.checkModules(['group']);
+        _app.checkModules(['asyncOperation', 'group']);
 
         ['run-for-group', 'get-default-options'].forEach(method => {
             _app.api.post(`/v1/render/${this.moduleName}/` + method, async (req, res) => {
@@ -55,12 +55,12 @@ class StaticSiteGenerator {
 
         const apiKeyId = await this.app.getApyKeyId(apiKey);
         console.log('apiKeyId', apiKeyId);
-        await this.app.addUserOperationQueue(userId, this.moduleName, apiKeyId, {type, id, options});
+        await this.app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, apiKeyId, {type, id, options});
         return this.processQueue();
     }
 
     async processQueue() {
-        const waitingQueue = await this.app.getWaitingOperationByModule(this.moduleName);
+        const waitingQueue = await this.app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
         if (!waitingQueue) {
             return;
         }
@@ -72,7 +72,7 @@ class StaticSiteGenerator {
                 return;
             } else {
                 console.log('closeUserOperationQueueByAsyncOperationId', waitingQueue.asyncOperation.id);
-                await this.app.closeUserOperationQueueByAsyncOperationId(waitingQueue.asyncOperation.id);
+                await this.app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(waitingQueue.asyncOperation.id);
                 return this.processQueue();
             }
         }
@@ -80,13 +80,13 @@ class StaticSiteGenerator {
         const {userId, userApiKeyId} = waitingQueue;
         const {type, id, options} = JSON.parse(waitingQueue.inputJson);
 
-        const asyncOperation = await this.app.addAsyncOperation(userId, {
+        const asyncOperation = await this.app.ms.asyncOperation.addAsyncOperation(userId, {
             userApiKeyId,
             name: 'run-' + this.moduleName,
             channel: 'type:' + type + ';id:' + id + ';op:' + await commonHelper.random()
         });
 
-        await this.app.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+        await this.app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
         // run in background
         this.generateContent(type, id, {
@@ -95,8 +95,8 @@ class StaticSiteGenerator {
             userApiKeyId,
             asyncOperationId: asyncOperation.id
         }).then(async (content: IContent) => {
-            await this.app.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-            await this.app.finishAsyncOperation(userId, asyncOperation.id, content.id);
+            await this.app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+            await this.app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
             if (type === 'group') {
                 const group = await this.app.ms.group.getGroup(id);
                 const properties = group.propertiesJson ? JSON.parse(group.propertiesJson) : {};
@@ -105,7 +105,7 @@ class StaticSiteGenerator {
             }
         });
 
-        return this.app.getUserOperationQueue(waitingQueue.userId, waitingQueue.id);
+        return this.app.ms.asyncOperation.getUserOperationQueue(waitingQueue.userId, waitingQueue.id);
     }
 
     async getDefaultOptionsByGroupId(groupId) {
@@ -174,7 +174,7 @@ class StaticSiteGenerator {
 
             if (options.asyncOperationId && i % 10 === 0) {
                 console.log('updateAsyncOperation');
-                await this.app.updateAsyncOperation(options.userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
+                await this.app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
             }
 
             return {
@@ -229,7 +229,7 @@ class StaticSiteGenerator {
         await staticSiteApp.prepare();
 
         if (options.asyncOperationId) {
-            await this.app.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
+            await this.app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
         }
         // build
         // TODO: update percent on build process

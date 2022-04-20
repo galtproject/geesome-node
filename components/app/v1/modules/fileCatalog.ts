@@ -1,26 +1,17 @@
-import {IGeesomeApp, ManifestToSave} from "../../interface";
+import {IGeesomeApp, IGeesomeFileCatalogModule, ManifestToSave} from "../../interface";
 import {
 	CorePermissionName, FileCatalogItemType,
-	GroupPermissionName,
-	GroupType,
-	GroupView, IContent, IFileCatalogItem,
-	IGroup,
-	IListParams, IPost, PostStatus
+	IContent, IFileCatalogItem,
+	IListParams
 } from "../../../database/interface";
-const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
-const log = require('debug')('geesome:app:group');
-const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
-const pgpHelper = require('geesome-libs/src/pgpHelper');
-const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const path = require('path');
 
 module.exports = (app: IGeesomeApp) => {
 	app.checkModules(['group']);
 
-	class FileCatalogModule {
+	class FileCatalogModule implements IGeesomeFileCatalogModule {
 
 		public async addContentToFolder(userId, contentId, folderId) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
