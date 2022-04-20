@@ -122,7 +122,7 @@ module.exports = async (extendConfig) => {
   app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
 
   app.ms = {};
-  ['invite'].forEach(moduleName => {
+  ['invite', 'groupCategory'].forEach(moduleName => {
     app.ms[moduleName] = require('./modules/' + moduleName)(app);
   })
 
@@ -598,27 +598,6 @@ class GeesomeApp implements IGeesomeApp {
     return groupId;
   }
 
-  async checkCategoryId(categoryId, createIfNotExist = true) {
-    if (categoryId == 'null' || categoryId == 'undefined') {
-      return null;
-    }
-    if (!categoryId || _.isUndefined(categoryId)) {
-      return null;
-    }
-    if (!commonHelper.isNumber(categoryId)) {
-      let group = await this.getCategoryByManifestId(categoryId, categoryId);
-      if (!group && createIfNotExist) {
-        // TODO: create category by remote storage id
-        return null;
-        // group = await this.createGroupByRemoteStorageId(categoryId);
-        // return group.id;
-      } else if (group) {
-        categoryId = group.id;
-      }
-    }
-    return categoryId;
-  }
-
   async canCreatePostInGroup(userId, groupId) {
     console.log('canCreatePostInGroup', userId, groupId);
     if (!groupId) {
@@ -661,14 +640,6 @@ class GeesomeApp implements IGeesomeApp {
     return (await this.database.isAdminInGroup(userId, groupId))
       || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId) && post.userId === userId)
       || (!group.isOpen && group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId) && post.userId === userId);
-  }
-
-  async canAddGroupToCategory(userId, categoryId) {
-    if (!categoryId) {
-      return false;
-    }
-    categoryId = await this.checkCategoryId(categoryId);
-    return this.database.isAdminInCategory(userId, categoryId);
   }
 
   async createGroup(userId, groupData) {
@@ -749,13 +720,6 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.isAdminInGroup(userId, groupId);
   }
 
-  async canEditCategory(userId, categoryId) {
-    if (!categoryId) {
-      return false;
-    }
-    categoryId = await this.checkCategoryId(categoryId);
-    return this.database.isAdminInCategory(userId, categoryId);
-  }
 
   async isMemberInGroup(userId, groupId) {
     if (!groupId) {
@@ -771,13 +735,6 @@ class GeesomeApp implements IGeesomeApp {
     }
     groupId = await this.checkGroupId(groupId);
     return this.database.isAdminInGroup(userId, groupId);
-  }
-
-  async isAdminInCategory(userId, categoryId) {
-    if (!categoryId) {
-      return false;
-    }
-    return this.database.isAdminInCategory(userId, categoryId);
   }
 
   async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
@@ -886,132 +843,8 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroup(groupId);
   }
 
-  async createCategory(userId, categoryData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    categoryData.creatorId = userId;
-
-    categoryData.manifestStaticStorageId = await this.createStorageAccount(categoryData['name']);
-    if (categoryData.type !== GroupType.PersonalChat) {
-      categoryData.staticStorageId = categoryData.manifestStaticStorageId;
-    }
-
-    const category = await this.database.addCategory(categoryData);
-
-    await this.database.addAdminToCategory(userId, category.id);
-
-    await this.updateCategoryManifest(category.id);
-
-    return this.database.getCategory(category.id);
-  }
-
-  async addGroupToCategory(userId, groupId, categoryId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditCategory(userId, categoryId))) {
-      throw new Error("not_permitted");
-    }
-
-    await this.database.addGroupToCategory(groupId, categoryId);
-  }
-
-  async addMemberToCategory(userId, categoryId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // const category = await this.getGroup(categoryId);
-    if(!(await this.isAdminInCategory(userId, categoryId))) {
-      // if(userId.toString() !== memberId.toString()) {
-      throw new Error("not_permitted");
-      // }
-      //TODO: add isPublic and isOpen to category
-      // if(!category.isPublic || !category.isOpen) {
-      //   throw new Error("not_permitted");
-      // }
-    }
-
-    await this.database.addMemberToCategory(memberId, categoryId);
-  }
-
-  async addAdminToCategory(userId, categoryId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // const category = await this.getGroup(categoryId);
-    if(!(await this.isAdminInCategory(userId, categoryId))) {
-      // if(userId.toString() !== memberId.toString()) {
-      throw new Error("not_permitted");
-      // }
-      //TODO: add isPublic and isOpen to category
-      // if(!category.isPublic || !category.isOpen) {
-      //   throw new Error("not_permitted");
-      // }
-    }
-
-    await this.database.addAdminToCategory(memberId, categoryId);
-  }
-
-  async removeMemberFromCategory(userId, categoryId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // const category = await this.getGroup(categoryId);
-    if(!(await this.isAdminInCategory(userId, categoryId))) {
-      if(userId.toString() !== memberId.toString()) {
-        throw new Error("not_permitted");
-      }
-      //TODO: add isPublic and isOpen to category
-      // if(!category.isPublic || !category.isOpen) {
-      //   throw new Error("not_permitted");
-      // }
-    }
-    await this.database.removeMemberFromCategory(memberId, categoryId);
-  }
-
-  async isMemberInCategory(userId, categoryId) {
-    return this.database.isMemberInCategory(userId, categoryId);
-  }
-
-  async getCategoryByParams(params) {
-    return this.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
   async getGroupByParams(params) {
     return this.database.getGroupByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
-  async createGroupSection(userId, groupSectionData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupSectionData.creatorId = userId;
-
-    if (groupSectionData.categoryId) {
-      if (!(await this.isAdminInCategory(userId, groupSectionData.categoryId))) {
-        throw new Error("not_permitted");
-      }
-    }
-
-    return this.database.addGroupSection(groupSectionData);
-  }
-
-  async updateGroupSection(userId, groupSectionId, groupSectionData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-
-    const dbGroup = await this.database.getGroupSection(groupSectionId);
-    if (dbGroup.categoryId || groupSectionData.categoryId) {
-      const permittedInCategory1 = !groupSectionData.categoryId || await this.isAdminInCategory(userId, groupSectionData.categoryId);
-      const permittedInCategory2 = !dbGroup.categoryId || await this.isAdminInCategory(userId, dbGroup.categoryId);
-      if (!permittedInCategory1 || !permittedInCategory2) {
-        throw new Error("not_permitted");
-      }
-    } else {
-      if(dbGroup.creatorId !== userId) {
-        throw new Error("not_permitted");
-      }
-    }
-
-    await this.database.updateGroupSection(groupSectionId, groupSectionData);
-
-    return this.database.getGroupSection(groupSectionId);
-  }
-
-  async getGroupSectionItems(filters?, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getGroupSections(filters, listParams),
-      total: await this.database.getGroupSectionsCount(filters)
-    };
   }
 
   async getPostByParams(params) {
@@ -1240,14 +1073,6 @@ class GeesomeApp implements IGeesomeApp {
       availablePostsCount
     }));
     return Promise.all(promises);
-  }
-
-  async updateCategoryManifest(categoryId) {
-    const post = await this.database.getCategory(categoryId);
-
-    return this.database.updateCategory(categoryId, {
-      manifestStorageId: await this.generateAndSaveManifest('category', post)
-    });
   }
 
   async updatePostManifest(postId) {
@@ -2505,40 +2330,12 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getGroupByManifestId(groupId, staticId);
   }
 
-  async getCategoryByManifestId(groupId, staticId) {
-    if (!staticId) {
-      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
-      if (historyItem) {
-        staticId = historyItem.staticId;
-      }
-    }
-    return this.database.getCategoryByParams({
-      manifestStaticStorageId: staticId
-    });
-  }
-
   async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
     groupId = await this.checkGroupId(groupId);
     listParams = this.prepareListParams(listParams);
     return {
       list: await this.database.getGroupPosts(groupId, filters, listParams),
       total: await this.database.getGroupPostsCount(groupId, filters)
-    };
-  }
-
-  async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getCategoryPosts(categoryId, filters, listParams),
-      total: await this.database.getCategoryPostsCount(categoryId, filters)
-    };
-  }
-
-  async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getCategoryGroups(categoryId, filters, listParams),
-      total: await this.database.getCategoryGroupsCount(categoryId, filters)
     };
   }
 

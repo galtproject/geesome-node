@@ -229,7 +229,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/category/get', async (req, res) => {
-    res.send(await geesomeApp.getCategoryByParams(req.body), 200);
+    res.send(await geesomeApp.ms.groupCategory.getCategoryByParams(req.body), 200);
   });
 
   service.post('/v1/group/get', async (req, res) => {
@@ -245,27 +245,27 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/user/create-category', async (req, res) => {
-    res.send(await geesomeApp.createCategory(req.user.id, req.body), 200);
+    res.send(await geesomeApp.ms.groupCategory.createCategory(req.user.id, req.body), 200);
   });
 
   service.get('/v1/user/category/:categoryId/groups', async (req, res) => {
-    res.send(await geesomeApp.getCategoryGroups(req.user.id, req.params.categoryId, req.query, req.query), 200);
+    res.send(await geesomeApp.ms.groupCategory.getCategoryGroups(req.user.id, req.params.categoryId, req.query, req.query), 200);
   });
 
   service.post('/v1/user/category/:categoryId/add-group', async (req, res) => {
-    res.send(await geesomeApp.addGroupToCategory(req.user.id, req.body.groupId, req.params.categoryId), 200);
+    res.send(await geesomeApp.ms.groupCategory.addGroupToCategory(req.user.id, req.body.groupId, req.params.categoryId), 200);
   });
 
   service.post('/v1/user/category/:categoryId/add-member', async (req, res) => {
-    res.send(await geesomeApp.addMemberToCategory(req.user.id, req.params.categoryId, req.body.userId, req.body.permissions || []), 200);
+    res.send(await geesomeApp.ms.groupCategory.addMemberToCategory(req.user.id, req.params.categoryId, req.body.userId, req.body.permissions || []), 200);
   });
 
   service.post('/v1/user/category/:categoryId/remove-member', async (req, res) => {
-    res.send(await geesomeApp.removeMemberFromCategory(req.user.id, req.params.categoryId, req.body.userId), 200);
+    res.send(await geesomeApp.ms.groupCategory.removeMemberFromCategory(req.user.id, req.params.categoryId, req.body.userId), 200);
   });
 
   service.post('/v1/user/category/:categoryId/is-member', async (req, res) => {
-    res.send({result: await geesomeApp.isMemberInCategory(req.user.id, req.params.categoryId)}, 200);
+    res.send({result: await geesomeApp.ms.groupCategory.isMemberInCategory(req.user.id, req.params.categoryId)}, 200);
   });
 
   /**
@@ -392,15 +392,15 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.post('/v1/user/group-section/create', async (req, res) => {
-    res.send(await geesomeApp.createGroupSection(req.user.id, req.body), 200);
+    res.send(await geesomeApp.ms.groupCategory.createGroupSection(req.user.id, req.body), 200);
   });
 
   service.post('/v1/user/group-section/:groupSectionId/update', async (req, res) => {
-    res.send(await geesomeApp.updateGroupSection(req.user.id, req.params.groupSectionId, req.body), 200);
+    res.send(await geesomeApp.ms.groupCategory.updateGroupSection(req.user.id, req.params.groupSectionId, req.body), 200);
   });
 
   service.get('/v1/user/group-sections', async (req, res) => {
-    res.send(await geesomeApp.getGroupSectionItems(req.query, req.query), 200);
+    res.send(await geesomeApp.ms.groupCategory.getGroupSectionItems(req.query, req.query), 200);
   });
 
   service.get('/v1/user/group/unread/:groupId', async (req, res) => {
@@ -602,7 +602,7 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/category/:categoryId/posts', async (req, res) => {
-    res.send(await geesomeApp.getCategoryPosts(req.params.categoryId, req.query, req.query));
+    res.send(await geesomeApp.ms.groupCategory.getCategoryPosts(req.params.categoryId, req.query, req.query));
   });
 
   //TODO: move permissions checks to geesomeApp class

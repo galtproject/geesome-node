@@ -41,6 +41,7 @@ export interface IGeesomeApp {
   //modules
   ms: {
     invite: IGeesomeInviteModule;
+    groupCategory: IGeesomeGroupCategoryModule;
   };
 
   getSecretKey(keyName, mode): Promise<string>;
@@ -97,14 +98,6 @@ export interface IGeesomeApp {
 
   removeMemberFromGroup(userId, groupId, memberId): Promise<void>;
 
-  addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
-
-  addAdminToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
-
-  removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
-
-  isMemberInCategory(userId, categoryId): Promise<boolean>;
-
   setGroupPermissions(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
 
   checkUserCan(userId, permission): Promise<void>;
@@ -140,22 +133,6 @@ export interface IGeesomeApp {
   getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt}>;
 
   addOrUpdateGroupRead(userId, groupReadData);
-
-  getCategoryByParams(params): Promise<ICategory>;
-
-  createCategory(userId, categoryData): Promise<ICategory>;
-
-  addGroupToCategory(userId, groupId, categoryId): Promise<void>;
-
-  getCategoryGroups(userId, categoryId, filters?, listParams?: IListParams): Promise<IGroupListResponse>;
-
-  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
-
-  createGroupSection(userId, groupSectionData): Promise<IGroupSection>;
-
-  updateGroupSection(userId, groupSectionId, groupSectionData): Promise<IGroupSection>;
-
-  getGroupSectionItems(filters?, listParams?: IListParams): Promise<IGroupSectionListResponse>;
 
   asyncOperationWrapper(methodName, args, options);
 
@@ -239,6 +216,8 @@ export interface IGeesomeApp {
 
   getUserLimitRemained(userId, limitName: UserLimitName): Promise<number>;
 
+  generateAndSaveManifest(entityName, entityObj): Promise<string>; //returns hash
+
   getContent(contentId): Promise<IContent>;
 
   getContentByStorageId(storageId): Promise<IContent>;
@@ -271,6 +250,32 @@ export interface IGeesomeInviteModule {
   createInvite(userId, inviteData: IInvite): Promise<IInvite>;
 
   updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
+}
+
+export interface IGeesomeGroupCategoryModule {
+  getCategoryByParams(params): Promise<ICategory>;
+
+  createCategory(userId, categoryData): Promise<ICategory>;
+
+  addGroupToCategory(userId, groupId, categoryId): Promise<void>;
+
+  getCategoryGroups(userId, categoryId, filters?, listParams?: IListParams): Promise<IGroupListResponse>;
+
+  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
+
+  createGroupSection(userId, groupSectionData): Promise<IGroupSection>;
+
+  updateGroupSection(userId, groupSectionId, groupSectionData): Promise<IGroupSection>;
+
+  getGroupSectionItems(filters?, listParams?: IListParams): Promise<IGroupSectionListResponse>;
+
+  addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
+
+  addAdminToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
+
+  removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
+
+  isMemberInCategory(userId, categoryId): Promise<boolean>;
 }
 
 export interface IUserInput {
