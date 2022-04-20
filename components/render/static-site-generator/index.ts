@@ -21,6 +21,7 @@ class StaticSiteGenerator {
 
     constructor(_app: IGeesomeApp) {
         this.app = _app;
+        _app.checkModules(['group']);
 
         ['run-for-group', 'get-default-options'].forEach(method => {
             _app.api.post(`/v1/render/${this.moduleName}/` + method, async (req, res) => {
@@ -44,7 +45,7 @@ class StaticSiteGenerator {
 
     async addRenderToQueueAndProcess(userId, apiKey, type, id, options) {
         if (type === 'group') {
-            const isAdmin = await this.app.isAdminInGroup(userId, id);
+            const isAdmin = await this.app.ms.group.isAdminInGroup(userId, id);
             if (!isAdmin) {
                 throw Error('not_enough_rights');
             }
@@ -97,10 +98,10 @@ class StaticSiteGenerator {
             await this.app.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
             await this.app.finishAsyncOperation(userId, asyncOperation.id, content.id);
             if (type === 'group') {
-                const group = await this.app.getGroup(id);
+                const group = await this.app.ms.group.getGroup(id);
                 const properties = group.propertiesJson ? JSON.parse(group.propertiesJson) : {};
                 properties.staticSiteManifestStorageId = content.manifestStorageId;
-                await this.app.updateGroup(userId, id, { propertiesJson: JSON.stringify(properties) });
+                await this.app.ms.group.updateGroup(userId, id, { propertiesJson: JSON.stringify(properties) });
             }
         });
 
@@ -108,7 +109,7 @@ class StaticSiteGenerator {
     }
 
     async getDefaultOptionsByGroupId(groupId) {
-        return this.getDefaultOptions(await this.app.getGroup(groupId));
+        return this.getDefaultOptions(await this.app.ms.group.getGroup(groupId));
     }
 
     getDefaultOptions(group, baseStorageUri = null) {
@@ -154,7 +155,7 @@ class StaticSiteGenerator {
         const distPath = path.resolve(__dirname, './.vuepress/dist');
         rmDir(distPath);
 
-        const group = await this.app.getGroup(data);
+        const group = await this.app.ms.group.getGroup(data);
         let properties = {};
         try {
             if (group.propertiesJson) {
@@ -164,12 +165,12 @@ class StaticSiteGenerator {
         options = this.getResultOptions(group, _.merge(properties, options));
 
         console.log('getGroupPosts', data);
-        const {list: groupPosts} = await this.app.getGroupPosts(data, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
+        const {list: groupPosts} = await this.app.ms.group.getGroupPosts(data, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
         console.log('groupPosts.length', groupPosts.length);
         const { baseStorageUri } = options;
 
         const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-            const {text: content, images, videos} = await this.app.getPostContent(baseStorageUri, gp);
+            const {text: content, images, videos} = await this.app.ms.group.getPostContent(baseStorageUri, gp);
 
             if (options.asyncOperationId && i % 10 === 0) {
                 console.log('updateAsyncOperation');

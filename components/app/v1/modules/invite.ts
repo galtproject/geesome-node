@@ -4,6 +4,8 @@ const commonHelper = require('geesome-libs/src/common');
 const pIteration = require('p-iteration');
 
 module.exports = (app: IGeesomeApp) => {
+	app.checkModules(['group']);
+
 	class InviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
 			const invite = await app.database.findInviteByCode(inviteCode);
@@ -33,7 +35,7 @@ module.exports = (app: IGeesomeApp) => {
 			});
 
 			await pIteration.forEachSeries(JSON.parse(invite.groupsToJoin), (groupId) => {
-				return app.addMemberToGroup(invite.createdById, groupId, user.id).catch(e => {/*ignore, because it's optional*/});
+				return app.ms.group.addMemberToGroup(invite.createdById, groupId, user.id).catch(e => {/*ignore, because it's optional*/});
 			});
 
 			return user;

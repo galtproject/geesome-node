@@ -19,14 +19,21 @@ import {
   IFileCatalogItem,
   IGroup,
   IListParams,
-  IPost,
+  IPost, IStaticIdHistoryItem,
   IUser,
   IUserLimit,
   PostStatus,
   UserContentActionName,
   UserLimitName
 } from "../../database/interface";
-import {IGeesomeApp, IUserAccountInput, IUserInput, ManifestToSave} from "../interface";
+import {
+  IGeesomeApp,
+  IGeesomeGroupCategoryModule, IGeesomeGroupModule,
+  IGeesomeInviteModule,
+  IUserAccountInput,
+  IUserInput,
+  ManifestToSave
+} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
@@ -39,10 +46,8 @@ const { BufferListStream } = require('bl');
 const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
-const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
 const {getDirSize} = require('../../drivers/helpers');
-const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events') as Function;
@@ -112,6 +117,11 @@ module.exports = async (extendConfig) => {
   log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
+  app.ms = {} as any;
+  ['group', 'groupCategory', 'invite'].forEach(moduleName => {
+    app.ms[moduleName] = require('./modules/' + moduleName)(app);
+  })
+
   app.socNetClients = await pIteration.map(config.socNetClientList, async name => {
     const SocNetClientClass = require('../../socNetClient/' + name);
     const client = new SocNetClientClass();
@@ -120,11 +130,6 @@ module.exports = async (extendConfig) => {
   });
 
   app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
-
-  app.ms = {};
-  ['invite', 'groupCategory'].forEach(moduleName => {
-    app.ms[moduleName] = require('./modules/' + moduleName)(app);
-  })
 
   return app;
 };
@@ -143,11 +148,23 @@ class GeesomeApp implements IGeesomeApp {
 
   frontendStorageId;
 
-  ms;
+  ms: {
+    invite: IGeesomeInviteModule,
+    group: IGeesomeGroupModule,
+    groupCategory: IGeesomeGroupCategoryModule
+  };
 
   constructor(
     public config
   ) {
+  }
+
+  checkModules(modulesList: string[]) {
+    modulesList.forEach(module => {
+      if (!this.ms[module]) {
+        throw Error("module_not_defined:" + module);
+      }
+    });
   }
 
   async getSecretKey(keyName, mode) {
@@ -319,7 +336,7 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUser(userId);
   }
 
-  async bindToStaticId(dynamicId, staticId) {
+  async bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem> {
     log('bindToStaticId', dynamicId, staticId);
     try {
       await this.communicator.bindToStaticId(dynamicId, staticId);
@@ -334,7 +351,7 @@ class GeesomeApp implements IGeesomeApp {
       dynamicId,
       isActive: true,
       boundAt: new Date()
-    }).catch(() => {/* already have */})
+    }).catch(() => null);
   }
 
   async setUserAccount(userId, accountData: IUserAccountInput) {
@@ -358,55 +375,6 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  async addUserFriendById(userId, friendId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
-
-    friendId = await this.checkUserId(friendId, true);
-
-    const user = await this.database.getUser(userId);
-    const friend = await this.database.getUser(friendId);
-
-    const group = await this.createGroup(userId, {
-      name: (user.name + "_" + friend.name).replace(/[\W_]+/g, "_") + '_default',
-      type: GroupType.PersonalChat,
-      theme: 'default',
-      title: friend.title,
-      storageId: friend.manifestStorageId,
-      staticStorageId: friend.manifestStaticStorageId,
-      avatarImageId: friend.avatarImageId,
-      view: GroupView.TelegramLike,
-      isPublic: false,
-      isEncrypted: true,
-      isRemote: false
-    });
-
-    await this.database.addMemberToGroup(userId, group.id);
-    await this.database.addAdminToGroup(userId, group.id);
-
-    this.events.emit(this.events.NewPersonalGroup, group);
-
-    return this.database.addUserFriend(userId, friendId);
-  }
-
-  async removeUserFriendById(userId, friendId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
-
-    friendId = await this.checkUserId(friendId, true);
-
-    // TODO: remove personal chat group?
-
-    return this.database.removeUserFriend(userId, friendId);
-  }
-
-  async getUserFriends(userId, search?, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
-    return {
-      list: await this.database.getUserFriends(userId, search, listParams),
-      total: await this.database.getUserFriendsCount(userId, search)
-    };
-  }
-
   prepareListParams(listParams?: IListParams): IListParams {
     return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
   }
@@ -419,13 +387,9 @@ class GeesomeApp implements IGeesomeApp {
       return null;
     }
     if (!commonHelper.isNumber(userId)) {
-      log('checkUserId:getUserByManifestId', userId);
       let user = await this.getUserByManifestId(userId, userId);
-      log('checkUserId:getUserByManifestId::user', user && user.id);
       if (!user && createIfNotExist) {
-        log('checkUserId:createUserByRemoteStorageId', userId);
         user = await this.createUserByRemoteStorageId(userId);
-        log('checkUserId:createUserByRemoteStorageId::user', user && user.id);
         return user.id;
       } else if (user) {
         userId = user.id;
@@ -578,586 +542,6 @@ class GeesomeApp implements IGeesomeApp {
    GROUPS ACTIONS
    ===========================================
    **/
-
-  async checkGroupId(groupId, createIfNotExist = true) {
-    if (groupId == 'null' || groupId == 'undefined') {
-      return null;
-    }
-    if (!groupId || _.isUndefined(groupId)) {
-      return null;
-    }
-    if (!commonHelper.isNumber(groupId)) {
-      let group = await this.getGroupByManifestId(groupId, groupId);
-      if (!group && createIfNotExist) {
-        group = await this.createGroupByRemoteStorageId(groupId);
-        return group.id;
-      } else if (group) {
-        groupId = group.id;
-      }
-    }
-    return groupId;
-  }
-
-  async canCreatePostInGroup(userId, groupId) {
-    console.log('canCreatePostInGroup', userId, groupId);
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    console.log('isAdminInGroup', await this.database.isAdminInGroup(userId, groupId));
-    return (await this.database.isAdminInGroup(userId, groupId))
-      || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId))
-      || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
-  }
-
-  async canReplyToPost(userId, replyToPostId) {
-    if (!replyToPostId) {
-      return true;
-    }
-    const post = await this.database.getPost(replyToPostId);
-    if(post.isReplyForbidden) {
-      return false;
-    }
-    if(post.isReplyForbidden === false) {
-      return true;
-    }
-    if(await this.database.isAdminInGroup(userId, post.groupId)) {
-      return true;
-    }
-    console.log('post.group.isReplyForbidden', post.group.isReplyForbidden);
-    return !post.group.isReplyForbidden;
-  }
-
-  async canEditPostInGroup(userId, groupId, postId) {
-    if (!groupId || !postId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    const post = await this.database.getPost(postId);
-    console.log('post.userId', post.userId, 'userId', userId);
-    return (await this.database.isAdminInGroup(userId, groupId))
-      || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId) && post.userId === userId)
-      || (!group.isOpen && group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId) && post.userId === userId);
-  }
-
-  async createGroup(userId, groupData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-
-    const existUserWithName = await this.database.getGroupByParams({name: groupData['name']});
-    if (existUserWithName) {
-      throw new Error("name_already_exists");
-    }
-    if (!groupData['name']) {
-      throw new Error("name_cant_be_null");
-    }
-
-    groupData.creatorId = userId;
-    if(!groupData.isRemote) {
-      groupData.isRemote = false;
-    }
-
-    groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
-    if (groupData.type !== GroupType.PersonalChat) {
-      groupData.staticStorageId = groupData.manifestStaticStorageId;
-    }
-
-    const group = await this.database.addGroup(groupData);
-
-    if (groupData.type !== GroupType.PersonalChat) {
-      await this.database.addAdminToGroup(userId, group.id);
-    }
-
-    await this.updateGroupManifest(group.id);
-
-    return this.database.getGroup(group.id);
-  }
-
-  async createGroupByRemoteStorageId(manifestStorageId) {
-    let staticStorageId;
-    if (ipfsHelper.isIpfsHash(manifestStorageId)) {
-      staticStorageId = manifestStorageId;
-      manifestStorageId = await this.resolveStaticId(staticStorageId);
-    }
-
-    let dbGroup = await this.getGroupByManifestId(manifestStorageId, staticStorageId);
-    if (dbGroup) {
-      //TODO: update group if necessary
-      return dbGroup;
-    }
-    const groupObject: IGroup = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
-    groupObject.isRemote = true;
-    return this.createGroupByObject(groupObject);
-  }
-
-  async createGroupByObject(groupObject) {
-    let dbAvatar = await this.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
-    if (!dbAvatar) {
-      dbAvatar = await this.createContentByObject(groupObject.avatarImage);
-    }
-    let dbCover = await this.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
-    if (!dbCover) {
-      dbCover = await this.createContentByObject(groupObject.coverImage);
-    }
-    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
-    const dbGroup = await this.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
-      avatarImageId: dbAvatar ? dbAvatar.id : null,
-      coverImageId: dbCover ? dbCover.id : null
-    }));
-
-    if (dbGroup.isRemote) {
-      this.events.emit(this.events.NewRemoteGroup, dbGroup);
-    }
-    return dbGroup;
-  }
-
-  async canEditGroup(userId, groupId) {
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    return this.database.isAdminInGroup(userId, groupId);
-  }
-
-
-  async isMemberInGroup(userId, groupId) {
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    return this.database.isMemberInGroup(userId, groupId);
-  }
-
-  async isAdminInGroup(userId, groupId) {
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    return this.database.isAdminInGroup(userId, groupId);
-  }
-
-  async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
-    groupPermissions = groupPermissions || [];
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    if(!(await this.isAdminInGroup(userId, groupId))) {
-      if(userId.toString() !== memberId.toString()) {
-        throw new Error("not_permitted");
-      }
-      if(!group.isPublic || !group.isOpen) {
-        throw new Error("not_permitted");
-      }
-    }
-
-    await this.database.addMemberToGroup(memberId, groupId);
-
-    await pIteration.forEach(groupPermissions, (permissionName) => {
-      return this.database.addGroupPermission(memberId, groupId, permissionName);
-    });
-  }
-
-  async setMembersOfGroup(userId, groupId, newMemberUserIds) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.setMembersToGroup(newMemberUserIds, groupId);
-  }
-
-  async removeMemberFromGroup(userId, groupId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    if(!(await this.isAdminInGroup(userId, groupId))) {
-      if(userId.toString() !== memberId.toString()) {
-        throw new Error("not_permitted");
-      }
-      if(!group.isPublic || !group.isOpen) {
-        throw new Error("not_permitted");
-      }
-    }
-    await this.database.removeMemberFromGroup(memberId, groupId);
-    await this.database.removeAllGroupPermission(memberId, groupId);
-  }
-
-  async setGroupPermissions(userId, groupId, memberId, groupPermissions = []) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-    if(!(await this.isAdminInGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    await this.database.removeAllGroupPermission(memberId, groupId);
-
-    await pIteration.forEach(groupPermissions, (permissionName) => {
-      return this.database.addGroupPermission(memberId, groupId, permissionName);
-    });
-  }
-
-  async addAdminToGroup(userId, groupId, newAdminUserId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.addAdminToGroup(newAdminUserId, groupId);
-  }
-
-  async removeAdminFromGroup(userId, groupId, removeAdminUserId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.removeAdminFromGroup(removeAdminUserId, groupId);
-  }
-
-  async setAdminsOfGroup(userId, groupId, newAdminUserIds) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.setAdminsToGroup(newAdminUserIds, groupId);
-  }
-
-  async updateGroup(userId, groupId, updateData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-
-    const groupPermission = await this.database.isHaveGroupPermission(userId, groupId, GroupPermissionName.EditGeneralData);
-    const canEditGroup = await this.canEditGroup(userId, groupId);
-    if (!canEditGroup && !groupPermission) {
-      throw new Error("not_permitted");
-    }
-    if(!canEditGroup && groupPermission) {
-      delete updateData.name;
-      delete updateData.propertiesJson;
-    }
-    await this.database.updateGroup(groupId, updateData);
-
-    await this.updateGroupManifest(groupId);
-
-    return this.database.getGroup(groupId);
-  }
-
-  async getGroupByParams(params) {
-    return this.database.getGroupByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
-  async getPostByParams(params) {
-    return this.database.getPostByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
-  async getContentsForPost(contents) {
-    if(!contents) {
-      return null;
-    }
-    let contentsData = contents.filter(c => c.id);
-    const manifestStorageContents = contents.filter(c => c.manifestStorageId);
-    const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
-      id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
-      ...c
-    }));
-    return _.uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');
-  }
-
-  async createPost(userId, postData) {
-    postData = _.clone(postData);
-    log('createPost', postData);
-    const [, canCreate, canReply] = await Promise.all([
-      this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
-      this.canCreatePostInGroup(userId, postData.groupId),
-      this.canReplyToPost(userId, postData.replyToId)
-    ]);
-    if(!canCreate || !canReply) {
-      throw new Error("not_permitted");
-    }
-    log('checkUserCan, canCreatePostInGroup');
-    postData.userId = userId;
-    postData.groupId = await this.checkGroupId(postData.groupId);
-    log('checkGroupId');
-
-    if (postData.status === PostStatus.Published) {
-      postData.localId = await this.getPostLocalId(postData);
-      postData.publishedAt = postData.publishedAt || new Date();
-    }
-    log('localId');
-
-    const contentsData = await this.getContentsForPost(postData.contents);
-    delete postData.contents;
-
-    const [user, group] = await Promise.all([
-      this.database.getUser(userId),
-      this.database.getGroup(postData.groupId)
-    ]);
-    log('getUser, getGroup');
-
-    postData.authorStorageId = user.manifestStorageId;
-    postData.authorStaticStorageId = user.manifestStaticStorageId;
-    postData.groupStorageId = group.manifestStorageId;
-    postData.groupStaticStorageId = group.manifestStaticStorageId;
-
-    if(!postData.isRemote) {
-      postData.isRemote = false;
-    }
-    let post = await this.database.addPost(postData);
-    log('addPost');
-
-    let replyPostUpdatePromise = (async() => {
-      if(post.replyToId) {
-        const repliesCount = await this.database.getAllPostsCount({
-          replyToId: post.replyToId
-        });
-        await this.database.updatePost(post.replyToId, {repliesCount});
-      }
-    })();
-    log('replyPostUpdatePromise');
-
-    console.log('contentsData', contentsData);
-    if(contentsData) {
-      await this.database.setPostContents(post.id, contentsData);
-    }
-    log('setPostContents');
-
-    let size = await this.database.getPostSizeSum(post.id);
-    log('getPostSizeSum');
-    await this.database.updatePost(post.id, {size});
-    log('updatePost');
-
-    post = await this.updatePostManifest(post.id);
-    log('updatePostManifest');
-
-    if (group.isEncrypted && group.type === GroupType.PersonalChat) {
-      // Encrypt post id
-      const keyForEncrypt = await this.database.getStaticIdPublicKey(group.staticStorageId);
-
-      const userKey = await this.communicator.keyLookup(user.manifestStaticStorageId);
-      const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
-      const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
-      const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
-      const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
-
-      await this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
-        type: 'new_post',
-        postId: encryptedText,
-        groupId: group.manifestStaticStorageId,
-        isEncrypted: true,
-        sentAt: (post.publishedAt || post.createdAt).toString()
-      });
-
-      await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
-      await this.updateGroupManifest(group.id);
-    } else {
-      // Send plain post id
-      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
-        type: 'new_post',
-        postId: post.manifestStorageId,
-        groupId: group.manifestStaticStorageId,
-        isEncrypted: false,
-        sentAt: (post.publishedAt || post.createdAt).toString()
-      });
-      log('publishEventByStaticId');
-    }
-
-    await replyPostUpdatePromise;
-    log('replyPostUpdatePromise');
-
-    return post;
-  }
-
-  async getPost(userId, postId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    //TODO: add check for user can view post
-    return this.database.getPost(postId);
-  }
-
-  async getPostContent(baseStorageUri: string, post: IPost): Promise<{text, images, videos}> {
-    let text = '';
-    const textContent = _.find(post.contents, c => c.mimeType.startsWith('text/'));
-    if (textContent) {
-      text = await this.storage.getFileDataText(textContent.storageId);
-    }
-    const images = [];
-    const videos = [];
-    post.contents.forEach((c) => {
-      if (_.includes(c.mimeType, 'image')) {
-        images.push({
-          manifestId: c.manifestStorageId,
-          url: baseStorageUri + c.storageId
-        });
-      } else if (_.includes(c.mimeType, 'video')) {
-        videos.push({
-          manifestId: c.manifestStorageId,
-          previewUrl: baseStorageUri + c.mediumPreviewStorageId,
-          url: baseStorageUri + c.storageId
-        });
-      }
-    });
-    return {
-      text,
-      images,
-      videos
-    }
-  }
-
-  async updatePost(userId, postId, postData) {
-    const oldPost = await this.database.getPost(postId);
-
-    const [, canEdit, canEditNewGroup] = await Promise.all([
-      await this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
-      this.canEditPostInGroup(userId, oldPost.groupId, postId),
-      postData.groupId ? this.canEditPostInGroup(userId, postData.groupId, postId) : true
-    ]);
-    if (!canEdit || !canEditNewGroup) {
-      throw new Error("not_permitted");
-    }
-
-    const contentsData = await this.getContentsForPost(postData.contents);
-    delete postData.contents;
-
-    if (postData.status === PostStatus.Published && !oldPost.localId) {
-      postData.localId = await this.getPostLocalId(postData);
-    }
-
-    if(contentsData) {
-      await this.database.setPostContents(postId, contentsData);
-    }
-
-    postData.size = await this.database.getPostSizeSum(postId);
-
-    await this.database.updatePost(postId, postData);
-    return this.updatePostManifest(postId);
-  }
-
-  async getPostLocalId(post: IPost) {
-    if (!post.groupId) {
-      return null;
-    }
-    const group = await this.database.getGroup(post.groupId);
-    group.publishedPostsCount++;
-    await this.database.updateGroup(group.id, {publishedPostsCount: group.publishedPostsCount});
-    return group.publishedPostsCount;
-  }
-
-  async updateGroupManifest(groupId) {
-    log('updateGroupManifest');
-    const [group, size, availablePostsCount] = await Promise.all([
-      this.database.getGroup(groupId),
-      this.database.getGroupSizeSum(groupId),
-      this.database.getGroupPostsCount(groupId, { isDeleted: false })
-    ]);
-    group.size = size;
-    log('getGroup, getGroupSizeSum');
-
-    const manifestStorageId = await this.generateAndSaveManifest('group', group);
-    log('generateAndSaveManifest');
-    let storageUpdatedAt = group.storageUpdatedAt;
-    let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
-
-    const promises = [];
-    if (manifestStorageId != group.manifestStorageId) {
-      storageUpdatedAt = new Date();
-      staticStorageUpdatedAt = new Date();
-
-      promises.push(this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
-    }
-
-    promises.push(this.database.updateGroup(groupId, {
-      manifestStorageId,
-      storageUpdatedAt,
-      staticStorageUpdatedAt,
-      size,
-      availablePostsCount
-    }));
-    return Promise.all(promises);
-  }
-
-  async updatePostManifest(postId) {
-    log('updatePostManifest');
-    const post = await this.database.getPost(postId);
-    log('getPost');
-    const manifestStorageId = await this.generateAndSaveManifest('post', post);
-    log('getPosgenerateAndSaveManifest');
-
-    await this.database.updatePost(postId, { manifestStorageId });
-    log('updatePost');
-
-    await this.updateGroupManifest(post.groupId);
-    post.manifestStorageId = manifestStorageId;
-    return post;
-  }
-
-  async getGroupUnreadPostsData(userId, groupId) {
-    const groupRead = await this.database.getGroupRead(userId, groupId);
-    if (groupRead) {
-      return {
-        readAt: groupRead.readAt,
-        count: await this.database.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt, isDeleted: false })
-      };
-    }
-    const group = await this.database.getGroup(groupId);
-    if (!group) {
-      return {
-        readAt: null,
-        count: 0
-      };
-    }
-    return {
-      readAt: null,
-      //TODO: delete publishedPostsCount using after migration
-      count: group.availablePostsCount || group.publishedPostsCount
-    };
-  }
-
-  async addOrUpdateGroupRead(userId, groupReadData) {
-    groupReadData.userId = userId;
-    let groupRead = await this.database.getGroupRead(userId, groupReadData.groupId);
-    if (groupRead) {
-      return this.database.updateGroupRead(groupRead.id, groupReadData);
-    } else {
-      return this.database.addGroupRead(groupReadData);
-    }
-  }
-
-  async getGroupPeers(groupId) {
-    let ipnsId;
-    if (ipfsHelper.isIpfsHash(groupId)) {
-      ipnsId = groupId;
-    } else {
-      const group = await this.database.getGroup(groupId);
-      ipnsId = group.manifestStaticStorageId;
-    }
-    return this.getStaticIdPeers(ipnsId);
-  }
-
-  async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
-    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
-      isEncrypted,
-      groupId,
-      publishedAt
-    });
-    postObject.isRemote = true;
-    postObject.status = PostStatus.Published;
-    postObject.localId = await this.getPostLocalId(postObject);
-
-    const {contents} = postObject;
-    delete postObject.contents;
-
-    let post = await this.database.addPost(postObject);
-
-    if (!isEncrypted) {
-      // console.log('postObject', postObject);
-      await this.database.setPostContents(post.id, contents.map(c => c.id));
-    }
-
-    await this.updateGroupManifest(post.groupId);
-
-    return this.database.getPost(post.id);
-  }
-
   /**
    ===========================================
    CONTENT ACTIONS
@@ -1887,7 +1271,7 @@ class GeesomeApp implements IGeesomeApp {
   private async addContent(contentData: IContent, options: { groupId?, userId?, userApiKeyId? } = {}) {
     log('addContent');
     if (options.groupId) {
-      const groupId = await this.checkGroupId(options.groupId);
+      const groupId = await this.ms.group.checkGroupId(options.groupId);
       let group;
       if (groupId) {
         contentData.groupId = groupId;
@@ -1966,7 +1350,7 @@ class GeesomeApp implements IGeesomeApp {
 
     let parentItemId;
 
-    const groupId = (await this.checkGroupId(options.groupId)) || null;
+    const groupId = (await this.ms.group.checkGroupId(options.groupId)) || null;
 
     if (options.path) {
       return this.saveContentByPath(content.userId, options.path, content.id);
@@ -2313,30 +1697,6 @@ class GeesomeApp implements IGeesomeApp {
 
   getFileStream(filePath, options = {}) {
     return this.storage.getFileStream(filePath, options)
-  }
-
-  async getGroup(groupId) {
-    groupId = await this.checkGroupId(groupId);
-    return this.database.getGroup(groupId);
-  }
-
-  async getGroupByManifestId(groupId, staticId) {
-    if (!staticId) {
-      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
-      if (historyItem) {
-        staticId = historyItem.staticId;
-      }
-    }
-    return this.database.getGroupByManifestId(groupId, staticId);
-  }
-
-  async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
-    groupId = await this.checkGroupId(groupId);
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getGroupPosts(groupId, filters, listParams),
-      total: await this.database.getGroupPostsCount(groupId, filters)
-    };
   }
 
   getContent(contentId) {

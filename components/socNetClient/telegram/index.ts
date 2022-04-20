@@ -30,6 +30,7 @@ class Telegram {
 
 	async init(app) {
 		this.app = app;
+		app.checkModules(['group']);
 
 		let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', {
 			'dialect': 'sqlite',
@@ -333,15 +334,15 @@ class Telegram {
 		}
 		console.log('channel', channel);
 		if (dbChannel) {
-			group = await this.app.getGroup(dbChannel.groupId);
-			await this.app.updateGroup(userId, dbChannel.groupId, {
+			group = await this.app.ms.group.getGroup(dbChannel.groupId);
+			await this.app.ms.group.updateGroup(userId, dbChannel.groupId, {
 				name: channel.username,
 				title: channel.title,
 				description: channel.about,
 				avatarImageId: avatarContent ? avatarContent.id : null,
 			});
 		} else {
-			group = await this.app.createGroup(userId, {
+			group = await this.app.ms.group.createGroup(userId, {
 				name: channel.username || channel.id.toString(),
 				title: channel.title,
 				description: channel.about,
@@ -508,7 +509,7 @@ class Telegram {
 			) {
 				let postId = null;
 				if (groupedContent.length) {
-					post = await this.app.createPost(userId, {
+					post = await this.app.ms.group.createPost(userId, {
 						publishedAt: groupedDate * 1000,
 						contents: groupedContent,
 						...postData
@@ -536,7 +537,7 @@ class Telegram {
 					groupedReplyTo = m.replyTo.replyToMsgId.toString();
 				}
 			} else if (contents.length) {
-				post = await this.app.createPost(userId, {
+				post = await this.app.ms.group.createPost(userId, {
 					publishedAt: m.date * 1000,
 					contents,
 					...postData

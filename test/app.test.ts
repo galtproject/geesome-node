@@ -55,7 +55,7 @@ describe("app", function () {
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
-          await app.createGroup(testUser.id, {
+          await app.ms.group.createGroup(testUser.id, {
             name: 'test',
             title: 'Test'
           });
@@ -390,7 +390,7 @@ describe("app", function () {
         });
 
         try {
-          await app.createPost(newUser.id, {
+          await app.ms.group.createPost(newUser.id, {
             contents: [{id: postContent.id}],
             groupId: testGroup.id,
             status: PostStatus.Published,
@@ -401,7 +401,7 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
         try {
-          await app.addMemberToGroup(newUser.id, testGroup.id, newUser.id);
+          await app.ms.group.addMemberToGroup(newUser.id, testGroup.id, newUser.id);
           assert(false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
@@ -413,22 +413,22 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
         try {
-          await app.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
+          await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
           assert(false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        assert.equal(await app.isMemberInGroup(newUser.id, testGroup.id), false);
+        assert.equal(await app.ms.group.isMemberInGroup(newUser.id, testGroup.id), false);
         assert.equal(await app.ms.groupCategory.isMemberInCategory(newUser.id, category.id), false);
 
-        await app.addMemberToGroup(testUser.id, testGroup.id, newUser.id, [GroupPermissionName.EditGeneralData]);
+        await app.ms.group.addMemberToGroup(testUser.id, testGroup.id, newUser.id, [GroupPermissionName.EditGeneralData]);
         await app.ms.groupCategory.addMemberToCategory(testUser.id, category.id, newUser.id);
 
-        assert.equal(await app.isMemberInGroup(newUser.id, testGroup.id), true);
+        assert.equal(await app.ms.group.isMemberInGroup(newUser.id, testGroup.id), true);
         assert.equal(await app.ms.groupCategory.isMemberInCategory(newUser.id, category.id), true);
 
-        let post = await app.createPost(newUser.id, {
+        let post = await app.ms.group.createPost(newUser.id, {
           contents: [{id: postContent.id}],
           groupId: testGroup.id,
           status: PostStatus.Published,
@@ -446,7 +446,7 @@ describe("app", function () {
         const postManifestStorageId = await app.storage.getObject(postNumberPath, false);
         assert.equal(postManifestStorageId, post.manifestStorageId);
 
-        let foundPost = await app.getPostByParams({
+        let foundPost = await app.ms.group.getPostByParams({
           name: 'my-post',
           groupId: testGroup.id
         });
@@ -458,11 +458,11 @@ describe("app", function () {
           mimeType: 'text/markdown'
         });
 
-        await app.updatePost(newUser.id, post.id, {
+        await app.ms.group.updatePost(newUser.id, post.id, {
           contents: [{id: postContent.id}, {id: postContent2.id}]
         });
 
-        foundPost = await app.getPostByParams({
+        foundPost = await app.ms.group.getPostByParams({
           name: 'my-post',
           groupId: testGroup.id
         });
@@ -473,28 +473,28 @@ describe("app", function () {
         const newUser2 = await app.registerUser({email: 'new@user2.com', name: 'new2', password: 'new2', permissions: [CorePermissionName.UserAll]});
 
         try {
-          await app.addMemberToGroup(newUser.id, testGroup.id, newUser2.id);
+          await app.ms.group.addMemberToGroup(newUser.id, testGroup.id, newUser2.id);
           assert(false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        await app.updateGroup(newUser.id, testGroup.id, {title: 'new title', name: 'newGroupName'});
+        await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title', name: 'newGroupName'});
 
-        let group = await app.getGroup(testGroup.id);
+        let group = await app.ms.group.getGroup(testGroup.id);
         assert.equal(group.title, 'new title');
         assert.equal(group.name, testGroup.name);
 
-        await app.addMemberToGroup(testUser.id, testGroup.id, newUser2.id);
+        await app.ms.group.addMemberToGroup(testUser.id, testGroup.id, newUser2.id);
 
         try {
-          await app.updateGroup(newUser2.id, testGroup.id, {title: 'new title 2'});
+          await app.ms.group.updateGroup(newUser2.id, testGroup.id, {title: 'new title 2'});
           assert(false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        group = await app.getGroup(testGroup.id);
+        group = await app.ms.group.getGroup(testGroup.id);
         assert.equal(group.title, 'new title');
 
         let groupPosts = await app.database.getGroupPosts(testGroup.id);
@@ -505,13 +505,13 @@ describe("app", function () {
         assert.equal(categoryPosts.length, 1);
         assert.equal(categoryPosts[0].id, post.id);
 
-        const group2 = await app.createGroup(testUser.id, {
+        const group2 = await app.ms.group.createGroup(testUser.id, {
           name: 'test2',
           title: 'Test2'
         });
 
         try {
-          await app.updatePost(newUser.id, post.id, {
+          await app.ms.group.updatePost(newUser.id, post.id, {
             contents: [{id: postContent.id}, {id: postContent2.id}],
             groupId: group2.id
           });
@@ -521,7 +521,7 @@ describe("app", function () {
         }
 
         try {
-          await app.createGroup(testUser.id, {
+          await app.ms.group.createGroup(testUser.id, {
             name: 'test2',
             title: 'Test2222'
           });
@@ -530,7 +530,7 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "already_exists"), true);
         }
 
-        const foundGroup2 = await app.getGroupByParams({
+        const foundGroup2 = await app.ms.group.getGroupByParams({
           name: 'test2'
         });
 
@@ -545,7 +545,7 @@ describe("app", function () {
           mimeType: 'text/markdown'
         });
 
-        const post2 = await app.createPost(testUser.id, {
+        const post2 = await app.ms.group.createPost(testUser.id, {
           contents: [{id: post2Content1.id, view: ContentView.Contents}, {manifestStorageId: post2Content2.manifestStorageId, view: ContentView.Attachment}],
           replyToId: post.id,
           groupId: group2.id,
@@ -582,10 +582,10 @@ describe("app", function () {
         });
         assert.equal(categoryPosts.length, 1);
 
-        await app.removeMemberFromGroup(testUser.id, testGroup.id, newUser.id);
+        await app.ms.group.removeMemberFromGroup(testUser.id, testGroup.id, newUser.id);
 
         try {
-          await app.updateGroup(newUser.id, testGroup.id, {title: 'new title 2'});
+          await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title 2'});
           assert.equal(true, false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
@@ -605,7 +605,7 @@ describe("app", function () {
           title: 'Test2'
         });
 
-        console.log('app.updateGroupSection(testUser.id, groupSection1.id');
+        console.log('app.ms.group.updateGroupSection(testUser.id, groupSection1.id');
         groupSection1 = await app.ms.groupCategory.updateGroupSection(testUser.id, groupSection1.id, {
           title: 'Test2 changed'
         });
@@ -619,7 +619,7 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        console.log('app.updateGroupSection(testUser.id, groupSection1.id');
+        console.log('app.ms.group.updateGroupSection(testUser.id, groupSection1.id');
         groupSection1 = await app.ms.groupCategory.updateGroupSection(testUser.id, groupSection1.id, {
           title: 'Test2 changed',
           categoryId: category.id
@@ -636,17 +636,17 @@ describe("app", function () {
         console.log('app.addAdminToCategory(testUser.id, category.id, newUser.id)');
         await app.ms.groupCategory.addAdminToCategory(testUser.id, category.id, newUser.id);
 
-        console.log('app.updateGroupSection(newUser.id, groupSection1.id');
+        console.log('app.ms.group.updateGroupSection(newUser.id, groupSection1.id');
         groupSection1 = await app.ms.groupCategory.updateGroupSection(newUser.id, groupSection1.id, { title: 'Test2 changed 2' });
 
         assert.equal(groupSection1.title, 'Test2 changed 2');
 
-        console.log('app.updateGroup(testUser.id, testGroup.id');
-        await app.updateGroup(testUser.id, testGroup.id, {
+        console.log('app.ms.group.updateGroup(testUser.id, testGroup.id');
+        await app.ms.group.updateGroup(testUser.id, testGroup.id, {
           sectionId: groupSection1.id
         });
 
-        console.log('app.createGroupSection(testUser.id');
+        console.log('app.ms.group.createGroupSection(testUser.id');
         await app.ms.groupCategory.createGroupSection(testUser.id, {
           name: 'test',
           title: 'Test3'
@@ -665,7 +665,7 @@ describe("app", function () {
           mimeType: 'text/markdown'
         });
 
-        const testPost = await app.createPost(testUser.id, {
+        const testPost = await app.ms.group.createPost(testUser.id, {
           contents: [{id: postContent.id, view: ContentView.Contents}],
           groupId: testGroup.id,
           status: PostStatus.Published
@@ -673,19 +673,19 @@ describe("app", function () {
 
         const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
 
-        const group2 = await app.createGroup(newUser.id, { name: 'test2', title: 'Test2' });
+        const group2 = await app.ms.group.createGroup(newUser.id, { name: 'test2', title: 'Test2' });
 
-        await app.createPost(newUser.id, {
+        await app.ms.group.createPost(newUser.id, {
           contents: [{id: postContent.id, view: ContentView.Contents}],
           replyToId: testPost.id,
           groupId: group2.id,
           status: PostStatus.Published
         });
 
-        await app.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: true});
+        await app.ms.group.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: true});
 
         try {
-          await app.createPost(newUser.id, {
+          await app.ms.group.createPost(newUser.id, {
             contents: [{id: postContent.id, view: ContentView.Contents}],
             replyToId: testPost.id,
             groupId: group2.id,
@@ -696,28 +696,28 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        await app.updatePost(testUser.id, testPost.id, {isReplyForbidden: false});
+        await app.ms.group.updatePost(testUser.id, testPost.id, {isReplyForbidden: false});
 
-        await app.createPost(newUser.id, {
+        await app.ms.group.createPost(newUser.id, {
           contents: [{id: postContent.id, view: ContentView.Contents}],
           replyToId: testPost.id,
           groupId: group2.id,
           status: PostStatus.Published
         });
 
-        await app.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: false});
+        await app.ms.group.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: false});
 
-        await app.createPost(newUser.id, {
+        await app.ms.group.createPost(newUser.id, {
           contents: [{id: postContent.id, view: ContentView.Contents}],
           replyToId: testPost.id,
           groupId: group2.id,
           status: PostStatus.Published
         });
 
-        await app.updatePost(testUser.id, testPost.id, {isReplyForbidden: true});
+        await app.ms.group.updatePost(testUser.id, testPost.id, {isReplyForbidden: true});
 
         try {
-          await app.createPost(newUser.id, {
+          await app.ms.group.createPost(newUser.id, {
             contents: [{id: postContent.id, view: ContentView.Contents}],
             replyToId: testPost.id,
             groupId: group2.id,
@@ -736,19 +736,19 @@ describe("app", function () {
         const newUser = await app.registerUser({email: 'new@user.com', name: 'new', password: 'new', permissions: [CorePermissionName.UserAll]});
         const newUser2 = await app.registerUser({email: 'new2@user.com', name: 'new2', password: 'new2', permissions: [CorePermissionName.UserAll]});
 
-        assert.equal(await app.isAdminInGroup(testUser.id, testGroup.id), true);
-        assert.equal(await app.isAdminInGroup(newUser.id, testGroup.id), false);
-        assert.equal(await app.isAdminInGroup(newUser2.id, testGroup.id), false);
+        assert.equal(await app.ms.group.isAdminInGroup(testUser.id, testGroup.id), true);
+        assert.equal(await app.ms.group.isAdminInGroup(newUser.id, testGroup.id), false);
+        assert.equal(await app.ms.group.isAdminInGroup(newUser2.id, testGroup.id), false);
 
-        await app.setAdminsOfGroup(testUser.id, testGroup.id, [newUser.id, newUser2.id]);
+        await app.ms.group.setAdminsOfGroup(testUser.id, testGroup.id, [newUser.id, newUser2.id]);
 
-        assert.equal(await app.isAdminInGroup(testUser.id, testGroup.id), false);
-        assert.equal(await app.isAdminInGroup(newUser.id, testGroup.id), true);
-        assert.equal(await app.isAdminInGroup(newUser2.id, testGroup.id), true);
+        assert.equal(await app.ms.group.isAdminInGroup(testUser.id, testGroup.id), false);
+        assert.equal(await app.ms.group.isAdminInGroup(newUser.id, testGroup.id), true);
+        assert.equal(await app.ms.group.isAdminInGroup(newUser2.id, testGroup.id), true);
 
-        await app.setMembersOfGroup(newUser.id, testGroup.id, [testUser.id]);
+        await app.ms.group.setMembersOfGroup(newUser.id, testGroup.id, [testUser.id]);
 
-        assert.equal(await app.isMemberInGroup(testUser.id, testGroup.id), true);
+        assert.equal(await app.ms.group.isMemberInGroup(testUser.id, testGroup.id), true);
 
       });
 
@@ -772,7 +772,7 @@ describe("app", function () {
           status: PostStatus.Published
         };
         try {
-          await app.createPost(newMember.id, postData);
+          await app.ms.group.createPost(newMember.id, postData);
           assert.equal(true, false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
@@ -781,17 +781,17 @@ describe("app", function () {
         await app.ms.groupCategory.addMemberToCategory(testUser.id, category.id, newMember.id);
 
         try {
-          await app.createPost(newMember.id, postData);
+          await app.ms.group.createPost(newMember.id, postData);
           assert.equal(true, false);
         } catch (e) {
           assert.equal(_.includes(e.toString(), "not_permitted"), true);
         }
 
-        await app.updateGroup(testUser.id, testGroup.id, {
+        await app.ms.group.updateGroup(testUser.id, testGroup.id, {
           membershipOfCategoryId: category.id
         });
 
-        const post = await app.createPost(newMember.id, postData);
+        const post = await app.ms.group.createPost(newMember.id, postData);
         assert.equal(post.groupId, testGroup.id);
       });
 
@@ -808,31 +808,31 @@ describe("app", function () {
           groupId: testGroup.id,
           status: PostStatus.Published
         };
-        let post = await app.createPost(testUser.id, postData);
+        let post = await app.ms.group.createPost(testUser.id, postData);
 
-        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 1);
+        assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 1);
 
-        await app.addOrUpdateGroupRead(testUser.id, {
+        await app.ms.group.addOrUpdateGroupRead(testUser.id, {
           groupId: testGroup.id,
           readAt: post.publishedAt
         });
 
-        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
+        assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
 
-        await app.createPost(testUser.id, postData);
+        await app.ms.group.createPost(testUser.id, postData);
 
-        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 1);
+        assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 1);
 
-        post = await app.createPost(testUser.id, postData);
+        post = await app.ms.group.createPost(testUser.id, postData);
 
-        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 2);
+        assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 2);
 
-        await app.addOrUpdateGroupRead(testUser.id, {
+        await app.ms.group.addOrUpdateGroupRead(testUser.id, {
           groupId: testGroup.id,
           readAt: post.publishedAt
         });
 
-        assert.equal((await app.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
+        assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
       });
 
       it('user accounts should work properly', async () => {
@@ -895,9 +895,9 @@ describe("app", function () {
 
         assert.equal(await app.database.isHaveCorePermission(newMember.id, CorePermissionName.UserAll), true);
 
-        assert.equal(await app.isMemberInGroup(newMember.id, testGroup.id), false);
+        assert.equal(await app.ms.group.isMemberInGroup(newMember.id, testGroup.id), false);
 
-        await app.addAdminToGroup(testUser.id, testGroup.id, testAdmin.id);
+        await app.ms.group.addAdminToGroup(testUser.id, testGroup.id, testAdmin.id);
 
         try {
           await app.ms.invite.registerUserByInviteCode(commonHelper.random('hash'), {
@@ -937,8 +937,8 @@ describe("app", function () {
           accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
         });
 
-        assert.equal(await app.isMemberInGroup(newMember.id, testGroup.id), false);
-        assert.equal(await app.isMemberInGroup(newMember3.id, testGroup.id), true);
+        assert.equal(await app.ms.group.isMemberInGroup(newMember.id, testGroup.id), false);
+        assert.equal(await app.ms.group.isMemberInGroup(newMember3.id, testGroup.id), true);
 
         await app.ms.invite.updateInvite(testAdmin.id, invite.id, {isActive: false});
 

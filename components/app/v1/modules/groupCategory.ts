@@ -71,10 +71,6 @@ module.exports = (app: IGeesomeApp) => {
 			};
 		}
 
-		prepareListParams(listParams?: IListParams): IListParams {
-			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
-		}
-
 		async updateCategoryManifest(categoryId) {
 			const post = await app.database.getCategory(categoryId);
 
@@ -213,6 +209,10 @@ module.exports = (app: IGeesomeApp) => {
 				list: await app.database.getGroupSections(filters, listParams),
 				total: await app.database.getGroupSectionsCount(filters)
 			};
+		}
+
+		prepareListParams(listParams?: IListParams): IListParams {
+			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 	}
 	return new CategoryModule();
