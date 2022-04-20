@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "description": "",
   "main": "index.ts",
+  "engines": {
+    "node": ">=16"
+  },
   "scripts": {
     "start": "yarn && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
     "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run start",

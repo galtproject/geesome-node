@@ -38,17 +38,16 @@ export interface IGeesomeApp {
 
   frontendStorageId;
 
+  //modules
+  ms: {
+    invite: IGeesomeInviteModule;
+  };
+
   getSecretKey(keyName, mode): Promise<string>;
 
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
-  registerUser(userData: IUserInput): Promise<IUser>;
-
-  registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<IUser>;
-
-  createInvite(userId, inviteData: IInvite): Promise<IInvite>;
-
-  updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
+  registerUser(userData: IUserInput, inviteId?): Promise<IUser>;
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
@@ -107,6 +106,8 @@ export interface IGeesomeApp {
   isMemberInCategory(userId, categoryId): Promise<boolean>;
 
   setGroupPermissions(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
+
+  checkUserCan(userId, permission): Promise<void>;
 
   addAdminToGroup(userId, groupId, newAdminUserId): Promise<void>;
 
@@ -262,6 +263,14 @@ export interface IGeesomeApp {
   resolveStaticId(staticId): Promise<string>;
 
   stop(): Promise<void>;
+}
+
+export interface IGeesomeInviteModule {
+  registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<IUser>;
+
+  createInvite(userId, inviteData: IInvite): Promise<IInvite>;
+
+  updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
 }
 
 export interface IUserInput {

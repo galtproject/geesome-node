@@ -867,7 +867,7 @@ describe("app", function () {
         const testUser = (await app.database.getAllUserList('user'))[0];
         const testAdmin = (await app.database.getAllUserList('admin'))[0];
 
-        const invite = await app.createInvite(testAdmin.id, {
+        const invite = await app.ms.invite.createInvite(testAdmin.id, {
           title: 'test invite',
           limits: JSON.stringify([{ name: UserLimitName.SaveContentSize, value: 100 * (10 ** 3), periodTimestamp: 60, isActive: true }]),
           permissions: JSON.stringify([CorePermissionName.UserAll]),
@@ -876,7 +876,7 @@ describe("app", function () {
           isActive: true
         });
 
-        const newMember = await app.registerUserByInviteCode(invite.code, {
+        const newMember = await app.ms.invite.registerUserByInviteCode(invite.code, {
           email: 'new2user.com',
           name: 'new2',
           password: 'new2',
@@ -888,7 +888,6 @@ describe("app", function () {
         assert.equal(newMember.accounts[0].provider, 'ethereum');
         assert.equal(newMember.accounts[0].address, userAccountAddress.toLowerCase());
 
-        console.log('getUserLimit')
         const userLimit = await app.getUserLimit(testAdmin.id, newMember.id, UserLimitName.SaveContentSize);
         assert.equal(userLimit.isActive, true);
         assert.equal(userLimit.periodTimestamp, 60);
@@ -901,7 +900,7 @@ describe("app", function () {
         await app.addAdminToGroup(testUser.id, testGroup.id, testAdmin.id);
 
         try {
-          await app.registerUserByInviteCode(commonHelper.random('hash'), {
+          await app.ms.invite.registerUserByInviteCode(commonHelper.random('hash'), {
             email: 'new3user.com',
             name: 'new3',
             password: 'new3',
@@ -914,7 +913,7 @@ describe("app", function () {
         }
 
         try {
-          await app.registerUserByInviteCode(invite.code, {
+          await app.ms.invite.registerUserByInviteCode(invite.code, {
             email: 'new3user.com',
             name: 'new3',
             password: 'new3',
@@ -926,11 +925,11 @@ describe("app", function () {
           assert.equal(_.includes(e.toString(), "invite_max_count"), true);
         }
 
-        await app.updateInvite(testAdmin.id, invite.id, {maxCount: 3});
+        await app.ms.invite.updateInvite(testAdmin.id, invite.id, {maxCount: 3});
         const foundInvite = await app.database.findInviteByCode(invite.code);
         assert.equal(foundInvite.maxCount, 3);
 
-        const newMember3 = await app.registerUserByInviteCode(invite.code, {
+        const newMember3 = await app.ms.invite.registerUserByInviteCode(invite.code, {
           email: 'new3user.com',
           name: 'new3',
           password: 'new3',
@@ -941,10 +940,10 @@ describe("app", function () {
         assert.equal(await app.isMemberInGroup(newMember.id, testGroup.id), false);
         assert.equal(await app.isMemberInGroup(newMember3.id, testGroup.id), true);
 
-        await app.updateInvite(testAdmin.id, invite.id, {isActive: false});
+        await app.ms.invite.updateInvite(testAdmin.id, invite.id, {isActive: false});
 
         try {
-          await app.registerUserByInviteCode(invite.code, {
+          await app.ms.invite.registerUserByInviteCode(invite.code, {
             email: 'new4user.com',
             name: 'new4',
             password: 'new4',

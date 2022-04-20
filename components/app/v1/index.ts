@@ -121,6 +121,11 @@ module.exports = async (extendConfig) => {
 
   app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
 
+  app.ms = {};
+  ['invite'].forEach(moduleName => {
+    app.ms[moduleName] = require('./modules/' + moduleName)(app);
+  })
+
   return app;
 };
 
@@ -137,6 +142,8 @@ class GeesomeApp implements IGeesomeApp {
   generatorsList: IRender[];
 
   frontendStorageId;
+
+  ms;
 
   constructor(
     public config
@@ -234,54 +241,6 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     return this.database.getUser(newUser.id);
-  }
-
-  public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
-    const invite = await this.database.findInviteByCode(inviteCode);
-    if (!invite) {
-      throw new Error("invite_not_found");
-    }
-    if (!invite.isActive) {
-      throw new Error("invite_not_active");
-    }
-    const joinedByInviteCount = await this.database.getJoinedByInviteCount(invite.id);
-    console.log('joinedByInviteCount', joinedByInviteCount);
-    console.log('invite.maxCount', invite.maxCount);
-    if (joinedByInviteCount >= invite.maxCount) {
-      throw new Error("invite_max_count");
-    }
-
-    const user = await this.registerUser({
-      ...userData,
-      permissions: JSON.parse(invite.permissions),
-    }, invite.id);
-
-    await pIteration.forEachSeries(JSON.parse(invite.limits), (limitData) => {
-      return this.setUserLimit(invite.createdById, {
-        ...limitData,
-        userId: user.id,
-      });
-    });
-
-    await pIteration.forEachSeries(JSON.parse(invite.groupsToJoin), (groupId) => {
-      return this.addMemberToGroup(invite.createdById, groupId, user.id).catch(e => {/*ignore, because it's optional*/});
-    });
-
-    return user;
-  }
-
-  async createInvite(userId, inviteData) {
-    await this.checkUserCan(userId, CorePermissionName.AdminAddUser);
-    inviteData.code = commonHelper.random('hash');
-    inviteData.createdById = userId;
-    return await this.database.addInvite(inviteData);
-  }
-
-  async updateInvite(userId, inviteId, inviteData) {
-    await this.checkUserCan(userId, CorePermissionName.AdminAddUser);
-    delete inviteData.code;
-    delete inviteData.createdById;
-    return await this.database.updateInvite(inviteId, inviteData);
   }
 
   async loginPassword(usernameOrEmail, password): Promise<any> {
