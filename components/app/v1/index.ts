@@ -11,28 +11,21 @@ import {
   ContentStorageType,
   ContentView,
   CorePermissionName,
-  FileCatalogItemType, GroupPermissionName,
-  GroupType,
-  GroupView,
   IContent,
   IDatabase,
-  IFileCatalogItem,
-  IGroup,
   IListParams,
-  IPost, IStaticIdHistoryItem,
+  IStaticIdHistoryItem,
   IUser,
   IUserLimit,
-  PostStatus,
   UserContentActionName,
   UserLimitName
 } from "../../database/interface";
 import {
-  IGeesomeApp,
+  IGeesomeApp, IGeesomeFileCatalogModule,
   IGeesomeGroupCategoryModule, IGeesomeGroupModule,
   IGeesomeInviteModule,
   IUserAccountInput,
   IUserInput,
-  ManifestToSave
 } from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
@@ -59,7 +52,6 @@ const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
 const axios = require('axios');
-const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
@@ -85,13 +77,6 @@ module.exports = async (extendConfig) => {
   log('Start communicator...');
   app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
 
-  // setInterval(() => {
-  //   console.log('publishEvent', 'geesome-test');
-  //   app.storage.publishEvent('geesome-test', {
-  //     lala: 'lolo'
-  //   });
-  // }, 1000);
-
   const frontendPath = __dirname + '/../../../frontend/dist';
   if (fs.existsSync(frontendPath)) {
     const directory = await app.storage.saveDirectory(frontendPath);
@@ -101,11 +86,6 @@ module.exports = async (extendConfig) => {
   app.render = await require('../../render/' + config.renderModule)(app);
 
   app.drivers = require('../../drivers');
-
-  // if ((await app.database.getUsersCount()) === 0) {
-  //   console.log('Run seeds...');
-  //   await app.runSeeds();
-  // }
 
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
@@ -118,7 +98,7 @@ module.exports = async (extendConfig) => {
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
   app.ms = {} as any;
-  ['group', 'groupCategory', 'invite'].forEach(moduleName => {
+  ['group', 'groupCategory', 'fileCatalog', 'invite'].forEach(moduleName => {
     app.ms[moduleName] = require('./modules/' + moduleName)(app);
   })
 
@@ -149,6 +129,7 @@ class GeesomeApp implements IGeesomeApp {
   frontendStorageId;
 
   ms: {
+    fileCatalog: IGeesomeFileCatalogModule
     invite: IGeesomeInviteModule,
     group: IGeesomeGroupModule,
     groupCategory: IGeesomeGroupCategoryModule
@@ -507,41 +488,6 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  async getMemberInGroups(userId, types) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // TODO: use query object instead of types
-    return {
-      list: await this.database.getMemberInGroups(userId, types),
-      total: null
-      //TODO: total, limit, offset
-    };
-  }
-
-  async getAdminInGroups(userId, types) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // TODO: use query object instead of types
-    return {
-      list: await this.database.getAdminInGroups(userId, types),
-      total: null
-      //TODO: total, limit, offset
-    };
-  }
-
-  async getPersonalChatGroups(userId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // TODO: use query object
-    return {
-      list: await this.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat),
-      total: null
-      //TODO: total, limit, offset
-    };
-  }
-
-  /**
-   ===========================================
-   GROUPS ACTIONS
-   ===========================================
-   **/
   /**
    ===========================================
    CONTENT ACTIONS
@@ -767,6 +713,44 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+
+  async regenerateUserContentPreviews(userId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
+    (async () => {
+      const previousIpldToNewIpld = [];
+
+      let userContents = [];
+
+      let offset = 0;
+      let limit = 100;
+      do {
+        userContents = await this.database.getContentList(userId, {
+          offset,
+          limit
+        });
+
+        await pIteration.forEach(userContents, async (content: IContent) => {
+          const previousIpldToNewIpldItem = [content.manifestStorageId];
+          let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
+          await this.database.updateContent(content.id, previewData);
+          const updatedContent = await this.updateContentManifest({
+            ...content['toJSON'](),
+            ...previewData
+          });
+
+          previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
+
+          previousIpldToNewIpld.push(previousIpldToNewIpldItem);
+        });
+
+        offset += limit;
+      } while (userContents.length === limit);
+
+      console.log('previousIpldToNewIpld', previousIpldToNewIpld);
+      console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
+    })();
+  }
+
   async getApyKeyId(apiKey) {
     const apiKeyDb = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(apiKey));
     if(!apiKeyDb) {
@@ -905,7 +889,7 @@ class GeesomeApp implements IGeesomeApp {
       await this.setContentPreviewIfNotExist(existsContent);
       console.log('isUserCan', options.userId);
       if(await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
-        await this.addContentToUserFileCatalog(options.userId, existsContent, options);
+        await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       }
       return existsContent;
     }
@@ -976,7 +960,7 @@ class GeesomeApp implements IGeesomeApp {
     const existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       await this.setContentPreviewIfNotExist(existsContent);
-      await this.addContentToUserFileCatalog(options.userId, existsContent, options);
+      await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
 
@@ -1121,6 +1105,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveDirectoryToStorage(userId, dirPath, options: { groupId?, userId?, userApiKeyId? } = {}) {
+    //TODO: refactor block
     let group;
     if (options.groupId) {
       group = await this.database.getGroup(options.groupId)
@@ -1270,6 +1255,7 @@ class GeesomeApp implements IGeesomeApp {
 
   private async addContent(contentData: IContent, options: { groupId?, userId?, userApiKeyId? } = {}) {
     log('addContent');
+    //TODO: refactor block
     if (options.groupId) {
       const groupId = await this.ms.group.checkGroupId(options.groupId);
       let group;
@@ -1298,7 +1284,7 @@ class GeesomeApp implements IGeesomeApp {
     promises.push((async () => {
       if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
         log('isUserCan');
-        await this.addContentToUserFileCatalog(content.userId, content, options);
+        await this.ms.fileCatalog.addContentToUserFileCatalog(content.userId, content, options);
         log('addContentToUserFileCatalog');
       }
     })());
@@ -1337,342 +1323,6 @@ class GeesomeApp implements IGeesomeApp {
    FILE CATALOG ACTIONS
    ===========================================
    **/
-
-  public async addContentToFolder(userId, contentId, folderId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const content = await this.database.getContent(contentId);
-    return this.addContentToUserFileCatalog(userId, content, {folderId})
-  }
-
-  private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const baseType = content.mimeType ? _.first(content.mimeType['split']('/')) : 'other';
-
-    let parentItemId;
-
-    const groupId = (await this.ms.group.checkGroupId(options.groupId)) || null;
-
-    if (options.path) {
-      return this.saveContentByPath(content.userId, options.path, content.id);
-    }
-
-    parentItemId = options.folderId;
-
-    if (_.isUndefined(parentItemId) || parentItemId === 'undefined') {
-      const contentFiles = await this.database.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
-      if (contentFiles.length) {
-        return content;
-      }
-
-      let folder = await this.database.getFileCatalogItemByDefaultFolderFor(userId, baseType);
-
-      if (!folder) {
-        folder = await this.database.addFileCatalogItem({
-          name: _.upperFirst(baseType) + " Uploads",
-          type: FileCatalogItemType.Folder,
-          position: (await this.database.getFileCatalogItemsCount(userId, null)) + 1,
-          defaultFolderFor: baseType,
-          userId
-        });
-      }
-      parentItemId = folder.id;
-    }
-
-    if (parentItemId === 'null') {
-      parentItemId = null;
-    }
-
-    if (await this.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
-      console.log(`Content ${content.id} already exists in folder`);
-      return;
-    }
-
-    const resultItem = await this.database.addFileCatalogItem({
-      name: content.name || "Unnamed " + new Date().toISOString(),
-      type: FileCatalogItemType.File,
-      position: (await this.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
-      contentId: content.id,
-      size: content.size,
-      groupId,
-      parentItemId,
-      userId
-    });
-
-    if (parentItemId) {
-      const size = await this.database.getFileCatalogItemsSizeSum(parentItemId);
-      await this.database.updateFileCatalogItem(parentItemId, {size});
-    }
-
-    return resultItem;
-  }
-
-  async createUserFolder(userId, parentItemId, folderName) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    return this.database.addFileCatalogItem({
-      name: folderName,
-      type: FileCatalogItemType.Folder,
-      position: (await this.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
-      size: 0,
-      parentItemId,
-      userId
-    });
-  }
-
-  public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
-    if (fileCatalogItem.userId !== userId) {
-      throw new Error("not_permitted");
-    }
-    await this.database.updateFileCatalogItem(fileCatalogId, updateData);
-    return this.database.getFileCatalogItem(fileCatalogId);
-  }
-
-  async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    if (parentItemId == 'null') {
-      parentItemId = null;
-    }
-    if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
-      parentItemId = undefined;
-
-    return {
-      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
-      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
-    };
-  }
-
-  async getFileCatalogItemsBreadcrumbs(userId, itemId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const item = await this.database.getFileCatalogItem(itemId);
-    if (item.userId != userId) {
-      throw new Error("not_permitted");
-    }
-
-    return this.database.getFileCatalogItemsBreadcrumbs(itemId);
-  }
-
-  async getContentsIdsByFileCatalogIds(catalogIds) {
-    return this.database.getContentsIdsByFileCatalogIds(catalogIds);
-  }
-
-  async regenerateUserContentPreviews(userId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    (async () => {
-      const previousIpldToNewIpld = [];
-
-      let userContents = [];
-
-      let offset = 0;
-      let limit = 100;
-      do {
-        userContents = await this.database.getContentList(userId, {
-          offset,
-          limit
-        });
-
-        await pIteration.forEach(userContents, async (content: IContent) => {
-          const previousIpldToNewIpldItem = [content.manifestStorageId];
-          let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-          await this.database.updateContent(content.id, previewData);
-          const updatedContent = await this.updateContentManifest({
-            ...content['toJSON'](),
-            ...previewData
-          });
-
-          previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
-
-          previousIpldToNewIpld.push(previousIpldToNewIpldItem);
-        });
-
-        offset += limit;
-      } while (userContents.length === limit);
-
-      console.log('previousIpldToNewIpld', previousIpldToNewIpld);
-      console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
-    })();
-  }
-
-  public async makeFolderStorageDir(fileCatalogItem: IFileCatalogItem) {
-    const breadcrumbs = await this.getFileCatalogItemsBreadcrumbs(fileCatalogItem.userId, fileCatalogItem.id);
-
-    // breadcrumbs.push(fileCatalogItem);
-
-    const {storageAccountId: userStaticId} = await this.database.getUser(fileCatalogItem.userId);
-
-    const path = `/${userStaticId}/` + breadcrumbs.map(b => b.name).join('/') + '/';
-
-    await this.storage.makeDir(path);
-
-    return path;
-  }
-
-  public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
-    const fileCatalogChildrenFolders = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
-
-    await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
-      const sPath = await this.makeFolderStorageDir(fItem);
-      return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
-    });
-
-    const fileCatalogChildrenFiles = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
-
-    await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
-      await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
-    });
-  }
-
-  public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
-
-    const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
-
-    await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
-
-    const storageId = await this.storage.getDirectoryId(storageDirPath);
-
-    const user = await this.database.getUser(userId);
-
-    if(!options.bindToStatic) {
-      return { storageId };
-    }
-
-    const staticId = await this.createStorageAccount(user.name + '@directory:' + storageDirPath);
-    await this.bindToStaticId(storageId, staticId);
-
-    return {
-      storageId,
-      staticId
-    }
-  }
-
-  public async findCatalogItemByPath(userId, path, type, createFoldersIfNotExists = false): Promise<{ foundCatalogItem: IFileCatalogItem, lastFolderId: number }> {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const pathArr = _.trim(path, '/').split('/');
-    const foldersArr = pathArr.slice(0, -1);
-    const lastItemName = pathArr.slice(-1)[0];
-
-    let currentFolderId = null;
-    let breakSearch = false;
-    await pIteration.forEachSeries(foldersArr, async (name) => {
-      if (breakSearch) {
-        return;
-      }
-      const foundItems = await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.Folder, name);
-
-      if (foundItems.length) {
-        currentFolderId = foundItems[0].id;
-      } else if (createFoldersIfNotExists) {
-        const newFileCatalogFolder = await this.database.addFileCatalogItem({
-          name,
-          userId,
-          type: FileCatalogItemType.Folder,
-          position: (await this.database.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
-          parentItemId: currentFolderId
-        });
-        currentFolderId = newFileCatalogFolder.id;
-      } else {
-        breakSearch = true;
-      }
-    });
-
-    if (breakSearch) {
-      return null;
-    }
-
-    const results = await this.database.getFileCatalogItems(userId, currentFolderId, type, lastItemName);
-    if (results.length > 1) {
-      await pIteration.forEach(results.slice(1), item => this.database.updateFileCatalogItem(item.id, {isDeleted: true}));
-      console.log('remove excess file items: ', lastItemName);
-    }
-
-    console.log('lastFolderId', currentFolderId);
-    return {
-      lastFolderId: currentFolderId,
-      foundCatalogItem: results[0]
-    };
-  }
-
-  public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileName = _.trim(path, '/').split('/').slice(-1)[0];
-    console.log('saveContentByPath', 'path:', path, 'fileName:', fileName);
-
-    let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
-
-    const content = await this.database.getContent(contentId);
-    if (fileItem) {
-      console.log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
-      await this.database.updateFileCatalogItem(fileItem.id, {contentId, size: content.size});
-    } else {
-      console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
-      fileItem = await this.database.addFileCatalogItem({
-        userId,
-        contentId,
-        name: fileName,
-        type: FileCatalogItemType.File,
-        position: (await this.database.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
-        parentItemId: lastFolderId,
-        groupId: options.groupId,
-        size: content.size
-      });
-    }
-    if (fileItem.parentItemId) {
-      const size = await this.database.getFileCatalogItemsSizeSum(fileItem.parentItemId);
-      await this.database.updateFileCatalogItem(fileItem.parentItemId, {size});
-    }
-    return this.database.getFileCatalogItem(fileItem.id);
-  }
-
-  public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
-    await pIteration.map(toSaveList, async (item: ManifestToSave) => {
-      const content = await this.createContentByRemoteStorageId(item.manifestStorageId, {
-        userId,
-        ...options
-      });
-      return this.saveContentByPath(userId, path.join(folderPath, item.path || content.name), content.id, options)
-    });
-
-    return this.getFileCatalogItemByPath(userId, folderPath, FileCatalogItemType.Folder);
-  }
-
-  public async getContentByPath(userId, path) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File);
-    return fileCatalogItem ? await this.database.getContent(fileCatalogItem.contentId) : null;
-  }
-
-  public async getFileCatalogItemByPath(userId, path, type: FileCatalogItemType) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, type);
-    return fileCatalogItem;
-  }
-
-  public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileCatalogItem = await this.database.getFileCatalogItem(itemId);
-    if (fileCatalogItem.userId != userId) {
-      throw new Error("not_permitted");
-    }
-
-    if(options.deleteContent) {
-      const content = await this.database.getContent(fileCatalogItem.contentId);
-      if (content.userId != userId) {
-        throw new Error("not_permitted");
-      }
-      await this.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
-      await this.storage.remove(content.storageId).catch(() => {/*not found*/});
-
-      await fileCatalogItem['destroy']();
-      await content['destroy']();
-    } else {
-      await fileCatalogItem['destroy']();
-    }
-
-    return true;
-  }
 
   /**
    ===========================================
@@ -1765,15 +1415,6 @@ class GeesomeApp implements IGeesomeApp {
       list: await this.database.getAllUserList(searchString, listParams),
       total: await this.database.getAllUserCount(searchString)
     }
-  }
-
-  async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
-    return {
-      list: await this.database.getAllGroupList(searchString, listParams),
-      total: await this.database.getAllGroupCount(searchString)
-    };
   }
 
   async getAllContentList(adminId, searchString?, listParams?: IListParams) {

@@ -528,44 +528,44 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
 
   service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query));
+    res.send(await geesomeApp.ms.fileCatalog.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query));
   });
   service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
+    res.send(await geesomeApp.ms.fileCatalog.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
   });
 
   service.post('/v1/user/file-catalog/create-folder', async (req, res) => {
-    res.send(await geesomeApp.createUserFolder(req.user.id, req.body.parentItemId, req.body.name));
+    res.send(await geesomeApp.ms.fileCatalog.createUserFolder(req.user.id, req.body.parentItemId, req.body.name));
   });
   service.post('/v1/user/file-catalog/add-content-to-folder', async (req, res) => {
-    res.send(await geesomeApp.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
+    res.send(await geesomeApp.ms.fileCatalog.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
   });
   service.post('/v1/user/file-catalog/file-catalog-item/:itemId/update', async (req, res) => {
-    res.send(await geesomeApp.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
+    res.send(await geesomeApp.ms.fileCatalog.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
   });
   service.post('/v1/user/file-catalog/file-catalog-item/:itemId/delete', async (req, res) => {
-    res.send({result: await geesomeApp.deleteFileCatalogItem(req.user.id, req.params.itemId, req.body)});
+    res.send({result: await geesomeApp.ms.fileCatalog.deleteFileCatalogItem(req.user.id, req.params.itemId, req.body)});
   });
 
   service.post('/v1/user/file-catalog/save-manifests-to-folder', async (req, res) => {
-    res.send(await geesomeApp.saveManifestsToFolder(req.user.id, req.body.path, req.body.toSaveList, req.body.options));
+    res.send(await geesomeApp.ms.fileCatalog.saveManifestsToFolder(req.user.id, req.body.path, req.body.toSaveList, req.body.options));
   });
 
   service.post('/v1/user/file-catalog/save-content-by-path', async (req, res) => {
-    res.send(await geesomeApp.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
+    res.send(await geesomeApp.ms.fileCatalog.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
   });
   service.post('/v1/user/file-catalog/get-content-by-path', async (req, res) => {
-    res.send(await geesomeApp.getContentByPath(req.user.id, req.body.path));
+    res.send(await geesomeApp.ms.fileCatalog.getContentByPath(req.user.id, req.body.path));
   });
   service.post('/v1/user/file-catalog/get-item-by-path', async (req, res) => {
-    res.send(await geesomeApp.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
+    res.send(await geesomeApp.ms.fileCatalog.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
   });
   service.post('/v1/user/file-catalog/publish-folder/:itemId', async (req, res) => {
-    res.send(await geesomeApp.publishFolder(req.user.id, req.params.itemId, req.body));
+    res.send(await geesomeApp.ms.fileCatalog.publishFolder(req.user.id, req.params.itemId, req.body));
   });
 
   service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {
-    res.send(await geesomeApp.getContentsIdsByFileCatalogIds(req.body));
+    res.send(await geesomeApp.ms.fileCatalog.getContentsIdsByFileCatalogIds(req.body));
   });
 
   //TODO: add limit for this action

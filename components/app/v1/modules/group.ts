@@ -671,6 +671,45 @@ module.exports = (app: IGeesomeApp) => {
 			};
 		}
 
+		async getMemberInGroups(userId, types) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			// TODO: use query object instead of types
+			return {
+				list: await app.database.getMemberInGroups(userId, types),
+				total: null
+				//TODO: total, limit, offset
+			};
+		}
+
+		async getAdminInGroups(userId, types) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			// TODO: use query object instead of types
+			return {
+				list: await app.database.getAdminInGroups(userId, types),
+				total: null
+				//TODO: total, limit, offset
+			};
+		}
+
+		async getPersonalChatGroups(userId) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			// TODO: use query object
+			return {
+				list: await app.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat),
+				total: null
+				//TODO: total, limit, offset
+			};
+		}
+
+		async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
+			listParams = this.prepareListParams(listParams);
+			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
+			return {
+				list: await app.database.getAllGroupList(searchString, listParams),
+				total: await app.database.getAllGroupCount(searchString)
+			};
+		}
+
 		prepareListParams(listParams?: IListParams): IListParams {
 			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}

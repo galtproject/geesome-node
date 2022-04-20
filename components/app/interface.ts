@@ -44,6 +44,7 @@ export interface IGeesomeApp {
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
     groupCategory: IGeesomeGroupCategoryModule;
+    fileCatalog: IGeesomeFileCatalogModule;
   };
 
   checkModules(modulesList: string[]);
@@ -112,7 +113,7 @@ export interface IGeesomeApp {
 
   closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
 
-  createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
+  createContentByRemoteStorageId(manifestStorageId, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
 
   getFileStream(filePath, options?);
 
@@ -122,33 +123,7 @@ export interface IGeesomeApp {
 
   saveDataStructure(data);
 
-  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
-
-  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
-
-  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
-
-  createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
-
-  addContentToFolder(userId, contentId, folderId): Promise<any>;
-
-  updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
-
   createContentByObject(contentObject, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
-
-  saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
-
-  getContentByPath(userId, path): Promise<IContent>;
-
-  getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
-
-  publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
-
-  saveManifestsToFolder(userId, path, toSaveList: ManifestToSave[], options?: { groupId? }): Promise<IFileCatalogItem>;
-
-  deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
 
   regenerateUserContentPreviews(userId): Promise<void>;
 
@@ -161,6 +136,8 @@ export interface IGeesomeApp {
   getUserLimitRemained(userId, limitName: UserLimitName): Promise<number>;
 
   generateAndSaveManifest(entityName, entityObj): Promise<string>; //returns hash
+
+  // getPreviewContentData()
 
   getContent(contentId): Promise<IContent>;
 
@@ -187,6 +164,37 @@ export interface IGeesomeApp {
   resolveStaticId(staticId): Promise<string>;
 
   stop(): Promise<void>;
+}
+
+export interface IGeesomeFileCatalogModule {
+
+  saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
+
+  getContentByPath(userId, path): Promise<IContent>;
+
+  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
+
+  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+
+  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+
+  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
+
+  createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
+
+  addContentToFolder(userId, contentId, folderId): Promise<any>;
+
+  updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
+
+  publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
+
+  saveManifestsToFolder(userId, path, toSaveList: ManifestToSave[], options?: { groupId? }): Promise<IFileCatalogItem>;
+
+  deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
+
+  getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
+
+  addContentToUserFileCatalog(userId, content: IContent, options?: { groupId?, apiKey?, folderId?, path? });
 }
 
 export interface IGeesomeInviteModule {
