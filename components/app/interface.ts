@@ -207,6 +207,8 @@ export interface IGeesomeInviteModule {
   createInvite(userId, inviteData: IInvite): Promise<IInvite>;
 
   updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
+
+  getUserInvites(userId, filters?, listParams?: IListParams): Promise<IInvitesListResponse>;
 }
 
 export interface IGeesomeGroupModule {
@@ -408,6 +410,11 @@ export interface IPostInput {
 export interface ManifestToSave {
   manifestStorageId;
   path?;
+}
+
+export interface IInvitesListResponse {
+  list: IInvite[];
+  total: number;
 }
 
 export interface IFileCatalogListResponse {

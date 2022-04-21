@@ -68,11 +68,15 @@ export interface IDatabase {
 
   updateInvite(id, updateData): Promise<void>;
 
+  getInvite(id): Promise<IInvite>;
+
   findInviteByCode(code): Promise<IInvite>;
 
   getJoinedByInviteCount(joinedByInviteId): Promise<number>;
 
   getUserInvites(createdById, filters, listParams: IListParams): Promise<IInvite[]>;
+
+  getUserInvitesCount(createdById, filters): Promise<number>;
 
   getAllInvites(filters, listParams: IListParams): Promise<IInvite[]>;
 

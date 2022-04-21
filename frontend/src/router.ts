@@ -29,6 +29,8 @@ import UserProfileByStaticId from "./pages/UsersSection/UserProfile/UserProfileB
 import SocNetClient from "./pages/UsersSection/SocNetClient/SocNetClient";
 import SocNetChannel from "./pages/UsersSection/SocNetChannel/SocNetChannel";
 import StaticSiteManager from "./pages/UsersSection/StaticSiteManager/StaticSiteManager";
+import NewUserRegister from "./pages/UsersSection/NewUser/NewUserRegister/NewUserRegister";
+import NewUserInvite from "./pages/UsersSection/NewUser/NewUserInvite/NewUserInvite";
 
 Vue.use(Router);
 
@@ -98,7 +100,19 @@ export default new Router({
     {
       path: '/new-user',
       name: 'new-user',
-      component: NewUser
+      component: NewUser,
+      children: [
+        {
+          path: 'register',
+          name: 'new-user-register',
+          component: NewUserRegister
+        },
+        {
+          path: 'invite',
+          name: 'new-user-invite',
+          component: NewUserInvite
+        }
+      ]
     },
     {
       path: '/new-group',

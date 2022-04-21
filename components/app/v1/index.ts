@@ -100,7 +100,7 @@ module.exports = async (extendConfig) => {
   app.ms = {} as any;
   ['asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite'].forEach(moduleName => {
     app.ms[moduleName] = require('./modules/' + moduleName)(app);
-  })
+  });
 
   app.socNetClients = await pIteration.map(config.socNetClientList, async name => {
     const SocNetClientClass = require('../../socNetClient/' + name);

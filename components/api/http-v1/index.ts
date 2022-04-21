@@ -615,6 +615,22 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }
     res.send(await geesomeApp.registerUser(req.body));
   });
+  service.post('/v1/admin/add-invite', async (req, res) => {
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
+      return res.send(403);
+    }
+    console.log('geesomeApp.ms', geesomeApp.ms);
+    res.send(await geesomeApp.ms.invite.createInvite(req.user.id, req.body));
+  });
+  service.get('/v1/admin/invites', async (req, res) => {
+    res.send(await geesomeApp.ms.invite.getUserInvites(req.user.id, req.query, req.query));
+  });
+  service.post('/v1/admin/update-invite/:id', async (req, res) => {
+    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
+      return res.send(403);
+    }
+    res.send(await geesomeApp.ms.invite.updateInvite(req.user.id, req.params.id, req.body));
+  });
   service.post('/v1/admin/add-user-api-key', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
       return res.send(403);

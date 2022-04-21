@@ -71,7 +71,8 @@ export default {
           'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
           'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
           'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetDbChannel',
-          'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation'
+          'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
+          'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

@@ -1,7 +1,8 @@
 import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../interface";
-import {CorePermissionName} from "../../../database/interface";
+import {CorePermissionName, IListParams} from "../../../database/interface";
 const commonHelper = require('geesome-libs/src/common');
 const pIteration = require('p-iteration');
+const _ = require('lodash');
 
 module.exports = (app: IGeesomeApp) => {
 	app.checkModules(['group']);
@@ -43,16 +44,44 @@ module.exports = (app: IGeesomeApp) => {
 
 		async createInvite(userId, inviteData) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
-			inviteData.code = commonHelper.random('hash');
+			inviteData.code = this.makeCode(16);
 			inviteData.createdById = userId;
-			return await app.database.addInvite(inviteData);
+			return app.database.addInvite(inviteData);
+		}
+
+		makeCode(length) {
+			let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+			let res = '';
+			for (let i = 0; i < length; i++) {
+				res += chars.charAt(Math.floor(Math.random() * chars.length));
+			}
+			return res;
 		}
 
 		async updateInvite(userId, inviteId, inviteData) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
+			const invite = await app.database.getInvite(inviteId);
+			if (!invite) {
+				throw new Error("not_found");
+			}
+			if (invite.createdById !== userId) {
+				throw new Error("not_creator");
+			}
 			delete inviteData.code;
 			delete inviteData.createdById;
-			return await app.database.updateInvite(inviteId, inviteData);
+			return app.database.updateInvite(inviteId, inviteData);
+		}
+
+		async getUserInvites(userId, filters = {}, listParams?: IListParams) {
+			listParams = this.prepareListParams(listParams);
+			return {
+				list: await app.database.getUserInvites(userId, filters, listParams),
+				total: await app.database.getUserInvitesCount(userId, filters)
+			};
+		}
+
+		prepareListParams(listParams?: IListParams): IListParams {
+			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 	}
 	return new InviteModule();

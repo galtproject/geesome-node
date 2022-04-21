@@ -315,6 +315,10 @@ class MysqlDatabase implements IDatabase {
     return this.models.Invite.update(updateData, {where: {id}})
   }
 
+  async getInvite(id) {
+    return this.models.Invite.findOne({where: {id}}) as IInvite;
+  }
+
   async findInviteByCode(code) {
     return this.models.Invite.findOne({where: {code}}) as IInvite;
   }
@@ -337,6 +341,14 @@ class MysqlDatabase implements IDatabase {
       limit,
       offset
     });
+  }
+
+  async getUserInvitesCount(createdById, filters = {}) {
+    const where = { createdById };
+    if (!_.isUndefined(filters['isActive'])) {
+      where['isActive'] = _.isUndefined(filters['isActive']);
+    }
+    return this.models.Post.findAll({ where });
   }
 
   async getAllInvites(filters = {}, listParams: IListParams = {}) {
