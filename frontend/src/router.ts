@@ -32,6 +32,7 @@ import StaticSiteManager from "./pages/UsersSection/StaticSiteManager/StaticSite
 import NewUserRegister from "./pages/UsersSection/NewUser/NewUserRegister/NewUserRegister";
 import NewUserInvite from "./pages/UsersSection/NewUser/NewUserInvite/NewUserInvite";
 import JoinByInvite from "./pages/UsersSection/JoinByInvite/JoinByInvite";
+import EditPassword from "./pages/UsersSection/UserProfile/EditPassword/EditPassword";
 
 Vue.use(Router);
 
@@ -82,6 +83,11 @@ export default new Router({
       path: '/profile/edit',
       name: 'current-user-profile-edit',
       component: EditProfile
+    },
+    {
+      path: '/password/edit',
+      name: 'current-user-password-edit',
+      component: EditPassword
     },
     {
       path: '/chat/:groupId?',

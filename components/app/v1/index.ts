@@ -193,36 +193,33 @@ class GeesomeApp implements IGeesomeApp {
     return /^\w+([\.-]?\w)+$/.test(username);
   }
 
-  async registerUser(userData: IUserInput, joinedByInviteId = null): Promise<any> {
-    const {email, name, password} = userData;
-
-    const existUserWithName = await this.database.getUserByName(name);
-    if (existUserWithName) {
-      throw new Error("username_already_exists");
-    }
-
-    if (!name) {
+  async checkNameAndEmail(userId, name, email) {
+    userId = parseInt(userId);
+    const user = await this.database.getUser(userId);
+    if (user && user.name ? false : !name) {
       throw new Error("name_cant_be_null");
     }
-
     if (email && !this.validateEmail(email)) {
       throw new Error("email_invalid");
     }
-    if (!this.validateUsername(name)) {
+    if (name && !this.validateUsername(name)) {
       throw new Error("forbidden_symbols_in_name");
+    } else if (name) {
+      const existUserWithName = await this.database.getUserByName(name);
+      if (existUserWithName && existUserWithName.id !== userId) {
+        throw new Error("username_already_exists");
+      }
     }
+  }
+
+  async registerUser(userData: IUserInput, joinedByInviteId = null): Promise<any> {
+    const {email, name, password} = userData;
+
+    await this.checkNameAndEmail(null, name, email);
+
+    const passwordHash: any = await this.hashPassword(password);
 
     const storageAccountId = await this.createStorageAccount(name);
-
-    const passwordHash: any = await new Promise((resolve, reject) => {
-      if (!password) {
-        return resolve(null);
-      }
-      bcrypt.hash(password, saltRounds, async (err, passwordHash) => {
-        err ? reject(err) : resolve(passwordHash);
-      });
-    });
-
     const newUser = await this.database.addUser({
       storageAccountId,
       manifestStaticStorageId: storageAccountId,
@@ -239,9 +236,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
-
     await this.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
-
     await this.database.updateUser(newUser.id, { manifestStorageId });
 
     if (userData.permissions && userData.permissions.length) {
@@ -253,16 +248,30 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUser(newUser.id);
   }
 
-  async loginPassword(usernameOrEmail, password): Promise<any> {
+  async hashPassword(password) {
     return new Promise((resolve, reject) => {
-      this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
-        if (!user) {
-          return resolve(null);
-        }
-        bcrypt.compare(password, user.passwordHash, async function (err, result) {
-          resolve(result ? user : null);
-        });
-      }).catch(reject)
+      if (!password) {
+        return resolve(null);
+      }
+      bcrypt.hash(password, saltRounds, async (err, passwordHash) => err ? reject(err) : resolve(passwordHash));
+    })
+  }
+
+  async comparePasswordWithHash(password, passwordHash) {
+    if (!password || !passwordHash) {
+      return false;
+    }
+    return new Promise((resolve, reject) => {
+      bcrypt.compare(password, passwordHash, (err, result) => err ? reject(err) : resolve(!!result));
+    });
+  }
+
+  async loginPassword(usernameOrEmail, password): Promise<any> {
+    return this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
+      if (!user) {
+        return null;
+      }
+      return this.comparePasswordWithHash(password, user.passwordHash).then(success => success ? user : null);
     });
   }
 
@@ -308,10 +317,25 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updateUser(userId, updateData) {
-    await this.database.updateUser(userId, updateData);
+    //TODO: check apiKey UserAccountManagement permission to updateUser
+    const {password, email, name} = updateData;
+    await this.checkNameAndEmail(userId, name, email);
 
     let user = await this.database.getUser(userId);
+    let passwordHash: any = user.passwordHash;
+    if (password) {
+      passwordHash = await this.hashPassword(password);
+    }
+    const userData = { passwordHash };
+    if (name) {
+      userData['name'] = name;
+    }
+    if (email) {
+      userData['email'] = email;
+    }
+    await this.database.updateUser(userId, userData);
 
+    user = await this.database.getUser(userId);
     if (!user.storageAccountId) {
       const storageAccountId = await this.createStorageAccount(user.name);
       await this.database.updateUser(userId, {storageAccountId, manifestStaticStorageId: storageAccountId});
@@ -319,10 +343,8 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
-
     if (manifestStorageId != user.manifestStorageId) {
       await this.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
-
       await this.database.updateUser(userId, {manifestStorageId});
     }
 
@@ -438,13 +460,17 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async generateUserApiKey(userId, data, skipPermissionCheck = false) {
-    if(!skipPermissionCheck) {
+    if (!skipPermissionCheck) {
       await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
     }
     const generated = uuidAPIKey.create();
 
     data.userId = userId;
     data.valueHash = generated.uuid;
+
+    if (!data.permissions) {
+      data.permissions = JSON.stringify(await this.database.getCorePermissions(userId).then(list => list.map(i => i.name)));
+    }
 
     await this.database.addApiKey(data);
 
@@ -456,12 +482,10 @@ class GeesomeApp implements IGeesomeApp {
       return null;
     }
     const valueHash = uuidAPIKey.toUUID(apiKey);
-
     const keyObj = await this.database.getApiKeyByHash(valueHash);
     if (!keyObj) {
       return null;
     }
-
     return this.database.getUser(keyObj.userId);
   }
 
