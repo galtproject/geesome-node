@@ -40,6 +40,11 @@ module.exports = `
               Edit profile
             </md-button>
             
+            <md-button :to="{name: 'current-user-password-edit'}" class="md-primary">
+              <md-icon class="fas fa-pen"></md-icon>
+              Edit password
+            </md-button>
+            
             <div style="display: flex; justify-content: space-between;">
               <h3>Social networks clients</h3>
 

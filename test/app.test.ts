@@ -128,6 +128,34 @@ describe("app", function () {
         //
         // assert.notEqual(contentObj.storageAccountId, null);
       });
+
+      it('loginPassword and updateUser should work properly', async () => {
+        const adminUser = (await app.database.getAllUserList('admin'))[0];
+
+        let byIncorrectPassword = await app.loginPassword('admin', 'admin1');
+        assert.equal(byIncorrectPassword, null);
+
+        let byCorrectPassword = await app.loginPassword('admin', 'admin');
+        assert.equal(byCorrectPassword.id, adminUser.id);
+
+        await app.updateUser(byCorrectPassword.id, {name: 'new-admin', email: 'new-admin@admin.com'});
+
+        const updatedUser = await app.database.getUser(byCorrectPassword.id);
+        assert.equal(updatedUser.name,  'new-admin');
+        assert.equal(updatedUser.email,  'new-admin@admin.com');
+
+        byIncorrectPassword = await app.loginPassword('admin', 'admin');
+        assert.equal(byIncorrectPassword, null);
+        byCorrectPassword = await app.loginPassword('new-admin', 'admin')
+        assert.equal(byCorrectPassword.id, adminUser.id);
+
+        await app.updateUser(byCorrectPassword.id, {password: 'new-pass'});
+
+        byIncorrectPassword = await app.loginPassword('new-admin', 'admin');
+        assert.equal(byIncorrectPassword, null);
+        byCorrectPassword = await app.loginPassword('new-admin', 'new-pass')
+        assert.equal(byCorrectPassword.id, adminUser.id);
+      });
       
       it('should correctly save data with only save permission', async () => {
         try {
