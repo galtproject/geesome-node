@@ -1,14 +1,17 @@
 import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../interface";
 import {CorePermissionName, IListParams} from "../../../database/interface";
-const commonHelper = require('geesome-libs/src/common');
 const pIteration = require('p-iteration');
 const _ = require('lodash');
+const ethereumAuthorization = require('../../../authorization/ethereum');
+const geesomeMessages = require("geesome-libs/src/messages");
 
 module.exports = (app: IGeesomeApp) => {
 	app.checkModules(['group']);
 
 	class InviteModule implements IGeesomeInviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
+			userData = _.pick(userData, ['email', 'name', 'password', 'accounts']);
+
 			const invite = await app.database.findInviteByCode(inviteCode);
 			if (!invite) {
 				throw new Error("invite_not_found");
@@ -17,10 +20,26 @@ module.exports = (app: IGeesomeApp) => {
 				throw new Error("invite_not_active");
 			}
 			const joinedByInviteCount = await app.database.getJoinedByInviteCount(invite.id);
-			console.log('joinedByInviteCount', joinedByInviteCount);
-			console.log('invite.maxCount', invite.maxCount);
 			if (joinedByInviteCount >= invite.maxCount) {
 				throw new Error("invite_max_count");
+			}
+
+			if (userData.accounts) {
+				const selfIpnsId = await app.getSelfAccountId();
+
+				userData.accounts.forEach(acc => {
+					if (acc.provider === 'ethereum') {
+						if (!acc.signature) {
+							throw new Error("signature_required");
+						}
+						const isValid = ethereumAuthorization.isSignatureValid(acc.address, acc.signature, geesomeMessages.acceptInvite(selfIpnsId, inviteCode), 'message');
+						if (!isValid) {
+							throw Error('account_signature_not_valid');
+						}
+					} else {
+						throw Error('not_supported_provider');
+					}
+				});
 			}
 
 			const user = await app.registerUser({
@@ -28,18 +47,22 @@ module.exports = (app: IGeesomeApp) => {
 				permissions: JSON.parse(invite.permissions),
 			}, invite.id);
 
-			await pIteration.forEachSeries(JSON.parse(invite.limits), (limitData) => {
-				return app.setUserLimit(invite.createdById, {
-					...limitData,
-					userId: user.id,
+			if (invite.limits) {
+				await pIteration.forEachSeries(JSON.parse(invite.limits), (limitData) => {
+					return app.setUserLimit(invite.createdById, {
+						...limitData,
+						userId: user.id,
+					});
 				});
-			});
+			}
 
-			await pIteration.forEachSeries(JSON.parse(invite.groupsToJoin), (groupId) => {
-				return app.ms.group.addMemberToGroup(invite.createdById, groupId, user.id).catch(e => {/*ignore, because it's optional*/});
-			});
+			if (invite.groupsToJoin) {
+				await pIteration.forEachSeries(JSON.parse(invite.groupsToJoin), (groupId) => {
+					return app.ms.group.addMemberToGroup(invite.createdById, groupId, user.id).catch(e => {/*ignore, because it's optional*/});
+				});
+			}
 
-			return user;
+			return { user, apiKey: await app.generateUserApiKey(user.id, {type: "invite"})};
 		}
 
 		async createInvite(userId, inviteData) {

@@ -2,7 +2,7 @@ module.exports = `<div>
   <div>
 	<div class="md-subhead">User personal data</div>
 	<md-field>
-		<label>@Username</label>
+		<label>Username</label>
 		<md-input v-model="user.name" :disabled="creation"></md-input>
 	</md-field>
 	

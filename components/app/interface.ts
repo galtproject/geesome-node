@@ -126,6 +126,8 @@ export interface IGeesomeApp {
   //TODO: define interface
   getStaticIdPeers(ipns): Promise<any>;
 
+  getSelfAccountId(): Promise<string>;
+
   getBootNodes(userId, type?): Promise<string[]>;
 
   addBootNode(userId, address, type?): Promise<any>;
@@ -202,7 +204,7 @@ export interface IGeesomeFileCatalogModule {
 }
 
 export interface IGeesomeInviteModule {
-  registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<IUser>;
+  registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<{user: IUser, apiKey: IUserApiKey}>;
 
   createInvite(userId, inviteData: IInvite): Promise<IInvite>;
 
@@ -325,6 +327,7 @@ export interface IUserAccountInput {
   provider: string;
   address: string;
   description?: string;
+  signature?: string;
   type?: string;
 }
 

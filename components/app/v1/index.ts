@@ -185,6 +185,14 @@ class GeesomeApp implements IGeesomeApp {
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
+  validateEmail(email) {
+    return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
+  }
+
+  validateUsername(username) {
+    return /^\w+([\.-]?\w)+$/.test(username);
+  }
+
   async registerUser(userData: IUserInput, joinedByInviteId = null): Promise<any> {
     const {email, name, password} = userData;
 
@@ -197,7 +205,10 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("name_cant_be_null");
     }
 
-    if (_.includes(name, '@')) {
+    if (email && !this.validateEmail(email)) {
+      throw new Error("email_invalid");
+    }
+    if (!this.validateUsername(name)) {
       throw new Error("forbidden_symbols_in_name");
     }
 
@@ -1334,6 +1345,10 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     return storageId;
+  }
+
+  async getSelfAccountId() {
+    return this.communicator.getAccountIdByName('self');
   }
 
   async createStorageAccount(name) {

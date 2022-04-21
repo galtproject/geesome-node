@@ -130,6 +130,18 @@ describe("app", function () {
       });
       
       it('should correctly save data with only save permission', async () => {
+        try {
+          await app.registerUser({email: 'user-save-data@user.com', name: 'user -save-data', permissions: [CorePermissionName.UserSaveData]});
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "forbidden_symbols_in_name"), true);
+        }
+        try {
+          await app.registerUser({email: 'user-save- data@user.com', name: 'user -save-data', permissions: [CorePermissionName.UserSaveData]});
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "email_invalid"), true);
+        }
         const saveDataTestUser = await app.registerUser({email: 'user-save-data@user.com', name: 'user-save-data', permissions: [CorePermissionName.UserSaveData]});
 
         log('saveDataTestUser');
@@ -759,7 +771,7 @@ describe("app", function () {
         const category = await app.ms.groupCategory.createCategory(testUser.id, {name: 'category'});
         await app.ms.groupCategory.addGroupToCategory(testUser.id, testGroup.id, category.id);
 
-        const newMember = await app.registerUser({email: 'new1user.com', name: 'new1', password: 'new1', permissions: [CorePermissionName.UserAll]});
+        const newMember = await app.registerUser({email: 'new1@user.com', name: 'new1', password: 'new1', permissions: [CorePermissionName.UserAll]});
 
         const post1Content = await app.saveData('Hello world1', null, {
           userId: newMember.id,
@@ -840,7 +852,7 @@ describe("app", function () {
         const userAccountAddress = '0x2FAa9af0dbD9d32722C494bAD6B4A2521d132003';
 
         const newMember = await app.registerUser({
-          email: 'new1user.com',
+          email: 'new1@user.com',
           name: 'new1',
           password: 'new1',
           permissions: [CorePermissionName.UserAll],
@@ -862,6 +874,7 @@ describe("app", function () {
       });
 
       it('user invites should work properly', async () => {
+        const userAccountPrivateKey = '0xec63de747a7872b20793af42814ce92b5749dd13017887b6ab26754907b4934f';
         const userAccountAddress = '0x2FAa9af0dbD9d32722C494bAD6B4A2521d132003';
         const testGroup = (await app.database.getAllGroupList('test'))[0];
         const testUser = (await app.database.getAllUserList('user'))[0];
@@ -876,17 +889,26 @@ describe("app", function () {
           isActive: true
         });
 
-        const newMember = await app.ms.invite.registerUserByInviteCode(invite.code, {
-          email: 'new2user.com',
+        try {
+          await app.ms.invite.registerUserByInviteCode(invite.code, {
+            email: 'new2@user.com',
+            name: 'new2',
+            password: 'new2',
+            permissions: [CorePermissionName.UserAll],
+            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+          });
+          assert.equal(true, false);
+        } catch (e) {
+          assert.equal(_.includes(e.toString(), "signature_required"), true);
+          //TODO: add test for ethereum signature
+        }
+        const {user: newMember} = await app.ms.invite.registerUserByInviteCode(invite.code, {
+          email: 'new2@user.com',
           name: 'new2',
           password: 'new2',
           permissions: [CorePermissionName.UserAll],
-          accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
         });
         assert.equal(newMember.joinedByInviteId, invite.id);
-        assert.equal(newMember.accounts.length, 1);
-        assert.equal(newMember.accounts[0].provider, 'ethereum');
-        assert.equal(newMember.accounts[0].address, userAccountAddress.toLowerCase());
 
         const userLimit = await app.getUserLimit(testAdmin.id, newMember.id, UserLimitName.SaveContentSize);
         assert.equal(userLimit.isActive, true);
@@ -901,11 +923,10 @@ describe("app", function () {
 
         try {
           await app.ms.invite.registerUserByInviteCode(commonHelper.random('hash'), {
-            email: 'new3user.com',
+            email: 'new3@user.com',
             name: 'new3',
             password: 'new3',
             permissions: [CorePermissionName.UserAll],
-            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
           });
           assert.equal(true, false);
         } catch (e) {
@@ -914,11 +935,10 @@ describe("app", function () {
 
         try {
           await app.ms.invite.registerUserByInviteCode(invite.code, {
-            email: 'new3user.com',
+            email: 'new3@user.com',
             name: 'new3',
             password: 'new3',
             permissions: [CorePermissionName.UserAll],
-            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
           });
           assert.equal(true, false);
         } catch (e) {
@@ -929,12 +949,11 @@ describe("app", function () {
         const foundInvite = await app.database.findInviteByCode(invite.code);
         assert.equal(foundInvite.maxCount, 3);
 
-        const newMember3 = await app.ms.invite.registerUserByInviteCode(invite.code, {
-          email: 'new3user.com',
+        const {user: newMember3} = await app.ms.invite.registerUserByInviteCode(invite.code, {
+          email: 'new3@user.com',
           name: 'new3',
           password: 'new3',
           permissions: [CorePermissionName.UserAll],
-          accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
         });
 
         assert.equal(await app.ms.group.isMemberInGroup(newMember.id, testGroup.id), false);
@@ -944,11 +963,10 @@ describe("app", function () {
 
         try {
           await app.ms.invite.registerUserByInviteCode(invite.code, {
-            email: 'new4user.com',
+            email: 'new4@user.com',
             name: 'new4',
             password: 'new4',
             permissions: [CorePermissionName.UserAll],
-            accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
           });
           assert.equal(true, false);
         } catch (e) {

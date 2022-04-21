@@ -31,6 +31,7 @@ import SocNetChannel from "./pages/UsersSection/SocNetChannel/SocNetChannel";
 import StaticSiteManager from "./pages/UsersSection/StaticSiteManager/StaticSiteManager";
 import NewUserRegister from "./pages/UsersSection/NewUser/NewUserRegister/NewUserRegister";
 import NewUserInvite from "./pages/UsersSection/NewUser/NewUserInvite/NewUserInvite";
+import JoinByInvite from "./pages/UsersSection/JoinByInvite/JoinByInvite";
 
 Vue.use(Router);
 
@@ -113,6 +114,11 @@ export default new Router({
           component: NewUserInvite
         }
       ]
+    },
+    {
+      path: '/j/:code',
+      name: 'join-by-invite',
+      component: JoinByInvite,
     },
     {
       path: '/new-group',

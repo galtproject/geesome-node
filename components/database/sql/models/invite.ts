@@ -31,6 +31,9 @@ module.exports = async function (sequelize, models) {
     maxCount: {
       type: Sequelize.INTEGER
     },
+    captcha: {
+      type: Sequelize.STRING(200)
+    },
     isActive: {
       type: Sequelize.BOOLEAN
     }

@@ -1,6 +1,5 @@
 module.exports = `<div>
   <div>
-
 	<div class="md-layout">
 	  <div class="md-layout-item md-size-30">
 		<md-field>
@@ -51,7 +50,7 @@ module.exports = `<div>
   	Create invite
   </md-button>
 
-  <div style="margin-top: 20px" class="md-success" v-if="created">Invite successfully created! Link: {{invite.code}}</div>
+  <div style="margin-top: 20px" class="md-success" v-if="created">Invite successfully created! Link: <pretty-hex :to="{name: 'join-by-invite', params: {code: invite.code}}" :hex="inviteUrl" :full="1">{{inviteUrl}}</pretty-hex></div>
 
   <div style="margin-top: 20px" class="md-error" v-if="error">Creation failed: {{error}}</div>
 </div>

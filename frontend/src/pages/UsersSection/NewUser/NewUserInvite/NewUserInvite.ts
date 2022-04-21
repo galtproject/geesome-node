@@ -11,6 +11,7 @@ import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/Perio
 import Helper from "geesome-vue-components/src/services/helper";
 
 const pick = require('lodash/pick');
+import common from "../../../../libs/common";
 
 export default {
   template: require('./NewUserInvite.template'),
@@ -43,6 +44,8 @@ export default {
       this.$coreApi.adminCreateInvite(this.invite).then(async (invite) => {
         this.invite.id = invite.id;
         this.invite.code = invite.code;
+        this.inviteUrl = common.getInvitePage(this.$router, invite.code);
+
         this.created = true;
         this.error = null;
       }).catch((e) => {
@@ -61,7 +64,10 @@ export default {
       localeKey: 'new_user',
       invite: {
         title: '',
-        maxCount: 1
+        maxCount: 1,
+        id: null,
+        code: null,
+        isActive: true
       },
       isAdmin: false,
       isOnlySaveData: false,
@@ -72,6 +78,7 @@ export default {
         valueMb: 100,
         name: 'save_content:size' //TODO: include and use inviteLimitName.SaveContentSize
       },
+      inviteUrl: null,
       resultApiKey: null,
       error: null,
       creation: false,

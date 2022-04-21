@@ -93,6 +93,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     }, 200);
   });
 
+  service.get('/v1/self-account-id', async (req, res) => {
+    res.send({ result: await geesomeApp.getSelfAccountId() }, 200);
+  });
+
   /**
    * @api {post} /v1/setup Setup first admin user
    * @apiName RunSetup
@@ -603,6 +607,10 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/v1/category/:categoryId/posts', async (req, res) => {
     res.send(await geesomeApp.ms.groupCategory.getCategoryPosts(req.params.categoryId, req.query, req.query));
+  });
+
+  service.post('/v1/invite/join/:code', async (req, res) => {
+    res.send(await geesomeApp.ms.invite.registerUserByInviteCode(req.params.code, req.body));
   });
 
   //TODO: move permissions checks to geesomeApp class
