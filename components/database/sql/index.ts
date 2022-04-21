@@ -10,7 +10,7 @@
 import {
   GroupType, ICategory,
   IContent,
-  IDatabase, IFileCatalogItem, IGroup, IGroupRead, IGroupSection,
+  IDatabase, IFileCatalogItem, IGroup, IGroupRead, IGroupSection, IInvite,
   IListParams,
   IObject, IPost, IStaticIdHistoryItem,
   IUser,
@@ -305,6 +305,66 @@ class MysqlDatabase implements IDatabase {
 
   async getUserAuthMessage(id) {
     return this.models.UserAuthMessage.findOne({where: {id}}) as IUserAuthMessage;
+  }
+
+  async addInvite(invite) {
+    return this.models.Invite.create(invite);
+  }
+
+  async updateInvite(id, updateData) {
+    return this.models.Invite.update(updateData, {where: {id}})
+  }
+
+  async getInvite(id) {
+    return this.models.Invite.findOne({where: {id}}) as IInvite;
+  }
+
+  async findInviteByCode(code) {
+    return this.models.Invite.findOne({where: {code}}) as IInvite;
+  }
+
+  async getJoinedByInviteCount(joinedByInviteId) {
+    return this.models.User.count({ where: {joinedByInviteId} });
+  }
+
+  async getUserInvites(createdById, filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+    const where = { createdById };
+    if (!_.isUndefined(filters['isActive'])) {
+      where['isActive'] = _.isUndefined(filters['isActive']);
+    }
+    return this.models.Post.findAll({
+      where,
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getUserInvitesCount(createdById, filters = {}) {
+    const where = { createdById };
+    if (!_.isUndefined(filters['isActive'])) {
+      where['isActive'] = _.isUndefined(filters['isActive']);
+    }
+    return this.models.Post.findAll({ where });
+  }
+
+  async getAllInvites(filters = {}, listParams: IListParams = {}) {
+    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+
+    const {limit, offset, sortBy, sortDir} = listParams;
+    const where = { };
+    if (!_.isUndefined(filters['isActive'])) {
+      where['isActive'] = _.isUndefined(filters['isActive']);
+    }
+    return this.models.Post.findAll({
+      where,
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
   }
 
   async getGroup(id) {

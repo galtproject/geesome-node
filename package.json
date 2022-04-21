@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "description": "",
   "main": "index.ts",
+  "engines": {
+    "node": ">=16"
+  },
   "scripts": {
     "start": "yarn && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
     "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run start",
@@ -23,7 +26,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.18",
+    "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.19",
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",
     "@types/es6-promise": "^3.3.0",
     "@vuepress/bundler-vite": "2.0.0-beta.35",
@@ -48,7 +51,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#386e2ca",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#522c1a5",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "0.54.4",
     "ipfs-http-client": "^50.1.2",

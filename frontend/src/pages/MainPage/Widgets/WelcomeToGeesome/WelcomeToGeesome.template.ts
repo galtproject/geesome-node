@@ -51,9 +51,9 @@ module.exports = `
         </div>
 
         <div class="md-layout-item md-size-30 md-xsmall-size-50" style="padding: 5px;">
-          <md-button class="md-raised huge-button md-accent" :to="{name: 'new-user'}" :disabled="!user">
+          <md-button class="md-raised huge-button md-accent" :to="{name: 'new-user-invite'}" :disabled="!user">
             <md-icon class="fas fa-user-plus"></md-icon>
-            <div>Add user</div>
+            <div>Add users</div>
           </md-button>
         </div>
 

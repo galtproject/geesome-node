@@ -15,6 +15,7 @@ class RssGenerator {
 
     constructor(_app: IGeesomeApp) {
         this.app = _app;
+        _app.checkModules(['group']);
         _app.api.get(this.getRssGroupUrl(), async (req, res) => {
             const host = req.rawHeaders[req.rawHeaders.indexOf('Host') + 1];
             console.log('req', req);
@@ -29,12 +30,12 @@ class RssGenerator {
 
     async groupRss(groupId, host, forUserId?) {
         console.log('groupId', groupId);
-        const group = await this.app.getGroup(groupId);
+        const group = await this.app.ms.group.getGroup(groupId);
         // TODO: check permission to read not public groups by user id
         if (!forUserId && !group.isPublic) {
             throw new Error('GROUP_NOT_PUBLIC');
         }
-        const {list: groupPosts} = await this.app.getGroupPosts(groupId, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
+        const {list: groupPosts} = await this.app.ms.group.getGroupPosts(groupId, {}, {sortBy: 'publishedAt', sortDir: 'desc', limit: 9999, offset: 0});
 
         const feedObject = {
             rss: [
@@ -70,7 +71,7 @@ class RssGenerator {
     ) {
         return pIteration.mapSeries(_.chunk(posts, 10), (postsChunk) => {
             return pIteration.map(postsChunk, post => {
-                return this.app.getPostContent(host + '/v1/content-data/', post).then(({text, images, videos}) => {
+                return this.app.ms.group.getPostContent(host + '/v1/content-data/', post).then(({text, images, videos}) => {
                     return {
                         item: [
                             { title: text.slice(0, 50) + (text.length > 50 ? '...' : '')  },

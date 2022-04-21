@@ -50,7 +50,7 @@ describe("renders", function () {
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
-          await app.createGroup(testUser.id, {
+          await app.ms.group.createGroup(testUser.id, {
             name: 'test',
             title: 'Test 1 group',
             isPublic: true,
@@ -77,7 +77,7 @@ describe("renders", function () {
         assert.equal(includes(staticSiteContent, "Test 1 post"), true);
         assert.equal(includes(staticSiteContent, "Test 1 group"), true);
 
-        const testGroup2 = await app.createGroup(testUser.id, {
+        const testGroup2 = await app.ms.group.createGroup(testUser.id, {
           name: 'test-2',
           title: 'Test 2'
         });
@@ -92,7 +92,7 @@ describe("renders", function () {
             mimeType: 'text/html'
           });
 
-          await app.createPost(testUser.id, {
+          await app.ms.group.createPost(testUser.id, {
             contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
             groupId: group.id,
             status: PostStatus.Published
@@ -109,10 +109,10 @@ describe("renders", function () {
 
           while (userOperationQueue.isWaiting) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
-            userOperationQueue = await app.getUserOperationQueue(testUser.id, userOperationQueue.id);
+            userOperationQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, userOperationQueue.id);
           }
 
-          group = await app.getGroup(group.id);
+          group = await app.ms.group.getGroup(group.id);
           const {staticSiteManifestStorageId} = JSON.parse(group.propertiesJson);
           const storageId = await app.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
           return app.storage.getFileDataText(storageId + '/index.html');
@@ -140,7 +140,7 @@ describe("renders", function () {
           groupId: testGroup.id
         });
 
-        await app.createPost(testUser.id, {
+        await app.ms.group.createPost(testUser.id, {
           contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}, {manifestStorageId: imageContent.manifestStorageId, view: ContentView.Attachment}],
           groupId: testGroup.id,
           status: PostStatus.Published

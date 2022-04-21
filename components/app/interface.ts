@@ -13,8 +13,8 @@ import {
   IContent,
   IDatabase,
   IFileCatalogItem,
-  IGroup, IGroupSection, IListParams,
-  IPost,
+  IGroup, IGroupSection, IInvite, IListParams,
+  IPost, IStaticIdHistoryItem,
   IUser, IUserAccount,
   IUserApiKey, IUserAsyncOperation, IUserAuthMessage,
   IUserLimit, IUserOperationQueue, PostStatus, UserLimitName
@@ -24,6 +24,7 @@ import {GeesomeEmitter} from "./v1/events";
 import {IRender} from "../render/interface";
 import {ICommunicator} from "../communicator/interface";
 import {ISocNetClient} from "../socNetClient/interface";
+import exp = require("constants");
 
 export interface IGeesomeApp {
   api: any;
@@ -38,11 +39,22 @@ export interface IGeesomeApp {
 
   frontendStorageId;
 
+  //modules
+  ms: {
+    asyncOperation: IGeesomeAsyncOperationModule;
+    invite: IGeesomeInviteModule;
+    group: IGeesomeGroupModule;
+    groupCategory: IGeesomeGroupCategoryModule;
+    fileCatalog: IGeesomeFileCatalogModule;
+  };
+
+  checkModules(modulesList: string[]);
+
   getSecretKey(keyName, mode): Promise<string>;
 
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
-  registerUser(userData: IUserInput): Promise<IUser>;
+  registerUser(userData: IUserInput, inviteId?): Promise<IUser>;
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
@@ -53,6 +65,8 @@ export interface IGeesomeApp {
   updateUser(userId, updateData): Promise<IUser>;
 
   setUserAccount(userId, accountData): Promise<IUserAccount>;
+
+  checkUserId(userId, createIfNotExist?): Promise<number>;
 
   generateUserApiKey(userId, apiKeyData, skipPermissionCheck?): Promise<string>;
 
@@ -65,6 +79,145 @@ export interface IGeesomeApp {
   getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
 
   setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
+
+  checkUserCan(userId, permission): Promise<void>;
+
+  saveData(fileStream, fileName, options): Promise<IContent>;
+
+  saveDataByUrl(url, options): Promise<IContent>;
+
+  saveDirectoryToStorage(userId, dirPath, options): Promise<IContent>;
+
+  createContentByRemoteStorageId(manifestStorageId, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
+
+  getFileStream(filePath, options?);
+
+  checkStorageId(storageId): string;
+
+  getDataStructure(dataId, isResolve?);
+
+  saveDataStructure(data);
+
+  createContentByObject(contentObject, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
+
+  regenerateUserContentPreviews(userId): Promise<void>;
+
+  getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUserListResponse>;
+
+  getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContentListResponse>;
+
+  getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
+
+  getUserLimitRemained(userId, limitName: UserLimitName): Promise<number>;
+
+  generateAndSaveManifest(entityName, entityObj): Promise<string>; //returns hash
+
+  // getPreviewContentData()
+
+  getContent(contentId): Promise<IContent>;
+
+  getContentByStorageId(storageId): Promise<IContent>;
+
+  getContentByManifestId(storageId): Promise<IContent>;
+
+  //TODO: define interface
+  getPeers(topic): Promise<any>;
+
+  //TODO: define interface
+  getStaticIdPeers(ipns): Promise<any>;
+
+  getSelfAccountId(): Promise<string>;
+
+  getBootNodes(userId, type?): Promise<string[]>;
+
+  addBootNode(userId, address, type?): Promise<any>;
+
+  removeBootNode(userId, address, type?): Promise<any>;
+
+  createStorageAccount(accountName): Promise<string>;
+
+  bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem>;
+
+  resolveStaticId(staticId): Promise<string>;
+
+  stop(): Promise<void>;
+}
+
+export interface IGeesomeAsyncOperationModule {
+
+  asyncOperationWrapper(methodName, args, options);
+
+  getAsyncOperation(userId, id): Promise<IUserAsyncOperation>;
+
+  addAsyncOperation(userId, asyncOperationData): Promise<IUserAsyncOperation>;
+
+  updateAsyncOperation(userId, asyncOperationId, percent);
+
+  cancelAsyncOperation(userId, asyncOperationId);
+
+  finishAsyncOperation(userId, asyncOperationId, contentId?);
+
+  errorAsyncOperation(userId, asyncOperationId, errorMessage);
+
+  findAsyncOperations(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
+
+  addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+
+  getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
+
+  getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
+
+  setAsyncOperationToUserOperationQueue(userOperationQueueId, userAsyncOperationId): Promise<any>;
+
+  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
+}
+
+export interface IGeesomeFileCatalogModule {
+
+  saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
+
+  getContentByPath(userId, path): Promise<IContent>;
+
+  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
+
+  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+
+  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
+
+  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
+
+  createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
+
+  addContentToFolder(userId, contentId, folderId): Promise<any>;
+
+  updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
+
+  publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
+
+  saveManifestsToFolder(userId, path, toSaveList: ManifestToSave[], options?: { groupId? }): Promise<IFileCatalogItem>;
+
+  deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
+
+  getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
+
+  addContentToUserFileCatalog(userId, content: IContent, options?: { groupId?, apiKey?, folderId?, path? });
+}
+
+export interface IGeesomeInviteModule {
+  registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<{user: IUser, apiKey: IUserApiKey}>;
+
+  createInvite(userId, inviteData: IInvite): Promise<IInvite>;
+
+  updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
+
+  getUserInvites(userId, filters?, listParams?: IListParams): Promise<IInvitesListResponse>;
+}
+
+export interface IGeesomeGroupModule {
+
+  checkGroupId(groupId, createIfNotExist?): Promise<number>;
+
+  getAllGroupList(adminId, searchString, listParams?: IListParams): Promise<IGroupListResponse>;
 
   getMemberInGroups(userId, types: GroupType[]): Promise<IGroupListResponse>;
 
@@ -92,14 +245,6 @@ export interface IGeesomeApp {
 
   removeMemberFromGroup(userId, groupId, memberId): Promise<void>;
 
-  addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
-
-  addAdminToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
-
-  removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
-
-  isMemberInCategory(userId, categoryId): Promise<boolean>;
-
   setGroupPermissions(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
 
   addAdminToGroup(userId, groupId, newAdminUserId): Promise<void>;
@@ -111,6 +256,8 @@ export interface IGeesomeApp {
   getPost(userId, postId);
 
   createPost(userId, postData);
+
+  createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
   updatePost(userId, postId, postData);
 
@@ -134,6 +281,11 @@ export interface IGeesomeApp {
 
   addOrUpdateGroupRead(userId, groupReadData);
 
+  //TODO: define interface
+  getGroupPeers(groupId): Promise<any>;
+}
+
+export interface IGeesomeGroupCategoryModule {
   getCategoryByParams(params): Promise<ICategory>;
 
   createCategory(userId, categoryData): Promise<ICategory>;
@@ -150,112 +302,13 @@ export interface IGeesomeApp {
 
   getGroupSectionItems(filters?, listParams?: IListParams): Promise<IGroupSectionListResponse>;
 
-  asyncOperationWrapper(methodName, args, options);
+  addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
 
-  saveData(fileStream, fileName, options): Promise<IContent>;
+  addAdminToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
 
-  saveDataByUrl(url, options): Promise<IContent>;
+  removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
 
-  saveDirectoryToStorage(userId, dirPath, options): Promise<IContent>;
-
-  getAsyncOperation(userId, id): Promise<IUserAsyncOperation>;
-
-  addAsyncOperation(userId, asyncOperationData): Promise<IUserAsyncOperation>;
-
-  updateAsyncOperation(userId, asyncOperationId, percent);
-
-  cancelAsyncOperation(userId, asyncOperationId);
-
-  finishAsyncOperation(userId, asyncOperationId, contentId?);
-
-  errorAsyncOperation(userId, asyncOperationId, errorMessage);
-
-  findAsyncOperations(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
-
-  addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
-
-  getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
-
-  getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
-
-  setAsyncOperationToUserOperationQueue(userOperationQueueId, userAsyncOperationId): Promise<any>;
-
-  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
-
-  createContentByRemoteStorageId(manifestStorageId): Promise<IContent>;
-
-  createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
-
-  getFileStream(filePath, options?);
-
-  checkStorageId(storageId): string;
-
-  getDataStructure(dataId, isResolve?);
-
-  saveDataStructure(data);
-
-  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
-
-  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
-
-  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
-
-  createUserFolder(userId, parentItemId, folderName): Promise<IFileCatalogItem>;
-
-  addContentToFolder(userId, contentId, folderId): Promise<any>;
-
-  updateFileCatalogItem(userId, fileCatalogId, updateData): Promise<IFileCatalogItem>;
-
-  saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
-
-  getContentByPath(userId, path): Promise<IContent>;
-
-  getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
-
-  publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
-
-  saveManifestsToFolder(userId, path, toSaveList: ManifestToSave[], options?: { groupId? }): Promise<IFileCatalogItem>;
-
-  deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
-
-  regenerateUserContentPreviews(userId): Promise<void>;
-
-  getAllUserList(adminId, searchString, listParams?: IListParams): Promise<IUserListResponse>;
-
-  getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContentListResponse>;
-
-  getAllGroupList(adminId, searchString, listParams?: IListParams): Promise<IGroupListResponse>;
-
-  getUserLimit(adminId, userId, limitName): Promise<IUserLimit>;
-
-  getUserLimitRemained(userId, limitName: UserLimitName): Promise<number>;
-
-  getContent(contentId): Promise<IContent>;
-
-  getContentByStorageId(storageId): Promise<IContent>;
-
-  //TODO: define interface
-  getPeers(topic): Promise<any>;
-
-  //TODO: define interface
-  getStaticIdPeers(ipns): Promise<any>;
-
-  //TODO: define interface
-  getGroupPeers(groupId): Promise<any>;
-
-  getBootNodes(userId, type?): Promise<string[]>;
-
-  addBootNode(userId, address, type?): Promise<any>;
-
-  removeBootNode(userId, address, type?): Promise<any>;
-
-  createStorageAccount(accountName): Promise<string>;
-
-  resolveStaticId(staticId): Promise<string>;
-
-  stop(): Promise<void>;
+  isMemberInCategory(userId, categoryId): Promise<boolean>;
 }
 
 export interface IUserInput {
@@ -265,6 +318,8 @@ export interface IUserInput {
 
   accounts?: IUserAccountInput[];
   permissions?: CorePermissionName[];
+
+  joinedByInviteId?: number;
 }
 
 export interface IUserAccountInput {
@@ -272,6 +327,7 @@ export interface IUserAccountInput {
   provider: string;
   address: string;
   description?: string;
+  signature?: string;
   type?: string;
 }
 
@@ -357,6 +413,11 @@ export interface IPostInput {
 export interface ManifestToSave {
   manifestStorageId;
   path?;
+}
+
+export interface IInvitesListResponse {
+  list: IInvite[];
+  total: number;
 }
 
 export interface IFileCatalogListResponse {

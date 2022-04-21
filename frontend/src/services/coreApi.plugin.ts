@@ -9,6 +9,7 @@
 
 const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
 const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
+const isUndefined = require('lodash/isUndefined');
 
 export default {
   install(Vue, options: any = {}) {
@@ -29,13 +30,17 @@ export default {
         let server = localStorage.getItem('geesome-server');
         let apiKey = localStorage.getItem('geesome-api-key');
 
+        function undefinedValue(v) {
+          return !v || v === 'null' || v === 'undefined' || isUndefined(v)
+        }
+
         geesomeClient = new GeesomeClient({
           server,
-          apiKey: apiKey === 'null' ? null : apiKey,
+          apiKey: undefinedValue(apiKey) ? null : apiKey,
           clientStorage: new BrowserLocalClientStorage()
         });
 
-        if(!server || server === 'null') {
+        if (undefinedValue(server)) {
           geesomeClient.setServerByDocumentLocation();
         }
 
@@ -71,7 +76,8 @@ export default {
           'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
           'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
           'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetDbChannel',
-          'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation'
+          'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
+          'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

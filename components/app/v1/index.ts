@@ -11,22 +11,22 @@ import {
   ContentStorageType,
   ContentView,
   CorePermissionName,
-  FileCatalogItemType, GroupPermissionName,
-  GroupType,
-  GroupView,
   IContent,
   IDatabase,
-  IFileCatalogItem,
-  IGroup,
   IListParams,
-  IPost,
+  IStaticIdHistoryItem,
   IUser,
   IUserLimit,
-  PostStatus,
   UserContentActionName,
   UserLimitName
 } from "../../database/interface";
-import {IGeesomeApp, IUserAccountInput, IUserInput, ManifestToSave} from "../interface";
+import {
+  IGeesomeApp, IGeesomeAsyncOperationModule, IGeesomeFileCatalogModule,
+  IGeesomeGroupCategoryModule, IGeesomeGroupModule,
+  IGeesomeInviteModule,
+  IUserAccountInput,
+  IUserInput,
+} from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
@@ -39,10 +39,8 @@ const { BufferListStream } = require('bl');
 const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
-const pgpHelper = require('geesome-libs/src/pgpHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
 const {getDirSize} = require('../../drivers/helpers');
-const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events') as Function;
@@ -54,7 +52,6 @@ const uuidAPIKey = require('uuid-apikey');
 const bcrypt = require('bcrypt');
 const mime = require('mime');
 const axios = require('axios');
-const path = require('path');
 const pIteration = require('p-iteration');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
@@ -80,13 +77,6 @@ module.exports = async (extendConfig) => {
   log('Start communicator...');
   app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
 
-  // setInterval(() => {
-  //   console.log('publishEvent', 'geesome-test');
-  //   app.storage.publishEvent('geesome-test', {
-  //     lala: 'lolo'
-  //   });
-  // }, 1000);
-
   const frontendPath = __dirname + '/../../../frontend/dist';
   if (fs.existsSync(frontendPath)) {
     const directory = await app.storage.saveDirectory(frontendPath);
@@ -97,11 +87,6 @@ module.exports = async (extendConfig) => {
 
   app.drivers = require('../../drivers');
 
-  // if ((await app.database.getUsersCount()) === 0) {
-  //   console.log('Run seeds...');
-  //   await app.runSeeds();
-  // }
-
   app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
   app.events = appEvents(app);
@@ -111,6 +96,11 @@ module.exports = async (extendConfig) => {
 
   log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
+
+  app.ms = {} as any;
+  ['asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite'].forEach(moduleName => {
+    app.ms[moduleName] = require('./modules/' + moduleName)(app);
+  });
 
   app.socNetClients = await pIteration.map(config.socNetClientList, async name => {
     const SocNetClientClass = require('../../socNetClient/' + name);
@@ -138,9 +128,25 @@ class GeesomeApp implements IGeesomeApp {
 
   frontendStorageId;
 
+  ms: {
+    asyncOperation: IGeesomeAsyncOperationModule,
+    fileCatalog: IGeesomeFileCatalogModule,
+    invite: IGeesomeInviteModule,
+    group: IGeesomeGroupModule,
+    groupCategory: IGeesomeGroupCategoryModule
+  };
+
   constructor(
     public config
   ) {
+  }
+
+  checkModules(modulesList: string[]) {
+    modulesList.forEach(module => {
+      if (!this.ms[module]) {
+        throw Error("module_not_defined:" + module);
+      }
+    });
   }
 
   async getSecretKey(keyName, mode) {
@@ -172,14 +178,22 @@ class GeesomeApp implements IGeesomeApp {
     }
     const adminUser = await this.registerUser(userData);
 
-    await pIteration.forEach(['AdminRead', 'AdminAddUser', 'AdminSetUserLimit', 'AdminAddUserApiKey', 'AdminSetPermissions', 'AdminAddBootNode', 'AdminRemoveBootNode', 'UserAll'], (permissionName) => {
+    await pIteration.forEach(['AdminAll', 'UserAll'], (permissionName) => {
       return this.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
 
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
-  async registerUser(userData: IUserInput): Promise<any> {
+  validateEmail(email) {
+    return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
+  }
+
+  validateUsername(username) {
+    return /^\w+([\.-]?\w)+$/.test(username);
+  }
+
+  async registerUser(userData: IUserInput, joinedByInviteId = null): Promise<any> {
     const {email, name, password} = userData;
 
     const existUserWithName = await this.database.getUserByName(name);
@@ -191,7 +205,10 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error("name_cant_be_null");
     }
 
-    if (_.includes(name, '@')) {
+    if (email && !this.validateEmail(email)) {
+      throw new Error("email_invalid");
+    }
+    if (!this.validateUsername(name)) {
       throw new Error("forbidden_symbols_in_name");
     }
 
@@ -211,7 +228,8 @@ class GeesomeApp implements IGeesomeApp {
       manifestStaticStorageId: storageAccountId,
       passwordHash,
       name,
-      email
+      email,
+      joinedByInviteId
     });
 
     if (userData.accounts && userData.accounts.length) {
@@ -224,13 +242,11 @@ class GeesomeApp implements IGeesomeApp {
 
     await this.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
 
-    await this.database.updateUser(newUser.id, {
-      manifestStorageId
-    });
+    await this.database.updateUser(newUser.id, { manifestStorageId });
 
     if (userData.permissions && userData.permissions.length) {
       await pIteration.forEach(userData.permissions, (permissionName) => {
-        return this.database.addCorePermission(newUser.id, permissionName)
+        return this.database.addCorePermission(newUser.id, permissionName);
       });
     }
 
@@ -313,7 +329,7 @@ class GeesomeApp implements IGeesomeApp {
     return this.database.getUser(userId);
   }
 
-  async bindToStaticId(dynamicId, staticId) {
+  async bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem> {
     log('bindToStaticId', dynamicId, staticId);
     try {
       await this.communicator.bindToStaticId(dynamicId, staticId);
@@ -328,7 +344,7 @@ class GeesomeApp implements IGeesomeApp {
       dynamicId,
       isActive: true,
       boundAt: new Date()
-    }).catch(() => {/* already have */})
+    }).catch(() => null);
   }
 
   async setUserAccount(userId, accountData: IUserAccountInput) {
@@ -352,55 +368,6 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  async addUserFriendById(userId, friendId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
-
-    friendId = await this.checkUserId(friendId, true);
-
-    const user = await this.database.getUser(userId);
-    const friend = await this.database.getUser(friendId);
-
-    const group = await this.createGroup(userId, {
-      name: (user.name + "_" + friend.name).replace(/[\W_]+/g, "_") + '_default',
-      type: GroupType.PersonalChat,
-      theme: 'default',
-      title: friend.title,
-      storageId: friend.manifestStorageId,
-      staticStorageId: friend.manifestStaticStorageId,
-      avatarImageId: friend.avatarImageId,
-      view: GroupView.TelegramLike,
-      isPublic: false,
-      isEncrypted: true,
-      isRemote: false
-    });
-
-    await this.database.addMemberToGroup(userId, group.id);
-    await this.database.addAdminToGroup(userId, group.id);
-
-    this.events.emit(this.events.NewPersonalGroup, group);
-
-    return this.database.addUserFriend(userId, friendId);
-  }
-
-  async removeUserFriendById(userId, friendId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
-
-    friendId = await this.checkUserId(friendId, true);
-
-    // TODO: remove personal chat group?
-
-    return this.database.removeUserFriend(userId, friendId);
-  }
-
-  async getUserFriends(userId, search?, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    await this.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
-    return {
-      list: await this.database.getUserFriends(userId, search, listParams),
-      total: await this.database.getUserFriendsCount(userId, search)
-    };
-  }
-
   prepareListParams(listParams?: IListParams): IListParams {
     return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
   }
@@ -413,13 +380,9 @@ class GeesomeApp implements IGeesomeApp {
       return null;
     }
     if (!commonHelper.isNumber(userId)) {
-      log('checkUserId:getUserByManifestId', userId);
       let user = await this.getUserByManifestId(userId, userId);
-      log('checkUserId:getUserByManifestId::user', user && user.id);
       if (!user && createIfNotExist) {
-        log('checkUserId:createUserByRemoteStorageId', userId);
         user = await this.createUserByRemoteStorageId(userId);
-        log('checkUserId:createUserByRemoteStorageId::user', user && user.id);
         return user.id;
       } else if (user) {
         userId = user.id;
@@ -526,6 +489,7 @@ class GeesomeApp implements IGeesomeApp {
 
   public async setUserLimit(adminId, limitData: IUserLimit) {
     limitData.adminId = adminId;
+    await this.checkUserCan(adminId, CorePermissionName.AdminSetUserLimit);
 
     const existLimit = await this.database.getUserLimit(limitData.userId, limitData.name);
     if (existLimit) {
@@ -534,796 +498,6 @@ class GeesomeApp implements IGeesomeApp {
     } else {
       return this.database.addUserLimit(limitData);
     }
-  }
-
-  async getMemberInGroups(userId, types) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // TODO: use query object instead of types
-    return {
-      list: await this.database.getMemberInGroups(userId, types),
-      total: null
-      //TODO: total, limit, offset
-    };
-  }
-
-  async getAdminInGroups(userId, types) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // TODO: use query object instead of types
-    return {
-      list: await this.database.getAdminInGroups(userId, types),
-      total: null
-      //TODO: total, limit, offset
-    };
-  }
-
-  async getPersonalChatGroups(userId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // TODO: use query object
-    return {
-      list: await this.database.getCreatorInGroupsByType(userId, GroupType.PersonalChat),
-      total: null
-      //TODO: total, limit, offset
-    };
-  }
-
-  /**
-   ===========================================
-   GROUPS ACTIONS
-   ===========================================
-   **/
-
-  async checkGroupId(groupId, createIfNotExist = true) {
-    if (groupId == 'null' || groupId == 'undefined') {
-      return null;
-    }
-    if (!groupId || _.isUndefined(groupId)) {
-      return null;
-    }
-    if (!commonHelper.isNumber(groupId)) {
-      let group = await this.getGroupByManifestId(groupId, groupId);
-      if (!group && createIfNotExist) {
-        group = await this.createGroupByRemoteStorageId(groupId);
-        return group.id;
-      } else if (group) {
-        groupId = group.id;
-      }
-    }
-    return groupId;
-  }
-
-  async checkCategoryId(categoryId, createIfNotExist = true) {
-    if (categoryId == 'null' || categoryId == 'undefined') {
-      return null;
-    }
-    if (!categoryId || _.isUndefined(categoryId)) {
-      return null;
-    }
-    if (!commonHelper.isNumber(categoryId)) {
-      let group = await this.getCategoryByManifestId(categoryId, categoryId);
-      if (!group && createIfNotExist) {
-        // TODO: create category by remote storage id
-        return null;
-        // group = await this.createGroupByRemoteStorageId(categoryId);
-        // return group.id;
-      } else if (group) {
-        categoryId = group.id;
-      }
-    }
-    return categoryId;
-  }
-
-  async canCreatePostInGroup(userId, groupId) {
-    console.log('canCreatePostInGroup', userId, groupId);
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    console.log('isAdminInGroup', await this.database.isAdminInGroup(userId, groupId));
-    return (await this.database.isAdminInGroup(userId, groupId))
-      || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId))
-      || (group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId));
-  }
-
-  async canReplyToPost(userId, replyToPostId) {
-    if (!replyToPostId) {
-      return true;
-    }
-    const post = await this.database.getPost(replyToPostId);
-    if(post.isReplyForbidden) {
-      return false;
-    }
-    if(post.isReplyForbidden === false) {
-      return true;
-    }
-    if(await this.database.isAdminInGroup(userId, post.groupId)) {
-      return true;
-    }
-    console.log('post.group.isReplyForbidden', post.group.isReplyForbidden);
-    return !post.group.isReplyForbidden;
-  }
-
-  async canEditPostInGroup(userId, groupId, postId) {
-    if (!groupId || !postId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    const post = await this.database.getPost(postId);
-    console.log('post.userId', post.userId, 'userId', userId);
-    return (await this.database.isAdminInGroup(userId, groupId))
-      || (!group.isOpen && await this.database.isMemberInGroup(userId, groupId) && post.userId === userId)
-      || (!group.isOpen && group.membershipOfCategoryId && await this.database.isMemberInCategory(userId, group.membershipOfCategoryId) && post.userId === userId);
-  }
-
-  async canAddGroupToCategory(userId, categoryId) {
-    if (!categoryId) {
-      return false;
-    }
-    categoryId = await this.checkCategoryId(categoryId);
-    return this.database.isAdminInCategory(userId, categoryId);
-  }
-
-  async createGroup(userId, groupData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-
-    const existUserWithName = await this.database.getGroupByParams({name: groupData['name']});
-    if (existUserWithName) {
-      throw new Error("name_already_exists");
-    }
-    if (!groupData['name']) {
-      throw new Error("name_cant_be_null");
-    }
-
-    groupData.creatorId = userId;
-    if(!groupData.isRemote) {
-      groupData.isRemote = false;
-    }
-
-    groupData.manifestStaticStorageId = await this.createStorageAccount(groupData['name']);
-    if (groupData.type !== GroupType.PersonalChat) {
-      groupData.staticStorageId = groupData.manifestStaticStorageId;
-    }
-
-    const group = await this.database.addGroup(groupData);
-
-    if (groupData.type !== GroupType.PersonalChat) {
-      await this.database.addAdminToGroup(userId, group.id);
-    }
-
-    await this.updateGroupManifest(group.id);
-
-    return this.database.getGroup(group.id);
-  }
-
-  async createGroupByRemoteStorageId(manifestStorageId) {
-    let staticStorageId;
-    if (ipfsHelper.isIpfsHash(manifestStorageId)) {
-      staticStorageId = manifestStorageId;
-      manifestStorageId = await this.resolveStaticId(staticStorageId);
-    }
-
-    let dbGroup = await this.getGroupByManifestId(manifestStorageId, staticStorageId);
-    if (dbGroup) {
-      //TODO: update group if necessary
-      return dbGroup;
-    }
-    const groupObject: IGroup = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
-    groupObject.isRemote = true;
-    return this.createGroupByObject(groupObject);
-  }
-
-  async createGroupByObject(groupObject) {
-    let dbAvatar = await this.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
-    if (!dbAvatar) {
-      dbAvatar = await this.createContentByObject(groupObject.avatarImage);
-    }
-    let dbCover = await this.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
-    if (!dbCover) {
-      dbCover = await this.createContentByObject(groupObject.coverImage);
-    }
-    const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
-    const dbGroup = await this.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
-      avatarImageId: dbAvatar ? dbAvatar.id : null,
-      coverImageId: dbCover ? dbCover.id : null
-    }));
-
-    if (dbGroup.isRemote) {
-      this.events.emit(this.events.NewRemoteGroup, dbGroup);
-    }
-    return dbGroup;
-  }
-
-  async canEditGroup(userId, groupId) {
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    return this.database.isAdminInGroup(userId, groupId);
-  }
-
-  async canEditCategory(userId, categoryId) {
-    if (!categoryId) {
-      return false;
-    }
-    categoryId = await this.checkCategoryId(categoryId);
-    return this.database.isAdminInCategory(userId, categoryId);
-  }
-
-  async isMemberInGroup(userId, groupId) {
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    return this.database.isMemberInGroup(userId, groupId);
-  }
-
-  async isAdminInGroup(userId, groupId) {
-    if (!groupId) {
-      return false;
-    }
-    groupId = await this.checkGroupId(groupId);
-    return this.database.isAdminInGroup(userId, groupId);
-  }
-
-  async isAdminInCategory(userId, categoryId) {
-    if (!categoryId) {
-      return false;
-    }
-    return this.database.isAdminInCategory(userId, categoryId);
-  }
-
-  async addMemberToGroup(userId, groupId, memberId, groupPermissions = []) {
-    groupPermissions = groupPermissions || [];
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    if(!(await this.isAdminInGroup(userId, groupId))) {
-      if(userId.toString() !== memberId.toString()) {
-        throw new Error("not_permitted");
-      }
-      if(!group.isPublic || !group.isOpen) {
-        throw new Error("not_permitted");
-      }
-    }
-
-    await this.database.addMemberToGroup(memberId, groupId);
-
-    await pIteration.forEach(groupPermissions, (permissionName) => {
-      return this.database.addGroupPermission(memberId, groupId, permissionName);
-    });
-  }
-
-  async setMembersOfGroup(userId, groupId, newMemberUserIds) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.setMembersToGroup(newMemberUserIds, groupId);
-  }
-
-  async removeMemberFromGroup(userId, groupId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-    const group = await this.getGroup(groupId);
-    if(!(await this.isAdminInGroup(userId, groupId))) {
-      if(userId.toString() !== memberId.toString()) {
-        throw new Error("not_permitted");
-      }
-      if(!group.isPublic || !group.isOpen) {
-        throw new Error("not_permitted");
-      }
-    }
-    await this.database.removeMemberFromGroup(memberId, groupId);
-    await this.database.removeAllGroupPermission(memberId, groupId);
-  }
-
-  async setGroupPermissions(userId, groupId, memberId, groupPermissions = []) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-    if(!(await this.isAdminInGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    await this.database.removeAllGroupPermission(memberId, groupId);
-
-    await pIteration.forEach(groupPermissions, (permissionName) => {
-      return this.database.addGroupPermission(memberId, groupId, permissionName);
-    });
-  }
-
-  async addAdminToGroup(userId, groupId, newAdminUserId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.addAdminToGroup(newAdminUserId, groupId);
-  }
-
-  async removeAdminFromGroup(userId, groupId, removeAdminUserId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.removeAdminFromGroup(removeAdminUserId, groupId);
-  }
-
-  async setAdminsOfGroup(userId, groupId, newAdminUserIds) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditGroup(userId, groupId))) {
-      throw new Error("not_permitted");
-    }
-    groupId = await this.checkGroupId(groupId);
-    await this.database.setAdminsToGroup(newAdminUserIds, groupId);
-  }
-
-  async updateGroup(userId, groupId, updateData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupId = await this.checkGroupId(groupId);
-
-    const groupPermission = await this.database.isHaveGroupPermission(userId, groupId, GroupPermissionName.EditGeneralData);
-    const canEditGroup = await this.canEditGroup(userId, groupId);
-    if (!canEditGroup && !groupPermission) {
-      throw new Error("not_permitted");
-    }
-    if(!canEditGroup && groupPermission) {
-      delete updateData.name;
-      delete updateData.propertiesJson;
-    }
-    await this.database.updateGroup(groupId, updateData);
-
-    await this.updateGroupManifest(groupId);
-
-    return this.database.getGroup(groupId);
-  }
-
-  async createCategory(userId, categoryData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    categoryData.creatorId = userId;
-
-    categoryData.manifestStaticStorageId = await this.createStorageAccount(categoryData['name']);
-    if (categoryData.type !== GroupType.PersonalChat) {
-      categoryData.staticStorageId = categoryData.manifestStaticStorageId;
-    }
-
-    const category = await this.database.addCategory(categoryData);
-
-    await this.database.addAdminToCategory(userId, category.id);
-
-    await this.updateCategoryManifest(category.id);
-
-    return this.database.getCategory(category.id);
-  }
-
-  async addGroupToCategory(userId, groupId, categoryId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    if (!(await this.canEditCategory(userId, categoryId))) {
-      throw new Error("not_permitted");
-    }
-
-    await this.database.addGroupToCategory(groupId, categoryId);
-  }
-
-  async addMemberToCategory(userId, categoryId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // const category = await this.getGroup(categoryId);
-    if(!(await this.isAdminInCategory(userId, categoryId))) {
-      // if(userId.toString() !== memberId.toString()) {
-      throw new Error("not_permitted");
-      // }
-      //TODO: add isPublic and isOpen to category
-      // if(!category.isPublic || !category.isOpen) {
-      //   throw new Error("not_permitted");
-      // }
-    }
-
-    await this.database.addMemberToCategory(memberId, categoryId);
-  }
-
-  async addAdminToCategory(userId, categoryId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // const category = await this.getGroup(categoryId);
-    if(!(await this.isAdminInCategory(userId, categoryId))) {
-      // if(userId.toString() !== memberId.toString()) {
-      throw new Error("not_permitted");
-      // }
-      //TODO: add isPublic and isOpen to category
-      // if(!category.isPublic || !category.isOpen) {
-      //   throw new Error("not_permitted");
-      // }
-    }
-
-    await this.database.addAdminToCategory(memberId, categoryId);
-  }
-
-  async removeMemberFromCategory(userId, categoryId, memberId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    // const category = await this.getGroup(categoryId);
-    if(!(await this.isAdminInCategory(userId, categoryId))) {
-      if(userId.toString() !== memberId.toString()) {
-        throw new Error("not_permitted");
-      }
-      //TODO: add isPublic and isOpen to category
-      // if(!category.isPublic || !category.isOpen) {
-      //   throw new Error("not_permitted");
-      // }
-    }
-    await this.database.removeMemberFromCategory(memberId, categoryId);
-  }
-
-  async isMemberInCategory(userId, categoryId) {
-    return this.database.isMemberInCategory(userId, categoryId);
-  }
-
-  async getCategoryByParams(params) {
-    return this.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
-  async getGroupByParams(params) {
-    return this.database.getGroupByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
-  async createGroupSection(userId, groupSectionData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    groupSectionData.creatorId = userId;
-
-    if (groupSectionData.categoryId) {
-      if (!(await this.isAdminInCategory(userId, groupSectionData.categoryId))) {
-        throw new Error("not_permitted");
-      }
-    }
-
-    return this.database.addGroupSection(groupSectionData);
-  }
-
-  async updateGroupSection(userId, groupSectionId, groupSectionData) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-
-    const dbGroup = await this.database.getGroupSection(groupSectionId);
-    if (dbGroup.categoryId || groupSectionData.categoryId) {
-      const permittedInCategory1 = !groupSectionData.categoryId || await this.isAdminInCategory(userId, groupSectionData.categoryId);
-      const permittedInCategory2 = !dbGroup.categoryId || await this.isAdminInCategory(userId, dbGroup.categoryId);
-      if (!permittedInCategory1 || !permittedInCategory2) {
-        throw new Error("not_permitted");
-      }
-    } else {
-      if(dbGroup.creatorId !== userId) {
-        throw new Error("not_permitted");
-      }
-    }
-
-    await this.database.updateGroupSection(groupSectionId, groupSectionData);
-
-    return this.database.getGroupSection(groupSectionId);
-  }
-
-  async getGroupSectionItems(filters?, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getGroupSections(filters, listParams),
-      total: await this.database.getGroupSectionsCount(filters)
-    };
-  }
-
-  async getPostByParams(params) {
-    return this.database.getPostByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
-  }
-
-  async getContentsForPost(contents) {
-    if(!contents) {
-      return null;
-    }
-    let contentsData = contents.filter(c => c.id);
-    const manifestStorageContents = contents.filter(c => c.manifestStorageId);
-    const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
-      id: await this.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
-      ...c
-    }));
-    return _.uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');
-  }
-
-  async createPost(userId, postData) {
-    postData = _.clone(postData);
-    log('createPost', postData);
-    const [, canCreate, canReply] = await Promise.all([
-      this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
-      this.canCreatePostInGroup(userId, postData.groupId),
-      this.canReplyToPost(userId, postData.replyToId)
-    ]);
-    if(!canCreate || !canReply) {
-      throw new Error("not_permitted");
-    }
-    log('checkUserCan, canCreatePostInGroup');
-    postData.userId = userId;
-    postData.groupId = await this.checkGroupId(postData.groupId);
-    log('checkGroupId');
-
-    if (postData.status === PostStatus.Published) {
-      postData.localId = await this.getPostLocalId(postData);
-      postData.publishedAt = postData.publishedAt || new Date();
-    }
-    log('localId');
-
-    const contentsData = await this.getContentsForPost(postData.contents);
-    delete postData.contents;
-
-    const [user, group] = await Promise.all([
-      this.database.getUser(userId),
-      this.database.getGroup(postData.groupId)
-    ]);
-    log('getUser, getGroup');
-
-    postData.authorStorageId = user.manifestStorageId;
-    postData.authorStaticStorageId = user.manifestStaticStorageId;
-    postData.groupStorageId = group.manifestStorageId;
-    postData.groupStaticStorageId = group.manifestStaticStorageId;
-
-    if(!postData.isRemote) {
-      postData.isRemote = false;
-    }
-    let post = await this.database.addPost(postData);
-    log('addPost');
-
-    let replyPostUpdatePromise = (async() => {
-      if(post.replyToId) {
-        const repliesCount = await this.database.getAllPostsCount({
-          replyToId: post.replyToId
-        });
-        await this.database.updatePost(post.replyToId, {repliesCount});
-      }
-    })();
-    log('replyPostUpdatePromise');
-
-    console.log('contentsData', contentsData);
-    if(contentsData) {
-      await this.database.setPostContents(post.id, contentsData);
-    }
-    log('setPostContents');
-
-    let size = await this.database.getPostSizeSum(post.id);
-    log('getPostSizeSum');
-    await this.database.updatePost(post.id, {size});
-    log('updatePost');
-
-    post = await this.updatePostManifest(post.id);
-    log('updatePostManifest');
-
-    if (group.isEncrypted && group.type === GroupType.PersonalChat) {
-      // Encrypt post id
-      const keyForEncrypt = await this.database.getStaticIdPublicKey(group.staticStorageId);
-
-      const userKey = await this.communicator.keyLookup(user.manifestStaticStorageId);
-      const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
-      const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
-      const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
-      const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
-
-      await this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
-        type: 'new_post',
-        postId: encryptedText,
-        groupId: group.manifestStaticStorageId,
-        isEncrypted: true,
-        sentAt: (post.publishedAt || post.createdAt).toString()
-      });
-
-      await this.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
-      await this.updateGroupManifest(group.id);
-    } else {
-      // Send plain post id
-      this.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
-        type: 'new_post',
-        postId: post.manifestStorageId,
-        groupId: group.manifestStaticStorageId,
-        isEncrypted: false,
-        sentAt: (post.publishedAt || post.createdAt).toString()
-      });
-      log('publishEventByStaticId');
-    }
-
-    await replyPostUpdatePromise;
-    log('replyPostUpdatePromise');
-
-    return post;
-  }
-
-  async getPost(userId, postId) {
-    await this.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-    //TODO: add check for user can view post
-    return this.database.getPost(postId);
-  }
-
-  async getPostContent(baseStorageUri: string, post: IPost): Promise<{text, images, videos}> {
-    let text = '';
-    const textContent = _.find(post.contents, c => c.mimeType.startsWith('text/'));
-    if (textContent) {
-      text = await this.storage.getFileDataText(textContent.storageId);
-    }
-    const images = [];
-    const videos = [];
-    post.contents.forEach((c) => {
-      if (_.includes(c.mimeType, 'image')) {
-        images.push({
-          manifestId: c.manifestStorageId,
-          url: baseStorageUri + c.storageId
-        });
-      } else if (_.includes(c.mimeType, 'video')) {
-        videos.push({
-          manifestId: c.manifestStorageId,
-          previewUrl: baseStorageUri + c.mediumPreviewStorageId,
-          url: baseStorageUri + c.storageId
-        });
-      }
-    });
-    return {
-      text,
-      images,
-      videos
-    }
-  }
-
-  async updatePost(userId, postId, postData) {
-    const oldPost = await this.database.getPost(postId);
-
-    const [, canEdit, canEditNewGroup] = await Promise.all([
-      await this.checkUserCan(userId, CorePermissionName.UserGroupManagement),
-      this.canEditPostInGroup(userId, oldPost.groupId, postId),
-      postData.groupId ? this.canEditPostInGroup(userId, postData.groupId, postId) : true
-    ]);
-    if (!canEdit || !canEditNewGroup) {
-      throw new Error("not_permitted");
-    }
-
-    const contentsData = await this.getContentsForPost(postData.contents);
-    delete postData.contents;
-
-    if (postData.status === PostStatus.Published && !oldPost.localId) {
-      postData.localId = await this.getPostLocalId(postData);
-    }
-
-    if(contentsData) {
-      await this.database.setPostContents(postId, contentsData);
-    }
-
-    postData.size = await this.database.getPostSizeSum(postId);
-
-    await this.database.updatePost(postId, postData);
-    return this.updatePostManifest(postId);
-  }
-
-  async getPostLocalId(post: IPost) {
-    if (!post.groupId) {
-      return null;
-    }
-    const group = await this.database.getGroup(post.groupId);
-    group.publishedPostsCount++;
-    await this.database.updateGroup(group.id, {publishedPostsCount: group.publishedPostsCount});
-    return group.publishedPostsCount;
-  }
-
-  async updateGroupManifest(groupId) {
-    log('updateGroupManifest');
-    const [group, size, availablePostsCount] = await Promise.all([
-      this.database.getGroup(groupId),
-      this.database.getGroupSizeSum(groupId),
-      this.database.getGroupPostsCount(groupId, { isDeleted: false })
-    ]);
-    group.size = size;
-    log('getGroup, getGroupSizeSum');
-
-    const manifestStorageId = await this.generateAndSaveManifest('group', group);
-    log('generateAndSaveManifest');
-    let storageUpdatedAt = group.storageUpdatedAt;
-    let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
-
-    const promises = [];
-    if (manifestStorageId != group.manifestStorageId) {
-      storageUpdatedAt = new Date();
-      staticStorageUpdatedAt = new Date();
-
-      promises.push(this.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
-    }
-
-    promises.push(this.database.updateGroup(groupId, {
-      manifestStorageId,
-      storageUpdatedAt,
-      staticStorageUpdatedAt,
-      size,
-      availablePostsCount
-    }));
-    return Promise.all(promises);
-  }
-
-  async updateCategoryManifest(categoryId) {
-    const post = await this.database.getCategory(categoryId);
-
-    return this.database.updateCategory(categoryId, {
-      manifestStorageId: await this.generateAndSaveManifest('category', post)
-    });
-  }
-
-  async updatePostManifest(postId) {
-    log('updatePostManifest');
-    const post = await this.database.getPost(postId);
-    log('getPost');
-    const manifestStorageId = await this.generateAndSaveManifest('post', post);
-    log('getPosgenerateAndSaveManifest');
-
-    await this.database.updatePost(postId, { manifestStorageId });
-    log('updatePost');
-
-    await this.updateGroupManifest(post.groupId);
-    post.manifestStorageId = manifestStorageId;
-    return post;
-  }
-
-  async getGroupUnreadPostsData(userId, groupId) {
-    const groupRead = await this.database.getGroupRead(userId, groupId);
-    if (groupRead) {
-      return {
-        readAt: groupRead.readAt,
-        count: await this.database.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt, isDeleted: false })
-      };
-    }
-    const group = await this.database.getGroup(groupId);
-    if (!group) {
-      return {
-        readAt: null,
-        count: 0
-      };
-    }
-    return {
-      readAt: null,
-      //TODO: delete publishedPostsCount using after migration
-      count: group.availablePostsCount || group.publishedPostsCount
-    };
-  }
-
-  async addOrUpdateGroupRead(userId, groupReadData) {
-    groupReadData.userId = userId;
-    let groupRead = await this.database.getGroupRead(userId, groupReadData.groupId);
-    if (groupRead) {
-      return this.database.updateGroupRead(groupRead.id, groupReadData);
-    } else {
-      return this.database.addGroupRead(groupReadData);
-    }
-  }
-
-  async getGroupPeers(groupId) {
-    let ipnsId;
-    if (ipfsHelper.isIpfsHash(groupId)) {
-      ipnsId = groupId;
-    } else {
-      const group = await this.database.getGroup(groupId);
-      ipnsId = group.manifestStaticStorageId;
-    }
-    return this.getStaticIdPeers(ipnsId);
-  }
-
-  async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
-    const postObject: IPost = await this.render.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
-      isEncrypted,
-      groupId,
-      publishedAt
-    });
-    postObject.isRemote = true;
-    postObject.status = PostStatus.Published;
-    postObject.localId = await this.getPostLocalId(postObject);
-
-    const {contents} = postObject;
-    delete postObject.contents;
-
-    let post = await this.database.addPost(postObject);
-
-    if (!isEncrypted) {
-      // console.log('postObject', postObject);
-      await this.database.setPostContents(post.id, contents.map(c => c.id));
-    }
-
-    await this.updateGroupManifest(post.groupId);
-
-    return this.database.getPost(post.id);
   }
 
   /**
@@ -1551,79 +725,49 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
+  async regenerateUserContentPreviews(userId) {
+    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
+    (async () => {
+      const previousIpldToNewIpld = [];
+
+      let userContents = [];
+
+      let offset = 0;
+      let limit = 100;
+      do {
+        userContents = await this.database.getContentList(userId, {
+          offset,
+          limit
+        });
+
+        await pIteration.forEach(userContents, async (content: IContent) => {
+          const previousIpldToNewIpldItem = [content.manifestStorageId];
+          let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
+          await this.database.updateContent(content.id, previewData);
+          const updatedContent = await this.updateContentManifest({
+            ...content['toJSON'](),
+            ...previewData
+          });
+
+          previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
+
+          previousIpldToNewIpld.push(previousIpldToNewIpldItem);
+        });
+
+        offset += limit;
+      } while (userContents.length === limit);
+
+      console.log('previousIpldToNewIpld', previousIpldToNewIpld);
+      console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
+    })();
+  }
+
   async getApyKeyId(apiKey) {
     const apiKeyDb = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(apiKey));
     if(!apiKeyDb) {
       throw new Error("not_authorized");
     }
     return apiKeyDb.id;
-  }
-
-  async asyncOperationWrapper(methodName, args, options) {
-    await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
-    options.userApiKeyId = await this.getApyKeyId(options.apiKey);
-
-    if (!options.async) {
-      return this[methodName].apply(this, args);
-    }
-
-    const asyncOperation = await this.database.addUserAsyncOperation({
-      userId: options.userId,
-      userApiKeyId: options.userApiKeyId,
-      name: 'save-data',
-      inProcess: true,
-      channel: await commonHelper.random()
-    });
-
-    // TODO: fix hotfix
-    if (_.isObject(_.last(args))) {
-      _.last(args).onProgress = (progress) => {
-        console.log('onProgress', progress);
-        this.database.updateUserAsyncOperation(asyncOperation.id, {
-          percent: progress.percent
-        });
-      }
-    }
-
-    let dataSendingPromise = new Promise((resolve, reject) => {
-      if (args[0].on) {
-        //TODO: close that stream on limit reached error
-        args[0].on('end', () => resolve(true));
-        args[0].on('error', (e) => reject(e));
-        args[0].on('limit', () => reject("limit_reached"));
-      } else {
-        resolve(true);
-      }
-    });
-    const methodPromise = this[methodName].apply(this, args);
-
-    methodPromise
-      .then((res: any) => {
-        this.database.updateUserAsyncOperation(asyncOperation.id, {
-          inProcess: false,
-          contentId: res.id
-        });
-        return this.communicator.publishEvent(asyncOperation.channel, res);
-      })
-      .catch((e) => {
-        return this.database.updateUserAsyncOperation(asyncOperation.id, {
-          inProcess: false,
-          errorType: 'unknown',
-          errorMessage: e && e.message ? e.message : e
-        });
-      });
-
-    try {
-      await dataSendingPromise;
-    } catch(e) {
-      await this.database.updateUserAsyncOperation(asyncOperation.id, {
-        inProcess: false,
-        errorType: 'unknown',
-        errorMessage: e && e.message ? e.message : e
-      });
-    }
-
-    return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
   }
 
   async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
@@ -1689,7 +833,7 @@ class GeesomeApp implements IGeesomeApp {
       await this.setContentPreviewIfNotExist(existsContent);
       console.log('isUserCan', options.userId);
       if(await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
-        await this.addContentToUserFileCatalog(options.userId, existsContent, options);
+        await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       }
       return existsContent;
     }
@@ -1760,7 +904,7 @@ class GeesomeApp implements IGeesomeApp {
     const existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       await this.setContentPreviewIfNotExist(existsContent);
-      await this.addContentToUserFileCatalog(options.userId, existsContent, options);
+      await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
 
@@ -1814,83 +958,6 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  async getAsyncOperation(userId, operationId) {
-    const asyncOperation = await this.database.getUserAsyncOperation(operationId);
-    if (asyncOperation.userId != userId) {
-      throw new Error("not_permitted");
-    }
-    return asyncOperation;
-  }
-
-  async findAsyncOperations(userId, name, channelLike) {
-    return this.database.getUserAsyncOperationList(userId, name, channelLike);
-  }
-
-  async addAsyncOperation(userId, asyncOperationData) {
-    return this.database.addUserAsyncOperation({
-      ...asyncOperationData,
-      userId,
-      inProcess: true,
-    });
-  }
-
-  async updateAsyncOperation(userId, asyncOperationId, percent) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, { percent });
-  }
-
-  async cancelAsyncOperation(userId, asyncOperationId) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, { cancel: true });
-  }
-
-  async finishAsyncOperation(userId, asyncOperationId, contentId = null) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, {
-      contentId,
-      percent: 100,
-      inProcess: false,
-      finishedAt: new Date()
-    });
-  }
-
-  async errorAsyncOperation(userId, asyncOperationId, errorMessage) {
-    await this.getAsyncOperation(userId, asyncOperationId);
-    return this.database.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
-  }
-
-  addUserOperationQueue(userId, module, userApiKeyId, input) {
-    const inputJson = JSON.stringify(input);
-    return this.database.addUserOperationQueue({
-      userId,
-      module,
-      inputJson,
-      userApiKeyId,
-      inputHash: commonHelper.hash(inputJson),
-      isWaiting: true,
-    });
-  }
-
-  getWaitingOperationByModule(module) {
-    return this.database.getWaitingOperationQueueByModule(module);
-  }
-
-  async getUserOperationQueue(userId, userOperationQueueId) {
-    const userOperationQueue = await this.database.getUserOperationQueue(userOperationQueueId);
-    if (userOperationQueue.userId != userId) {
-      throw new Error("not_permitted");
-    }
-    return userOperationQueue;
-  }
-
-  setAsyncOperationToUserOperationQueue(userOperationQueueId, asyncOperationId) {
-    return this.database.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
-  }
-
-  closeUserOperationQueueByAsyncOperationId(userAsyncOperationId) {
-    return this.database.updateUserOperationQueueByAsyncOperationId(userAsyncOperationId, { isWaiting: false });
-  }
-
   getFilenameFromPath(path) {
     return _.trim(path, '/').split('/').slice(-1)[0];
   }
@@ -1905,6 +972,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async saveDirectoryToStorage(userId, dirPath, options: { groupId?, userId?, userApiKeyId? } = {}) {
+    //TODO: refactor block
     let group;
     if (options.groupId) {
       group = await this.database.getGroup(options.groupId)
@@ -2054,8 +1122,9 @@ class GeesomeApp implements IGeesomeApp {
 
   private async addContent(contentData: IContent, options: { groupId?, userId?, userApiKeyId? } = {}) {
     log('addContent');
+    //TODO: refactor block
     if (options.groupId) {
-      const groupId = await this.checkGroupId(options.groupId);
+      const groupId = await this.ms.group.checkGroupId(options.groupId);
       let group;
       if (groupId) {
         contentData.groupId = groupId;
@@ -2082,7 +1151,7 @@ class GeesomeApp implements IGeesomeApp {
     promises.push((async () => {
       if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
         log('isUserCan');
-        await this.addContentToUserFileCatalog(content.userId, content, options);
+        await this.ms.fileCatalog.addContentToUserFileCatalog(content.userId, content, options);
         log('addContentToUserFileCatalog');
       }
     })());
@@ -2118,348 +1187,6 @@ class GeesomeApp implements IGeesomeApp {
 
   /**
    ===========================================
-   FILE CATALOG ACTIONS
-   ===========================================
-   **/
-
-  public async addContentToFolder(userId, contentId, folderId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const content = await this.database.getContent(contentId);
-    return this.addContentToUserFileCatalog(userId, content, {folderId})
-  }
-
-  private async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const baseType = content.mimeType ? _.first(content.mimeType['split']('/')) : 'other';
-
-    let parentItemId;
-
-    const groupId = (await this.checkGroupId(options.groupId)) || null;
-
-    if (options.path) {
-      return this.saveContentByPath(content.userId, options.path, content.id);
-    }
-
-    parentItemId = options.folderId;
-
-    if (_.isUndefined(parentItemId) || parentItemId === 'undefined') {
-      const contentFiles = await this.database.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
-      if (contentFiles.length) {
-        return content;
-      }
-
-      let folder = await this.database.getFileCatalogItemByDefaultFolderFor(userId, baseType);
-
-      if (!folder) {
-        folder = await this.database.addFileCatalogItem({
-          name: _.upperFirst(baseType) + " Uploads",
-          type: FileCatalogItemType.Folder,
-          position: (await this.database.getFileCatalogItemsCount(userId, null)) + 1,
-          defaultFolderFor: baseType,
-          userId
-        });
-      }
-      parentItemId = folder.id;
-    }
-
-    if (parentItemId === 'null') {
-      parentItemId = null;
-    }
-
-    if (await this.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
-      console.log(`Content ${content.id} already exists in folder`);
-      return;
-    }
-
-    const resultItem = await this.database.addFileCatalogItem({
-      name: content.name || "Unnamed " + new Date().toISOString(),
-      type: FileCatalogItemType.File,
-      position: (await this.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
-      contentId: content.id,
-      size: content.size,
-      groupId,
-      parentItemId,
-      userId
-    });
-
-    if (parentItemId) {
-      const size = await this.database.getFileCatalogItemsSizeSum(parentItemId);
-      await this.database.updateFileCatalogItem(parentItemId, {size});
-    }
-
-    return resultItem;
-  }
-
-  async createUserFolder(userId, parentItemId, folderName) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    return this.database.addFileCatalogItem({
-      name: folderName,
-      type: FileCatalogItemType.Folder,
-      position: (await this.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
-      size: 0,
-      parentItemId,
-      userId
-    });
-  }
-
-  public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
-    if (fileCatalogItem.userId !== userId) {
-      throw new Error("not_permitted");
-    }
-    await this.database.updateFileCatalogItem(fileCatalogId, updateData);
-    return this.database.getFileCatalogItem(fileCatalogId);
-  }
-
-  async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    if (parentItemId == 'null') {
-      parentItemId = null;
-    }
-    if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
-      parentItemId = undefined;
-
-    return {
-      list: await this.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
-      total: await this.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
-    };
-  }
-
-  async getFileCatalogItemsBreadcrumbs(userId, itemId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const item = await this.database.getFileCatalogItem(itemId);
-    if (item.userId != userId) {
-      throw new Error("not_permitted");
-    }
-
-    return this.database.getFileCatalogItemsBreadcrumbs(itemId);
-  }
-
-  async getContentsIdsByFileCatalogIds(catalogIds) {
-    return this.database.getContentsIdsByFileCatalogIds(catalogIds);
-  }
-
-  async regenerateUserContentPreviews(userId) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    (async () => {
-      const previousIpldToNewIpld = [];
-
-      let userContents = [];
-
-      let offset = 0;
-      let limit = 100;
-      do {
-        userContents = await this.database.getContentList(userId, {
-          offset,
-          limit
-        });
-
-        await pIteration.forEach(userContents, async (content: IContent) => {
-          const previousIpldToNewIpldItem = [content.manifestStorageId];
-          let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-          await this.database.updateContent(content.id, previewData);
-          const updatedContent = await this.updateContentManifest({
-            ...content['toJSON'](),
-            ...previewData
-          });
-
-          previousIpldToNewIpldItem.push(updatedContent.manifestStorageId);
-
-          previousIpldToNewIpld.push(previousIpldToNewIpldItem);
-        });
-
-        offset += limit;
-      } while (userContents.length === limit);
-
-      console.log('previousIpldToNewIpld', previousIpldToNewIpld);
-      console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
-    })();
-  }
-
-  public async makeFolderStorageDir(fileCatalogItem: IFileCatalogItem) {
-    const breadcrumbs = await this.getFileCatalogItemsBreadcrumbs(fileCatalogItem.userId, fileCatalogItem.id);
-
-    // breadcrumbs.push(fileCatalogItem);
-
-    const {storageAccountId: userStaticId} = await this.database.getUser(fileCatalogItem.userId);
-
-    const path = `/${userStaticId}/` + breadcrumbs.map(b => b.name).join('/') + '/';
-
-    await this.storage.makeDir(path);
-
-    return path;
-  }
-
-  public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
-    const fileCatalogChildrenFolders = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
-
-    await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
-      const sPath = await this.makeFolderStorageDir(fItem);
-      return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
-    });
-
-    const fileCatalogChildrenFiles = await this.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
-
-    await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
-      await this.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
-    });
-  }
-
-  public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileCatalogItem = await this.database.getFileCatalogItem(fileCatalogId);
-
-    const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
-
-    await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
-
-    const storageId = await this.storage.getDirectoryId(storageDirPath);
-
-    const user = await this.database.getUser(userId);
-
-    if(!options.bindToStatic) {
-      return { storageId };
-    }
-
-    const staticId = await this.createStorageAccount(user.name + '@directory:' + storageDirPath);
-    await this.bindToStaticId(storageId, staticId);
-
-    return {
-      storageId,
-      staticId
-    }
-  }
-
-  public async findCatalogItemByPath(userId, path, type, createFoldersIfNotExists = false): Promise<{ foundCatalogItem: IFileCatalogItem, lastFolderId: number }> {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const pathArr = _.trim(path, '/').split('/');
-    const foldersArr = pathArr.slice(0, -1);
-    const lastItemName = pathArr.slice(-1)[0];
-
-    let currentFolderId = null;
-    let breakSearch = false;
-    await pIteration.forEachSeries(foldersArr, async (name) => {
-      if (breakSearch) {
-        return;
-      }
-      const foundItems = await this.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.Folder, name);
-
-      if (foundItems.length) {
-        currentFolderId = foundItems[0].id;
-      } else if (createFoldersIfNotExists) {
-        const newFileCatalogFolder = await this.database.addFileCatalogItem({
-          name,
-          userId,
-          type: FileCatalogItemType.Folder,
-          position: (await this.database.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
-          parentItemId: currentFolderId
-        });
-        currentFolderId = newFileCatalogFolder.id;
-      } else {
-        breakSearch = true;
-      }
-    });
-
-    if (breakSearch) {
-      return null;
-    }
-
-    const results = await this.database.getFileCatalogItems(userId, currentFolderId, type, lastItemName);
-    if (results.length > 1) {
-      await pIteration.forEach(results.slice(1), item => this.database.updateFileCatalogItem(item.id, {isDeleted: true}));
-      console.log('remove excess file items: ', lastItemName);
-    }
-
-    console.log('lastFolderId', currentFolderId);
-    return {
-      lastFolderId: currentFolderId,
-      foundCatalogItem: results[0]
-    };
-  }
-
-  public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileName = _.trim(path, '/').split('/').slice(-1)[0];
-    console.log('saveContentByPath', 'path:', path, 'fileName:', fileName);
-
-    let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
-
-    const content = await this.database.getContent(contentId);
-    if (fileItem) {
-      console.log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
-      await this.database.updateFileCatalogItem(fileItem.id, {contentId, size: content.size});
-    } else {
-      console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
-      fileItem = await this.database.addFileCatalogItem({
-        userId,
-        contentId,
-        name: fileName,
-        type: FileCatalogItemType.File,
-        position: (await this.database.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
-        parentItemId: lastFolderId,
-        groupId: options.groupId,
-        size: content.size
-      });
-    }
-    if (fileItem.parentItemId) {
-      const size = await this.database.getFileCatalogItemsSizeSum(fileItem.parentItemId);
-      await this.database.updateFileCatalogItem(fileItem.parentItemId, {size});
-    }
-    return this.database.getFileCatalogItem(fileItem.id);
-  }
-
-  public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
-    await pIteration.map(toSaveList, async (item: ManifestToSave) => {
-      const content = await this.createContentByRemoteStorageId(item.manifestStorageId, {
-        userId,
-        ...options
-      });
-      return this.saveContentByPath(userId, path.join(folderPath, item.path || content.name), content.id, options)
-    });
-
-    return this.getFileCatalogItemByPath(userId, folderPath, FileCatalogItemType.Folder);
-  }
-
-  public async getContentByPath(userId, path) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File);
-    return fileCatalogItem ? await this.database.getContent(fileCatalogItem.contentId) : null;
-  }
-
-  public async getFileCatalogItemByPath(userId, path, type: FileCatalogItemType) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, type);
-    return fileCatalogItem;
-  }
-
-  public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
-    await this.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-    const fileCatalogItem = await this.database.getFileCatalogItem(itemId);
-    if (fileCatalogItem.userId != userId) {
-      throw new Error("not_permitted");
-    }
-
-    if(options.deleteContent) {
-      const content = await this.database.getContent(fileCatalogItem.contentId);
-      if (content.userId != userId) {
-        throw new Error("not_permitted");
-      }
-      await this.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
-      await this.storage.remove(content.storageId).catch(() => {/*not found*/});
-
-      await fileCatalogItem['destroy']();
-      await content['destroy']();
-    } else {
-      await fileCatalogItem['destroy']();
-    }
-
-    return true;
-  }
-
-  /**
-   ===========================================
    ETC ACTIONS
    ===========================================
    **/
@@ -2481,58 +1208,6 @@ class GeesomeApp implements IGeesomeApp {
 
   getFileStream(filePath, options = {}) {
     return this.storage.getFileStream(filePath, options)
-  }
-
-  async getGroup(groupId) {
-    groupId = await this.checkGroupId(groupId);
-    return this.database.getGroup(groupId);
-  }
-
-  async getGroupByManifestId(groupId, staticId) {
-    if (!staticId) {
-      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
-      if (historyItem) {
-        staticId = historyItem.staticId;
-      }
-    }
-    return this.database.getGroupByManifestId(groupId, staticId);
-  }
-
-  async getCategoryByManifestId(groupId, staticId) {
-    if (!staticId) {
-      const historyItem = await this.database.getStaticIdItemByDynamicId(groupId);
-      if (historyItem) {
-        staticId = historyItem.staticId;
-      }
-    }
-    return this.database.getCategoryByParams({
-      manifestStaticStorageId: staticId
-    });
-  }
-
-  async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
-    groupId = await this.checkGroupId(groupId);
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getGroupPosts(groupId, filters, listParams),
-      total: await this.database.getGroupPostsCount(groupId, filters)
-    };
-  }
-
-  async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getCategoryPosts(categoryId, filters, listParams),
-      total: await this.database.getCategoryPostsCount(categoryId, filters)
-    };
-  }
-
-  async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    return {
-      list: await this.database.getCategoryGroups(categoryId, filters, listParams),
-      total: await this.database.getCategoryGroupsCount(categoryId, filters)
-    };
   }
 
   getContent(contentId) {
@@ -2596,31 +1271,16 @@ class GeesomeApp implements IGeesomeApp {
 
   async getAllUserList(adminId, searchString?, listParams?: IListParams) {
     listParams = this.prepareListParams(listParams);
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
       list: await this.database.getAllUserList(searchString, listParams),
       total: await this.database.getAllUserCount(searchString)
     }
   }
 
-  async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
-    listParams = this.prepareListParams(listParams);
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
-    return {
-      list: await this.database.getAllGroupList(searchString, listParams),
-      total: await this.database.getAllGroupCount(searchString)
-    };
-  }
-
   async getAllContentList(adminId, searchString?, listParams?: IListParams) {
     listParams = this.prepareListParams(listParams);
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
       list: await this.database.getAllContentList(searchString, listParams),
       total: await this.database.getAllContentCount(searchString)
@@ -2628,9 +1288,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserLimit(adminId, userId, limitName) {
-    if (!await this.database.isHaveCorePermission(adminId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return this.database.getUserLimit(userId, limitName);
   }
 
@@ -2643,9 +1301,14 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async checkUserCan(userId, permission) {
-    const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
-    if (userCanAll) {
-      return;
+    if (_.startsWith(permission, 'admin:')) {
+      if (await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAll)) {
+        return;
+      }
+    } else { // user:
+      if (await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll)) {
+        return;
+      }
     }
     if (!await this.database.isHaveCorePermission(userId, permission)) {
       throw new Error("not_permitted");
@@ -2682,6 +1345,10 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     return storageId;
+  }
+
+  async getSelfAccountId() {
+    return this.communicator.getAccountIdByName('self');
   }
 
   async createStorageAccount(name) {
@@ -2752,9 +1419,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getBootNodes(userId, type = 'ipfs') {
-    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRead)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(userId, CorePermissionName.AdminRead);
     if (type === 'ipfs') {
       return this.storage.getBootNodeList();
     } else {
@@ -2763,9 +1428,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async addBootNode(userId, address, type = 'ipfs') {
-    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAddBootNode)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(userId, CorePermissionName.AdminAddBootNode);
     if (type === 'ipfs') {
       return this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
     } else {
@@ -2774,9 +1437,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async removeBootNode(userId, address, type = 'ipfs') {
-    if (!await this.database.isHaveCorePermission(userId, CorePermissionName.AdminRemoveBootNode)) {
-      throw new Error("not_permitted");
-    }
+    await this.checkUserCan(userId, CorePermissionName.AdminRemoveBootNode);
     if (type === 'ipfs') {
       return this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
     } else {
