@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# TODO: ask user if there is uncomitted changes
 git checkout -- .
 git pull
 
