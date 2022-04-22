@@ -1,7 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
-const markdown = require('markdown-it');
+// const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
     let app, postPages, intervallers;
