@@ -1,10 +1,15 @@
-import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../../interface";
-import {CorePermissionName, GroupType, IListParams} from "../../../database/interface";
+import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../../../interface";
+import {CorePermissionName, GroupType, IListParams} from "../../../../database/interface";
 const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
 
 module.exports = (app: IGeesomeApp) => {
+	const module = getModule(app);
+	require('./api')(app, module);
+	return module;
+}
 
+function getModule(app: IGeesomeApp) {
 	class GroupCategoryModule implements IGeesomeGroupCategoryModule{
 
 		async canAddGroupToCategory(userId, categoryId) {
@@ -217,4 +222,4 @@ module.exports = (app: IGeesomeApp) => {
 		}
 	}
 	return new GroupCategoryModule();
-};
+}

@@ -197,222 +197,12 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: (await geesomeApp.communicator.keyLookup(req.user.manifestStaticStorageId)).marshal()});
   });
 
-  service.get('/v1/user/get-friends', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getUserFriends(req.user.id, req.query.search, req.query));
-  });
-
-  service.post('/v1/user/add-friend', async (req, res) => {
-    res.send(await geesomeApp.ms.group.addUserFriendById(req.user.id, req.body.friendId));
-  });
-
-  service.post('/v1/user/remove-friend', async (req, res) => {
-    res.send(await geesomeApp.ms.group.addUserFriendById(req.user.id, req.body.friendId));
-  });
-
   service.post('/v1/user/update', async (req, res) => {
     res.send(await geesomeApp.updateUser(req.user.id, req.body));
   });
 
   service.post('/v1/user/set-account', async (req, res) => {
     res.send(await geesomeApp.setUserAccount(req.user.id, req.body));
-  });
-
-  /**
-   * @api {post} /v1/user/create-group Create group
-   * @apiName UserGroupCreate
-   * @apiGroup UserGroup
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../app/interface.ts) {IGroupInput} apiParam
-   *
-   * @apiInterface (../../database/interface.ts) {IGroup} apiSuccess
-   */
-  service.post('/v1/user/create-group', async (req, res) => {
-    res.send(await geesomeApp.ms.group.createGroup(req.user.id, req.body), 200);
-  });
-
-  service.post('/v1/category/get', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.getCategoryByParams(req.body), 200);
-  });
-
-  service.post('/v1/group/get', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getGroupByParams(req.body), 200);
-  });
-
-  service.post('/v1/post/get', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getPostByParams(req.body), 200);
-  });
-
-  service.get('/v1/user/post/:postId', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getPost(req.user.id, req.params.postId), 200);
-  });
-
-  service.post('/v1/user/create-category', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.createCategory(req.user.id, req.body), 200);
-  });
-
-  service.get('/v1/user/category/:categoryId/groups', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.getCategoryGroups(req.user.id, req.params.categoryId, req.query, req.query), 200);
-  });
-
-  service.post('/v1/user/category/:categoryId/add-group', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.addGroupToCategory(req.user.id, req.body.groupId, req.params.categoryId), 200);
-  });
-
-  service.post('/v1/user/category/:categoryId/add-member', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.addMemberToCategory(req.user.id, req.params.categoryId, req.body.userId, req.body.permissions || []), 200);
-  });
-
-  service.post('/v1/user/category/:categoryId/remove-member', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.removeMemberFromCategory(req.user.id, req.params.categoryId, req.body.userId), 200);
-  });
-
-  service.post('/v1/user/category/:categoryId/is-member', async (req, res) => {
-    res.send({result: await geesomeApp.ms.groupCategory.isMemberInCategory(req.user.id, req.params.categoryId)}, 200);
-  });
-
-  /**
-   * @api {post} /v1/user/group/:groupId/update Edit group
-   * @apiDescription Can be edit by database id or storage id
-   * @apiName UserGroupUpdate
-   * @apiGroup UserGroup
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../app/interface.ts) {IGroupInput} apiParam
-   *
-   * @apiInterface (../../database/interface.ts) {IGroup} apiSuccess
-   */
-  service.post('/v1/user/group/:groupId/update', async (req, res) => {
-    res.send(await geesomeApp.ms.group.updateGroup(req.user.id, req.params.groupId, req.body), 200);
-  });
-
-  /**
-   * @api {get} /v1/user/member-in-groups Get groups where user is member
-   * @apiName UserGroupsForMember
-   * @apiGroup UserGroup
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
-   */
-  service.get('/v1/user/member-in-groups', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getMemberInGroups(req.user.id, req.query.types.split(',')));
-  });
-
-  /**
-   * @api {get} /v1/user/admin-in-groups Get groups where user is admin
-   * @apiName UserGroupsForAdmin
-   * @apiGroup UserGroup
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
-   */
-  service.get('/v1/user/admin-in-groups', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getAdminInGroups(req.user.id, req.query.types.split(',')));
-  });
-
-  /**
-   * @api {get} /v1/user/personal-chat-groups Get personal chat groups
-   * @apiName UserGroupsAsPersonalChats
-   * @apiGroup UserGroup
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
-   */
-  service.get('/v1/user/personal-chat-groups', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getPersonalChatGroups(req.user.id));
-  });
-
-  service.get('/v1/user/group/:groupId/can-create-post', async (req, res) => {
-    res.send({valid: await geesomeApp.ms.group.canCreatePostInGroup(req.user.id, req.params.groupId)});
-  });
-
-  service.get('/v1/user/group/:groupId/can-edit', async (req, res) => {
-    res.send({valid: await geesomeApp.ms.group.canEditGroup(req.user.id, req.params.groupId)});
-  });
-
-  /**
-   * @api {post} /v1/user/group/:groupId/create-post Create Group post
-   * @apiDescription Create post by content ids and group id.
-   * @apiName UserGroupCreatePost
-   * @apiGroup UserGroup
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../app/interface.ts) {IPostInput} apiParam
-   *
-   * @apiInterface (../../database/interface.ts) {IPost} apiSuccess
-   */
-  service.post('/v1/user/group/create-post', async (req, res) => {
-    res.send(await geesomeApp.ms.group.createPost(req.user.id, req.body), 200);
-  });
-
-  service.post('/v1/user/group/update-post/:postId', async (req, res) => {
-    res.send(await geesomeApp.ms.group.updatePost(req.user.id, req.params.postId, req.body), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/is-member', async (req, res) => {
-    res.send({result: await geesomeApp.ms.group.isMemberInGroup(req.user.id, req.params.groupId)}, 200);
-  });
-
-  service.post('/v1/user/group/:groupId/join', async (req, res) => {
-    res.send(await geesomeApp.ms.group.addMemberToGroup(req.user.id, req.params.groupId, req.user.id), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/leave', async (req, res) => {
-    res.send(await geesomeApp.ms.group.removeMemberFromGroup(req.user.id, req.params.groupId, req.user.id), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/add-admin', async (req, res) => {
-    res.send(await geesomeApp.ms.group.addAdminToGroup(req.user.id, req.params.groupId, req.body.userId), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/remove-admin', async (req, res) => {
-    res.send(await geesomeApp.ms.group.removeAdminFromGroup(req.user.id, req.params.groupId, req.body.userId), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/set-admins', async (req, res) => {
-    res.send(await geesomeApp.ms.group.setAdminsOfGroup(req.user.id, req.params.groupId, req.body.userIds), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/add-member', async (req, res) => {
-    res.send(await geesomeApp.ms.group.addMemberToGroup(req.user.id, req.params.groupId, req.body.userId, req.body.permissions || []), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/set-members', async (req, res) => {
-    res.send(await geesomeApp.ms.group.setMembersOfGroup(req.user.id, req.params.groupId, req.body.userIds), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/set-permissions', async (req, res) => {
-    res.send(await geesomeApp.ms.group.setGroupPermissions(req.user.id, req.params.groupId, req.body.userId, req.body.permissions), 200);
-  });
-
-  service.post('/v1/user/group/:groupId/remove-member', async (req, res) => {
-    res.send(await geesomeApp.ms.group.removeMemberFromGroup(req.user.id, req.params.groupId, req.body.userId), 200);
-  });
-
-  service.post('/v1/user/group-section/create', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.createGroupSection(req.user.id, req.body), 200);
-  });
-
-  service.post('/v1/user/group-section/:groupSectionId/update', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.updateGroupSection(req.user.id, req.params.groupSectionId, req.body), 200);
-  });
-
-  service.get('/v1/user/group-sections', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.getGroupSectionItems(req.query, req.query), 200);
-  });
-
-  service.get('/v1/user/group/unread/:groupId', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getGroupUnreadPostsData(req.user.id, req.params.groupId), 200);
-  });
-
-  service.post('/v1/user/group/set-read', async (req, res) => {
-    res.send(await geesomeApp.ms.group.addOrUpdateGroupRead(req.user.id, req.body), 200);
   });
 
   service.get('/v1/user/api-key-list', async (req, res) => {
@@ -509,109 +299,11 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send(await geesomeApp.ms.asyncOperation.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
   });
 
-  /**
-   * @api {post} /v1/user/get-async-operation/:id Get async operation
-   * @apiDescription Get async operation info: operation type, status, percent, and content when it will be ready.
-   * @apiName UserAsyncOperation
-   * @apiGroup UserOther
-   *
-   * @apiUse ApiKey
-   *
-   * @apiInterface (../../database/interface.ts) {IUserAsyncOperation} apiSuccess
-   */
-  service.post('/v1/user/get-async-operation/:id', async (req, res) => {
-    res.send(await geesomeApp.ms.asyncOperation.getAsyncOperation(req.user.id, req.params.id));
-  });
-
-  service.post('/v1/user/find-async-operations', async (req, res) => {
-    res.send(await geesomeApp.ms.asyncOperation.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
-  });
-
-  service.post('/v1/user/cancel-async-operation/:id', async (req, res) => {
-    res.send(await geesomeApp.ms.asyncOperation.cancelAsyncOperation(req.user.id, req.params.id));
-  });
-
-  service.get('/v1/user/file-catalog/', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query));
-  });
-  service.get('/v1/user/file-catalog/file-catalog-item/:itemId/breadcrumbs', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.getFileCatalogItemsBreadcrumbs(req.user.id, req.params.itemId));
-  });
-
-  service.post('/v1/user/file-catalog/create-folder', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.createUserFolder(req.user.id, req.body.parentItemId, req.body.name));
-  });
-  service.post('/v1/user/file-catalog/add-content-to-folder', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.addContentToFolder(req.user.id, req.body.contentId, req.body.folderId));
-  });
-  service.post('/v1/user/file-catalog/file-catalog-item/:itemId/update', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.updateFileCatalogItem(req.user.id, req.params.itemId, req.body));
-  });
-  service.post('/v1/user/file-catalog/file-catalog-item/:itemId/delete', async (req, res) => {
-    res.send({result: await geesomeApp.ms.fileCatalog.deleteFileCatalogItem(req.user.id, req.params.itemId, req.body)});
-  });
-
-  service.post('/v1/user/file-catalog/save-manifests-to-folder', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.saveManifestsToFolder(req.user.id, req.body.path, req.body.toSaveList, req.body.options));
-  });
-
-  service.post('/v1/user/file-catalog/save-content-by-path', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
-  });
-  service.post('/v1/user/file-catalog/get-content-by-path', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.getContentByPath(req.user.id, req.body.path));
-  });
-  service.post('/v1/user/file-catalog/get-item-by-path', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
-  });
-  service.post('/v1/user/file-catalog/publish-folder/:itemId', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.publishFolder(req.user.id, req.params.itemId, req.body));
-  });
-
-  service.post('/v1/file-catalog/get-contents-ids', async (req, res) => {
-    res.send(await geesomeApp.ms.fileCatalog.getContentsIdsByFileCatalogIds(req.body));
-  });
-
   //TODO: add limit for this action
 
   // service.post('/v1/user/regenerate-previews', async (req, res) => {
   //   res.send(await geesomeApp.regenerateUserContentPreviews(req.user.id));
   // });
-
-
-  service.get('/v1/group/:groupId', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getGroup(req.params.groupId));
-  });
-
-  /**
-   * @api {get} /v1/group/:groupId/posts Get group posts
-   * @apiName GroupPosts
-   * @apiGroup Group
-   *
-   * @apiUse ApiKey
-   *
-   * @apiParam sortBy
-   * @apiParam sortDir
-   * @apiParam limit
-   * @apiParam offset
-   *
-   * @apiInterface (../../app/interface.ts) {IPostListResponse} apiSuccess
-   */
-  service.get('/v1/group/:groupId/posts', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getGroupPosts(req.params.groupId, req.query, req.query));
-  });
-
-  service.get('/v1/group/:groupId/peers', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getGroupPeers(req.params.groupId));
-  });
-
-  service.get('/v1/category/:categoryId/posts', async (req, res) => {
-    res.send(await geesomeApp.ms.groupCategory.getCategoryPosts(req.params.categoryId, req.query, req.query));
-  });
-
-  service.post('/v1/invite/join/:code', async (req, res) => {
-    res.send(await geesomeApp.ms.invite.registerUserByInviteCode(req.params.code, req.body));
-  });
 
   //TODO: move permissions checks to geesomeApp class
   service.post('/v1/admin/add-user', async (req, res) => {
@@ -622,22 +314,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
       return res.send(403);
     }
     res.send(await geesomeApp.registerUser(req.body));
-  });
-  service.post('/v1/admin/add-invite', async (req, res) => {
-    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
-      return res.send(403);
-    }
-    console.log('geesomeApp.ms', geesomeApp.ms);
-    res.send(await geesomeApp.ms.invite.createInvite(req.user.id, req.body));
-  });
-  service.get('/v1/admin/invites', async (req, res) => {
-    res.send(await geesomeApp.ms.invite.getUserInvites(req.user.id, req.query, req.query));
-  });
-  service.post('/v1/admin/update-invite/:id', async (req, res) => {
-    if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
-      return res.send(403);
-    }
-    res.send(await geesomeApp.ms.invite.updateInvite(req.user.id, req.params.id, req.body));
   });
   service.post('/v1/admin/add-user-api-key', async (req, res) => {
     if (!await geesomeApp.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
@@ -681,9 +357,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
   });
   service.get('/v1/admin/all-content', async (req, res) => {
     res.send(await geesomeApp.getAllContentList(req.user.id, req.query.search, req.query));
-  });
-  service.get('/v1/admin/all-groups', async (req, res) => {
-    res.send(await geesomeApp.ms.group.getAllGroupList(req.user.id, req.query.search, req.query));
   });
 
 

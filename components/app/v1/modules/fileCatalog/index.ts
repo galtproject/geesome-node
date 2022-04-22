@@ -1,14 +1,20 @@
-import {IGeesomeApp, IGeesomeFileCatalogModule, ManifestToSave} from "../../interface";
+import {IGeesomeApp, IGeesomeFileCatalogModule, ManifestToSave} from "../../../interface";
 import {
 	CorePermissionName, FileCatalogItemType,
 	IContent, IFileCatalogItem,
 	IListParams
-} from "../../../database/interface";
+} from "../../../../database/interface";
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const path = require('path');
 
 module.exports = (app: IGeesomeApp) => {
+	const module = getModule(app);
+	require('./api')(app, module);
+	return module;
+}
+
+function getModule(app: IGeesomeApp) {
 	app.checkModules(['group']);
 
 	class FileCatalogModule implements IGeesomeFileCatalogModule {

@@ -53,7 +53,7 @@ const _ = require('lodash');
     // })
   }
 
-  const TelegramClient = require('../components/socNetClient/telegram');
+  const TelegramClient = require('../components/app/v1/modules/telegramClient');
   const telegram = new TelegramClient();
   await telegram.init(app.api);
 

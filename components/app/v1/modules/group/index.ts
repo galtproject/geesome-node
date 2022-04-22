@@ -1,4 +1,4 @@
-import {IGeesomeApp, IGeesomeGroupModule} from "../../interface";
+import {IGeesomeApp, IGeesomeGroupModule} from "../../../interface";
 import {
 	CorePermissionName,
 	GroupPermissionName,
@@ -6,7 +6,7 @@ import {
 	GroupView,
 	IGroup,
 	IListParams, IPost, PostStatus
-} from "../../../database/interface";
+} from "../../../../database/interface";
 const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
@@ -17,7 +17,12 @@ const pgpHelper = require('geesome-libs/src/pgpHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 
 module.exports = (app: IGeesomeApp) => {
+	const module = getModule(app);
+	require('./api')(app, module);
+	return module;
+}
 
+function getModule(app: IGeesomeApp) {
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
