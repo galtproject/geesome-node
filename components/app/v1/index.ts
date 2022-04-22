@@ -33,7 +33,6 @@ import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
 import {ICommunicator} from "../../communicator/interface";
-import {ISocNetClient} from "../../socNetClient/interface";
 
 const { BufferListStream } = require('bl');
 const commonHelper = require('geesome-libs/src/common');
@@ -97,16 +96,14 @@ module.exports = async (extendConfig) => {
   log('Start api...');
   app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
 
+  log('Init modules...');
   app.ms = {} as any;
-  ['asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite'].forEach(moduleName => {
-    app.ms[moduleName] = require('./modules/' + moduleName)(app);
-  });
-
-  app.socNetClients = await pIteration.map(config.socNetClientList, async name => {
-    const SocNetClientClass = require('../../socNetClient/' + name);
-    const client = new SocNetClientClass();
-    await client.init(app);
-    return client;
+  await pIteration.forEachSeries(config.modules, async moduleName => {
+    try {
+      app.ms[moduleName] = await require('./modules/' + moduleName)(app);
+    } catch (e) {
+      console.error(moduleName + ' module initialization error', e);
+    }
   });
 
   app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
@@ -123,7 +120,6 @@ class GeesomeApp implements IGeesomeApp {
   authorization: any;
   drivers: any;
   events: GeesomeEmitter;
-  socNetClients: ISocNetClient[];
   generatorsList: IRender[];
 
   frontendStorageId;

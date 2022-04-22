@@ -23,8 +23,6 @@ import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
 import {IRender} from "../render/interface";
 import {ICommunicator} from "../communicator/interface";
-import {ISocNetClient} from "../socNetClient/interface";
-import exp = require("constants");
 
 export interface IGeesomeApp {
   api: any;
@@ -35,7 +33,6 @@ export interface IGeesomeApp {
   events: GeesomeEmitter;
   render: IRender;
   authorization: any;
-  socNetClients: ISocNetClient[];
 
   frontendStorageId;
 

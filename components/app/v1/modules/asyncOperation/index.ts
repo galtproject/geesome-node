@@ -5,7 +5,7 @@ import {
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
 
-module.exports = (app: IGeesomeApp) => {
+module.exports = async (app: IGeesomeApp) => {
 	const module = getModule(app);
 	require('./api')(app, module);
 	return module;

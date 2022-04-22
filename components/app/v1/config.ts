@@ -32,6 +32,6 @@ module.exports = {
   authorizationConfig: {},
   renderModule: 'entity-json-manifest',
   renderConfig: {},
-  socNetClientList: ['telegram'],
+  modules: process.env.MODULES ? process.env.MODULES.split(',') : ['asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite', 'telegramClient'],
   generatorsList: ['static-site-generator', 'rss']
 };
