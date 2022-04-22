@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker-compose down --rmi all && docker-compose build --no-cache && mkdir -p .docker-data
+docker-compose rmi --f geesome-node_web && docker-compose build --no-cache && mkdir -p .docker-data
