@@ -24,6 +24,7 @@ RUN npm i -g yarn
 
 RUN git clone https://github.com/galtproject/geesome-node.git
 WORKDIR "/geesome-node"
+RUN git checkout improve
 RUN yarn
 RUN npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
