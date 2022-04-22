@@ -106,8 +106,6 @@ module.exports = async (extendConfig) => {
     }
   });
 
-  app.generatorsList = await pIteration.map(config.generatorsList, async name => require('../../render/' + name)(app));
-
   return app;
 };
 
@@ -120,7 +118,6 @@ class GeesomeApp implements IGeesomeApp {
   authorization: any;
   drivers: any;
   events: GeesomeEmitter;
-  generatorsList: IRender[];
 
   frontendStorageId;
 

@@ -70,7 +70,7 @@ describe("renders", function () {
         const testUser = (await app.database.getAllUserList('user'))[0];
         let testGroup = (await app.database.getAllGroupList('test'))[0];
         const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
-        const staticSiteGenerator = await require('../components/render/static-site-generator')(app);
+        const staticSiteGenerator = await require('../components/app/v1/modules/staticSiteGenerator')(app);
 
         await addTextPostToGroup(testGroup, 'Test 1 post');
         const staticSiteContent = await generateStaticSiteAndGetContent(testGroup, 'Test 1 group', 'About test group');
@@ -126,7 +126,7 @@ describe("renders", function () {
 
         const testUser = (await app.database.getAllUserList('user'))[0];
         let testGroup = (await app.database.getAllGroupList('test'))[0];
-        const rssRender = await require('../components/render/rss')(app);
+        const rssRender = await require('../components/app/v1/modules/rss')(app);
 
         const test1PostText = 'Test 1 post';
         const post1Content = await app.saveData(test1PostText, null, {
