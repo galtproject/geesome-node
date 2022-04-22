@@ -1,11 +1,17 @@
-import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../interface";
-import {CorePermissionName, IListParams} from "../../../database/interface";
+import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../../interface";
+import {CorePermissionName, IListParams} from "../../../../database/interface";
 const pIteration = require('p-iteration');
 const _ = require('lodash');
-const ethereumAuthorization = require('../../../authorization/ethereum');
+const ethereumAuthorization = require('../../../../authorization/ethereum');
 const geesomeMessages = require("geesome-libs/src/messages");
 
 module.exports = (app: IGeesomeApp) => {
+	const module = getModule(app);
+	require('./api')(app, module);
+	return module;
+}
+
+function getModule(app: IGeesomeApp) {
 	app.checkModules(['group']);
 
 	class InviteModule implements IGeesomeInviteModule {

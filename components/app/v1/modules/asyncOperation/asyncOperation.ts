@@ -1,11 +1,17 @@
-import {IGeesomeApp, IGeesomeAsyncOperationModule} from "../../interface";
+import {IGeesomeApp, IGeesomeAsyncOperationModule} from "../../../interface";
 import {
 	CorePermissionName
-} from "../../../database/interface";
+} from "../../../../database/interface";
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
 
 module.exports = (app: IGeesomeApp) => {
+	const module = getModule(app);
+	require('./api')(app, module);
+	return module;
+}
+
+function getModule(app: IGeesomeApp) {
 
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
 		async asyncOperationWrapper(methodName, args, options) {
