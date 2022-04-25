@@ -44,7 +44,6 @@ let config = require('./config');
 // const appCron = require('./cron');
 const appEvents = require('./events') as Function;
 // const appListener = require('./listener');
-const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
 const uuidAPIKey = require('uuid-apikey');
@@ -85,8 +84,6 @@ module.exports = async (extendConfig) => {
   app.render = await require('../../render/' + config.renderModule)(app);
 
   app.drivers = require('../../drivers');
-
-  app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
   app.events = appEvents(app);
 
@@ -266,47 +263,6 @@ class GeesomeApp implements IGeesomeApp {
       }
       return this.comparePasswordWithHash(password, user.passwordHash).then(success => success ? user : null);
     });
-  }
-
-  async generateUserAccountAuthMessage(accountProvider, accountAddress) {
-    const userAccount = await this.database.getUserAccountByAddress(accountProvider, accountAddress);
-    if (!userAccount) {
-      throw new Error("not_found");
-    }
-
-    const authMessage = await this.database.createUserAuthMessage({
-      provider: accountProvider,
-      address: accountAddress,
-      userAccountId: userAccount.id,
-      message: await commonHelper.random()
-    });
-
-    delete authMessage.userAccountId;
-
-    return authMessage;
-  }
-
-  async loginAuthMessage(authMessageId, address, signature, params: any = {}) {
-    if (!address) {
-      throw new Error("not_valid");
-    }
-
-    const authMessage = await this.database.getUserAuthMessage(authMessageId);
-    if (!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
-      throw new Error("not_valid");
-    }
-
-    const userAccount = await this.database.getUserAccount(authMessage.userAccountId);
-    if (!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
-      throw new Error("not_valid");
-    }
-
-    const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
-    if (!isValid) {
-      throw new Error("not_valid");
-    }
-
-    return await this.database.getUser(userAccount.userId);
   }
 
   async updateUser(userId, updateData) {

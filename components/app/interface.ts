@@ -55,10 +55,6 @@ export interface IGeesomeApp {
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
-  loginAuthMessage(authMessageId, address, signature, params?): Promise<IUser>;
-
-  generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessageResponse>;
-
   updateUser(userId, updateData): Promise<IUser>;
 
   setUserAccount(userId, accountData): Promise<IUserAccount>;
