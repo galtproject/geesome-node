@@ -12,7 +12,6 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
 		async asyncOperationWrapper(methodName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
@@ -58,7 +57,7 @@ function getModule(app: IGeesomeApp) {
 						inProcess: false,
 						contentId: res.id
 					});
-					return app.communicator.publishEvent(asyncOperation.channel, res);
+					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
 				.catch((e) => {
 					return app.database.updateUserAsyncOperation(asyncOperation.id, {

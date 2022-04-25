@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export interface ICommunicator {
+export default interface IGeesomeCommunicatorModule {
   node: any;
 
   getAccountIdByName(name): Promise<string>;
@@ -55,11 +55,4 @@ export interface ICommunicator {
   getPeers(topic): Promise<string[]>;
 
   stop(): Promise<any>;
-}
-
-interface IResultFile {
-  path;
-  size;
-  id;
-  storageAccountId;
 }

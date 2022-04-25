@@ -156,10 +156,6 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
     res.send({result: await geesomeApp.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
   });
 
-  service.post('/v1/user/export-private-key', async (req, res) => {
-    res.send({result: (await geesomeApp.communicator.keyLookup(req.user.manifestStaticStorageId)).marshal()});
-  });
-
   service.post('/v1/user/update', async (req, res) => {
     res.send(await geesomeApp.updateUser(req.user.id, req.body));
   });
@@ -527,12 +523,8 @@ module.exports = async (geesomeApp: IGeesomeApp, port) => {
 
   service.get('/v1/node-address-list', async (req, res) => {
     res.send({
-      result: await geesomeApp[req.query.type === 'ipfs' ? 'storage' : 'communicator'].nodeAddressList()
+      result: req.query.type === 'ipfs' ? await geesomeApp.storage.nodeAddressList() : await geesomeApp.ms.communicator.nodeAddressList()
     });
-  });
-
-  service.get('/v1/soc-net-list', async (req, res) => {
-    res.send({ result: geesomeApp.config.socNetClientList });
   });
 
   service.get('/api/v0/refs*', (req, res) => {

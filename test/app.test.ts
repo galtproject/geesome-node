@@ -475,7 +475,7 @@ describe("app", function () {
           name: 'my-post'
         });
 
-        const manifestId = await app.communicator.resolveStaticId(testGroup.staticStorageId);
+        const manifestId = await app.ms.communicator.resolveStaticId(testGroup.staticStorageId);
         console.log('testGroup.staticStorageId', testGroup.staticStorageId, 'manifestId', manifestId);
         const groupManifest = await app.storage.getObject(manifestId);
         console.log('groupManifest', groupManifest);

@@ -32,7 +32,8 @@ import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
-import {ICommunicator} from "../../communicator/interface";
+import IGeesomeCommunicatorModule from "./modules/communicator/interface";
+import IGeesomeAccountStorageModule from "./modules/accountStorage/interface";
 
 const { BufferListStream } = require('bl');
 const commonHelper = require('geesome-libs/src/common');
@@ -72,9 +73,6 @@ module.exports = async (extendConfig) => {
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
 
-  log('Start communicator...');
-  app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
-
   const frontendPath = __dirname + '/../../../frontend/dist';
   if (fs.existsSync(frontendPath)) {
     const directory = await app.storage.saveDirectory(frontendPath);
@@ -96,6 +94,7 @@ module.exports = async (extendConfig) => {
   log('Init modules...');
   app.ms = {} as any;
   await pIteration.forEachSeries(config.modules, async moduleName => {
+    log(`Start ${moduleName} module...`);
     try {
       app.ms[moduleName] = await require('./modules/' + moduleName)(app);
     } catch (e) {
@@ -110,7 +109,6 @@ class GeesomeApp implements IGeesomeApp {
   api: any;
   database: IDatabase;
   storage: IStorage;
-  communicator: ICommunicator;
   render: IRender;
   authorization: any;
   drivers: any;
@@ -123,7 +121,9 @@ class GeesomeApp implements IGeesomeApp {
     fileCatalog: IGeesomeFileCatalogModule,
     invite: IGeesomeInviteModule,
     group: IGeesomeGroupModule,
-    groupCategory: IGeesomeGroupCategoryModule
+    groupCategory: IGeesomeGroupCategoryModule,
+    accountStorage: IGeesomeAccountStorageModule,
+    communicator: IGeesomeCommunicatorModule
   };
 
   constructor(
@@ -303,7 +303,7 @@ class GeesomeApp implements IGeesomeApp {
   async bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem> {
     log('bindToStaticId', dynamicId, staticId);
     try {
-      await this.communicator.bindToStaticId(dynamicId, staticId);
+      await this.ms.communicator.bindToStaticId(dynamicId, staticId);
       log('bindToStaticId:communicator finish');
     } catch (e) {
       log('bindToStaticId:communicator error', e.message);
@@ -1293,7 +1293,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getPeers(topic) {
-    const peers = await this.communicator.getPeers(topic);
+    const peers = await this.ms.communicator.getPeers(topic);
     return {
       count: peers.length,
       list: peers
@@ -1301,7 +1301,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getStaticIdPeers(ipnsId) {
-    const peers = await this.communicator.getStaticIdPeers(ipnsId);
+    const peers = await this.ms.communicator.getStaticIdPeers(ipnsId);
     return {
       count: peers.length,
       list: peers
@@ -1321,7 +1321,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getSelfAccountId() {
-    return this.communicator.getAccountIdByName('self');
+    return this.ms.communicator.getAccountIdByName('self');
   }
 
   async createStorageAccount(name) {
@@ -1331,9 +1331,9 @@ class GeesomeApp implements IGeesomeApp {
     //   throw "already_exists";
     // }
     const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
-    const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
+    const storageAccountId = await this.ms.communicator.createAccountIfNotExists(nameIpfsHash);
 
-    this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
+    this.ms.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
       return this.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
         /*dont do anything*/
       });
@@ -1359,7 +1359,7 @@ class GeesomeApp implements IGeesomeApp {
 
       let dynamicId;
       try {
-        let dynamicItem = await this.communicator.resolveStaticItem(staticId);
+        let dynamicItem = await this.ms.communicator.resolveStaticItem(staticId);
         if (staticIdItem && dynamicItem && dynamicItem.createdAt > staticIdItem.boundAt.getTime() / 1000) {
           dynamicId = dynamicItem.value;
           log('resolve by communicator', staticId, '=>', dynamicId);
@@ -1396,7 +1396,7 @@ class GeesomeApp implements IGeesomeApp {
     if (type === 'ipfs') {
       return this.storage.getBootNodeList();
     } else {
-      return this.communicator.getBootNodeList();
+      return this.ms.communicator.getBootNodeList();
     }
   }
 
@@ -1405,7 +1405,7 @@ class GeesomeApp implements IGeesomeApp {
     if (type === 'ipfs') {
       return this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
     } else {
-      return this.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
+      return this.ms.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
     }
   }
 
@@ -1414,13 +1414,13 @@ class GeesomeApp implements IGeesomeApp {
     if (type === 'ipfs') {
       return this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
     } else {
-      return this.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
+      return this.ms.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
     }
   }
 
   async stop() {
     await this.storage.stop();
-    await this.communicator.stop();
+    await this.ms.communicator.stop();
     this.api.close();
   }
 }

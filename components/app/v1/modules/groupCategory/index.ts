@@ -10,6 +10,8 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
+	app.checkModules(['group']);
+
 	class GroupCategoryModule implements IGeesomeGroupCategoryModule{
 
 		async canAddGroupToCategory(userId, categoryId) {
