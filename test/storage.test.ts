@@ -7,9 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import IGeesomeStorageModule from "../components/app/v1/modules/storage/interface";
-import {IGeesomeDatabaseModule} from "../components/app/v1/modules/database/interface";
-import IGeesomeCommunicatorModule from "../components/app/v1/modules/communicator/interface";
+import IGeesomeStorageModule from "../app/modules/storage/interface";
+import {IGeesomeDatabaseModule} from "../app/modules/database/interface";
+import IGeesomeCommunicatorModule from "../app/modules/communicator/interface";
 const assert = require('assert');
 
 describe("storage", function () {
@@ -29,7 +29,7 @@ describe("storage", function () {
 
     describe(storageService + ' storage, ' + communicatorService + ' communicator, ' + databaseService + ' database', () => {
       before(async () => {
-        const appConfig = require('../components/app/v1/config');
+        const appConfig = require('../app/config');
         appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
@@ -43,18 +43,18 @@ describe("storage", function () {
           }
         };
 
-        storage = await require('../components/app/v1/modules/storage')({
+        storage = await require('../app/modules/storage')({
           config: appConfig
         });
-        database = await require('../components/app/v1/modules/database')({
+        database = await require('../app/modules/database')({
           config: appConfig
         });
-        const accountStorage = await require('../components/app/v1/modules/accountStorage')({
+        const accountStorage = await require('../app/modules/accountStorage')({
           config: appConfig,
           database,
           checkModules: () => {}
         });
-        communicator = await require('../components/app/v1/modules/communicator')({
+        communicator = await require('../app/modules/communicator')({
           config: appConfig,
           storage,
           database,

@@ -7,24 +7,24 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../components/app/interface";
+import {IGeesomeApp} from "../app/interface";
 import {
   ContentView,
   CorePermissionName,
   FileCatalogItemType,
   PostStatus,
   UserLimitName
-} from "../components/app/v1/modules/database/interface";
+} from "../app/modules/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
 const resourcesHelper = require('./helpers/resources');
-const log = require('../components/app/v1/helpers').log;
+const log = require('../app/helpers').log;
 const commonHelper = require('geesome-libs/src/common');
 
-describe("app", function () {
+describe.only("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);
@@ -36,7 +36,7 @@ describe("app", function () {
   versions.forEach((appVersion) => {
     describe('app ' + appVersion, () => {
       beforeEach(async () => {
-        const appConfig = require('../components/app/v1/config');
+        const appConfig = require('../app/config');
         appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
@@ -51,7 +51,7 @@ describe("app", function () {
         };
         
         try {
-          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+          app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});

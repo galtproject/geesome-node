@@ -7,13 +7,13 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../components/app/interface";
+import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../app/interface";
 import {
   ContentView,
   CorePermissionName,
   GroupPermissionName,
   PostStatus,
-} from "../components/app/v1/modules/database/interface";
+} from "../app/modules/database/interface";
 
 const trieHelper = require("geesome-libs/src/base36Trie");
 const assert = require('assert');
@@ -31,7 +31,7 @@ describe("groupCategory", function () {
   versions.forEach((appVersion) => {
     describe('app ' + appVersion, () => {
       beforeEach(async () => {
-        const appConfig = require('../components/app/v1/config');
+        const appConfig = require('../app/config');
         appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
@@ -46,7 +46,7 @@ describe("groupCategory", function () {
         };
         
         try {
-          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+          app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});

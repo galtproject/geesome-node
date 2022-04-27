@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeDatabaseModule} from "../components/app/v1/modules/database/interface";
+import {IGeesomeDatabaseModule} from "../app/modules/database/interface";
 
 const assert = require('assert');
 
@@ -21,7 +21,7 @@ describe("databaseValues", function () {
   databases.forEach((databaseService) => {
     describe(databaseService + ' database', () => {
       before(async () => {
-        database = await require('../components/database/' + databaseService)({config: {databaseConfig}});
+        database = await require('../app/modules/database')({config: {databaseConfig}});
       });
 
       after(async () => {

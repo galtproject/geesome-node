@@ -13,7 +13,6 @@ export {};
 
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
-const log = require('../components/log');
 const http = require('http');
 
 const hostname = process.env.HOST || 'localhost';

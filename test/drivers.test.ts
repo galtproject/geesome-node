@@ -10,7 +10,7 @@
 const assert = require('assert');
 const fs = require('fs');
 
-const drivers = require('../components/app/v1/modules/drivers')();
+const drivers = require('../app/modules/drivers')();
 const mediainfo = require('node-mediainfo');
 const resourcesHelper = require('./helpers/resources');
 

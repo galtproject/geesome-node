@@ -7,19 +7,19 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../components/app/interface";
+import {IGeesomeApp} from "../app/interface";
 import {
   CorePermissionName,
-} from "../components/app/v1/modules/database/interface";
+} from "../app/modules/database/interface";
 
 // const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 // const assert = require('assert');
-const log = require('../components/log');
+const log = require('../app/helpers').log;
 const { generateRandomData } = require('./helpers');
 
 (async () => {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
-  const appConfig = require('../components/app/v1/config');
+  const appConfig = require('../app/config');
   appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
   appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
   appConfig.storageConfig.jsNode.config = {
@@ -34,7 +34,7 @@ const { generateRandomData } = require('./helpers');
   let app: IGeesomeApp;
 
   try {
-    app = await require('../components/app/v1')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+    app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
     await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
     const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});

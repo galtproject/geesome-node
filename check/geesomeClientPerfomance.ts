@@ -11,7 +11,7 @@ export {};
 
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
-const log = require('../components/log');
+const log = require('../app/helpers').log;
 const http = require('http');
 const { generateRandomData } = require('./helpers');
 
