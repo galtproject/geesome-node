@@ -13,7 +13,7 @@ import {
   CorePermissionName,
   IUserOperationQueue,
   PostStatus
-} from "../components/database/interface";
+} from "../components/app/v1/modules/database/interface";
 
 const assert = require('assert');
 const fs = require('fs');
@@ -62,13 +62,13 @@ describe("renders", function () {
       });
       
       afterEach(async () => {
-        await app.database.flushDatabase();
+        await app.ms.database.flushDatabase();
         await app.stop();
       });
 
       it('static-site-generator', async () => {
-        const testUser = (await app.database.getAllUserList('user'))[0];
-        let testGroup = (await app.database.getAllGroupList('test'))[0];
+        const testUser = (await app.ms.database.getAllUserList('user'))[0];
+        let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
         const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
         const staticSiteGenerator = await require('../components/app/v1/modules/staticSiteGenerator')(app);
 
@@ -124,8 +124,8 @@ describe("renders", function () {
           return false;
         };
 
-        const testUser = (await app.database.getAllUserList('user'))[0];
-        let testGroup = (await app.database.getAllGroupList('test'))[0];
+        const testUser = (await app.ms.database.getAllUserList('user'))[0];
+        let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
         const rssRender = await require('../components/app/v1/modules/rss')(app);
 
         const test1PostText = 'Test 1 post';

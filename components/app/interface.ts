@@ -11,14 +11,14 @@ import {
   CorePermissionName, FileCatalogItemType,
   GroupType, GroupView, ICategory,
   IContent,
-  IDatabase,
+  IGeesomeDatabaseModule,
   IFileCatalogItem,
   IGroup, IGroupSection, IInvite, IListParams,
   IPost, IStaticIdHistoryItem,
   IUser, IUserAccount,
   IUserApiKey, IUserAsyncOperation,
   IUserLimit, IUserOperationQueue, UserLimitName
-} from "../database/interface";
+} from "./v1/modules/database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
 import {IGeesomeEntityJsonManifestModule} from "./v1/modules/entityJsonManifest/interface";
@@ -28,7 +28,6 @@ import IGeesomeApiModule from "./v1/modules/api/interface";
 
 export interface IGeesomeApp {
   config: any;
-  database: IDatabase;
   storage: IStorage;
   events: GeesomeEmitter;
 
@@ -40,11 +39,11 @@ export interface IGeesomeApp {
     asyncOperation: IGeesomeAsyncOperationModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
-    groupCategory: IGeesomeGroupCategoryModule;
     fileCatalog: IGeesomeFileCatalogModule;
     accountStorage: IGeesomeAccountStorageModule;
     communicator: IGeesomeCommunicatorModule;
     entityJsonManifest: IGeesomeEntityJsonManifestModule;
+    database: IGeesomeDatabaseModule;
   };
 
   checkModules(modulesList: string[]);

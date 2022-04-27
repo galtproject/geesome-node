@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGroup, IPost} from "../../database/interface";
+import {IGroup, IPost} from "./modules/database/interface";
 import {IGeesomeApp} from "../interface";
 
 const {getPersonalChatTopic, getIpnsUpdatesTopic} = require('geesome-libs/src/name');
@@ -19,7 +19,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
   const peersToTopic = {};
 
-  const selfIpnsId = await geesomeApp.storage.getAccountIdByName('self');
+  const selfIpnsId = await geesomeApp.ms.communicator.getAccountIdByName('self');
   console.log('selfIpnsId', selfIpnsId);
 
   geesomeApp.storage.node.libp2p.on('peer:disconnect', (peerDisconnect) => {
@@ -52,11 +52,11 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
   //   }
   // });
 
-  geesomeApp.database.getRemoteGroups().then(remoteGroups => {
+  geesomeApp.ms.database.getRemoteGroups().then(remoteGroups => {
     remoteGroups.forEach(subscribeForGroupUpdates)
   });
-  
-  geesomeApp.database.getPersonalChatGroups().then(personalGroups => {
+
+  geesomeApp.ms.database.getPersonalChatGroups().then(personalGroups => {
     personalGroups.forEach(subscribeForPersonalGroupUpdates)
   });
 
@@ -68,11 +68,11 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
   }
 
   async function subscribeForPersonalGroupUpdates(group: IGroup) {
-    const creator = await geesomeApp.database.getUser(group.creatorId);
+    const creator = await geesomeApp.ms.database.getUser(group.creatorId);
     const groupTopic = getPersonalChatTopic([creator.manifestStaticStorageId, group.staticStorageId], group.theme);
 
     console.log('📡 subscribeForPersonalGroupUpdates', groupTopic);
-    geesomeApp.storage.subscribeToEvent(groupTopic, (message) => {
+    geesomeApp.ms.communicator.subscribeToEvent(groupTopic, (message) => {
       handlePersonalChatUpdate(group, message);
     });
 
@@ -85,7 +85,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
 
   function subscribeToStaticIdUpdates(ipnsId) {
     console.log('📡 subscribeToStaticIdUpdates', ipnsId);
-    geesomeApp.storage.subscribeToStaticIdUpdates(ipnsId, (message) => {
+    geesomeApp.ms.communicator.subscribeToStaticIdUpdates(ipnsId, (message) => {
       handleIpnsUpdate(ipnsId, message);
     });
 
@@ -100,7 +100,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
     }
 
     connectionIntervals[topic] = setInterval(() => {
-      geesomeApp.storage.getPeers(topic).then((peers) => {
+      geesomeApp.ms.communicator.getPeers(topic).then((peers) => {
         console.log(topic, 'peers', peers);
         if (!peers.length) {
           callback();
@@ -120,7 +120,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
     console.log('ipnsId', ipnsId);
     console.log('message.data', message.data);
     
-    geesomeApp.database.addStaticIdHistoryItem({
+    geesomeApp.ms.database.addStaticIdHistoryItem({
       staticId: ipnsId,
       dynamicId: message.data.valueStr.replace('/ipfs/', ''),
       periodTimestamp: message.data.ttl,
@@ -128,7 +128,7 @@ module.exports = async (geesomeApp: IGeesomeApp) => {
       boundAt: message.data.validity.toString('utf8')
     }).catch(() => {/* already exists */});
 
-    geesomeApp.database.setStaticIdKey(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
+    geesomeApp.ms.database.setStaticIdKey(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
   }
   
   async function handlePersonalChatUpdate(personalGroup: IGroup, message) {

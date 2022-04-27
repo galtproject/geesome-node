@@ -10,15 +10,15 @@
 import {
   GroupType, ICategory,
   IContent,
-  IDatabase, IFileCatalogItem, IGroup, IGroupRead, IGroupSection, IInvite,
+  IGeesomeDatabaseModule, IFileCatalogItem, IGroup, IGroupRead, IGroupSection, IInvite,
   IListParams,
   IObject, IPost, IStaticIdHistoryItem,
   IUser,
   IUserAccount,
   IUserApiKey, IUserAsyncOperation,
   IUserAuthMessage, IUserLimit, IUserOperationQueue
-} from "../interface";
-import {IGeesomeApp} from "../../app/interface";
+} from "./interface";
+import {IGeesomeApp} from "../../../interface";
 
 const _ = require("lodash");
 const fs = require("fs");
@@ -38,7 +38,7 @@ module.exports = async function (app: IGeesomeApp) {
 
   let models;
   try {
-    models = await require('./models/index')(sequelize);
+    models = await require('./models')(sequelize);
   } catch (e) {
     return console.error('Error', e);
   }
@@ -46,7 +46,7 @@ module.exports = async function (app: IGeesomeApp) {
   return new MysqlDatabase(sequelize, models, config);
 };
 
-class MysqlDatabase implements IDatabase {
+class MysqlDatabase implements IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
   config: any;

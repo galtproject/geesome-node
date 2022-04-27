@@ -10,7 +10,7 @@
 import {IGeesomeApp} from "../components/app/interface";
 import {
   CorePermissionName,
-} from "../components/database/interface";
+} from "../components/app/v1/modules/database/interface";
 
 // const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 // const assert = require('assert');

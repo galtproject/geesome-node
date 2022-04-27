@@ -4,7 +4,7 @@ import IGeesomeApiModule, {
 	IApiModuleGetInput,
 	IApiModulePotInput
 } from "./interface";
-import {IUser} from "../../../../database/interface";
+import {IUser} from "../database/interface";
 
 const _ = require('lodash');
 

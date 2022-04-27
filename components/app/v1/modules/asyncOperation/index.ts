@@ -1,17 +1,20 @@
 import {IGeesomeApp, IGeesomeAsyncOperationModule} from "../../../interface";
 import {
 	CorePermissionName
-} from "../../../../database/interface";
+} from "../database/interface";
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
 
 module.exports = async (app: IGeesomeApp) => {
 	const module = getModule(app);
+	await app.ms.database.closeAllAsyncOperation();
 	require('./api')(app, module);
 	return module;
 }
 
 function getModule(app: IGeesomeApp) {
+	app.checkModules(['database']);
+
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
 		async asyncOperationWrapper(methodName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
@@ -21,7 +24,7 @@ function getModule(app: IGeesomeApp) {
 				return app[methodName].apply(app, args);
 			}
 
-			const asyncOperation = await app.database.addUserAsyncOperation({
+			const asyncOperation = await app.ms.database.addUserAsyncOperation({
 				userId: options.userId,
 				userApiKeyId: options.userApiKeyId,
 				name: 'save-data',
@@ -33,7 +36,7 @@ function getModule(app: IGeesomeApp) {
 			if (_.isObject(_.last(args))) {
 				_.last(args).onProgress = (progress) => {
 					console.log('onProgress', progress);
-					app.database.updateUserAsyncOperation(asyncOperation.id, {
+					app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
 						percent: progress.percent
 					});
 				}
@@ -53,14 +56,14 @@ function getModule(app: IGeesomeApp) {
 
 			methodPromise
 				.then((res: any) => {
-					app.database.updateUserAsyncOperation(asyncOperation.id, {
+					app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						contentId: res.id
 					});
 					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
 				.catch((e) => {
-					return app.database.updateUserAsyncOperation(asyncOperation.id, {
+					return app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						errorType: 'unknown',
 						errorMessage: e && e.message ? e.message : e
@@ -70,7 +73,7 @@ function getModule(app: IGeesomeApp) {
 			try {
 				await dataSendingPromise;
 			} catch(e) {
-				await app.database.updateUserAsyncOperation(asyncOperation.id, {
+				await app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
 					inProcess: false,
 					errorType: 'unknown',
 					errorMessage: e && e.message ? e.message : e
@@ -82,7 +85,7 @@ function getModule(app: IGeesomeApp) {
 
 
 		async getAsyncOperation(userId, operationId) {
-			const asyncOperation = await app.database.getUserAsyncOperation(operationId);
+			const asyncOperation = await app.ms.database.getUserAsyncOperation(operationId);
 			if (asyncOperation.userId != userId) {
 				throw new Error("not_permitted");
 			}
@@ -90,11 +93,11 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async findAsyncOperations(userId, name, channelLike) {
-			return app.database.getUserAsyncOperationList(userId, name, channelLike);
+			return app.ms.database.getUserAsyncOperationList(userId, name, channelLike);
 		}
 
 		async addAsyncOperation(userId, asyncOperationData) {
-			return app.database.addUserAsyncOperation({
+			return app.ms.database.addUserAsyncOperation({
 				...asyncOperationData,
 				userId,
 				inProcess: true,
@@ -103,17 +106,17 @@ function getModule(app: IGeesomeApp) {
 
 		async updateAsyncOperation(userId, asyncOperationId, percent) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.database.updateUserAsyncOperation(asyncOperationId, { percent });
+			return app.ms.database.updateUserAsyncOperation(asyncOperationId, { percent });
 		}
 
 		async cancelAsyncOperation(userId, asyncOperationId) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.database.updateUserAsyncOperation(asyncOperationId, { cancel: true });
+			return app.ms.database.updateUserAsyncOperation(asyncOperationId, { cancel: true });
 		}
 
 		async finishAsyncOperation(userId, asyncOperationId, contentId = null) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.database.updateUserAsyncOperation(asyncOperationId, {
+			return app.ms.database.updateUserAsyncOperation(asyncOperationId, {
 				contentId,
 				percent: 100,
 				inProcess: false,
@@ -123,12 +126,12 @@ function getModule(app: IGeesomeApp) {
 
 		async errorAsyncOperation(userId, asyncOperationId, errorMessage) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.database.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
+			return app.ms.database.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
 		}
 
 		addUserOperationQueue(userId, module, userApiKeyId, input) {
 			const inputJson = JSON.stringify(input);
-			return app.database.addUserOperationQueue({
+			return app.ms.database.addUserOperationQueue({
 				userId,
 				module,
 				inputJson,
@@ -139,11 +142,11 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		getWaitingOperationByModule(module) {
-			return app.database.getWaitingOperationQueueByModule(module);
+			return app.ms.database.getWaitingOperationQueueByModule(module);
 		}
 
 		async getUserOperationQueue(userId, userOperationQueueId) {
-			const userOperationQueue = await app.database.getUserOperationQueue(userOperationQueueId);
+			const userOperationQueue = await app.ms.database.getUserOperationQueue(userOperationQueueId);
 			if (userOperationQueue.userId != userId) {
 				throw new Error("not_permitted");
 			}
@@ -151,11 +154,11 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		setAsyncOperationToUserOperationQueue(userOperationQueueId, asyncOperationId) {
-			return app.database.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
+			return app.ms.database.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
 		}
 
 		closeUserOperationQueueByAsyncOperationId(userAsyncOperationId) {
-			return app.database.updateUserOperationQueueByAsyncOperationId(userAsyncOperationId, { isWaiting: false });
+			return app.ms.database.updateUserOperationQueueByAsyncOperationId(userAsyncOperationId, { isWaiting: false });
 		}
 	}
 

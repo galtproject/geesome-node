@@ -9,7 +9,7 @@
 
 import {IGeesomeEntityJsonManifestModule} from "./interface";
 import {IGeesomeApp} from "../../../interface";
-import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../../../../database/interface";
+import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../database/interface";
 
 const pIteration = require('p-iteration');
 const treeLib = require('geesome-libs/src/base36Trie');
@@ -21,6 +21,7 @@ module.exports = async (app: IGeesomeApp) => {
 };
 
 function getModule(app) {
+  app.checkModules(['database']);
 
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
@@ -39,7 +40,7 @@ function getModule(app) {
         groupManifest.postsCount = group.publishedPostsCount;
         //TODO: add previous ID
         groupManifest.staticId = group.manifestStaticStorageId;
-        groupManifest.publicKey = await app.database.getStaticIdPublicKey(groupManifest.staticId);
+        groupManifest.publicKey = await app.ms.database.getStaticIdPublicKey(groupManifest.staticId);
 
         if (group.avatarImage) {
           groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
@@ -51,14 +52,14 @@ function getModule(app) {
         // TODO: is this need for protocol?
         // currently used for getting companion info in chats list
         if(group.type === GroupType.PersonalChat) {
-          const creator = await app.database.getUser(group.creatorId);
+          const creator = await app.ms.database.getUser(group.creatorId);
           groupManifest.members = [group.staticStorageId, creator.manifestStaticStorageId];
         }
 
         groupManifest.posts = {};
 
         // TODO: write all posts
-        const groupPosts = await app.database.getGroupPosts(group.id, {status: PostStatus.Published}, {limit: 1000, offset: 0});
+        const groupPosts = await app.ms.database.getGroupPosts(group.id, {status: PostStatus.Published}, {limit: 1000, offset: 0});
         // console.log('groupPosts', group.id, groupPosts);
         groupPosts.forEach((post: IPost) => {
           if(post.isEncrypted) {
@@ -109,13 +110,13 @@ function getModule(app) {
         const userManifest = ipfsHelper.pickObjectFields(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
         userManifest.staticId = user.manifestStaticStorageId;
-        userManifest.publicKey = await app.database.getStaticIdPublicKey(userManifest.staticId);
+        userManifest.publicKey = await app.ms.database.getStaticIdPublicKey(userManifest.staticId);
 
         if (user.avatarImage) {
           userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
         }
 
-        userManifest.accounts = await app.database.getUserAccountList(user.id).then(list => {
+        userManifest.accounts = await app.ms.database.getUserAccountList(user.id).then(list => {
           return list.map(({provider, address}) => ({provider, address}))
         });
 
@@ -191,8 +192,8 @@ function getModule(app) {
         group.manifestStaticStorageId = manifest.staticId;
 
         //TODO: check ipns for valid bound to ipld
-        await app.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
-        await app.database.addStaticIdHistoryItem({
+        await app.ms.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
+        await app.ms.database.addStaticIdHistoryItem({
           staticId: manifest.staticId,
           dynamicId: manifestId,
           isActive: true,
@@ -213,8 +214,8 @@ function getModule(app) {
         log('manifestIdToDbObject:user', user);
 
         //TODO: check ipns for valid bound to ipld
-        await app.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
-        await app.database.addStaticIdHistoryItem({
+        await app.ms.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
+        await app.ms.database.addStaticIdHistoryItem({
           staticId: manifest.staticId,
           dynamicId: manifestId,
           isActive: true,

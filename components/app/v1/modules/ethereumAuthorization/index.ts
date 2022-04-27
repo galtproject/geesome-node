@@ -11,15 +11,16 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
+	app.checkModules(['database']);
 
 	class EthereumAuthorizationModule implements IGeesomeEthereumAuthorizationModule {
 
 		async generateUserAccountAuthMessage(accountProvider, accountAddress) {
-			const userAccount = await app.database.getUserAccountByAddress(accountProvider, accountAddress);
+			const userAccount = await app.ms.database.getUserAccountByAddress(accountProvider, accountAddress);
 			if (!userAccount) {
 				throw new Error("not_found");
 			}
-			const authMessage = await app.database.createUserAuthMessage({
+			const authMessage = await app.ms.database.createUserAuthMessage({
 				provider: accountProvider,
 				address: accountAddress,
 				userAccountId: userAccount.id,
@@ -36,12 +37,12 @@ function getModule(app: IGeesomeApp) {
 				throw new Error("not_valid");
 			}
 
-			const authMessage = await app.database.getUserAuthMessage(authMessageId);
+			const authMessage = await app.ms.database.getUserAuthMessage(authMessageId);
 			if (!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
 				throw new Error("not_valid");
 			}
 
-			const userAccount = await app.database.getUserAccount(authMessage.userAccountId);
+			const userAccount = await app.ms.database.getUserAccount(authMessage.userAccountId);
 			if (!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
 				throw new Error("not_valid");
 			}
@@ -51,7 +52,7 @@ function getModule(app: IGeesomeApp) {
 				throw new Error("not_valid");
 			}
 
-			return await app.database.getUser(userAccount.userId);
+			return await app.ms.database.getUser(userAccount.userId);
 		}
 
 	}

@@ -7,6 +7,12 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+//TODO: move communicator and fileCatalog to improve
+const modulePacks = {
+  'main': ['database', 'api', 'accountStorage', 'communicator', 'asyncOperation', 'entityJsonManifest', 'group', 'fileCatalog'],
+  'improve': ['groupCategory', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization']
+};
+
 module.exports = {
   databaseModule: 'sql',
   databaseConfig: {},
@@ -26,5 +32,5 @@ module.exports = {
   },
   renderModule: 'entity-json-manifest',
   renderConfig: {},
-  modules: process.env.MODULES ? process.env.MODULES.split(',') : ['api', 'accountStorage', 'communicator', 'asyncOperation', 'entityJsonManifest', 'group', 'groupCategory', 'fileCatalog', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization']
+  modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve)
 };

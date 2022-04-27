@@ -1,5 +1,5 @@
 import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../../../interface";
-import {CorePermissionName, GroupType, IListParams} from "../../../../database/interface";
+import {CorePermissionName, GroupType, IListParams} from "../database/interface";
 const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
 
@@ -10,7 +10,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['group']);
+	app.checkModules(['database', 'group']);
 
 	class GroupCategoryModule implements IGeesomeGroupCategoryModule{
 
@@ -19,7 +19,7 @@ function getModule(app: IGeesomeApp) {
 				return false;
 			}
 			categoryId = await this.checkCategoryId(categoryId);
-			return app.database.isAdminInCategory(userId, categoryId);
+			return app.ms.database.isAdminInCategory(userId, categoryId);
 		}
 
 		async canEditCategory(userId, categoryId) {
@@ -27,7 +27,7 @@ function getModule(app: IGeesomeApp) {
 				return false;
 			}
 			categoryId = await this.checkCategoryId(categoryId);
-			return app.database.isAdminInCategory(userId, categoryId);
+			return app.ms.database.isAdminInCategory(userId, categoryId);
 		}
 
 		async checkCategoryId(categoryId, createIfNotExist = true) {
@@ -53,12 +53,12 @@ function getModule(app: IGeesomeApp) {
 
 		async getCategoryByManifestId(groupId, staticId) {
 			if (!staticId) {
-				const historyItem = await app.database.getStaticIdItemByDynamicId(groupId);
+				const historyItem = await app.ms.database.getStaticIdItemByDynamicId(groupId);
 				if (historyItem) {
 					staticId = historyItem.staticId;
 				}
 			}
-			return app.database.getCategoryByParams({
+			return app.ms.database.getCategoryByParams({
 				manifestStaticStorageId: staticId
 			});
 		}
@@ -66,23 +66,23 @@ function getModule(app: IGeesomeApp) {
 		async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
 			listParams = this.prepareListParams(listParams);
 			return {
-				list: await app.database.getCategoryPosts(categoryId, filters, listParams),
-				total: await app.database.getCategoryPostsCount(categoryId, filters)
+				list: await app.ms.database.getCategoryPosts(categoryId, filters, listParams),
+				total: await app.ms.database.getCategoryPostsCount(categoryId, filters)
 			};
 		}
 
 		async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
 			listParams = this.prepareListParams(listParams);
 			return {
-				list: await app.database.getCategoryGroups(categoryId, filters, listParams),
-				total: await app.database.getCategoryGroupsCount(categoryId, filters)
+				list: await app.ms.database.getCategoryGroups(categoryId, filters, listParams),
+				total: await app.ms.database.getCategoryGroupsCount(categoryId, filters)
 			};
 		}
 
 		async updateCategoryManifest(categoryId) {
-			const post = await app.database.getCategory(categoryId);
+			const post = await app.ms.database.getCategory(categoryId);
 
-			return app.database.updateCategory(categoryId, {
+			return app.ms.database.updateCategory(categoryId, {
 				manifestStorageId: await app.generateAndSaveManifest('category', post)
 			});
 		}
@@ -91,7 +91,7 @@ function getModule(app: IGeesomeApp) {
 			if (!categoryId) {
 				return false;
 			}
-			return app.database.isAdminInCategory(userId, categoryId);
+			return app.ms.database.isAdminInCategory(userId, categoryId);
 		}
 
 
@@ -104,13 +104,13 @@ function getModule(app: IGeesomeApp) {
 				categoryData.staticStorageId = categoryData.manifestStaticStorageId;
 			}
 
-			const category = await app.database.addCategory(categoryData);
+			const category = await app.ms.database.addCategory(categoryData);
 
-			await app.database.addAdminToCategory(userId, category.id);
+			await app.ms.database.addAdminToCategory(userId, category.id);
 
 			await this.updateCategoryManifest(category.id);
 
-			return app.database.getCategory(category.id);
+			return app.ms.database.getCategory(category.id);
 		}
 
 		async addGroupToCategory(userId, groupId, categoryId) {
@@ -119,7 +119,7 @@ function getModule(app: IGeesomeApp) {
 				throw new Error("not_permitted");
 			}
 
-			await app.database.addGroupToCategory(groupId, categoryId);
+			await app.ms.database.addGroupToCategory(groupId, categoryId);
 		}
 
 		async addMemberToCategory(userId, categoryId, memberId) {
@@ -135,7 +135,7 @@ function getModule(app: IGeesomeApp) {
 				// }
 			}
 
-			await app.database.addMemberToCategory(memberId, categoryId);
+			await app.ms.database.addMemberToCategory(memberId, categoryId);
 		}
 
 		async addAdminToCategory(userId, categoryId, memberId) {
@@ -151,7 +151,7 @@ function getModule(app: IGeesomeApp) {
 				// }
 			}
 
-			await app.database.addAdminToCategory(memberId, categoryId);
+			await app.ms.database.addAdminToCategory(memberId, categoryId);
 		}
 
 		async removeMemberFromCategory(userId, categoryId, memberId) {
@@ -166,15 +166,15 @@ function getModule(app: IGeesomeApp) {
 				//   throw new Error("not_permitted");
 				// }
 			}
-			await app.database.removeMemberFromCategory(memberId, categoryId);
+			await app.ms.database.removeMemberFromCategory(memberId, categoryId);
 		}
 
 		async isMemberInCategory(userId, categoryId) {
-			return app.database.isMemberInCategory(userId, categoryId);
+			return app.ms.database.isMemberInCategory(userId, categoryId);
 		}
 
 		async getCategoryByParams(params) {
-			return app.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
+			return app.ms.database.getCategoryByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
 		}
 
 		async createGroupSection(userId, groupSectionData) {
@@ -187,13 +187,13 @@ function getModule(app: IGeesomeApp) {
 				}
 			}
 
-			return app.database.addGroupSection(groupSectionData);
+			return app.ms.database.addGroupSection(groupSectionData);
 		}
 
 		async updateGroupSection(userId, groupSectionId, groupSectionData) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 
-			const dbGroup = await app.database.getGroupSection(groupSectionId);
+			const dbGroup = await app.ms.database.getGroupSection(groupSectionId);
 			if (dbGroup.categoryId || groupSectionData.categoryId) {
 				const permittedInCategory1 = !groupSectionData.categoryId || await this.isAdminInCategory(userId, groupSectionData.categoryId);
 				const permittedInCategory2 = !dbGroup.categoryId || await this.isAdminInCategory(userId, dbGroup.categoryId);
@@ -206,16 +206,16 @@ function getModule(app: IGeesomeApp) {
 				}
 			}
 
-			await app.database.updateGroupSection(groupSectionId, groupSectionData);
+			await app.ms.database.updateGroupSection(groupSectionId, groupSectionData);
 
-			return app.database.getGroupSection(groupSectionId);
+			return app.ms.database.getGroupSection(groupSectionId);
 		}
 
 		async getGroupSectionItems(filters?, listParams?: IListParams) {
 			listParams = this.prepareListParams(listParams);
 			return {
-				list: await app.database.getGroupSections(filters, listParams),
-				total: await app.database.getGroupSectionsCount(filters)
+				list: await app.ms.database.getGroupSections(filters, listParams),
+				total: await app.ms.database.getGroupSectionsCount(filters)
 			};
 		}
 

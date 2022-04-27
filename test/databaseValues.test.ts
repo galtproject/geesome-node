@@ -7,14 +7,14 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IDatabase} from "../components/database/interface";
+import {IGeesomeDatabaseModule} from "../components/app/v1/modules/database/interface";
 
 const assert = require('assert');
 
 describe("databaseValues", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: true, storage: 'database-test.sqlite'}};
 
-  let database: IDatabase;
+  let database: IGeesomeDatabaseModule;
 
   const databases = ['sql'];
 
