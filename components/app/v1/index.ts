@@ -29,9 +29,9 @@ import {
 } from "../interface";
 import {IStorage} from "../../storage/interface";
 import {IGeesomeEntityJsonManifestModule} from "./modules/entityJsonManifest/interface";
-import {DriverInput, OutputSize} from "../../drivers/interface";
+import IGeesomeDriversModule, {DriverInput, OutputSize} from "./modules/drivers/interface";
 import {GeesomeEmitter} from "./events";
-import AbstractDriver from "../../drivers/abstractDriver";
+import AbstractDriver from "./modules/drivers/abstractDriver";
 import IGeesomeCommunicatorModule from "./modules/communicator/interface";
 import IGeesomeAccountStorageModule from "./modules/accountStorage/interface";
 import IGeesomeApiModule from "./modules/api/interface";
@@ -41,7 +41,7 @@ const commonHelper = require('geesome-libs/src/common');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
-const {getDirSize} = require('../../drivers/helpers');
+const {getDirSize} = require('./modules/drivers/helpers');
 let config = require('./config');
 let helpers = require('./helpers');
 // const appCron = require('./cron');
@@ -76,8 +76,6 @@ module.exports = async (extendConfig) => {
     app.frontendStorageId = directory.id;
   }
 
-  app.drivers = require('../../drivers');
-
   app.events = appEvents(app);
 
   // await appCron(app);
@@ -99,13 +97,13 @@ module.exports = async (extendConfig) => {
 
 class GeesomeApp implements IGeesomeApp {
   storage: IStorage;
-  drivers: any;
   events: GeesomeEmitter;
 
   frontendStorageId;
 
   ms: {
     database: IGeesomeDatabaseModule,
+    drivers: IGeesomeDriversModule,
     api: IGeesomeApiModule,
     asyncOperation: IGeesomeAsyncOperationModule,
     fileCatalog: IGeesomeFileCatalogModule,
@@ -483,7 +481,7 @@ class GeesomeApp implements IGeesomeApp {
   async prepareStorageFileAndGetPreview(storageFile: IStorageFile, extension, fullType) {
     console.log('prepareStorageFileAndGetPreview');
     if (this.isVideoType(fullType)) {
-      const videoThumbnailDriver = this.drivers.preview['video-thumbnail'];
+      const videoThumbnailDriver = this.ms.drivers.preview['videoThumbnail'];
       const {storageFile: imageFile, extension: imageExtension, type: imageType, properties} = await this.getContentPreviewStorageFile(storageFile, videoThumbnailDriver, {
         extension,
         getProperties: true
@@ -506,7 +504,7 @@ class GeesomeApp implements IGeesomeApp {
     let previewDriverName;
     if (source) {
       if (detecterHelper.isYoutubeUrl(source)) {
-        previewDriverName = 'youtube-thumbnail';
+        previewDriverName = 'youtubeThumbnail';
       }
     }
     if (!fullType) {
@@ -514,13 +512,13 @@ class GeesomeApp implements IGeesomeApp {
     }
     if (!previewDriverName) {
       const splitType = fullType.split('/');
-      previewDriverName = this.drivers.preview[splitType[1]] ? splitType[1] : splitType[0];
+      previewDriverName = this.ms.drivers.preview[splitType[1]] ? splitType[1] : splitType[0];
     }
     if (previewDriverName === 'gif') {
       extension = 'png';
     }
     log('previewDriverName', previewDriverName);
-    let previewDriver = this.drivers.preview[previewDriverName] as AbstractDriver;
+    let previewDriver = this.ms.drivers.preview[previewDriverName] as AbstractDriver;
     if (!previewDriver) {
       return {};
     }
@@ -639,10 +637,10 @@ class GeesomeApp implements IGeesomeApp {
         console.log('getContentPreviewStorageFile stream storageFile', previewFile);
 
         let properties;
-        if (options.getProperties && this.drivers.metadata[type.split('/')[0]]) {
+        if (options.getProperties && this.ms.drivers.metadata[type.split('/')[0]]) {
           const propertiesStream = await this.storage.getFileStream(previewFile.id);
           console.log('getContentPreviewStorageFile stream propertiesStream');
-          properties = await this.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
+          properties = await this.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
         }
         console.log('getContentPreviewStorageFile stream properties', properties);
 
@@ -667,9 +665,9 @@ class GeesomeApp implements IGeesomeApp {
         console.log('getContentPreviewStorageFile path storageFile', previewFile);
 
         let properties;
-        if (options.getProperties && this.drivers.metadata[type.split('/')[0]]) {
+        if (options.getProperties && this.ms.drivers.metadata[type.split('/')[0]]) {
           console.log('getContentPreviewStorageFile path propertiesStream');
-          properties = await this.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
+          properties = await this.ms.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
         }
         console.log('getContentPreviewStorageFile path properties', properties);
 
@@ -826,7 +824,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     let storageFile;
-    const uploadDriver = options.driver && this.drivers.upload[options.driver] as AbstractDriver;
+    const uploadDriver = options.driver && this.ms.drivers.upload[options.driver] as AbstractDriver;
     if (uploadDriver && uploadDriver.isInputSupported(DriverInput.Source)) {
       const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
       type = dataToSave.type;
@@ -951,8 +949,8 @@ class GeesomeApp implements IGeesomeApp {
 
       let properties;
       if (this.isVideoType(mimeType)) {
-        log('video-to-streamable processByStream');
-        const convertResult = await this.drivers.convert['video-to-streamable'].processByStream(stream, {
+        log('videoToStreamable processByStream');
+        const convertResult = await this.ms.drivers.convert['videoToStreamable'].processByStream(stream, {
           extension: extension,
           onProgress: options.onProgress,
           onError: reject
@@ -960,7 +958,7 @@ class GeesomeApp implements IGeesomeApp {
         stream = convertResult.stream;
         extension = convertResult.extension;
         mimeType = convertResult.type;
-        properties =  {duration: convertResult.duration };
+        properties =  {duration: convertResult['duration'] };
       }
 
       const sizeRemained = await this.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
@@ -1002,7 +1000,7 @@ class GeesomeApp implements IGeesomeApp {
         (async () => {
           if (options.driver === 'archive') {
             log('upload archive processByStream');
-            const uploadResult = await this.drivers.upload['archive'].processByStream(stream, {
+            const uploadResult = await this.ms.drivers.upload['archive'].processByStream(stream, {
               extension,
               onProgress: options.onProgress,
               onError: reject
@@ -1010,28 +1008,28 @@ class GeesomeApp implements IGeesomeApp {
             if (!uploadResult) {
               return; // onError handled
             }
-            resultFile = await this.storage.saveDirectory(uploadResult.tempPath, storageOptions);
-            if (uploadResult.emitFinish) {
-              uploadResult.emitFinish();
+            resultFile = await this.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+            if (uploadResult['emitFinish']) {
+              uploadResult['emitFinish']();
             }
             mimeType = 'directory';
             extension = 'none';
             console.log('uploadResult', uploadResult);
-            resultFile.size = uploadResult.size;
+            resultFile.size = uploadResult['size'];
           } else {
             log('this.storage.isStreamAddSupport()', this.storage.isStreamAddSupport());
             if (this.storage.isStreamAddSupport()) {
               resultFile = await this.storage.saveFileByData(stream, storageOptions);
             } else {
-              const uploadResult = await this.drivers.upload['file'].processByStream(stream, {
+              const uploadResult = await this.ms.drivers.upload['file'].processByStream(stream, {
                 extension,
                 onProgress: options.onProgress,
                 onError: reject
               });
               log('saveDirectory(uploadResult.tempPath)');
-              resultFile = await this.storage.saveDirectory(uploadResult.tempPath, storageOptions);
-              resultFile.tempPath = uploadResult.tempPath;
-              resultFile.emitFinish = uploadResult.emitFinish;
+              resultFile = await this.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+              resultFile.tempPath = uploadResult['tempPath'];
+              resultFile.emitFinish = uploadResult['emitFinish'];
             }
             // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
             // log('getFileStat', resultFile, 'resultFile');
@@ -1045,7 +1043,7 @@ class GeesomeApp implements IGeesomeApp {
         (async () => {
           console.log('mimeType', mimeType);
           if (_.startsWith(mimeType, 'image')) {
-            properties = await this.drivers.metadata['image'].processByStream(stream);
+            properties = await this.ms.drivers.metadata['image'].processByStream(stream);
             console.log('metadata processByStream', properties);
           }
         })()
@@ -1130,7 +1128,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async handleSourceByUploadDriver(sourceLink, driver) {
-    const uploadDriver = this.drivers.upload[driver] as AbstractDriver;
+    const uploadDriver = this.ms.drivers.upload[driver] as AbstractDriver;
     if (!uploadDriver) {
       throw new Error(driver + "_upload_driver_not_found");
     }

@@ -9,32 +9,33 @@
 
 import {ImagePreviewDriver} from "./preview/image";
 import {TextPreviewDriver} from "./preview/text";
-import {YoutubeVideoUploadDriver} from "./upload/youtube-video";
-import {YoutubeThumbnailPreviewDriver} from "./preview/youtube-thumbnail";
-import {VideoToStreambleDriver} from "./convert/video-to-streamable";
-import {VideoThumbnail} from "./preview/video-thumbnail";
+import {YoutubeVideoUploadDriver} from "./upload/youtubeVideo";
+import {YoutubeThumbnailPreviewDriver} from "./preview/youtubeThumbnail";
+import {VideoToStreambleDriver} from "./convert/videoToStreamable";
+import {VideoThumbnail} from "./preview/videoThumbnail";
 import {ArchiveUploadDriver} from "./upload/archive";
 import {ImageMetadataDriver} from "./metadata/image";
 import {FileUploadDriver} from "./upload/file";
 import {GifPreviewDriver} from "./preview/gif";
+import IGeesomeDriversModule from "./interface";
 
-module.exports = {
+module.exports = (app) => ({
   preview: {
     image: new ImagePreviewDriver(),
     gif: new GifPreviewDriver(),
     text: new TextPreviewDriver(),
-    'youtube-thumbnail': new YoutubeThumbnailPreviewDriver(),
-    'video-thumbnail': new VideoThumbnail()
+    youtubeThumbnail: new YoutubeThumbnailPreviewDriver(),
+    videoThumbnail: new VideoThumbnail(),
   },
   metadata: {
-    image: new ImageMetadataDriver()
+    image: new ImageMetadataDriver(),
   },
   upload: {
-    'youtube-video': new YoutubeVideoUploadDriver(),
-    'archive': new ArchiveUploadDriver(),
-    'file': new FileUploadDriver()
+    youtubeVideo: new YoutubeVideoUploadDriver(),
+    archive: new ArchiveUploadDriver(),
+    file: new FileUploadDriver(),
   },
   convert: {
-    'video-to-streamable': new VideoToStreambleDriver()
+    videoToStreamable: new VideoToStreambleDriver(),
   }
-};
+} as IGeesomeDriversModule);

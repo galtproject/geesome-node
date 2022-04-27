@@ -9,6 +9,27 @@
 
 import {Stream} from "stream";
 
+export default interface IGeesomeDriversModule {
+  preview: {
+    image: IDriver,
+    gif: IDriver,
+    text: IDriver,
+    youtubeThumbnail: IDriver,
+    videoThumbnail: IDriver,
+  },
+  metadata: {
+    image: IDriver,
+  },
+  upload: {
+    youtubeVideo: IDriver,
+    archive: IDriver,
+    file: IDriver,
+  },
+  convert: {
+    videoToStreamable: IDriver,
+  }
+}
+
 export interface IDriver {
   supportedInputs: string[];
   supportedOutputSizes: string[];

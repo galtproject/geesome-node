@@ -25,6 +25,7 @@ import {IGeesomeEntityJsonManifestModule} from "./v1/modules/entityJsonManifest/
 import IGeesomeCommunicatorModule from "./v1/modules/communicator/interface";
 import IGeesomeAccountStorageModule from "./v1/modules/accountStorage/interface";
 import IGeesomeApiModule from "./v1/modules/api/interface";
+import IGeesomeDriversModule from "./v1/modules/drivers/interface";
 
 export interface IGeesomeApp {
   config: any;
@@ -44,6 +45,7 @@ export interface IGeesomeApp {
     communicator: IGeesomeCommunicatorModule;
     entityJsonManifest: IGeesomeEntityJsonManifestModule;
     database: IGeesomeDatabaseModule;
+    drivers: IGeesomeDriversModule;
   };
 
   checkModules(modulesList: string[]);
@@ -383,7 +385,7 @@ export interface IDataContentInput {
 export interface IUrlContentInput {
   url: string;
   /**
-   * Upload driver from geesome-node/drivers/upload. "youtube-video" for example. Drivers can handle specific contents.
+   * Upload driver from geesome-node/drivers/upload. "youtubeVideo" for example. Drivers can handle specific contents.
    */
   driver: string;
   mimeType: string;
