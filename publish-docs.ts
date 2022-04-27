@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "./components/app/interface";
+import {IGeesomeApp} from "./app/interface";
 
 const {spawn} = require('child_process');
 const fs = require('fs');
@@ -22,7 +22,7 @@ module.exports = (app: IGeesomeApp) => {
     if (code !== 0) {
       return console.warn("Docs publishing failed :(");
     }
-    const result = await app.storage.saveDirectory(__dirname + '/docs');
+    const result = await app.ms.storage.saveDirectory(__dirname + '/docs');
 
     console.log('Docs IPFS:', result.id);
 

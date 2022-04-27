@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const log = require('../components/log');
+const log = require('../app/helpers').log;
 const { generateRandomData } = require('./helpers');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 

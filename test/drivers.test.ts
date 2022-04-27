@@ -10,7 +10,7 @@
 const assert = require('assert');
 const fs = require('fs');
 
-const drivers = require('../components/drivers');
+const drivers = require('../app/modules/drivers')();
 const mediainfo = require('node-mediainfo');
 const resourcesHelper = require('./helpers/resources');
 
@@ -50,7 +50,7 @@ describe("drivers", function () {
       const ouputStreamablePath = __dirname + '/resources/output-youtube-video.mp4';
       
       async function downloadVideo() {
-        const result = await drivers['upload']['youtube-video'].processBySource('https://www.youtube.com/watch?v=DXUAyRRkI6k');
+        const result = await drivers['upload']['youtubeVideo'].processBySource('https://www.youtube.com/watch?v=DXUAyRRkI6k');
 
         await new Promise(async (resolve, reject) => {
           const strm = fs.createWriteStream(ouputStreamablePath);
@@ -81,7 +81,7 @@ describe("drivers", function () {
       let videoInfo = await mediainfo(videoPath);
       assert.equal(videoInfo.media.track[0].IsStreamable, 'No');
 
-      const result = await drivers['convert']['video-to-streamable'].processByStream(fs.createReadStream(videoPath), {
+      const result = await drivers['convert']['videoToStreamable'].processByStream(fs.createReadStream(videoPath), {
         extension: 'mp4',
         onError() {
           assert.equal(false, true);
@@ -112,7 +112,7 @@ describe("drivers", function () {
       let videoInfo = await mediainfo(videoPath);
       assert.equal(videoInfo.media.track[0].IsStreamable, 'No');
 
-      const result = await drivers['convert']['video-to-streamable'].processByStream(fs.createReadStream(videoPath), {
+      const result = await drivers['convert']['videoToStreamable'].processByStream(fs.createReadStream(videoPath), {
         extension: 'mov',
         onError() {
           assert.equal(false, true);
@@ -148,7 +148,7 @@ describe("drivers", function () {
       let videoInfo = await mediainfo(videoPath);
       assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
 
-      const result = await drivers['convert']['video-to-streamable'].processByStream(fs.createReadStream(videoPath), {
+      const result = await drivers['convert']['videoToStreamable'].processByStream(fs.createReadStream(videoPath), {
         extension: 'mp4',
         onError() {
           assert.equal(false, true);
@@ -182,7 +182,7 @@ describe("drivers", function () {
         let videoInfo = await mediainfo(videoPath);
         assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
 
-        const result = await drivers['preview']['video-thumbnail'].processByStream(fs.createReadStream(videoPath), {
+        const result = await drivers['preview']['videoThumbnail'].processByStream(fs.createReadStream(videoPath), {
           extension: 'mp4',
           onError() {
             assert.equal(false, true);
@@ -201,7 +201,7 @@ describe("drivers", function () {
       await new Promise(async (resolve, reject) => {
 
         const videoPath = await resourcesHelper.prepare('streamable-input-video.mp4');
-        const result = await drivers['preview']['video-thumbnail'].processByStream(fs.createReadStream(videoPath), {
+        const result = await drivers['preview']['videoThumbnail'].processByStream(fs.createReadStream(videoPath), {
           extension: 'mp4',
           onError() {
             assert.equal(false, true);

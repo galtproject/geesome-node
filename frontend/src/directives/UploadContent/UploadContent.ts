@@ -99,7 +99,7 @@ export default {
     localValue() {
       if (this.mode === 'upload_link') {
         if (detecterLib.isYoutubeUrl(this.localValue)) {
-          this.driver = 'youtube-video';
+          this.driver = 'youtubeVideo';
         }
       }
     }

@@ -7,13 +7,13 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../components/app/interface";
+import {IGeesomeApp} from "../app/interface";
 import {
   ContentView,
   CorePermissionName,
   IUserOperationQueue,
   PostStatus
-} from "../components/app/v1/modules/database/interface";
+} from "../app/modules/database/interface";
 
 const assert = require('assert');
 const fs = require('fs');
@@ -32,7 +32,8 @@ describe("renders", function () {
   versions.forEach((appVersion) => {
     describe('app ' + appVersion, () => {
       beforeEach(async () => {
-        const appConfig = require('../components/app/v1/config');
+        const appConfig = require('../app/config');
+        appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         appConfig.storageConfig.jsNode.config = {
@@ -46,7 +47,7 @@ describe("renders", function () {
         };
         
         try {
-          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+          app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
@@ -70,7 +71,7 @@ describe("renders", function () {
         const testUser = (await app.ms.database.getAllUserList('user'))[0];
         let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
         const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
-        const staticSiteGenerator = await require('../components/app/v1/modules/staticSiteGenerator')(app);
+        const staticSiteGenerator = await require('../app/modules/staticSiteGenerator')(app);
 
         await addTextPostToGroup(testGroup, 'Test 1 post');
         const staticSiteContent = await generateStaticSiteAndGetContent(testGroup, 'Test 1 group', 'About test group');
@@ -114,19 +115,19 @@ describe("renders", function () {
 
           group = await app.ms.group.getGroup(group.id);
           const {staticSiteManifestStorageId} = JSON.parse(group.propertiesJson);
-          const storageId = await app.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
-          return app.storage.getFileDataText(storageId + '/index.html');
+          const storageId = await app.ms.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
+          return app.ms.storage.getFileDataText(storageId + '/index.html');
         }
       });
 
       it('rss', async () => {
-        app.storage.isStreamAddSupport = () => {
+        app.ms.storage.isStreamAddSupport = () => {
           return false;
         };
 
         const testUser = (await app.ms.database.getAllUserList('user'))[0];
         let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
-        const rssRender = await require('../components/app/v1/modules/rss')(app);
+        const rssRender = await require('../app/modules/rss')(app);
 
         const test1PostText = 'Test 1 post';
         const post1Content = await app.saveData(test1PostText, null, {

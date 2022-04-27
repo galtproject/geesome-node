@@ -7,23 +7,21 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IStorage} from "../components/storage/interface";
-import {IGeesomeDatabaseModule} from "../components/app/v1/modules/database/interface";
-import IGeesomeCommunicatorModule from "../components/app/v1/modules/communicator/interface";
+import IGeesomeStorageModule from "../app/modules/storage/interface";
+import {IGeesomeDatabaseModule} from "../app/modules/database/interface";
+import IGeesomeCommunicatorModule from "../app/modules/communicator/interface";
 const assert = require('assert');
 
 describe("storage", function () {
   this.timeout(30000);
 
-  let storage: IStorage;
+  let storage: IGeesomeStorageModule;
   let communicator: IGeesomeCommunicatorModule;
   let database: IGeesomeDatabaseModule;
 
   const storages = ['js-ipfs'];
   const communicators = ['fluence'];
   const databases = ['sql'];
-// const storages = ['js-ipfs'];
-  // const communicators = ['ipfs'];
 
   storages.forEach((storageService, index) => {
     const communicatorService = communicators[index];
@@ -31,7 +29,8 @@ describe("storage", function () {
 
     describe(storageService + ' storage, ' + communicatorService + ' communicator, ' + databaseService + ' database', () => {
       before(async () => {
-        const appConfig = require('../components/app/v1/config');
+        const appConfig = require('../app/config');
+        appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         appConfig.storageConfig.jsNode.config = {
@@ -44,18 +43,18 @@ describe("storage", function () {
           }
         };
 
-        storage = await require('../components/storage/' + storageService)({
+        storage = await require('../app/modules/storage')({
           config: appConfig
         });
-        database = await require('../components/database/' + databaseService)({
+        database = await require('../app/modules/database')({
           config: appConfig
         });
-        const accountStorage = await require('../components/app/v1/modules/accountStorage')({
+        const accountStorage = await require('../app/modules/accountStorage')({
           config: appConfig,
           database,
           checkModules: () => {}
         });
-        communicator = await require('../components/app/v1/modules/communicator')({
+        communicator = await require('../app/modules/communicator')({
           config: appConfig,
           storage,
           database,

@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "./components/app/interface";
+import {IGeesomeApp} from "./app/interface";
 (async () => {
   const databaseConfig: any = {};
   if (process.env.DATABASE_NAME) {
@@ -19,7 +19,7 @@ import {IGeesomeApp} from "./components/app/interface";
     storageConfig.repo = process.env.STORAGE_REPO;
   }
 
-  const app: IGeesomeApp = await require('./components/app/v1')({
+  const app: IGeesomeApp = await require('./app')({
     databaseConfig,
     storageConfig: {jsNode: storageConfig, goNode: storageConfig}
   });

@@ -7,24 +7,24 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../components/app/interface";
+import {IGeesomeApp} from "../app/interface";
 import {
   ContentView,
   CorePermissionName,
   FileCatalogItemType,
   PostStatus,
   UserLimitName
-} from "../components/app/v1/modules/database/interface";
+} from "../app/modules/database/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
 const resourcesHelper = require('./helpers/resources');
-const log = require('../components/app/v1/helpers').log;
+const log = require('../app/helpers').log;
 const commonHelper = require('geesome-libs/src/common');
 
-describe("app", function () {
+describe.only("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);
@@ -36,7 +36,8 @@ describe("app", function () {
   versions.forEach((appVersion) => {
     describe('app ' + appVersion, () => {
       beforeEach(async () => {
-        const appConfig = require('../components/app/v1/config');
+        const appConfig = require('../app/config');
+        appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         appConfig.storageConfig.jsNode.config = {
@@ -50,7 +51,7 @@ describe("app", function () {
         };
         
         try {
-          app = await require('../components/app/' + appVersion)({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+          app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
           await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
           const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
@@ -75,7 +76,7 @@ describe("app", function () {
         await new Promise((resolve, reject) => {
           fs.writeFile('/tmp/test', 'test', resolve);
         });
-        const resultFile = await app.storage.saveFileByPath('/tmp/test');
+        const resultFile = await app.ms.storage.saveFileByPath('/tmp/test');
 
         assert.notEqual(resultFile.id, undefined);
 
@@ -175,7 +176,7 @@ describe("app", function () {
         const textContent = await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
         log('textContent');
 
-        const contentObj = await app.storage.getObject(textContent.manifestStorageId);
+        const contentObj = await app.ms.storage.getObject(textContent.manifestStorageId);
 
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'text/plain');
@@ -183,23 +184,23 @@ describe("app", function () {
         await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
         log('saveData');
 
-        const ipld = await app.storage.saveObject(contentObj);
+        const ipld = await app.ms.storage.saveObject(contentObj);
         assert.equal(ipld, textContent.manifestStorageId);
       });
 
       it('should correctly save data structures', async () => {
         const testObject = {foo: 'bar'};
-        const ipld1 = await app.storage.saveObject(testObject);
+        const ipld1 = await app.ms.storage.saveObject(testObject);
         const ipld2 = await app.saveDataStructure(testObject);
         assert.equal(ipld1, ipld2);
         console.log('ipld1', ipld1);
 
-        const object1 = await app.storage.getObject(ipld1);
+        const object1 = await app.ms.storage.getObject(ipld1);
         const object2 = await app.getDataStructure(ipld2);
         assert.deepEqual(object1, object2);
 
         const newTestObject = {foo: 'bar', foo2: 'bar2'};
-        const newTesObjectId = await app.storage.saveObject(newTestObject);
+        const newTesObjectId = await app.ms.storage.saveObject(newTestObject);
         let newTestObjectDbContent = await app.ms.database.getObjectByStorageId(newTesObjectId);
         assert.equal(newTestObjectDbContent, null);
 
@@ -213,7 +214,7 @@ describe("app", function () {
         const testUser = (await app.ms.database.getAllUserList('user'))[0];
         const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
-        app.storage.isStreamAddSupport = () => {
+        app.ms.storage.isStreamAddSupport = () => {
           return false;
         };
 
@@ -226,7 +227,7 @@ describe("app", function () {
         const properties = JSON.parse(imageContent.propertiesJson);
         assert.equal(properties.width > 0, true);
 
-        const contentObj = await app.storage.getObject(imageContent.manifestStorageId);
+        const contentObj = await app.ms.storage.getObject(imageContent.manifestStorageId);
 
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'image/png');
@@ -247,7 +248,7 @@ describe("app", function () {
           groupId: testGroup.id
         });
 
-        const contentObj = await app.storage.getObject(videoContent.manifestStorageId);
+        const contentObj = await app.ms.storage.getObject(videoContent.manifestStorageId);
 
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'video/mp4');
@@ -268,7 +269,7 @@ describe("app", function () {
           groupId: testGroup.id
         });
 
-        const contentObj = await app.storage.getObject(videoContent.manifestStorageId);
+        const contentObj = await app.ms.storage.getObject(videoContent.manifestStorageId);
 
         assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
         assert.equal(contentObj.mimeType, 'video/mp4');
@@ -284,12 +285,12 @@ describe("app", function () {
         const archivePath = await resourcesHelper.prepare('test-archive.zip');
         const archiveContent = await app.saveData(fs.createReadStream(archivePath), 'archive.zip', {userId: testUser.id, driver: 'archive'});
 
-        const contentObj = await app.storage.getObject(archiveContent.manifestStorageId);
+        const contentObj = await app.ms.storage.getObject(archiveContent.manifestStorageId);
         assert.equal(contentObj.mimeType, 'directory');
         assert.equal(contentObj.extension, 'none');
         assert.equal(contentObj.size > 0, true);
 
-        let gotTextContent = await app.storage.getFileDataText(archiveContent.storageId + '/test.txt');
+        let gotTextContent = await app.ms.storage.getFileDataText(archiveContent.storageId + '/test.txt');
         assert.equal(gotTextContent, 'Test\n');
       });
 
@@ -307,7 +308,7 @@ describe("app", function () {
         }]);
         let publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, resultFolder.id,);
 
-        let gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
+        let gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
         assert.equal(gotIndexHtmlByFolder, indexHtml);
       });
 
@@ -338,7 +339,7 @@ describe("app", function () {
 
         assert.equal(foundIndexHtmlFileContent.id, indexHtmlFileItem.content.id);
         
-        const gotIndexHtml = await app.storage.getFileData(indexHtmlFileItem.content.storageId);
+        const gotIndexHtml = await app.ms.storage.getFileData(indexHtmlFileItem.content.storageId);
         
         assert.equal(gotIndexHtml, indexHtml);
 
@@ -348,12 +349,12 @@ describe("app", function () {
         
         assert.equal(publishFolderResult.storageId, resolvedStorageId);
         
-        let gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
+        let gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
 
         assert.equal(gotIndexHtmlByFolder, indexHtml);
         
         try {
-          await app.storage.getFileData(publishFolderResult.storageId + '/incorrect' + fileName);
+          await app.ms.storage.getFileData(publishFolderResult.storageId + '/incorrect' + fileName);
           assert.equal(true, false);
         } catch (e) {
           assert.equal(e.message, 'file does not exist');
@@ -363,7 +364,7 @@ describe("app", function () {
 
         publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 
-        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
+        gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
         
         assert.equal(gotIndexHtmlByFolder, indexHtml);
 
@@ -373,26 +374,26 @@ describe("app", function () {
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
 
         try {
-          await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+          await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
           assert.equal(true, false);
         } catch (e) {
           assert.equal(e.message, 'file does not exist');
         }
 
         publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+        gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
         indexHtml2 = '<h1>Hello world 3</h1>';
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
         publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+        gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
         indexHtml2 = '<h1>Hello world 2</h1>';
         await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2 });
         publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-        gotIndexHtmlByFolder = await app.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
+        gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
         assert.equal(gotIndexHtmlByFolder, indexHtml2);
       });
 

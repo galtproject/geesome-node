@@ -74,7 +74,7 @@ module.exports = `
           <label>Resource type</label>
           <md-select v-model="driver">
             <md-option value="none">Link to file</md-option>
-            <md-option value="youtube-video">Youtube video</md-option>
+            <md-option value="youtubeVideo">Youtube video</md-option>
           </md-select>
         </md-field>
       </div>
