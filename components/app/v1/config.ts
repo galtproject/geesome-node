@@ -24,13 +24,7 @@ module.exports = {
       protocol: process.env.STORAGE_PORT || 'http'
     }
   },
-  communicatorModule: 'fluence',
-  communicatorConfig: {},
-  apiModule: 'http-v1',
-  apiConfig: {},
-  authorizationModule: 'passport',
-  authorizationConfig: {},
   renderModule: 'entity-json-manifest',
   renderConfig: {},
-  modules: process.env.MODULES ? process.env.MODULES.split(',') : ['accountStorage', 'communicator', 'asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization']
+  modules: process.env.MODULES ? process.env.MODULES.split(',') : ['api', 'accountStorage', 'communicator', 'asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization']
 };

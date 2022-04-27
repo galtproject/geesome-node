@@ -115,8 +115,13 @@ function getModule(app: IGeesomeApp) {
 			if (parentItemId == 'null') {
 				parentItemId = null;
 			}
-			if (_.isUndefined(parentItemId) || parentItemId === 'undefined')
+			if (_.isUndefined(parentItemId) || parentItemId === 'undefined') {
 				parentItemId = undefined;
+			}
+			if (_.isUndefined(type) || type === 'undefined') {
+				type = undefined;
+			}
+			console.log('userId', userId, 'parentItemId', parentItemId, 'type', type, 'search', search);
 
 			return {
 				list: await app.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),

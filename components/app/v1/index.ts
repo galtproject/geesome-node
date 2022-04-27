@@ -34,6 +34,7 @@ import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
 import IGeesomeCommunicatorModule from "./modules/communicator/interface";
 import IGeesomeAccountStorageModule from "./modules/accountStorage/interface";
+import IGeesomeApiModule from "./modules/api/interface";
 
 const { BufferListStream } = require('bl');
 const commonHelper = require('geesome-libs/src/common');
@@ -89,9 +90,6 @@ module.exports = async (extendConfig) => {
   // await appCron(app);
   // await appListener(app);
 
-  log('Start api...');
-  app.api = await require('../../api/' + config.apiModule)(app, process.env.PORT || extendConfig.port || 7711);
-
   log('Init modules...');
   app.ms = {} as any;
   await pIteration.forEachSeries(config.modules, async moduleName => {
@@ -107,17 +105,16 @@ module.exports = async (extendConfig) => {
 };
 
 class GeesomeApp implements IGeesomeApp {
-  api: any;
   database: IDatabase;
   storage: IStorage;
   render: IRender;
-  authorization: any;
   drivers: any;
   events: GeesomeEmitter;
 
   frontendStorageId;
 
   ms: {
+    api: IGeesomeApiModule,
     asyncOperation: IGeesomeAsyncOperationModule,
     fileCatalog: IGeesomeFileCatalogModule,
     invite: IGeesomeInviteModule,
@@ -1414,7 +1411,7 @@ class GeesomeApp implements IGeesomeApp {
   async stop() {
     await this.storage.stop();
     await this.ms.communicator.stop();
-    this.api.close();
+    this.ms.api.stop();
   }
 }
 

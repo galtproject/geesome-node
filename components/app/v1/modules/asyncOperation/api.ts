@@ -11,15 +11,15 @@ module.exports = (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperation
      *
      * @apiInterface (../../database/interface.ts) {IUserAsyncOperation} apiSuccess
      */
-    app.api.post('/v1/user/get-async-operation/:id', async (req, res) => {
+    app.ms.api.onAuthorizedPost('user/get-async-operation/:id', async (req, res) => {
         res.send(await asyncOperationModule.getAsyncOperation(req.user.id, req.params.id));
     });
 
-    app.api.post('/v1/user/find-async-operations', async (req, res) => {
+    app.ms.api.onAuthorizedPost('user/find-async-operations', async (req, res) => {
         res.send(await asyncOperationModule.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
     });
 
-    app.api.post('/v1/user/cancel-async-operation/:id', async (req, res) => {
+    app.ms.api.onAuthorizedPost('user/cancel-async-operation/:id', async (req, res) => {
         res.send(await asyncOperationModule.cancelAsyncOperation(req.user.id, req.params.id));
     });
 }

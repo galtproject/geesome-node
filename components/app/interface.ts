@@ -24,20 +24,20 @@ import {GeesomeEmitter} from "./v1/events";
 import {IRender} from "../render/interface";
 import IGeesomeCommunicatorModule from "./v1/modules/communicator/interface";
 import IGeesomeAccountStorageModule from "./v1/modules/accountStorage/interface";
+import IGeesomeApiModule from "./v1/modules/api/interface";
 
 export interface IGeesomeApp {
-  api: any;
   config: any;
   database: IDatabase;
   storage: IStorage;
   events: GeesomeEmitter;
   render: IRender;
-  authorization: any;
 
   frontendStorageId;
 
   //modules
   ms: {
+    api: IGeesomeApiModule;
     asyncOperation: IGeesomeAsyncOperationModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
