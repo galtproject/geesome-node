@@ -22,12 +22,12 @@ import {
 } from "./modules/database/interface";
 import {
   IGeesomeApp, IGeesomeAsyncOperationModule, IGeesomeFileCatalogModule,
-  IGeesomeGroupCategoryModule, IGeesomeGroupModule,
+  IGeesomeGroupModule,
   IGeesomeInviteModule,
   IUserAccountInput,
   IUserInput,
 } from "../interface";
-import {IStorage} from "../../storage/interface";
+import IGeesomeStorageModule from "./modules/storage/interface";
 import {IGeesomeEntityJsonManifestModule} from "./modules/entityJsonManifest/interface";
 import IGeesomeDriversModule, {DriverInput, OutputSize} from "./modules/drivers/interface";
 import {GeesomeEmitter} from "./events";
@@ -66,16 +66,7 @@ module.exports = async (extendConfig) => {
 
   app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
   app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
-
-  log('Start storage...');
-  app.storage = await require('../../storage/' + config.storageModule)(app);
-
-  const frontendPath = __dirname + '/../../../frontend/dist';
-  if (fs.existsSync(frontendPath)) {
-    const directory = await app.storage.saveDirectory(frontendPath);
-    app.frontendStorageId = directory.id;
-  }
-
+  
   app.events = appEvents(app);
 
   // await appCron(app);
@@ -92,11 +83,16 @@ module.exports = async (extendConfig) => {
     }
   });
 
+  const frontendPath = __dirname + '/../../../frontend/dist';
+  if (fs.existsSync(frontendPath)) {
+    const directory = await app.ms.storage.saveDirectory(frontendPath);
+    app.frontendStorageId = directory.id;
+  }
+
   return app;
 };
 
 class GeesomeApp implements IGeesomeApp {
-  storage: IStorage;
   events: GeesomeEmitter;
 
   frontendStorageId;
@@ -111,6 +107,7 @@ class GeesomeApp implements IGeesomeApp {
     group: IGeesomeGroupModule,
     accountStorage: IGeesomeAccountStorageModule,
     communicator: IGeesomeCommunicatorModule,
+    storage: IGeesomeStorageModule,
     entityJsonManifest: IGeesomeEntityJsonManifestModule
   };
 
@@ -560,7 +557,7 @@ class GeesomeApp implements IGeesomeApp {
         };
       } else if (previewDriver.isInputSupported(DriverInput.Content)) {
         log('preview DriverInput.Content');
-        const data = await this.storage.getFileData(storageId);
+        const data = await this.ms.storage.getFileData(storageId);
         log('getFileData');
 
         const {content: mediumData, type, extension: resultExtension, notChanged: mediumNotChanged} = await previewDriver.processByContent(data, {
@@ -568,20 +565,20 @@ class GeesomeApp implements IGeesomeApp {
           size: OutputSize.Medium
         });
         log('processByContent');
-        const mediumFile = mediumNotChanged ? storageFile : await this.storage.saveFileByData(mediumData);
+        const mediumFile = mediumNotChanged ? storageFile : await this.ms.storage.saveFileByData(mediumData);
         log('mediumFile saveFileByData');
 
         let smallFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
           const {content: smallData, notChanged: smallNotChanged} = await previewDriver.processByContent(data, {extension, size: OutputSize.Small});
-          smallFile = smallNotChanged ? storageFile : await this.storage.saveFileByData(smallData);
+          smallFile = smallNotChanged ? storageFile : await this.ms.storage.saveFileByData(smallData);
         }
         log('smallFile saveFileByData');
 
         let largeFile;
         if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
           const {content: largeData, notChanged: largeNotChanged} = await previewDriver.processByContent(data, {extension, size: OutputSize.Large});
-          largeFile = largeNotChanged ? storageFile : await this.storage.saveFileByData(largeData);
+          largeFile = largeNotChanged ? storageFile : await this.ms.storage.saveFileByData(largeData);
         }
         log('largeFile saveFileByData');
 
@@ -599,9 +596,9 @@ class GeesomeApp implements IGeesomeApp {
         const {content: resultData, path, extension: resultExtension, type} = await previewDriver.processBySource(source, {});
         let storageFile;
         if (path) {
-          storageFile = await this.storage.saveFileByPath(path);
+          storageFile = await this.ms.storage.saveFileByPath(path);
         } else {
-          storageFile = await this.storage.saveFileByData(resultData);
+          storageFile = await this.ms.storage.saveFileByData(resultData);
         }
 
         //TODO: other sizes?
@@ -625,20 +622,20 @@ class GeesomeApp implements IGeesomeApp {
 
   async getContentPreviewStorageFile(storageFile: IStorageFile, previewDriver, options): Promise<any> {
     return new Promise(async (resolve, reject) => {
-      if (this.storage.isStreamAddSupport()) {
-        const inputStream = await this.storage.getFileStream(storageFile.id);
+      if (this.ms.storage.isStreamAddSupport()) {
+        const inputStream = await this.ms.storage.getFileStream(storageFile.id);
         options.onError = (err) => {
           reject(err);
         };
         console.log('getContentPreviewStorageFile stream', options);
         const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
-        const previewFile = await this.storage.saveFileByData(resultStream);
+        const previewFile = await this.ms.storage.saveFileByData(resultStream);
         console.log('getContentPreviewStorageFile stream storageFile', previewFile);
 
         let properties;
         if (options.getProperties && this.ms.drivers.metadata[type.split('/')[0]]) {
-          const propertiesStream = await this.storage.getFileStream(previewFile.id);
+          const propertiesStream = await this.ms.storage.getFileStream(previewFile.id);
           console.log('getContentPreviewStorageFile stream propertiesStream');
           properties = await this.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
         }
@@ -648,7 +645,7 @@ class GeesomeApp implements IGeesomeApp {
       } else {
         if (!storageFile.tempPath) {
           storageFile.tempPath = `/tmp/` + (await commonHelper.random()) + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
-          const data = new BufferListStream(await this.storage.getFileData(storageFile.id));
+          const data = new BufferListStream(await this.ms.storage.getFileData(storageFile.id));
           //TODO: find more efficient way to store content from IPFS to fs
           await new Promise((resolve, reject) => {
             data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve()).on('error', reject);
@@ -661,7 +658,7 @@ class GeesomeApp implements IGeesomeApp {
         console.log('getContentPreviewStorageFile: path', options);
         const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
 
-        const previewFile = await this.storage.saveFileByPath(previewPath);
+        const previewFile = await this.ms.storage.saveFileByPath(previewPath);
         console.log('getContentPreviewStorageFile path storageFile', previewFile);
 
         let properties;
@@ -931,7 +928,7 @@ class GeesomeApp implements IGeesomeApp {
       group = await this.ms.database.getGroup(options.groupId)
     }
     options.userId = userId;
-    const resultFile = await this.storage.saveDirectory(dirPath);
+    const resultFile = await this.ms.storage.saveDirectory(dirPath);
     return this.addContentWithPreview(resultFile, {
       extension: 'none',
       mimeType: 'directory',
@@ -1008,7 +1005,7 @@ class GeesomeApp implements IGeesomeApp {
             if (!uploadResult) {
               return; // onError handled
             }
-            resultFile = await this.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+            resultFile = await this.ms.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
             if (uploadResult['emitFinish']) {
               uploadResult['emitFinish']();
             }
@@ -1017,9 +1014,9 @@ class GeesomeApp implements IGeesomeApp {
             console.log('uploadResult', uploadResult);
             resultFile.size = uploadResult['size'];
           } else {
-            log('this.storage.isStreamAddSupport()', this.storage.isStreamAddSupport());
-            if (this.storage.isStreamAddSupport()) {
-              resultFile = await this.storage.saveFileByData(stream, storageOptions);
+            log('this.ms.storage.isStreamAddSupport()', this.ms.storage.isStreamAddSupport());
+            if (this.ms.storage.isStreamAddSupport()) {
+              resultFile = await this.ms.storage.saveFileByData(stream, storageOptions);
             } else {
               const uploadResult = await this.ms.drivers.upload['file'].processByStream(stream, {
                 extension,
@@ -1027,13 +1024,13 @@ class GeesomeApp implements IGeesomeApp {
                 onError: reject
               });
               log('saveDirectory(uploadResult.tempPath)');
-              resultFile = await this.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+              resultFile = await this.ms.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
               resultFile.tempPath = uploadResult['tempPath'];
               resultFile.emitFinish = uploadResult['emitFinish'];
             }
             // get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
             // log('getFileStat', resultFile, 'resultFile');
-            const storageContentStat = await this.storage.getFileStat(resultFile.id);
+            const storageContentStat = await this.ms.storage.getFileStat(resultFile.id);
             log('storageContentStat', storageContentStat);
             resultFile.size = storageContentStat.size;
             log('resultFile.size', resultFile.size);
@@ -1087,7 +1084,7 @@ class GeesomeApp implements IGeesomeApp {
     }
 
     if(!contentData.size) {
-      const storageContentStat = await this.storage.getFileStat(contentData.storageId);
+      const storageContentStat = await this.ms.storage.getFileStat(contentData.storageId);
       log('storageContentStat');
 
       contentData.size = storageContentStat.size;
@@ -1160,7 +1157,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   getFileStream(filePath, options = {}) {
-    return this.storage.getFileStream(filePath, options)
+    return this.ms.storage.getFileStream(filePath, options)
   }
 
   getContent(contentId) {
@@ -1197,7 +1194,7 @@ class GeesomeApp implements IGeesomeApp {
       return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
     }
     console.log('getObject', storageId);
-    return this.storage.getObject(storageId, resolveProp).then((result) => {
+    return this.ms.storage.getObject(storageId, resolveProp).then((result) => {
       console.log('result', result);
       this.ms.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
@@ -1214,7 +1211,7 @@ class GeesomeApp implements IGeesomeApp {
       storageId
     }).catch(() => {/* already saved */});
 
-    const storagePromise = this.storage.saveObject(data);
+    const storagePromise = this.ms.storage.saveObject(data);
     if(options.waitForStorage) {
       await storagePromise;
     }
@@ -1305,7 +1302,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createStorageAccount(name) {
-    // const existsAccountId = await this.storage.getAccountIdByName(name);
+    // const existsAccountId = await this.ms.storage.getAccountIdByName(name);
     // TODO: use it in future for public nodes
     // if(existsAccountId) {
     //   throw "already_exists";
@@ -1374,7 +1371,7 @@ class GeesomeApp implements IGeesomeApp {
   async getBootNodes(userId, type = 'ipfs') {
     await this.checkUserCan(userId, CorePermissionName.AdminRead);
     if (type === 'ipfs') {
-      return this.storage.getBootNodeList();
+      return this.ms.storage.getBootNodeList();
     } else {
       return this.ms.communicator.getBootNodeList();
     }
@@ -1383,7 +1380,7 @@ class GeesomeApp implements IGeesomeApp {
   async addBootNode(userId, address, type = 'ipfs') {
     await this.checkUserCan(userId, CorePermissionName.AdminAddBootNode);
     if (type === 'ipfs') {
-      return this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
+      return this.ms.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
     } else {
       return this.ms.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
     }
@@ -1392,14 +1389,14 @@ class GeesomeApp implements IGeesomeApp {
   async removeBootNode(userId, address, type = 'ipfs') {
     await this.checkUserCan(userId, CorePermissionName.AdminRemoveBootNode);
     if (type === 'ipfs') {
-      return this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
+      return this.ms.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
     } else {
       return this.ms.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
     }
   }
 
   async stop() {
-    await this.storage.stop();
+    await this.ms.storage.stop();
     await this.ms.communicator.stop();
     this.ms.api.stop();
   }

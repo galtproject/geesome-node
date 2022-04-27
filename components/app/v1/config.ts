@@ -9,15 +9,16 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'asyncOperation', 'entityJsonManifest', 'group', 'fileCatalog'],
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'asyncOperation', 'entityJsonManifest', 'group', 'fileCatalog'],
   'improve': ['groupCategory', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization']
 };
 
+//TODO: refactor modules config
 module.exports = {
   databaseModule: 'sql',
   databaseConfig: {},
-  storageModule: process.env.STORAGE_MODULE || 'js-ipfs',
   storageConfig: {
+    implementation: process.env.STORAGE_MODULE || 'js-ipfs',
     jsNode: {
       // getting by getSecretKey
       pass: '',
@@ -30,7 +31,5 @@ module.exports = {
       protocol: process.env.STORAGE_PORT || 'http'
     }
   },
-  renderModule: 'entity-json-manifest',
-  renderConfig: {},
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve)
 };

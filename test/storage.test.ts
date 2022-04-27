@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IStorage} from "../components/storage/interface";
+import IGeesomeStorageModule from "../components/app/v1/modules/storage/interface";
 import {IGeesomeDatabaseModule} from "../components/app/v1/modules/database/interface";
 import IGeesomeCommunicatorModule from "../components/app/v1/modules/communicator/interface";
 const assert = require('assert');
@@ -15,15 +15,13 @@ const assert = require('assert');
 describe("storage", function () {
   this.timeout(30000);
 
-  let storage: IStorage;
+  let storage: IGeesomeStorageModule;
   let communicator: IGeesomeCommunicatorModule;
   let database: IGeesomeDatabaseModule;
 
   const storages = ['js-ipfs'];
   const communicators = ['fluence'];
   const databases = ['sql'];
-// const storages = ['js-ipfs'];
-  // const communicators = ['ipfs'];
 
   storages.forEach((storageService, index) => {
     const communicatorService = communicators[index];
@@ -32,6 +30,7 @@ describe("storage", function () {
     describe(storageService + ' storage, ' + communicatorService + ' communicator, ' + databaseService + ' database', () => {
       before(async () => {
         const appConfig = require('../components/app/v1/config');
+        appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         appConfig.storageConfig.jsNode.config = {
@@ -44,10 +43,10 @@ describe("storage", function () {
           }
         };
 
-        storage = await require('../components/storage/' + storageService)({
+        storage = await require('../components/app/v1/modules/storage')({
           config: appConfig
         });
-        database = await require('../components/database/' + databaseService)({
+        database = await require('../components/app/v1/modules/database')({
           config: appConfig
         });
         const accountStorage = await require('../components/app/v1/modules/accountStorage')({

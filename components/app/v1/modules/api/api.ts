@@ -290,7 +290,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 
 	module.onGet('content-stats/*', async (req, res) => {
 		const dataPath = req.route.replace('content-stats/', '');
-		return app.storage.getFileStat(dataPath).then(d => res.send(d));
+		return app.ms.storage.getFileStat(dataPath).then(d => res.send(d));
 	});
 
 	module.onGet('content-data/*', async (req, res) => {
@@ -367,7 +367,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		// if (!dataSize) {
 		//   console.log('dataSize is null', dataPath, dataSize);
 		//TODO: check if some size not correct
-		const stat = await app.storage.getFileStat(dataPath);
+		const stat = await app.ms.storage.getFileStat(dataPath);
 		dataSize = stat.size;
 		// }
 
@@ -456,7 +456,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 
 	module.onGet('node-address-list', async (req, res) => {
 		res.send({
-			result: req.query.type === 'ipfs' ? await app.storage.nodeAddressList() : await app.ms.communicator.nodeAddressList()
+			result: req.query.type === 'ipfs' ? await app.ms.storage.nodeAddressList() : await app.ms.communicator.nodeAddressList()
 		});
 	});
 

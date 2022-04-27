@@ -15,7 +15,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['group']);
+	app.checkModules(['group', 'storage']);
 
 	class FileCatalogModule implements IGeesomeFileCatalogModule {
 
@@ -152,7 +152,7 @@ function getModule(app: IGeesomeApp) {
 
 			const path = `/${userStaticId}/` + breadcrumbs.map(b => b.name).join('/') + '/';
 
-			await app.storage.makeDir(path);
+			await app.ms.storage.makeDir(path);
 
 			return path;
 		}
@@ -168,7 +168,7 @@ function getModule(app: IGeesomeApp) {
 			const fileCatalogChildrenFiles = await app.ms.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
 
 			await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
-				await app.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
+				await app.ms.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
 			});
 		}
 
@@ -180,7 +180,7 @@ function getModule(app: IGeesomeApp) {
 
 			await this.makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath);
 
-			const storageId = await app.storage.getDirectoryId(storageDirPath);
+			const storageId = await app.ms.storage.getDirectoryId(storageDirPath);
 
 			const user = await app.ms.database.getUser(userId);
 
@@ -311,8 +311,8 @@ function getModule(app: IGeesomeApp) {
 				if (content.userId != userId) {
 					throw new Error("not_permitted");
 				}
-				await app.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
-				await app.storage.remove(content.storageId).catch(() => {/*not found*/});
+				await app.ms.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
+				await app.ms.storage.remove(content.storageId).catch(() => {/*not found*/});
 
 				await fileCatalogItem['destroy']();
 				await content['destroy']();

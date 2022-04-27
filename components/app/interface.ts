@@ -19,7 +19,7 @@ import {
   IUserApiKey, IUserAsyncOperation,
   IUserLimit, IUserOperationQueue, UserLimitName
 } from "./v1/modules/database/interface";
-import {IStorage} from "../storage/interface";
+import IGeesomeStorageModule from "./v1/modules/storage/interface";
 import {GeesomeEmitter} from "./v1/events";
 import {IGeesomeEntityJsonManifestModule} from "./v1/modules/entityJsonManifest/interface";
 import IGeesomeCommunicatorModule from "./v1/modules/communicator/interface";
@@ -29,7 +29,6 @@ import IGeesomeDriversModule from "./v1/modules/drivers/interface";
 
 export interface IGeesomeApp {
   config: any;
-  storage: IStorage;
   events: GeesomeEmitter;
 
   frontendStorageId;
@@ -42,6 +41,7 @@ export interface IGeesomeApp {
     group: IGeesomeGroupModule;
     fileCatalog: IGeesomeFileCatalogModule;
     accountStorage: IGeesomeAccountStorageModule;
+    storage: IGeesomeStorageModule;
     communicator: IGeesomeCommunicatorModule;
     entityJsonManifest: IGeesomeEntityJsonManifestModule;
     database: IGeesomeDatabaseModule;

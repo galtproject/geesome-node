@@ -24,7 +24,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['database', 'communicator', 'entityJsonManifest']);
+	app.checkModules(['database', 'communicator', 'storage', 'entityJsonManifest']);
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
@@ -570,7 +570,7 @@ function getModule(app: IGeesomeApp) {
 			let text = '';
 			const textContent = _.find(post.contents, c => c.mimeType.startsWith('text/'));
 			if (textContent) {
-				text = await app.storage.getFileDataText(textContent.storageId);
+				text = await app.ms.storage.getFileDataText(textContent.storageId);
 			}
 			const images = [];
 			const videos = [];

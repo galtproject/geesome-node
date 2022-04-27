@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../../app/interface";
+import {IGeesomeApp} from "../../../interface";
 
 const JsIpfsServiceNodePass = require("geesome-libs/src/JsIpfsServiceNodePass");
 const {createDaemonNode} = require("geesome-libs/src/ipfsHelper");

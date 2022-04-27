@@ -33,6 +33,7 @@ describe("renders", function () {
     describe('app ' + appVersion, () => {
       beforeEach(async () => {
         const appConfig = require('../components/app/v1/config');
+        appConfig.storageConfig.implementation = 'js-ipfs';
         appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
         appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         appConfig.storageConfig.jsNode.config = {
@@ -114,13 +115,13 @@ describe("renders", function () {
 
           group = await app.ms.group.getGroup(group.id);
           const {staticSiteManifestStorageId} = JSON.parse(group.propertiesJson);
-          const storageId = await app.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
-          return app.storage.getFileDataText(storageId + '/index.html');
+          const storageId = await app.ms.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
+          return app.ms.storage.getFileDataText(storageId + '/index.html');
         }
       });
 
       it('rss', async () => {
-        app.storage.isStreamAddSupport = () => {
+        app.ms.storage.isStreamAddSupport = () => {
           return false;
         };
 

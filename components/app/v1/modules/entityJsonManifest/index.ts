@@ -21,7 +21,7 @@ module.exports = async (app: IGeesomeApp) => {
 };
 
 function getModule(app) {
-  app.checkModules(['database']);
+  app.checkModules(['database', 'storage']);
 
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
@@ -169,7 +169,7 @@ function getModule(app) {
 
       if(!options.isEncrypted) {
         log('manifestIdToDbObject:getObject', type, manifestId);
-        manifest = await app.storage.getObject(manifestId);
+        manifest = await app.ms.storage.getObject(manifestId);
         log('manifestIdToDbObject:manifest', manifest);
 
         if(!type) {
