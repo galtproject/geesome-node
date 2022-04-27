@@ -12,14 +12,14 @@ import {
   ContentView,
   CorePermissionName,
   IContent,
-  IDatabase,
+  IGeesomeDatabaseModule,
   IListParams,
   IStaticIdHistoryItem,
   IUser,
   IUserLimit,
   UserContentActionName,
   UserLimitName
-} from "../../database/interface";
+} from "./modules/database/interface";
 import {
   IGeesomeApp, IGeesomeAsyncOperationModule, IGeesomeFileCatalogModule,
   IGeesomeGroupCategoryModule, IGeesomeGroupModule,
@@ -28,7 +28,7 @@ import {
   IUserInput,
 } from "../interface";
 import {IStorage} from "../../storage/interface";
-import {IRender} from "../../render/interface";
+import {IGeesomeEntityJsonManifestModule} from "./modules/entityJsonManifest/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
@@ -64,11 +64,6 @@ module.exports = async (extendConfig) => {
   // console.log('config', config);
   const app = new GeesomeApp(config);
 
-  log('Start database...');
-  app.database = await require('../../database/' + config.databaseModule)(app);
-
-  await app.database.closeAllAsyncOperation();
-
   app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
   app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
 
@@ -80,8 +75,6 @@ module.exports = async (extendConfig) => {
     const directory = await app.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;
   }
-
-  app.render = await require('../../render/' + config.renderModule)(app);
 
   app.drivers = require('../../drivers');
 
@@ -105,23 +98,22 @@ module.exports = async (extendConfig) => {
 };
 
 class GeesomeApp implements IGeesomeApp {
-  database: IDatabase;
   storage: IStorage;
-  render: IRender;
   drivers: any;
   events: GeesomeEmitter;
 
   frontendStorageId;
 
   ms: {
+    database: IGeesomeDatabaseModule,
     api: IGeesomeApiModule,
     asyncOperation: IGeesomeAsyncOperationModule,
     fileCatalog: IGeesomeFileCatalogModule,
     invite: IGeesomeInviteModule,
     group: IGeesomeGroupModule,
-    groupCategory: IGeesomeGroupCategoryModule,
     accountStorage: IGeesomeAccountStorageModule,
-    communicator: IGeesomeCommunicatorModule
+    communicator: IGeesomeCommunicatorModule,
+    entityJsonManifest: IGeesomeEntityJsonManifestModule
   };
 
   constructor(
@@ -161,13 +153,13 @@ class GeesomeApp implements IGeesomeApp {
    **/
 
   async setup(userData) {
-    if ((await this.database.getUsersCount()) > 0) {
+    if ((await this.ms.database.getUsersCount()) > 0) {
       throw new Error('already_setup');
     }
     const adminUser = await this.registerUser(userData);
 
     await pIteration.forEach(['AdminAll', 'UserAll'], (permissionName) => {
-      return this.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
+      return this.ms.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
 
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
@@ -175,7 +167,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async checkNameAndEmail(userId, name, email) {
     userId = parseInt(userId);
-    const user = await this.database.getUser(userId);
+    const user = await this.ms.database.getUser(userId);
     if (user && user.name ? false : !name) {
       throw new Error("name_cant_be_null");
     }
@@ -185,7 +177,7 @@ class GeesomeApp implements IGeesomeApp {
     if (name && !helpers.validateUsername(name)) {
       throw new Error("forbidden_symbols_in_name");
     } else if (name) {
-      const existUserWithName = await this.database.getUserByName(name);
+      const existUserWithName = await this.ms.database.getUserByName(name);
       if (existUserWithName && existUserWithName.id !== userId) {
         throw new Error("username_already_exists");
       }
@@ -200,7 +192,7 @@ class GeesomeApp implements IGeesomeApp {
     const passwordHash: any = await this.hashPassword(password);
 
     const storageAccountId = await this.createStorageAccount(name);
-    const newUser = await this.database.addUser({
+    const newUser = await this.ms.database.addUser({
       storageAccountId,
       manifestStaticStorageId: storageAccountId,
       passwordHash,
@@ -217,15 +209,15 @@ class GeesomeApp implements IGeesomeApp {
 
     const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
     await this.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
-    await this.database.updateUser(newUser.id, { manifestStorageId });
+    await this.ms.database.updateUser(newUser.id, { manifestStorageId });
 
     if (userData.permissions && userData.permissions.length) {
       await pIteration.forEach(userData.permissions, (permissionName) => {
-        return this.database.addCorePermission(newUser.id, permissionName);
+        return this.ms.database.addCorePermission(newUser.id, permissionName);
       });
     }
 
-    return this.database.getUser(newUser.id);
+    return this.ms.database.getUser(newUser.id);
   }
 
   async hashPassword(password) {
@@ -247,7 +239,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async loginPassword(usernameOrEmail, password): Promise<any> {
-    return this.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
+    return this.ms.database.getUserByNameOrEmail(usernameOrEmail).then((user) => {
       if (!user) {
         return null;
       }
@@ -260,7 +252,7 @@ class GeesomeApp implements IGeesomeApp {
     const {password, email, name} = updateData;
     await this.checkNameAndEmail(userId, name, email);
 
-    let user = await this.database.getUser(userId);
+    let user = await this.ms.database.getUser(userId);
     let passwordHash: any = user.passwordHash;
     if (password) {
       passwordHash = await this.hashPassword(password);
@@ -272,22 +264,22 @@ class GeesomeApp implements IGeesomeApp {
     if (email) {
       userData['email'] = email;
     }
-    await this.database.updateUser(userId, userData);
+    await this.ms.database.updateUser(userId, userData);
 
-    user = await this.database.getUser(userId);
+    user = await this.ms.database.getUser(userId);
     if (!user.storageAccountId) {
       const storageAccountId = await this.createStorageAccount(user.name);
-      await this.database.updateUser(userId, {storageAccountId, manifestStaticStorageId: storageAccountId});
-      user = await this.database.getUser(userId);
+      await this.ms.database.updateUser(userId, {storageAccountId, manifestStaticStorageId: storageAccountId});
+      user = await this.ms.database.getUser(userId);
     }
 
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
     if (manifestStorageId != user.manifestStorageId) {
       await this.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
-      await this.database.updateUser(userId, {manifestStorageId});
+      await this.ms.database.updateUser(userId, {manifestStorageId});
     }
 
-    return this.database.getUser(userId);
+    return this.ms.database.getUser(userId);
   }
 
   async bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem> {
@@ -298,9 +290,9 @@ class GeesomeApp implements IGeesomeApp {
     } catch (e) {
       log('bindToStaticId:communicator error', e.message);
     }
-    // await this.database.destroyStaticIdHistory(staticId);
+    // await this.ms.database.destroyStaticIdHistory(staticId);
 
-    return this.database.addStaticIdHistoryItem({
+    return this.ms.database.addStaticIdHistoryItem({
       staticId,
       dynamicId,
       isActive: true,
@@ -312,9 +304,9 @@ class GeesomeApp implements IGeesomeApp {
     let userAccount;
 
     if (accountData.id) {
-      userAccount = await this.database.getUserAccount(accountData.id);
+      userAccount = await this.ms.database.getUserAccount(accountData.id);
     } else {
-      userAccount = await this.database.getUserAccountByProvider(userId, accountData.provider);
+      userAccount = await this.ms.database.getUserAccountByProvider(userId, accountData.provider);
     }
 
     accountData['userId'] = userId;
@@ -323,9 +315,9 @@ class GeesomeApp implements IGeesomeApp {
       if (userAccount.userId !== userId) {
         throw new Error("not_permitted");
       }
-      return this.database.updateUserAccount(userAccount.id, accountData);
+      return this.ms.database.updateUserAccount(userAccount.id, accountData);
     } else {
-      return this.database.createUserAccount(accountData);
+      return this.ms.database.createUserAccount(accountData);
     }
   }
 
@@ -354,12 +346,12 @@ class GeesomeApp implements IGeesomeApp {
 
   async getUserByManifestId(userId, staticId) {
     if (!staticId) {
-      const historyItem = await this.database.getStaticIdItemByDynamicId(userId);
+      const historyItem = await this.ms.database.getStaticIdItemByDynamicId(userId);
       if (historyItem) {
         staticId = historyItem.staticId;
       }
     }
-    return this.database.getUserByManifestId(userId, staticId);
+    return this.ms.database.getUserByManifestId(userId, staticId);
   }
 
   async createUserByRemoteStorageId(manifestStorageId) {
@@ -376,19 +368,19 @@ class GeesomeApp implements IGeesomeApp {
       return dbUser;
     }
     log('createUserByRemoteStorageId::manifestIdToDbObject', staticStorageId);
-    const userObject: IUser = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
+    const userObject: IUser = await this.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
     log('createUserByRemoteStorageId::userObject', userObject);
     userObject.isRemote = true;
     return this.createUserByObject(userObject);
   }
 
   async createUserByObject(userObject) {
-    let dbAvatar = await this.database.getContentByManifestId(userObject.avatarImage.manifestStorageId);
+    let dbAvatar = await this.ms.database.getContentByManifestId(userObject.avatarImage.manifestStorageId);
     if (!dbAvatar) {
       dbAvatar = await this.createContentByObject(userObject.avatarImage);
     }
     const userFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'email', 'isRemote', 'description'];
-    const dbUser = await this.database.addUser(_.extend(_.pick(userObject, userFields), {
+    const dbUser = await this.ms.database.addUser(_.extend(_.pick(userObject, userFields), {
       avatarImageId: dbAvatar ? dbAvatar.id : null
     }));
 
@@ -408,10 +400,10 @@ class GeesomeApp implements IGeesomeApp {
     data.valueHash = generated.uuid;
 
     if (!data.permissions) {
-      data.permissions = JSON.stringify(await this.database.getCorePermissions(userId).then(list => list.map(i => i.name)));
+      data.permissions = JSON.stringify(await this.ms.database.getCorePermissions(userId).then(list => list.map(i => i.name)));
     }
 
-    await this.database.addApiKey(data);
+    await this.ms.database.addApiKey(data);
 
     return generated.apiKey;
   }
@@ -421,25 +413,25 @@ class GeesomeApp implements IGeesomeApp {
       return null;
     }
     const valueHash = uuidAPIKey.toUUID(apiKey);
-    const keyObj = await this.database.getApiKeyByHash(valueHash);
+    const keyObj = await this.ms.database.getApiKeyByHash(valueHash);
     if (!keyObj) {
       return null;
     }
-    return this.database.getUser(keyObj.userId);
+    return this.ms.database.getUser(keyObj.userId);
   }
 
   async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
     listParams = this.prepareListParams(listParams);
     await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
     return {
-      list: await this.database.getApiKeysByUser(userId, isDisabled, search, listParams),
-      total: await this.database.getApiKeysCountByUser(userId, isDisabled, search)
+      list: await this.ms.database.getApiKeysByUser(userId, isDisabled, search, listParams),
+      total: await this.ms.database.getApiKeysCountByUser(userId, isDisabled, search)
     };
   }
 
   async updateApiKey(userId, apiKeyId, updateData) {
     await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
-    const keyObj = await this.database.getApiKey(apiKeyId);
+    const keyObj = await this.ms.database.getApiKey(apiKeyId);
 
     if (keyObj.userId !== userId) {
       throw new Error("not_permitted");
@@ -447,19 +439,19 @@ class GeesomeApp implements IGeesomeApp {
 
     delete updateData.id;
 
-    return this.database.updateApiKey(keyObj.id, updateData);
+    return this.ms.database.updateApiKey(keyObj.id, updateData);
   }
 
   public async setUserLimit(adminId, limitData: IUserLimit) {
     limitData.adminId = adminId;
     await this.checkUserCan(adminId, CorePermissionName.AdminSetUserLimit);
 
-    const existLimit = await this.database.getUserLimit(limitData.userId, limitData.name);
+    const existLimit = await this.ms.database.getUserLimit(limitData.userId, limitData.name);
     if (existLimit) {
-      await this.database.updateUserLimit(existLimit.id, limitData);
-      return this.database.getUserLimit(limitData.userId, limitData.name);
+      await this.ms.database.updateUserLimit(existLimit.id, limitData);
+      return this.ms.database.getUserLimit(limitData.userId, limitData.name);
     } else {
-      return this.database.addUserLimit(limitData);
+      return this.ms.database.addUserLimit(limitData);
     }
   }
 
@@ -471,7 +463,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async createContentByObject(contentObject, options: { groupId?, userId?, userApiKeyId? } = {}) {
     const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-    let dbContent = await this.database.getContentByStorageId(storageId);
+    let dbContent = await this.ms.database.getContentByStorageId(storageId);
     if (dbContent) {
       return dbContent;
     }
@@ -479,11 +471,11 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createContentByRemoteStorageId(manifestStorageId, options: { groupId?, userId?, userApiKeyId? } = {}) {
-    let dbContent = await this.database.getContentByManifestId(manifestStorageId);
+    let dbContent = await this.ms.database.getContentByManifestId(manifestStorageId);
     if (dbContent) {
       return dbContent;
     }
-    const contentObject: IContent = await this.render.manifestIdToDbObject(manifestStorageId);
+    const contentObject: IContent = await this.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId);
     contentObject.isRemote = true;
     return this.createContentByObject(contentObject);
   }
@@ -698,7 +690,7 @@ class GeesomeApp implements IGeesomeApp {
       let offset = 0;
       let limit = 100;
       do {
-        userContents = await this.database.getContentList(userId, {
+        userContents = await this.ms.database.getContentList(userId, {
           offset,
           limit
         });
@@ -706,7 +698,7 @@ class GeesomeApp implements IGeesomeApp {
         await pIteration.forEach(userContents, async (content: IContent) => {
           const previousIpldToNewIpldItem = [content.manifestStorageId];
           let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-          await this.database.updateContent(content.id, previewData);
+          await this.ms.database.updateContent(content.id, previewData);
           const updatedContent = await this.updateContentManifest({
             ...content['toJSON'](),
             ...previewData
@@ -726,7 +718,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getApyKeyId(apiKey) {
-    const apiKeyDb = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(apiKey));
+    const apiKeyDb = await this.ms.database.getApiKeyByHash(uuidAPIKey.toUUID(apiKey));
     if(!apiKeyDb) {
       throw new Error("not_authorized");
     }
@@ -743,7 +735,7 @@ class GeesomeApp implements IGeesomeApp {
     const extensionFromName = this.getExtensionFromName(fileName);
 
     if (options.apiKey && !options.userApiKeyId) {
-      const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
+      const apiKey = await this.ms.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
       log('apiKey');
       if(!apiKey) {
         throw new Error("not_authorized");
@@ -789,7 +781,7 @@ class GeesomeApp implements IGeesomeApp {
     });
     log('saveFileByStream extension', extension, 'mimeType', mimeType);
 
-    let existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
+    let existsContent = await this.ms.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     log('existsContent', !!existsContent);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
@@ -826,7 +818,7 @@ class GeesomeApp implements IGeesomeApp {
     let type, properties;
 
     if (options.apiKey && !options.userApiKeyId) {
-      const apiKey = await this.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
+      const apiKey = await this.ms.database.getApiKeyByHash(uuidAPIKey.toUUID(options.apiKey));
       if(!apiKey) {
         throw new Error("not_authorized");
       }
@@ -864,7 +856,7 @@ class GeesomeApp implements IGeesomeApp {
       properties = resultProperties;
     }
 
-    const existsContent = await this.database.getContentByStorageAndUserId(storageFile.id, options.userId);
+    const existsContent = await this.ms.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
       await this.setContentPreviewIfNotExist(existsContent);
       await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
@@ -914,7 +906,7 @@ class GeesomeApp implements IGeesomeApp {
       return;
     }
     let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-    await this.database.updateContent(content.id, previewData);
+    await this.ms.database.updateContent(content.id, previewData);
     return this.updateContentManifest({
       ...content['toJSON'](),
       ...previewData
@@ -938,7 +930,7 @@ class GeesomeApp implements IGeesomeApp {
     //TODO: refactor block
     let group;
     if (options.groupId) {
-      group = await this.database.getGroup(options.groupId)
+      group = await this.ms.database.getGroup(options.groupId)
     }
     options.userId = userId;
     const resultFile = await this.storage.saveDirectory(dirPath);
@@ -1069,13 +1061,13 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getUserLimitRemained(userId, limitName: UserLimitName) {
-    const limit = await this.database.getUserLimit(userId, limitName);
+    const limit = await this.ms.database.getUserLimit(userId, limitName);
     if (!limit || !limit.isActive) {
       return null;
     }
     if (limitName === UserLimitName.SaveContentSize) {
-      const uploadSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp);
-      const pinSize = await this.database.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp);
+      const uploadSize = await this.ms.database.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp);
+      const pinSize = await this.ms.database.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp);
       console.log('uploadSize', uploadSize, 'pinSize', pinSize, 'limit.value', limit.value );
       return limit.value - uploadSize - pinSize;
     } else {
@@ -1091,7 +1083,7 @@ class GeesomeApp implements IGeesomeApp {
       let group;
       if (groupId) {
         contentData.groupId = groupId;
-        group = await this.database.getGroup(groupId);
+        group = await this.ms.database.getGroup(groupId);
       }
       contentData.isPublic = group && group.isPublic;
     }
@@ -1107,7 +1099,7 @@ class GeesomeApp implements IGeesomeApp {
       contentData.userId = options.userId;
     }
 
-    const content = await this.database.addContent(contentData);
+    const content = await this.ms.database.addContent(contentData);
     log('content');
 
     const promises = [];
@@ -1119,7 +1111,7 @@ class GeesomeApp implements IGeesomeApp {
       }
     })());
 
-    promises.push(this.database.addUserContentAction({
+    promises.push(this.ms.database.addUserContentAction({
       name: UserContentActionName.Upload,
       userId: content.userId,
       size: content.size,
@@ -1158,12 +1150,12 @@ class GeesomeApp implements IGeesomeApp {
     content.description = content.description || '';
     const manifestStorageId = await this.generateAndSaveManifest('content', content);
     content.manifestStorageId = manifestStorageId;
-    await this.database.updateContent(content.id, {manifestStorageId});
+    await this.ms.database.updateContent(content.id, {manifestStorageId});
     return content;
   }
 
   async generateAndSaveManifest(entityName, entityObj) {
-    const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
+    const manifestContent = await this.ms.entityJsonManifest.generateContent(entityName + '-manifest', entityObj);
     const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
     console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
     return hash;
@@ -1174,15 +1166,15 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   getContent(contentId) {
-    return this.database.getContent(contentId);
+    return this.ms.database.getContent(contentId);
   }
 
   getContentByStorageId(storageId) {
-    return this.database.getContentByStorageId(storageId);
+    return this.ms.database.getContentByStorageId(storageId);
   }
 
   getContentByManifestId(storageId) {
-    return this.database.getContentByManifestId(storageId);
+    return this.ms.database.getContentByManifestId(storageId);
   }
 
   async getDataStructure(storageId, isResolve = true) {
@@ -1200,7 +1192,7 @@ class GeesomeApp implements IGeesomeApp {
     const isPath = dataPathSplit.length > 1;
     const resolveProp = isPath ? isResolve : false;
 
-    const dbObject = await this.database.getObjectByStorageId(storageId, resolveProp);
+    const dbObject = await this.ms.database.getObjectByStorageId(storageId, resolveProp);
     console.log('dbObject', dbObject);
     if (dbObject) {
       const { data } = dbObject;
@@ -1209,7 +1201,7 @@ class GeesomeApp implements IGeesomeApp {
     console.log('getObject', storageId);
     return this.storage.getObject(storageId, resolveProp).then((result) => {
       console.log('result', result);
-      this.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
+      this.ms.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
     }).catch(e => {
       console.error('getObject error', e)
@@ -1219,7 +1211,7 @@ class GeesomeApp implements IGeesomeApp {
   async saveDataStructure(data, options: any = {}) {
     const storageId = await ipfsHelper.getIpldHashFromObject(data);
 
-    await this.database.addObject({
+    await this.ms.database.addObject({
       data: JSON.stringify(data),
       storageId
     }).catch(() => {/* already saved */});
@@ -1236,8 +1228,8 @@ class GeesomeApp implements IGeesomeApp {
     listParams = this.prepareListParams(listParams);
     await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
-      list: await this.database.getAllUserList(searchString, listParams),
-      total: await this.database.getAllUserCount(searchString)
+      list: await this.ms.database.getAllUserList(searchString, listParams),
+      total: await this.ms.database.getAllUserCount(searchString)
     }
   }
 
@@ -1245,35 +1237,35 @@ class GeesomeApp implements IGeesomeApp {
     listParams = this.prepareListParams(listParams);
     await this.checkUserCan(adminId, CorePermissionName.AdminRead);
     return {
-      list: await this.database.getAllContentList(searchString, listParams),
-      total: await this.database.getAllContentCount(searchString)
+      list: await this.ms.database.getAllContentList(searchString, listParams),
+      total: await this.ms.database.getAllContentCount(searchString)
     }
   }
 
   async getUserLimit(adminId, userId, limitName) {
     await this.checkUserCan(adminId, CorePermissionName.AdminRead);
-    return this.database.getUserLimit(userId, limitName);
+    return this.ms.database.getUserLimit(userId, limitName);
   }
 
   async isUserCan(userId, permission) {
-    const userCanAll = await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
+    const userCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
     if (userCanAll) {
       return true;
     }
-    return this.database.isHaveCorePermission(userId, permission);
+    return this.ms.database.isHaveCorePermission(userId, permission);
   }
 
   async checkUserCan(userId, permission) {
     if (_.startsWith(permission, 'admin:')) {
-      if (await this.database.isHaveCorePermission(userId, CorePermissionName.AdminAll)) {
+      if (await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll)) {
         return;
       }
     } else { // user:
-      if (await this.database.isHaveCorePermission(userId, CorePermissionName.UserAll)) {
+      if (await this.ms.database.isHaveCorePermission(userId, CorePermissionName.UserAll)) {
         return;
       }
     }
-    if (!await this.database.isHaveCorePermission(userId, permission)) {
+    if (!await this.ms.database.isHaveCorePermission(userId, permission)) {
       throw new Error("not_permitted");
     }
   }
@@ -1324,7 +1316,7 @@ class GeesomeApp implements IGeesomeApp {
     const storageAccountId = await this.ms.communicator.createAccountIfNotExists(nameIpfsHash);
 
     this.ms.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
-      return this.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
+      return this.ms.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
         /*dont do anything*/
       });
     }).catch(e => {
@@ -1337,7 +1329,7 @@ class GeesomeApp implements IGeesomeApp {
     return new Promise(async (resolve, reject) => {
       let alreadyHandled = false;
 
-      const staticIdItem = await this.database.getActualStaticIdItem(staticId);
+      const staticIdItem = await this.ms.database.getActualStaticIdItem(staticId);
 
       setTimeout(() => {
         if(alreadyHandled) {
@@ -1371,7 +1363,7 @@ class GeesomeApp implements IGeesomeApp {
       resolve(dynamicId);
       alreadyHandled = true;
       if (dynamicId && dynamicId !== 'null') {
-        return this.database.addStaticIdHistoryItem({
+        return this.ms.database.addStaticIdHistoryItem({
           staticId: staticId,
           dynamicId: dynamicId,
           isActive: true,

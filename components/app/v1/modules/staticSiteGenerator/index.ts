@@ -1,5 +1,5 @@
 import {IGeesomeApp} from "../../../interface";
-import {ContentMimeType, IContent} from "../../../../database/interface";
+import {ContentMimeType, IContent} from "../database/interface";
 
 const {createBuildApp} = require('@vuepress/core');
 const { path } = require('@vuepress/utils');

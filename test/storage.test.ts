@@ -8,7 +8,7 @@
  */
 
 import {IStorage} from "../components/storage/interface";
-import {IDatabase} from "../components/database/interface";
+import {IGeesomeDatabaseModule} from "../components/app/v1/modules/database/interface";
 import IGeesomeCommunicatorModule from "../components/app/v1/modules/communicator/interface";
 const assert = require('assert');
 
@@ -17,7 +17,7 @@ describe("storage", function () {
 
   let storage: IStorage;
   let communicator: IGeesomeCommunicatorModule;
-  let database: IDatabase;
+  let database: IGeesomeDatabaseModule;
 
   const storages = ['js-ipfs'];
   const communicators = ['fluence'];

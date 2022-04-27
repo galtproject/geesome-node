@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export interface IDatabase {
+export interface IGeesomeDatabaseModule {
   getDriver():  Promise<any>;
 
   getSessionStore(): any;

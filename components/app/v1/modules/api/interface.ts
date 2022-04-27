@@ -1,4 +1,4 @@
-import {IUser} from "../../../../database/interface";
+import {IUser} from "../database/interface";
 import {Stream} from "stream";
 
 export default interface IGeesomeApiModule {

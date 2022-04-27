@@ -1,4 +1,4 @@
-import {IUserAsyncOperation} from "../../../../database/interface";
+import {IUserAsyncOperation} from "../database/interface";
 
 export default interface IGeesomeTelegramClient {
 	runChannelImport(userId, apiKey, accData, channelId): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;

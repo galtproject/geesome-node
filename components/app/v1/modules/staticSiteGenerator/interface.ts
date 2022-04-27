@@ -1,4 +1,4 @@
-import {IUserOperationQueue} from "../../../../database/interface";
+import {IUserOperationQueue} from "../database/interface";
 
 export default interface IGeesomeStaticSiteManagerModule {
 	moduleName: string;

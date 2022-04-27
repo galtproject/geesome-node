@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {GroupType} from "../../../../database/interface";
+import {GroupType} from "../database/interface";
 import {IGeesomeApp} from "../../../interface";
 
 const { Api, TelegramClient } = require("telegram");

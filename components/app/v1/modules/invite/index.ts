@@ -1,5 +1,5 @@
 import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../../interface";
-import {CorePermissionName, IListParams} from "../../../../database/interface";
+import {CorePermissionName, IListParams} from "../database/interface";
 const pIteration = require('p-iteration');
 const _ = require('lodash');
 const ethereumAuthorization = require('geesome-libs/src/ethereum');
@@ -12,20 +12,20 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['group']);
+	app.checkModules(['database', 'group']);
 
 	class InviteModule implements IGeesomeInviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
 			userData = _.pick(userData, ['email', 'name', 'password', 'accounts']);
 
-			const invite = await app.database.findInviteByCode(inviteCode);
+			const invite = await app.ms.database.findInviteByCode(inviteCode);
 			if (!invite) {
 				throw new Error("invite_not_found");
 			}
 			if (!invite.isActive) {
 				throw new Error("invite_not_active");
 			}
-			const joinedByInviteCount = await app.database.getJoinedByInviteCount(invite.id);
+			const joinedByInviteCount = await app.ms.database.getJoinedByInviteCount(invite.id);
 			if (joinedByInviteCount >= invite.maxCount) {
 				throw new Error("invite_max_count");
 			}
@@ -75,7 +75,7 @@ function getModule(app: IGeesomeApp) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
 			inviteData.code = this.makeCode(16);
 			inviteData.createdById = userId;
-			return app.database.addInvite(inviteData);
+			return app.ms.database.addInvite(inviteData);
 		}
 
 		makeCode(length) {
@@ -89,7 +89,7 @@ function getModule(app: IGeesomeApp) {
 
 		async updateInvite(userId, inviteId, inviteData) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
-			const invite = await app.database.getInvite(inviteId);
+			const invite = await app.ms.database.getInvite(inviteId);
 			if (!invite) {
 				throw new Error("not_found");
 			}
@@ -98,14 +98,14 @@ function getModule(app: IGeesomeApp) {
 			}
 			delete inviteData.code;
 			delete inviteData.createdById;
-			return app.database.updateInvite(inviteId, inviteData);
+			return app.ms.database.updateInvite(inviteId, inviteData);
 		}
 
 		async getUserInvites(userId, filters = {}, listParams?: IListParams) {
 			listParams = this.prepareListParams(listParams);
 			return {
-				list: await app.database.getUserInvites(userId, filters, listParams),
-				total: await app.database.getUserInvitesCount(userId, filters)
+				list: await app.ms.database.getUserInvites(userId, filters, listParams),
+				total: await app.ms.database.getUserInvitesCount(userId, filters)
 			};
 		}
 
