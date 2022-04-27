@@ -7,6 +7,7 @@ import {
 	IGroup,
 	IListParams, IPost, PostStatus
 } from "../../../../database/interface";
+let helpers = require('../../helpers');
 const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
@@ -33,12 +34,12 @@ function getModule(app: IGeesomeApp) {
 			if (existUserWithName) {
 				throw new Error("name_already_exists");
 			}
-			if (!groupData['name']) {
-				throw new Error("name_cant_be_null");
+			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
+				throw new Error("incorrect_name");
 			}
 
 			groupData.creatorId = userId;
-			if(!groupData.isRemote) {
+			if (!groupData.isRemote) {
 				groupData.isRemote = false;
 			}
 
@@ -219,6 +220,9 @@ function getModule(app: IGeesomeApp) {
 			if(!canEditGroup && groupPermission) {
 				delete updateData.name;
 				delete updateData.propertiesJson;
+			}
+			if (updateData['name'] && !helpers.validateUsername(updateData['name'])) {
+				throw new Error("incorrect_name");
 			}
 			await app.database.updateGroup(groupId, updateData);
 

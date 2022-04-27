@@ -18,7 +18,7 @@ function getModule(app: IGeesomeApp) {
 			options.userApiKeyId = await app.getApyKeyId(options.apiKey);
 
 			if (!options.async) {
-				return this[methodName].apply(this, args);
+				return app[methodName].apply(app, args);
 			}
 
 			const asyncOperation = await app.database.addUserAsyncOperation({
@@ -49,7 +49,7 @@ function getModule(app: IGeesomeApp) {
 					resolve(true);
 				}
 			});
-			const methodPromise = this[methodName].apply(this, args);
+			const methodPromise = app[methodName].apply(app, args);
 
 			methodPromise
 				.then((res: any) => {

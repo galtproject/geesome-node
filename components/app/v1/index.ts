@@ -42,6 +42,7 @@ const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
 const {getDirSize} = require('../../drivers/helpers');
 let config = require('./config');
+let helpers = require('./helpers');
 // const appCron = require('./cron');
 const appEvents = require('./events') as Function;
 // const appListener = require('./listener');
@@ -175,24 +176,16 @@ class GeesomeApp implements IGeesomeApp {
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
-  validateEmail(email) {
-    return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
-  }
-
-  validateUsername(username) {
-    return /^\w+([\.-]?\w)+$/.test(username);
-  }
-
   async checkNameAndEmail(userId, name, email) {
     userId = parseInt(userId);
     const user = await this.database.getUser(userId);
     if (user && user.name ? false : !name) {
       throw new Error("name_cant_be_null");
     }
-    if (email && !this.validateEmail(email)) {
+    if (email && !helpers.validateEmail(email)) {
       throw new Error("email_invalid");
     }
-    if (name && !this.validateUsername(name)) {
+    if (name && !helpers.validateUsername(name)) {
       throw new Error("forbidden_symbols_in_name");
     } else if (name) {
       const existUserWithName = await this.database.getUserByName(name);
