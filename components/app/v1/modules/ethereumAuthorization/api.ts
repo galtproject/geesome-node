@@ -13,7 +13,7 @@ module.exports = (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereu
 	 *
 	 * @apiInterface (../../app/interface.ts) {IUserAuthMessageResponse} apiSuccess
 	 */
-	app.api.post('/v1/generate-auth-message', async (req, res) => {
+	app.ms.api.onPost('/v1/generate-auth-message', async (req, res) => {
 		res.send(await ethereumAuthorizationModule.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
 	});
 
@@ -30,20 +30,12 @@ module.exports = (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereu
 	 *
 	 * @apiInterface (../../app/interface.ts) {IUserAuthResponse} apiSuccess
 	 */
-	app.api.post('/v1/login/auth-message', async (req, res) => {
+	app.ms.api.onPost('/v1/login/auth-message', async (req, res) => {
 		ethereumAuthorizationModule.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)
-			.then(user => handleAuthResult(res, user))
+			.then(user => app.ms.api.handleAuthResult(res, user))
 			.catch((err) => {
 				console.error(err);
 				res.send(403)
 			});
 	});
-
-	async function handleAuthResult(res, user) {
-		if (user) {
-			return res.send({user, apiKey: await app.generateUserApiKey(user.id, {type:"password_auth"}, true)}, 200);
-		} else {
-			return res.send(403);
-		}
-	}
 }

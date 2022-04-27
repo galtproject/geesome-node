@@ -18,7 +18,7 @@ function getModule(app: IGeesomeApp) {
         moduleName = 'rss';
 
         getRssGroupUrl(groupId?) {
-            const groupUrl = `/v1/render/${this.moduleName}/group/:id.rss`;
+            const groupUrl = `render/${this.moduleName}/group/:id.rss`;
             return groupId ? groupUrl.replace(':id', groupId) : groupUrl;
         }
 
