@@ -2,7 +2,7 @@ import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../../interface"
 import {CorePermissionName, IListParams} from "../../../../database/interface";
 const pIteration = require('p-iteration');
 const _ = require('lodash');
-const ethereumAuthorization = require('../../../../authorization/ethereum');
+const ethereumAuthorization = require('geesome-libs/src/ethereum');
 const geesomeMessages = require("geesome-libs/src/messages");
 
 module.exports = (app: IGeesomeApp) => {

@@ -8,15 +8,15 @@
  */
 
 import {IStorage} from "../components/storage/interface";
-import {ICommunicator} from "../components/communicator/interface";
 import {IDatabase} from "../components/database/interface";
+import IGeesomeCommunicatorModule from "../components/app/v1/modules/communicator/interface";
 const assert = require('assert');
 
 describe("storage", function () {
   this.timeout(30000);
 
   let storage: IStorage;
-  let communicator: ICommunicator;
+  let communicator: IGeesomeCommunicatorModule;
   let database: IDatabase;
 
   const storages = ['js-ipfs'];
@@ -43,17 +43,26 @@ describe("storage", function () {
             ]
           }
         };
-        
+
         storage = await require('../components/storage/' + storageService)({
           config: appConfig
         });
         database = await require('../components/database/' + databaseService)({
           config: appConfig
         });
-        communicator = await require('../components/communicator/' + communicatorService)({
+        const accountStorage = await require('../components/app/v1/modules/accountStorage')({
+          config: appConfig,
+          database,
+          checkModules: () => {}
+        });
+        communicator = await require('../components/app/v1/modules/communicator')({
           config: appConfig,
           storage,
-          database
+          database,
+          checkModules: () => {},
+          ms: {
+            accountStorage
+          }
         });
       });
 

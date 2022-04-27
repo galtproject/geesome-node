@@ -1,7 +1,7 @@
 module.exports = `
 <div v-if="group">
   <md-field>
-    <label>@Username</label>
+    <label>Username</label>
     <md-input v-model="group.name"></md-input>
   </md-field>
 

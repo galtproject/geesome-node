@@ -7,6 +7,7 @@ import {
 	IGroup,
 	IListParams, IPost, PostStatus
 } from "../../../../database/interface";
+let helpers = require('../../helpers');
 const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
 const pIteration = require('p-iteration');
@@ -23,6 +24,8 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
+	app.checkModules(['communicator']);
+
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
@@ -31,12 +34,12 @@ function getModule(app: IGeesomeApp) {
 			if (existUserWithName) {
 				throw new Error("name_already_exists");
 			}
-			if (!groupData['name']) {
-				throw new Error("name_cant_be_null");
+			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
+				throw new Error("incorrect_name");
 			}
 
 			groupData.creatorId = userId;
-			if(!groupData.isRemote) {
+			if (!groupData.isRemote) {
 				groupData.isRemote = false;
 			}
 
@@ -217,6 +220,9 @@ function getModule(app: IGeesomeApp) {
 			if(!canEditGroup && groupPermission) {
 				delete updateData.name;
 				delete updateData.propertiesJson;
+			}
+			if (updateData['name'] && !helpers.validateUsername(updateData['name'])) {
+				throw new Error("incorrect_name");
 			}
 			await app.database.updateGroup(groupId, updateData);
 
@@ -520,13 +526,13 @@ function getModule(app: IGeesomeApp) {
 				// Encrypt post id
 				const keyForEncrypt = await app.database.getStaticIdPublicKey(group.staticStorageId);
 
-				const userKey = await app.communicator.keyLookup(user.manifestStaticStorageId);
+				const userKey = await app.ms.communicator.keyLookup(user.manifestStaticStorageId);
 				const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
 				const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
 				const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
 				const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-				await app.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+				await app.ms.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
 					type: 'new_post',
 					postId: encryptedText,
 					groupId: group.manifestStaticStorageId,
@@ -538,7 +544,7 @@ function getModule(app: IGeesomeApp) {
 				await this.updateGroupManifest(group.id);
 			} else {
 				// Send plain post id
-				app.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
+				app.ms.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
 					type: 'new_post',
 					postId: post.manifestStorageId,
 					groupId: group.manifestStaticStorageId,

@@ -32,7 +32,8 @@ import {IRender} from "../../render/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
-import {ICommunicator} from "../../communicator/interface";
+import IGeesomeCommunicatorModule from "./modules/communicator/interface";
+import IGeesomeAccountStorageModule from "./modules/accountStorage/interface";
 
 const { BufferListStream } = require('bl');
 const commonHelper = require('geesome-libs/src/common');
@@ -41,10 +42,10 @@ const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const detecterHelper = require('geesome-libs/src/detecter');
 const {getDirSize} = require('../../drivers/helpers');
 let config = require('./config');
+let helpers = require('./helpers');
 // const appCron = require('./cron');
 const appEvents = require('./events') as Function;
 // const appListener = require('./listener');
-const ethereumAuthorization = require('../../authorization/ethereum');
 const _ = require('lodash');
 const fs = require('fs');
 const uuidAPIKey = require('uuid-apikey');
@@ -73,9 +74,6 @@ module.exports = async (extendConfig) => {
   log('Start storage...');
   app.storage = await require('../../storage/' + config.storageModule)(app);
 
-  log('Start communicator...');
-  app.communicator = await require('../../communicator/' + config.communicatorModule)(app);
-
   const frontendPath = __dirname + '/../../../frontend/dist';
   if (fs.existsSync(frontendPath)) {
     const directory = await app.storage.saveDirectory(frontendPath);
@@ -85,8 +83,6 @@ module.exports = async (extendConfig) => {
   app.render = await require('../../render/' + config.renderModule)(app);
 
   app.drivers = require('../../drivers');
-
-  app.authorization = await require('../../authorization/' + config.authorizationModule)(app);
 
   app.events = appEvents(app);
 
@@ -99,6 +95,7 @@ module.exports = async (extendConfig) => {
   log('Init modules...');
   app.ms = {} as any;
   await pIteration.forEachSeries(config.modules, async moduleName => {
+    log(`Start ${moduleName} module...`);
     try {
       app.ms[moduleName] = await require('./modules/' + moduleName)(app);
     } catch (e) {
@@ -113,7 +110,6 @@ class GeesomeApp implements IGeesomeApp {
   api: any;
   database: IDatabase;
   storage: IStorage;
-  communicator: ICommunicator;
   render: IRender;
   authorization: any;
   drivers: any;
@@ -126,7 +122,9 @@ class GeesomeApp implements IGeesomeApp {
     fileCatalog: IGeesomeFileCatalogModule,
     invite: IGeesomeInviteModule,
     group: IGeesomeGroupModule,
-    groupCategory: IGeesomeGroupCategoryModule
+    groupCategory: IGeesomeGroupCategoryModule,
+    accountStorage: IGeesomeAccountStorageModule,
+    communicator: IGeesomeCommunicatorModule
   };
 
   constructor(
@@ -178,24 +176,16 @@ class GeesomeApp implements IGeesomeApp {
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
 
-  validateEmail(email) {
-    return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
-  }
-
-  validateUsername(username) {
-    return /^\w+([\.-]?\w)+$/.test(username);
-  }
-
   async checkNameAndEmail(userId, name, email) {
     userId = parseInt(userId);
     const user = await this.database.getUser(userId);
     if (user && user.name ? false : !name) {
       throw new Error("name_cant_be_null");
     }
-    if (email && !this.validateEmail(email)) {
+    if (email && !helpers.validateEmail(email)) {
       throw new Error("email_invalid");
     }
-    if (name && !this.validateUsername(name)) {
+    if (name && !helpers.validateUsername(name)) {
       throw new Error("forbidden_symbols_in_name");
     } else if (name) {
       const existUserWithName = await this.database.getUserByName(name);
@@ -268,47 +258,6 @@ class GeesomeApp implements IGeesomeApp {
     });
   }
 
-  async generateUserAccountAuthMessage(accountProvider, accountAddress) {
-    const userAccount = await this.database.getUserAccountByAddress(accountProvider, accountAddress);
-    if (!userAccount) {
-      throw new Error("not_found");
-    }
-
-    const authMessage = await this.database.createUserAuthMessage({
-      provider: accountProvider,
-      address: accountAddress,
-      userAccountId: userAccount.id,
-      message: await commonHelper.random()
-    });
-
-    delete authMessage.userAccountId;
-
-    return authMessage;
-  }
-
-  async loginAuthMessage(authMessageId, address, signature, params: any = {}) {
-    if (!address) {
-      throw new Error("not_valid");
-    }
-
-    const authMessage = await this.database.getUserAuthMessage(authMessageId);
-    if (!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
-      throw new Error("not_valid");
-    }
-
-    const userAccount = await this.database.getUserAccount(authMessage.userAccountId);
-    if (!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
-      throw new Error("not_valid");
-    }
-
-    const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
-    if (!isValid) {
-      throw new Error("not_valid");
-    }
-
-    return await this.database.getUser(userAccount.userId);
-  }
-
   async updateUser(userId, updateData) {
     //TODO: check apiKey UserAccountManagement permission to updateUser
     const {password, email, name} = updateData;
@@ -347,7 +296,7 @@ class GeesomeApp implements IGeesomeApp {
   async bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem> {
     log('bindToStaticId', dynamicId, staticId);
     try {
-      await this.communicator.bindToStaticId(dynamicId, staticId);
+      await this.ms.communicator.bindToStaticId(dynamicId, staticId);
       log('bindToStaticId:communicator finish');
     } catch (e) {
       log('bindToStaticId:communicator error', e.message);
@@ -1337,7 +1286,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getPeers(topic) {
-    const peers = await this.communicator.getPeers(topic);
+    const peers = await this.ms.communicator.getPeers(topic);
     return {
       count: peers.length,
       list: peers
@@ -1345,7 +1294,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getStaticIdPeers(ipnsId) {
-    const peers = await this.communicator.getStaticIdPeers(ipnsId);
+    const peers = await this.ms.communicator.getStaticIdPeers(ipnsId);
     return {
       count: peers.length,
       list: peers
@@ -1365,7 +1314,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getSelfAccountId() {
-    return this.communicator.getAccountIdByName('self');
+    return this.ms.communicator.getAccountIdByName('self');
   }
 
   async createStorageAccount(name) {
@@ -1375,9 +1324,9 @@ class GeesomeApp implements IGeesomeApp {
     //   throw "already_exists";
     // }
     const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
-    const storageAccountId = await this.communicator.createAccountIfNotExists(nameIpfsHash);
+    const storageAccountId = await this.ms.communicator.createAccountIfNotExists(nameIpfsHash);
 
-    this.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
+    this.ms.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
       return this.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
         /*dont do anything*/
       });
@@ -1403,7 +1352,7 @@ class GeesomeApp implements IGeesomeApp {
 
       let dynamicId;
       try {
-        let dynamicItem = await this.communicator.resolveStaticItem(staticId);
+        let dynamicItem = await this.ms.communicator.resolveStaticItem(staticId);
         if (staticIdItem && dynamicItem && dynamicItem.createdAt > staticIdItem.boundAt.getTime() / 1000) {
           dynamicId = dynamicItem.value;
           log('resolve by communicator', staticId, '=>', dynamicId);
@@ -1440,7 +1389,7 @@ class GeesomeApp implements IGeesomeApp {
     if (type === 'ipfs') {
       return this.storage.getBootNodeList();
     } else {
-      return this.communicator.getBootNodeList();
+      return this.ms.communicator.getBootNodeList();
     }
   }
 
@@ -1449,7 +1398,7 @@ class GeesomeApp implements IGeesomeApp {
     if (type === 'ipfs') {
       return this.storage.addBootNode(address).catch(e => console.error('storage.addBootNode', e));
     } else {
-      return this.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
+      return this.ms.communicator.addBootNode(address).catch(e => console.error('communicator.addBootNode', e));
     }
   }
 
@@ -1458,13 +1407,13 @@ class GeesomeApp implements IGeesomeApp {
     if (type === 'ipfs') {
       return this.storage.removeBootNode(address).catch(e => console.error('storage.removeBootNode', e));
     } else {
-      return this.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
+      return this.ms.communicator.removeBootNode(address).catch(e => console.error('communicator.removeBootNode', e));
     }
   }
 
   async stop() {
     await this.storage.stop();
-    await this.communicator.stop();
+    await this.ms.communicator.stop();
     this.api.close();
   }
 }

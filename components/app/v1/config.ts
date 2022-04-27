@@ -32,5 +32,5 @@ module.exports = {
   authorizationConfig: {},
   renderModule: 'entity-json-manifest',
   renderConfig: {},
-  modules: process.env.MODULES ? process.env.MODULES.split(',') : ['asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss']
+  modules: process.env.MODULES ? process.env.MODULES.split(',') : ['accountStorage', 'communicator', 'asyncOperation', 'group', 'groupCategory', 'fileCatalog', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization']
 };

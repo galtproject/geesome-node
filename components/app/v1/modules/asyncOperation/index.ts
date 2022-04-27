@@ -12,14 +12,13 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
 		async asyncOperationWrapper(methodName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
 			options.userApiKeyId = await app.getApyKeyId(options.apiKey);
 
 			if (!options.async) {
-				return this[methodName].apply(this, args);
+				return app[methodName].apply(app, args);
 			}
 
 			const asyncOperation = await app.database.addUserAsyncOperation({
@@ -50,7 +49,7 @@ function getModule(app: IGeesomeApp) {
 					resolve(true);
 				}
 			});
-			const methodPromise = this[methodName].apply(this, args);
+			const methodPromise = app[methodName].apply(app, args);
 
 			methodPromise
 				.then((res: any) => {
@@ -58,7 +57,7 @@ function getModule(app: IGeesomeApp) {
 						inProcess: false,
 						contentId: res.id
 					});
-					return app.communicator.publishEvent(asyncOperation.channel, res);
+					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
 				.catch((e) => {
 					return app.database.updateUserAsyncOperation(asyncOperation.id, {

@@ -1,4 +1,5 @@
-import {IGeesomeApp} from "../../app/interface";
+import {IGeesomeApp} from "../../../interface";
+
 const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNodePass");
 
 module.exports = async (app: IGeesomeApp) => {

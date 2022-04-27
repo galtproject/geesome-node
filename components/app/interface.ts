@@ -22,14 +22,14 @@ import {
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
 import {IRender} from "../render/interface";
-import {ICommunicator} from "../communicator/interface";
+import IGeesomeCommunicatorModule from "./v1/modules/communicator/interface";
+import IGeesomeAccountStorageModule from "./v1/modules/accountStorage/interface";
 
 export interface IGeesomeApp {
   api: any;
   config: any;
   database: IDatabase;
   storage: IStorage;
-  communicator: ICommunicator;
   events: GeesomeEmitter;
   render: IRender;
   authorization: any;
@@ -43,6 +43,8 @@ export interface IGeesomeApp {
     group: IGeesomeGroupModule;
     groupCategory: IGeesomeGroupCategoryModule;
     fileCatalog: IGeesomeFileCatalogModule;
+    accountStorage: IGeesomeAccountStorageModule;
+    communicator: IGeesomeCommunicatorModule;
   };
 
   checkModules(modulesList: string[]);
@@ -54,10 +56,6 @@ export interface IGeesomeApp {
   registerUser(userData: IUserInput, inviteId?): Promise<IUser>;
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
-
-  loginAuthMessage(authMessageId, address, signature, params?): Promise<IUser>;
-
-  generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessageResponse>;
 
   updateUser(userId, updateData): Promise<IUser>;
 
