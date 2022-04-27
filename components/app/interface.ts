@@ -16,12 +16,12 @@ import {
   IGroup, IGroupSection, IInvite, IListParams,
   IPost, IStaticIdHistoryItem,
   IUser, IUserAccount,
-  IUserApiKey, IUserAsyncOperation, IUserAuthMessage,
-  IUserLimit, IUserOperationQueue, PostStatus, UserLimitName
+  IUserApiKey, IUserAsyncOperation,
+  IUserLimit, IUserOperationQueue, UserLimitName
 } from "../database/interface";
 import {IStorage} from "../storage/interface";
 import {GeesomeEmitter} from "./v1/events";
-import {IRender} from "../render/interface";
+import {IGeesomeEntityJsonManifestModule} from "./v1/modules/entityJsonManifest/interface";
 import IGeesomeCommunicatorModule from "./v1/modules/communicator/interface";
 import IGeesomeAccountStorageModule from "./v1/modules/accountStorage/interface";
 import IGeesomeApiModule from "./v1/modules/api/interface";
@@ -31,7 +31,6 @@ export interface IGeesomeApp {
   database: IDatabase;
   storage: IStorage;
   events: GeesomeEmitter;
-  render: IRender;
 
   frontendStorageId;
 
@@ -45,6 +44,7 @@ export interface IGeesomeApp {
     fileCatalog: IGeesomeFileCatalogModule;
     accountStorage: IGeesomeAccountStorageModule;
     communicator: IGeesomeCommunicatorModule;
+    entityJsonManifest: IGeesomeEntityJsonManifestModule;
   };
 
   checkModules(modulesList: string[]);

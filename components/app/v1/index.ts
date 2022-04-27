@@ -28,7 +28,7 @@ import {
   IUserInput,
 } from "../interface";
 import {IStorage} from "../../storage/interface";
-import {IRender} from "../../render/interface";
+import {IGeesomeEntityJsonManifestModule} from "./modules/entityJsonManifest/interface";
 import {DriverInput, OutputSize} from "../../drivers/interface";
 import {GeesomeEmitter} from "./events";
 import AbstractDriver from "../../drivers/abstractDriver";
@@ -81,8 +81,6 @@ module.exports = async (extendConfig) => {
     app.frontendStorageId = directory.id;
   }
 
-  app.render = await require('../../render/' + config.renderModule)(app);
-
   app.drivers = require('../../drivers');
 
   app.events = appEvents(app);
@@ -107,7 +105,6 @@ module.exports = async (extendConfig) => {
 class GeesomeApp implements IGeesomeApp {
   database: IDatabase;
   storage: IStorage;
-  render: IRender;
   drivers: any;
   events: GeesomeEmitter;
 
@@ -121,7 +118,8 @@ class GeesomeApp implements IGeesomeApp {
     group: IGeesomeGroupModule,
     groupCategory: IGeesomeGroupCategoryModule,
     accountStorage: IGeesomeAccountStorageModule,
-    communicator: IGeesomeCommunicatorModule
+    communicator: IGeesomeCommunicatorModule,
+    entityJsonManifest: IGeesomeEntityJsonManifestModule
   };
 
   constructor(
@@ -376,7 +374,7 @@ class GeesomeApp implements IGeesomeApp {
       return dbUser;
     }
     log('createUserByRemoteStorageId::manifestIdToDbObject', staticStorageId);
-    const userObject: IUser = await this.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
+    const userObject: IUser = await this.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
     log('createUserByRemoteStorageId::userObject', userObject);
     userObject.isRemote = true;
     return this.createUserByObject(userObject);
@@ -483,7 +481,7 @@ class GeesomeApp implements IGeesomeApp {
     if (dbContent) {
       return dbContent;
     }
-    const contentObject: IContent = await this.render.manifestIdToDbObject(manifestStorageId);
+    const contentObject: IContent = await this.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId);
     contentObject.isRemote = true;
     return this.createContentByObject(contentObject);
   }
@@ -1163,7 +1161,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async generateAndSaveManifest(entityName, entityObj) {
-    const manifestContent = await this.render.generateContent(entityName + '-manifest', entityObj);
+    const manifestContent = await this.ms.entityJsonManifest.generateContent(entityName + '-manifest', entityObj);
     const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
     console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
     return hash;

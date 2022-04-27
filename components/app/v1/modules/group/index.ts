@@ -24,7 +24,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['communicator']);
+	app.checkModules(['communicator', 'entityJsonManifest']);
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
@@ -71,7 +71,7 @@ function getModule(app: IGeesomeApp) {
 				//TODO: update group if necessary
 				return dbGroup;
 			}
-			const groupObject: IGroup = await app.render.manifestIdToDbObject(staticStorageId || manifestStorageId);
+			const groupObject: IGroup = await app.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
 			groupObject.isRemote = true;
 			return this.createGroupByObject(groupObject);
 		}
@@ -327,7 +327,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
-			const postObject: IPost = await app.render.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
+			const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
 				isEncrypted,
 				groupId,
 				publishedAt

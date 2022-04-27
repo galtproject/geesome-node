@@ -22,10 +22,10 @@ const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
 const resourcesHelper = require('./helpers/resources');
-const log = require('../components/log');
+const log = require('../components/app/v1/helpers').log;
 const commonHelper = require('geesome-libs/src/common');
 
-describe("app", function () {
+describe.only("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);
