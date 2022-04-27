@@ -16,7 +16,8 @@ module.exports = (app: IGeesomeApp) => {
   if(!fs.existsSync(__dirname + '/node_modules/.bin/apidoc')) {
     return console.warn("Script for generating docs not found :(");
   }
-  const child = spawn(__dirname + '/node_modules/.bin/apidoc', ['-i', 'components/api/http-v1', '-o', 'docs/',  '-t', 'node_modules/apidoc-template/template']);
+  //TODO: include modules api
+  const child = spawn(__dirname + '/node_modules/.bin/apidoc', ['-i', 'app/modules/api', '-o', 'docs/',  '-t', 'node_modules/apidoc-template/template']);
 
   child.on('close', async (code) => {
     if (code !== 0) {
