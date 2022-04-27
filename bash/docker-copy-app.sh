@@ -4,7 +4,7 @@ docker cp index.ts geesome:/geesome-node/
 docker cp publish-docs.ts geesome:/geesome-node/
 docker cp package.json geesome:/geesome-node/
 docker cp yarn.lock geesome:/geesome-node/
-docker cp components/. geesome:/geesome-node/components/
+docker cp app/. geesome:/geesome-node/app/
 
 docker cp frontend/index.html geesome:/geesome-node/frontend/
 docker cp frontend/.babelrc geesome:/geesome-node/frontend/

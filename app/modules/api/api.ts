@@ -41,8 +41,8 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	 * @apiName RunSetup
 	 * @apiGroup Setup
 	 *
-	 * @apiInterface (../../app/interface.ts) {IUserInput} apiParam
-	 * @apiInterface (../../database/interface.ts) {IUser} apiSuccess
+	 * @apiInterface (../../interface.ts) {IUserInput} apiParam
+	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
 	 */
 	module.onPost('setup', async (req, res) => {
 		res.send(await app.setup(req.body), 200);
@@ -56,7 +56,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	 * @apiParam {String} login
 	 * @apiParam {String} password
 	 *
-	 * @apiInterface (../../app/interface.ts) {IUserAuthResponse} apiSuccess
+	 * @apiInterface (../../interface.ts) {IUserAuthResponse} apiSuccess
 	 */
 	module.onPost('login/password', async (req, res) => {
 		app.loginPassword(req.body.username, req.body.password)
@@ -74,7 +74,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	 *
 	 * @apiUse ApiKey
 	 *
-	 * @apiInterface (../../database/interface.ts) {IUser} apiSuccess
+	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
 	 */
 	module.onAuthorizedGet('user', async (req, res) => {
 		if (!req.user || !req.user.id) {
@@ -115,9 +115,9 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	 *
 	 * @apiUse ApiKey
 	 *
-	 * @apiInterface (../../app/interface.ts) {IFileContentInput} apiParam
+	 * @apiInterface (../../interface.ts) {IFileContentInput} apiParam
 	 *
-	 * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
+	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
 	 */
 	module.onAuthorizedPost('user/save-file', async (req, res) => {
 		const busboy = new Busboy({
@@ -153,9 +153,9 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	 *
 	 * @apiUse ApiKey
 	 *
-	 * @apiInterface (../../app/interface.ts) {IDataContentInput} apiParam
+	 * @apiInterface (../../interface.ts) {IDataContentInput} apiParam
 	 *
-	 * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
+	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
 	 */
 	module.onAuthorizedPost('user/save-data', async (req, res) => {
 		const options = {
@@ -175,9 +175,9 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	 *
 	 * @apiUse ApiKey
 	 *
-	 * @apiInterface (../../app/interface.ts) {IUrlContentInput} apiParam
+	 * @apiInterface (../../interface.ts) {IUrlContentInput} apiParam
 	 *
-	 * @apiInterface (../../database/interface.ts) {IContent} apiSuccess
+	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
 	 */
 	module.onAuthorizedPost('user/save-data-by-url', async (req, res) => {
 		const options = {
