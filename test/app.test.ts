@@ -25,7 +25,7 @@ const resourcesHelper = require('./helpers/resources');
 const log = require('../components/app/v1/helpers').log;
 const commonHelper = require('geesome-libs/src/common');
 
-describe.only("app", function () {
+describe("app", function () {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}, storage: 'database-test.sqlite'}};
 
   this.timeout(60000);
