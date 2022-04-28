@@ -1,6 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
+const {getTitleAndDescription} = require('./helpers');
 // const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
@@ -139,33 +140,4 @@ function getPostPath(postId) {
 }
 function getPaginationPostPath(pageNumber) {
     return '/posts/page/' + pageNumber + '/';
-}
-
-function getTitleAndDescription(texts, postSettings) {
-    let content = _.find(texts, (t) => t.view === 'contents');
-    if (!content) {
-        content = texts[0];
-    }
-    if (!content) {
-        return {title: "", description: ""};
-    }
-    const {text} = content;
-    const {titleLength, descriptionLength} = postSettings;
-    let title = text.split('\n')[0];
-    let description = '';
-    let dotsAdded = false;
-    if (title.length > titleLength) {
-        title = title.slice(0, titleLength) + '...';
-        dotsAdded = true;
-        description = '...' + title.slice(titleLength, titleLength + descriptionLength);
-    } else if (text.split('\n')[1]) {
-        description = _.trimStart(text.split('\n')[1], '#').slice(descriptionLength);
-        if (description.length + title.length < text.length) {
-            description += '...';
-        }
-    }
-    if (text.length > title.length && !dotsAdded) {
-        title += '...';
-    }
-    return {title, description};
 }
