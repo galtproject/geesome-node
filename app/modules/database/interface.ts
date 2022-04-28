@@ -407,7 +407,9 @@ export enum ContentMimeType {
 
 export enum ContentView {
   Attachment = 'attachment',
-  Contents = 'contents'
+  Media = 'media',
+  Contents = 'contents',
+  Link = 'link'
 }
 
 export interface IPost {

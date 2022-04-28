@@ -11,6 +11,7 @@ import {EventBus, UPDATE_ADMIN_GROUPS} from "../../../services/events";
 import ContentManifestItem from "../../../directives/ContentManifestItem/ContentManifestItem";
 import GroupForm from "../GroupForm/GroupForm";
 import common from "../../../libs/common";
+const commonHelpers = require("geesome-libs/src/common");
 
 export default {
   template: require('./EditGroup.template'),
@@ -30,6 +31,31 @@ export default {
       }).catch(() => {
         this.error = 'failed';
       })
+    },
+    deleteGroup() {
+      if (!confirm("Are you sure want to delete this group?")) {
+        return;
+      }
+      this.$coreApi.updateGroup({
+        ...this.group,
+        name: this.group.name + '_deleted_' + commonHelpers.makeCode(16),
+        isDeleted: true
+      }).then((updatedGroup) => {
+        EventBus.$emit(UPDATE_ADMIN_GROUPS);
+        this.$router.push({name: 'group-page', params: {groupId: updatedGroup.manifestStaticStorageId}})
+      }).catch(() => {
+        this.error = 'failed';
+      })
+    },
+    makeid(length) {
+      var result           = '';
+      var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      var charactersLength = characters.length;
+      for ( var i = 0; i < length; i++ ) {
+        result += characters.charAt(Math.floor(Math.random() *
+            charactersLength));
+      }
+      return result;
     }
   },
   computed: {},

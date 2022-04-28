@@ -70,7 +70,12 @@ function getModule(app: IGeesomeApp) {
         ) {
             return pIteration.mapSeries(_.chunk(posts, 10), (postsChunk) => {
                 return pIteration.map(postsChunk, post => {
-                    return app.ms.group.getPostContent(host + '/v1/content-data/', post).then(({text, images, videos}) => {
+                    return app.ms.group.getPostContent(host + '/v1/content-data/', post).then((contents) => {
+                        let text = _.find(contents, (c) => c.type === 'text' && c.view === 'contents');
+                        if (!text) {
+                            text = _.find(contents, (c) => c.type === 'text');
+                        }
+                        const images = _.filter(contents, (c) => c.type === 'image');
                         return {
                             item: [
                                 {title: text.slice(0, 50) + (text.length > 50 ? '...' : '')},

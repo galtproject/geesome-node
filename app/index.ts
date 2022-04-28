@@ -720,7 +720,7 @@ class GeesomeApp implements IGeesomeApp {
     return apiKeyDb.id;
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -746,7 +746,7 @@ class GeesomeApp implements IGeesomeApp {
       dataToSave = Buffer.from(dataToSave.data)
     }
 
-    if(_.isArray(dataToSave)) {
+    if(_.isArray(dataToSave) || _.isTypedArray(dataToSave)) {
       dataToSave = Buffer.from(dataToSave)
     }
 
@@ -780,9 +780,9 @@ class GeesomeApp implements IGeesomeApp {
     log('existsContent', !!existsContent);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
-      await this.setContentPreviewIfNotExist(existsContent);
+      await this.updateExistsContentMetadata(existsContent, options);
       console.log('isUserCan', options.userId);
-      if(await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
+      if (await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
         await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       }
       return existsContent;
@@ -793,7 +793,7 @@ class GeesomeApp implements IGeesomeApp {
       extension,
       mimeType,
       storageType: ContentStorageType.IPFS,
-      view: ContentView.Contents,
+      view: options.view || ContentView.Contents,
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
@@ -853,7 +853,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const existsContent = await this.ms.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
-      await this.setContentPreviewIfNotExist(existsContent);
+      await this.updateExistsContentMetadata(existsContent, options);
       await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
@@ -896,15 +896,29 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async setContentPreviewIfNotExist(content: IContent) {
+  async updateExistsContentMetadata(content: IContent, options) {
+    const propsToUpdate = ['view'];
     if (content.mediumPreviewStorageId && content.previewMimeType) {
+      if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
+        await this.ms.database.updateContent(content.id, _.pick(options, propsToUpdate));
+        await this.updateContentManifest({
+          ...content['toJSON'](),
+          ..._.pick(options, propsToUpdate),
+        });
+      }
       return;
     }
-    let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-    await this.ms.database.updateContent(content.id, previewData);
+    let updateData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
+    if(content.userId === options.userId) {
+      updateData = {
+        ..._.pick(options, propsToUpdate),
+        ...updateData,
+      }
+    }
+    await this.ms.database.updateContent(content.id, updateData);
     return this.updateContentManifest({
       ...content['toJSON'](),
-      ...previewData
+      ...updateData,
     });
   }
 
@@ -1188,14 +1202,11 @@ class GeesomeApp implements IGeesomeApp {
     const resolveProp = isPath ? isResolve : false;
 
     const dbObject = await this.ms.database.getObjectByStorageId(storageId, resolveProp);
-    console.log('dbObject', dbObject);
     if (dbObject) {
       const { data } = dbObject;
       return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
     }
-    console.log('getObject', storageId);
     return this.ms.storage.getObject(storageId, resolveProp).then((result) => {
-      console.log('result', result);
       this.ms.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
     }).catch(e => {
@@ -1302,13 +1313,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createStorageAccount(name) {
-    // const existsAccountId = await this.ms.storage.getAccountIdByName(name);
-    // TODO: use it in future for public nodes
-    // if(existsAccountId) {
-    //   throw "already_exists";
-    // }
-    const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
-    const storageAccountId = await this.ms.communicator.createAccountIfNotExists(nameIpfsHash);
+    const storageAccountId = await this.ms.communicator.createAccountIfNotExists(name + commonHelper.makeCode(8));
 
     this.ms.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
       return this.ms.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {

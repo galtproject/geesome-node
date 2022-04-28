@@ -160,8 +160,9 @@ function getModule(app: IGeesomeApp) {
             const {baseStorageUri} = options;
 
             const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-                const {text: content, images, videos} = await app.ms.group.getPostContent(baseStorageUri, gp);
-
+                const contents = await app.ms.group.getPostContent(baseStorageUri, gp);
+                console.log('contents', contents);
+;
                 if (options.asyncOperationId && i % 10 === 0) {
                     console.log('updateAsyncOperation');
                     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
@@ -170,9 +171,10 @@ function getModule(app: IGeesomeApp) {
                 return {
                     id: gp.localId,
                     lang: options.lang,
-                    content,
-                    images,
-                    videos,
+                    contents: contents,
+                    texts: contents.filter(c => c.type === 'text'),
+                    images: contents.filter(c => c.type === 'image'),
+                    videos: contents.filter(c => c.type === 'video'),
                     date: gp.publishedAt.getTime()
                 }
             });

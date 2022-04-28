@@ -1,6 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
+const {getTitleAndDescription} = require('./helpers');
 // const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
@@ -20,7 +21,7 @@ module.exports = function(posts, settings) {
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
 
-                const {title, description} = getTitleAndDescription(post.content, postSettings);
+                const {title, description} = getTitleAndDescription(post.texts, postSettings);
 
                 const page = await createPage(app, {
                     path: getPostPath(post.id),
@@ -32,7 +33,7 @@ module.exports = function(posts, settings) {
                         title,
                         description,
                         date: post.date,
-                        ..._.pick(post, ['lang', 'id', 'images', 'videos'])
+                        ..._.pick(post, ['lang', 'id', 'contents', 'images', 'videos'])
                     },
                     content: post.content,
                 });
@@ -139,25 +140,4 @@ function getPostPath(postId) {
 }
 function getPaginationPostPath(pageNumber) {
     return '/posts/page/' + pageNumber + '/';
-}
-
-function getTitleAndDescription(content, postSettings) {
-    const {titleLength, descriptionLength} = postSettings;
-    let title = content.split('\n')[0];
-    let description = '';
-    let dotsAdded = false;
-    if (title.length > titleLength) {
-        title = title.slice(0, titleLength) + '...';
-        dotsAdded = true;
-        description = '...' + title.slice(titleLength, titleLength + descriptionLength);
-    } else if (content.split('\n')[1]) {
-        description = _.trimStart(content.split('\n')[1], '#').slice(descriptionLength);
-        if (description.length + title.length < content.length) {
-            description += '...';
-        }
-    }
-    if (content.length > title.length && !dotsAdded) {
-        title += '...';
-    }
-    return {title, description};
 }

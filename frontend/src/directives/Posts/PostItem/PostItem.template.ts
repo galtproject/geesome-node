@@ -17,7 +17,7 @@ module.exports = `
   </md-card-header>
 
   <md-card-content v-for="content in contentsList">
-    <content-manifest-item :manifest="content.storageId"></content-manifest-item>
+    <content-manifest-item :manifest="content.storageId" v-if="content.view !== 'link'"></content-manifest-item>
   </md-card-content>
 
   <!--<md-card-actions>-->

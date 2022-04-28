@@ -13,7 +13,7 @@ module.exports = {
   'user': 'geesome',
   'password': 'geesome',
   'options': {
-    'logging': (d) => {log(d)},
+    'logging': (d) => {/*log(d)*/},
     'host': 'localhost',
     // 'dialect': 'postgres',
     'dialect': 'sqlite',

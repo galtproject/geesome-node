@@ -20,6 +20,20 @@ module.exports = `
 			  <h3>Import channel to IPFS</h3>
 			</div>
 			
+			<div>
+				<a href @click.prevent.stop="advancedSettingsEnabled = !advancedSettingsEnabled;">Advanced settings</a>
+				<div v-if="advancedSettingsEnabled">
+					<md-field>
+						<label>From message</label>
+						<md-input type="number" v-model="advancedSettings.fromMessage"></md-input>
+					</md-field>
+					<md-field>
+						<label>To message</label>
+						<md-input type="number" v-model="advancedSettings.toMessage"></md-input>
+					</md-field>
+				</div>
+			</div>
+			
 			<div style="position: relative;">
 				<md-button :disabled="loading || !!curOperation" @click="runImport" class="md-raised md-accent"><span v-locale="localeKey + '.run_import'"></span></md-button>
 				<md-button style="position: absolute; top: 0; right: 0;" v-if="curOperation" @click="stopImport" class="md-warn"><span v-locale="localeKey + '.stop_import'"></span></md-button>

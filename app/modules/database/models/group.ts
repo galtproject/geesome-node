@@ -66,6 +66,10 @@ module.exports = async function (sequelize, models) {
     isReplyForbidden: {
       type: Sequelize.BOOLEAN
     },
+    isDeleted: {
+      type: Sequelize.BOOLEAN,
+      defaultValue: false
+    },
     peersCount: {
       type: Sequelize.INTEGER
     },
@@ -113,6 +117,7 @@ module.exports = async function (sequelize, models) {
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
       { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
+      { fields: ['name', 'isDeleted'], where: {isDeleted: false} },
       { fields: ['manifestStorageId'] },
       { fields: ['manifestStaticStorageId'] }
     ]
