@@ -597,7 +597,7 @@ function getModule(app: IGeesomeApp) {
 						...baseData
 					};
 				}
-			});
+			}).then(contents => contents.filter(c => c));
 		}
 
 		async updatePost(userId, postId, postData) {

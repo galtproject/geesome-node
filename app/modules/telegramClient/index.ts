@@ -484,7 +484,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (m.media) {
 				if (m.media.poll) {
 					//TODO: handle and save polls (325)
-					return;
+					return contents;
 				}
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
 				if (file && file.content) {
