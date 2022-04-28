@@ -1302,13 +1302,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async createStorageAccount(name) {
-    // const existsAccountId = await this.ms.storage.getAccountIdByName(name);
-    // TODO: use it in future for public nodes
-    // if(existsAccountId) {
-    //   throw "already_exists";
-    // }
-    const nameIpfsHash = await ipfsHelper.getIpfsHashFromString(name);
-    const storageAccountId = await this.ms.communicator.createAccountIfNotExists(nameIpfsHash);
+    const storageAccountId = await this.ms.communicator.createAccountIfNotExists(name + commonHelper.makeCode(8));
 
     this.ms.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
       return this.ms.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {

@@ -6,7 +6,7 @@ module.exports = {
 	},
 
 	validateUsername(username) {
-		return /^\w+([\.-]?\w)+$/.test(username);
+		return /^\w+([\.-]?\w)+$/.test(username) && username.length <= 42;
 	},
 
 	log(){

@@ -1,7 +1,7 @@
 import {IUserAsyncOperation} from "../database/interface";
 
 export default interface IGeesomeTelegramClient {
-	runChannelImport(userId, apiKey, accData, channelId): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;
+	runChannelImport(userId, apiKey, accData, channelId, advancedSettings?): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;
 
 	getChannelInfoByUserId(userId, accData, channelId): Promise<{
 		client,

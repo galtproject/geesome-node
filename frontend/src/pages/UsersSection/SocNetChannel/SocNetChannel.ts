@@ -19,6 +19,7 @@ export default {
 	methods: {
 		async getChannelInfo() {
 			this.info = await this.$coreApi.socNetGetChannelInfo(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
+			this.advancedSettings.toMessage = this.info.messagesCount;
 			console.log('this.info', this.info);
 			console.log('socNetUserInfo', await this.$coreApi.socNetUserInfo(this.$route.params.socNet, {id: this.$route.params.accId}));
 		},
@@ -40,12 +41,17 @@ export default {
 			}
 		},
 		async getGroup() {
-			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId);
+			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId).then(g => g && g.isDeleted ? null : g);
 		},
 		async runImport() {
 			this.loading = true;
 			try {
-				const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
+				const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(
+					this.$route.params.socNet,
+					{id: this.$route.params.accId},
+					this.$route.params.channelId,
+					this.advancedSettingsEnabled ? this.advancedSettings : {}
+				);
 				await this.getDbChannel();
 				this.getGroup();
 				this.waitForOperation(asyncOperation);
@@ -100,6 +106,11 @@ export default {
 			totalPostsCount: 0,
 			pendingOperations: [],
 			curOperation: null,
+			advancedSettingsEnabled: false,
+			advancedSettings: {
+				fromMessage: 1,
+				toMessage: 2
+			}
 		};
 	}
 }

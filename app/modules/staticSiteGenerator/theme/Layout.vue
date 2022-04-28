@@ -64,4 +64,4 @@
   }
 </script>
 
-<style lang="scss" src="styles/index.scss"></style>
+<style lang="scss" src="./styles/index.scss"></style>

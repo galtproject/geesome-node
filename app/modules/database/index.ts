@@ -386,7 +386,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
       return null;
     }
     return this.models.Group.findOne({
-      where: {[Op.or]: whereOr},
+      where: {[Op.or]: whereOr, isDeleted: false},
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     }) as IGroup;
   }
@@ -396,17 +396,18 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
       where: {
         staticStorageUpdatedAt: {
           [Op.lt]: commonHelpers.moveDate(-parseFloat(outdatedForSeconds), 'second')
-        }
+        },
+        isDeleted: false
       }
     });
   }
 
   async getRemoteGroups() {
-    return this.models.Group.findAll({ where: { isRemote: true } });
+    return this.models.Group.findAll({ where: { isRemote: true, isDeleted: false } });
   }
 
   async getPersonalChatGroups() {
-    return this.models.Group.findAll({where: {type: GroupType.PersonalChat}});
+    return this.models.Group.findAll({where: {type: GroupType.PersonalChat, isDeleted: false}});
   }
 
   async addGroup(group) {
@@ -439,7 +440,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
 
   async getMemberInGroups(userId, types) {
     return (await this.getUser(userId)).getMemberInGroups({
-      where: { type: {[Op.in]: types} },
+      where: { type: {[Op.in]: types}, isDeleted: false },
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
   }
@@ -458,7 +459,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
 
   async getAdminInGroups(userId, types) {
     return (await this.getUser(userId)).getAdministratorInGroups({
-      where: { type: {[Op.in]: types} },
+      where: { type: {[Op.in]: types}, isDeleted: false },
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
     });
   }
@@ -479,7 +480,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getCreatorInGroupsByType(creatorId, type: GroupType) {
-    return this.models.Group.findAll({ where: {creatorId, type} });
+    return this.models.Group.findAll({ where: {creatorId, type, isDeleted: false} });
   }
 
   async getGroupSection(groupSectionId) {
@@ -574,6 +575,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getGroupByParams(params) {
+    params.isDeleted = false;
     return this.models.Group.findOne({
       where: params,
       include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
@@ -1057,7 +1059,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   getAllGroupWhere(searchString?) {
-    let where = {};
+    let where: any = {isDeleted: false};
     if (searchString) {
       where = {[Op.or]: [{name: searchString}, {title: searchString}]};
     }

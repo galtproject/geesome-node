@@ -4,6 +4,7 @@ const pIteration = require('p-iteration');
 const _ = require('lodash');
 const ethereumAuthorization = require('geesome-libs/src/ethereum');
 const geesomeMessages = require("geesome-libs/src/messages");
+const commonHelpers = require("geesome-libs/src/common");
 
 module.exports = (app: IGeesomeApp) => {
 	const module = getModule(app);
@@ -73,18 +74,9 @@ function getModule(app: IGeesomeApp) {
 
 		async createInvite(userId, inviteData) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
-			inviteData.code = this.makeCode(16);
+			inviteData.code = commonHelpers.makeCode(16);
 			inviteData.createdById = userId;
 			return app.ms.database.addInvite(inviteData);
-		}
-
-		makeCode(length) {
-			let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-			let res = '';
-			for (let i = 0; i < length; i++) {
-				res += chars.charAt(Math.floor(Math.random() * chars.length));
-			}
-			return res;
 		}
 
 		async updateInvite(userId, inviteId, inviteData) {

@@ -11,9 +11,12 @@ module.exports = `
 
           <group-form :group.sync="group" :invalid.sync="invalidInputs"></group-form>
 
-          <div>
+          <div style="display: flex; justify-content: space-between;">
             <md-button class="md-raised md-accent" @click="update()" :disabled="invalidInputs">
               Update
+            </md-button>
+            <md-button class="md-warn" @click="deleteGroup()" :disabled="invalidInputs">
+              Delete
             </md-button>
           </div>
 
