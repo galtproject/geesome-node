@@ -146,6 +146,9 @@ function getTitleAndDescription(texts, postSettings) {
     if (!content) {
         content = texts[0];
     }
+    if (!content) {
+        return {title: "", description: ""};
+    }
     const {text} = content;
     const {titleLength, descriptionLength} = postSettings;
     let title = text.split('\n')[0];

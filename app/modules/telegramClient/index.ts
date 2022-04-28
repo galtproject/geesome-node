@@ -16,9 +16,6 @@ const { computeCheck } = require("telegram/Password");
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
-const find = require('lodash/find');
-const max = require('lodash/max');
-const isNumber = require('lodash/isNumber');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -191,38 +188,7 @@ function getModule(app: IGeesomeApp, models) {
 			return this.downloadMediaByClient(await this.getClient(userId, accData), media)
 		}
 		async downloadMediaByClient(client, media) {
-			let file;
-			let fileSize: number;
-			let mimeType;
-			let thumbSize = 'y';
-			if (media.photo || (media.webpage && media.webpage.photo)) {
-				file = media.photo || media.webpage.photo;
-				const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
-				console.log('ySize', ySize);
-				if (!ySize || !ySize.sizes) {
-					return {
-						client,
-						result: null
-					}
-				}
-				if (isNumber(ySize.sizes[0])) {
-					fileSize = max(ySize.sizes);
-				} else {
-					const maxSize = max(ySize.sizes.filter(s => s.size), s => s.size);
-					console.log('maxSize', maxSize);
-					fileSize = maxSize.size
-					thumbSize = maxSize.type;
-				}
-				mimeType = 'image/jpg';
-			} else if (media.document) {
-				file = media.document;
-				fileSize = file.size;
-				mimeType = file.mimeType;
-			} else {
-				// console.log('media', media);
-			}
-			console.log('media.webpage', media.webpage);
-			// console.log('file', file, 'thumbSize', thumbSize, 'fileSize', fileSize);
+			const {file, fileSize, mimeType, thumbSize} = telegramHelpers.getMediaFileAndSize(media);
 			if (!file) {
 				return {
 					client,
@@ -410,43 +376,13 @@ function getModule(app: IGeesomeApp, models) {
 					messageLinkTpl = await this.getMessageLink(client, dbChannel.channelId, msgId)
 						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
 				}
-				const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
 				const existsChannelMessage = await models.Message.findOne({where: {msgId, dbChannelId, userId}});
-				// console.log('existsChannelMessage', existsChannelMessage);
 				if (existsChannelMessage && !force) {
 					await onMessageProcess(m, null);
 					return;
 				}
-				let contents = [];
-
-				if (m.media) {
-					if (m.media.poll) {
-						//TODO: handle and save polls (325)
-						return;
-					}
-					const {result: file} = await this.downloadMediaByClient(client, m.media);
-					if (file && file.content) {
-						const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
-						contents.push(content);
-					}
-
-					if (m.media.webpage && m.media.webpage.url) {
-						const content = await app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId, view: ContentView.Link });
-						contents.push(content);
-					}
-				}
-
-				if (m.message) {
-					console.log('m.message', m.message, 'm.entities', m.entities);
-					let text = m.message;
-					if (m.entities) {
-						text = telegramHelpers.messageWithEntitiesToHtml(text, m.entities);
-					}
-					console.log('text', text);
-					const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
-					contents.push(textContent);
-				}
-
+				const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
+				const contents = await this.messageToContents(client, m, userId);
 				const properties = { sourceLink };
 
 				if (groupedReplyTo) {
@@ -540,6 +476,40 @@ function getModule(app: IGeesomeApp, models) {
 					}
 				}
 			});
+		}
+
+		async messageToContents(client, m, userId) {
+			let contents = [];
+
+			if (m.media) {
+				if (m.media.poll) {
+					//TODO: handle and save polls (325)
+					return;
+				}
+				const {result: file} = await this.downloadMediaByClient(client, m.media);
+				if (file && file.content) {
+					const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
+					contents.push(content);
+				}
+
+				if (m.media.webpage && m.media.webpage.url) {
+					const content = await app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId, view: ContentView.Link });
+					contents.push(content);
+				}
+			}
+
+			if (m.message) {
+				console.log('m.message', m.message, 'm.entities', m.entities);
+				let text = m.message;
+				if (m.entities) {
+					text = telegramHelpers.messageWithEntitiesToHtml(text, m.entities);
+				}
+				console.log('text', text);
+				const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
+				contents.push(textContent);
+			}
+
+			return contents;
 		}
 	}
 

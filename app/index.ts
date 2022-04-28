@@ -720,7 +720,7 @@ class GeesomeApp implements IGeesomeApp {
     return apiKeyDb.id;
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId,  driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -746,7 +746,7 @@ class GeesomeApp implements IGeesomeApp {
       dataToSave = Buffer.from(dataToSave.data)
     }
 
-    if(_.isArray(dataToSave)) {
+    if(_.isArray(dataToSave) || _.isTypedArray(dataToSave)) {
       dataToSave = Buffer.from(dataToSave)
     }
 
@@ -793,7 +793,7 @@ class GeesomeApp implements IGeesomeApp {
       extension,
       mimeType,
       storageType: ContentStorageType.IPFS,
-      view: ContentView.Contents,
+      view: options.view || ContentView.Contents,
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
@@ -897,13 +897,21 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async updateExistsContentMetadata(content: IContent, options) {
+    const propsToUpdate = ['view'];
     if (content.mediumPreviewStorageId && content.previewMimeType) {
+      if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
+        await this.ms.database.updateContent(content.id, _.pick(options, propsToUpdate));
+        await this.updateContentManifest({
+          ...content['toJSON'](),
+          ..._.pick(options, propsToUpdate),
+        });
+      }
       return;
     }
     let updateData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
     if(content.userId === options.userId) {
       updateData = {
-        ..._.pick(options, ["view"]),
+        ..._.pick(options, propsToUpdate),
         ...updateData,
       }
     }

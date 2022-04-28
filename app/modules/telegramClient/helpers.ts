@@ -1,4 +1,7 @@
 const orderBy = require('lodash/orderBy');
+const find = require('lodash/find');
+const maxBy = require('lodash/maxBy');
+const isNumber = require('lodash/isNumber');
 
 module.exports = {
 	messageWithEntitiesToHtml(message, entities) {
@@ -32,5 +35,37 @@ module.exports = {
 			}
 		});
 		return message.replace(/\n/g, '<br>');
+	},
+	getMediaFileAndSize(media) {
+		let file;
+		let fileSize: number;
+		let mimeType;
+		let thumbSize = 'y';
+		if (media.photo || (media.webpage && media.webpage.photo)) {
+			file = media.photo || media.webpage.photo;
+			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
+			console.log('ySize', ySize);
+			if (!ySize || !ySize.sizes) {
+				return {};
+			}
+			if (isNumber(ySize.sizes[0])) {
+				fileSize = maxBy(ySize.sizes);
+			} else {
+				console.log('ySize.sizes.filter(s => s.size)', ySize.sizes.filter(s => s.size));
+				const maxSize = maxBy(ySize.sizes.filter(s => s.size), s => s.size);
+				console.log('maxSize', maxSize);
+				fileSize = maxSize.size
+				thumbSize = maxSize.type;
+			}
+			mimeType = 'image/jpg';
+		} else if (media.document) {
+			file = media.document;
+			fileSize = file.size;
+			mimeType = file.mimeType;
+		} else {
+			// console.log('media', media);
+		}
+		// console.log('media.webpage', media.webpage);
+		return {file, fileSize, mimeType, thumbSize};
 	}
 }
