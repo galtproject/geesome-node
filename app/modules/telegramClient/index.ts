@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {GroupType} from "../database/interface";
+import {ContentView, GroupType} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
 
 const { Api, TelegramClient } = require("telegram");
@@ -172,8 +172,7 @@ function getModule(app: IGeesomeApp, models) {
 				client,
 				result: await client.invoke(new Api.channels.GetMessages({ channel, id: messagesIds }) as any).then(({messages}) => {
 					return messages
-						.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'entities', 'media', 'action', 'groupedId']))
-						.filter(m => m.date);
+						.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'entities', 'media', 'action', 'groupedId']));
 				})
 			};
 		}
@@ -350,11 +349,13 @@ function getModule(app: IGeesomeApp, models) {
 			let currentMessageId = startMessageId;
 			(async () => {
 				while (currentMessageId < lastMessageId) {
+					console.log('currentMessageId', currentMessageId, 'lastMessageId', lastMessageId);
 					let countToFetch = lastMessageId - currentMessageId;
 					if (countToFetch > 50) {
 						countToFetch = 50;
 					}
 					await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, force, async (m, post) => {
+						console.log('onMessageProcess', m.id.toString());
 						currentMessageId = parseInt(m.id.toString());
 						dbChannel.update({ lastMessageId: currentMessageId });
 						asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id);
@@ -397,9 +398,13 @@ function getModule(app: IGeesomeApp, models) {
 			let groupedContent = [];
 			let groupedMessageIds = [];
 			const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
-			console.log('messages', messages);
 			let messageLinkTpl;
 			await pIteration.forEachSeries(messages, async (m, i) => {
+				console.log('m', m);
+				if (!m.date) {
+					await onMessageProcess(m, null);
+					return;
+				}
 				const msgId = m.id.toString();
 				if (!messageLinkTpl) {
 					messageLinkTpl = await this.getMessageLink(client, dbChannel.channelId, msgId)
@@ -414,7 +419,6 @@ function getModule(app: IGeesomeApp, models) {
 				}
 				let contents = [];
 
-				console.log('m', m);
 				if (m.media) {
 					if (m.media.poll) {
 						//TODO: handle and save polls (325)
@@ -422,13 +426,12 @@ function getModule(app: IGeesomeApp, models) {
 					}
 					const {result: file} = await this.downloadMediaByClient(client, m.media);
 					if (file && file.content) {
-						const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId });
+						const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
 						contents.push(content);
 					}
 
 					if (m.media.webpage && m.media.webpage.url) {
-						//TODO: add view type - link
-						const content = await app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId });
+						const content = await app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId, view: ContentView.Link });
 						contents.push(content);
 					}
 				}
@@ -440,7 +443,7 @@ function getModule(app: IGeesomeApp, models) {
 						text = telegramHelpers.messageWithEntitiesToHtml(text, m.entities);
 					}
 					console.log('text', text);
-					const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId });
+					const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
 					contents.push(textContent);
 				}
 
@@ -504,7 +507,7 @@ function getModule(app: IGeesomeApp, models) {
 						groupedReplyTo = m.replyTo.replyToMsgId.toString();
 					}
 				} else if (contents.length) {
-					post =  await publishPost( {
+					post = await publishPost( {
 						publishedAt: m.date * 1000,
 						contents,
 						...postData

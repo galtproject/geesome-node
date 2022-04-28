@@ -19,15 +19,11 @@
             />
           </header>
           <div class="post-page-content">
-            <Content />
-
-            <div v-if="$frontmatter.images && $frontmatter.images.length">
-              <img v-for="img in $frontmatter.images" :src="img.url">
-            </div>
-
-            <div v-if="$frontmatter.videos && $frontmatter.videos.length">
-              <video v-for="video in $frontmatter.videos" controls>
-                <source :src="video.url + '.mp4'" type="video/mp4">
+            <div v-for="c in $frontmatter.contents">
+              <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
+              <img v-if="c.type === 'image'" :src="c.url">
+              <video v-if="c.type === 'video'" controls>
+                <source :src="c.url + '.mp4'" type="video/mp4">
                 Your browser does not support the video tag.
               </video>
             </div>

@@ -780,9 +780,9 @@ class GeesomeApp implements IGeesomeApp {
     log('existsContent', !!existsContent);
     if (existsContent) {
       console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
-      await this.setContentPreviewIfNotExist(existsContent);
+      await this.updateExistsContentMetadata(existsContent, options);
       console.log('isUserCan', options.userId);
-      if(await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
+      if (await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
         await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       }
       return existsContent;
@@ -853,7 +853,7 @@ class GeesomeApp implements IGeesomeApp {
 
     const existsContent = await this.ms.database.getContentByStorageAndUserId(storageFile.id, options.userId);
     if (existsContent) {
-      await this.setContentPreviewIfNotExist(existsContent);
+      await this.updateExistsContentMetadata(existsContent, options);
       await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, existsContent, options);
       return existsContent;
     }
@@ -896,15 +896,21 @@ class GeesomeApp implements IGeesomeApp {
     }, options);
   }
 
-  async setContentPreviewIfNotExist(content: IContent) {
+  async updateExistsContentMetadata(content: IContent, options) {
     if (content.mediumPreviewStorageId && content.previewMimeType) {
       return;
     }
-    let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-    await this.ms.database.updateContent(content.id, previewData);
+    let updateData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
+    if(content.userId === options.userId) {
+      updateData = {
+        ..._.pick(options, ["view"]),
+        ...updateData,
+      }
+    }
+    await this.ms.database.updateContent(content.id, updateData);
     return this.updateContentManifest({
       ...content['toJSON'](),
-      ...previewData
+      ...updateData,
     });
   }
 
@@ -1188,14 +1194,11 @@ class GeesomeApp implements IGeesomeApp {
     const resolveProp = isPath ? isResolve : false;
 
     const dbObject = await this.ms.database.getObjectByStorageId(storageId, resolveProp);
-    console.log('dbObject', dbObject);
     if (dbObject) {
       const { data } = dbObject;
       return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
     }
-    console.log('getObject', storageId);
     return this.ms.storage.getObject(storageId, resolveProp).then((result) => {
-      console.log('result', result);
       this.ms.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
       return result;
     }).catch(e => {

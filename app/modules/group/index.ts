@@ -1,12 +1,17 @@
 import {IGeesomeApp, IGeesomeGroupModule} from "../../interface";
 import {
+	ContentView,
 	CorePermissionName,
 	GroupPermissionName,
 	GroupType,
 	GroupView,
+	IContent,
 	IGroup,
-	IListParams, IPost, PostStatus
+	IListParams,
+	IPost,
+	PostStatus
 } from "../database/interface";
+
 let helpers = require('../../helpers');
 const commonHelper = require('geesome-libs/src/common');
 const _ = require('lodash');
@@ -433,7 +438,6 @@ function getModule(app: IGeesomeApp) {
 			groupId = await this.checkGroupId(groupId);
 			const group = await this.getGroup(groupId);
 			const post = await app.ms.database.getPost(postId);
-			console.log('post.userId', post.userId, 'userId', userId);
 			return (await app.ms.database.isAdminInGroup(userId, groupId))
 				|| (!group.isOpen && await app.ms.database.isMemberInGroup(userId, groupId) && post.userId === userId)
 				|| (!group.isOpen && group.membershipOfCategoryId && await app.ms.database.isMemberInCategory(userId, group.membershipOfCategoryId) && post.userId === userId);
@@ -566,33 +570,34 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getPost(postId);
 		}
 
-		async getPostContent(baseStorageUri: string, post: IPost): Promise<{text, images, videos}> {
-			let text = '';
-			const textContent = _.find(post.contents, c => c.mimeType.startsWith('text/'));
-			if (textContent) {
-				text = await app.ms.storage.getFileDataText(textContent.storageId);
-			}
-			const images = [];
-			const videos = [];
-			post.contents.forEach((c) => {
-				if (_.includes(c.mimeType, 'image')) {
-					images.push({
-						manifestId: c.manifestStorageId,
-						url: baseStorageUri + c.storageId
-					});
+		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, url?, previewUrl?}[]> {
+			return pIteration.map(post.contents, async c => {
+				const baseData = {
+					mimeType: c.mimeType,
+					view: c.view || ContentView.Contents,
+					manifestId: c.manifestStorageId,
+				}
+				if (c.mimeType.startsWith('text/')) {
+					return {
+						type: 'text',
+						text: await app.ms.storage.getFileDataText(c.storageId),
+						...baseData
+					}
+				} else if (_.includes(c.mimeType, 'image')) {
+					return {
+						type: 'image',
+						url: baseStorageUri + c.storageId,
+						...baseData
+					};
 				} else if (_.includes(c.mimeType, 'video')) {
-					videos.push({
-						manifestId: c.manifestStorageId,
+					return {
+						type: 'video',
 						previewUrl: baseStorageUri + c.mediumPreviewStorageId,
-						url: baseStorageUri + c.storageId
-					});
+						url: baseStorageUri + c.storageId,
+						...baseData
+					};
 				}
 			});
-			return {
-				text,
-				images,
-				videos
-			}
 		}
 
 		async updatePost(userId, postId, postData) {

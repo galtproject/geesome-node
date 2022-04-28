@@ -20,7 +20,7 @@ module.exports = function(posts, settings) {
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
 
-                const {title, description} = getTitleAndDescription(post.content, postSettings);
+                const {title, description} = getTitleAndDescription(post.texts, postSettings);
 
                 const page = await createPage(app, {
                     path: getPostPath(post.id),
@@ -32,7 +32,7 @@ module.exports = function(posts, settings) {
                         title,
                         description,
                         date: post.date,
-                        ..._.pick(post, ['lang', 'id', 'images', 'videos'])
+                        ..._.pick(post, ['lang', 'id', 'contents', 'images', 'videos'])
                     },
                     content: post.content,
                 });
@@ -141,22 +141,27 @@ function getPaginationPostPath(pageNumber) {
     return '/posts/page/' + pageNumber + '/';
 }
 
-function getTitleAndDescription(content, postSettings) {
+function getTitleAndDescription(texts, postSettings) {
+    let content = _.find(texts, (t) => t.view === 'contents');
+    if (!content) {
+        content = texts[0];
+    }
+    const {text} = content;
     const {titleLength, descriptionLength} = postSettings;
-    let title = content.split('\n')[0];
+    let title = text.split('\n')[0];
     let description = '';
     let dotsAdded = false;
     if (title.length > titleLength) {
         title = title.slice(0, titleLength) + '...';
         dotsAdded = true;
         description = '...' + title.slice(titleLength, titleLength + descriptionLength);
-    } else if (content.split('\n')[1]) {
-        description = _.trimStart(content.split('\n')[1], '#').slice(descriptionLength);
-        if (description.length + title.length < content.length) {
+    } else if (text.split('\n')[1]) {
+        description = _.trimStart(text.split('\n')[1], '#').slice(descriptionLength);
+        if (description.length + title.length < text.length) {
             description += '...';
         }
     }
-    if (content.length > title.length && !dotsAdded) {
+    if (text.length > title.length && !dotsAdded) {
         title += '...';
     }
     return {title, description};
