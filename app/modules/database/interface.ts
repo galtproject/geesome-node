@@ -232,6 +232,8 @@ export interface IGeesomeDatabaseModule {
 
   getPost(postId): Promise<IPost>;
 
+  getPostListByIds(groupId, postIds): Promise<IPost[]>;
+
   getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
 
   getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;

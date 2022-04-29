@@ -251,6 +251,8 @@ export interface IGeesomeGroupModule {
 
   getPost(userId, postId);
 
+  getPostListByIds(userId, groupId, postIds);
+
   createPost(userId, postData);
 
   createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;

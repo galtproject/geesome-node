@@ -765,6 +765,21 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return post;
   }
 
+  async getPostListByIds(groupId, postIds) {
+    const posts = await this.models.Post.findOne({
+      where: {groupId, id: {[Op.in]: postIds}},
+      include: [{association: 'contents'}, {association: 'group'}],
+    });
+
+    posts.forEach(post => {
+      post.contents = _.orderBy(post.contents, [(content) => {
+        return content.postsContents.position;
+      }], ['asc']);
+    })
+
+    return posts;
+  }
+
 
   async getPostByManifestId(manifestStorageId) {
     const post = await this.models.Post.findOne({

@@ -10,10 +10,7 @@
 const Sequelize: any = require('sequelize');
 
 module.exports = async function () {
-	let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', {
-		'dialect': 'sqlite',
-		'storage': 'data/soc-net-database.sqlite'
-	});
+	let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', require('./config').options);
 
 	const Account = sequelize.define('socNetClient_telegram_account', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
@@ -90,6 +87,9 @@ module.exports = async function () {
 			type: Sequelize.INTEGER
 		},
 		replyToMsgId: {
+			type: Sequelize.INTEGER
+		},
+		timestamp: {
 			type: Sequelize.INTEGER
 		},
 	} as any, {

@@ -570,6 +570,12 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getPost(postId);
 		}
 
+		async getPostListByIds(userId, groupId, postIds) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			//TODO: add check for user can view post
+			return app.ms.database.getPostListByIds(groupId, postIds);
+		}
+
 		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, url?, previewUrl?}[]> {
 			return pIteration.map(post.contents, async c => {
 				const baseData = {

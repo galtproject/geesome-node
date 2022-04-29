@@ -13,6 +13,7 @@ import {
 	CorePermissionName, PostStatus,
 } from "../app/modules/database/interface";
 import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
+
 const telegramHelpers = require('../app/modules/telegramClient/helpers');
 
 const assert = require('assert');
@@ -189,7 +190,12 @@ describe("telegramClient", function () {
 				assert.equal(thumbSize, 'y');
 
 				telegramClient['downloadMediaByClient'] = (client, media) => {
-					return {result: {content: _base64ToArrayBuffer('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC'), mimeType: 'image/jpg'}};
+					return {
+						result: {
+							content: _base64ToArrayBuffer('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC'),
+							mimeType: 'image/jpg'
+						}
+					};
 				};
 
 				const contents = await telegramClient.messageToContents(null, message, testUser.id);
@@ -227,6 +233,80 @@ describe("telegramClient", function () {
 				assert.equal(messageC.manifestId, 'bafyreiajv76tijggtjfrjlmuqmzkchp6ivofamkvekcvfemij6qf7ocyy4');
 				assert.equal(messageC.text, 'btw, а это тут было: <a href="https://vas3k.ru/blog/machine_learning/">https://vas3k.ru/blog/machine_learning/</a>?');
 			});
+
+			it.only('local webpage message should import properly', async () => {
+				const testUser = (await app.ms.database.getAllUserList('user'))[0];
+
+				const message = {
+					id: 1247,
+					replyTo: null,
+					date: 1651067259,
+					message: 'https://t.me/inside_microwave/161',
+					entities: [
+						{
+							CONSTRUCTOR_ID: 1859134776,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityUrl',
+							classType: 'constructor',
+							offset: 0,
+							length: 33
+						}
+					],
+					media: {
+						CONSTRUCTOR_ID: 2737690112,
+						SUBCLASS_OF_ID: 1198308914,
+						className: 'MessageMediaWebPage',
+						classType: 'constructor',
+						webpage: {
+							CONSTRUCTOR_ID: 3902555570,
+							SUBCLASS_OF_ID: 1437168769,
+							className: 'WebPage',
+							classType: 'constructor',
+							flags: 15,
+							id: 1437168769,
+							url: 'https://t.me/inside_microwave/161',
+							displayUrl: 't.me/inside_microwave/161',
+							hash: 0,
+							type: 'telegram_message',
+							siteName: 'Telegram',
+							title: 'Внутри Микроволновки',
+							description: 'Для всех новоприбывших: если вы увидели тут какие-то сложные посты про #блокчейн - то настоятельно рекомендую прочитать тред про него с начала.\n' +
+								'\n' +
+								'Вот первый пост:\n' +
+								'https://t.me/inside_microwave/33\n' +
+								'Я там сделал цепочку из ссылок на следующие посты, так что читать должно быть удобно\n' +
+								'\n' +
+								'Ещё написал FAQ с описанием терминов, которые юзаю в треде:\n' +
+								'telegra.ph/Blockchain-FAQ-06-22\n' +
+								'\n' +
+								'Фишка в том что я стараюсь объяснить блокчейн и экосистему вокруг него так, чтобы он был понятен простому человеку, ну и заодно то, что блокчейн не равно биткоин, всё гораздо сложнее и интереснее. Рассказываю также про смарт контракты и децентрализованные финансы то что знаю, и надеюсь что получается донести почему я считаю эту технологию перспективной и крутой.\n' +
+								'\n' +
+								'А вообще я очень рад что сюда подключается много интересных и, что самое главное, адекватных людей, я давно хочу сформировать островок адекватности на котором люди с разными точками зрения будут учиться…',
+							photo: null,
+							embedUrl: null,
+							embedType: null,
+							embedWidth: null,
+							embedHeight: null,
+							duration: null,
+							author: null,
+							document: null,
+							cachedPage: null,
+							attributes: null
+						}
+					},
+					action: undefined,
+					groupedId: null
+				};
+
+
+				const contents = await telegramClient.messageToContents(null, message, testUser.id);
+				assert.equal(contents.length, 3);
+				const [imageContent, linkContent, messageContent] = contents;
+				assert.equal(imageContent.view, ContentView.Media);
+				assert.equal(linkContent.view, ContentView.Link);
+				assert.equal(messageContent.view, ContentView.Contents);
+
+			})
 		});
 	});
 });

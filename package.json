@@ -13,6 +13,8 @@
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
     "migrate-database": "( cd app/modules/database && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
     "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path app/modules/database/migrations --name",
+    "tc-migrate-database": "( cd app/modules/telegramClient && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
+    "tc-create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path app/modules/telegramClient/migrations --name",
     "rollback-migration": "( cd app/modules/database && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ts-node check/geesomePerfomance.ts --trace_gc",
     "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/ts-node -P tsconfig.json check/geesomeClientPerfomance.ts",

@@ -109,7 +109,8 @@ export default {
 			advancedSettingsEnabled: false,
 			advancedSettings: {
 				fromMessage: 1,
-				toMessage: 2
+				toMessage: 2,
+				mergeSeconds: 60
 			}
 		};
 	}
