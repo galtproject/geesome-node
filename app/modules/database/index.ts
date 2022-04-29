@@ -765,8 +765,12 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return post;
   }
 
+  async getPostsMetadata(postIds) {
+    return this.models.Post.findAll({ where: {id: {[Op.in]: postIds}}}) as IPost[];
+  }
+
   async getPostListByIds(groupId, postIds) {
-    const posts = await this.models.Post.findOne({
+    const posts = await this.models.Post.findAll({
       where: {groupId, id: {[Op.in]: postIds}},
       include: [{association: 'contents'}, {association: 'group'}],
     });
@@ -821,6 +825,10 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
 
   async updatePost(id, updateData) {
     return this.models.Post.update(updateData, {where: {id}});
+  }
+
+  async updatePosts(ids, updateData) {
+    return this.models.Post.update(updateData, {where: {id: {[Op.in]: ids}}});
   }
 
   async setPostContents(postId, contentsData) {

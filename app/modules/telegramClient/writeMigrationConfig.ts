@@ -16,7 +16,7 @@ if (!fs.existsSync(`${__dirname}/config/`)) {
   fs.mkdirSync(`${__dirname}/config/`);
 }
 
-const storage = config.options.storage ? __dirname.replace('app/modules/database', '') + config.options.storage : undefined;
+const storage = config.options.storage ? __dirname.replace('app/modules/telegramClient', '') + config.options.storage : undefined;
 
 fs.writeFileSync(`${__dirname}/config/config.json`, JSON.stringify({
   production: { dialect: config.options.dialect, storage}

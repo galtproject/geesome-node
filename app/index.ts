@@ -1166,7 +1166,7 @@ class GeesomeApp implements IGeesomeApp {
   async generateAndSaveManifest(entityName, entityObj) {
     const manifestContent = await this.ms.entityJsonManifest.generateContent(entityName + '-manifest', entityObj);
     const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
-    console.log(entityName, hash, JSON.stringify(manifestContent, null, ' '));
+    console.log(entityName, hash, JSON.stringify(manifestContent.posts ? {...manifestContent, posts: ['hidden']} : manifestContent, null, ' '));
     return hash;
   }
 

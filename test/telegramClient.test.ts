@@ -68,10 +68,24 @@ describe("telegramClient", function () {
 					console.error('error', e);
 					assert.equal(true, false);
 				}
+
+				telegramClient['downloadMediaByClient'] = (client, media) => {
+					const {file} = telegramHelpers.getMediaFileAndSize(media);
+					if (!file) {
+						return { client, result: null };
+					}
+					return {
+						result: {
+							content: _base64ToArrayBuffer('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC'),
+							mimeType: 'image/jpg'
+						}
+					};
+				};
 			});
 
 			afterEach(async () => {
 				await app.ms.database.flushDatabase();
+				await telegramClient.flushDatabase();
 				await app.stop();
 			});
 
@@ -189,15 +203,6 @@ describe("telegramClient", function () {
 				assert.equal(mimeType, 'image/jpg');
 				assert.equal(thumbSize, 'y');
 
-				telegramClient['downloadMediaByClient'] = (client, media) => {
-					return {
-						result: {
-							content: _base64ToArrayBuffer('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC'),
-							mimeType: 'image/jpg'
-						}
-					};
-				};
-
 				const contents = await telegramClient.messageToContents(null, message, testUser.id);
 				assert.equal(contents.length, 3);
 				const [imageContent, linkContent, messageContent] = contents;
@@ -234,7 +239,7 @@ describe("telegramClient", function () {
 				assert.equal(messageC.text, 'btw, а это тут было: <a href="https://vas3k.ru/blog/machine_learning/">https://vas3k.ru/blog/machine_learning/</a>?');
 			});
 
-			it.only('local webpage message should import properly', async () => {
+			it('local webpage message should import properly', async () => {
 				const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 				const message = {
@@ -300,13 +305,199 @@ describe("telegramClient", function () {
 
 
 				const contents = await telegramClient.messageToContents(null, message, testUser.id);
-				assert.equal(contents.length, 3);
-				const [imageContent, linkContent, messageContent] = contents;
-				assert.equal(imageContent.view, ContentView.Media);
+				assert.equal(contents.length, 2);
+				const [linkContent, textContent] = contents;
 				assert.equal(linkContent.view, ContentView.Link);
-				assert.equal(messageContent.view, ContentView.Contents);
+				assert.equal(textContent.view, ContentView.Contents);
+			});
 
-			})
+			it('should merge posts', async () => {
+				const testUser = (await app.ms.database.getAllUserList('user'))[0];
+				const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+
+				const message1 = {
+					id: 1244,
+					replyTo: null,
+					date: 1650964373,
+					message: 'jump to message 👇',
+					entities: [
+						{
+							CONSTRUCTOR_ID: 1990644519,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityTextUrl',
+							classType: 'constructor',
+							offset: 0,
+							length: 18,
+							url: 'https://t.me/ctodailychat/267937'
+						}
+					],
+					media: null,
+					action: undefined,
+					groupedId: null
+				};
+
+				const message2 = {
+					id: 1245,
+					replyTo: null,
+					date: 1650964374,
+					message: 'https://twitter.com/benstopford/status/1518544410191007746\n' +
+						'\n(превьюха не грузится и твиттер не дает скопировать текст)',
+					entities: [
+						{
+							CONSTRUCTOR_ID: 1859134776,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityUrl',
+							classType: 'constructor',
+							offset: 0,
+							length: 58
+						}
+					],
+					media: {
+						CONSTRUCTOR_ID: 1766936791,
+						SUBCLASS_OF_ID: 1198308914,
+						className: 'MessageMediaPhoto',
+						classType: 'constructor',
+						flags: 1,
+						photo: {
+							CONSTRUCTOR_ID: 4212750949,
+							SUBCLASS_OF_ID: 3581324060,
+							className: 'Photo',
+							classType: 'constructor',
+							flags: 0,
+							hasStickers: false,
+							id: 0,
+							accessHash: 0,
+							fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 dd 62 6b db 4a ea 35 3c 7c f2 20 b0 d6 c4 84 2f 5e 1e 5c 8c df*/]),
+							date: 1650925653,
+							sizes: [
+								{
+									CONSTRUCTOR_ID: 3769678894,
+									SUBCLASS_OF_ID: 399256025,
+									className: 'PhotoStrippedSize',
+									classType: 'constructor',
+									type: 'i',
+									bytes: Buffer.from([/*01 1b 28 ba e2 7f b7 a1 50 e6 3c 73 f3 7c a3 f0 ab 18 93 1f 78 fe 63 fc 29 18 90 fc 67 f3 14 87 3e ad d3 fb c2 80 25 5c e3 9a 5a 88 96 e7 19 f6 f9 85 ... 65 more bytes*/]),
+								},
+								{
+									CONSTRUCTOR_ID: 1976012384,
+									SUBCLASS_OF_ID: 399256025,
+									className: 'PhotoSize',
+									classType: 'constructor',
+									type: 'm',
+									w: 320,
+									h: 212,
+									size: 18298
+								},
+								{
+									CONSTRUCTOR_ID: 4198431637,
+									SUBCLASS_OF_ID: 399256025,
+									className: 'PhotoSizeProgressive',
+									classType: 'constructor',
+									type: 'x',
+									w: 750,
+									h: 496,
+									sizes: [3341, 9007, 17892, 25486, 39802]
+								}
+							],
+							videoSizes: null,
+							dcId: 2
+						},
+						ttlSeconds: null
+					},
+					action: undefined,
+					groupedId: null
+				};
+
+				const channel = await telegramClient.createDbChannel({
+					userId: testUser.id,
+					groupId: testGroup.id,
+					channelId: 1,
+					title: "1",
+					lastMessageId: 0,
+					postsCounts: 0,
+				});
+
+				const importState = {
+					mergeSeconds: 5,
+					userId: testUser.id,
+					groupId: testGroup.id,
+				};
+
+				const postData = {
+					groupId: testGroup.id,
+					status: 'published',
+					source: 'telegram',
+					sourceChannelId: channel.channelId,
+					sourcePostId: message1.id,
+					sourceDate: new Date(message1.date * 1000),
+					contents: [],
+				}
+
+				const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: message1.date};
+
+				const contents1 = await telegramClient.messageToContents(null, message1, testUser.id);
+				assert.equal(contents1.length, 1);
+				assert.equal(contents1[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+
+				postData.contents = contents1;
+				let post1 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
+				assert.equal(post1.contents.length, 1);
+
+				const contents2 = await telegramClient.messageToContents(null, message2, testUser.id);
+				assert.equal(contents2.length, 2);
+				assert.equal(contents2[0].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+				assert.equal(contents2[1].manifestStorageId, 'bafyreidinxfgg7j64j7zfjuyhkeihciypl6inpvw3mi3maxbyiltuimfpi');
+
+				postData.sourcePostId = message2.id;
+				postData.sourceDate = new Date(message2.date * 1000);
+				postData.contents = contents2;
+
+				msgData.timestamp = message2.date;
+
+				const post2 = await telegramClient.publishPost(importState, null, postData, [message2.id], msgData);
+				assert.equal(post2.id, post1.id);
+				assert.equal(post2.contents.length, 3);
+				assert.equal(post2.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+				assert.equal(post2.contents[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+				assert.equal(post2.contents[2].manifestStorageId, 'bafyreidinxfgg7j64j7zfjuyhkeihciypl6inpvw3mi3maxbyiltuimfpi');
+
+				message1.message = 'test';
+				message1.entities = [];
+				const contents3 = await telegramClient.messageToContents(null, message1, testUser.id);
+				assert.equal(contents3.length, 1);
+				assert.equal(contents3[0].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
+
+				message1.id -= 1;
+				message1.date -= 10;
+				postData.contents = contents3;
+
+				postData.sourcePostId = message1.id;
+				postData.sourceDate = new Date(message1.date * 1000);
+				postData.contents = contents3;
+
+				msgData.timestamp = message1.date;
+
+				let post3 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
+				assert.equal(post3.contents.length, 1);
+				assert.notEqual(post2.id, post3.id);
+
+				message1.date += 9;
+				msgData.timestamp = message1.date;
+
+				const existsChannelMessage = await telegramClient.findExistsChannelMessage(message1.id, channel.id, testUser.id);
+				assert.equal(existsChannelMessage.msgId, message1.id);
+
+				post3 = await telegramClient.publishPost(importState, existsChannelMessage, postData, [message1.id], msgData);
+				assert.equal(post3.contents.length, 4);
+				assert.equal(post3.contents[0].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
+				assert.equal(post3.contents[1].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+				assert.equal(post3.contents[2].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+				assert.equal(post3.contents[3].manifestStorageId, 'bafyreidinxfgg7j64j7zfjuyhkeihciypl6inpvw3mi3maxbyiltuimfpi');
+				assert.notEqual(post2.id, post3.id);
+
+				post1 = await app.ms.database.getPost(post1.id);
+				assert.equal(post1.isDeleted, true);
+			});
 		});
 	});
 });

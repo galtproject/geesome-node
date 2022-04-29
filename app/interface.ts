@@ -249,7 +249,7 @@ export interface IGeesomeGroupModule {
 
   setAdminsOfGroup(userId, groupId, adminIds): Promise<void>;
 
-  getPost(userId, postId);
+  getPost(userId, postId): Promise<IPost>;
 
   getPostListByIds(userId, groupId, postIds);
 
@@ -258,6 +258,8 @@ export interface IGeesomeGroupModule {
   createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
   updatePost(userId, postId, postData);
+
+  deletePosts(userId, postIds): Promise<any>;
 
   createGroup(userId, groupData): Promise<IGroup>;
 

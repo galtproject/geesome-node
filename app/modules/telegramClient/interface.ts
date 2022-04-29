@@ -1,4 +1,4 @@
-import {IContent, IUserAsyncOperation} from "../database/interface";
+import {IContent, IPost, IUserAsyncOperation} from "../database/interface";
 
 export default interface IGeesomeTelegramClient {
 	runChannelImport(userId, apiKey, accData, channelId, advancedSettings?): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;
@@ -25,4 +25,12 @@ export default interface IGeesomeTelegramClient {
 	login(userId, loginData): Promise<{ client, result: { response, sessionKey, account } }>;
 
 	messageToContents(client, m, userId): Promise<IContent[]>;
+
+	createDbChannel(channelData): Promise<any>;
+
+	publishPost(_importState, _existsChannelMessage, _postData, _msgIds, _msgData): Promise<IPost>;
+
+	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
+
+	flushDatabase(): Promise<any>;
 }

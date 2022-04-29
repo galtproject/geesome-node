@@ -110,7 +110,7 @@ export default {
 			advancedSettings: {
 				fromMessage: 1,
 				toMessage: 2,
-				mergeSeconds: 60
+				mergeSeconds: 5
 			}
 		};
 	}

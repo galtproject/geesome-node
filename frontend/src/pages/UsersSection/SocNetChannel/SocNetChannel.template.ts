@@ -23,7 +23,7 @@ module.exports = `
 			<div>
 				<a href @click.prevent.stop="advancedSettingsEnabled = !advancedSettingsEnabled;">Advanced settings</a>
 				<div v-if="advancedSettingsEnabled" class="md-layout">
-    				<div class="md-layout-item md-size-50">
+    				<div class="md-layout-item md-size-45">
 						<md-field>
 							<label>From message</label>
 							<md-input type="number" v-model="advancedSettings.fromMessage"></md-input>
@@ -33,6 +33,7 @@ module.exports = `
 							<md-input type="number" v-model="advancedSettings.toMessage"></md-input>
 						</md-field>
 					</div>
+    				<div class="md-layout-item md-size-5"></div>
     				<div class="md-layout-item md-size-50">
 						<md-field>
 							<label>Merge posts: seconds interval</label>

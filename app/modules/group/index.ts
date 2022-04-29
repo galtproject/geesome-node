@@ -644,6 +644,18 @@ function getModule(app: IGeesomeApp) {
 			return this.updatePostManifest(postId);
 		}
 
+		async deletePosts(userId, postIds) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const posts = await app.ms.database.getPostsMetadata(postIds);
+			const cantEditSomeOfPosts = await pIteration.some(posts, async (post) => {
+				return this.canEditPostInGroup(userId, post.groupId, post.id).then(r => !r);
+			})
+			if (cantEditSomeOfPosts) {
+				throw new Error("not_permitted");
+			}
+			return app.ms.database.updatePosts(postIds, {isDeleted: true})
+		}
+
 		async getPostLocalId(post: IPost) {
 			if (!post.groupId) {
 				return null;
