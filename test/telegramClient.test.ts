@@ -229,7 +229,7 @@ describe("telegramClient", function () {
 				assert.equal(linkC.type, 'text');
 				assert.equal(linkC.mimeType, 'text/plain');
 				assert.equal(linkC.view, 'link');
-				assert.equal(linkC.manifestId, 'bafyreiei6s465nrepzipagklzyy4gbmibjy6cw5yxtgesyjggoc4o7ex74');
+				assert.equal(linkC.manifestId, 'bafyreifzmmfrrksjzjjamcz5mvtejxljiec6h7jsiimuo36z3pwtrbmhfe');
 				assert.equal(linkC.text, 'https://vas3k.ru/blog/machine_learning/');
 
 				assert.equal(messageC.type, 'text');
@@ -308,6 +308,7 @@ describe("telegramClient", function () {
 				assert.equal(contents.length, 2);
 				const [linkContent, textContent] = contents;
 				assert.equal(linkContent.view, ContentView.Link);
+				console.log(await app.ms.storage.getFileDataText(linkContent.mediumPreviewStorageId), telegramClient.mediaWebpageToPreviewHtml(message.media.webpage));
 				assert.equal(textContent.view, ContentView.Contents);
 			});
 

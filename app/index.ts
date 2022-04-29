@@ -720,7 +720,7 @@ class GeesomeApp implements IGeesomeApp {
     return apiKeyDb.id;
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -872,17 +872,31 @@ class GeesomeApp implements IGeesomeApp {
 
   async addContentWithPreview(storageFile: IStorageFile, contentData, options, source?) {
     console.log('addContentWithPreview');
-    const {
-      storageFile: forPreviewStorageFile,
-      extension: forPreviewExtension,
-      fullType: forPreviewFullType,
-      properties
-    } = await this.prepareStorageFileAndGetPreview(storageFile, contentData.extension, contentData.mimeType);
-    console.log('getPreview');
-    let previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
-
-    if (properties) {
-      contentData.propertiesJson = JSON.stringify(properties);
+    let previewData = {};
+    console.log('options.previews', options.previews);
+    if (options.previews) {
+      await pIteration.forEachSeries(options.previews, async (p) => {
+        const result = await this.saveFileByStream(options.userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
+        console.log('result', result);
+        previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
+        previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
+        //TODO: separate previews types
+        previewData['previewMimeType'] = result.resultMimeType;
+        previewData['previewExtension'] = result.resultExtension;
+      });
+      console.log('previewData', previewData);
+    } else {
+      const {
+        storageFile: forPreviewStorageFile,
+        extension: forPreviewExtension,
+        fullType: forPreviewFullType,
+        properties
+      } = await this.prepareStorageFileAndGetPreview(storageFile, contentData.extension, contentData.mimeType);
+      console.log('getPreview');
+      previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
+      if (properties) {
+        contentData.propertiesJson = JSON.stringify(properties);
+      }
     }
 
     if (storageFile.emitFinish) {

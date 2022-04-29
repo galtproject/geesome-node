@@ -555,6 +555,10 @@ function getModule(app: IGeesomeApp, models) {
 			return resultPost.id;
 		}
 
+		mediaWebpageToPreviewHtml(webpage) {
+			return `<div class="link-preview"><div class="link-title">${webpage.title}</div><div class="link-description">${webpage.description}</div></div>`;
+		}
+
 		async messageToContents(client, m, userId) {
 			let contents = [];
 
@@ -571,7 +575,12 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId, view: ContentView.Link });
+					const content = await app.saveData(m.media.webpage.url, '', {
+						mimeType: 'text/plain',
+						userId,
+						view: ContentView.Link,
+						previews: [{previewSize: 'medium', mimeType: 'text/html', content: this.mediaWebpageToPreviewHtml(m.media.webpage)}]
+					});
 					contents.push(content);
 				}
 			}
