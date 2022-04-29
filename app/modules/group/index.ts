@@ -374,6 +374,9 @@ function getModule(app: IGeesomeApp) {
 		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = this.prepareListParams(listParams);
+			if (_.isUndefined(filters['isDeleted'])) {
+				filters['isDeleted'] = false;
+			}
 			return {
 				list: await app.ms.database.getGroupPosts(groupId, filters, listParams),
 				total: await app.ms.database.getGroupPostsCount(groupId, filters)
@@ -571,6 +574,12 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getPostListByIds(userId, groupId, postIds) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			//TODO: add check for user can view post
+			return app.ms.database.getPostListByIds(groupId, postIds);
+		}
+
+		async delete(userId, groupId, postIds) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			//TODO: add check for user can view post
 			return app.ms.database.getPostListByIds(groupId, postIds);

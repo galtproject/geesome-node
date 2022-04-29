@@ -494,7 +494,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				async function mergePostsToOne(_existsPostId, _postIds, _postData) {
-					const posts = await app.ms.group.getPostListByIds(userId, groupId, _postIds);
+					const posts = await app.ms.group.getPostListByIds(userId, groupId, _postIds).then(posts => posts.filter(p => !p.isDeleted));
 					if (!posts.length) {
 						return _existsPostId;
 					}
