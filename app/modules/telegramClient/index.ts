@@ -508,6 +508,7 @@ function getModule(app: IGeesomeApp, models) {
 						[Op.gte]: _msgData.timestamp - mergeSeconds,
 					}}});
 
+			// console.log('existsPostId', existsPostId, 'messagesByTimestamp.map(m => m.postId)', messagesByTimestamp.map(m => m.postId));
 			if (messagesByTimestamp.length) {
 				const postIds = uniq(messagesByTimestamp.map(m => m.postId)).filter(postId => existsPostId !== postId);
 				if (postIds.length || !existsPostId) {
@@ -518,6 +519,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
+			_postData.isDeleted = false;
 			if (existsPostId) {
 				await app.ms.group.updatePost(userId, existsPostId, _postData);
 			} else {
@@ -534,6 +536,7 @@ function getModule(app: IGeesomeApp, models) {
 		async mergePostsToOne(_importState, _existsPostId, _postIds, _postData) {
 			const {userId, groupId} = _importState;
 			const posts = await app.ms.group.getPostListByIds(userId, groupId, _postIds).then(posts => posts.filter(p => !p.isDeleted));
+			// console.log('posts.length', posts.length);
 			if (!posts.length) {
 				return _existsPostId;
 			}
@@ -551,6 +554,7 @@ function getModule(app: IGeesomeApp, models) {
 				c => c.manifestStorageId
 			);
 			await app.ms.group.updatePost(userId, resultPost.id, {contents});
+			// console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
 			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id))
 			return resultPost.id;
 		}
