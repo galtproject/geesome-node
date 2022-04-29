@@ -16,9 +16,12 @@ const { computeCheck } = require("telegram/Password");
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
+const uniq = require('lodash/uniq');
+const uniqBy = require('lodash/uniqBy');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
+const Op = require("sequelize").Op;
 
 module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./database")();
@@ -283,7 +286,7 @@ function getModule(app: IGeesomeApp, models) {
 					await models.Channel.update(channelData, {where: {id: dbChannel.id}});
 					await models.Message.destroy({where: {dbChannelId: dbChannel.id}});
 				} else {
-					dbChannel = await models.Channel.create(channelData);
+					dbChannel = await this.createDbChannel(channelData);
 				}
 			}
 
@@ -320,7 +323,7 @@ function getModule(app: IGeesomeApp, models) {
 					if (countToFetch > 50) {
 						countToFetch = 50;
 					}
-					await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, force, async (m, post) => {
+					await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, force, advancedSettings, async (m, post) => {
 						console.log('onMessageProcess', m.id.toString());
 						currentMessageId = parseInt(m.id.toString());
 						dbChannel.update({ lastMessageId: currentMessageId });
@@ -345,6 +348,14 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
+		async createDbChannel(channelData) {
+			return models.Channel.create(channelData);
+		}
+
+		async findExistsChannelMessage(msgId, dbChannelId, userId) {
+			return models.Message.findOne({where: {msgId, dbChannelId, userId}});
+		}
+
 		async getDbPostIdByTelegramMsgId(dbChannelId, msgId) {
 			if (!msgId) {
 				return;
@@ -353,10 +364,18 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
 		}
 
-		async importChannelPosts(client, userId, groupId, dbChannel, startPost = 1, postsCount = 50, force = false, onMessageProcess = null) {
+		async importChannelPosts(client, userId, groupId, dbChannel, startPost = 1, postsCount = 50, force = false, advancedSettings = {}, onMessageProcess = null) {
 			const messagesIds = Array.from({length: postsCount}, (_, i) => i + startPost);
 			console.log('messagesIds', messagesIds);
 			const dbChannelId = dbChannel.id;
+
+			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
+
+			const importState = {
+				mergeSeconds,
+				userId,
+				groupId,
+			}
 
 			let groupedId = null;
 			let groupedReplyTo = null;
@@ -376,11 +395,12 @@ function getModule(app: IGeesomeApp, models) {
 					messageLinkTpl = await this.getMessageLink(client, dbChannel.channelId, msgId)
 						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
 				}
-				const existsChannelMessage = await models.Message.findOne({where: {msgId, dbChannelId, userId}});
+				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
 				if (existsChannelMessage && !force) {
 					await onMessageProcess(m, null);
 					return;
 				}
+
 				const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
 				const contents = await this.messageToContents(client, m, userId);
 				const properties = { sourceLink };
@@ -394,18 +414,23 @@ function getModule(app: IGeesomeApp, models) {
 					properties['groupedMsgIds'] = groupedMessageIds;
 				}
 
+				const timestamp = parseInt(groupedDate || m.date);
+
 				const postData = {
 					groupId,
+					userId,
 					status: 'published',
 					propertiesJson: JSON.stringify(properties),
 					source: 'telegram',
 					sourceChannelId: dbChannel.channelId,
 					sourcePostId: groupedMessageIds.length ? groupedMessageIds[0] : msgId,
-					sourceDate: new Date(parseInt(groupedDate || m.date) * 1000),
+					sourceDate: new Date(timestamp * 1000),
 					replyToId: await this.getDbPostIdByTelegramMsgId(dbChannelId, properties['replyToMsgId']),
+					contents: [],
 				}
 				console.log('postData', postData);
 
+				const msgData = {dbChannelId, userId, groupedId, timestamp};
 				let post;
 				console.log('m.groupedId', m.groupedId && m.groupedId.toString());
 				if (
@@ -413,19 +438,11 @@ function getModule(app: IGeesomeApp, models) {
 					(groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
 					i === messages.length - 1 // messages end
 				) {
-					let postId = null;
-					if (groupedContent.length) {
-						post = await publishPost({
-							publishedAt: groupedDate * 1000,
-							contents: groupedContent,
-							...postData
-						});
-						postId = post.id;
-					}
-
-					await pIteration.forEach(groupedMessageIds,
-						(_msgId) => storeMessage({msgId: _msgId, postId, replyToMsgId: groupedReplyTo})
-					);
+					postData.contents = groupedContent;
+					post = await this.publishPost(importState, existsChannelMessage, postData, groupedMessageIds, {
+						...msgData,
+						replyToMsgId: groupedReplyTo
+					});
 
 					groupedContent = [];
 					groupedMessageIds = [];
@@ -442,40 +459,108 @@ function getModule(app: IGeesomeApp, models) {
 					if (m.replyTo) {
 						groupedReplyTo = m.replyTo.replyToMsgId.toString();
 					}
-				} else if (contents.length) {
-					post = await publishPost( {
-						publishedAt: m.date * 1000,
-						contents,
-						...postData
-					});
-					storeMessage({msgId, postId: post.id, replyToMsgId: properties['replyToMsgId']});
 				} else {
-					storeMessage({msgId, replyToMsgId: properties['replyToMsgId']});
+					postData.contents = contents;
+					post = await this.publishPost(importState, existsChannelMessage, postData, [msgId], {
+						...msgData,
+						replyToMsgId: properties['replyToMsgId']
+					});
 				}
 				if (onMessageProcess) {
 					await onMessageProcess(m, post);
 				}
-
-				function storeMessage(_messageData) {
-					_messageData = {
-						..._messageData,
-						dbChannelId, userId, groupedId,
-					}
-					if (existsChannelMessage) {
-						return models.Message.update(_messageData, {where: {id: existsChannelMessage.id}});
-					} else {
-						return models.Message.create(_messageData);
-					}
-				}
-
-				function publishPost(_postData) {
-					if (existsChannelMessage) {
-						return app.ms.group.updatePost(userId, existsChannelMessage.postId, _postData);
-					} else {
-						return app.ms.group.createPost(userId, _postData);
-					}
-				}
 			});
+		}
+
+		storeMessage(existsChannelMessage, _messageData) {
+			if (existsChannelMessage) {
+				return models.Message.update(_messageData, {where: {id: existsChannelMessage.id}});
+			} else {
+				return models.Message.create(_messageData);
+			}
+		}
+
+		async publishPost(_importState, _existsChannelMessage, _postData, _msgIds, _msgData) {
+			const {userId, mergeSeconds} = _importState;
+			let existsPostId = _existsChannelMessage && _existsChannelMessage.postId;
+
+			if (!_postData.contents.length) {
+				await pIteration.forEach(_msgIds,
+					(_msgId) => this.storeMessage(_existsChannelMessage, {..._msgData, msgId: _msgId})
+				);
+				return;
+			}
+
+			if (_msgData.groupedId) {
+				const messagesByGroupedId = await models.Message.findAll({where: {groupedId: _msgData.groupedId}});
+				if (messagesByGroupedId.length) {
+					const postIds = uniq(messagesByGroupedId.map(m => m.postId)).filter(postId => existsPostId !== postId);
+					if (postIds.length || !existsPostId) {
+						existsPostId = await this.mergePostsToOne(_importState, existsPostId, postIds, _postData);
+						// content updated by merging
+						delete _postData.contents;
+					}
+				}
+			}
+
+			const messagesByTimestamp = await models.Message.findAll({where: {timestamp: {
+						[Op.lte]: _msgData.timestamp + mergeSeconds,
+						[Op.gte]: _msgData.timestamp - mergeSeconds,
+					}}});
+
+			// console.log('existsPostId', existsPostId, 'messagesByTimestamp.map(m => m.postId)', messagesByTimestamp.map(m => m.postId));
+			if (messagesByTimestamp.length) {
+				const postIds = uniq(messagesByTimestamp.map(m => m.postId)).filter(postId => existsPostId !== postId);
+				if (postIds.length || !existsPostId) {
+					existsPostId = await this.mergePostsToOne(_importState, existsPostId, postIds, _postData);
+					// content updated by merging
+					delete _postData.contents;
+				}
+			}
+
+			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
+			_postData.isDeleted = false;
+			if (existsPostId) {
+				await app.ms.group.updatePost(userId, existsPostId, _postData);
+			} else {
+				existsPostId = await app.ms.group.createPost(userId, _postData).then(p => p.id);
+			}
+
+			await pIteration.forEach(_msgIds,
+				(_msgId) => this.storeMessage(_existsChannelMessage, {..._msgData, msgId: _msgId, postId: existsPostId})
+			);
+
+			return app.ms.database.getPost(existsPostId);
+		}
+
+		async mergePostsToOne(_importState, _existsPostId, _postIds, _postData) {
+			const {userId, groupId} = _importState;
+			const posts = await app.ms.group.getPostListByIds(userId, groupId, _postIds).then(posts => posts.filter(p => !p.isDeleted));
+			// console.log('posts.length', posts.length);
+			if (!posts.length) {
+				return _existsPostId;
+			}
+
+			let postsContents = [];
+			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
+
+			let resultPost = _existsPostId ? await app.ms.group.getPost(userId, _existsPostId) : null;
+			if (!resultPost) {
+				resultPost = posts[0];
+			}
+			let {contents} = resultPost;
+			contents = uniqBy(
+				contents.concat(postsContents).concat(_postData.contents || []),
+				c => c.manifestStorageId
+			);
+			await app.ms.group.updatePost(userId, resultPost.id, {contents});
+			// console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
+			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id))
+			return resultPost.id;
+		}
+
+		mediaWebpageToPreviewHtml(webpage) {
+			return `<div class="link-preview"><div class="link-title">${webpage.title}</div><div class="link-description">${webpage.description}</div></div>`;
 		}
 
 		async messageToContents(client, m, userId) {
@@ -486,6 +571,7 @@ function getModule(app: IGeesomeApp, models) {
 					//TODO: handle and save polls (325)
 					return contents;
 				}
+				console.log('m.media', m.media);
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
 				if (file && file.content) {
 					const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
@@ -493,7 +579,12 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.saveData(m.media.webpage.url, '', {mimeType: 'text/plain', userId, view: ContentView.Link });
+					const content = await app.saveData(m.media.webpage.url, '', {
+						mimeType: 'text/plain',
+						userId,
+						view: ContentView.Link,
+						previews: [{previewSize: 'medium', mimeType: 'text/html', content: this.mediaWebpageToPreviewHtml(m.media.webpage)}]
+					});
 					contents.push(content);
 				}
 			}
@@ -510,6 +601,11 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			return contents;
+		}
+		async flushDatabase() {
+			await pIteration.forEachSeries(['Message', 'Channel', 'Account'], (modelName) => {
+				return models[modelName].destroy({where: {}});
+			});
 		}
 	}
 

@@ -374,6 +374,9 @@ function getModule(app: IGeesomeApp) {
 		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = this.prepareListParams(listParams);
+			if (_.isUndefined(filters['isDeleted'])) {
+				filters['isDeleted'] = false;
+			}
 			return {
 				list: await app.ms.database.getGroupPosts(groupId, filters, listParams),
 				total: await app.ms.database.getGroupPostsCount(groupId, filters)
@@ -570,6 +573,18 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getPost(postId);
 		}
 
+		async getPostListByIds(userId, groupId, postIds) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			//TODO: add check for user can view post
+			return app.ms.database.getPostListByIds(groupId, postIds);
+		}
+
+		async delete(userId, groupId, postIds) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			//TODO: add check for user can view post
+			return app.ms.database.getPostListByIds(groupId, postIds);
+		}
+
 		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, url?, previewUrl?}[]> {
 			return pIteration.map(post.contents, async c => {
 				const baseData = {
@@ -627,6 +642,18 @@ function getModule(app: IGeesomeApp) {
 
 			await app.ms.database.updatePost(postId, postData);
 			return this.updatePostManifest(postId);
+		}
+
+		async deletePosts(userId, postIds) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const posts = await app.ms.database.getPostsMetadata(postIds);
+			const cantEditSomeOfPosts = await pIteration.some(posts, async (post) => {
+				return this.canEditPostInGroup(userId, post.groupId, post.id).then(r => !r);
+			})
+			if (cantEditSomeOfPosts) {
+				throw new Error("not_permitted");
+			}
+			return app.ms.database.updatePosts(postIds, {isDeleted: true})
 		}
 
 		async getPostLocalId(post: IPost) {

@@ -43,17 +43,15 @@ module.exports = {
 		let thumbSize = 'y';
 		if (media.photo || (media.webpage && media.webpage.photo)) {
 			file = media.photo || media.webpage.photo;
+			console.log('file.sizes', file.sizes);
 			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
-			console.log('ySize', ySize);
 			if (!ySize || !ySize.sizes) {
 				return {};
 			}
 			if (isNumber(ySize.sizes[0])) {
 				fileSize = maxBy(ySize.sizes);
 			} else {
-				console.log('ySize.sizes.filter(s => s.size)', ySize.sizes.filter(s => s.size));
 				const maxSize = maxBy(ySize.sizes.filter(s => s.size), s => s.size);
-				console.log('maxSize', maxSize);
 				fileSize = maxSize.size
 				thumbSize = maxSize.type;
 			}

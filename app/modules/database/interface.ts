@@ -54,6 +54,10 @@ export interface IGeesomeDatabaseModule {
 
   updatePost(id, updateData: any): Promise<IPost>;
 
+  updatePosts(ids, updateData): Promise<IPost>;
+
+  getPostsMetadata(ids): Promise<IPost[]>;
+
   getPostSizeSum(id): Promise<number>;
 
   setPostContents(postId, contentsIds): Promise<void>;
@@ -231,6 +235,8 @@ export interface IGeesomeDatabaseModule {
   getAllPostsCount(filters?): Promise<number>;
 
   getPost(postId): Promise<IPost>;
+
+  getPostListByIds(groupId, postIds): Promise<IPost[]>;
 
   getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
 
@@ -424,6 +430,7 @@ export interface IPost {
   type?;
   contents?: IContent[];
   size?;
+  isDeleted?: boolean;
   isPinned?: boolean;
   isRemote?: boolean;
   isEncrypted?: boolean;
