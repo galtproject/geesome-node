@@ -195,11 +195,16 @@ function getModule(app: IGeesomeApp) {
                 groupId
             };
 
-            fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
+            if (process.env.SSG_RUNTIME) {
+                await require('./build')(childProcessData);
+            } else {
+                fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
 
-            await new Promise((resolve, reject) => {
-                childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
-            });
+                await new Promise((resolve, reject) => {
+                    childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
+                });
+            }
+
             // if (options.asyncOperationId) {
             //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
             // }

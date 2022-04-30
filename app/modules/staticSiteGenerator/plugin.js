@@ -15,14 +15,13 @@ module.exports = function(posts, settings) {
 
             postPages = [];
             intervallers = getIntervallers(posts.length, postListSettings.postsPerPage);
-            console.log('getIntervallers', posts.length, postListSettings.postsPerPage);
-            console.log('intervallers', intervallers);
 
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
 
                 const {title, description} = getTitleAndDescription(post.texts, postSettings);
 
+                console.log('title', title, 'description', description);
                 const page = await createPage(app, {
                     path: getPostPath(post.id),
                     frontmatter: {

@@ -15,6 +15,7 @@ services:
     environment:
       - IPFS_PROFILE
       - DEBUG
+      - SSG_RUNTIME
   ipfs:
     container_name: go_ipfs
     image: "ipfs/go-ipfs:v0.9.1"

@@ -599,10 +599,7 @@ function getModule(app: IGeesomeApp, models) {
 
 			if (m.message) {
 				console.log('m.message', m.message, 'm.entities', m.entities);
-				let text = m.message;
-				if (m.entities) {
-					text = telegramHelpers.messageWithEntitiesToHtml(text, m.entities);
-				}
+				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
 				console.log('text', text);
 				const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
 				contents.push(textContent);
