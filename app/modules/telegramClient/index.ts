@@ -503,6 +503,7 @@ function getModule(app: IGeesomeApp, models) {
 					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByGroupedId, _postData);
 				}
 			}
+			console.log('1 existsPostId', existsPostId);
 
 			if (mergeSeconds) {
 				const messagesByTimestamp = await models.Message.findAll({where: {dbChannelId: _msgData.dbChannelId, timestamp: {
@@ -513,9 +514,14 @@ function getModule(app: IGeesomeApp, models) {
 					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByTimestamp, _postData);
 				}
 			}
+			console.log('2 existsPostId', existsPostId);
 
+			if (_postData.contents) {
+				_postData.contents = uniqBy(_postData.contents, (c) => c.manifestStorageId);
+			}
 			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
 			_postData.isDeleted = false;
+
 			if (existsPostId) {
 				await app.ms.group.updatePost(userId, existsPostId, _postData);
 			} else {
@@ -531,9 +537,13 @@ function getModule(app: IGeesomeApp, models) {
 
 		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
 			const postIds = uniq(_messages.map(m => m.postId));
-			if (!postIds.filter(postId => _existsPostId !== postId).length && !_existsPostId) {
+			const postsIdsWithoutExists = postIds.filter(postId => _existsPostId !== postId);
+			// 1 case: there's created post and appears new one to merge(not created): _existsPostId is null, postsIdsWithoutExists.length > 0
+			// 2 case: there's created post and appears new one to merge(created): _existsPostId not null, postsIdsWithoutExists.length > 0
+			if (!postsIdsWithoutExists.length) {
 				return _existsPostId;
 			}
+			console.log('mergePostsToOne', _existsPostId, postIds);
 			if (_existsPostId && !includes(postIds, _existsPostId)) {
 				postIds.push(_existsPostId);
 			}

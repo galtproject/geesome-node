@@ -540,10 +540,14 @@ describe("telegramClient", function () {
 				let post1 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
 				assert.equal(post1.contents.length, 1);
 
+				const existsChannelMessagePost1 = await telegramClient.findExistsChannelMessage(message1.id, channel.id, testUser.id);
+				post1 = await telegramClient.publishPost(importState, existsChannelMessagePost1, postData, [message1.id], msgData);
+				assert.equal(post1.contents.length, 1);
+
 				const contents2 = await telegramClient.messageToContents(null, message2, testUser.id);
 				assert.equal(contents2.length, 2);
 				assert.equal(contents2[0].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-				assert.equal(contents2[1].manifestStorageId, 'bafyreidinxfgg7j64j7zfjuyhkeihciypl6inpvw3mi3maxbyiltuimfpi');
+				assert.equal(contents2[1].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
 
 				postData.sourcePostId = message2.id;
 				postData.sourceDate = new Date(message2.date * 1000);
@@ -555,7 +559,7 @@ describe("telegramClient", function () {
 				assert.equal(post2.id, post1.id);
 				assert.equal(post2.contents.length, 3);
 				assert.equal(post2.contents[0].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-				assert.equal(post2.contents[1].manifestStorageId, 'bafyreidinxfgg7j64j7zfjuyhkeihciypl6inpvw3mi3maxbyiltuimfpi');
+				assert.equal(post2.contents[1].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
 				assert.equal(post2.contents[2].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
 
 				message1.message = 'test';
@@ -589,7 +593,7 @@ describe("telegramClient", function () {
 				assert.equal(post3.contents.length, 4);
 				assert.equal(post3.contents[0].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
 				assert.equal(post3.contents[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-				assert.equal(post3.contents[2].manifestStorageId, 'bafyreidinxfgg7j64j7zfjuyhkeihciypl6inpvw3mi3maxbyiltuimfpi');
+				assert.equal(post3.contents[2].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
 				assert.equal(post3.contents[3].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
 				assert.equal(post2.id, post3.id);
 
