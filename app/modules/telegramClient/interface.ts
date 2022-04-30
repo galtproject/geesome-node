@@ -32,7 +32,5 @@ export default interface IGeesomeTelegramClient {
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
 
-	mediaWebpageToPreviewHtml(webpage): string;
-
 	flushDatabase(): Promise<any>;
 }

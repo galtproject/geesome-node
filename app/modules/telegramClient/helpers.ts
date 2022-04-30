@@ -65,5 +65,17 @@ module.exports = {
 		}
 		// console.log('media.webpage', media.webpage);
 		return {file, fileSize, mimeType, thumbSize};
+	},
+
+	mediaWebpageToPreviewHtml(webpage) {
+		let html = '<div class="link-preview">';
+		if (webpage.title) {
+			html += '<div class="link-title">${webpage.title}</div>';
+		}
+		if (webpage.description) {
+			html += '<div class="link-description">${webpage.description}</div>';
+		}
+		html += '</div>';
+		return html;
 	}
 }

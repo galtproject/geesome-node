@@ -13,6 +13,7 @@ import AbstractDriver from "../abstractDriver";
 const fs = require('fs');
 const uuidv4 = require('uuid/v4');
 const rimraf = require("rimraf");
+const isString = require("lodash/isString");
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -23,12 +24,15 @@ export class FileUploadDriver extends AbstractDriver {
     let size;
 
     try {
-      await new Promise((res) =>
-          inputStream
-              .pipe(fs.createWriteStream(path))
-              .on("close", res)
-      );
-
+      if (isString(inputStream)) {
+        fs.writeFileSync(path, inputStream);
+      } else {
+        await new Promise((res) =>
+            inputStream
+                .pipe(fs.createWriteStream(path))
+                .on("close", res)
+        );
+      }
       size = getFileSize(path);
     } catch (e) {
       if (options.onError) {
