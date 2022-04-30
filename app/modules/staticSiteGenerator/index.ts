@@ -1,15 +1,15 @@
 import {IGeesomeApp} from "../../interface";
 import {ContentMimeType, IContent} from "../database/interface";
 
-const {createBuildApp} = require('@vuepress/core');
 const { path } = require('@vuepress/utils');
 
 const base = '/';
-const plugin = require('./plugin');
 const pIteration = require('p-iteration');
 const _ = require('lodash');
 const {rmDir} = require('./helpers');
 const commonHelper = require('geesome-libs/src/common');
+const childProcess = require("child_process");
+const fs = require("fs");
 
 module.exports = (app: IGeesomeApp) => {
     const module = getModule(app);
@@ -20,10 +20,15 @@ module.exports = (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp) {
     app.checkModules(['asyncOperation', 'group']);
 
+    // temp storage of tokens to pass to child process
+    let apiKeyIdToTokenTemp = {
+
+    };
+
     class StaticSiteGenerator {
         moduleName = 'static-site-generator';
 
-        async addRenderToQueueAndProcess(userId, apiKey, type, id, options) {
+        async addRenderToQueueAndProcess(userId, token, type, id, options) {
             if (type === 'group') {
                 const isAdmin = await app.ms.group.isAdminInGroup(userId, id);
                 if (!isAdmin) {
@@ -33,9 +38,9 @@ function getModule(app: IGeesomeApp) {
                 throw Error('unknown_type');
             }
 
-            const apiKeyId = await app.getApyKeyId(apiKey);
-            console.log('apiKeyId', apiKeyId);
-            await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, apiKeyId, {
+            const userApiKeyId = await app.getApyKeyId(token);
+            apiKeyIdToTokenTemp[userApiKeyId] = token;
+            await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
                 type,
                 id,
                 options
@@ -46,6 +51,7 @@ function getModule(app: IGeesomeApp) {
         async processQueue() {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
             if (!waitingQueue) {
+                apiKeyIdToTokenTemp = {};
                 return;
             }
 
@@ -130,16 +136,18 @@ function getModule(app: IGeesomeApp) {
             const defaultOptions = this.getDefaultOptions(group, options.baseStorageUri);
             const merged = _.merge(defaultOptions, options);
             ['post.titleLength', 'post.descriptionLength', 'postList.postsPerPage'].forEach(name => {
-                merged[name] = parseInt(merged[name]);
+                _.set(merged, name, parseInt(_.get(merged, name)))
             });
             return merged;
         }
 
-        async generateContent(name, data, options: any = {}): Promise<IContent> {
+        async generateContent(name, groupId, options: any = {}): Promise<IContent> {
             const distPath = path.resolve(__dirname, './.vuepress/dist');
             rmDir(distPath);
 
-            const group = await app.ms.group.getGroup(data);
+            const {userApiKeyId} = options;
+
+            const group = await app.ms.group.getGroup(groupId);
             let properties = {};
             try {
                 if (group.propertiesJson) {
@@ -149,8 +157,8 @@ function getModule(app: IGeesomeApp) {
             }
             options = this.getResultOptions(group, _.merge(properties, options));
 
-            console.log('getGroupPosts', data);
-            const {list: groupPosts} = await app.ms.group.getGroupPosts(data, {}, {
+            console.log('getGroupPosts', groupId);
+            const {list: groupPosts} = await app.ms.group.getGroupPosts(groupId, {}, {
                 sortBy: 'publishedAt',
                 sortDir: 'desc',
                 limit: 9999,
@@ -161,10 +169,8 @@ function getModule(app: IGeesomeApp) {
 
             const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
                 const contents = await app.ms.group.getPostContent(baseStorageUri, gp);
-                console.log('contents', contents);
 ;
                 if (options.asyncOperationId && i % 10 === 0) {
-                    console.log('updateAsyncOperation');
                     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
                 }
 
@@ -179,58 +185,29 @@ function getModule(app: IGeesomeApp) {
                 }
             });
 
-            const storeAsset = async (assetContent) => {
-                const data = await app.saveData(assetContent, '', {
-                    userId: options.userId,
-                    groupId: group.id,
-                    mimeType: ContentMimeType.Text,
-                    waitForPin: true,
-                });
-                console.log('storeAsset', data.storageId);
-                return data.storageId;
-            }
-
-            const storeFolder = async (dirPath) => {
-                const data = await app.saveDirectoryToStorage(options.userId, dirPath, {
-                    userId: options.userId,
-                    groupId: group.id,
-                    waitForPin: true,
-                });
-                return data.storageId;
-            }
-
-            console.log('createBuildApp');
-            const staticSiteApp = createBuildApp({
+            const childProcessData = {
+                token: apiKeyIdToTokenTemp[userApiKeyId],
+                port: app.ms.api.port,
                 base,
-                source: __dirname,
-                theme: path.resolve(__dirname, './theme'),
-                templateBuild: path.resolve(__dirname, './theme/index.ssr.html'),
-                plugins: [plugin(posts, options)],
-                bundler: '@galtproject/vite',
-                bundlerConfig: {
-                    baseStorageUri,
-                    storeAsset,
-                    storeFolder,
-                },
-            });
+                posts,
+                options,
+                bundlerConfig: { baseStorageUri },
+                groupId
+            };
 
-            // initialize and prepare
-            console.log('staticSiteApp.init');
-            await staticSiteApp.init();
-            console.log('staticSiteApp.prepare');
-            await staticSiteApp.prepare();
+            if (process.env.SSG_RUNTIME) {
+                await require('./build')(childProcessData);
+            } else {
+                fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
 
-            if (options.asyncOperationId) {
-                await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
+                await new Promise((resolve, reject) => {
+                    childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
+                });
             }
-            // build
-            // TODO: update percent on build process
-            console.log('staticSiteApp.build');
-            await staticSiteApp.build();
 
-            // process onGenerated hook
-            console.log('staticSiteApp.pluginApi.hooks.onGenerated.process');
-            await staticSiteApp.pluginApi.hooks.onGenerated.process(staticSiteApp);
+            // if (options.asyncOperationId) {
+            //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
+            // }
 
             return app.saveDirectoryToStorage(options.userId, distPath, {
                 groupId: group.id,

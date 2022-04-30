@@ -77,7 +77,7 @@ describe("telegramClient", function () {
 				const text = 'Кто плюсист?<br><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br><br><i>Language<br>concepts[6], with terse syntax.[7]<br>modules[8]<br><br>Library<br>ranges (The One Ranges Proposal)[35]</i>';
 				const {title, description} = getTitleAndDescription([{view: 'contents', text}], {titleLength: 200, descriptionLength: 200})
 				console.log('title', title, 'description', description);
-				assert.equal(title, 'Кто плюсист? <a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a> <i>Language concepts[6], with terse syntax.[7] modules[8] Library r... </i>');
+				assert.equal(title, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><br/><i>Language<br/>concepts[6], with terse syntax.[7]<br/>modules[8]<br/><br/>Library<br/>r...</i>');
 			});
 		});
 	});

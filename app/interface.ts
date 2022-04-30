@@ -70,7 +70,7 @@ export interface IGeesomeApp {
 
   getApyKeyId(apiKey): Promise<number>;
 
-  getUserByApiKey(apiKey): Promise<IUser>;
+  getUserByApiKey(apiKey): Promise<{user: IUser, apiKey: IUserApiKey}>;
 
   getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
 

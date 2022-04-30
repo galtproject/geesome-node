@@ -515,7 +515,6 @@ function getModule(app: IGeesomeApp) {
 			})();
 			log('replyPostUpdatePromise');
 
-			console.log('contentsData', contentsData);
 			if(contentsData) {
 				await app.ms.database.setPostContents(post.id, contentsData);
 			}

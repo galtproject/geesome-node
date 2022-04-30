@@ -103,8 +103,8 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		res.send(await app.generateUserApiKey(req.user.id, req.body));
 	});
 
-	module.onAuthorizedPost('user/api-key/:apiKeyId/update', async (req, res) => {
-		res.send(await app.updateApiKey(req.user.id, req.params.apiKeyId, req.body));
+	module.onAuthorizedPost('user/api-key/:userApiKeyId/update', async (req, res) => {
+		res.send(await app.updateApiKey(req.user.id, req.params.userApiKeyId, req.body));
 	});
 
 	/**
@@ -134,7 +134,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		busboy.on('file', async function (fieldname, file, filename) {
 			const options = {
 				userId: req.user.id,
-				apiKey: req.token,
+				userApiKeyId: req.apiKey.id,
 				..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
 			};
 
@@ -160,7 +160,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	module.onAuthorizedPost('user/save-data', async (req, res) => {
 		const options = {
 			userId: req.user.id,
-			apiKey: req.token,
+			userApiKeyId: req.apiKey.id,
 			..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
 		};
 
@@ -182,11 +182,33 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	module.onAuthorizedPost('user/save-data-by-url', async (req, res) => {
 		const options = {
 			userId: req.user.id,
-			apiKey: req.token,
+			userApiKeyId: req.apiKey.id,
 			..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
 		};
 
 		res.send(await app.ms.asyncOperation.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
+	});
+
+	/**
+	 * @api {post} user/save-directory Save directory
+	 * @apiDescription Store directory content
+	 * @apiName UserSaveDirectory
+	 * @apiGroup UserContent
+	 *
+	 * @apiUse ApiKey
+	 *
+	 * @apiInterface (../../interface.ts) {IDataContentInput} apiParam
+	 *
+	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
+	 */
+	module.onAuthorizedPost('user/save-directory', async (req, res) => {
+		const options = {
+			userId: req.user.id,
+			userApiKeyId: req.apiKey.id,
+			..._.pick(req.body, ['groupId', 'async', 'driver'])
+		};
+
+		res.send(await app.ms.asyncOperation.asyncOperationWrapper('saveDirectoryToStorage', [req.user.id, req.body['path'], options], options));
 	});
 
 	//TODO: add limit for this action
@@ -215,7 +237,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
 			return res.send(403);
 		}
-		res.send(await app.getUserByApiKey(req.params.apiKey));
+		res.send(await app.getUserByApiKey(req.params.apiKey).then(({user}) => user));
 	});
 	module.onAuthorizedPost('admin/set-user-limit', async (req, res) => {
 		res.send(await app.setUserLimit(req.user.id, req.body));

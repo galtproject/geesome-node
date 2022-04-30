@@ -18,7 +18,6 @@ function getModule(app: IGeesomeApp) {
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
 		async asyncOperationWrapper(methodName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
-			options.userApiKeyId = await app.getApyKeyId(options.apiKey);
 
 			if (!options.async) {
 				return app[methodName].apply(app, args);

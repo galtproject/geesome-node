@@ -77,6 +77,11 @@ async function getModule(app: IGeesomeApp, version, port) {
 	}
 
 	class GeesomeApiModule implements IGeesomeApiModule {
+		port;
+
+		constructor(_port) {
+			this.port = _port;
+		}
 		async handleCallback(req, res, callback) {
 			try {
 				await callback(reqToModuleInput(req), resToModuleOutput(res)).catch(error => {
@@ -108,7 +113,9 @@ async function getModule(app: IGeesomeApp, version, port) {
 			if (!req.token) {
 				return res.send({error: "Need authorization token", errorCode: 1}, 401);
 			}
-			req.user = await app.getUserByApiKey(req.token);
+			const {user, apiKey} = await app.getUserByApiKey(req.token);
+			req.user = user;
+			req.apiKey = apiKey;
 			if (!req.user || !req.user.id) {
 				return res.send({error: "Not authorized", errorCode: 2}, 401);
 			}
@@ -206,5 +213,5 @@ async function getModule(app: IGeesomeApp, version, port) {
 		};
 	}
 
-	return new GeesomeApiModule();
+	return new GeesomeApiModule(port);
 }

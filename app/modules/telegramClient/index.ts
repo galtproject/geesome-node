@@ -18,6 +18,8 @@ const includes = require('lodash/includes');
 const pick = require('lodash/pick');
 const uniq = require('lodash/uniq');
 const uniqBy = require('lodash/uniqBy');
+const orderBy = require('lodash/orderBy');
+const find = require('lodash/find');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -285,6 +287,7 @@ function getModule(app: IGeesomeApp, models) {
 					// update channel after group deletion
 					await models.Channel.update(channelData, {where: {id: dbChannel.id}});
 					await models.Message.destroy({where: {dbChannelId: dbChannel.id}});
+					dbChannel = await models.Channel.findOne({where: {id: dbChannel.id}});
 				} else {
 					dbChannel = await this.createDbChannel(channelData);
 				}
@@ -309,7 +312,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			let asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
-				userApiKeyId: await app.getApyKeyId(apiKey),
+				userApiKeyId: apiKey.id,
 				name: 'run-telegram-channel-import',
 				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
 			});
@@ -375,6 +378,7 @@ function getModule(app: IGeesomeApp, models) {
 				mergeSeconds,
 				userId,
 				groupId,
+				dbChannelId: dbChannel.id
 			}
 
 			let groupedId = null;
@@ -402,7 +406,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
-				const contents = await this.messageToContents(client, m, userId);
+				const contents = await this.messageToContents(client, dbChannel, m, userId);
 				const properties = { sourceLink };
 
 				if (groupedReplyTo) {
@@ -473,10 +477,16 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		storeMessage(existsChannelMessage, _messageData) {
-			if (existsChannelMessage) {
+			if (existsChannelMessage && existsChannelMessage.msgId === _messageData.msgId) {
 				return models.Message.update(_messageData, {where: {id: existsChannelMessage.id}});
 			} else {
-				return models.Message.create(_messageData);
+				return models.Message.create(_messageData).catch(e => {
+					if (e.name === 'SequelizeUniqueConstraintError') {
+						return models.Message.update(_messageData, {where: pick(_messageData, ['dbChannelId', 'userId', 'msgId'])});
+					} else {
+						throw e;
+					}
+				});
 			}
 		}
 
@@ -492,34 +502,30 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			if (_msgData.groupedId) {
-				const messagesByGroupedId = await models.Message.findAll({where: {groupedId: _msgData.groupedId}});
+				const messagesByGroupedId = await models.Message.findAll({where: {dbChannelId: _msgData.dbChannelId, groupedId: _msgData.groupedId}});
 				if (messagesByGroupedId.length) {
-					const postIds = uniq(messagesByGroupedId.map(m => m.postId)).filter(postId => existsPostId !== postId);
-					if (postIds.length || !existsPostId) {
-						existsPostId = await this.mergePostsToOne(_importState, existsPostId, postIds, _postData);
-						// content updated by merging
-						delete _postData.contents;
-					}
+					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByGroupedId, _postData);
 				}
 			}
+			console.log('1 existsPostId', existsPostId);
 
-			const messagesByTimestamp = await models.Message.findAll({where: {timestamp: {
-						[Op.lte]: _msgData.timestamp + mergeSeconds,
-						[Op.gte]: _msgData.timestamp - mergeSeconds,
-					}}});
-
-			// console.log('existsPostId', existsPostId, 'messagesByTimestamp.map(m => m.postId)', messagesByTimestamp.map(m => m.postId));
-			if (messagesByTimestamp.length) {
-				const postIds = uniq(messagesByTimestamp.map(m => m.postId)).filter(postId => existsPostId !== postId);
-				if (postIds.length || !existsPostId) {
-					existsPostId = await this.mergePostsToOne(_importState, existsPostId, postIds, _postData);
-					// content updated by merging
-					delete _postData.contents;
+			if (mergeSeconds) {
+				const messagesByTimestamp = await models.Message.findAll({where: {dbChannelId: _msgData.dbChannelId, timestamp: {
+							[Op.lte]: _msgData.timestamp + mergeSeconds,
+							[Op.gte]: _msgData.timestamp - mergeSeconds,
+						}}});
+				if (messagesByTimestamp.length) {
+					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByTimestamp, _postData);
 				}
 			}
+			console.log('2 existsPostId', existsPostId);
 
+			if (_postData.contents) {
+				_postData.contents = uniqBy(_postData.contents, (c) => c.manifestStorageId);
+			}
 			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
 			_postData.isDeleted = false;
+
 			if (existsPostId) {
 				await app.ms.group.updatePost(userId, existsPostId, _postData);
 			} else {
@@ -533,38 +539,70 @@ function getModule(app: IGeesomeApp, models) {
 			return app.ms.database.getPost(existsPostId);
 		}
 
-		async mergePostsToOne(_importState, _existsPostId, _postIds, _postData) {
+		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
+			const postIds = uniq(_messages.map(m => m.postId));
+			const postsIdsWithoutExists = postIds.filter(postId => _existsPostId !== postId);
+			// 1 case: there's created post and appears new one to merge(not created): _existsPostId is null, postsIdsWithoutExists.length > 0
+			// 2 case: there's created post and appears new one to merge(created): _existsPostId not null, postsIdsWithoutExists.length > 0
+			if (!postsIdsWithoutExists.length) {
+				return _existsPostId;
+			}
+			console.log('mergePostsToOne', _existsPostId, postIds);
+			if (_existsPostId && !includes(postIds, _existsPostId)) {
+				postIds.push(_existsPostId);
+			}
 			const {userId, groupId} = _importState;
-			const posts = await app.ms.group.getPostListByIds(userId, groupId, _postIds).then(posts => posts.filter(p => !p.isDeleted));
-			// console.log('posts.length', posts.length);
+
+			const posts = await app.ms.group
+				.getPostListByIds(userId, groupId, postIds).
+				then(posts => posts.filter(p => !p.isDeleted));
 			if (!posts.length) {
 				return _existsPostId;
 			}
+			const resultPost = posts[0];
 
-			let postsContents = [];
+			let postsContents = _postData.contents || [];
 			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
+			postsContents = uniqBy(postsContents, c => c.manifestStorageId);
 
-			let resultPost = _existsPostId ? await app.ms.group.getPost(userId, _existsPostId) : null;
-			if (!resultPost) {
-				resultPost = posts[0];
-			}
-			let {contents} = resultPost;
-			contents = uniqBy(
-				contents.concat(postsContents).concat(_postData.contents || []),
-				c => c.manifestStorageId
-			);
-			await app.ms.group.updatePost(userId, resultPost.id, {contents});
+			const messageContents = await models.ContentMessage.findAll({
+				where: {dbContentId: {[Op.in]: postsContents.map(c => c.id)}}
+			});
+			console.log('postsContents.map(c => c.id)', postsContents.map(c => c.id));
+			console.log('messageContents.map(c => c.dbContentId)', messageContents.map(c => c.dbContentId));
+
+			postsContents = orderBy(postsContents, [(c) => {
+				const mc = find(messageContents, {dbContentId: c.id});
+				return mc.msgId * mc.updatedAt.getTime();
+			}], ['asc']);
+
+			await app.ms.group.updatePost(userId, resultPost.id, {contents: postsContents});
 			// console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
-			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id))
+			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id));
+
+			// content updated by merging
+			delete _postData.contents;
+
 			return resultPost.id;
 		}
 
-		mediaWebpageToPreviewHtml(webpage) {
-			return `<div class="link-preview"><div class="link-title">${webpage.title}</div><div class="link-description">${webpage.description}</div></div>`;
+		storeContentMessage(contentMessageData) {
+			console.log('storeContentMessage', contentMessageData.dbContentId);
+			return models.ContentMessage.create(contentMessageData).catch(() => {/* already added */});
 		}
 
-		async messageToContents(client, m, userId) {
+		async messageToContents(client, dbChannel, m, userId) {
 			let contents = [];
+			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id };
+
+			if (m.message) {
+				console.log('m.message', m.message, 'm.entities', m.entities);
+				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
+				console.log('text', text);
+				const content = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
+				contents.push(content);
+				await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+			}
 
 			if (m.media) {
 				if (m.media.poll) {
@@ -576,6 +614,7 @@ function getModule(app: IGeesomeApp, models) {
 				if (file && file.content) {
 					const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
 					contents.push(content);
+					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
@@ -583,27 +622,17 @@ function getModule(app: IGeesomeApp, models) {
 						mimeType: 'text/plain',
 						userId,
 						view: ContentView.Link,
-						previews: [{previewSize: 'medium', mimeType: 'text/html', content: this.mediaWebpageToPreviewHtml(m.media.webpage)}]
+						previews: [{previewSize: 'medium', mimeType: 'text/html', content: telegramHelpers.mediaWebpageToPreviewHtml(m.media.webpage)}]
 					});
 					contents.push(content);
+					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
 				}
-			}
-
-			if (m.message) {
-				console.log('m.message', m.message, 'm.entities', m.entities);
-				let text = m.message;
-				if (m.entities) {
-					text = telegramHelpers.messageWithEntitiesToHtml(text, m.entities);
-				}
-				console.log('text', text);
-				const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
-				contents.push(textContent);
 			}
 
 			return contents;
 		}
 		async flushDatabase() {
-			await pIteration.forEachSeries(['Message', 'Channel', 'Account'], (modelName) => {
+			await pIteration.forEachSeries(['Message', 'Channel', 'Account', 'ContentMessage'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
 		}

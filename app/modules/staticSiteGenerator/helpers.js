@@ -14,6 +14,7 @@ const {
     statSync,
 } = require('fs');
 const { join } = require('path');
+const fetch = require('node-fetch');
 
 const includes = require('lodash/includes');
 const trimStart = require('lodash/trimStart');
@@ -54,16 +55,16 @@ const rmDir = path => {
 };
 
 function getTitleAndDescription(texts, postSettings) {
-    let content = find(texts, (t) => t.view === 'contents');
-    if (!content) {
-        content = texts[0];
+    let contents = texts.filter((t) => t.view === 'contents');
+    if (!contents[0]) {
+        contents = [texts[0]];
     }
-    if (!content) {
+    if (!contents[0]) {
         return {title: "", description: ""};
     }
-    const {text} = content;
+    let text = contents.map(c => c.text).join('<br><br>');
     const {titleLength, descriptionLength} = postSettings;
-    let title = text.split('\n')[0];
+    let title = text;
     let description = '';
     let dotsAdded = false;
     if (title.length > titleLength) {
@@ -85,8 +86,21 @@ function getTitleAndDescription(texts, postSettings) {
 }
 
 function fixHtml(html) {
+    html = trim(html, " ").replace(/<\/?br\/?>/g, '<br/>').replace(/^(<\/?br\/?>)+|(<\/?br\/?>)+$/g, '');
     html = cheerio.load(html, { xmlMode: true, decodeEntities: false }).html();
-    return trim(html.replace(/(<\/*br\/?>)+/gi, " "), " ");
+    return trim(html, " ");
 }
 
-module.exports = { rmDir, getTitleAndDescription };
+async function apiRequest(port, method, token, body) {
+    return fetch(`http://localhost:${port}/v1/${method}`, {
+        "headers": {
+            "accept": "application/json, text/plain, */*",
+            "authorization": "Bearer " + token,
+            "content-type": "application/json",
+        },
+        "body": JSON.stringify(body),
+        "method": "POST"
+    }).then(r => r.json());
+}
+
+module.exports = { rmDir, getTitleAndDescription, apiRequest };

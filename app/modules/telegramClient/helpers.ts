@@ -2,9 +2,11 @@ const orderBy = require('lodash/orderBy');
 const find = require('lodash/find');
 const maxBy = require('lodash/maxBy');
 const isNumber = require('lodash/isNumber');
+const endsWith = require('lodash/endsWith');
+const startsWith = require('lodash/startsWith');
 
 module.exports = {
-	messageWithEntitiesToHtml(message, entities) {
+	messageWithEntitiesToHtml(message, entities = []) {
 		const splitText = [];
 		let lastIndex = 0;
 		orderBy(entities, ['offset'], ['asc']).forEach(entity => {
@@ -16,23 +18,30 @@ module.exports = {
 
 		message = '';
 		splitText.forEach(({content, entity}) => {
+			let startBrCount = 0;
+			content = content.replace(/^\n+/g, () => {startBrCount+=1; return ""});
+			let endBrCount = 0;
+			content = content.replace(/\n+$/g, () => {endBrCount+=1; return ""});
+
 			if (entity && entity.className.endsWith('Url')) {
-				message += `<a href="${entity.url || content}">${content}</a>`;
+				content = `<a href="${entity.url || content}">${content}</a>`;
 			} else if (entity && entity.className === 'MessageEntitySpoiler') {
-				message += `<span class="spoiler">${content}</span>`;
+				content = `<span class="spoiler">${content}</span>`;
 			} else if (entity && entity.className === 'MessageEntityStrike') {
-				message += `<s>${content}</s>`;
+				content = `<s>${content}</s>`;
 			} else if (entity && entity.className === 'MessageEntityBold') {
-				message += `<b>${content}</b>`;
+				content = `<b>${content}</b>`;
 			} else if (entity && entity.className === 'MessageEntityItalic') {
-				message += `<i>${content}</i>`;
-			} else if (entity && entity.className === 'MessageEntityItalic') {
-				message += `<u>${content}</u>`;
+				content = `<i>${content}</i>`;
+			} else if (entity && entity.className === 'MessageEntityUnderline') {
+				content = `<u>${content}</u>`;
 			} else if (entity && entity.className === 'MessageEntityCode') {
-				message += `<code>${content}</code>`;
-			} else {
-				message += content;
+				content = `<code>${content}</code>`;
 			}
+
+			content = "<br>".repeat(startBrCount) + content + "<br>".repeat(endBrCount);
+
+			message += content;
 		});
 		return message.replace(/\n/g, '<br>');
 	},
@@ -65,5 +74,17 @@ module.exports = {
 		}
 		// console.log('media.webpage', media.webpage);
 		return {file, fileSize, mimeType, thumbSize};
+	},
+
+	mediaWebpageToPreviewHtml(webpage) {
+		let html = '<div class="link-preview">';
+		if (webpage.title) {
+			html += '<div class="link-title">${webpage.title}</div>';
+		}
+		if (webpage.description) {
+			html += '<div class="link-description">${webpage.description}</div>';
+		}
+		html += '</div>';
+		return html;
 	}
 }

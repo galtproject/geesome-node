@@ -1,7 +1,9 @@
-import {IUser} from "../database/interface";
+import {IUser, IUserApiKey} from "../database/interface";
 import {Stream} from "stream";
 
 export default interface IGeesomeApiModule {
+	port;
+
 	onGet(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
 	onHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
@@ -37,6 +39,7 @@ export interface IApiModuleCommonInput {
 	headers: any;
 	token?: string;
 	user?: IUser;
+	apiKey?: IUserApiKey;
 	query?: any;
 	stream: Stream;
 }

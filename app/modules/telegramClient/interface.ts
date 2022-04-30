@@ -24,15 +24,13 @@ export default interface IGeesomeTelegramClient {
 
 	login(userId, loginData): Promise<{ client, result: { response, sessionKey, account } }>;
 
-	messageToContents(client, m, userId): Promise<IContent[]>;
+	messageToContents(client, dbChannel, m, userId): Promise<IContent[]>;
 
 	createDbChannel(channelData): Promise<any>;
 
 	publishPost(_importState, _existsChannelMessage, _postData, _msgIds, _msgData): Promise<IPost>;
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
-
-	mediaWebpageToPreviewHtml(webpage): string;
 
 	flushDatabase(): Promise<any>;
 }

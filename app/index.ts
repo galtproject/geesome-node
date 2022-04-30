@@ -412,7 +412,10 @@ class GeesomeApp implements IGeesomeApp {
     if (!keyObj) {
       return null;
     }
-    return this.ms.database.getUser(keyObj.userId);
+    return {
+      user: await this.ms.database.getUser(keyObj.userId),
+      apiKey: keyObj,
+    };
   }
 
   async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
@@ -720,7 +723,7 @@ class GeesomeApp implements IGeesomeApp {
     return apiKeyDb.id;
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -797,7 +800,7 @@ class GeesomeApp implements IGeesomeApp {
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
-      propertiesJson: JSON.stringify(resultProperties || {})
+      propertiesJson: JSON.stringify(_.merge(resultProperties || {}, options.properties || {}))
     }, options);
   }
 
