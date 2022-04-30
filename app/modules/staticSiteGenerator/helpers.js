@@ -86,8 +86,9 @@ function getTitleAndDescription(texts, postSettings) {
 }
 
 function fixHtml(html) {
+    html = trim(html, " ").replace(/<\/?br\/?>/g, '<br/>').replace(/^(<\/?br\/?>)+|(<\/?br\/?>)+$/g, '');
     html = cheerio.load(html, { xmlMode: true, decodeEntities: false }).html();
-    return trim(html.replace(/(<\/*br\/?>)+/gi, " "), " ");
+    return trim(html, " ");
 }
 
 async function apiRequest(port, method, token, body) {
