@@ -94,6 +94,97 @@ describe("telegramClient", function () {
 				await app.stop();
 			});
 
+			it('entities and line breaks should handle correctly', async () => {
+				const m = {
+					id: 5,
+					replyTo: null,
+					date: 1647614599,
+					message: 'Text\n' +
+						'\n' +
+						'Text after 2 br\n' +
+						'Link\n' +
+						'www.google.com\n' +
+						'Spoiler\n' +
+						'Strike\n' +
+						'Bold\n' +
+						'Italian\n' +
+						'Underline\n' +
+						'Code',
+					entities: [
+						{
+							CONSTRUCTOR_ID: 1990644519,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityTextUrl',
+							classType: 'constructor',
+							offset: 22,
+							length: 5,
+							url: 'https://www.google.com/'
+						},
+						{
+							CONSTRUCTOR_ID: 1859134776,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityUrl',
+							classType: 'constructor',
+							offset: 27,
+							length: 14
+						},
+						{
+							CONSTRUCTOR_ID: 852137487,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntitySpoiler',
+							classType: 'constructor',
+							offset: 42,
+							length: 8
+						},
+						{
+							CONSTRUCTOR_ID: 3204879316,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityStrike',
+							classType: 'constructor',
+							offset: 50,
+							length: 7
+						},
+						{
+							CONSTRUCTOR_ID: 3177253833,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityBold',
+							classType: 'constructor',
+							offset: 57,
+							length: 5
+						},
+						{
+							CONSTRUCTOR_ID: 2188348256,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityItalic',
+							classType: 'constructor',
+							offset: 62,
+							length: 8
+						},
+						{
+							CONSTRUCTOR_ID: 2622389899,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityUnderline',
+							classType: 'constructor',
+							offset: 70,
+							length: 10
+						},
+						{
+							CONSTRUCTOR_ID: 681706865,
+							SUBCLASS_OF_ID: 3479443932,
+							className: 'MessageEntityCode',
+							classType: 'constructor',
+							offset: 80,
+							length: 4
+						}
+					],
+					media: null,
+					action: undefined,
+					groupedId: null
+				};
+
+				assert.equal(telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities), 'Text<br><br>Text after 2 br<br><a href="https://www.google.com/">Link</a><br><a href="www.google.com">www.google.com</a><br><span class="spoiler">Spoiler</span><br><s>Strike</s><br><b>Bold</b><br><i>Italian</i><br><u>Underline</u><br><code>Code</code>');
+			});
+
 			it('webpage message should import properly', async () => {
 				const testUser = (await app.ms.database.getAllUserList('user'))[0];
 				const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
