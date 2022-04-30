@@ -50,7 +50,7 @@ export default {
 					this.$route.params.socNet,
 					{id: this.$route.params.accId},
 					this.$route.params.channelId,
-					this.advancedSettingsEnabled ? this.advancedSettings : {}
+					this.advancedSettingsEnabled ? this.advancedSettings : {mergeSeconds: 5}
 				);
 				await this.getDbChannel();
 				this.getGroup();

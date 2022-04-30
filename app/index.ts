@@ -723,7 +723,7 @@ class GeesomeApp implements IGeesomeApp {
     return apiKeyDb.id;
   }
 
-  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin? }) {
+  async saveData(dataToSave, fileName, options: { userId, groupId, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? }) {
     log('saveData');
     await this.checkUserCan(options.userId, CorePermissionName.UserSaveData);
     log('checkUserCan');
@@ -800,7 +800,7 @@ class GeesomeApp implements IGeesomeApp {
       storageId: storageFile.id,
       size: storageFile.size,
       name: fileName,
-      propertiesJson: JSON.stringify(resultProperties || {})
+      propertiesJson: JSON.stringify(_.merge(resultProperties || {}, options.properties || {}))
     }, options);
   }
 

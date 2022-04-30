@@ -18,6 +18,8 @@ const includes = require('lodash/includes');
 const pick = require('lodash/pick');
 const uniq = require('lodash/uniq');
 const uniqBy = require('lodash/uniqBy');
+const orderBy = require('lodash/orderBy');
+const find = require('lodash/find');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -285,6 +287,7 @@ function getModule(app: IGeesomeApp, models) {
 					// update channel after group deletion
 					await models.Channel.update(channelData, {where: {id: dbChannel.id}});
 					await models.Message.destroy({where: {dbChannelId: dbChannel.id}});
+					dbChannel = await models.Channel.findOne({where: {id: dbChannel.id}});
 				} else {
 					dbChannel = await this.createDbChannel(channelData);
 				}
@@ -375,6 +378,7 @@ function getModule(app: IGeesomeApp, models) {
 				mergeSeconds,
 				userId,
 				groupId,
+				dbChannelId: dbChannel.id
 			}
 
 			let groupedId = null;
@@ -402,7 +406,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
-				const contents = await this.messageToContents(client, m, userId);
+				const contents = await this.messageToContents(client, dbChannel, m, userId);
 				const properties = { sourceLink };
 
 				if (groupedReplyTo) {
@@ -561,6 +565,17 @@ function getModule(app: IGeesomeApp, models) {
 			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
 			postsContents = uniqBy(postsContents, c => c.manifestStorageId);
 
+			const messageContents = await models.ContentMessage.findAll({
+				where: {dbContentId: {[Op.in]: postsContents.map(c => c.id)}}
+			});
+			console.log('postsContents.map(c => c.id)', postsContents.map(c => c.id));
+			console.log('messageContents.map(c => c.dbContentId)', messageContents.map(c => c.dbContentId));
+
+			postsContents = orderBy(postsContents, [(c) => {
+				const mc = find(messageContents, {dbContentId: c.id});
+				return mc.msgId * mc.updatedAt.getTime();
+			}], ['asc']);
+
 			await app.ms.group.updatePost(userId, resultPost.id, {contents: postsContents});
 			// console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
 			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id));
@@ -571,8 +586,23 @@ function getModule(app: IGeesomeApp, models) {
 			return resultPost.id;
 		}
 
-		async messageToContents(client, m, userId) {
+		storeContentMessage(contentMessageData) {
+			console.log('storeContentMessage', contentMessageData.dbContentId);
+			return models.ContentMessage.create(contentMessageData).catch(() => {/* already added */});
+		}
+
+		async messageToContents(client, dbChannel, m, userId) {
 			let contents = [];
+			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id };
+
+			if (m.message) {
+				console.log('m.message', m.message, 'm.entities', m.entities);
+				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
+				console.log('text', text);
+				const content = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
+				contents.push(content);
+				await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+			}
 
 			if (m.media) {
 				if (m.media.poll) {
@@ -584,6 +614,7 @@ function getModule(app: IGeesomeApp, models) {
 				if (file && file.content) {
 					const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
 					contents.push(content);
+					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
@@ -594,21 +625,14 @@ function getModule(app: IGeesomeApp, models) {
 						previews: [{previewSize: 'medium', mimeType: 'text/html', content: telegramHelpers.mediaWebpageToPreviewHtml(m.media.webpage)}]
 					});
 					contents.push(content);
+					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
 				}
-			}
-
-			if (m.message) {
-				console.log('m.message', m.message, 'm.entities', m.entities);
-				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
-				console.log('text', text);
-				const textContent = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
-				contents.push(textContent);
 			}
 
 			return contents;
 		}
 		async flushDatabase() {
-			await pIteration.forEachSeries(['Message', 'Channel', 'Account'], (modelName) => {
+			await pIteration.forEachSeries(['Message', 'Channel', 'Account', 'ContentMessage'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
 		}

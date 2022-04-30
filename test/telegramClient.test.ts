@@ -13,6 +13,7 @@ import {
 	CorePermissionName, PostStatus,
 } from "../app/modules/database/interface";
 import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
+import {channel} from "diagnostics_channel";
 
 const telegramHelpers = require('../app/modules/telegramClient/helpers');
 
@@ -299,7 +300,16 @@ describe("telegramClient", function () {
 				assert.equal(mimeType, 'image/jpg');
 				assert.equal(thumbSize, 'y');
 
-				const contents = await telegramClient.messageToContents(null, message, testUser.id);
+				const channel = await telegramClient.createDbChannel({
+					userId: testUser.id,
+					groupId: testGroup.id,
+					channelId: 1,
+					title: "1",
+					lastMessageId: 0,
+					postsCounts: 0,
+				});
+
+				const contents = await telegramClient.messageToContents(null, channel, message, testUser.id);
 				assert.equal(contents.length, 3);
 				const [imageContent, linkContent, messageContent] = contents;
 				assert.equal(imageContent.view, ContentView.Media);
@@ -337,6 +347,7 @@ describe("telegramClient", function () {
 
 			it('local webpage message should import properly', async () => {
 				const testUser = (await app.ms.database.getAllUserList('user'))[0];
+				const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
 				const message = {
 					id: 1247,
@@ -400,7 +411,16 @@ describe("telegramClient", function () {
 				};
 
 
-				const contents = await telegramClient.messageToContents(null, message, testUser.id);
+				const channel = await telegramClient.createDbChannel({
+					userId: testUser.id,
+					groupId: testGroup.id,
+					channelId: 1,
+					title: "1",
+					lastMessageId: 0,
+					postsCounts: 0,
+				});
+
+				const contents = await telegramClient.messageToContents(null, channel, message, testUser.id);
 				assert.equal(contents.length, 2);
 				const [linkContent, textContent] = contents;
 				assert.equal(linkContent.view, ContentView.Link);
@@ -532,7 +552,7 @@ describe("telegramClient", function () {
 
 				const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: message1.date};
 
-				const contents1 = await telegramClient.messageToContents(null, message1, testUser.id);
+				const contents1 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 				assert.equal(contents1.length, 1);
 				assert.equal(contents1[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
 
@@ -544,10 +564,10 @@ describe("telegramClient", function () {
 				post1 = await telegramClient.publishPost(importState, existsChannelMessagePost1, postData, [message1.id], msgData);
 				assert.equal(post1.contents.length, 1);
 
-				const contents2 = await telegramClient.messageToContents(null, message2, testUser.id);
+				const contents2 = await telegramClient.messageToContents(null, channel, message2, testUser.id);
 				assert.equal(contents2.length, 2);
-				assert.equal(contents2[0].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-				assert.equal(contents2[1].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
+				assert.equal(contents2[0].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
+				assert.equal(contents2[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 
 				postData.sourcePostId = message2.id;
 				postData.sourceDate = new Date(message2.date * 1000);
@@ -558,13 +578,13 @@ describe("telegramClient", function () {
 				const post2 = await telegramClient.publishPost(importState, null, postData, [message2.id], msgData);
 				assert.equal(post2.id, post1.id);
 				assert.equal(post2.contents.length, 3);
-				assert.equal(post2.contents[0].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+				assert.equal(post2.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
 				assert.equal(post2.contents[1].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
-				assert.equal(post2.contents[2].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+				assert.equal(post2.contents[2].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 
 				message1.message = 'test';
 				message1.entities = [];
-				const contents3 = await telegramClient.messageToContents(null, message1, testUser.id);
+				const contents3 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 				assert.equal(contents3.length, 1);
 				assert.equal(contents3[0].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
 
@@ -591,17 +611,17 @@ describe("telegramClient", function () {
 
 				post3 = await telegramClient.publishPost(importState, existsChannelMessage, postData, [message1.id], msgData);
 				assert.equal(post3.contents.length, 4);
-				assert.equal(post3.contents[0].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
-				assert.equal(post3.contents[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+				assert.equal(post3.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+				assert.equal(post3.contents[1].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
 				assert.equal(post3.contents[2].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
-				assert.equal(post3.contents[3].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+				assert.equal(post3.contents[3].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 				assert.equal(post2.id, post3.id);
 
 				post3 = await app.ms.database.getPost(post3PrevId);
 				assert.equal(post3.isDeleted, true);
 			});
 
-			it('should merge posts by groupedId', async () => {
+			it.only('should merge posts by groupedId', async () => {
 				const testUser = (await app.ms.database.getAllUserList('user'))[0];
 				const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
@@ -782,16 +802,16 @@ describe("telegramClient", function () {
 					groupedId: message1.groupedId
 				};
 
-				const contents1 = await telegramClient.messageToContents(null, message1, testUser.id);
+				const contents1 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 				assert.equal(contents1.length, 2);
-				assert.equal(contents1[0].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-				assert.equal(contents1[1].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');
+				assert.equal(contents1[0].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');
+				assert.equal(contents1[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 
 				postData.contents = contents1;
 				let post1 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
 				assert.equal(post1.contents.length, 2);
 
-				const contents2 = await telegramClient.messageToContents(null, message2, testUser.id);
+				const contents2 = await telegramClient.messageToContents(null, channel, message2, testUser.id);
 				assert.equal(contents2.length, 1);
 				assert.equal(contents2[0].manifestStorageId, 'bafyreigzlgo4uejpzomdjic5d5pvfilsbgbty5gt3of43f5rnfe6y46suq');
 
@@ -802,9 +822,9 @@ describe("telegramClient", function () {
 				const post2 = await telegramClient.publishPost(importState, null, postData, [message2.id], msgData);
 				assert.equal(post2.id, post1.id);
 				assert.equal(post2.contents.length, 3);
-				assert.equal(post2.contents[0].manifestStorageId, 'bafyreigzlgo4uejpzomdjic5d5pvfilsbgbty5gt3of43f5rnfe6y46suq');
+				assert.equal(post2.contents[0].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');
 				assert.equal(post2.contents[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-				assert.equal(post2.contents[2].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');
+				assert.equal(post2.contents[2].manifestStorageId, 'bafyreigzlgo4uejpzomdjic5d5pvfilsbgbty5gt3of43f5rnfe6y46suq');
 			});
 		});
 	});

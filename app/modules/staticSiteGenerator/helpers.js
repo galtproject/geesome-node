@@ -55,16 +55,16 @@ const rmDir = path => {
 };
 
 function getTitleAndDescription(texts, postSettings) {
-    let content = find(texts, (t) => t.view === 'contents');
-    if (!content) {
-        content = texts[0];
+    let contents = texts.filter((t) => t.view === 'contents');
+    if (!contents[0]) {
+        contents = [texts[0]];
     }
-    if (!content) {
+    if (!contents[0]) {
         return {title: "", description: ""};
     }
-    const {text} = content;
+    let text = contents.map(c => c.text).join('<br><br>');
     const {titleLength, descriptionLength} = postSettings;
-    let title = text.split('\n')[0];
+    let title = text;
     let description = '';
     let dotsAdded = false;
     if (title.length > titleLength) {

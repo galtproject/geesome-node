@@ -99,15 +99,41 @@ module.exports = async function () {
 		]
 	} as any);
 
+	const ContentMessage = sequelize.define('socNetClient_telegram_contentMessage', {
+		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+		userId: {
+			type: Sequelize.INTEGER
+		},
+		groupedId: {
+			type: Sequelize.INTEGER
+		},
+		msgId: {
+			type: Sequelize.INTEGER
+		},
+		dbContentId: {
+			type: Sequelize.INTEGER
+		},
+	} as any, {
+		indexes: [
+			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+			{ fields: ['userId', 'dbChannelId', 'msgId', 'dbContentId'], unique: true },
+			{ fields: ['dbContentId'] },
+		]
+	} as any);
+
 	Channel.belongsTo(Account, {as: 'account', foreignKey: 'accountId'});
 	Account.hasMany(Channel, {as: 'channels', foreignKey: 'accountId'});
 
 	Message.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
 	Channel.hasMany(Message, {as: 'messages', foreignKey: 'dbChannelId'});
 
+	ContentMessage.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
+	Channel.hasMany(ContentMessage, {as: 'contentMessages', foreignKey: 'dbChannelId'});
+
 	return {
 		Account: await Account.sync({}),
 		Channel: await Channel.sync({}),
 		Message: await Message.sync({}),
+		ContentMessage: await ContentMessage.sync({}),
 	};
 };
