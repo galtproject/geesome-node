@@ -412,7 +412,10 @@ class GeesomeApp implements IGeesomeApp {
     if (!keyObj) {
       return null;
     }
-    return this.ms.database.getUser(keyObj.userId);
+    return {
+      user: await this.ms.database.getUser(keyObj.userId),
+      apiKey: keyObj,
+    };
   }
 
   async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {

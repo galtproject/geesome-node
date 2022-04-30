@@ -309,7 +309,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			let asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
-				userApiKeyId: await app.getApyKeyId(apiKey),
+				userApiKeyId: apiKey.id,
 				name: 'run-telegram-channel-import',
 				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
 			});

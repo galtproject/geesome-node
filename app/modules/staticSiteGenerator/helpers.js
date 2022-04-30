@@ -14,6 +14,7 @@ const {
     statSync,
 } = require('fs');
 const { join } = require('path');
+const fetch = require('node-fetch');
 
 const includes = require('lodash/includes');
 const trimStart = require('lodash/trimStart');
@@ -89,4 +90,16 @@ function fixHtml(html) {
     return trim(html.replace(/(<\/*br\/?>)+/gi, " "), " ");
 }
 
-module.exports = { rmDir, getTitleAndDescription };
+async function apiRequest(port, method, token, body) {
+    return fetch(`http://localhost:${port}/v1/${method}`, {
+        "headers": {
+            "accept": "application/json, text/plain, */*",
+            "authorization": "Bearer " + token,
+            "content-type": "application/json",
+        },
+        "body": JSON.stringify(body),
+        "method": "POST"
+    }).then(r => r.json());
+}
+
+module.exports = { rmDir, getTitleAndDescription, apiRequest };
