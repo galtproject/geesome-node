@@ -490,10 +490,6 @@ function getModule(app: IGeesomeApp, models) {
 					}
 				});
 				console.log('_msgData.timestamp', _msgData.timestamp, 'messagesByTimestamp', messagesByTimestamp.map(m => m.msgId), '_msgId', _msgData.msgId);
-				console.log('allMessagesWithTimestamp', await models.Message.findAll().then(ms => ms.map(m => ({
-					msgId: m.msgId,
-					timestamp: m.timestamp
-				}))));
 				if (messagesByTimestamp.length) {
 					postMessageIds = postMessageIds.concat(messagesByTimestamp.map(m => m.msgId));
 					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByTimestamp, _postData);
