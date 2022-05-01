@@ -28,7 +28,7 @@ export default interface IGeesomeTelegramClient {
 
 	createDbChannel(channelData): Promise<any>;
 
-	publishPost(_importState, _existsChannelMessage, _postData, _msgIds, _msgData): Promise<IPost>;
+	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
 
