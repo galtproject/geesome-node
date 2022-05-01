@@ -10,9 +10,9 @@
 import {ContentView, GroupType} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
 
-const { Api, TelegramClient } = require("telegram");
-const { StringSession } = require("telegram/sessions");
-const { computeCheck } = require("telegram/Password");
+const {Api, TelegramClient} = require("telegram");
+const {StringSession} = require("telegram/sessions");
+const {computeCheck} = require("telegram/Password");
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
@@ -36,10 +36,10 @@ module.exports = async (app: IGeesomeApp) => {
 
 function getModule(app: IGeesomeApp, models) {
 	app.checkModules(['asyncOperation', 'group']);
-	
+
 	class TelegramClientModule {
 		async login(userId, loginData) {
-			let { phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage } = loginData;
+			let {phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage} = loginData;
 			apiId = parseInt(apiId);
 
 			let acc = await models.Account.findOne({where: {userId, phoneNumber}});
@@ -59,24 +59,34 @@ function getModule(app: IGeesomeApp, models) {
 			let response;
 			if (phoneCodeHash) {
 				try {
-					response = await client.invoke(new Api.auth.SignIn({ phoneNumber, phoneCodeHash, phoneCode }) as any);
+					response = await client.invoke(new Api.auth.SignIn({phoneNumber, phoneCodeHash, phoneCode}) as any);
 				} catch (e) {
 					if (!includes(e.message, 'SESSION_PASSWORD_NEEDED') || !password) {
 						throw e;
 					}
 					const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
 					const passwordSrpCheck = await computeCheck(passwordSrpResult, password);
-					response = await client.invoke(new Api.auth.CheckPassword({ password: passwordSrpCheck }) as any);
+					response = await client.invoke(new Api.auth.CheckPassword({password: passwordSrpCheck}) as any);
 				}
 				try {
 					if (!isEncrypted) {
 						sessionKey = client.session.save();
 					}
 					const username = response.user ? response.user.username : null;
-					const fullName = response.user ? response.user.firstName + ' ' + response.user.lastName: null;
-					acc = await this.createOrUpdateAccount({userId, phoneNumber, apiId, apiHash, sessionKey, username, fullName, isEncrypted});
-				} catch (e) {}
-				return { client, result: { response, sessionKey: client.session.save(), account: acc } };
+					const fullName = response.user ? response.user.firstName + ' ' + response.user.lastName : null;
+					acc = await this.createOrUpdateAccount({
+						userId,
+						phoneNumber,
+						apiId,
+						apiHash,
+						sessionKey,
+						username,
+						fullName,
+						isEncrypted
+					});
+				} catch (e) {
+				}
+				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			} else {
 				response = await client.sendCode({apiId, apiHash}, phoneNumber);
 				try {
@@ -87,9 +97,10 @@ function getModule(app: IGeesomeApp, models) {
 				} catch (e) {
 					console.error('sendCode error', e);
 				}
-				return { client, result: { response, sessionKey: client.session.save(), account: acc } };
+				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			}
 		}
+
 		async createOrUpdateAccount(accData) {
 			let where = {userId: accData.userId};
 			if (accData.phoneNumber) {
@@ -98,6 +109,7 @@ function getModule(app: IGeesomeApp, models) {
 			const userAcc = await models.Account.findOne({where});
 			return userAcc ? userAcc.update(accData).then(() => models.Account.findOne({where})) : models.Account.create(accData);
 		}
+
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
@@ -111,18 +123,22 @@ function getModule(app: IGeesomeApp, models) {
 			await client.connect();
 			return client;
 		}
+
 		async getUserInfoByUserId(userId, accData, userName) {
 			return this.getUserInfoByClient(await this.getClient(userId, accData), userName);
 		}
+
 		async getUserInfoByClient(client, userName) {
 			return {
 				client,
-				result: await client.invoke(new Api['users'].GetFullUser({ id: userName }))
+				result: await client.invoke(new Api['users'].GetFullUser({id: userName}))
 			}
 		}
+
 		async getChannelInfoByUserId(userId, accData, channelId) {
 			return this.getChannelInfoByClient(await this.getClient(userId, accData), channelId);
 		}
+
 		async getChannelInfoByClient(client, channelId) {
 			const channel = await this.getChannelEntity(client, channelId);
 			const [response, messagesCount] = await Promise.all([
@@ -142,11 +158,13 @@ function getModule(app: IGeesomeApp, models) {
 				}
 			}
 		}
+
 		async getChannelEntity(client, channelId) {
 			return client.getInputEntity(
-				new Api['PeerChannel']({ channelId: parseInt(channelId), accessHash: bigInt.zero })
+				new Api['PeerChannel']({channelId: parseInt(channelId), accessHash: bigInt.zero})
 			);
 		}
+
 		async getChannelLastMessageId(client, channel) {
 			const channelHistory = await client.invoke(
 				new Api.messages.GetHistory({
@@ -162,9 +180,11 @@ function getModule(app: IGeesomeApp, models) {
 			);
 			return channelHistory.messages[0].id;
 		}
+
 		async getMessagesByUserId(userId, accData, channelName, messagesIds) {
 			return this.getMessagesByClient(await this.getClient(userId, accData), channelName, messagesIds);
 		}
+
 		async getMessagesByClient(client, channelId, messagesIds) {
 			let channel = channelId;
 			if (commonHelper.isNumber(channel)) {
@@ -172,12 +192,16 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			return {
 				client,
-				result: await client.invoke(new Api.channels.GetMessages({ channel, id: messagesIds }) as any).then(({messages}) => {
+				result: await client.invoke(new Api.channels.GetMessages({
+					channel,
+					id: messagesIds
+				}) as any).then(({messages}) => {
 					return messages
 						.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'entities', 'media', 'action', 'groupedId']));
 				})
 			};
 		}
+
 		async getMessageLink(client, channelId, messageId) {
 			let channel = channelId;
 			if (commonHelper.isNumber(channel)) {
@@ -186,12 +210,18 @@ function getModule(app: IGeesomeApp, models) {
 			messageId = parseInt(messageId);
 			return {
 				client,
-				result: await client.invoke(new Api.channels.ExportMessageLink({ channel, id: messageId, thread: true, }) as any)
+				result: await client.invoke(new Api.channels.ExportMessageLink({
+					channel,
+					id: messageId,
+					thread: true,
+				}) as any)
 			};
 		}
+
 		async downloadMediaByUserId(userId, accData, media) {
 			return this.downloadMediaByClient(await this.getClient(userId, accData), media)
 		}
+
 		async downloadMediaByClient(client, media) {
 			const {file, fileSize, mimeType, thumbSize} = telegramHelpers.getMediaFileAndSize(media);
 			if (!file) {
@@ -218,19 +248,22 @@ function getModule(app: IGeesomeApp, models) {
 				}
 			};
 		}
+
 		async getMeByUserId(userId, accData) {
 			const client = await this.getClient(userId, accData);
 			return this.getMeByClient(client);
 		}
+
 		async getMeByClient(client) {
 			return {
 				result: await client.getMe(),
 				client
 			};
 		}
+
 		async getUserChannelsByUserId(userId, accData) {
 			const client = await this.getClient(userId, accData);
-			const channels = await client.invoke(new Api.messages.GetAllChats({ exceptIds: [] }) as any);
+			const channels = await client.invoke(new Api.messages.GetAllChats({exceptIds: []}) as any);
 			return {
 				result: channels.chats.filter(c => c.className === 'Channel' && !c.megagroup),
 				client
@@ -249,7 +282,7 @@ function getModule(app: IGeesomeApp, models) {
 			]);
 			let avatarContent;
 			if (avatarFile) {
-				avatarContent = await app.saveData(avatarFile.content, '', { mimeType: avatarFile.mimeType, userId });
+				avatarContent = await app.saveData(avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
 			}
 			// console.log('channel', channel);
 			group = dbChannel ? await app.ms.group.getGroup(dbChannel.groupId) : null;
@@ -305,7 +338,10 @@ function getModule(app: IGeesomeApp, models) {
 			const force = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
 
 			if (!force) {
-				const lastMessage = await models.Message.findOne({where: {dbChannelId: dbChannel.id}, order: [['msgId', 'DESC']]});
+				const lastMessage = await models.Message.findOne({
+					where: {dbChannelId: dbChannel.id},
+					order: [['msgId', 'DESC']]
+				});
 				if (lastMessage && lastMessage.id === lastMessageId) {
 					throw new Error('already_done');
 				}
@@ -329,7 +365,7 @@ function getModule(app: IGeesomeApp, models) {
 					await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, force, advancedSettings, async (m, post) => {
 						console.log('onMessageProcess', m.id.toString());
 						currentMessageId = parseInt(m.id.toString());
-						dbChannel.update({ lastMessageId: currentMessageId });
+						dbChannel.update({lastMessageId: currentMessageId});
 						asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id);
 						if (asyncOperation.cancel) {
 							await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
@@ -381,11 +417,6 @@ function getModule(app: IGeesomeApp, models) {
 				dbChannelId: dbChannel.id
 			}
 
-			let groupedId = null;
-			let groupedReplyTo = null;
-			let groupedDate = null;
-			let groupedContent = [];
-			let groupedMessageIds = [];
 			const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 			let messageLinkTpl;
 			await pIteration.forEachSeries(messages, async (m, i) => {
@@ -405,75 +436,155 @@ function getModule(app: IGeesomeApp, models) {
 					return;
 				}
 
-				const sourceLink = messageLinkTpl.replace('{msgId}', msgId);
 				const contents = await this.messageToContents(client, dbChannel, m, userId);
-				const properties = { sourceLink };
-
-				if (groupedReplyTo) {
-					properties['replyToMsgId'] = groupedReplyTo;
-				} else if (m.replyTo) {
-					properties['replyToMsgId'] = m.replyTo.replyToMsgId.toString();
-				}
-				if (groupedMessageIds.length) {
-					properties['groupedMsgIds'] = groupedMessageIds;
-				}
-
-				const timestamp = parseInt(groupedDate || m.date);
-
+				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
 				const postData = {
 					groupId,
 					userId,
 					status: 'published',
-					propertiesJson: JSON.stringify(properties),
+					properties: {
+						sourceLink: messageLinkTpl.replace('{msgId}', msgId),
+						replyToMsgId
+					},
 					source: 'telegram',
 					sourceChannelId: dbChannel.channelId,
-					sourcePostId: groupedMessageIds.length ? groupedMessageIds[0] : msgId,
-					sourceDate: new Date(timestamp * 1000),
-					replyToId: await this.getDbPostIdByTelegramMsgId(dbChannelId, properties['replyToMsgId']),
-					contents: [],
+					sourcePostId: msgId,
+					sourceDate: new Date(m.date * 1000),
+					replyToId: await this.getDbPostIdByTelegramMsgId(dbChannelId, replyToMsgId),
+					contents,
 				}
 				console.log('postData', postData);
 
-				const msgData = {dbChannelId, userId, groupedId, timestamp};
-				let post;
-				console.log('m.groupedId', m.groupedId && m.groupedId.toString());
-				if (
-					(groupedId && !m.groupedId) || // group ended
-					(groupedId && m.groupedId && m.groupedId.toString() !== groupedId) || // new group
-					i === messages.length - 1 // messages end
-				) {
-					postData.contents = groupedContent;
-					post = await this.publishPost(importState, existsChannelMessage, postData, groupedMessageIds, {
-						...msgData,
-						replyToMsgId: groupedReplyTo
-					});
-
-					groupedContent = [];
-					groupedMessageIds = [];
-					groupedId = null;
-					groupedDate = null;
-					groupedReplyTo = null;
-				}
-
-				if (m.groupedId) {
-					groupedContent = groupedContent.concat(contents);
-					groupedMessageIds.push(msgId);
-					groupedId = m.groupedId.toString();
-					groupedDate = m.date;
-					if (m.replyTo) {
-						groupedReplyTo = m.replyTo.replyToMsgId.toString();
-					}
-				} else {
-					postData.contents = contents;
-					post = await this.publishPost(importState, existsChannelMessage, postData, [msgId], {
-						...msgData,
-						replyToMsgId: properties['replyToMsgId']
-					});
-				}
+				let post = await this.publishPost(importState, existsChannelMessage, postData, {
+					dbChannelId,
+					userId,
+					msgId,
+					groupedId: m.groupedId,
+					timestamp: m.date,
+					replyToMsgId
+				});
 				if (onMessageProcess) {
 					await onMessageProcess(m, post);
 				}
 			});
+		}
+
+		async publishPost(_importState, _existsChannelMessage, _postData, _msgData) {
+			const {userId, mergeSeconds} = _importState;
+			let existsPostId = _existsChannelMessage && _existsChannelMessage.postId;
+
+			if (!_postData.contents.length) {
+				await this.storeMessage(_existsChannelMessage, _msgData);
+				return;
+			}
+
+			let postMessageIds = [_msgData.msgId];
+
+			if (mergeSeconds) {
+				const messagesByTimestamp = await models.Message.findAll({
+					where: {
+						dbChannelId: _msgData.dbChannelId, timestamp: {
+							[Op.lte]: _msgData.timestamp + mergeSeconds,
+							[Op.gte]: _msgData.timestamp - mergeSeconds,
+						}
+					}
+				});
+				console.log('_msgData.timestamp', _msgData.timestamp, 'messagesByTimestamp', messagesByTimestamp.map(m => m.msgId), '_msgId', _msgData.msgId);
+				console.log('allMessagesWithTimestamp', await models.Message.findAll().then(ms => ms.map(m => ({
+					msgId: m.msgId,
+					timestamp: m.timestamp
+				}))));
+				if (messagesByTimestamp.length) {
+					postMessageIds = postMessageIds.concat(messagesByTimestamp.map(m => m.msgId));
+					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByTimestamp, _postData);
+				}
+			} else if (_msgData.groupedId) {
+				const messagesByGroupedId = await models.Message.findAll({
+					where: {
+						dbChannelId: _msgData.dbChannelId,
+						groupedId: _msgData.groupedId
+					}
+				});
+				if (messagesByGroupedId.length) {
+					postMessageIds = postMessageIds.concat(messagesByGroupedId.map(m => m.msgId));
+					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByGroupedId, _postData);
+				}
+			}
+
+			console.log('existsPostId', existsPostId);
+
+			if (_postData.contents) {
+				_postData.contents = await this.sortContentsByMessagesContents(_postData.contents);
+			}
+			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
+			_postData.isDeleted = false;
+			if (uniq(postMessageIds).length > 1) {
+				_postData.properties['groupedMsgIds'] = uniq(postMessageIds);
+			}
+			_postData.propertiesJson = JSON.stringify(_postData.properties);
+
+			if (existsPostId) {
+				await app.ms.group.updatePost(userId, existsPostId, _postData);
+			} else {
+				existsPostId = await app.ms.group.createPost(userId, _postData).then(p => p.id);
+			}
+
+			_msgData.postId = existsPostId;
+			await this.storeMessage(_existsChannelMessage, _msgData);
+
+			return app.ms.database.getPost(existsPostId);
+		}
+
+		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
+			const postIds = uniq(_messages.map(m => m.postId));
+			console.log('postIds', postIds);
+			const postsIdsWithoutExists = postIds.filter(postId => _existsPostId !== postId);
+			console.log('postsIdsWithoutExists', postIds);
+			// 1 case: there's created post and appears new one to merge(not created): _existsPostId is null, postsIdsWithoutExists.length > 0
+			// 2 case: there's created post and appears new one to merge(created): _existsPostId not null, postsIdsWithoutExists.length > 0
+			if (!postsIdsWithoutExists.length) {
+				return _existsPostId;
+			}
+			console.log('mergePostsToOne', _existsPostId, postIds);
+			if (_existsPostId && !includes(postIds, _existsPostId)) {
+				postIds.push(_existsPostId);
+			}
+			const {userId, groupId} = _importState;
+
+			const posts = await app.ms.group
+				.getPostListByIds(userId, groupId, postIds).then(posts => posts.filter(p => !p.isDeleted));
+			if (!posts.length) {
+				return _existsPostId;
+			}
+			const resultPost = posts[0];
+
+			let postsContents = _postData.contents || [];
+			console.log('postsContents', postsContents.map(c => c.id));
+			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
+
+			_postData.contents = await this.sortContentsByMessagesContents(postsContents);
+			console.log('_postData.contents', _postData.contents.map(c => c.id));
+
+			console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
+			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id));
+
+			return resultPost.id;
+		}
+
+		async sortContentsByMessagesContents(contents) {
+			contents = uniqBy(contents, c => c.manifestStorageId);
+			const messageContents = await models.ContentMessage.findAll({
+				where: {dbContentId: {[Op.in]: contents.map(c => c.id)}}
+			});
+			console.log('sortContentsByMessagesContents contents.map(c => c.id)', contents.map(c => c.id));
+			console.log('sortContentsByMessagesContents messageContents.map(c => c.dbContentId)', messageContents.map(c => ({
+				mId: c.msgId,
+				cId: c.dbContentId
+			})));
+			return orderBy(contents, [(c) => {
+				const mc = find(messageContents, {dbContentId: c.id});
+				return mc.msgId * mc.updatedAt.getTime();
+			}], ['asc']);
 		}
 
 		storeMessage(existsChannelMessage, _messageData) {
@@ -490,118 +601,25 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		async publishPost(_importState, _existsChannelMessage, _postData, _msgIds, _msgData) {
-			const {userId, mergeSeconds} = _importState;
-			let existsPostId = _existsChannelMessage && _existsChannelMessage.postId;
-
-			if (!_postData.contents.length) {
-				await pIteration.forEach(_msgIds,
-					(_msgId) => this.storeMessage(_existsChannelMessage, {..._msgData, msgId: _msgId})
-				);
-				return;
-			}
-
-			if (_msgData.groupedId) {
-				const messagesByGroupedId = await models.Message.findAll({where: {dbChannelId: _msgData.dbChannelId, groupedId: _msgData.groupedId}});
-				if (messagesByGroupedId.length) {
-					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByGroupedId, _postData);
-				}
-			}
-			console.log('1 existsPostId', existsPostId);
-
-			if (mergeSeconds) {
-				const messagesByTimestamp = await models.Message.findAll({where: {dbChannelId: _msgData.dbChannelId, timestamp: {
-							[Op.lte]: _msgData.timestamp + mergeSeconds,
-							[Op.gte]: _msgData.timestamp - mergeSeconds,
-						}}});
-				if (messagesByTimestamp.length) {
-					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByTimestamp, _postData);
-				}
-			}
-			console.log('2 existsPostId', existsPostId);
-
-			if (_postData.contents) {
-				_postData.contents = uniqBy(_postData.contents, (c) => c.manifestStorageId);
-			}
-			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
-			_postData.isDeleted = false;
-
-			if (existsPostId) {
-				await app.ms.group.updatePost(userId, existsPostId, _postData);
-			} else {
-				existsPostId = await app.ms.group.createPost(userId, _postData).then(p => p.id);
-			}
-
-			await pIteration.forEach(_msgIds,
-				(_msgId) => this.storeMessage(_existsChannelMessage, {..._msgData, msgId: _msgId, postId: existsPostId})
-			);
-
-			return app.ms.database.getPost(existsPostId);
-		}
-
-		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
-			const postIds = uniq(_messages.map(m => m.postId));
-			const postsIdsWithoutExists = postIds.filter(postId => _existsPostId !== postId);
-			// 1 case: there's created post and appears new one to merge(not created): _existsPostId is null, postsIdsWithoutExists.length > 0
-			// 2 case: there's created post and appears new one to merge(created): _existsPostId not null, postsIdsWithoutExists.length > 0
-			if (!postsIdsWithoutExists.length) {
-				return _existsPostId;
-			}
-			console.log('mergePostsToOne', _existsPostId, postIds);
-			if (_existsPostId && !includes(postIds, _existsPostId)) {
-				postIds.push(_existsPostId);
-			}
-			const {userId, groupId} = _importState;
-
-			const posts = await app.ms.group
-				.getPostListByIds(userId, groupId, postIds).
-				then(posts => posts.filter(p => !p.isDeleted));
-			if (!posts.length) {
-				return _existsPostId;
-			}
-			const resultPost = posts[0];
-
-			let postsContents = _postData.contents || [];
-			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
-			postsContents = uniqBy(postsContents, c => c.manifestStorageId);
-
-			const messageContents = await models.ContentMessage.findAll({
-				where: {dbContentId: {[Op.in]: postsContents.map(c => c.id)}}
-			});
-			console.log('postsContents.map(c => c.id)', postsContents.map(c => c.id));
-			console.log('messageContents.map(c => c.dbContentId)', messageContents.map(c => c.dbContentId));
-
-			postsContents = orderBy(postsContents, [(c) => {
-				const mc = find(messageContents, {dbContentId: c.id});
-				return mc.msgId * mc.updatedAt.getTime();
-			}], ['asc']);
-
-			await app.ms.group.updatePost(userId, resultPost.id, {contents: postsContents});
-			// console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
-			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id));
-
-			// content updated by merging
-			delete _postData.contents;
-
-			return resultPost.id;
-		}
-
-		storeContentMessage(contentMessageData) {
-			console.log('storeContentMessage', contentMessageData.dbContentId);
-			return models.ContentMessage.create(contentMessageData).catch(() => {/* already added */});
+		storeContentMessage(contentMessageData, content) {
+			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch(() => {/* already added */});
 		}
 
 		async messageToContents(client, dbChannel, m, userId) {
 			let contents = [];
-			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id };
+			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
 
 			if (m.message) {
 				console.log('m.message', m.message, 'm.entities', m.entities);
 				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
 				console.log('text', text);
-				const content = await app.saveData(text, '', { mimeType: 'text/html', userId, view: ContentView.Contents });
+				const content = await app.saveData(text, '', {
+					userId,
+					mimeType: 'text/html',
+					view: ContentView.Contents
+				});
 				contents.push(content);
-				await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+				await this.storeContentMessage(contentMessageData, content);
 			}
 
 			if (m.media) {
@@ -612,25 +630,29 @@ function getModule(app: IGeesomeApp, models) {
 				console.log('m.media', m.media);
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
 				if (file && file.content) {
-					const content = await app.saveData(file.content, '', { mimeType: file.mimeType, userId, view: ContentView.Media });
+					const content = await app.saveData(file.content, '', {
+						userId,
+						mimeType: file.mimeType,
+						view: ContentView.Media
+					});
 					contents.push(content);
-					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+					await this.storeContentMessage(contentMessageData, content);
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.saveData(m.media.webpage.url, '', {
-						mimeType: 'text/plain',
+					const content = await app.saveData(telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
 						userId,
-						view: ContentView.Link,
-						previews: [{previewSize: 'medium', mimeType: 'text/html', content: telegramHelpers.mediaWebpageToPreviewHtml(m.media.webpage)}]
+						mimeType: 'application/json',
+						view: ContentView.Link
 					});
 					contents.push(content);
-					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+					await this.storeContentMessage(contentMessageData, content);
 				}
 			}
 
 			return contents;
 		}
+
 		async flushDatabase() {
 			await pIteration.forEachSeries(['Message', 'Channel', 'Account', 'ContentMessage'], (modelName) => {
 				return models[modelName].destroy({where: {}});

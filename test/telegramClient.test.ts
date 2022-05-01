@@ -13,7 +13,8 @@ import {
 	CorePermissionName, PostStatus,
 } from "../app/modules/database/interface";
 import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
-import {channel} from "diagnostics_channel";
+
+const pIteration = require('p-iteration');
 
 const telegramHelpers = require('../app/modules/telegramClient/helpers');
 
@@ -311,7 +312,7 @@ describe("telegramClient", function () {
 
 				const contents = await telegramClient.messageToContents(null, channel, message, testUser.id);
 				assert.equal(contents.length, 3);
-				const [imageContent, linkContent, messageContent] = contents;
+				const [messageContent, imageContent, linkContent] = contents;
 				assert.equal(imageContent.view, ContentView.Media);
 				assert.equal(linkContent.view, ContentView.Link);
 				assert.equal(messageContent.view, ContentView.Contents);
@@ -324,7 +325,7 @@ describe("telegramClient", function () {
 
 				const postContents = await app.ms.group.getPostContent('https://my.site/ipfs/', testPost);
 				assert.equal(postContents.length, 3);
-				const [imageC, linkC, messageC] = postContents;
+				const [messageC, imageC, linkC] = postContents;
 
 				assert.equal(imageC.type, 'image');
 				assert.equal(imageC.mimeType, 'image/jpg');
@@ -332,11 +333,18 @@ describe("telegramClient", function () {
 				assert.equal(imageC.manifestId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 				assert.equal(imageC.url, 'https://my.site/ipfs/QmQ6thGsFtJstZu2PKkZ11zLwdXNnL1kyd2TqYHLZB33tr');
 
-				assert.equal(linkC.type, 'text');
-				assert.equal(linkC.mimeType, 'text/plain');
+				assert.equal(linkC.type, 'json');
+				assert.equal(linkC.mimeType, 'application/json');
 				assert.equal(linkC.view, 'link');
-				assert.equal(linkC.manifestId, 'bafyreifkn7dp7trj6wync7w5rp2mhbv6ofhgl6kx5vtfdzsqi6l5hq63pe');
-				assert.equal(linkC.text, 'https://vas3k.ru/blog/machine_learning/');
+				assert.equal(linkC.manifestId, 'bafyreibwegei7vtbrwq4tee3ag3akyjybplfefl2kmou6iqidmmou5vzpy');
+				assert.deepEqual(linkC.json, {
+					description: 'Разбираемся простыми словами',
+					displayUrl: 'vas3k.ru/blog/machine_learning',
+					siteName: 'vas3k.ru',
+					title: 'Машинное обучение для людей',
+					type: 'url',
+					url: 'https://vas3k.ru/blog/machine_learning/'
+				});
 
 				assert.equal(messageC.type, 'text');
 				assert.equal(messageC.mimeType, 'text/html');
@@ -422,9 +430,10 @@ describe("telegramClient", function () {
 
 				const contents = await telegramClient.messageToContents(null, channel, message, testUser.id);
 				assert.equal(contents.length, 2);
-				const [linkContent, textContent] = contents;
+				const [textContent, linkContent] = contents;
 				assert.equal(linkContent.view, ContentView.Link);
-				console.log(await app.ms.storage.getFileDataText(linkContent.mediumPreviewStorageId), telegramHelpers.mediaWebpageToPreviewHtml(message.media.webpage));
+				assert.equal(linkContent.mimeType, 'application/json');
+				assert.equal(await app.ms.storage.getFileDataText(linkContent.storageId), JSON.stringify({"url":"https://t.me/inside_microwave/161","displayUrl":"t.me/inside_microwave/161","siteName":"Telegram","title":"Внутри Микроволновки","description":"Для всех новоприбывших: если вы увидели тут какие-то сложные посты про #блокчейн - то настоятельно рекомендую прочитать тред про него с начала.\n\nВот первый пост:\nhttps://t.me/inside_microwave/33\nЯ там сделал цепочку из ссылок на следующие посты, так что читать должно быть удобно\n\nЕщё написал FAQ с описанием терминов, которые юзаю в треде:\ntelegra.ph/Blockchain-FAQ-06-22\n\nФишка в том что я стараюсь объяснить блокчейн и экосистему вокруг него так, чтобы он был понятен простому человеку, ну и заодно то, что блокчейн не равно биткоин, всё гораздо сложнее и интереснее. Рассказываю также про смарт контракты и децентрализованные финансы то что знаю, и надеюсь что получается донести почему я считаю эту технологию перспективной и крутой.\n\nА вообще я очень рад что сюда подключается много интересных и, что самое главное, адекватных людей, я давно хочу сформировать островок адекватности на котором люди с разными точками зрения будут учиться…","type":"url"}));
 				assert.equal(textContent.view, ContentView.Contents);
 			});
 
@@ -548,20 +557,21 @@ describe("telegramClient", function () {
 					sourcePostId: message1.id,
 					sourceDate: new Date(message1.date * 1000),
 					contents: [],
+					properties: {},
 				}
 
-				const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: message1.date};
+				const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: message1.date, msgId: message1.id};
 
 				const contents1 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 				assert.equal(contents1.length, 1);
 				assert.equal(contents1[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
 
 				postData.contents = contents1;
-				let post1 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
+				let post1 = await telegramClient.publishPost(importState, null, postData, msgData);
 				assert.equal(post1.contents.length, 1);
 
 				const existsChannelMessagePost1 = await telegramClient.findExistsChannelMessage(message1.id, channel.id, testUser.id);
-				post1 = await telegramClient.publishPost(importState, existsChannelMessagePost1, postData, [message1.id], msgData);
+				post1 = await telegramClient.publishPost(importState, existsChannelMessagePost1, postData, msgData);
 				assert.equal(post1.contents.length, 1);
 
 				const contents2 = await telegramClient.messageToContents(null, channel, message2, testUser.id);
@@ -574,8 +584,9 @@ describe("telegramClient", function () {
 				postData.contents = contents2;
 
 				msgData.timestamp = message2.date;
+				msgData.msgId = message2.id;
 
-				const post2 = await telegramClient.publishPost(importState, null, postData, [message2.id], msgData);
+				const post2 = await telegramClient.publishPost(importState, null, postData, msgData);
 				assert.equal(post2.id, post1.id);
 				assert.equal(post2.contents.length, 3);
 				assert.equal(post2.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
@@ -597,8 +608,9 @@ describe("telegramClient", function () {
 				postData.contents = contents3;
 
 				msgData.timestamp = message1.date;
+				msgData.msgId = message1.id;
 
-				let post3 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
+				let post3 = await telegramClient.publishPost(importState, null, postData, msgData);
 				const post3PrevId = post3.id;
 				assert.equal(post3.contents.length, 1);
 				assert.notEqual(post2.id, post3.id);
@@ -609,7 +621,7 @@ describe("telegramClient", function () {
 				const existsChannelMessage = await telegramClient.findExistsChannelMessage(message1.id, channel.id, testUser.id);
 				assert.equal(existsChannelMessage.msgId, message1.id);
 
-				post3 = await telegramClient.publishPost(importState, existsChannelMessage, postData, [message1.id], msgData);
+				post3 = await telegramClient.publishPost(importState, existsChannelMessage, postData, msgData);
 				assert.equal(post3.contents.length, 4);
 				assert.equal(post3.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
 				assert.equal(post3.contents[1].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
@@ -621,7 +633,315 @@ describe("telegramClient", function () {
 				assert.equal(post3.isDeleted, true);
 			});
 
-			it.only('should merge posts by groupedId', async () => {
+			it('should merge two group of posts by timestamp', async () => {
+				const testUser = (await app.ms.database.getAllUserList('user'))[0];
+				const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+
+				const messages = [
+					{
+						id: 1207,
+						replyTo: null,
+						date: 1649028625,
+						message: 'jump to message 👇',
+						entities: [
+							{
+								CONSTRUCTOR_ID: 1990644519,
+								SUBCLASS_OF_ID: 3479443932,
+								className: 'MessageEntityTextUrl',
+								classType: 'constructor',
+								offset: 0,
+								length: 18,
+								url: 'https://t.me/ctodailychat/263223'
+							}
+						],
+						media: null,
+						action: undefined,
+						groupedId: null
+					},
+					{
+						id: 1210,
+						replyTo: null,
+						date: 1649028943,
+						message: 'держи)',
+						entities: null,
+						media: {
+							CONSTRUCTOR_ID: 1766936791,
+							SUBCLASS_OF_ID: 1198308914,
+							className: 'MessageMediaPhoto',
+							classType: 'constructor',
+							flags: 1,
+							photo: {
+								CONSTRUCTOR_ID: 4212750949,
+								SUBCLASS_OF_ID: 3581324060,
+								className: 'Photo',
+								classType: 'constructor',
+								flags: 0,
+								hasStickers: false,
+								id: 4212750949,
+								accessHash: 3581324060,
+								fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 ba 62 6e 09 b9 c4 6b 2b db 2d 9c c3 7a 2b 7b 69 2e 9f 75 0b c1*/]),
+								date: 1649023284,
+								sizes: [
+									{
+										CONSTRUCTOR_ID: 3769678894,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoStrippedSize',
+										classType: 'constructor',
+										type: 'i',
+										bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/]),
+									},
+									{
+										CONSTRUCTOR_ID: 1976012384,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoSize',
+										classType: 'constructor',
+										type: 'm',
+										w: 148,
+										h: 320,
+										size: 9356
+									},
+									{
+										CONSTRUCTOR_ID: 1976012384,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoSize',
+										classType: 'constructor',
+										type: 'x',
+										w: 369,
+										h: 800,
+										size: 33650
+									},
+									{
+										CONSTRUCTOR_ID: 4198431637,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoSizeProgressive',
+										classType: 'constructor',
+										type: 'y',
+										w: 591,
+										h: 1280,
+										sizes: [5161, 12582, 23194, 30735, 46885]
+									}
+								],
+								videoSizes: null,
+								dcId: 2
+							},
+							ttlSeconds: null
+						},
+						action: undefined,
+						groupedId: 13192231545901354
+					},
+					{
+						id: 1211,
+						replyTo: null,
+						date: 1649028943,
+						message: '',
+						entities: null,
+						media: {
+							CONSTRUCTOR_ID: 1766936791,
+							SUBCLASS_OF_ID: 1198308914,
+							className: 'MessageMediaPhoto',
+							classType: 'constructor',
+							flags: 1,
+							photo: {
+								CONSTRUCTOR_ID: 4212750949,
+								SUBCLASS_OF_ID: 3581324060,
+								className: 'Photo',
+								classType: 'constructor',
+								flags: 0,
+								hasStickers: false,
+								id: 4212750949,
+								accessHash: 3581324060,
+								fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6e 09 b9 89 8f 97 e3 29 33 4a 4c dd 77 69 3a 69 1a 5c 20*/]),
+								date: 1649023285,
+								sizes: [
+									{
+										CONSTRUCTOR_ID: 3769678894,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoStrippedSize',
+										classType: 'constructor',
+										type: 'i',
+										bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/]),
+									},
+									{
+										CONSTRUCTOR_ID: 1976012384,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoSize',
+										classType: 'constructor',
+										type: 'm',
+										w: 148,
+										h: 320,
+										size: 9356
+									},
+									{
+										CONSTRUCTOR_ID: 1976012384,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoSize',
+										classType: 'constructor',
+										type: 'x',
+										w: 369,
+										h: 800,
+										size: 33650
+									},
+									{
+										CONSTRUCTOR_ID: 4198431637,
+										SUBCLASS_OF_ID: 399256025,
+										className: 'PhotoSizeProgressive',
+										classType: 'constructor',
+										type: 'y',
+										w: 591,
+										h: 1280,
+										sizes: [5161, 12582, 23194, 30735, 46885]
+									}
+								],
+								videoSizes: null,
+								dcId: 2
+							},
+							ttlSeconds: null
+						},
+						action: undefined,
+						groupedId: 13192231545901354
+					},
+					{
+						id: 1212,
+						replyTo: null,
+						date: 1649064970,
+						message: 'jump to message 👇',
+						entities: [
+							{
+								CONSTRUCTOR_ID: 1990644519,
+								SUBCLASS_OF_ID: 3479443932,
+								className: 'MessageEntityTextUrl',
+								classType: 'constructor',
+								offset: 0,
+								length: 18,
+								url: 'https://t.me/ctodailychat/263251'
+							}
+						],
+						media: null,
+						action: undefined,
+						groupedId: null
+					},
+					{
+						id: 1213,
+						replyTo: null,
+						date: 1649064970,
+						message: 'https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html',
+						entities: [
+							{
+								CONSTRUCTOR_ID: 1859134776,
+								SUBCLASS_OF_ID: 3479443932,
+								className: 'MessageEntityUrl',
+								classType: 'constructor',
+								offset: 0,
+								length: 81
+							}
+						],
+						media: {
+							CONSTRUCTOR_ID: 2737690112,
+							SUBCLASS_OF_ID: 1198308914,
+							className: 'MessageMediaWebPage',
+							classType: 'constructor',
+							webpage: {
+								CONSTRUCTOR_ID: 3902555570,
+								SUBCLASS_OF_ID: 1437168769,
+								className: 'WebPage',
+								classType: 'constructor',
+								flags: 15,
+								id: 3902555570,
+								url: 'https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html',
+								displayUrl: 'dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html',
+								hash: 0,
+								type: 'article',
+								siteName: 'dustri.org',
+								title: 'Horrible edge cases to consider when dealing with music',
+								description: 'Personal blog of Julien (jvoisin) Voisin',
+								photo: null,
+								embedUrl: null,
+								embedType: null,
+								embedWidth: null,
+								embedHeight: null,
+								duration: null,
+								author: null,
+								document: null,
+								cachedPage: null,
+								attributes: null
+							}
+						},
+						action: undefined,
+						groupedId: null
+					}
+				];
+
+				const channel = await telegramClient.createDbChannel({
+					userId: testUser.id,
+					groupId: testGroup.id,
+					channelId: 1,
+					title: "1",
+					lastMessageId: 0,
+					postsCounts: 0,
+				});
+
+				const importState = {
+					mergeSeconds: 5,
+					userId: testUser.id,
+					groupId: testGroup.id,
+				};
+
+				let groupedContents = [];
+				let groupedId;
+				await pIteration.forEachSeries(messages, async (m, i) => {
+					const postData = {
+						groupId: testGroup.id,
+						status: 'published',
+						source: 'telegram',
+						sourceChannelId: channel.channelId,
+						sourcePostId: m.id,
+						sourceDate: new Date(m.date * 1000),
+						contents: [],
+						properties: {},
+					}
+					const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: m.date, msgId: m.id};
+
+					const contents = await telegramClient.messageToContents(null, channel, m, testUser.id);
+					postData.sourcePostId = m.id;
+					postData.sourceDate = new Date(m.date * 1000);
+
+					if (m.groupedId) {
+						groupedId = m.groupedId;
+						groupedContents = contents.concat(groupedContents);
+						if (!messages[i + 1] || !messages[i + 1].groupedId) {
+							postData.contents = groupedContents;
+							await telegramClient.publishPost(importState, null, postData, msgData);
+						}
+					} else {
+						postData.contents = contents;
+						await telegramClient.publishPost(importState, null, postData, msgData);
+					}
+				});
+
+				const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id);
+				console.log('groupPosts', await pIteration.map(groupPosts, async p => {
+					return {id: p.id, contents: await pIteration.map(p.contents, async c => (JSON.stringify({id: c.id, text: c.mimeType.indexOf('text') > -1 ? await app.ms.storage.getFileDataText(c.storageId) : '[image]'})))};
+				}));
+				assert.equal(groupPosts.length, 3);
+				const [horribleEdgeCases, spotifyPremium, link] = groupPosts;
+
+				console.log(link.publishedAt.getTime() / 1000);
+				console.log(spotifyPremium.publishedAt.getTime() / 1000);
+				console.log(horribleEdgeCases.publishedAt.getTime() / 1000);
+				assert.equal(link.contents.length, 1);
+				assert.equal(spotifyPremium.contents.length, 3);
+				assert.equal(horribleEdgeCases.contents.length, 3);
+
+				assert.equal(await app.ms.storage.getFileDataText(link.contents[0].storageId), '<a href="https://t.me/ctodailychat/263223">jump to message 👇</a>')
+				assert.equal(await app.ms.storage.getFileDataText(spotifyPremium.contents[0].storageId), 'держи)')
+				assert.equal(spotifyPremium.contents[1].mimeType, 'image/jpg')
+				assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg')
+				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[0].storageId), '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>')
+				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[1].storageId), '<a href="https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html">https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html</a>')
+				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[2].storageId), JSON.stringify({"url":"https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html","displayUrl":"dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html","siteName":"dustri.org","title":"Horrible edge cases to consider when dealing with music","description":"Personal blog of Julien (jvoisin) Voisin","type":"url"}))
+			});
+
+			it('should merge posts by groupedId', async () => {
 				const testUser = (await app.ms.database.getAllUserList('user'))[0];
 				const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
@@ -793,13 +1113,15 @@ describe("telegramClient", function () {
 					sourcePostId: message1.id,
 					sourceDate: new Date(message1.date * 1000),
 					contents: [],
+					properties: {},
 				}
 
 				const msgData = {
 					dbChannelId: channel.id,
 					userId: testUser.id,
 					timestamp: message1.date,
-					groupedId: message1.groupedId
+					groupedId: message1.groupedId,
+					msgId: message1.id
 				};
 
 				const contents1 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
@@ -808,7 +1130,7 @@ describe("telegramClient", function () {
 				assert.equal(contents1[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 
 				postData.contents = contents1;
-				let post1 = await telegramClient.publishPost(importState, null, postData, [message1.id], msgData);
+				let post1 = await telegramClient.publishPost(importState, null, postData, msgData);
 				assert.equal(post1.contents.length, 2);
 
 				const contents2 = await telegramClient.messageToContents(null, channel, message2, testUser.id);
@@ -818,8 +1140,9 @@ describe("telegramClient", function () {
 				postData.sourcePostId = message2.id;
 				postData.sourceDate = new Date(message2.date * 1000);
 				postData.contents = contents2;
+				msgData.msgId = message2.id
 
-				const post2 = await telegramClient.publishPost(importState, null, postData, [message2.id], msgData);
+				const post2 = await telegramClient.publishPost(importState, null, postData, msgData);
 				assert.equal(post2.id, post1.id);
 				assert.equal(post2.contents.length, 3);
 				assert.equal(post2.contents[0].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');

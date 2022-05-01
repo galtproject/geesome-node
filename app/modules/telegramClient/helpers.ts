@@ -1,9 +1,8 @@
 const orderBy = require('lodash/orderBy');
 const find = require('lodash/find');
+const pick = require('lodash/pick');
 const maxBy = require('lodash/maxBy');
 const isNumber = require('lodash/isNumber');
-const endsWith = require('lodash/endsWith');
-const startsWith = require('lodash/startsWith');
 
 module.exports = {
 	messageWithEntitiesToHtml(message, entities = []) {
@@ -76,15 +75,10 @@ module.exports = {
 		return {file, fileSize, mimeType, thumbSize};
 	},
 
-	mediaWebpageToPreviewHtml(webpage) {
-		let html = '<div class="link-preview">';
-		if (webpage.title) {
-			html += '<div class="link-title">${webpage.title}</div>';
-		}
-		if (webpage.description) {
-			html += '<div class="link-description">${webpage.description}</div>';
-		}
-		html += '</div>';
-		return html;
+	mediaWebpageToLinkStructure(webpage) {
+		return JSON.stringify({
+			...pick(webpage, ['url', 'displayUrl', 'siteName', 'title', 'description']),
+			type: 'url'
+		});
 	}
 }
