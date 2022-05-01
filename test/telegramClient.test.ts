@@ -333,11 +333,18 @@ describe("telegramClient", function () {
 				assert.equal(imageC.manifestId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 				assert.equal(imageC.url, 'https://my.site/ipfs/QmQ6thGsFtJstZu2PKkZ11zLwdXNnL1kyd2TqYHLZB33tr');
 
-				assert.equal(linkC.type, 'text');
-				assert.equal(linkC.mimeType, 'text/plain');
+				assert.equal(linkC.type, 'json');
+				assert.equal(linkC.mimeType, 'application/json');
 				assert.equal(linkC.view, 'link');
-				assert.equal(linkC.manifestId, 'bafyreifkn7dp7trj6wync7w5rp2mhbv6ofhgl6kx5vtfdzsqi6l5hq63pe');
-				assert.equal(linkC.text, 'https://vas3k.ru/blog/machine_learning/');
+				assert.equal(linkC.manifestId, 'bafyreibwegei7vtbrwq4tee3ag3akyjybplfefl2kmou6iqidmmou5vzpy');
+				assert.deepEqual(linkC.json, {
+					description: 'Разбираемся простыми словами',
+					displayUrl: 'vas3k.ru/blog/machine_learning',
+					siteName: 'vas3k.ru',
+					title: 'Машинное обучение для людей',
+					type: 'url',
+					url: 'https://vas3k.ru/blog/machine_learning/'
+				});
 
 				assert.equal(messageC.type, 'text');
 				assert.equal(messageC.mimeType, 'text/html');
@@ -425,7 +432,8 @@ describe("telegramClient", function () {
 				assert.equal(contents.length, 2);
 				const [textContent, linkContent] = contents;
 				assert.equal(linkContent.view, ContentView.Link);
-				console.log(await app.ms.storage.getFileDataText(linkContent.mediumPreviewStorageId), telegramHelpers.mediaWebpageToPreviewHtml(message.media.webpage));
+				assert.equal(linkContent.mimeType, 'application/json');
+				assert.equal(await app.ms.storage.getFileDataText(linkContent.storageId), JSON.stringify({"url":"https://t.me/inside_microwave/161","displayUrl":"t.me/inside_microwave/161","siteName":"Telegram","title":"Внутри Микроволновки","description":"Для всех новоприбывших: если вы увидели тут какие-то сложные посты про #блокчейн - то настоятельно рекомендую прочитать тред про него с начала.\n\nВот первый пост:\nhttps://t.me/inside_microwave/33\nЯ там сделал цепочку из ссылок на следующие посты, так что читать должно быть удобно\n\nЕщё написал FAQ с описанием терминов, которые юзаю в треде:\ntelegra.ph/Blockchain-FAQ-06-22\n\nФишка в том что я стараюсь объяснить блокчейн и экосистему вокруг него так, чтобы он был понятен простому человеку, ну и заодно то, что блокчейн не равно биткоин, всё гораздо сложнее и интереснее. Рассказываю также про смарт контракты и децентрализованные финансы то что знаю, и надеюсь что получается донести почему я считаю эту технологию перспективной и крутой.\n\nА вообще я очень рад что сюда подключается много интересных и, что самое главное, адекватных людей, я давно хочу сформировать островок адекватности на котором люди с разными точками зрения будут учиться…","type":"url"}));
 				assert.equal(textContent.view, ContentView.Contents);
 			});
 
@@ -930,7 +938,7 @@ describe("telegramClient", function () {
 				assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg')
 				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[0].storageId), '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>')
 				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[1].storageId), '<a href="https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html">https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html</a>')
-				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[2].storageId), 'https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html')
+				assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[2].storageId), JSON.stringify({"url":"https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html","displayUrl":"dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html","siteName":"dustri.org","title":"Horrible edge cases to consider when dealing with music","description":"Personal blog of Julien (jvoisin) Voisin","type":"url"}))
 			});
 
 			it('should merge posts by groupedId', async () => {

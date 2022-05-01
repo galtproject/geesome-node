@@ -273,7 +273,7 @@ export interface IGeesomeGroupModule {
 
   getPostByParams(params): Promise<IPost>;
 
-  getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, url?, previewUrl?}[]>;
+  getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, url?, previewUrl?}[]>;
 
   getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 

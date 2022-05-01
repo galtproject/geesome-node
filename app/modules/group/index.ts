@@ -584,7 +584,7 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getPostListByIds(groupId, postIds);
 		}
 
-		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, url?, previewUrl?}[]> {
+		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, url?, previewUrl?}[]> {
 			return pIteration.map(post.contents, async c => {
 				const baseData = {
 					mimeType: c.mimeType,
@@ -608,6 +608,12 @@ function getModule(app: IGeesomeApp) {
 						type: 'video',
 						previewUrl: baseStorageUri + c.mediumPreviewStorageId,
 						url: baseStorageUri + c.storageId,
+						...baseData
+					};
+				} else if (_.includes(c.mimeType, 'json')) {
+					return {
+						type: 'json',
+						json: JSON.parse(await app.ms.storage.getFileDataText(c.storageId)),
 						...baseData
 					};
 				}

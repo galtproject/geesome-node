@@ -601,10 +601,8 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		storeContentMessage(contentMessageData) {
-			console.log('storeContentMessage', contentMessageData.dbContentId);
-			return models.ContentMessage.create(contentMessageData).catch(() => {/* already added */
-			});
+		storeContentMessage(contentMessageData, content) {
+			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch(() => {/* already added */});
 		}
 
 		async messageToContents(client, dbChannel, m, userId) {
@@ -616,12 +614,12 @@ function getModule(app: IGeesomeApp, models) {
 				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
 				console.log('text', text);
 				const content = await app.saveData(text, '', {
-					mimeType: 'text/html',
 					userId,
+					mimeType: 'text/html',
 					view: ContentView.Contents
 				});
 				contents.push(content);
-				await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+				await this.storeContentMessage(contentMessageData, content);
 			}
 
 			if (m.media) {
@@ -633,27 +631,22 @@ function getModule(app: IGeesomeApp, models) {
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
 				if (file && file.content) {
 					const content = await app.saveData(file.content, '', {
-						mimeType: file.mimeType,
 						userId,
+						mimeType: file.mimeType,
 						view: ContentView.Media
 					});
 					contents.push(content);
-					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+					await this.storeContentMessage(contentMessageData, content);
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.saveData(m.media.webpage.url, '', {
-						mimeType: 'text/plain',
+					const content = await app.saveData(telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
 						userId,
-						view: ContentView.Link,
-						previews: [{
-							previewSize: 'medium',
-							mimeType: 'text/html',
-							content: telegramHelpers.mediaWebpageToPreviewHtml(m.media.webpage)
-						}]
+						mimeType: 'application/json',
+						view: ContentView.Link
 					});
 					contents.push(content);
-					await this.storeContentMessage({...contentMessageData, dbContentId: content.id});
+					await this.storeContentMessage(contentMessageData, content);
 				}
 			}
 
