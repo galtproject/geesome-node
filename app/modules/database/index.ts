@@ -831,8 +831,8 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return this.models.Post.update(updateData, {where: {id: {[Op.in]: ids}}});
   }
 
-  async setPostContents(postId, contentsData) {
-    const contents = await pIteration.map(contentsData, async (content, position) => {
+  async setPostContents(postId, contents) {
+    contents = await pIteration.map(contents, async (content, position) => {
       const contentObj: any = await this.getContent(content.id);
       contentObj.postsContents = {position, view: content.view};
       return contentObj;

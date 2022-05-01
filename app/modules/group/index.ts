@@ -485,7 +485,7 @@ function getModule(app: IGeesomeApp) {
 			}
 			log('localId');
 
-			const contentsData = await this.getContentsForPost(postData.contents);
+			const contents = await this.getContentsForPost(postData.contents);
 			delete postData.contents;
 
 			const [user, group] = await Promise.all([
@@ -515,8 +515,8 @@ function getModule(app: IGeesomeApp) {
 			})();
 			log('replyPostUpdatePromise');
 
-			if(contentsData) {
-				await app.ms.database.setPostContents(post.id, contentsData);
+			if(contents) {
+				await app.ms.database.setPostContents(post.id, contents);
 			}
 			log('setPostContents');
 
@@ -585,7 +585,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, url?, previewUrl?}[]> {
-			return pIteration.map(post.contents, async c => {
+			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async c => {
 				const baseData = {
 					mimeType: c.mimeType,
 					view: c.view || ContentView.Contents,
