@@ -1,5 +1,6 @@
-import {IGeesomeApp, IGeesomeInviteModule, IUserInput} from "../../interface";
+import {IGeesomeApp, IUserInput} from "../../interface";
 import {CorePermissionName, IListParams} from "../database/interface";
+import IGeesomeInviteModule from "./interface";
 const pIteration = require('p-iteration');
 const _ = require('lodash');
 const ethereumAuthorization = require('geesome-libs/src/ethereum');
@@ -32,7 +33,7 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			if (userData.accounts) {
-				const selfIpnsId = await app.getSelfAccountId();
+				const selfIpnsId = await app.ms.staticId.getSelfStaticAccountId();
 
 				userData.accounts.forEach(acc => {
 					if (acc.provider === 'ethereum') {

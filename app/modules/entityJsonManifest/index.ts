@@ -7,9 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeEntityJsonManifestModule} from "./interface";
 import {IGeesomeApp} from "../../interface";
 import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../database/interface";
+import IGeesomeEntityJsonManifestModule from "./interface";
 
 const pIteration = require('p-iteration');
 const treeLib = require('geesome-libs/src/base36Trie');
@@ -164,7 +164,7 @@ function getModule(app) {
     }
 
     async manifestIdToDbObject(manifestId, type = null, options: any = {}) {
-      manifestId = app.checkStorageId(manifestId);
+      manifestId = ipfsHelper.getStorageIdHash(manifestId);
       let manifest: any = {};
 
       if(!options.isEncrypted) {

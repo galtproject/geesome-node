@@ -1,5 +1,5 @@
 import {IGeesomeApp} from "../../interface";
-import {ContentMimeType, IContent} from "../database/interface";
+import {IContent} from "../database/interface";
 
 const { path } = require('@vuepress/utils');
 
@@ -18,7 +18,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-    app.checkModules(['asyncOperation', 'group']);
+    app.checkModules(['asyncOperation', 'group', 'content']);
 
     // temp storage of tokens to pass to child process
     let apiKeyIdToTokenTemp = {
@@ -209,7 +209,7 @@ function getModule(app: IGeesomeApp) {
             //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
             // }
 
-            return app.saveDirectoryToStorage(options.userId, distPath, {
+            return app.ms.content.saveDirectoryToStorage(options.userId, distPath, {
                 groupId: group.id,
                 userApiKeyId: options.userApiKeyId
             });

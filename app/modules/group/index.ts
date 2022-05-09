@@ -1,16 +1,16 @@
-import {IGeesomeApp, IGeesomeGroupModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
 import {
 	ContentView,
 	CorePermissionName,
 	GroupPermissionName,
 	GroupType,
 	GroupView,
-	IContent,
 	IGroup,
 	IListParams,
 	IPost,
 	PostStatus
 } from "../database/interface";
+import IGeesomeGroupModule from "./interface";
 
 let helpers = require('../../helpers');
 const commonHelper = require('geesome-libs/src/common');
@@ -29,7 +29,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['database', 'communicator', 'storage', 'entityJsonManifest']);
+	app.checkModules(['database', 'communicator', 'storage', 'entityJsonManifest', 'staticId', 'content']);
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
@@ -48,7 +48,7 @@ function getModule(app: IGeesomeApp) {
 				groupData.isRemote = false;
 			}
 
-			groupData.manifestStaticStorageId = await app.createStorageAccount(groupData['name']);
+			groupData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(groupData['name']);
 			if (groupData.type !== GroupType.PersonalChat) {
 				groupData.staticStorageId = groupData.manifestStaticStorageId;
 			}
@@ -68,7 +68,7 @@ function getModule(app: IGeesomeApp) {
 			let staticStorageId;
 			if (ipfsHelper.isIpfsHash(manifestStorageId)) {
 				staticStorageId = manifestStorageId;
-				manifestStorageId = await app.resolveStaticId(staticStorageId);
+				manifestStorageId = await app.ms.staticId.resolveStaticId(staticStorageId);
 			}
 
 			let dbGroup = await this.getGroupByManifestId(manifestStorageId, staticStorageId);
@@ -84,11 +84,11 @@ function getModule(app: IGeesomeApp) {
 		async createGroupByObject(groupObject) {
 			let dbAvatar = await app.ms.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
 			if (!dbAvatar) {
-				dbAvatar = await app.createContentByObject(groupObject.avatarImage);
+				dbAvatar = await app.ms.content.createContentByObject(groupObject.avatarImage);
 			}
 			let dbCover = await app.ms.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
 			if (!dbCover) {
-				dbCover = await app.createContentByObject(groupObject.coverImage);
+				dbCover = await app.ms.content.createContentByObject(groupObject.coverImage);
 			}
 			const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
 			const dbGroup = await app.ms.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
@@ -260,7 +260,7 @@ function getModule(app: IGeesomeApp) {
 				storageUpdatedAt = new Date();
 				staticStorageUpdatedAt = new Date();
 
-				promises.push(app.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
+				promises.push(app.ms.staticId.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
 			}
 
 			promises.push(app.ms.database.updateGroup(groupId, {
@@ -328,7 +328,7 @@ function getModule(app: IGeesomeApp) {
 				const group = await app.ms.database.getGroup(groupId);
 				ipnsId = group.manifestStaticStorageId;
 			}
-			return app.getStaticIdPeers(ipnsId);
+			return app.ms.staticId.getStaticIdPeers(ipnsId);
 		}
 
 		async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
@@ -457,7 +457,7 @@ function getModule(app: IGeesomeApp) {
 			let contentsData = contents.filter(c => c.id);
 			const manifestStorageContents = contents.filter(c => c.manifestStorageId);
 			const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
-				id: await app.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
+				id: await app.ms.content.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
 				...c
 			}));
 			return _.uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');

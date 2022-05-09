@@ -1,7 +1,8 @@
-import {IGeesomeApp, IGeesomeAsyncOperationModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
 import {
 	CorePermissionName
 } from "../database/interface";
+import IGeesomeAsyncOperationModule from "./interface";
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
 
@@ -16,11 +17,11 @@ function getModule(app: IGeesomeApp) {
 	app.checkModules(['database']);
 
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
-		async asyncOperationWrapper(methodName, args, options) {
+		async asyncOperationWrapper(moduleName, funcName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
 
 			if (!options.async) {
-				return app[methodName].apply(app, args);
+				return app.ms[moduleName][funcName].apply(app, args);
 			}
 
 			const asyncOperation = await app.ms.database.addUserAsyncOperation({
@@ -51,7 +52,7 @@ function getModule(app: IGeesomeApp) {
 					resolve(true);
 				}
 			});
-			const methodPromise = app[methodName].apply(app, args);
+			const methodPromise = app[funcName].apply(app, args);
 
 			methodPromise
 				.then((res: any) => {

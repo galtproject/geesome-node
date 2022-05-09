@@ -35,7 +35,7 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
-	app.checkModules(['asyncOperation', 'group']);
+	app.checkModules(['asyncOperation', 'group', 'content']);
 
 	class TelegramClientModule {
 		async login(userId, loginData) {
@@ -270,8 +270,8 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		async runChannelImport(userId, apiKey, accData, channelId, advancedSettings = {}) {
-			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
+		async runChannelImport(userId, apiKey, sessionKey, channelId, advancedSettings = {}) {
+			const {client, result: channel} = await this.getChannelInfoByUserId(userId, {sessionKey}, channelId);
 
 			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 			let group;
@@ -282,7 +282,7 @@ function getModule(app: IGeesomeApp, models) {
 			]);
 			let avatarContent;
 			if (avatarFile) {
-				avatarContent = await app.saveData(avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
+				avatarContent = await app.ms.content.saveData(userId, avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
 			}
 			// console.log('channel', channel);
 			group = dbChannel ? await app.ms.group.getGroup(dbChannel.groupId) : null;
@@ -609,7 +609,7 @@ function getModule(app: IGeesomeApp, models) {
 				console.log('m.message', m.message, 'm.entities', m.entities);
 				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
 				console.log('text', text);
-				const content = await app.saveData(text, '', {
+				const content = await app.ms.content.saveData(userId, text, '', {
 					userId,
 					mimeType: 'text/html',
 					view: ContentView.Contents
@@ -626,7 +626,7 @@ function getModule(app: IGeesomeApp, models) {
 				console.log('m.media', m.media);
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
 				if (file && file.content) {
-					const content = await app.saveData(file.content, '', {
+					const content = await app.ms.content.saveData(userId, file.content, '', {
 						userId,
 						mimeType: file.mimeType,
 						view: ContentView.Media
@@ -636,7 +636,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.saveData(telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
+					const content = await app.ms.content.saveData(userId, telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
 						userId,
 						mimeType: 'application/json',
 						view: ContentView.Link

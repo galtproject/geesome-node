@@ -1,9 +1,10 @@
-import {IGeesomeApp, IGeesomeFileCatalogModule, ManifestToSave} from "../../interface";
+import {IGeesomeApp, ManifestToSave} from "../../interface";
 import {
 	CorePermissionName, FileCatalogItemType,
 	IContent, IFileCatalogItem,
 	IListParams
 } from "../database/interface";
+import IGeesomeFileCatalogModule from "./interface";
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const path = require('path');
@@ -15,7 +16,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['group', 'storage']);
+	app.checkModules(['group', 'storage', 'staticId', 'content']);
 
 	class FileCatalogModule implements IGeesomeFileCatalogModule {
 
@@ -188,8 +189,8 @@ function getModule(app: IGeesomeApp) {
 				return { storageId };
 			}
 
-			const staticId = await app.createStorageAccount(user.name + '@directory:' + storageDirPath);
-			await app.bindToStaticId(storageId, staticId);
+			const staticId = await app.ms.staticId.createStaticAccountId(user.name + '@directory:' + storageDirPath);
+			await app.ms.staticId.bindToStaticId(storageId, staticId);
 
 			return {
 				storageId,
@@ -277,7 +278,7 @@ function getModule(app: IGeesomeApp) {
 
 		public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
 			await pIteration.map(toSaveList, async (item: ManifestToSave) => {
-				const content = await app.createContentByRemoteStorageId(item.manifestStorageId, {
+				const content = await app.ms.content.createContentByRemoteStorageId(item.manifestStorageId, {
 					userId,
 					...options
 				});

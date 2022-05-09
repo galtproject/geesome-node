@@ -27,7 +27,7 @@ function getModule(app: IGeesomeApp) {
             const group = await app.ms.group.getGroup(groupId);
             // TODO: check permission to read not public groups by user id
             if (!forUserId && !group.isPublic) {
-                throw new Error('GROUP_NOT_PUBLIC');
+                throw new Error('group_not_public');
             }
             const {list: groupPosts} = await app.ms.group.getGroupPosts(groupId, {}, {
                 sortBy: 'publishedAt',
@@ -71,9 +71,10 @@ function getModule(app: IGeesomeApp) {
             return pIteration.mapSeries(_.chunk(posts, 10), (postsChunk) => {
                 return pIteration.map(postsChunk, post => {
                     return app.ms.group.getPostContent(host + '/v1/content-data/', post).then((contents) => {
-                        let text = _.find(contents, (c) => c.type === 'text' && c.view === 'contents');
+                        console.log('contents', contents);
+                        let text = (_.find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text;
                         if (!text) {
-                            text = _.find(contents, (c) => c.type === 'text');
+                            text = (_.find(contents, (c) => c.type === 'text') || {}).text;;
                         }
                         const images = _.filter(contents, (c) => c.type === 'image');
                         return {
