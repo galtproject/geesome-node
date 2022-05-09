@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export interface IGeesomeEntityJsonManifestModule {
+export default interface IGeesomeEntityJsonManifestModule {
   generateContent(name, data, options?): Promise<any>;
 
   manifestIdToDbObject(manifest, type?, options?: any): Promise<any>;
