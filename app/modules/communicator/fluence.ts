@@ -14,7 +14,7 @@ module.exports = async (app: IGeesomeApp) => {
             });
             return new FluenceService(app.ms.accountStorage, peer, {logLevel: null /*'debug'*/});
         } catch (e) {
-            console.warn('peer.start error, trying to reconnect...', e.message);
+            console.warn('peer.start error, trying to reconnect...', e);
             await new Promise((resolve) => setTimeout(resolve, 5 * 1000));
         }
     }

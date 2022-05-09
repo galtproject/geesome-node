@@ -274,23 +274,23 @@ class GeesomeApp implements IGeesomeApp {
     return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
   }
 
-  async checkUserId(userId, createIfNotExist = true) {
-    if (userId == 'null' || userId == 'undefined') {
+  async checkUserId(userId, targetId, createIfNotExist = true) {
+    if (targetId == 'null' || targetId == 'undefined') {
       return null;
     }
-    if (!userId || _.isUndefined(userId)) {
+    if (!targetId || _.isUndefined(targetId)) {
       return null;
     }
-    if (!commonHelper.isNumber(userId)) {
-      let user = await this.getUserByManifestId(userId, userId);
+    if (!commonHelper.isNumber(targetId)) {
+      let user = await this.getUserByManifestId(targetId, targetId);
       if (!user && createIfNotExist) {
-        user = await this.createUserByRemoteStorageId(userId);
+        user = await this.createUserByRemoteStorageId(userId, targetId);
         return user.id;
       } else if (user) {
-        userId = user.id;
+        targetId = user.id;
       }
     }
-    return userId;
+    return targetId;
   }
 
   async getUserByManifestId(userId, staticId) {
@@ -303,7 +303,7 @@ class GeesomeApp implements IGeesomeApp {
     return this.ms.database.getUserByManifestId(userId, staticId);
   }
 
-  async createUserByRemoteStorageId(manifestStorageId) {
+  async createUserByRemoteStorageId(userId, manifestStorageId) {
     let staticStorageId;
     if (ipfsHelper.isIpfsHash(manifestStorageId)) {
       staticStorageId = manifestStorageId;
@@ -320,13 +320,13 @@ class GeesomeApp implements IGeesomeApp {
     const userObject: IUser = await this.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
     log('createUserByRemoteStorageId::userObject', userObject);
     userObject.isRemote = true;
-    return this.createUserByObject(userObject);
+    return this.createUserByObject(userId, userObject);
   }
 
-  async createUserByObject(userObject) {
+  async createUserByObject(userId, userObject) {
     let dbAvatar = await this.ms.database.getContentByManifestId(userObject.avatarImage.manifestStorageId);
     if (!dbAvatar) {
-      dbAvatar = await this.ms.content.createContentByObject(userObject.avatarImage);
+      dbAvatar = await this.ms.content.createContentByObject(userId, userObject.avatarImage);
     }
     const userFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'email', 'isRemote', 'description'];
     const dbUser = await this.ms.database.addUser(_.extend(_.pick(userObject, userFields), {
@@ -436,7 +436,7 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  async hookBeforeContentAdding(contentData, options) {
+  async hookBeforeContentAdding(userId, contentData, options) {
     if (options.groupId) {
       const groupId = await this.ms.group.checkGroupId(options.groupId);
       let group;
@@ -447,22 +447,22 @@ class GeesomeApp implements IGeesomeApp {
       contentData.isPublic = group && group.isPublic;
     }
 
-    if (!contentData.userId && options.userId) {
-      contentData.userId = options.userId;
+    if (!contentData.userId) {
+      contentData.userId = userId;
     }
   }
 
-  async hookAfterContentAdding(content: IContent, options) {
-    if (content.userId && await this.isUserCan(content.userId, CorePermissionName.UserFileCatalogManagement)) {
+  async hookAfterContentAdding(userId, content: IContent, options) {
+    if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
       log('isUserCan');
-      await this.ms.fileCatalog.addContentToUserFileCatalog(content.userId, content, options);
+      await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
       log('addContentToUserFileCatalog');
     }
   }
 
-  async hookExistsContentAdding(content: IContent, options) {
-    if (await this.isUserCan(options.userId, CorePermissionName.UserFileCatalogManagement)) {
-      await this.ms.fileCatalog.addContentToUserFileCatalog(options.userId, content, options);
+  async hookExistsContentAdding(userId, content: IContent, options) {
+    if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+      await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
     }
   }
 
@@ -603,7 +603,7 @@ class GeesomeApp implements IGeesomeApp {
     await pIteration.forEachSeries(this.config.modules, (moduleName) => {
       if (this.ms[moduleName].stop) {
         log(`Stop ${moduleName} module...`);
-        return this.ms.api.stop();
+        return this.ms[moduleName].stop();
       }
     })
   }

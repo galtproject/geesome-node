@@ -21,8 +21,9 @@ const mime = require('mime');
 const axios = require('axios');
 const Transform = require('stream').Transform;
 const Readable = require('stream').Readable;
-const {getDirSize} = require('./modules/drivers/helpers');
+const {getDirSize} = require('../drivers/helpers');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
+const fs = require('fs');
 
 module.exports = async (app: IGeesomeApp) => {
 	const module = getModule(app);
@@ -63,13 +64,15 @@ function getModule(app: IGeesomeApp) {
 
 		async updateContentManifest(content) {
 			content.description = content.description || '';
+			console.log('app.generateAndSaveManifest', content);
 			const manifestStorageId = await app.generateAndSaveManifest('content', content);
 			content.manifestStorageId = manifestStorageId;
+			console.log('app.ms.database.updateContent', {manifestStorageId});
 			await app.ms.database.updateContent(content.id, {manifestStorageId});
 			return content;
 		}
 
-		async regenerateUserContentPreviews(userId) {
+		async regenerateUserContentPreviews(userId: number) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const previousIpldToNewIpld = [];
 			let userContents = [];
@@ -303,7 +306,7 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async updateExistsContentMetadata(content: IContent, options) {
+		async updateExistsContentMetadata(userId: number, content: IContent, options) {
 			const propsToUpdate = ['view'];
 			if (content.mediumPreviewStorageId && content.previewMimeType) {
 				if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
@@ -316,7 +319,7 @@ function getModule(app: IGeesomeApp) {
 				return;
 			}
 			let updateData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
-			if(content.userId === options.userId) {
+			if (content.userId === userId) {
 				updateData = {
 					..._.pick(options, propsToUpdate),
 					...updateData,
@@ -329,9 +332,9 @@ function getModule(app: IGeesomeApp) {
 			});
 		}
 
-		private async addContent(contentData: IContent, options: { groupId?, userId?, userApiKeyId? } = {}) {
+		private async addContent(userId: number, contentData: IContent, options: { groupId?, userApiKeyId? } = {}): Promise<IContent> {
 			log('addContent');
-			await app.hookBeforeContentAdding(contentData, options);
+			await app.hookBeforeContentAdding(userId, contentData, options);
 
 			if (!contentData.size) {
 				const storageContentStat = await app.ms.storage.getFileStat(contentData.storageId);
@@ -340,32 +343,32 @@ function getModule(app: IGeesomeApp) {
 				contentData.size = storageContentStat.size;
 			}
 
+			contentData.userId = userId;
 			const content = await app.ms.database.addContent(contentData);
 			log('content');
 
-			const promises = [
-				app.hookAfterContentAdding(content, contentData),
-				app.ms.database.addUserContentAction({
+			await Promise.all([
+				async () => app.hookAfterContentAdding(userId, content, contentData),
+				async () => app.ms.database.addUserContentAction({
 					name: UserContentActionName.Upload,
 					userId: content.userId,
 					size: content.size,
 					contentId: content.id,
 					userApiKeyId: options.userApiKeyId
 				})
-			];
+			]);
 			log('addUserContentAction');
 			if (!contentData.manifestStorageId) {
 				log('updateContentManifest');
-				promises.push(this.updateContentManifest(content));
+				return this.updateContentManifest(content);
 			} else {
-				promises.push(new Promise(resolve => resolve(content)));
+				return content;
 			}
-			return _.last(await Promise.all(promises));
 		}
 
-		async saveData(userId, dataToSave, fileName, options: { userId, groupId, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? }) {
+		async saveData(userId: number, dataToSave, fileName, options: { groupId?, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {
 			log('saveData');
-			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
+			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			log('checkUserCan');
 			if (options.path) {
 				fileName = commonHelper.getFilenameFromPath(options.path);
@@ -407,7 +410,7 @@ function getModule(app: IGeesomeApp) {
 				fileStream = dataToSave;
 			}
 
-			const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.saveFileByStream(options.userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
+			const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.saveFileByStream(userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
 				extension: extensionFromName,
 				driver: options.driver,
 				onProgress: options.onProgress,
@@ -419,18 +422,17 @@ function getModule(app: IGeesomeApp) {
 			});
 			log('saveFileByStream extension', extension, 'mimeType', mimeType);
 
-			let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, options.userId);
+			let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 			log('existsContent', !!existsContent);
 			if (existsContent) {
 				console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
-				await this.updateExistsContentMetadata(existsContent, options);
-				console.log('isUserCan', options.userId);
-				await app.hookExistsContentAdding(existsContent, options);
+				await this.updateExistsContentMetadata(userId, existsContent, options);
+				await app.hookExistsContentAdding(userId, existsContent, options);
 				return existsContent;
 			}
 
 			log('this.addContentWithPreview(storageFile, {resultProperties', resultProperties);
-			return this.addContentWithPreview(storageFile, {
+			return this.addContentWithPreview(userId, storageFile, {
 				extension,
 				mimeType,
 				storageType: ContentStorageType.IPFS,
@@ -442,8 +444,8 @@ function getModule(app: IGeesomeApp) {
 			}, options);
 		}
 
-		async saveDataByUrl(userId, url, options: { userId, groupId, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? }) {
-			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
+		async saveDataByUrl(userId: number, url, options: { groupId?, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? } = {}) {
+			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			let name;
 			if (options.path) {
 				name = commonHelper.getFilenameFromPath(options.path);
@@ -466,7 +468,7 @@ function getModule(app: IGeesomeApp) {
 			if (uploadDriver && uploadDriver.isInputSupported(DriverInput.Source)) {
 				const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
 				type = dataToSave.type;
-				const {resultFile, resultMimeType, resultExtension, resultProperties} = await this.saveFileByStream(options.userId, dataToSave.stream, type, {
+				const {resultFile, resultMimeType, resultExtension, resultProperties} = await this.saveFileByStream(userId, dataToSave.stream, type, {
 					extension,
 					onProgress: options.onProgress
 				});
@@ -484,7 +486,7 @@ function getModule(app: IGeesomeApp) {
 					if (status !== 200) {
 						throw statusText;
 					}
-					return this.saveFileByStream(options.userId, data, headers['content-type'] || mime.lookup(name) || extension, {extension, driver: options.driver});
+					return this.saveFileByStream(userId, data, headers['content-type'] || mime.lookup(name) || extension, {extension, driver: options.driver});
 				});
 				type = resultMimeType;
 				storageFile = resultFile;
@@ -492,14 +494,14 @@ function getModule(app: IGeesomeApp) {
 				properties = resultProperties;
 			}
 
-			const existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, options.userId);
+			const existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 			if (existsContent) {
-				await this.updateExistsContentMetadata(existsContent, options);
-				await app.hookExistsContentAdding(existsContent, options);
+				await this.updateExistsContentMetadata(userId, existsContent, options);
+				await app.hookExistsContentAdding(userId, existsContent, options);
 				return existsContent;
 			}
 
-			return this.addContentWithPreview(storageFile, {
+			return this.addContentWithPreview(userId, storageFile, {
 				extension,
 				storageType: ContentStorageType.IPFS,
 				mimeType: type,
@@ -511,13 +513,13 @@ function getModule(app: IGeesomeApp) {
 			}, options, url);
 		}
 
-		async addContentWithPreview(storageFile: IStorageFile, contentData, options, source?) {
+		async addContentWithPreview(userId: number, storageFile: IStorageFile, contentData, options, source?) {
 			console.log('addContentWithPreview');
 			let previewData = {};
 			console.log('options.previews', options.previews);
 			if (options.previews) {
 				await pIteration.forEachSeries(options.previews, async (p) => {
-					const result = await this.saveFileByStream(options.userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
+					const result = await this.saveFileByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
 					console.log('result', result);
 					previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
 					previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
@@ -545,21 +547,20 @@ function getModule(app: IGeesomeApp) {
 				storageFile.emitFinish = null;
 			}
 
-			return this.addContent({
+			return this.addContent(userId, {
 				...contentData,
 				...previewData
 			}, options);
 		}
 
-		async saveDirectoryToStorage(userId, dirPath, options: { groupId?, userId?, userApiKeyId? } = {}) {
+		async saveDirectoryToStorage(userId: number, dirPath, options: { groupId?, userApiKeyId? } = {}) {
 			//TODO: refactor block
 			let group;
 			if (options.groupId) {
 				group = await app.ms.database.getGroup(options.groupId)
 			}
-			options.userId = userId;
 			const resultFile = await app.ms.storage.saveDirectory(dirPath);
-			return this.addContentWithPreview(resultFile, {
+			return this.addContentWithPreview(userId, resultFile, {
 				extension: 'none',
 				mimeType: 'directory',
 				storageType: ContentStorageType.IPFS,
@@ -570,7 +571,7 @@ function getModule(app: IGeesomeApp) {
 			}, options);
 		}
 
-		private async saveFileByStream(userId, stream, mimeType, options: any = {}): Promise<any> {
+		private async saveFileByStream(userId: number, stream, mimeType, options: any = {}): Promise<any> {
 			return new Promise(async (resolve, reject) => {
 				let extension = (options.extension || _.last(mimeType.split('/')) || '').toLowerCase();
 
@@ -696,23 +697,24 @@ function getModule(app: IGeesomeApp) {
 			return uploadDriver.processBySource(sourceLink, {});
 		}
 
-		async createContentByObject(contentObject, options: { groupId?, userId?, userApiKeyId? } = {}) {
-			const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-			let dbContent = await app.ms.database.getContentByStorageId(storageId);
-			if (dbContent) {
-				return dbContent;
-			}
-			return this.addContent(contentObject, options);
-		}
-
-		async createContentByRemoteStorageId(manifestStorageId, options: { groupId?, userId?, userApiKeyId? } = {}) {
+		async createContentByRemoteStorageId(userId, manifestStorageId, options: { groupId?, userApiKeyId? } = {}) {
 			let dbContent = await app.ms.database.getContentByManifestId(manifestStorageId);
 			if (dbContent) {
 				return dbContent;
 			}
+
 			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId);
 			contentObject.isRemote = true;
-			return this.createContentByObject(contentObject);
+			return this.createContentByObject(userId, manifestStorageId, options);
+		}
+
+		async createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }) {
+			const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
+			const dbContent = await app.ms.database.getContentByStorageId(storageId);
+			if (dbContent) {
+				return dbContent;
+			}
+			return this.addContent(userId, contentObject, options);
 		}
 
 		async getFileStreamForApiRequest(req, res, dataPath) {

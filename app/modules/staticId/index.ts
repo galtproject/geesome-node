@@ -25,7 +25,7 @@ function getModule(app: IGeesomeApp) {
 				await app.ms.communicator.bindToStaticId(dynamicId, staticId);
 				log('bindToStaticId:communicator finish');
 			} catch (e) {
-				log('bindToStaticId:communicator error', e.message);
+				log('bindToStaticId:communicator error', e);
 			}
 			// await this.ms.database.destroyStaticIdHistory(staticId);
 

@@ -99,7 +99,7 @@ function getModule(app: IGeesomeApp) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			categoryData.creatorId = userId;
 
-			categoryData.manifestStaticStorageId = await app.createStaticAccountId(categoryData['name']);
+			categoryData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(categoryData['name']);
 			if (categoryData.type !== GroupType.PersonalChat) {
 				categoryData.staticStorageId = categoryData.manifestStaticStorageId;
 			}

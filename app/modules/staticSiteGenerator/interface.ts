@@ -3,7 +3,7 @@ import {IUserOperationQueue} from "../database/interface";
 export default interface IGeesomeStaticSiteManagerModule {
 	moduleName: string;
 
-	getDefaultOptionsByGroupId(groupId?): Promise<{
+	getDefaultOptionsByGroupId(userId, groupId?): Promise<{
 		baseStorageUri,
 		lang,
 		dateFormat,

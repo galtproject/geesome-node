@@ -55,11 +55,13 @@ export default interface IGeesomeGroupModule {
 
 	createGroup(userId, groupData): Promise<IGroup>;
 
-	createGroupByRemoteStorageId(manifestStorageId): Promise<IGroup>;
+	createGroupByRemoteStorageId(userId, manifestStorageId): Promise<IGroup>;
 
 	updateGroup(userId, id, updateData): Promise<IGroup>;
 
-	getGroup(groupId): Promise<IGroup>;
+	getLocalGroup(userId, groupId): Promise<IGroup>;
+
+	getLocalOrRemoteGroup(userId, groupId): Promise<IGroup>;
 
 	getGroupByParams(params): Promise<IGroup>;
 

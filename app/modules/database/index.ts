@@ -143,6 +143,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async updateContent(id, updateData) {
+    console.log('updateContent', 'id', id, 'updateData', updateData);
     return this.models.Content.update(updateData, {where: {id}})
   }
 

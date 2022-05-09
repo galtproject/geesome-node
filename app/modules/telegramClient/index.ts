@@ -285,7 +285,7 @@ function getModule(app: IGeesomeApp, models) {
 				avatarContent = await app.ms.content.saveData(userId, avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
 			}
 			// console.log('channel', channel);
-			group = dbChannel ? await app.ms.group.getGroup(dbChannel.groupId) : null;
+			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
 				await app.ms.group.updateGroup(userId, dbChannel.groupId, {
 					name: channel.username,

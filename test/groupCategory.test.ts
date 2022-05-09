@@ -104,8 +104,7 @@ describe("groupCategory", function () {
 		console.log('categoryGroupsCount', categoryGroupsCount);
 		assert.equal(categoryGroupsCount, 1);
 
-		const postContent = await app.saveData('Hello world', null, {
-			userId: newUser.id,
+		const postContent = await app.ms.content.saveData(newUser.id, 'Hello world', null, {
 			mimeType: 'text/markdown'
 		});
 
@@ -173,8 +172,7 @@ describe("groupCategory", function () {
 
 		assert.equal(post.id, foundPost.id);
 
-		const postContent2 = await app.saveData('Hello world2', null, {
-			userId: newUser.id,
+		const postContent2 = await app.ms.content.saveData(newUser.id, 'Hello world2', null, {
 			mimeType: 'text/markdown'
 		});
 
@@ -206,7 +204,7 @@ describe("groupCategory", function () {
 
 		await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title', name: 'newGroupName'});
 
-		let group = await app.ms.group.getGroup(testGroup.id);
+		let group = await app.ms.group.getLocalGroup(newUser.id, testGroup.id);
 		assert.equal(group.title, 'new title');
 		assert.equal(group.name, testGroup.name);
 
@@ -219,7 +217,7 @@ describe("groupCategory", function () {
 			assert.equal(_.includes(e.toString(), "not_permitted"), true);
 		}
 
-		group = await app.ms.group.getGroup(testGroup.id);
+		group = await app.ms.group.getLocalGroup(newUser.id, testGroup.id);
 		assert.equal(group.title, 'new title');
 
 		let groupPosts = await app.ms.database.getGroupPosts(testGroup.id);
@@ -261,12 +259,10 @@ describe("groupCategory", function () {
 
 		assert.equal(group2.id, foundGroup2.id);
 
-		const post2Content1 = await app.saveData('Hello world2', null, {
-			userId: testUser.id,
+		const post2Content1 = await app.ms.content.saveData(testUser.id, 'Hello world2', null, {
 			mimeType: 'text/markdown'
 		});
-		const post2Content2 = await app.saveData('Hello world3', null, {
-			userId: testUser.id,
+		const post2Content2 = await app.ms.content.saveData(testUser.id, 'Hello world3', null, {
 			mimeType: 'text/markdown'
 		});
 
@@ -403,8 +399,7 @@ describe("groupCategory", function () {
 			permissions: [CorePermissionName.UserAll]
 		});
 
-		const post1Content = await app.saveData('Hello world1', null, {
-			userId: newMember.id,
+		const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world1', null, {
 			mimeType: 'text/markdown'
 		});
 

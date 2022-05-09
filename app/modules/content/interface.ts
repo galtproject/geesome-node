@@ -12,17 +12,17 @@ export default interface IGeesomeContentModule {
 
 	getContentByManifestId(storageId): Promise<IContent>;
 
-	createContentByObject(contentObject, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
+	createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }): Promise<IContent>;
 
 	regenerateUserContentPreviews(userId): Promise<void>;
 
-	saveData(userId, fileStream, fileName, options): Promise<IContent>;
+	saveData(userId, fileStream, fileName, options?): Promise<IContent>;
 
-	saveDataByUrl(userId, url, options): Promise<IContent>;
+	saveDataByUrl(userId, url, options?): Promise<IContent>;
 
-	saveDirectoryToStorage(userId, dirPath, options): Promise<IContent>;
+	saveDirectoryToStorage(userId, dirPath, options?): Promise<IContent>;
 
-	createContentByRemoteStorageId(manifestStorageId, options?: { groupId?, userId?, userApiKeyId? }): Promise<IContent>;
+	createContentByRemoteStorageId(userId, manifestStorageId, options?: { groupId?, userApiKeyId? }): Promise<IContent>;
 
 	getFileStreamForApiRequest(req, res, dataPath);
 }

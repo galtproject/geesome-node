@@ -79,16 +79,15 @@ function getModule(app: IGeesomeApp) {
             await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
             // run in background
-            this.generateContent(type, id, {
+            this.generateContent(userId, type, id, {
                 ...options,
-                userId,
                 userApiKeyId,
                 asyncOperationId: asyncOperation.id
             }).then(async (content: IContent) => {
                 await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                 await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
                 if (type === 'group') {
-                    const group = await app.ms.group.getGroup(id);
+                    const group = await app.ms.group.getLocalGroup(userId, id);
                     const properties = group.propertiesJson ? JSON.parse(group.propertiesJson) : {};
                     properties.staticSiteManifestStorageId = content.manifestStorageId;
                     await app.ms.group.updateGroup(userId, id, {propertiesJson: JSON.stringify(properties)});
@@ -98,8 +97,8 @@ function getModule(app: IGeesomeApp) {
             return app.ms.asyncOperation.getUserOperationQueue(waitingQueue.userId, waitingQueue.id);
         }
 
-        async getDefaultOptionsByGroupId(groupId) {
-            return this.getDefaultOptions(await app.ms.group.getGroup(groupId));
+        async getDefaultOptionsByGroupId(userId, groupId) {
+            return this.getDefaultOptions(await app.ms.group.getLocalGroup(userId, groupId));
         }
 
         getDefaultOptions(group, baseStorageUri = null) {
@@ -141,13 +140,13 @@ function getModule(app: IGeesomeApp) {
             return merged;
         }
 
-        async generateContent(name, groupId, options: any = {}): Promise<IContent> {
+        async generateContent(userId, name, groupId, options: any = {}): Promise<IContent> {
             const distPath = path.resolve(__dirname, './.vuepress/dist');
             rmDir(distPath);
 
             const {userApiKeyId} = options;
 
-            const group = await app.ms.group.getGroup(groupId);
+            const group = await app.ms.group.getLocalGroup(userId, groupId);
             let properties = {};
             try {
                 if (group.propertiesJson) {
@@ -171,7 +170,7 @@ function getModule(app: IGeesomeApp) {
                 const contents = await app.ms.group.getPostContent(baseStorageUri, gp);
 ;
                 if (options.asyncOperationId && i % 10 === 0) {
-                    await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
+                    await app.ms.asyncOperation.updateAsyncOperation(userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
                 }
 
                 return {
@@ -209,7 +208,7 @@ function getModule(app: IGeesomeApp) {
             //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
             // }
 
-            return app.ms.content.saveDirectoryToStorage(options.userId, distPath, {
+            return app.ms.content.saveDirectoryToStorage(userId, distPath, {
                 groupId: group.id,
                 userApiKeyId: options.userApiKeyId
             });

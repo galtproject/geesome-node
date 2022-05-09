@@ -24,7 +24,7 @@ const resourcesHelper = require('./helpers/resources');
 const log = require('../app/helpers').log;
 const commonHelper = require('geesome-libs/src/common');
 
-describe("app", function () {
+describe.only("app", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -35,8 +35,6 @@ describe("app", function () {
 	this.timeout(60000);
 
 	let app: IGeesomeApp;
-
-
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
@@ -102,7 +100,7 @@ describe("app", function () {
 		await app.setUserLimit(adminUser.id, limitData);
 
 		try {
-			await app.saveData(fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
+			await app.ms.content.saveData(testUser.id, fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
 				userId: testUser.id,
 				groupId: testGroup.id
 			});
@@ -115,12 +113,12 @@ describe("app", function () {
 
 		await app.setUserLimit(adminUser.id, limitData);
 
-		await app.saveData(fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
+		await app.ms.content.saveData(testUser.id, fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
 			userId: testUser.id,
 			groupId: testGroup.id
 		});
 
-		const contentObj = await app.saveData({type: "Buffer", data: [49]}, '1.txt', {
+		const contentObj = await app.ms.content.saveData(testUser.id, {type: "Buffer", data: [49]}, '1.txt', {
 			userId: testUser.id,
 			groupId: testGroup.id
 		});
@@ -192,7 +190,7 @@ describe("app", function () {
 		});
 
 		log('saveDataTestUser');
-		const textContent = await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+		const textContent = await app.ms.content.saveData(saveDataTestUser.id, 'test', 'text.txt');
 		log('textContent');
 
 		const contentObj = await app.ms.storage.getObject(textContent.manifestStorageId);
@@ -200,7 +198,7 @@ describe("app", function () {
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
 		assert.equal(contentObj.mimeType, 'text/plain');
 
-		await app.saveData('test', 'text.txt', {userId: saveDataTestUser.id});
+		await app.ms.content.saveData(saveDataTestUser.id, 'test', 'text.txt');
 		log('saveData');
 
 		const ipld = await app.ms.storage.saveObject(contentObj);
@@ -240,8 +238,7 @@ describe("app", function () {
 		};
 
 		const pngImagePath = await resourcesHelper.prepare('input-image.png');
-		const imageContent = await app.saveData(fs.createReadStream(pngImagePath), 'input-image.png', {
-			userId: testUser.id,
+		const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
 			groupId: testGroup.id
 		});
 
@@ -264,8 +261,7 @@ describe("app", function () {
 		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
 		const inputVideo = await resourcesHelper.prepare('not-streamable-input-video.mp4');
-		const videoContent = await app.saveData(fs.createReadStream(inputVideo), 'input-video.mp4', {
-			userId: testUser.id,
+		const videoContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(inputVideo), 'input-video.mp4', {
 			groupId: testGroup.id
 		});
 
@@ -285,8 +281,7 @@ describe("app", function () {
 		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
 		const inputVideoPath = await resourcesHelper.prepare('input-video.mov');
-		const videoContent = await app.saveData(fs.createReadStream(inputVideoPath), 'input-video.mov', {
-			userId: testUser.id,
+		const videoContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(inputVideoPath), 'input-video.mov', {
 			groupId: testGroup.id
 		});
 
@@ -304,8 +299,7 @@ describe("app", function () {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const archivePath = await resourcesHelper.prepare('test-archive.zip');
-		const archiveContent = await app.saveData(fs.createReadStream(archivePath), 'archive.zip', {
-			userId: testUser.id,
+		const archiveContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(archivePath), 'archive.zip', {
 			driver: 'archive'
 		});
 
@@ -325,7 +319,7 @@ describe("app", function () {
 		const fileName = 'index.html';
 		const foldersPath = '/1/2/3/';
 
-		const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
+		const indexHtmlContent = await app.ms.content.saveData(testUser.id, indexHtml, fileName);
 
 		const resultFolder = await app.ms.fileCatalog.saveManifestsToFolder(testUser.id, foldersPath, [{
 			manifestStorageId: indexHtmlContent.manifestStorageId
@@ -336,7 +330,7 @@ describe("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
 	});
 
-	it("should file catalog working properly", async () => {
+	it.only("should file catalog working properly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const indexHtml = '<h1>Hello world</h1>';
@@ -344,7 +338,7 @@ describe("app", function () {
 		const foldersPath = '/1/2/3/';
 		const filePath = foldersPath + fileName;
 
-		const indexHtmlContent = await app.saveData(indexHtml, fileName, {userId: testUser.id});
+		const indexHtmlContent = await app.ms.content.saveData(testUser.id, indexHtml, fileName);
 
 		const indexHtmlFileItem = await app.ms.fileCatalog.saveContentByPath(testUser.id, filePath, indexHtmlContent.id);
 		assert.equal(indexHtmlFileItem.name, fileName);
@@ -369,7 +363,7 @@ describe("app", function () {
 
 		let publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, indexHtmlFileItem.parentItemId, {bindToStatic: true});
 
-		const resolvedStorageId = await app.resolveStaticId(publishFolderResult.staticId);
+		const resolvedStorageId = await app.ms.staticId.resolveStaticId(publishFolderResult.staticId);
 
 		assert.equal(publishFolderResult.storageId, resolvedStorageId);
 
@@ -395,7 +389,7 @@ describe("app", function () {
 		let indexHtml2 = '<h1>Hello world 2</h1>';
 		const fileName2 = 'index2.json';
 		const filePath2 = foldersPath + fileName2;
-		await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2});
+		await app.ms.content.saveData(testUser.id, indexHtml2, fileName2, {path: filePath2});
 
 		try {
 			await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
@@ -409,13 +403,13 @@ describe("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
 		indexHtml2 = '<h1>Hello world 3</h1>';
-		await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2});
+		await app.ms.content.saveData(testUser.id, indexHtml2, fileName2, {path: filePath2});
 		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
 		indexHtml2 = '<h1>Hello world 2</h1>';
-		await app.saveData(indexHtml2, fileName2, {userId: testUser.id, path: filePath2});
+		await app.ms.content.saveData(testUser.id, indexHtml2, fileName2, {path: filePath2});
 		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);
@@ -425,8 +419,7 @@ describe("app", function () {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
-		const postContent = await app.saveData('Hello world', null, {
-			userId: testUser.id,
+		const postContent = await app.ms.content.saveData(testUser.id, 'Hello world', null, {
 			mimeType: 'text/markdown'
 		});
 
@@ -529,15 +522,13 @@ describe("app", function () {
 		await app.ms.group.setMembersOfGroup(newUser.id, testGroup.id, [testUser.id]);
 
 		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, testGroup.id), true);
-
 	});
 
 	it('groupRead', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 
-		const post1Content = await app.saveData('Hello world1', null, {
-			userId: testUser.id,
+		const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world1', null, {
 			mimeType: 'text/markdown'
 		});
 		const postData = {

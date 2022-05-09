@@ -94,8 +94,7 @@ describe("renders", function () {
 		assert.equal(includes(staticSiteContent2, "Test 2 group"), true);
 
 		async function addTextPostToGroup(group, text) {
-			const post1Content = await app.saveData(text, null, {
-				userId: testUser.id,
+			const post1Content = await app.ms.content.saveData(testUser.id, text, null, {
 				mimeType: 'text/html'
 			});
 
@@ -120,7 +119,7 @@ describe("renders", function () {
 				userOperationQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, userOperationQueue.id);
 			}
 
-			group = await app.ms.group.getGroup(group.id);
+			group = await app.ms.group.getLocalGroup(testUser.id, group.id);
 			const {staticSiteManifestStorageId} = JSON.parse(group.propertiesJson);
 			const storageId = await app.ms.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
 			return app.ms.storage.getFileDataText(storageId + '/index.html');
@@ -137,14 +136,12 @@ describe("renders", function () {
 		const rssRender = await require('../app/modules/rss')(app);
 
 		const test1PostText = 'Test 1 post';
-		const post1Content = await app.saveData(test1PostText, null, {
-			userId: testUser.id,
+		const post1Content = await app.ms.content.saveData(testUser.id, test1PostText, null, {
 			mimeType: 'text/html'
 		});
 
 		const pngImagePath = await resourcesHelper.prepare('input-image.png');
-		const imageContent = await app.saveData(fs.createReadStream(pngImagePath), 'input-image.png', {
-			userId: testUser.id,
+		const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
 			groupId: testGroup.id
 		});
 

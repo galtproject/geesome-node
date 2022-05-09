@@ -1,4 +1,5 @@
-import {IGeesomeApp, IGeesomeAsyncOperationModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
+import IGeesomeAsyncOperationModule from "./interface";
 
 module.exports = (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
     /**

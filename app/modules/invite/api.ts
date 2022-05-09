@@ -1,5 +1,6 @@
-import {IGeesomeApp, IGeesomeInviteModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
 import {CorePermissionName} from "../database/interface";
+import IGeesomeInviteModule from "./interface";
 
 module.exports = (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
     app.ms.api.onPost('invite/join/:code', async (req, res) => {

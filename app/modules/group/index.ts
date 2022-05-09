@@ -64,7 +64,7 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getGroup(group.id);
 		}
 
-		async createGroupByRemoteStorageId(manifestStorageId) {
+		async createGroupByRemoteStorageId(userId, manifestStorageId) {
 			let staticStorageId;
 			if (ipfsHelper.isIpfsHash(manifestStorageId)) {
 				staticStorageId = manifestStorageId;
@@ -78,17 +78,17 @@ function getModule(app: IGeesomeApp) {
 			}
 			const groupObject: IGroup = await app.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
 			groupObject.isRemote = true;
-			return this.createGroupByObject(groupObject);
+			return this.createGroupByObject(userId, groupObject);
 		}
 
-		async createGroupByObject(groupObject) {
+		async createGroupByObject(userId, groupObject) {
 			let dbAvatar = await app.ms.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
 			if (!dbAvatar) {
-				dbAvatar = await app.ms.content.createContentByObject(groupObject.avatarImage);
+				dbAvatar = await app.ms.content.createContentByObject(userId, groupObject.avatarImage);
 			}
 			let dbCover = await app.ms.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
 			if (!dbCover) {
-				dbCover = await app.ms.content.createContentByObject(groupObject.coverImage);
+				dbCover = await app.ms.content.createContentByObject(userId, groupObject.coverImage);
 			}
 			const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
 			const dbGroup = await app.ms.database.addGroup(_.extend(_.pick(groupObject, groupFields), {
@@ -131,7 +131,7 @@ function getModule(app: IGeesomeApp) {
 			groupPermissions = groupPermissions || [];
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			groupId = await this.checkGroupId(groupId);
-			const group = await this.getGroup(groupId);
+			const group = await this.getLocalGroup(userId, groupId);
 			if(!(await this.isAdminInGroup(userId, groupId))) {
 				if(userId.toString() !== memberId.toString()) {
 					throw new Error("not_permitted");
@@ -160,7 +160,7 @@ function getModule(app: IGeesomeApp) {
 		async removeMemberFromGroup(userId, groupId, memberId) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			groupId = await this.checkGroupId(groupId);
-			const group = await this.getGroup(groupId);
+			const group = await this.getLocalGroup(userId, groupId);
 			if(!(await this.isAdminInGroup(userId, groupId))) {
 				if(userId.toString() !== memberId.toString()) {
 					throw new Error("not_permitted");
@@ -356,7 +356,15 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getPost(post.id);
 		}
 
-		async getGroup(groupId) {
+		async getLocalOrRemoteGroup(userId, groupId) {
+			if (!userId) {
+				throw new Error("userId_required");
+			}
+			groupId = await this.checkGroupIdAndCreateIfNotExits(userId, groupId);
+			return app.ms.database.getGroup(groupId);
+		}
+
+		async getLocalGroup(userId, groupId) {
 			groupId = await this.checkGroupId(groupId);
 			return app.ms.database.getGroup(groupId);
 		}
@@ -383,8 +391,7 @@ function getModule(app: IGeesomeApp) {
 			};
 		}
 
-
-		async checkGroupId(groupId, createIfNotExist = true) {
+		async checkGroupId(groupId) {
 			if (groupId == 'null' || groupId == 'undefined') {
 				return null;
 			}
@@ -393,14 +400,22 @@ function getModule(app: IGeesomeApp) {
 			}
 			if (!commonHelper.isNumber(groupId)) {
 				let group = await this.getGroupByManifestId(groupId, groupId);
-				if (!group && createIfNotExist) {
-					group = await this.createGroupByRemoteStorageId(groupId);
+				if (group) {
 					return group.id;
-				} else if (group) {
-					groupId = group.id;
 				}
 			}
 			return groupId;
+		}
+
+		async checkGroupIdAndCreateIfNotExits(userId, groupId) {
+			const existsGroupId = await this.checkGroupId(groupId);
+			if (existsGroupId) {
+				return existsGroupId;
+			}
+			if (!commonHelper.isNumber(groupId)) {
+				return this.createGroupByRemoteStorageId(userId, groupId).then(g => g.id);
+			}
+			return null;
 		}
 
 		async canCreatePostInGroup(userId, groupId) {
@@ -409,7 +424,7 @@ function getModule(app: IGeesomeApp) {
 				return false;
 			}
 			groupId = await this.checkGroupId(groupId);
-			const group = await this.getGroup(groupId);
+			const group = await this.getLocalGroup(userId, groupId);
 			console.log('isAdminInGroup', await app.ms.database.isAdminInGroup(userId, groupId));
 			return (await app.ms.database.isAdminInGroup(userId, groupId))
 				|| (!group.isOpen && await app.ms.database.isMemberInGroup(userId, groupId))
@@ -439,7 +454,7 @@ function getModule(app: IGeesomeApp) {
 				return false;
 			}
 			groupId = await this.checkGroupId(groupId);
-			const group = await this.getGroup(groupId);
+			const group = await this.getLocalGroup(userId, groupId);
 			const post = await app.ms.database.getPost(postId);
 			return (await app.ms.database.isAdminInGroup(userId, groupId))
 				|| (!group.isOpen && await app.ms.database.isMemberInGroup(userId, groupId) && post.userId === userId)
@@ -674,7 +689,7 @@ function getModule(app: IGeesomeApp) {
 		async addUserFriendById(userId, friendId) {
 			await app.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
 
-			friendId = await app.checkUserId(friendId, true);
+			friendId = await app.checkUserId(userId, friendId, true);
 
 			const user = await app.ms.database.getUser(userId);
 			const friend = await app.ms.database.getUser(friendId);
@@ -704,7 +719,7 @@ function getModule(app: IGeesomeApp) {
 		async removeUserFriendById(userId, friendId) {
 			await app.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
 
-			friendId = await app.checkUserId(friendId, true);
+			friendId = await app.checkUserId(userId, friendId, true);
 
 			// TODO: remove personal chat group?
 

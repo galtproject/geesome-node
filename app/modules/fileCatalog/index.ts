@@ -185,7 +185,7 @@ function getModule(app: IGeesomeApp) {
 
 			const user = await app.ms.database.getUser(userId);
 
-			if(!options.bindToStatic) {
+			if (!options.bindToStatic) {
 				return { storageId };
 			}
 
@@ -246,9 +246,10 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
+			console.log('saveContentByPath', 'path:', path);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const fileName = _.trim(path, '/').split('/').slice(-1)[0];
-			console.log('saveContentByPath', 'path:', path, 'fileName:', fileName);
+			console.log('saveContentByPath', 'fileName:', fileName);
 
 			let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
 
@@ -278,10 +279,7 @@ function getModule(app: IGeesomeApp) {
 
 		public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
 			await pIteration.map(toSaveList, async (item: ManifestToSave) => {
-				const content = await app.ms.content.createContentByRemoteStorageId(item.manifestStorageId, {
-					userId,
-					...options
-				});
+				const content = await app.ms.content.createContentByRemoteStorageId(userId, item.manifestStorageId, options);
 				return this.saveContentByPath(userId, path.join(folderPath, item.path || content.name), content.id, options)
 			});
 

@@ -24,7 +24,7 @@ function getModule(app: IGeesomeApp) {
 
         async groupRss(groupId, host, forUserId?) {
             console.log('groupId', groupId);
-            const group = await app.ms.group.getGroup(groupId);
+            const group = await app.ms.group.getLocalGroup(null, groupId);
             // TODO: check permission to read not public groups by user id
             if (!forUserId && !group.isPublic) {
                 throw new Error('group_not_public');

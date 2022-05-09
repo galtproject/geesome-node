@@ -69,7 +69,7 @@ export interface IGeesomeApp {
 
   setUserAccount(userId, accountData): Promise<IUserAccount>;
 
-  checkUserId(userId, createIfNotExist?): Promise<number>;
+  checkUserId(userId, targetId, createIfNotExist?): Promise<number>;
 
   generateUserApiKey(userId, apiKeyData, skipPermissionCheck?): Promise<string>;
 
@@ -101,11 +101,11 @@ export interface IGeesomeApp {
 
   // getPreviewContentData()
 
-  hookBeforeContentAdding(contentData, options): Promise<void>;
+  hookBeforeContentAdding(userId, contentData, options): Promise<void>;
 
-  hookAfterContentAdding(content: IContent, options): Promise<void>;
+  hookAfterContentAdding(userId, content: IContent, options): Promise<void>;
 
-  hookExistsContentAdding(content: IContent, options): Promise<void>;
+  hookExistsContentAdding(userId, content: IContent, options): Promise<void>;
 
   //TODO: define interface
   getPeers(topic): Promise<any>;

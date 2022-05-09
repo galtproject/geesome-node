@@ -177,7 +177,11 @@ async function getModule(app: IGeesomeApp, version, port) {
 		}
 
 		stop(): any {
-			return service.close();
+			return service.close().catch(e => {
+				if (!_.includes(e.message, 'Server is not running')) {
+					throw e;
+				}
+			});
 		}
 	}
 

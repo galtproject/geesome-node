@@ -245,7 +245,7 @@ function getModule(app) {
           });
 
           post.contents = await pIteration.map(contentsIds, (contentId) => {
-            return app.createContentByRemoteStorageId(contentId);
+            return app.createContentByRemoteStorageId(null, contentId);
           });
         }
 
