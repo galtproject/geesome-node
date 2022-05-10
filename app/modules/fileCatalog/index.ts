@@ -245,6 +245,12 @@ function getModule(app: IGeesomeApp) {
 			};
 		}
 
+		public async saveDataToPath(userId: number, dataToSave, path, options = {}) {
+			options['path'] = path;
+			const content = await app.ms.content.saveData(userId, dataToSave, null, options);
+			return app.ms.fileCatalog.saveContentByPath(userId, path, content.id);
+		}
+
 		public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
 			console.log('saveContentByPath', 'path:', path);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);

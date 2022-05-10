@@ -3,6 +3,8 @@ import {IFileCatalogListResponse, ManifestToSave} from "../../interface";
 
 export default interface IGeesomeFileCatalogModule {
 
+	saveDataToPath(userId: number, dataToSave, path, options?): Promise<IFileCatalogItem>;
+
 	saveContentByPath(userId, path, contentId): Promise<IFileCatalogItem>;
 
 	getContentByPath(userId, path): Promise<IContent>;

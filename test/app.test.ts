@@ -330,7 +330,7 @@ describe.only("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
 	});
 
-	it.only("should file catalog working properly", async () => {
+	it("should file catalog working properly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const indexHtml = '<h1>Hello world</h1>';
@@ -340,6 +340,7 @@ describe.only("app", function () {
 
 		const indexHtmlContent = await app.ms.content.saveData(testUser.id, indexHtml, fileName);
 
+		console.log('1 saveContentByPath');
 		const indexHtmlFileItem = await app.ms.fileCatalog.saveContentByPath(testUser.id, filePath, indexHtmlContent.id);
 		assert.equal(indexHtmlFileItem.name, fileName);
 
@@ -353,20 +354,25 @@ describe.only("app", function () {
 			parentFolderId = parentFolder.parentItemId;
 		}
 
+		console.log('2 getContentByPath');
 		const foundIndexHtmlFileContent = await app.ms.fileCatalog.getContentByPath(testUser.id, filePath);
 
 		assert.equal(foundIndexHtmlFileContent.id, indexHtmlFileItem.content.id);
 
+		console.log('3 getFileData');
 		const gotIndexHtml = await app.ms.storage.getFileData(indexHtmlFileItem.content.storageId);
 
 		assert.equal(gotIndexHtml, indexHtml);
 
+		console.log('4 publishFolder');
 		let publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, indexHtmlFileItem.parentItemId, {bindToStatic: true});
 
+		console.log('5 resolveStaticId');
 		const resolvedStorageId = await app.ms.staticId.resolveStaticId(publishFolderResult.staticId);
 
 		assert.equal(publishFolderResult.storageId, resolvedStorageId);
 
+		console.log('6 getFileData');
 		let gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
 
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
@@ -378,10 +384,13 @@ describe.only("app", function () {
 			assert.equal(e.message, 'file does not exist');
 		}
 
+		console.log('7 getFileCatalogItemByPath');
 		const firstFolder = await app.ms.fileCatalog.getFileCatalogItemByPath(testUser.id, '/1/', FileCatalogItemType.Folder);
 
+		console.log('8 publishFolder');
 		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 
+		console.log('9 getFileData');
 		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
 
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
@@ -389,7 +398,7 @@ describe.only("app", function () {
 		let indexHtml2 = '<h1>Hello world 2</h1>';
 		const fileName2 = 'index2.json';
 		const filePath2 = foldersPath + fileName2;
-		await app.ms.content.saveData(testUser.id, indexHtml2, fileName2, {path: filePath2});
+		await app.ms.fileCatalog.saveDataToPath(testUser.id, indexHtml2, filePath2);
 
 		try {
 			await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
@@ -398,18 +407,22 @@ describe.only("app", function () {
 			assert.equal(e.message, 'file does not exist');
 		}
 
+		console.log('10 publishFolder');
 		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
+		console.log('11 getFileData');
 		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
 		indexHtml2 = '<h1>Hello world 3</h1>';
-		await app.ms.content.saveData(testUser.id, indexHtml2, fileName2, {path: filePath2});
+		console.log('12 saveData');
+		await app.ms.fileCatalog.saveDataToPath(testUser.id, indexHtml2, filePath2);
 		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);
 
 		indexHtml2 = '<h1>Hello world 2</h1>';
-		await app.ms.content.saveData(testUser.id, indexHtml2, fileName2, {path: filePath2});
+		console.log('13 saveData');
+		await app.ms.fileCatalog.saveDataToPath(testUser.id, indexHtml2, filePath2);
 		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
 		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);

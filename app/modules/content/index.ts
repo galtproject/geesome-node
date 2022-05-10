@@ -64,10 +64,8 @@ function getModule(app: IGeesomeApp) {
 
 		async updateContentManifest(content) {
 			content.description = content.description || '';
-			console.log('app.generateAndSaveManifest', content);
 			const manifestStorageId = await app.generateAndSaveManifest('content', content);
 			content.manifestStorageId = manifestStorageId;
-			console.log('app.ms.database.updateContent', {manifestStorageId});
 			await app.ms.database.updateContent(content.id, {manifestStorageId});
 			return content;
 		}
