@@ -6,6 +6,7 @@ const pIteration = require("p-iteration");
 const some = require("lodash/some");
 const commonHelpers = require('geesome-libs/src/common');
 const orderBy = require("lodash/orderBy");
+const reverse = require("lodash/reverse");
 
 module.exports = async (app: IGeesomeApp, options: any = {}) => {
 	const models = await require("./database")();
@@ -21,6 +22,19 @@ function getModule(app: IGeesomeApp, models) {
 			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
 			const res = await models.AutoAction.create({...autoAction, userId});
 			return this.setNextActions(res, nextActions).then(() => this.getAutoAction(res.id)) as IAutoAction;
+		}
+
+		async addSerialAutoActions(userId, autoActions) {
+			const resAutoActions = reverse(await pIteration.map(autoActions, (a) => this.addAutoAction(userId, a)));
+
+			let nextAction;
+			await pIteration.forEach(resAutoActions, async (a) => {
+				if (nextAction) {
+					await this.updateAutoAction(userId, a.id, { nextActions: [nextAction] })
+				}
+				nextAction = a;
+			});
+			return resAutoActions;
 		}
 
 		async getNextActionsToStore(userId, _nextActions) {

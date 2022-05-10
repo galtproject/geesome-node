@@ -6,11 +6,12 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+export {};
 
 const Sequelize: any = require('sequelize');
 
 module.exports = async function () {
-	let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', require('./config').options);
+	let sequelize = new Sequelize('geesome-auto-actions', 'geesome', 'geesome', require('./config').options);
 
 	const AutoAction = sequelize.define('autoAction', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
@@ -53,7 +54,7 @@ module.exports = async function () {
 
 	await AutoAction.sync({});
 
-	const NextActions = sequelize.define('nextActions',{
+	const NextActions = sequelize.define('nextActionsPivot',{
 		baseActionId: {
 			type: Sequelize.INTEGER,
 			allowNull: false,
@@ -71,6 +72,7 @@ module.exports = async function () {
 	} as any);
 
 	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through: NextActions, foreignKey: 'nextActionId'});
+	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through: NextActions, foreignKey: 'baseActionId'});
 
 	const AutoActionLog = sequelize.define('autoActionLog', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
