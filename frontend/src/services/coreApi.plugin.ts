@@ -75,7 +75,7 @@ export default {
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
           'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
           'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
-          'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetDbChannel',
+          'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetUpdateDbChannel', 'socNetUpdateDbAccount', 'socNetDbChannel',
           'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
           'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId'
         ].forEach(methodName => {
@@ -96,6 +96,10 @@ export default {
         localStorage.setItem('geesome-api-key', result.apiKey);
         console.log('geesomeClient.apiKey', geesomeClient.apiKey);
         return result;
+      },
+
+      getApiKey() {
+        return geesomeClient.apiKey;
       },
 
       async loginPassword(server, username, password) {

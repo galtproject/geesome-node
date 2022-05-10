@@ -11,7 +11,7 @@ module.exports = `
             <div><label>Title:</label> <span>{{info.title}}</span></div>
             <div v-if="info.username"><label>Username:</label> <span>@{{info.username}}</span></div>
 		    <div><label>Channel messages count:</label> <span>{{info.messagesCount}}</span></div>
-		  	<div v-if="dbGroup"><label>Result posts count:</label> <span>{{dbGroup.publishedPostsCount}}</span></div>
+		  	<div v-if="dbGroup"><label>Result posts count:</label> <span>{{dbGroup.publishedPostsCount}}{{curOperation ? '...' : ''}}</span></div>
 		  	<div v-if="dbGroup"><router-link :to="{name: 'group-page', params: {groupId: dbGroup.staticStorageId}}">Group page</router-link></div>
 		  </div>
         </div>
@@ -19,7 +19,6 @@ module.exports = `
 			<div style="display: flex; justify-content: space-between;">
 			  <h3>Import channel to IPFS</h3>
 			</div>
-			
 			<div>
 				<a href @click.prevent.stop="advancedSettingsEnabled = !advancedSettingsEnabled;">Advanced settings</a>
 				<div v-if="advancedSettingsEnabled" class="md-layout">
