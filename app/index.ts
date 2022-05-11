@@ -142,10 +142,15 @@ class GeesomeApp implements IGeesomeApp {
       throw new Error('already_setup');
     }
     const adminUser = await this.registerUser(userData);
+    await this.ms.accountStorage.getOrCreateAccountStaticId('self', adminUser.id);
 
     await pIteration.forEach(['AdminAll', 'UserAll'], (permissionName) => {
       return this.ms.database.addCorePermission(adminUser.id, CorePermissionName[permissionName])
     });
+
+    //TODO: do in asyncOperation
+    await this.setupModules();
+    await this.ms.staticId.bindToStaticId(adminUser.id, adminUser.manifestStorageId, adminUser.manifestStaticStorageId);
 
     return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
   }
@@ -176,25 +181,32 @@ class GeesomeApp implements IGeesomeApp {
 
     const passwordHash: any = await helpers.hashPassword(password);
 
-    const storageAccountId = await this.ms.staticId.createStaticAccountId(name);
-    const newUser = await this.ms.database.addUser({
-      storageAccountId,
-      manifestStaticStorageId: storageAccountId,
+    let newUser = await this.ms.database.addUser({
       passwordHash,
       name,
       email,
       joinedByInviteId
     });
 
+    const storageAccountId = await this.ms.staticId.createStaticAccountId(newUser.id, name);
+
+    newUser = await this.ms.database.updateUser(newUser.id, {
+      storageAccountId,
+      manifestStaticStorageId: storageAccountId
+    }).then(() => this.ms.database.getUser(newUser.id));
+
     if (userData.accounts && userData.accounts.length) {
       await pIteration.forEach(userData.accounts, (userAccount) => {
         return this.setUserAccount(newUser.id, userAccount);
       });
     }
-
     const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
-    await this.ms.staticId.bindToStaticId(manifestStorageId, newUser.manifestStaticStorageId);
-    await this.ms.database.updateUser(newUser.id, { manifestStorageId });
+    await this.ms.staticId.bindToStaticId(newUser.id, manifestStorageId, newUser.manifestStaticStorageId);
+    await this.ms.database.updateUser(newUser.id, {
+      storageAccountId,
+      manifestStaticStorageId: storageAccountId,
+      manifestStorageId
+    });
 
     if (userData.permissions && userData.permissions.length) {
       await pIteration.forEach(userData.permissions, (permissionName) => {
@@ -235,14 +247,14 @@ class GeesomeApp implements IGeesomeApp {
 
     user = await this.ms.database.getUser(userId);
     if (!user.storageAccountId) {
-      const storageAccountId = await this.ms.staticId.createStaticAccountId(user.name);
+      const storageAccountId = await this.ms.staticId.createStaticAccountId(userId, user.name);
       await this.ms.database.updateUser(userId, {storageAccountId, manifestStaticStorageId: storageAccountId});
       user = await this.ms.database.getUser(userId);
     }
 
     const manifestStorageId = await this.generateAndSaveManifest('user', user);
     if (manifestStorageId != user.manifestStorageId) {
-      await this.ms.staticId.bindToStaticId(manifestStorageId, user.manifestStaticStorageId);
+      await this.ms.staticId.bindToStaticId(userId, manifestStorageId, user.manifestStaticStorageId);
       await this.ms.database.updateUser(userId, {manifestStorageId});
     }
 
@@ -295,7 +307,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async getUserByManifestId(userId, staticId) {
     if (!staticId) {
-      const historyItem = await this.ms.database.getStaticIdItemByDynamicId(userId);
+      const historyItem = await this.ms.staticId.getStaticIdItemByDynamicId(userId);
       if (historyItem) {
         staticId = historyItem.staticId;
       }
@@ -474,6 +486,7 @@ class GeesomeApp implements IGeesomeApp {
 
   async generateAndSaveManifest(entityName, entityObj) {
     const manifestContent = await this.ms.entityJsonManifest.generateContent(entityName + '-manifest', entityObj);
+    console.log('manifestContent', manifestContent);
     const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
     console.log(entityName, hash, JSON.stringify(manifestContent.posts ? {...manifestContent, posts: ['hidden']} : manifestContent, null, ' '));
     return hash;
@@ -605,6 +618,24 @@ class GeesomeApp implements IGeesomeApp {
         log(`Stop ${moduleName} module...`);
         return this.ms[moduleName].stop();
       }
-    })
+    });
+  }
+
+  async flushDatabase() {
+    await pIteration.forEachSeries(this.config.modules, (moduleName) => {
+      if (this.ms[moduleName].flushDatabase) {
+        log(`Flush Database ${moduleName} module...`);
+        return this.ms[moduleName].flushDatabase();
+      }
+    });
+  }
+
+  async setupModules() {
+    await pIteration.forEachSeries(this.config.modules, (moduleName) => {
+      if (this.ms[moduleName].setup) {
+        log(`Setup ${moduleName} module...`);
+        return this.ms[moduleName].setup();
+      }
+    });
   }
 }

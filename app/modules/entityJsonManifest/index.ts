@@ -20,8 +20,8 @@ module.exports = async (app: IGeesomeApp) => {
   return getModule(app);
 };
 
-function getModule(app) {
-  app.checkModules(['database', 'storage']);
+function getModule(app: IGeesomeApp) {
+  app.checkModules(['database', 'accountStorage', 'staticId', 'storage']);
 
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
@@ -40,7 +40,7 @@ function getModule(app) {
         groupManifest.postsCount = group.publishedPostsCount;
         //TODO: add previous ID
         groupManifest.staticId = group.manifestStaticStorageId;
-        groupManifest.publicKey = await app.ms.database.getStaticIdPublicKey(groupManifest.staticId);
+        groupManifest.publicKey = await app.ms.accountStorage.getStaticIdPublicKeyByOr(groupManifest.staticId);
 
         if (group.avatarImage) {
           groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
@@ -110,7 +110,7 @@ function getModule(app) {
         const userManifest = ipfsHelper.pickObjectFields(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
         userManifest.staticId = user.manifestStaticStorageId;
-        userManifest.publicKey = await app.ms.database.getStaticIdPublicKey(userManifest.staticId);
+        userManifest.publicKey = await app.ms.accountStorage.getStaticIdPublicKeyByOr(userManifest.staticId);
 
         if (user.avatarImage) {
           userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
@@ -192,8 +192,8 @@ function getModule(app) {
         group.manifestStaticStorageId = manifest.staticId;
 
         //TODO: check ipns for valid bound to ipld
-        await app.ms.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
-        await app.ms.database.addStaticIdHistoryItem({
+        await app.ms.accountStorage.setStaticIdKey(null, manifest.staticId, manifest.publicKey).catch(() => {});
+        await app.ms.staticId.addStaticIdHistoryItem({
           staticId: manifest.staticId,
           dynamicId: manifestId,
           isActive: true,
@@ -214,8 +214,8 @@ function getModule(app) {
         log('manifestIdToDbObject:user', user);
 
         //TODO: check ipns for valid bound to ipld
-        await app.ms.database.setStaticIdKey(manifest.staticId, manifest.publicKey).catch(() => {});
-        await app.ms.database.addStaticIdHistoryItem({
+        await app.ms.accountStorage.setStaticIdKey(null, manifest.staticId, manifest.publicKey).catch(() => {});
+        await app.ms.staticId.addStaticIdHistoryItem({
           staticId: manifest.staticId,
           dynamicId: manifestId,
           isActive: true,
@@ -245,7 +245,7 @@ function getModule(app) {
           });
 
           post.contents = await pIteration.map(contentsIds, (contentId) => {
-            return app.createContentByRemoteStorageId(null, contentId);
+            return app.ms.content.createContentByRemoteStorageId(null, contentId);
           });
         }
 

@@ -1,35 +1,58 @@
 import {IGeesomeApp} from "../../interface";
-import {
-	IStaticIdHistoryItem
-} from "../database/interface";
-import IGeesomeStaticIdModule from "./interface";
-const _ = require('lodash');
+import IGeesomeStaticIdModule, {IStaticIdHistoryItem} from "./interface";
 const commonHelper = require('geesome-libs/src/common');
+// + commonHelper.makeCode(8)
 const log = require('debug')('geesome:app');
-const peerIdHelper = require('geesome-libs/src/peerIdHelper');
+const pIteration = require('p-iteration');
 
 module.exports = async (app: IGeesomeApp) => {
-	const module = getModule(app);
-	await app.ms.database.closeAllAsyncOperation();
+	const module = getModule(app, await require('./database')());
 	require('./api')(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
-	app.checkModules(['database', 'content', 'communicator']);
+function getModule(app: IGeesomeApp, models) {
+	app.checkModules(['accountStorage', 'content', 'communicator']);
 
 	class StaticIdModule implements IGeesomeStaticIdModule {
-		async bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem> {
+		async bindToStaticIdByName() {
+			//TODO: implement
+		}
+
+		async addStaticIdHistoryItem(staticIdItem) {
+			return models.StaticIdHistory.create(staticIdItem);
+		}
+
+		async getActualStaticIdItem(staticId) {
+			return models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
+		}
+
+		async destroyStaticIdHistory(staticId) {
+			return models.StaticIdHistory.destroy({where: {staticId}});
+		}
+
+		async getStaticIdItemByDynamicId(dynamicId) {
+			return models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
+		}
+
+		async bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem> {
 			log('bindToStaticId', dynamicId, staticId);
+			const userIdOfAccount = await app.ms.accountStorage.getUserIdOfLocalStaticIdAccount(staticId);
+			if (userIdOfAccount !== userId) {
+				throw new Error("userId_dont_match");
+			}
+
 			try {
-				await app.ms.communicator.bindToStaticId(dynamicId, staticId);
-				log('bindToStaticId:communicator finish');
+				if (await app.ms.communicator.isReady()) {
+					await app.ms.communicator.bindToStaticId(dynamicId, staticId);
+					log('bindToStaticId:communicator finish');
+				} else {
+					log('bindToStaticId:communicator not ready');
+				}
 			} catch (e) {
 				log('bindToStaticId:communicator error', e);
 			}
-			// await this.ms.database.destroyStaticIdHistory(staticId);
-
-			return app.ms.database.addStaticIdHistoryItem({
+			return this.addStaticIdHistoryItem({
 				staticId,
 				dynamicId,
 				isActive: true,
@@ -41,7 +64,7 @@ function getModule(app: IGeesomeApp) {
 			return new Promise(async (resolve, reject) => {
 				let alreadyHandled = false;
 
-				const staticIdItem = await app.ms.database.getActualStaticIdItem(staticId);
+				const staticIdItem = await this.getActualStaticIdItem(staticId);
 
 				setTimeout(() => {
 					if(alreadyHandled) {
@@ -75,7 +98,7 @@ function getModule(app: IGeesomeApp) {
 				resolve(dynamicId);
 				alreadyHandled = true;
 				if (dynamicId && dynamicId !== 'null') {
-					return app.ms.database.addStaticIdHistoryItem({
+					return this.addStaticIdHistoryItem({
 						staticId: staticId,
 						dynamicId: dynamicId,
 						isActive: true,
@@ -94,22 +117,23 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getSelfStaticAccountId() {
-			return app.ms.communicator.getAccountIdByName('self');
+			return app.ms.accountStorage.getAccountStaticId('self');
 		}
 
-		async createStaticAccountId(name) {
-			const storageAccountId = await app.ms.communicator.createAccountIfNotExists(name + commonHelper.makeCode(8));
+		async createStaticAccountId(userId, name) {
+			return app.ms.accountStorage.createAccount(name, userId).then(acc => acc.staticId);
+		}
 
-			app.ms.communicator.getAccountPublicKey(storageAccountId).then(publicKey => {
-				return app.ms.database.setStaticIdKey(storageAccountId, peerIdHelper.publicKeyToBase64(publicKey)).catch(() => {
-					/*dont do anything*/
-				});
-			}).catch(e => {
-				console.warn('error public key caching', e);
+		async getOrCreateStaticAccountId(userId, name) {
+			return app.ms.accountStorage.getLocalAccountStaticIdByNameAndUserId(name, userId)
+				.then(staticId => staticId ? staticId : this.createStaticAccountId(userId, name));
+		}
+
+		async flushDatabase() {
+			await pIteration.forEachSeries(['StaticIdHistory'], (modelName) => {
+				return models[modelName].destroy({where: {}});
 			});
-			return storageAccountId;
 		}
-
 	}
 
 	return new StaticIdModule();

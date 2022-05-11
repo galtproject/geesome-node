@@ -68,7 +68,7 @@ describe("groupCategory", function () {
 	});
 
 	afterEach(async () => {
-		await app.ms.database.flushDatabase();
+		await app.flushDatabase();
 		await app.stop();
 	});
 

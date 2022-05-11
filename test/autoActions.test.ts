@@ -12,11 +12,11 @@ import {
 	ContentView,
 	CorePermissionName, PostStatus,
 } from "../app/modules/database/interface";
-import IGeesomeAutoActionsModule from "../app/modules/autoActions/interface";
+import IGeesomeAutoActionsModule, {IAutoAction} from "../app/modules/autoActions/interface";
 
 const assert = require('assert');
 
-describe("autoActions", function () {
+describe.skip("autoActions", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -65,7 +65,7 @@ describe("autoActions", function () {
 	});
 
 	afterEach(async () => {
-		await app.ms.database.flushDatabase();
+		await app.flushDatabase();
 		await app.stop();
 	});
 
@@ -74,18 +74,45 @@ describe("autoActions", function () {
 		let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
 		await addTextPostToGroup(testGroup, 'Test 1 post');
 
-		// const ipnsPublishAction = await autoActions.addSerialAutoActions(testUser.id, [{
-		// 	moduleName: ''
-		// 	funcName?: string;
-		// 	funcArgs?: string; // JSON
-		// 	lastError?: string;
-		// 	isActive?: boolean;
-		// 	runPeriod?: number;
-		// 	position?: number;
-		// 	nextActions?: IAutoAction[];
-		// 	totalExecuteAttempts?: number;
-		// 	currentExecuteAttempts?: number;
-		// }])
+		let newContentCalls = 0;
+		app.ms['testModule'] = {
+			isAutoActionAllowed(userId, funcName, funcArgs) {
+				return true;
+			},
+			getNewContent(userId, arg1, arg2, arg3) {
+				newContentCalls++;
+				return 'test-' + newContentCalls;
+			}
+		}
+
+		// const actions = await autoActions.addSerialAutoActions(testUser.id, [{
+		// 	moduleName: 'testModule',
+		// 	funcName: 'getNewContent',
+		// 	funcArgs: ['val1', 'val2'],
+		// 	isActive: true,
+		// 	runPeriod: '1',
+		// 	position: '1',
+		// 	totalExecuteAttempts: 3,
+		// 	currentExecuteAttempts: 3
+		// },{
+		// 	moduleName: 'content',
+		// 	funcName: 'saveDataAndGetStorageId',
+		// 	funcArgs: ['{{testModule.getNewContent}}'],
+		// 	isActive: true,
+		// 	runPeriod: '1',
+		// 	position: '1',
+		// 	totalExecuteAttempts: 3,
+		// 	currentExecuteAttempts: 3
+		// },{
+		// 	moduleName: 'content',
+		// 	funcName: 'saveDataAndGetStorageId',
+		// 	funcArgs: ['{{testModule.getNewContent}}'],
+		// 	isActive: true,
+		// 	runPeriod: '1',
+		// 	position: '1',
+		// 	totalExecuteAttempts: 3,
+		// 	currentExecuteAttempts: 3
+		// }] as IAutoAction[])
 
 
 		async function addTextPostToGroup(group, text) {

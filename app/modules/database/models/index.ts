@@ -40,9 +40,6 @@ module.exports = async function (sequelize) {
   models.UserAuthMessage = await require('./userAuthMessage')(sequelize, models);
   models.UserOperationQueue = await require('./userOperationQueue')(sequelize, models);
 
-  models.StaticIdHistory = await require('./staticIdHistory')(sequelize, models);
-  models.StaticIdKey = await require('./staticIdKey')(sequelize, models);
-
   models.Value = await require('./value')(sequelize, models);
 
   return models;

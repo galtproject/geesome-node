@@ -24,7 +24,7 @@ const resourcesHelper = require('./helpers/resources');
 const log = require('../app/helpers').log;
 const commonHelper = require('geesome-libs/src/common');
 
-describe.only("app", function () {
+describe("app", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -71,7 +71,7 @@ describe.only("app", function () {
 	});
 
 	afterEach(async () => {
-		await app.ms.database.flushDatabase();
+		await app.flushDatabase();
 		await app.stop();
 	});
 
@@ -505,6 +505,7 @@ describe.only("app", function () {
 		}
 	});
 
+	//TODO: test case with group deletion and creating the new one with the same name
 	it('groups administration', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];

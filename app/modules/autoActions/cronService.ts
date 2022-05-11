@@ -56,7 +56,6 @@ export default class CronService {
 		}
 	}
 
-
 	async executeActionAndAddNextToQueue(a: IAutoAction, rootActionId = null) {
 		const {result, success} = await this.executeAction(a, rootActionId);
 		if (!success) {
@@ -69,11 +68,15 @@ export default class CronService {
 		if (!this.prevActionsResultByRootId[rootActionId]) {
 			this.prevActionsResultByRootId[rootActionId] = {};
 		}
-		this.prevActionsResultByRootId[rootActionId][a.moduleName + '.' + a.funcName] = result;
+		this.prevActionsResultByRootId[rootActionId][this.getPrevActionDictName(a)] = result;
 
 		this.addActionsListToQueue(await this.autoActionsModule.getNextActionsById(a.userId, a.id), rootActionId);
 
 		this.clearPrevActions(a.id, rootActionId);
+	}
+
+	getPrevActionDictName(a) {
+		return '{{' + a.moduleName + '.' + a.funcName + '}}';
 	}
 
 	clearPrevActions(actionId, rootActionId) {

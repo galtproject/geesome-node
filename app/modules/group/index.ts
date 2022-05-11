@@ -48,7 +48,7 @@ function getModule(app: IGeesomeApp) {
 				groupData.isRemote = false;
 			}
 
-			groupData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(groupData['name']);
+			groupData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(userId, groupData['name']);
 			if (groupData.type !== GroupType.PersonalChat) {
 				groupData.staticStorageId = groupData.manifestStaticStorageId;
 			}
@@ -59,7 +59,7 @@ function getModule(app: IGeesomeApp) {
 				await app.ms.database.addAdminToGroup(userId, group.id);
 			}
 
-			await this.updateGroupManifest(group.id);
+			await this.updateGroupManifest(userId, group.id);
 
 			return app.ms.database.getGroup(group.id);
 		}
@@ -231,7 +231,7 @@ function getModule(app: IGeesomeApp) {
 			}
 			await app.ms.database.updateGroup(groupId, updateData);
 
-			await this.updateGroupManifest(groupId);
+			await this.updateGroupManifest(userId, groupId);
 
 			return app.ms.database.getGroup(groupId);
 		}
@@ -240,7 +240,7 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getGroupByParams(_.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']));
 		}
 
-		async updateGroupManifest(groupId) {
+		async updateGroupManifest(userId, groupId) {
 			log('updateGroupManifest');
 			const [group, size, availablePostsCount] = await Promise.all([
 				app.ms.database.getGroup(groupId),
@@ -260,7 +260,7 @@ function getModule(app: IGeesomeApp) {
 				storageUpdatedAt = new Date();
 				staticStorageUpdatedAt = new Date();
 
-				promises.push(app.ms.staticId.bindToStaticId(manifestStorageId, group.manifestStaticStorageId))
+				promises.push(app.ms.staticId.bindToStaticId(userId, manifestStorageId, group.manifestStaticStorageId))
 			}
 
 			promises.push(app.ms.database.updateGroup(groupId, {
@@ -273,7 +273,7 @@ function getModule(app: IGeesomeApp) {
 			return Promise.all(promises);
 		}
 
-		async updatePostManifest(postId) {
+		async updatePostManifest(userId, postId) {
 			log('updatePostManifest');
 			const post = await app.ms.database.getPost(postId);
 			log('getPost');
@@ -283,7 +283,7 @@ function getModule(app: IGeesomeApp) {
 			await app.ms.database.updatePost(postId, { manifestStorageId });
 			log('updatePost');
 
-			await this.updateGroupManifest(post.groupId);
+			await this.updateGroupManifest(userId, post.groupId);
 			post.manifestStorageId = manifestStorageId;
 			return post;
 		}
@@ -331,7 +331,7 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.staticId.getStaticIdPeers(ipnsId);
 		}
 
-		async createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
+		async createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
 			const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
 				isEncrypted,
 				groupId,
@@ -351,7 +351,7 @@ function getModule(app: IGeesomeApp) {
 				await app.ms.database.setPostContents(post.id, contents.map(c => c.id));
 			}
 
-			await this.updateGroupManifest(post.groupId);
+			await this.updateGroupManifest(userId, post.groupId);
 
 			return app.ms.database.getPost(post.id);
 		}
@@ -371,7 +371,7 @@ function getModule(app: IGeesomeApp) {
 
 		async getGroupByManifestId(groupId, staticId) {
 			if (!staticId) {
-				const historyItem = await app.ms.database.getStaticIdItemByDynamicId(groupId);
+				const historyItem = await app.ms.staticId.getStaticIdItemByDynamicId(groupId);
 				if (historyItem) {
 					staticId = historyItem.staticId;
 				}
@@ -540,12 +540,12 @@ function getModule(app: IGeesomeApp) {
 			await app.ms.database.updatePost(post.id, {size});
 			log('updatePost');
 
-			post = await this.updatePostManifest(post.id);
+			post = await this.updatePostManifest(userId, post.id);
 			log('updatePostManifest');
 
 			if (group.isEncrypted && group.type === GroupType.PersonalChat) {
 				// Encrypt post id
-				const keyForEncrypt = await app.ms.database.getStaticIdPublicKey(group.staticStorageId);
+				const keyForEncrypt = await app.ms.accountStorage.getStaticIdPublicKeyByOr(group.staticStorageId);
 
 				const userKey = await app.ms.communicator.keyLookup(user.manifestStaticStorageId);
 				const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
@@ -562,7 +562,7 @@ function getModule(app: IGeesomeApp) {
 				});
 
 				await app.ms.database.updatePost(post.id, {isEncrypted: true, encryptedManifestStorageId: encryptedText});
-				await this.updateGroupManifest(group.id);
+				await this.updateGroupManifest(userId, group.id);
 			} else {
 				// Send plain post id
 				app.ms.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
@@ -661,7 +661,7 @@ function getModule(app: IGeesomeApp) {
 			postData.size = await app.ms.database.getPostSizeSum(postId);
 
 			await app.ms.database.updatePost(postId, postData);
-			return this.updatePostManifest(postId);
+			return this.updatePostManifest(userId, postId);
 		}
 
 		async deletePosts(userId, postIds) {

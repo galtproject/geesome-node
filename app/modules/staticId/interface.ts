@@ -1,7 +1,13 @@
-import {IStaticIdHistoryItem} from "../database/interface";
-
 export default interface IGeesomeStaticIdModule {
-	bindToStaticId(dynamicId, staticId): Promise<IStaticIdHistoryItem>;
+	addStaticIdHistoryItem(staticIdItem): Promise<IStaticIdHistoryItem>;
+
+	getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
+
+	destroyStaticIdHistory(staticId): Promise<any>;
+
+	getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
+
+	bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem>;
 
 	resolveStaticId(staticId): Promise<string>;
 
@@ -10,5 +16,16 @@ export default interface IGeesomeStaticIdModule {
 
 	getSelfStaticAccountId(): Promise<string>;
 
-	createStaticAccountId(accountName): Promise<string>;
+	createStaticAccountId(userId, accountName): Promise<string>;
+
+	getOrCreateStaticAccountId(userId, accountName): Promise<string>;
+}
+
+export interface IStaticIdHistoryItem {
+	id?: number;
+	staticId: string;
+	dynamicId: string;
+	periodTimestamp?: number;
+	isActive: boolean;
+	boundAt: Date;
 }

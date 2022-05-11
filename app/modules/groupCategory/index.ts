@@ -10,7 +10,7 @@ module.exports = (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp) {
-	app.checkModules(['database', 'group']);
+	app.checkModules(['database', 'staticId', 'group']);
 
 	class GroupCategoryModule implements IGeesomeGroupCategoryModule{
 
@@ -53,7 +53,7 @@ function getModule(app: IGeesomeApp) {
 
 		async getCategoryByManifestId(groupId, staticId) {
 			if (!staticId) {
-				const historyItem = await app.ms.database.getStaticIdItemByDynamicId(groupId);
+				const historyItem = await app.ms.staticId.getStaticIdItemByDynamicId(groupId);
 				if (historyItem) {
 					staticId = historyItem.staticId;
 				}
@@ -99,7 +99,7 @@ function getModule(app: IGeesomeApp) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			categoryData.creatorId = userId;
 
-			categoryData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(categoryData['name']);
+			categoryData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(userId, categoryData['name']);
 			if (categoryData.type !== GroupType.PersonalChat) {
 				categoryData.staticStorageId = categoryData.manifestStaticStorageId;
 			}

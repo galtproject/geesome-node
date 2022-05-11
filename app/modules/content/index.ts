@@ -27,7 +27,6 @@ const fs = require('fs');
 
 module.exports = async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	await app.ms.database.closeAllAsyncOperation();
 	require('./api')(app, module);
 	return module;
 }
@@ -362,6 +361,14 @@ function getModule(app: IGeesomeApp) {
 			} else {
 				return content;
 			}
+		}
+
+		async isAutoActionAllowed(userId, funcName, funcArgs) {
+			return funcName === 'saveDataAndGetStorageId';
+		}
+
+		async saveDataAndGetStorageId(userId: number, dataToSave, fileName?, options = {}) {
+			return this.saveData(userId, dataToSave, fileName, options).then(c => c.storageId);
 		}
 
 		async saveData(userId: number, dataToSave, fileName, options: { groupId?, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {

@@ -87,8 +87,7 @@ describe("telegramClient", function () {
 	});
 
 	afterEach(async () => {
-		await app.ms.database.flushDatabase();
-		await telegramClient.flushDatabase();
+		await app.flushDatabase();
 		await app.stop();
 	});
 

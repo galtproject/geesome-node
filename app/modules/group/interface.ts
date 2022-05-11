@@ -47,7 +47,7 @@ export default interface IGeesomeGroupModule {
 
 	createPost(userId, postData);
 
-	createPostByRemoteStorageId(manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
+	createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;
 
 	updatePost(userId, postId, postData);
 

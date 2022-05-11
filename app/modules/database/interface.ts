@@ -302,24 +302,6 @@ export interface IGeesomeDatabaseModule {
 
   getUserLimit(userId, name): Promise<IUserLimit>;
 
-  addStaticIdHistoryItem(staticIdHistoryItem: IStaticIdHistoryItem): Promise<IStaticIdHistoryItem>;
-
-  setStaticIdKey(staticId, publicKey, name?, encryptedPrivateKey?): Promise<IStaticIdKey>;
-
-  getStaticIdPublicKey(staticId, name?): Promise<string>;
-
-  getStaticIdByName(name): Promise<string>;
-
-  getStaticIdEncryptedPrivateKey(staticId, name?): Promise<string>;
-
-  destroyStaticId(staticId, name?): Promise<void>;
-
-  getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
-
-  getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
-
-  destroyStaticIdHistory(staticId): Promise<void>;
-
   getValue(key: string): Promise<string>;
 
   setValue(key: string, content: string): Promise<void>;
@@ -731,23 +713,6 @@ export interface IUserOperationQueue {
   asyncOperationId: number;
   userApiKeyId: number;
   asyncOperation?: IUserAsyncOperation;
-}
-
-export interface IStaticIdHistoryItem {
-  id?: number;
-  staticId: string;
-  dynamicId: string;
-  periodTimestamp?: number;
-  isActive: boolean;
-  boundAt: Date;
-}
-
-export interface IStaticIdKey {
-  id?: number;
-  name?: number;
-  staticId: string;
-  publicKey: string;
-  encryptedPrivateKey?: string;
 }
 
 export enum UserLimitName {

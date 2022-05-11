@@ -12,7 +12,7 @@ import {
   IContent,
   IGeesomeDatabaseModule, IFileCatalogItem, IGroup, IGroupRead, IGroupSection, IInvite,
   IListParams,
-  IObject, IPost, IStaticIdHistoryItem,
+  IObject, IPost,
   IUser,
   IUserAccount,
   IUserApiKey, IUserAsyncOperation,
@@ -1179,60 +1179,6 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
 
   async getUserLimit(userId, name) {
     return this.models.UserLimit.findOne({where: {userId, name}}) as IUserLimit;
-  }
-
-  async addStaticIdHistoryItem(staticIdItem) {
-    return this.models.StaticIdHistory.create(staticIdItem);
-  }
-
-  async getActualStaticIdItem(staticId) {
-    return this.models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
-  }
-
-  async destroyStaticIdHistory(staticId) {
-    return this.models.StaticIdHistory.destroy({where: {staticId}});
-  }
-
-  async getStaticIdItemByDynamicId(dynamicId) {
-    return this.models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
-  }
-
-  async setStaticIdKey(staticId, publicKey, name = null, encryptedPrivateKey = null) {
-    return this.models.StaticIdKey.create({staticId, publicKey, name, encryptedPrivateKey});
-  }
-
-  async getStaticIdByName(name) {
-    return this.models.StaticIdKey.findOne({where: { name }}).then(item => item ? item.staticId : null);
-  }
-
-  async getStaticIdPublicKey(staticId = null, name = null) {
-    if (!staticId && !name) {
-      return null;
-    }
-    const or = [];
-    staticId && or.push({staticId});
-    name && or.push({name});
-    return this.models.StaticIdKey.findOne({ where: {[Op.or]: or} }).then(item => item ? item.publicKey : null);
-  }
-
-  async getStaticIdEncryptedPrivateKey(staticId = null, name = null) {
-    if (!staticId && !name) {
-      return null;
-    }
-    const or = [];
-    staticId && or.push({staticId});
-    name && or.push({name});
-    return this.models.StaticIdKey.findOne({ where: {[Op.or]: or} }).then(item => item ? item.encryptedPrivateKey : null);
-  }
-
-  async destroyStaticId(staticId = null, name = null) {
-    if (!staticId && !name) {
-      return null;
-    }
-    const or = [];
-    staticId && or.push({staticId});
-    name && or.push({name});
-    return this.models.StaticIdKey.destroy({ where: {[Op.or]: or} });
   }
 
   async getValue(key: string) {

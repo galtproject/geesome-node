@@ -117,6 +117,8 @@ export interface IGeesomeApp {
   removeBootNode(userId, address, type?): Promise<any>;
 
   stop(): Promise<void>;
+
+  flushDatabase(): Promise<void>;
 }
 
 

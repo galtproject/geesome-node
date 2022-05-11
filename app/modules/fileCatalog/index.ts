@@ -189,8 +189,8 @@ function getModule(app: IGeesomeApp) {
 				return { storageId };
 			}
 
-			const staticId = await app.ms.staticId.createStaticAccountId(user.name + '@directory:' + storageDirPath);
-			await app.ms.staticId.bindToStaticId(storageId, staticId);
+			const staticId = await app.ms.staticId.getOrCreateStaticAccountId(userId, user.name + '@directory:' + storageDirPath);
+			await app.ms.staticId.bindToStaticId(userId, storageId, staticId);
 
 			return {
 				storageId,
