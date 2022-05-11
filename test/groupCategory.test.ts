@@ -7,13 +7,14 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../app/interface";
+import {IGeesomeApp} from "../app/interface";
 import {
 	ContentView,
 	CorePermissionName,
 	GroupPermissionName,
-	PostStatus,
 } from "../app/modules/database/interface";
+import IGeesomeGroupCategoryModule from "../app/modules/groupCategory/interface";
+import {PostStatus} from "../app/modules/group/interface";
 
 const trieHelper = require("geesome-libs/src/base36Trie");
 const assert = require('assert');
@@ -29,7 +30,7 @@ describe("groupCategory", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp, groupCategory: IGeesomeGroupCategoryModule;
+	let admin, app: IGeesomeApp, groupCategory: IGeesomeGroupCategoryModule;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -50,7 +51,7 @@ describe("groupCategory", function () {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
-			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -74,7 +75,7 @@ describe("groupCategory", function () {
 
 	it('categories should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test')).list[0];
 		const categoryName = 'my-category';
 		const category = await groupCategory.createCategory(testUser.id, {name: categoryName});
 
@@ -95,12 +96,12 @@ describe("groupCategory", function () {
 		const foundCategory = await groupCategory.getCategoryByParams({name: categoryName});
 		assert.equal(foundCategory.id, category.id);
 
-		const categoryGroups = await app.ms.database.getCategoryGroups(category.id);
+		const categoryGroups = await groupCategory.getCategoryGroups(testUser.id, category.id).then(r => r.list);
 		console.log('categoryGroups', categoryGroups);
 		assert.equal(categoryGroups.length, 1);
 		assert.equal(categoryGroups[0].id, testGroup.id);
 
-		const categoryGroupsCount = await app.ms.database.getCategoryGroupsCount(category.id);
+		const categoryGroupsCount = await groupCategory.getCategoryGroupsCount(category.id);
 		console.log('categoryGroupsCount', categoryGroupsCount);
 		assert.equal(categoryGroupsCount, 1);
 
@@ -220,11 +221,11 @@ describe("groupCategory", function () {
 		group = await app.ms.group.getLocalGroup(newUser.id, testGroup.id);
 		assert.equal(group.title, 'new title');
 
-		let groupPosts = await app.ms.database.getGroupPosts(testGroup.id);
+		let groupPosts = await app.ms.group.getGroupPosts(testGroup.id).then(r => r.list);
 		assert.equal(groupPosts.length, 1);
 		assert.equal(groupPosts[0].id, post.id);
 
-		let categoryPosts = await app.ms.database.getCategoryPosts(category.id);
+		let categoryPosts = await groupCategory.getCategoryPosts(category.id).then(r => r.list)
 		assert.equal(categoryPosts.length, 1);
 		assert.equal(categoryPosts[0].id, post.id);
 
@@ -282,28 +283,26 @@ describe("groupCategory", function () {
 		assert.equal(await app.ms.storage.getFileData(post2.contents[1].storageId), 'Hello world3');
 		assert.equal(post2.contents[1].postsContents.view, ContentView.Attachment);
 
-		post = await app.ms.database.getPost(post.id);
+		post = await app.ms.group.getPost(testUser.id, post.id);
 		assert.equal(post.repliesCount, 1);
 
-		groupPosts = await app.ms.database.getGroupPosts(testGroup.id);
+		groupPosts = await app.ms.group.getGroupPosts(testGroup.id).then(r => r.list);
 		assert.equal(groupPosts.length, 1);
 		assert.equal(groupPosts[0].id, post.id);
 
-		categoryPosts = await app.ms.database.getCategoryPosts(category.id);
+		categoryPosts = await groupCategory.getCategoryPosts(category.id).then(r => r.list);
 		assert.equal(categoryPosts.length, 1);
 		assert.equal(categoryPosts[0].id, post.id);
 
 		await groupCategory.addGroupToCategory(testUser.id, group2.id, category.id);
 
-		groupPosts = await app.ms.database.getGroupPosts(testGroup.id);
+		groupPosts = await app.ms.group.getGroupPosts(testGroup.id).then(r => r.list);
 		assert.equal(groupPosts.length, 1);
 
-		categoryPosts = await app.ms.database.getCategoryPosts(category.id);
+		categoryPosts = await groupCategory.getCategoryPosts(category.id).then(r => r.list);
 		assert.equal(categoryPosts.length, 2);
 
-		categoryPosts = await app.ms.database.getCategoryPosts(category.id, {
-			replyToId: null
-		});
+		categoryPosts = await groupCategory.getCategoryPosts(category.id, {replyToId: null}).then(r => r.list);
 		assert.equal(categoryPosts.length, 1);
 
 		await app.ms.group.removeMemberFromGroup(testUser.id, testGroup.id, newUser.id);
@@ -318,7 +317,7 @@ describe("groupCategory", function () {
 
 	it('sections should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const categoryName = 'my-category';
 		const category = await groupCategory.createCategory(testUser.id, {name: categoryName});
 
@@ -370,10 +369,8 @@ describe("groupCategory", function () {
 
 		assert.equal(groupSection1.title, 'Test2 changed 2');
 
-		console.log('app.ms.group.updateGroup(testUser.id, testGroup.id');
-		await app.ms.group.updateGroup(testUser.id, testGroup.id, {
-			sectionId: groupSection1.id
-		});
+		console.log('groupCategory.setSectionOfGroup(testUser.id, testGroup.id, groupSection1.id)');
+		await groupCategory.setSectionOfGroup(testUser.id, testGroup.id, groupSection1.id);
 
 		console.log('app.ms.group.createGroupSection(testUser.id');
 		await groupCategory.createGroupSection(testUser.id, {
@@ -387,7 +384,7 @@ describe("groupCategory", function () {
 
 	it('membershipOfCategory', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const category = await groupCategory.createCategory(testUser.id, {name: 'category'});
 		await groupCategory.addGroupToCategory(testUser.id, testGroup.id, category.id);
@@ -424,9 +421,7 @@ describe("groupCategory", function () {
 			assert.equal(_.includes(e.toString(), "not_permitted"), true);
 		}
 
-		await app.ms.group.updateGroup(testUser.id, testGroup.id, {
-			membershipOfCategoryId: category.id
-		});
+		await groupCategory.addGroupToCategoryMembership(testUser.id, testGroup.id, category.id);
 
 		const post = await app.ms.group.createPost(newMember.id, postData);
 		assert.equal(post.groupId, testGroup.id);

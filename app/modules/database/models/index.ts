@@ -17,18 +17,8 @@ module.exports = async function (sequelize) {
 
   models.CorePermission = await require('./corePermission')(sequelize, models);
 
-  models.Category = await require('./category')(sequelize, models);
-
-  models.GroupSection = await require('./groupSection')(sequelize, models);
-  models.Group = await require('./group')(sequelize, models);
-  models.GroupPermission = await require('./groupPermission')(sequelize, models);
-  models.GroupRead = await require('./groupRead')(sequelize, models);
-  models.Post = await require('./post')(sequelize, models);
   models.Content = await require('./content')(sequelize, models);
   models.Object = await require('./object')(sequelize, models);
-
-  models.Tag = await require('./tag')(sequelize, models);
-  models.AutoTag = await require('./autoTag')(sequelize, models);
 
   models.UserAsyncOperation = await require('./userAsyncOperation')(sequelize, models);
   models.UserContentAction = await require('./userContentAction')(sequelize, models);

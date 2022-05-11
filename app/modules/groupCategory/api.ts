@@ -1,4 +1,5 @@
-import {IGeesomeApp, IGeesomeGroupCategoryModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
+import IGeesomeGroupCategoryModule from "./interface";
 
 module.exports = (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModule) => {
 
@@ -40,6 +41,10 @@ module.exports = (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryMo
 
     app.ms.api.onAuthorizedPost('user/group-section/:groupSectionId/update', async (req, res) => {
         res.send(await groupCategoryModule.updateGroupSection(req.user.id, req.params.groupSectionId, req.body), 200);
+    });
+
+    app.ms.api.onAuthorizedPost('user/group/:groupId/add-to-section/:groupSectionId', async (req, res) => {
+        res.send(await groupCategoryModule.setSectionOfGroup(req.user.id, req.params.groupId, req.params.groupSectionId), 200);
     });
 
     app.ms.api.onAuthorizedGet('user/group-sections', async (req, res) => {

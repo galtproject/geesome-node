@@ -10,9 +10,10 @@
 import {IGeesomeApp} from "../app/interface";
 import {
 	ContentView,
-	CorePermissionName, PostStatus,
+	CorePermissionName,
 } from "../app/modules/database/interface";
 import IGeesomeAutoActionsModule, {IAutoAction} from "../app/modules/autoActions/interface";
+import {PostStatus} from "../app/modules/group/interface";
 
 const assert = require('assert');
 
@@ -26,7 +27,7 @@ describe.skip("autoActions", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp, autoActions: IGeesomeAutoActionsModule;
+	let admin, app: IGeesomeApp, autoActions: IGeesomeAutoActionsModule;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -45,8 +46,9 @@ describe.skip("autoActions", function () {
 
 		try {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			await app.flushDatabase();
 
-			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -65,13 +67,12 @@ describe.skip("autoActions", function () {
 	});
 
 	afterEach(async () => {
-		await app.flushDatabase();
 		await app.stop();
 	});
 
 	it('autoActions should be executed successfully', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		await addTextPostToGroup(testGroup, 'Test 1 post');
 
 		let newContentCalls = 0;

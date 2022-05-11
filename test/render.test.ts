@@ -12,8 +12,8 @@ import {
 	ContentView,
 	CorePermissionName,
 	IUserOperationQueue,
-	PostStatus
 } from "../app/modules/database/interface";
+import {PostStatus} from "../app/modules/group/interface";
 
 const assert = require('assert');
 const fs = require('fs');
@@ -30,7 +30,7 @@ describe("renders", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp;
+	let admin, app: IGeesomeApp;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -51,7 +51,7 @@ describe("renders", function () {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
-			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -75,7 +75,7 @@ describe("renders", function () {
 
 	it('static-site-generator', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
 		const staticSiteGenerator = await require('../app/modules/staticSiteGenerator')(app);
 
@@ -132,7 +132,7 @@ describe("renders", function () {
 		};
 
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		let testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const rssRender = await require('../app/modules/rss')(app);
 
 		const test1PostText = 'Test 1 post';

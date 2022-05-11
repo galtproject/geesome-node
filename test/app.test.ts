@@ -11,9 +11,9 @@ import {IGeesomeApp} from "../app/interface";
 import {
 	ContentView,
 	CorePermissionName,
-	PostStatus,
 	UserLimitName
 } from "../app/modules/database/interface";
+import {PostStatus} from "../app/modules/group/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
@@ -33,7 +33,7 @@ describe("app", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp;
+	let admin, app: IGeesomeApp;
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
@@ -53,7 +53,7 @@ describe("app", function () {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
-			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -86,7 +86,7 @@ describe("app", function () {
 
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const limitData = {
 			name: UserLimitName.SaveContentSize,
@@ -229,9 +229,11 @@ describe("app", function () {
 	});
 
 	it('should correctly save image', async () => {
+		console.log('should correctly save image:start', admin.id)
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
+		console.log('testGroup.id', testGroup.id)
 		app.ms.storage.isStreamAddSupport = () => {
 			return false;
 		};
@@ -257,7 +259,7 @@ describe("app", function () {
 
 	it('should correctly save video', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const inputVideo = await resourcesHelper.prepare('not-streamable-input-video.mp4');
 		const videoContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(inputVideo), 'input-video.mp4', {
@@ -277,7 +279,7 @@ describe("app", function () {
 
 	it('should correctly save mov video', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const inputVideoPath = await resourcesHelper.prepare('input-video.mov');
 		const videoContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(inputVideoPath), 'input-video.mov', {
@@ -313,7 +315,7 @@ describe("app", function () {
 
 	it('isReplyForbidden should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const postContent = await app.ms.content.saveData(testUser.id, 'Hello world', null, {
 			mimeType: 'text/markdown'
@@ -391,7 +393,7 @@ describe("app", function () {
 	//TODO: test case with group deletion and creating the new one with the same name
 	it('groups administration', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const newUser = await app.registerUser({
 			email: 'new@user.com',
@@ -423,7 +425,7 @@ describe("app", function () {
 
 	it('groupRead', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world1', null, {
 			mimeType: 'text/markdown'
@@ -489,7 +491,7 @@ describe("app", function () {
 	it('user invites should work properly', async () => {
 		const userAccountPrivateKey = '0xec63de747a7872b20793af42814ce92b5749dd13017887b6ab26754907b4934f';
 		const userAccountAddress = '0x2FAa9af0dbD9d32722C494bAD6B4A2521d132003';
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testAdmin = (await app.ms.database.getAllUserList('admin'))[0];
 

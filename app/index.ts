@@ -454,7 +454,7 @@ class GeesomeApp implements IGeesomeApp {
       let group;
       if (groupId) {
         contentData.groupId = groupId;
-        group = await this.ms.database.getGroup(groupId);
+        group = await this.ms.group.getGroup(groupId);
       }
       contentData.isPublic = group && group.isPublic;
     }
@@ -476,6 +476,18 @@ class GeesomeApp implements IGeesomeApp {
     if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
       await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
     }
+  }
+
+  async callHook(callFromModule, name, args) {
+    return pIteration.mapSeries(this.config.modules, (moduleName) => {
+      if (moduleName === callFromModule) {
+        return;
+      }
+      if (this.ms[moduleName][name]) {
+        log(`Call hook ${name} on ${moduleName} module...`);
+        return this.ms[moduleName][name].apply(this.ms[moduleName], args);
+      }
+    }).then(responses => responses.filter(r => !_.isUndefined(r)));
   }
 
   /**

@@ -107,6 +107,8 @@ export interface IGeesomeApp {
 
   hookExistsContentAdding(userId, content: IContent, options): Promise<void>;
 
+  callHook(callFromModule, name, args): Promise<void>;
+
   //TODO: define interface
   getPeers(topic): Promise<any>;
 
@@ -119,33 +121,6 @@ export interface IGeesomeApp {
   stop(): Promise<void>;
 
   flushDatabase(): Promise<void>;
-}
-
-
-export interface IGeesomeGroupCategoryModule {
-  getCategoryByParams(params): Promise<ICategory>;
-
-  createCategory(userId, categoryData): Promise<ICategory>;
-
-  addGroupToCategory(userId, groupId, categoryId): Promise<void>;
-
-  getCategoryGroups(userId, categoryId, filters?, listParams?: IListParams): Promise<IGroupListResponse>;
-
-  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
-
-  createGroupSection(userId, groupSectionData): Promise<IGroupSection>;
-
-  updateGroupSection(userId, groupSectionId, groupSectionData): Promise<IGroupSection>;
-
-  getGroupSectionItems(filters?, listParams?: IListParams): Promise<IGroupSectionListResponse>;
-
-  addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
-
-  addAdminToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
-
-  removeMemberFromCategory(userId, categoryId, memberId): Promise<void>;
-
-  isMemberInCategory(userId, categoryId): Promise<boolean>;
 }
 
 export interface IUserInput {

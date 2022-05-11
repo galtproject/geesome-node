@@ -10,9 +10,10 @@
 import {IGeesomeApp} from "../app/interface";
 import {
 	ContentView,
-	CorePermissionName, PostStatus,
+	CorePermissionName,
 } from "../app/modules/database/interface";
 import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
+import {PostStatus} from "../app/modules/group/interface";
 
 const pIteration = require('p-iteration');
 
@@ -30,7 +31,7 @@ describe("telegramClient", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp, telegramClient: IGeesomeTelegramClient;
+	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -51,7 +52,7 @@ describe("telegramClient", function () {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
-			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -184,7 +185,7 @@ describe("telegramClient", function () {
 
 	it('webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const message = {
 			id: 47,
@@ -350,7 +351,7 @@ describe("telegramClient", function () {
 
 	it('local webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const message = {
 			id: 1247,
@@ -441,7 +442,7 @@ describe("telegramClient", function () {
 
 	it('should merge posts by timestamp', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const message1 = {
 			id: 1244,
@@ -631,13 +632,13 @@ describe("telegramClient", function () {
 		assert.equal(post3.contents[3].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
 		assert.equal(post2.id, post3.id);
 
-		post3 = await app.ms.database.getPost(post3PrevId);
+		post3 = await app.ms.group.getPost(testUser.id, post3PrevId);
 		assert.equal(post3.isDeleted, true);
 	});
 
 	it('should merge two group of posts by timestamp', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const messages = [
 			{
@@ -958,7 +959,7 @@ describe("telegramClient", function () {
 
 	it('should merge posts by groupedId', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.database.getAllGroupList('test'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const message1 = {
 			id: 1210,

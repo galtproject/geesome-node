@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {assertAwaitExpression} from "@babel/types";
+
 module.exports = async function (sequelize, models) {
   const Sequelize = require('sequelize');
 
@@ -124,6 +126,14 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
+  models.PostsContents = sequelize.define('postsContents', {
+    position: {type: Sequelize.INTEGER},
+    view: {type: Sequelize.STRING(200)},
+  } as any, {} as any);
+
+  models.Content.belongsToMany(Post, {as: 'posts', through: models.PostsContents});
+  Post.belongsToMany(models.Content, {as: 'contents', through: models.PostsContents});
+
   Post.belongsTo(models.Group, {as: 'group', foreignKey: 'groupId'});
   models.Group.hasMany(Post, {as: 'posts', foreignKey: 'groupId'});
 
@@ -136,5 +146,9 @@ module.exports = async function (sequelize, models) {
   Post.belongsTo(Post, {as: 'replyTo', foreignKey: 'replyToId'});
   Post.hasMany(Post, {as: 'replies', foreignKey: 'replyToId'});
 
-  return Post.sync({});
+  await Post.sync({});
+
+  await models.PostsContents.sync({});
+
+  return Post;
 };

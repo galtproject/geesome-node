@@ -7,8 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ContentView, GroupType} from "../database/interface";
+import {ContentView} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
+import {GroupType} from "../group/interface";
 
 const {Api, TelegramClient} = require("telegram");
 const {StringSession} = require("telegram/sessions");
@@ -528,7 +529,7 @@ function getModule(app: IGeesomeApp, models) {
 			_msgData.postId = existsPostId;
 			await this.storeMessage(_existsChannelMessage, _msgData);
 
-			return app.ms.database.getPost(existsPostId);
+			return app.ms.group.getPostPure(existsPostId);
 		}
 
 		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {

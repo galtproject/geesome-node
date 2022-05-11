@@ -85,14 +85,38 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
+  // Group.belongsTo(models.GroupSection, {as: 'section', foreignKey: 'sectionId'});
+  // models.GroupSection.hasMany(Group, {as: 'groups', foreignKey: 'sectionId'});
+
+  models.GroupSectionsPivot = sequelize.define('groupSectionsPivot',{
+    sectionId: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      primaryKey: true
+    },
+    groupId: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      primaryKey: true,
+      unique: true // group can be in one section
+    },
+  } as any);
+
+  models.Group.belongsToMany(GroupSection, {as: 'sections', through: models.GroupSectionsPivot, foreignKey: 'sectionId'});
+  GroupSection.belongsToMany(models.Group, {as: 'groups', through: models.GroupSectionsPivot, foreignKey: 'groupId'});
+
   GroupSection.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
   models.User.hasMany(GroupSection, {as: 'createdSections', foreignKey: 'creatorId'});
 
-  GroupSection.belongsTo(models.Category, {as: 'category', foreignKey: 'categoryId'});
-  models.Category.hasMany(GroupSection, {as: 'sections', foreignKey: 'categoryId'});
+  GroupSection.belongsTo(models.GroupCategory, {as: 'category', foreignKey: 'categoryId'});
+  models.GroupCategory.hasMany(GroupSection, {as: 'sections', foreignKey: 'categoryId'});
 
   GroupSection.belongsTo(GroupSection, {as: 'parentSection', foreignKey: 'parentSectionId'});
   GroupSection.hasMany(GroupSection, {as: 'childrenSections', foreignKey: 'parentSectionId'});
 
-  return GroupSection.sync({});
+  await GroupSection.sync({});
+
+  await models.GroupSectionsPivot.sync({});
+
+  return GroupSection;
 };

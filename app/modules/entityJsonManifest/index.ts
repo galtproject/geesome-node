@@ -8,8 +8,10 @@
  */
 
 import {IGeesomeApp} from "../../interface";
-import {GroupType, ICategory, IContent, IGroup, IPost, IUser, PostStatus} from "../database/interface";
 import IGeesomeEntityJsonManifestModule from "./interface";
+import {GroupType, IGroup, IPost, PostStatus} from "../group/interface";
+import {IContent, IUser} from "../database/interface";
+import {IGroupCategory} from "../groupCategory/interface";
 
 const pIteration = require('p-iteration');
 const treeLib = require('geesome-libs/src/base36Trie');
@@ -21,7 +23,7 @@ module.exports = async (app: IGeesomeApp) => {
 };
 
 function getModule(app: IGeesomeApp) {
-  app.checkModules(['database', 'accountStorage', 'staticId', 'storage']);
+  app.checkModules(['database', 'group', 'accountStorage', 'staticId', 'storage']);
 
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
@@ -59,7 +61,7 @@ function getModule(app: IGeesomeApp) {
         groupManifest.posts = {};
 
         // TODO: write all posts
-        const groupPosts = await app.ms.database.getGroupPosts(group.id, {status: PostStatus.Published}, {limit: 1000, offset: 0});
+        const groupPosts = await app.ms.group.getGroupPosts(group.id, {status: PostStatus.Published}, {limit: 1000, offset: 0}).then(r => r.list);
         // console.log('groupPosts', group.id, groupPosts);
         groupPosts.forEach((post: IPost) => {
           if(post.isEncrypted) {
@@ -73,7 +75,7 @@ function getModule(app: IGeesomeApp) {
 
         return groupManifest;
       } else if (name === 'category-manifest') {
-        const category: ICategory = data;
+        const category: IGroupCategory = data;
         const categoryManifest = ipfsHelper.pickObjectFields(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
 
         this.setManifestMeta(categoryManifest, name);

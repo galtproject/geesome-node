@@ -329,7 +329,7 @@ function getModule(app: IGeesomeApp) {
 			});
 		}
 
-		private async addContent(userId: number, contentData: IContent, options: { groupId?, userApiKeyId? } = {}): Promise<IContent> {
+		private async addContent(userId: number, contentData: IContent, options: { userApiKeyId? } = {}): Promise<IContent> {
 			log('addContent');
 			await app.hookBeforeContentAdding(userId, contentData, options);
 
@@ -371,7 +371,7 @@ function getModule(app: IGeesomeApp) {
 			return this.saveData(userId, dataToSave, fileName, options).then(c => c.storageId);
 		}
 
-		async saveData(userId: number, dataToSave, fileName, options: { groupId?, view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {
+		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {
 			log('saveData');
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			log('checkUserCan');
@@ -449,7 +449,7 @@ function getModule(app: IGeesomeApp) {
 			}, options);
 		}
 
-		async saveDataByUrl(userId: number, url, options: { groupId?, driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? } = {}) {
+		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? } = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			let name;
 			if (options.path) {
@@ -558,12 +558,7 @@ function getModule(app: IGeesomeApp) {
 			}, options);
 		}
 
-		async saveDirectoryToStorage(userId: number, dirPath, options: { groupId?, userApiKeyId? } = {}) {
-			//TODO: refactor block
-			let group;
-			if (options.groupId) {
-				group = await app.ms.database.getGroup(options.groupId)
-			}
+		async saveDirectoryToStorage(userId: number, dirPath, options: { userApiKeyId? } = {}) {
 			const resultFile = await app.ms.storage.saveDirectory(dirPath);
 			return this.addContentWithPreview(userId, resultFile, {
 				extension: 'none',
@@ -572,7 +567,6 @@ function getModule(app: IGeesomeApp) {
 				view: ContentView.Contents,
 				storageId: resultFile.id,
 				size: getDirSize(dirPath),
-				name: group ? group.name : null,
 			}, options);
 		}
 
@@ -702,7 +696,7 @@ function getModule(app: IGeesomeApp) {
 			return uploadDriver.processBySource(sourceLink, {});
 		}
 
-		async createContentByRemoteStorageId(userId, manifestStorageId, options: { groupId?, userApiKeyId? } = {}) {
+		async createContentByRemoteStorageId(userId, manifestStorageId, options: { userApiKeyId? } = {}) {
 			let dbContent = await app.ms.database.getContentByManifestId(manifestStorageId);
 			if (dbContent) {
 				return dbContent;
@@ -713,7 +707,7 @@ function getModule(app: IGeesomeApp) {
 			return this.createContentByObject(userId, manifestStorageId, options);
 		}
 
-		async createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }) {
+		async createContentByObject(userId, contentObject, options?: { userApiKeyId? }) {
 			const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
 			const dbContent = await app.ms.database.getContentByStorageId(storageId);
 			if (dbContent) {

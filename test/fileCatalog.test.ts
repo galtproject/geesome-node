@@ -9,20 +9,11 @@
 
 import {IGeesomeApp} from "../app/interface";
 import {
-	ContentView,
 	CorePermissionName,
-	PostStatus,
-	UserLimitName
 } from "../app/modules/database/interface";
 import {FileCatalogItemType} from "../app/modules/fileCatalog/interface";
 
-const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
-const fs = require('fs');
-const _ = require('lodash');
-const resourcesHelper = require('./helpers/resources');
-const log = require('../app/helpers').log;
-const commonHelper = require('geesome-libs/src/common');
 
 describe("app", function () {
 	const databaseConfig = {

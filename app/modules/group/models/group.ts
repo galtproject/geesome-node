@@ -123,15 +123,12 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
+  Group.belongsTo(models.Content, {as: 'avatarImage', foreignKey: 'avatarImageId'});
+  Group.belongsTo(models.Content, {as: 'coverImage', foreignKey: 'coverImageId'});
+
   Group.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
   models.User.hasMany(Group, {as: 'createdGroups', foreignKey: 'creatorId'});
 
-  Group.belongsTo(models.GroupSection, {as: 'section', foreignKey: 'sectionId'});
-  models.GroupSection.hasMany(Group, {as: 'groups', foreignKey: 'sectionId'});
-
-  Group.belongsTo(models.Category, {as: 'membershipOfCategory', foreignKey: 'membershipOfCategoryId'});
-  models.Category.hasMany(Group, {as: 'groupsWithCategoryMembership', foreignKey: 'membershipOfCategoryId'});
-  
   models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {} as any);
 
   Group.belongsToMany(models.User, {as: 'administrators', through: models.GroupAdministrators});
@@ -142,18 +139,11 @@ module.exports = async function (sequelize, models) {
   Group.belongsToMany(models.User, {as: 'members', through: models.GroupMembers});
   models.User.belongsToMany(Group, {as: 'memberInGroups', through: models.GroupMembers});
 
-  models.CategoryGroups = sequelize.define('categoryGroups', {} as any, {} as any);
-
-  models.Category.belongsToMany(Group, {as: 'groups', through: models.CategoryGroups});
-  Group.belongsToMany(models.Category, {as: 'categories', through: models.CategoryGroups});
-
   await Group.sync({});
 
   await models.GroupAdministrators.sync({});
 
   await models.GroupMembers.sync({});
-
-  await models.CategoryGroups.sync({});
 
   return Group;
 };

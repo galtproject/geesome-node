@@ -1,5 +1,5 @@
 import {IGeesomeApp} from "../../interface";
-import {IPost} from "../database/interface";
+import {IPost} from "../group/interface";
 
 const xml = require('xml');
 const pIteration = require('p-iteration');
