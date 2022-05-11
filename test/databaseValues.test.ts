@@ -18,9 +18,6 @@ describe("databaseValues", function () {
 
 	before(async () => {
 		database = await require('../app/modules/database')({config: {databaseConfig}});
-	});
-
-	after(async () => {
 		await database.flushDatabase();
 	});
 

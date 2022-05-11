@@ -49,6 +49,7 @@ describe("telegramClient", function () {
 
 		try {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
 			const testUser = await app.registerUser({
@@ -87,7 +88,6 @@ describe("telegramClient", function () {
 	});
 
 	afterEach(async () => {
-		await app.flushDatabase();
 		await app.stop();
 	});
 
