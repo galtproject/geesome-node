@@ -1,7 +1,20 @@
-import {FileCatalogItemType, IContent, IFileCatalogItem, IListParams} from "../database/interface";
 import {IFileCatalogListResponse, ManifestToSave} from "../../interface";
+import {IContent, IListParams} from "../database/interface";
 
 export default interface IGeesomeFileCatalogModule {
+	getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
+
+	getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
+
+	getFileCatalogItemsByContent(userId, contentId, type?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
+
+	getFileCatalogItemsCount(userId, parentItemId, type?, search?): Promise<number>;
+
+	isFileCatalogItemExistWithContent(userId, parentItemId, contentId): Promise<boolean>;
+
+	addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;
+
+	getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
 
 	saveDataToPath(userId: number, dataToSave, path, options?): Promise<IFileCatalogItem>;
 
@@ -10,8 +23,6 @@ export default interface IGeesomeFileCatalogModule {
 	getContentByPath(userId, path): Promise<IContent>;
 
 	getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
-
-	getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 
 	getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 
@@ -32,4 +43,27 @@ export default interface IGeesomeFileCatalogModule {
 	getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
 
 	addContentToUserFileCatalog(userId, content: IContent, options?: { groupId?, apiKey?, folderId?, path? });
+}
+
+export interface IFileCatalogItem {
+	id?: number;
+	name: string;
+	type: FileCatalogItemType;
+	position: number;
+	userId: number;
+	defaultFolderFor?: string;
+	linkOfId?: number;
+	parentItemId?: number;
+	contentId?: number;
+	groupId?: number;
+	size?: number;
+	manifestStorageId?: string;
+	nativeStorageId?: string;
+
+	content?: IContent;
+}
+
+export enum FileCatalogItemType {
+	Folder = 'folder',
+	File = 'file'
 }

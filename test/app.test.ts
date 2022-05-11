@@ -11,7 +11,6 @@ import {IGeesomeApp} from "../app/interface";
 import {
 	ContentView,
 	CorePermissionName,
-	FileCatalogItemType,
 	PostStatus,
 	UserLimitName
 } from "../app/modules/database/interface";
@@ -52,6 +51,7 @@ describe("app", function () {
 
 		try {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
 			const testUser = await app.registerUser({
@@ -71,7 +71,6 @@ describe("app", function () {
 	});
 
 	afterEach(async () => {
-		await app.flushDatabase();
 		await app.stop();
 	});
 
@@ -310,122 +309,6 @@ describe("app", function () {
 
 		let gotTextContent = await app.ms.storage.getFileDataText(archiveContent.storageId + '/test.txt');
 		assert.equal(gotTextContent, 'Test\n');
-	});
-
-	it("should create directory by files manifests correctly", async () => {
-		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-
-		const indexHtml = '<h1>Hello world</h1>';
-		const fileName = 'index.html';
-		const foldersPath = '/1/2/3/';
-
-		const indexHtmlContent = await app.ms.content.saveData(testUser.id, indexHtml, fileName);
-
-		const resultFolder = await app.ms.fileCatalog.saveManifestsToFolder(testUser.id, foldersPath, [{
-			manifestStorageId: indexHtmlContent.manifestStorageId
-		}]);
-		let publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, resultFolder.id,);
-
-		let gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
-		assert.equal(gotIndexHtmlByFolder, indexHtml);
-	});
-
-	it("should file catalog working properly", async () => {
-		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-
-		const indexHtml = '<h1>Hello world</h1>';
-		const fileName = 'index.html';
-		const foldersPath = '/1/2/3/';
-		const filePath = foldersPath + fileName;
-
-		const indexHtmlContent = await app.ms.content.saveData(testUser.id, indexHtml, fileName);
-
-		console.log('1 saveContentByPath');
-		const indexHtmlFileItem = await app.ms.fileCatalog.saveContentByPath(testUser.id, filePath, indexHtmlContent.id);
-		assert.equal(indexHtmlFileItem.name, fileName);
-
-		let parentFolderId = indexHtmlFileItem.parentItemId;
-		let level = 3;
-
-		while (parentFolderId) {
-			const parentFolder = await app.ms.database.getFileCatalogItem(parentFolderId);
-			assert.equal(parentFolder.name, level.toString());
-			level -= 1;
-			parentFolderId = parentFolder.parentItemId;
-		}
-
-		console.log('2 getContentByPath');
-		const foundIndexHtmlFileContent = await app.ms.fileCatalog.getContentByPath(testUser.id, filePath);
-
-		assert.equal(foundIndexHtmlFileContent.id, indexHtmlFileItem.content.id);
-
-		console.log('3 getFileData');
-		const gotIndexHtml = await app.ms.storage.getFileData(indexHtmlFileItem.content.storageId);
-
-		assert.equal(gotIndexHtml, indexHtml);
-
-		console.log('4 publishFolder');
-		let publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, indexHtmlFileItem.parentItemId, {bindToStatic: true});
-
-		console.log('5 resolveStaticId');
-		const resolvedStorageId = await app.ms.staticId.resolveStaticId(publishFolderResult.staticId);
-
-		assert.equal(publishFolderResult.storageId, resolvedStorageId);
-
-		console.log('6 getFileData');
-		let gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/' + fileName);
-
-		assert.equal(gotIndexHtmlByFolder, indexHtml);
-
-		try {
-			await app.ms.storage.getFileData(publishFolderResult.storageId + '/incorrect' + fileName);
-			assert.equal(true, false);
-		} catch (e) {
-			assert.equal(e.message, 'file does not exist');
-		}
-
-		console.log('7 getFileCatalogItemByPath');
-		const firstFolder = await app.ms.fileCatalog.getFileCatalogItemByPath(testUser.id, '/1/', FileCatalogItemType.Folder);
-
-		console.log('8 publishFolder');
-		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-
-		console.log('9 getFileData');
-		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName);
-
-		assert.equal(gotIndexHtmlByFolder, indexHtml);
-
-		let indexHtml2 = '<h1>Hello world 2</h1>';
-		const fileName2 = 'index2.json';
-		const filePath2 = foldersPath + fileName2;
-		await app.ms.fileCatalog.saveDataToPath(testUser.id, indexHtml2, filePath2);
-
-		try {
-			await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
-			assert.equal(true, false);
-		} catch (e) {
-			assert.equal(e.message, 'file does not exist');
-		}
-
-		console.log('10 publishFolder');
-		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-		console.log('11 getFileData');
-		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
-		assert.equal(gotIndexHtmlByFolder, indexHtml2);
-
-		indexHtml2 = '<h1>Hello world 3</h1>';
-		console.log('12 saveData');
-		await app.ms.fileCatalog.saveDataToPath(testUser.id, indexHtml2, filePath2);
-		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
-		assert.equal(gotIndexHtmlByFolder, indexHtml2);
-
-		indexHtml2 = '<h1>Hello world 2</h1>';
-		console.log('13 saveData');
-		await app.ms.fileCatalog.saveDataToPath(testUser.id, indexHtml2, filePath2);
-		publishFolderResult = await app.ms.fileCatalog.publishFolder(testUser.id, firstFolder.id, {bindToStatic: true});
-		gotIndexHtmlByFolder = await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
-		assert.equal(gotIndexHtmlByFolder, indexHtml2);
 	});
 
 	it('isReplyForbidden should work properly', async () => {

@@ -8,6 +8,10 @@
  */
 
 export interface IGeesomeDatabaseModule {
+  sequelize: any;
+  models: any;
+  config: any;
+
   getDriver():  Promise<any>;
 
   getSessionStore(): any;
@@ -238,28 +242,6 @@ export interface IGeesomeDatabaseModule {
 
   getPostListByIds(groupId, postIds): Promise<IPost[]>;
 
-  getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
-
-  getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
-
-  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsByContent(userId, contentId, type?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsBreadcrumbs(itemId): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsCount(userId, parentItemId, type?, search?): Promise<number>;
-
-  isFileCatalogItemExistWithContent(userId, parentItemId, contentId): Promise<boolean>;
-
-  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
-
-  addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;
-
-  updateFileCatalogItem(id, updateData): Promise<void>;
-
-  getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
-
   getAllUserList(searchString?, listParams?: IListParams): Promise<IUser[]>;
 
   getAllUserCount(searchString): Promise<number>;
@@ -307,6 +289,8 @@ export interface IGeesomeDatabaseModule {
   setValue(key: string, content: string): Promise<void>;
 
   clearValue(key: string): Promise<void>;
+
+  setDefaultListParamsValues(listParams: IListParams, defaultParams?: IListParams);
 }
 
 export interface IInvite {
@@ -636,29 +620,6 @@ export interface IGroupRead {
   userId: number;
   groupId: number;
   cachedPostsCount: number;
-}
-
-export interface IFileCatalogItem {
-  id?: number;
-  name: string;
-  type: FileCatalogItemType;
-  position: number;
-  userId: number;
-  defaultFolderFor?: string;
-  linkOfId?: number;
-  parentItemId?: number;
-  contentId?: number;
-  groupId?: number;
-  size?: number;
-  manifestStorageId?: string;
-  nativeStorageId?: string;
-
-  content?: IContent;
-}
-
-export enum FileCatalogItemType {
-  Folder = 'folder',
-  File = 'file'
 }
 
 export interface IUserContentAction {

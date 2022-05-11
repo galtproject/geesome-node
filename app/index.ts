@@ -622,7 +622,7 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async flushDatabase() {
-    await pIteration.forEachSeries(this.config.modules, (moduleName) => {
+    await pIteration.forEachSeries(_.reverse(_.clone(this.config.modules)), (moduleName) => {
       if (this.ms[moduleName].flushDatabase) {
         log(`Flush Database ${moduleName} module...`);
         return this.ms[moduleName].flushDatabase();

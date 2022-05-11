@@ -10,7 +10,7 @@
 import {
   GroupType, ICategory,
   IContent,
-  IGeesomeDatabaseModule, IFileCatalogItem, IGroup, IGroupRead, IGroupSection, IInvite,
+  IGeesomeDatabaseModule, IGroup, IGroupRead, IGroupSection, IInvite,
   IListParams,
   IObject, IPost,
   IUser,
@@ -82,7 +82,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getApiKeysByUser(userId, isDisabled?, search?, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams);
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -130,7 +130,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
 
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'FileCatalogItemPermission', 'FileCatalogItem', 'Category', 'CorePermission',
+      'Category', 'CorePermission',
       'UserContentAction', 'UserLimit', 'AutoTag', 'Tag', 'Content', 'PostsContents', 'Post', 'GroupPermission',
       'GroupAdministrators', 'GroupMembers', 'Group', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
@@ -249,7 +249,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getUserFriends(userId, search?, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams);
     const {limit, offset} = listParams;
     //TODO: use search and order
     return (await this.getUser(userId)).getFriends({
@@ -329,7 +329,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getUserInvites(createdById, filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
     const where = { createdById };
@@ -353,7 +353,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllInvites(filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
     const where = { };
@@ -536,7 +536,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getGroupPosts(groupId, filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -554,7 +554,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllPosts(filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -598,7 +598,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getGroupSections(filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams);
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -659,7 +659,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getCategoryPosts(categoryId, filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -715,7 +715,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getCategoryGroups(categoryId, filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -735,7 +735,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getCategorySections(categoryId, filters = {}, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+    this.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -846,140 +846,6 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return _.sumBy(post.contents, 'size');
   }
 
-  async getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor) {
-    return this.models.FileCatalogItem.findOne({
-      where: {userId, defaultFolderFor}
-    }) as IFileCatalogItem;
-  }
-
-  async getFileCatalogItems(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
-
-    const {limit, offset, sortBy, sortDir} = listParams;
-    const where: any = {userId, type, isDeleted: false};
-
-    if (!_.isUndefined(parentItemId)) {
-      where.parentItemId = parentItemId;
-    }
-
-    if (search) {
-      where['name'] = {[Op.like]: search};
-    }
-
-    return this.models.FileCatalogItem.findAll({
-      where,
-      order: [[sortBy, sortDir.toUpperCase()]],
-      include: [{association: 'content'}],
-      limit,
-      offset
-    });
-  }
-
-  async getFileCatalogItemsByContent(userId, contentId, type = null, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
-    const {sortBy, sortDir, limit, offset} = listParams;
-
-    return this.models.FileCatalogItem.findAll({
-      where: {userId, contentId, type, isDeleted: false},
-      order: [[sortBy, sortDir.toUpperCase()]],
-      limit,
-      offset
-    });
-  }
-
-  async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
-    const where: any = {userId, type, isDeleted: false};
-
-    if (!_.isUndefined(parentItemId)) {
-      where.parentItemId = parentItemId;
-    }
-
-    if (search) {
-      where['name'] = {[Op.like]: search};
-    }
-
-    return this.models.FileCatalogItem.count({where});
-  }
-
-  async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
-    return this.models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId}}).then(r => !!r);
-  }
-
-  async getFileCatalogItemsBreadcrumbs(childItemId) {
-    const breadcrumbs = [];
-    if (!childItemId) {
-      return breadcrumbs;
-    }
-    const maxNesting = 20;
-
-    let currentItemId = childItemId;
-    while (currentItemId) {
-      const currentItem = await this.getFileCatalogItem(currentItemId);
-      breadcrumbs.push(currentItem);
-      currentItemId = currentItem.parentItemId;
-
-      if (breadcrumbs.length >= maxNesting || !currentItemId) {
-        return _.reverse(breadcrumbs);
-      }
-    }
-    return _.reverse(breadcrumbs);
-  }
-
-  async getFileCatalogItem(id) {
-    if (!id) {
-      return null;
-    }
-    return this.models.FileCatalogItem.findOne({
-      where: {id},
-      include: [{association: 'content'}]
-    }) as IFileCatalogItem;
-  }
-
-  async addFileCatalogItem(item) {
-    return this.models.FileCatalogItem.create(item);
-  }
-
-  async updateFileCatalogItem(id, updateData) {
-    return this.models.FileCatalogItem.update(updateData, {where: {id}});
-  }
-
-  async getFileCatalogItemsSizeSum(parentItemId) {
-    return this.models.FileCatalogItem.sum('size', {
-      where: {parentItemId}
-    });
-  }
-
-  async getContentsIdsByFileCatalogIds(catalogIds) {
-    const links = await this.models.FileCatalogItem.findAll({
-      attributes: ['id', 'linkOfId'],
-      where: {id: {[Op.in]: catalogIds}, linkOfId: {[Op.ne]: null}}
-    });
-
-    let allCatalogIds = _.difference(catalogIds, links.map((link) => link.id));
-    allCatalogIds = allCatalogIds.concat(links.map((link) => link.linkOfId));
-
-    const folders = await this.models.FileCatalogItem.findAll({
-      attributes: ['id'],
-      where: {id: {[Op.in]: allCatalogIds}, type: 'folder'}
-    });
-
-    allCatalogIds = _.difference(allCatalogIds, folders.map((folder) => folder.id));
-
-    await pIteration.forEachSeries(folders, async (folder) => {
-      const files = await this.models.FileCatalogItem.findAll({
-        attributes: ['id'],
-        where: {parentItemId: folder.id, type: 'file'}
-      });
-
-      allCatalogIds = allCatalogIds.concat(files.map(f => f.id));
-    });
-
-    return (await this.models.FileCatalogItem.findAll({
-      attributes: ['contentId'],
-      where: {id: {[Op.in]: allCatalogIds}}
-    })).map(f => f.contentId);
-  }
-
   async addCorePermission(userId, permissionName) {
     return this.models.CorePermission.create({userId, name: permissionName, isActive: true});
   }
@@ -1041,7 +907,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllUserList(searchString?, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.User.findAll({
       where: this.getAllUsersWhere(searchString),
@@ -1066,7 +932,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllContentList(searchString, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.Content.findAll({
       where: this.getAllContentWhere(searchString),
@@ -1091,7 +957,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllGroupList(searchString?, listParams: IListParams = {}) {
-    setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.Group.findAll({
       where: this.getAllGroupWhere(searchString),
@@ -1198,12 +1064,11 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   async clearValue(key: string) {
     return this.models.Value.destroy({where: {key}});
   }
-}
 
-
-function setDefaultListParamsValues(listParams: IListParams, defaultParams: IListParams = {}) {
-  listParams.sortBy = listParams.sortBy || defaultParams.sortBy || 'createdAt';
-  listParams.sortDir = listParams.sortDir || defaultParams.sortDir || 'desc';
-  listParams.limit = parseInt(listParams.limit as any) || defaultParams.limit || 20;
-  listParams.offset = parseInt(listParams.offset as any) || defaultParams.offset || 0;
+  setDefaultListParamsValues(listParams: IListParams, defaultParams: IListParams = {}) {
+    listParams.sortBy = listParams.sortBy || defaultParams.sortBy || 'createdAt';
+    listParams.sortDir = listParams.sortDir || defaultParams.sortDir || 'desc';
+    listParams.limit = parseInt(listParams.limit as any) || defaultParams.limit || 20;
+    listParams.offset = parseInt(listParams.offset as any) || defaultParams.offset || 0;
+  }
 }
