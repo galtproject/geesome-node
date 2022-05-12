@@ -6,7 +6,7 @@ const log = require('debug')('geesome:app');
 const pIteration = require('p-iteration');
 
 module.exports = async (app: IGeesomeApp) => {
-	const module = getModule(app, await require('./database')());
+	const module = getModule(app, await require('./models')());
 	require('./api')(app, module);
 	return module;
 }

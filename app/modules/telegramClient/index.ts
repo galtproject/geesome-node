@@ -27,7 +27,7 @@ const telegramHelpers = require('./helpers');
 const Op = require("sequelize").Op;
 
 module.exports = async (app: IGeesomeApp) => {
-	const models = await require("./database")();
+	const models = await require("./models")();
 	const module = getModule(app, models);
 
 	require('./api')(app, module, models);

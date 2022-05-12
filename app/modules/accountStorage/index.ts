@@ -5,7 +5,7 @@ const Op = require("sequelize").Op;
 const pIteration = require("p-iteration");
 
 module.exports = async (app: IGeesomeApp, options: any = {}) => {
-	const module = getModule(app, await require('./database')(), options.pass || app.config.storageConfig.jsNode.pass);
+	const module = getModule(app, await require('./models')(), options.pass || app.config.storageConfig.jsNode.pass);
 	// require('./api')(app, module);
 	return module;
 }

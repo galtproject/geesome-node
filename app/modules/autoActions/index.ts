@@ -9,7 +9,7 @@ const orderBy = require("lodash/orderBy");
 const reverse = require("lodash/reverse");
 
 module.exports = async (app: IGeesomeApp, options: any = {}) => {
-	const models = await require("./database")();
+	const models = await require("./models")();
 	const module = await getModule(app, models);
 	require('./api')(app, module);
 	return module;

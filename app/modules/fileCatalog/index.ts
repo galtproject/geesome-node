@@ -13,7 +13,7 @@ const Op = require("sequelize").Op;
 module.exports = async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await require('./database')(sequelize, models));
+	const module = getModule(app, await require('./models')(sequelize, models));
 	require('./api')(app, module);
 	return module;
 }

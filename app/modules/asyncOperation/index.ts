@@ -9,7 +9,7 @@ const Op = require("sequelize").Op;
 
 module.exports = async (app: IGeesomeApp) => {
 	// app.checkModules([]);
-	const module = getModule(app, await require('./database')());
+	const module = getModule(app, await require('./models')());
 	await module.closeAllAsyncOperation();
 	require('./api')(app, module);
 	return module;
