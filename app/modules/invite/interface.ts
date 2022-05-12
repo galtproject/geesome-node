@@ -9,4 +9,24 @@ export default interface IGeesomeInviteModule {
 	updateInvite(userId, inviteId, inviteData: IInvite): Promise<any>;
 
 	getUserInvites(userId, filters?, listParams?: IListParams): Promise<IInvitesListResponse>;
+
+	addInvite(invite): Promise<IInvite>;
+
+	getInvite(id): Promise<IInvite>;
+
+	findInviteByCode(code): Promise<IInvite>;
+
+	getJoinedByInviteCount(joinedByInviteId): Promise<number>;
+
+	getUserInvitesCount(createdById, filters): Promise<number>;
+
+	getAllInvites(filters, listParams: IListParams): Promise<IInvite[]>;
+
+	getInvitedUserOfJoinedUser(userId): Promise<IUser>;
+
+	getInviteOfJoinedUser(userId): Promise<IInvite>;
+
+	getUsersListJoinedByInvite(inviteId): Promise<IUser[]>;
+
+	getUsersListJoinedByUser(userId): Promise<IUser[]>;
 }

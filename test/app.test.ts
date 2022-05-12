@@ -21,7 +21,6 @@ const fs = require('fs');
 const _ = require('lodash');
 const resourcesHelper = require('./helpers/resources');
 const log = require('../app/helpers').log;
-const commonHelper = require('geesome-libs/src/common');
 
 describe("app", function () {
 	const databaseConfig = {
@@ -486,111 +485,5 @@ describe("app", function () {
 		assert.equal(userObject.accounts.length, 1);
 		assert.equal(userObject.accounts[0].provider, 'ethereum');
 		assert.equal(userObject.accounts[0].address, userAccountAddress.toLowerCase());
-	});
-
-	it('user invites should work properly', async () => {
-		const userAccountPrivateKey = '0xec63de747a7872b20793af42814ce92b5749dd13017887b6ab26754907b4934f';
-		const userAccountAddress = '0x2FAa9af0dbD9d32722C494bAD6B4A2521d132003';
-		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
-		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testAdmin = (await app.ms.database.getAllUserList('admin'))[0];
-
-		const invite = await app.ms.invite.createInvite(testAdmin.id, {
-			title: 'test invite',
-			limits: JSON.stringify([{
-				name: UserLimitName.SaveContentSize,
-				value: 100 * (10 ** 3),
-				periodTimestamp: 60,
-				isActive: true
-			}]),
-			permissions: JSON.stringify([CorePermissionName.UserAll]),
-			groupsToJoin: JSON.stringify([testGroup.manifestStaticStorageId]),
-			maxCount: 1,
-			isActive: true
-		});
-
-		try {
-			await app.ms.invite.registerUserByInviteCode(invite.code, {
-				email: 'new2@user.com',
-				name: 'new2',
-				password: 'new2',
-				permissions: [CorePermissionName.UserAll],
-				accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
-			});
-			assert.equal(true, false);
-		} catch (e) {
-			assert.equal(_.includes(e.toString(), "signature_required"), true);
-			//TODO: add test for ethereum signature
-		}
-		const {user: newMember} = await app.ms.invite.registerUserByInviteCode(invite.code, {
-			email: 'new2@user.com',
-			name: 'new2',
-			password: 'new2',
-			permissions: [CorePermissionName.UserAll],
-		});
-		assert.equal(newMember.joinedByInviteId, invite.id);
-
-		const userLimit = await app.getUserLimit(testAdmin.id, newMember.id, UserLimitName.SaveContentSize);
-		assert.equal(userLimit.isActive, true);
-		assert.equal(userLimit.periodTimestamp, 60);
-		assert.equal(userLimit.value, 100 * (10 ** 3));
-
-		assert.equal(await app.ms.database.isHaveCorePermission(newMember.id, CorePermissionName.UserAll), true);
-
-		assert.equal(await app.ms.group.isMemberInGroup(newMember.id, testGroup.id), false);
-
-		await app.ms.group.addAdminToGroup(testUser.id, testGroup.id, testAdmin.id);
-
-		try {
-			await app.ms.invite.registerUserByInviteCode(commonHelper.random('hash'), {
-				email: 'new3@user.com',
-				name: 'new3',
-				password: 'new3',
-				permissions: [CorePermissionName.UserAll],
-			});
-			assert.equal(true, false);
-		} catch (e) {
-			assert.equal(_.includes(e.toString(), "invite_not_found"), true);
-		}
-
-		try {
-			await app.ms.invite.registerUserByInviteCode(invite.code, {
-				email: 'new3@user.com',
-				name: 'new3',
-				password: 'new3',
-				permissions: [CorePermissionName.UserAll],
-			});
-			assert.equal(true, false);
-		} catch (e) {
-			assert.equal(_.includes(e.toString(), "invite_max_count"), true);
-		}
-
-		await app.ms.invite.updateInvite(testAdmin.id, invite.id, {maxCount: 3});
-		const foundInvite = await app.ms.database.findInviteByCode(invite.code);
-		assert.equal(foundInvite.maxCount, 3);
-
-		const {user: newMember3} = await app.ms.invite.registerUserByInviteCode(invite.code, {
-			email: 'new3@user.com',
-			name: 'new3',
-			password: 'new3',
-			permissions: [CorePermissionName.UserAll],
-		});
-
-		assert.equal(await app.ms.group.isMemberInGroup(newMember.id, testGroup.id), false);
-		assert.equal(await app.ms.group.isMemberInGroup(newMember3.id, testGroup.id), true);
-
-		await app.ms.invite.updateInvite(testAdmin.id, invite.id, {isActive: false});
-
-		try {
-			await app.ms.invite.registerUserByInviteCode(invite.code, {
-				email: 'new4@user.com',
-				name: 'new4',
-				password: 'new4',
-				permissions: [CorePermissionName.UserAll],
-			});
-			assert.equal(true, false);
-		} catch (e) {
-			assert.equal(_.includes(e.toString(), "invite_not_active"), true);
-		}
 	});
 });

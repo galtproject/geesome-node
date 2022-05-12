@@ -56,22 +56,6 @@ export interface IGeesomeDatabaseModule {
 
   updateUser(id, updateData: any): Promise<void>;
 
-  addInvite(invite): Promise<IInvite>;
-
-  updateInvite(id, updateData): Promise<void>;
-
-  getInvite(id): Promise<IInvite>;
-
-  findInviteByCode(code): Promise<IInvite>;
-
-  getJoinedByInviteCount(joinedByInviteId): Promise<number>;
-
-  getUserInvites(createdById, filters, listParams: IListParams): Promise<IInvite[]>;
-
-  getUserInvitesCount(createdById, filters): Promise<number>;
-
-  getAllInvites(filters, listParams: IListParams): Promise<IInvite[]>;
-
   getUserByName(name): Promise<IUser>;
 
   getUserByNameOrEmail(nameOrEmail): Promise<IUser>;

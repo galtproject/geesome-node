@@ -61,7 +61,7 @@ export interface IGeesomeApp {
 
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
-  registerUser(userData: IUserInput, inviteId?): Promise<IUser>;
+  registerUser(userData: IUserInput): Promise<IUser>;
 
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 

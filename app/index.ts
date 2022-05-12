@@ -174,7 +174,7 @@ class GeesomeApp implements IGeesomeApp {
     }
   }
 
-  async registerUser(userData: IUserInput, joinedByInviteId = null): Promise<any> {
+  async registerUser(userData: IUserInput): Promise<any> {
     const {email, name, password} = userData;
 
     await this.checkNameAndEmail(null, name, email);
@@ -185,7 +185,6 @@ class GeesomeApp implements IGeesomeApp {
       passwordHash,
       name,
       email,
-      joinedByInviteId
     });
 
     const storageAccountId = await this.ms.staticId.createStaticAccountId(newUser.id, name);

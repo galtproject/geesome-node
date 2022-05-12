@@ -13,8 +13,6 @@ module.exports = async function (sequelize) {
   models.User = await require('./user')(sequelize, models);
   models.UserApiKey = await require('./userApiKey')(sequelize, models);
 
-  models.Invite = await require('./invite')(sequelize, models);
-
   models.CorePermission = await require('./corePermission')(sequelize, models);
 
   models.Content = await require('./content')(sequelize, models);
