@@ -627,7 +627,9 @@ class GeesomeApp implements IGeesomeApp {
     await pIteration.forEachSeries(this.config.modules, (moduleName) => {
       if (this.ms[moduleName].stop) {
         log(`Stop ${moduleName} module...`);
-        return this.ms[moduleName].stop();
+        return this.ms[moduleName].stop().catch(e => {
+          console.warn("Warning! Module didnt stop:", e);
+        });
       }
     });
   }

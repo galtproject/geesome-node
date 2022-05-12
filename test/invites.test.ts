@@ -17,7 +17,7 @@ const assert = require('assert');
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
 
-describe.only("app", function () {
+describe("app", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {

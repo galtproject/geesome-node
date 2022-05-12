@@ -71,8 +71,8 @@ module.exports = async function () {
 		}
 	} as any);
 
-	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through: NextActions, foreignKey: 'nextActionId'});
-	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through: NextActions, foreignKey: 'baseActionId'});
+	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through: NextActions, foreignKey: 'baseActionId'});
+	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through: NextActions, foreignKey: 'nextActionId'});
 
 	const AutoActionLog = sequelize.define('autoActionLog', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types

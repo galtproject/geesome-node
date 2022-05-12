@@ -102,8 +102,8 @@ module.exports = async function (sequelize, models) {
     },
   } as any);
 
-  models.Group.belongsToMany(GroupSection, {as: 'sections', through: models.GroupSectionsPivot, foreignKey: 'sectionId'});
-  GroupSection.belongsToMany(models.Group, {as: 'groups', through: models.GroupSectionsPivot, foreignKey: 'groupId'});
+  models.Group.belongsToMany(GroupSection, {as: 'sections', through: models.GroupSectionsPivot, foreignKey: 'groupId'});
+  GroupSection.belongsToMany(models.Group, {as: 'groups', through: models.GroupSectionsPivot, foreignKey: 'sectionId'});
 
   GroupSection.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
   models.User.hasMany(GroupSection, {as: 'createdSections', foreignKey: 'creatorId'});
