@@ -11,9 +11,9 @@ import {IGeesomeApp} from "../app/interface";
 import {
 	ContentView,
 	CorePermissionName,
-	IUserOperationQueue,
 } from "../app/modules/database/interface";
 import {PostStatus} from "../app/modules/group/interface";
+import {IUserOperationQueue} from "../app/modules/asyncOperation/interface";
 
 const assert = require('assert');
 const fs = require('fs');
@@ -106,7 +106,7 @@ describe("renders", function () {
 		}
 
 		async function generateStaticSiteAndGetContent(group, title, description) {
-			const defaultOptions = await staticSiteGenerator.getDefaultOptionsByGroupId(group.id);
+			const defaultOptions = await staticSiteGenerator.getDefaultOptionsByGroupId(testUser.id, group.id);
 
 			let userOperationQueue: IUserOperationQueue = await staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, apiKey, 'group', group.id, {
 				site: {title, description},

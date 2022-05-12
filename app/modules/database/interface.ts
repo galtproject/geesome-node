@@ -124,26 +124,6 @@ export interface IGeesomeDatabaseModule {
 
   getUserContentActionsSizeSum(userId, name, periodTimestamp?): Promise<number>;
 
-  addUserAsyncOperation(userAsyncOperation): Promise<IUserAsyncOperation>;
-
-  updateUserAsyncOperation(id, updateData): Promise<IUserAsyncOperation>;
-
-  getUserAsyncOperation(operationId): Promise<IUserAsyncOperation>;
-
-  getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
-
-  closeAllAsyncOperation(): Promise<any>;
-
-  addUserOperationQueue(userOperationQueue): Promise<IUserOperationQueue>;
-
-  updateUserOperationQueue(id, updateData): Promise<any>;
-
-  updateUserOperationQueueByAsyncOperationId(asyncOperationId, updateData): Promise<any>;
-
-  getWaitingOperationQueueByModule(module): Promise<IUserOperationQueue>;
-
-  getUserOperationQueue(id): Promise<IUserOperationQueue>;
-
   addUserLimit(limitData): Promise<IUserLimit>;
 
   updateUserLimit(limitId, limitData): Promise<void>;
@@ -317,36 +297,6 @@ export interface IUserLimit {
   adminId: number;
   periodTimestamp: number;
   isActive: boolean;
-}
-
-export interface IUserAsyncOperation {
-  id?: number;
-  name: string;
-  channel: string;
-  size: number;
-  percent: number;
-  finishedAt: Date;
-  errorType: string;
-  errorMessage: string;
-  inProcess: boolean;
-  cancel: boolean;
-
-  userId: number;
-  contentId?: number;
-  content?: IContent;
-}
-
-export interface IUserOperationQueue {
-  id?: number;
-  module: string;
-  inputHash: string;
-  startedAt: Date;
-  inputJson: string;
-  isWaiting: boolean;
-  userId: number;
-  asyncOperationId: number;
-  userApiKeyId: number;
-  asyncOperation?: IUserAsyncOperation;
 }
 
 export enum UserLimitName {

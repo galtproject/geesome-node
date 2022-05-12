@@ -72,6 +72,8 @@ module.exports = async function (sequelize, appModels) {
 	FileCatalogItem.belongsTo(appModels.Group, {as: 'group', foreignKey: 'groupId'});
 	appModels.Group.hasMany(FileCatalogItem, {as: 'fileCatalogItems', foreignKey: 'groupId'});
 
+	await FileCatalogItem.sync({});
+
 	const FileCatalogItemPermission = sequelize.define('fileCatalogItemPermission', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		name: {
@@ -98,8 +100,8 @@ module.exports = async function (sequelize, appModels) {
 	FileCatalogItemPermission.belongsTo(appModels.User, {as: 'user', foreignKey: 'userId'});
 	appModels.User.hasMany(FileCatalogItemPermission, {as: 'fileCatalogPermissions', foreignKey: 'userId'});
 
-	return {
-		FileCatalogItem: await FileCatalogItem.sync({}),
-		FileCatalogItemPermission: await FileCatalogItemPermission.sync({}),
-	};
+	appModels.FileCatalogItem = FileCatalogItem;
+	appModels.FileCatalogItemPermission = await FileCatalogItemPermission.sync({});
+
+	return appModels;
 }

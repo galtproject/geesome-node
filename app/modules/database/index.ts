@@ -14,8 +14,8 @@ import {
   IObject,
   IUser,
   IUserAccount,
-  IUserApiKey, IUserAsyncOperation,
-  IUserAuthMessage, IUserLimit, IUserOperationQueue
+  IUserApiKey,
+  IUserAuthMessage, IUserLimit
 } from "./interface";
 import {IGeesomeApp} from "../../interface";
 
@@ -443,53 +443,6 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     }
 
     return (await this.models.UserContentAction.sum('size', {where})) || 0;
-  }
-
-  async addUserAsyncOperation(asyncOperationData) {
-    return this.models.UserAsyncOperation.create(asyncOperationData);
-  }
-
-  async updateUserAsyncOperation(id, updateData) {
-    return this.models.UserAsyncOperation.update(updateData, {where: {id}});
-  }
-
-  async closeAllAsyncOperation() {
-    return this.models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true}});
-  }
-
-  async getUserAsyncOperation(id) {
-    return this.models.UserAsyncOperation.findOne({where: {id}}) as IUserAsyncOperation;
-  }
-
-  async getUserAsyncOperationList(userId, name = null, channelLike = null) {
-    const where = {userId, inProcess: true};
-    if (name) {
-      where['name'] = name;
-    }
-    if (channelLike) {
-      where['channel'] = {[Op.like]: channelLike};
-    }
-    return this.models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 100});
-  }
-
-  async addUserOperationQueue(userLimitData) {
-    return this.models.UserOperationQueue.create(userLimitData);
-  }
-
-  async updateUserOperationQueue(id, updateData) {
-    return this.models.UserOperationQueue.update(updateData, {where: {id}});
-  }
-
-  async updateUserOperationQueueByAsyncOperationId(asyncOperationId, updateData) {
-    return this.models.UserOperationQueue.update(updateData, {where: {asyncOperationId}});
-  }
-
-  async getWaitingOperationQueueByModule(module) {
-    return this.models.UserOperationQueue.findOne({where: {module, isWaiting: true}, order: [['createdAt', 'ASC']], include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
-  }
-
-  async getUserOperationQueue(id) {
-    return this.models.UserOperationQueue.findOne({where: {id}, include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
   }
 
   async addUserLimit(userLimitData) {

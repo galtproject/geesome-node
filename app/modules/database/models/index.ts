@@ -20,12 +20,10 @@ module.exports = async function (sequelize) {
   models.Content = await require('./content')(sequelize, models);
   models.Object = await require('./object')(sequelize, models);
 
-  models.UserAsyncOperation = await require('./userAsyncOperation')(sequelize, models);
   models.UserContentAction = await require('./userContentAction')(sequelize, models);
   models.UserLimit = await require('./userLimit')(sequelize, models);
   models.UserAccount = await require('./userAccount')(sequelize, models);
   models.UserAuthMessage = await require('./userAuthMessage')(sequelize, models);
-  models.UserOperationQueue = await require('./userOperationQueue')(sequelize, models);
 
   models.Value = await require('./value')(sequelize, models);
 
