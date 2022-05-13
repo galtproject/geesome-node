@@ -52,8 +52,8 @@ module.exports = async (extendConfig) => {
   // console.log('config', config);
   const app = new GeesomeApp(config);
 
-  app.config.storageConfig.jsNode.pass = await app.getSecretKey('js-ipfs-pass', 'words');
-  app.config.storageConfig.jsNode.salt = await app.getSecretKey('js-ipfs-salt', 'hash');
+  app.config.storageConfig.jsNode.pass = await app.getSecretKey('accounts-pass', 'words');
+  app.config.storageConfig.jsNode.salt = await app.getSecretKey('accounts-salt', 'hash');
   
   app.events = appEvents(app);
 
@@ -115,7 +115,11 @@ class GeesomeApp implements IGeesomeApp {
   }
 
   async getSecretKey(keyName, mode) {
-    const keyPath = `${__dirname}/../data/${keyName}.key`;
+    const keyDir = `${__dirname}/../data`;
+    if (!fs.existsSync(keyDir)) {
+      fs.mkdirSync(keyDir);
+    }
+    const keyPath = `${keyDir}/${keyName}.key`;
     let secretKey;
     try {
       secretKey = fs.readFileSync(keyPath).toString();
@@ -124,10 +128,7 @@ class GeesomeApp implements IGeesomeApp {
       }
     } catch (e) {}
     secretKey = commonHelper.random(mode);
-    await new Promise((resolve, reject) => {
-      fs.writeFile(keyPath, secretKey, resolve);
-    });
-
+    fs.writeFileSync(keyPath, secretKey, {encoding: 'utf8'});
     return secretKey;
   }
 
