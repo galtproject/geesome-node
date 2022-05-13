@@ -2,11 +2,13 @@
 export default interface IGeesomeAccountStorageModule {
 	getAccountPeerId(name: string): Promise<any>;
 
-	createAccount(name: string, userId: number): Promise<IStaticIdAccount>;
+	createAccount(name: string, userId: number, groupId?: number): Promise<IStaticIdAccount>;
 
-	getOrCreateAccountStaticId(name: string, userId: number): Promise<string>;
+	getOrCreateAccountStaticId(name: string, userId: number, groupId?: number): Promise<string>;
 
 	getLocalAccountStaticIdByNameAndUserId(name: string, userId: number): Promise<string>;
+
+	getLocalAccountStaticIdByNameAndGroupId(name: string, groupId: number): Promise<string>;
 
 	getAccountStaticId(name): Promise<string>;
 
@@ -14,7 +16,7 @@ export default interface IGeesomeAccountStorageModule {
 
 	destroyStaticId(name): Promise<any>;
 
-	setStaticIdKey(userId, staticId, publicKey, name?, encryptedPrivateKey?): Promise<IStaticIdAccount>;
+	createRemoteAccount(staticId, publicKey, name?, groupId?): Promise<IStaticIdAccount>;
 
 	getStaticIdPublicKeyByOr(staticId, name?): Promise<string>;
 

@@ -4,7 +4,9 @@ const { testNet } = require('@fluencelabs/fluence-network-environment');
 
 module.exports = async (app: IGeesomeApp) => {
 	let peer;
+	console.log('getAccountPeerId');
 	const peerId = await app.ms.accountStorage.getAccountPeerId('self');
+	console.log('getAccountPeerId done');
 	while (true) {
 		try {
 			if (peerId) {

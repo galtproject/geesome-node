@@ -128,7 +128,7 @@ import {IGeesomeApp} from "../../interface";
 //       boundAt: message.data.validity.toString('utf8')
 //     }).catch(() => {/* already exists */});
 //
-//     geesomeApp.ms.database.setStaticIdKey(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
+//     geesomeApp.ms.database.createAccount(ipnsId, bs58.encode(message.data.key)).catch(() => {/* already exists */});
 //   }
 //
 //   async function handlePersonalChatUpdate(personalGroup: IGroup, message) {

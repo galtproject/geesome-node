@@ -12,13 +12,16 @@ module.exports = async (app: IGeesomeApp, options: any = {}) => {
 
 function getModule(app: IGeesomeApp, models, pass) {
 	class DatabaseAccountStorage implements IGeesomeAccountStorageModule {
-		async createAccount(name, userId) {
+		async createAccount(name, userId, groupId?) {
+			if (!name || !userId) {
+				throw new Error("name_and_userId_cannot_be_null");
+			}
 			const peerId = await peerIdHelper.createPeerId();
 			const privateBase64 = peerIdHelper.peerIdToPrivateBase64(peerId);
 			const publicBase64 = peerIdHelper.peerIdToPublicBase64(peerId);
 			const publicBase58 = peerIdHelper.peerIdToPublicBase58(peerId);
 			const encryptedPrivateKey = await peerIdHelper.encryptPrivateBase64WithPass(privateBase64, pass);
-			return this.setStaticIdKey(userId, publicBase58, publicBase64, name, encryptedPrivateKey);
+			return models.Account.create({userId, groupId, staticId: publicBase58, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
 		}
 
 		async getAccountPublicKey(name) {
@@ -31,11 +34,25 @@ function getModule(app: IGeesomeApp, models, pass) {
 		}
 
 		async getLocalAccountStaticIdByNameAndUserId(name, userId) {
+			if (!name || !userId) {
+				return null;
+			}
 			return models.Account.findOne({ where: { name, userId, isRemote: false } })
 				.then(acc => acc ? acc.staticId : null);
 		}
 
+		async getLocalAccountStaticIdByNameAndGroupId(name, groupId) {
+			if (!name || !groupId) {
+				return null;
+			}
+			return models.Account.findOne({ where: { name, groupId, isRemote: false } })
+				.then(acc => acc ? acc.staticId : null);
+		}
+
 		async getAccountPeerId(name) {
+			if (!name) {
+				return null;
+			}
 			const encryptedPrivateKey = await this.getStaticIdEncryptedPrivateKey(name, name);
 			if (!encryptedPrivateKey) {
 				return null;
@@ -44,26 +61,25 @@ function getModule(app: IGeesomeApp, models, pass) {
 			return peerIdHelper.createPeerIdFromPrivateBase64(privateKey);
 		}
 
-		async createAccountAndGetStaticId(name, userId) {
-			const staticId = await this.getStaticIdByName(name);
-			return staticId || this.createAccount(name, userId).then(acc => acc.staticId);
+		async createAccountAndGetStaticId(name, userId, groupId?) {
+			return this.createAccount(name, userId, groupId).then(acc => acc.staticId);
 		}
 
 		async getAccountStaticId(name) {
 			return this.getStaticIdByName(name);
 		}
 
-		async getOrCreateAccountStaticId(name, userId) {
+		async getOrCreateAccountStaticId(name, userId, groupId?) {
 			const staticId = await this.getAccountStaticId(name);
-			return staticId || this.createAccountAndGetStaticId(name, userId);
+			return staticId || this.createAccountAndGetStaticId(name, userId, groupId);
 		}
 
 		async destroyStaticId(name) {
 			return this.destroyStaticIdByOr(name, name);
 		}
 
-		async setStaticIdKey(userId, staticId, publicKey, name = null, encryptedPrivateKey = null) {
-			return models.Account.create({userId, staticId, publicKey, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
+		async createRemoteAccount(staticId, publicKey, name?, groupId?) {
+			return models.Account.create({staticId, publicKey, name, groupId, isRemote: true});
 		}
 
 		async getStaticIdByName(name) {

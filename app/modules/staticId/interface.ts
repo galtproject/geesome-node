@@ -9,6 +9,8 @@ export default interface IGeesomeStaticIdModule {
 
 	bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem>;
 
+	bindToStaticIdByGroup(userId, groupId, dynamicId, staticId): Promise<IStaticIdHistoryItem>;
+
 	resolveStaticId(staticId): Promise<string>;
 
 	//TODO: define interface
@@ -18,7 +20,11 @@ export default interface IGeesomeStaticIdModule {
 
 	createStaticAccountId(userId, accountName): Promise<string>;
 
+	createStaticGroupAccountId(userId, groupId, accountName): Promise<string>;
+
 	getOrCreateStaticAccountId(userId, accountName): Promise<string>;
+
+	getOrCreateStaticGroupAccountId(userId, groupId, name): Promise<string>;
 }
 
 export interface IStaticIdHistoryItem {

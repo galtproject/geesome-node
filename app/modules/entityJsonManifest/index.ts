@@ -194,7 +194,7 @@ function getModule(app: IGeesomeApp) {
         group.manifestStaticStorageId = manifest.staticId;
 
         //TODO: check ipns for valid bound to ipld
-        await app.ms.accountStorage.setStaticIdKey(null, manifest.staticId, manifest.publicKey).catch(() => {});
+        await app.ms.accountStorage.createRemoteAccount(manifest.staticId, manifest.publicKey, manifest.name).catch(() => {});
         await app.ms.staticId.addStaticIdHistoryItem({
           staticId: manifest.staticId,
           dynamicId: manifestId,
@@ -216,7 +216,7 @@ function getModule(app: IGeesomeApp) {
         log('manifestIdToDbObject:user', user);
 
         //TODO: check ipns for valid bound to ipld
-        await app.ms.accountStorage.setStaticIdKey(null, manifest.staticId, manifest.publicKey).catch(() => {});
+        await app.ms.accountStorage.createRemoteAccount(manifest.staticId, manifest.publicKey, manifest.name).catch(() => {});
         await app.ms.staticId.addStaticIdHistoryItem({
           staticId: manifest.staticId,
           dynamicId: manifestId,

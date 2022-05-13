@@ -85,35 +85,26 @@ describe.skip("autoActions", function () {
 				return 'test-' + newContentCalls;
 			}
 		}
+		const staticIdName = 'test-static';
 
-		// const actions = await autoActions.addSerialAutoActions(testUser.id, [{
-		// 	moduleName: 'testModule',
-		// 	funcName: 'getNewContent',
-		// 	funcArgs: ['val1', 'val2'],
-		// 	isActive: true,
-		// 	runPeriod: '1',
-		// 	position: '1',
-		// 	totalExecuteAttempts: 3,
-		// 	currentExecuteAttempts: 3
-		// },{
-		// 	moduleName: 'content',
-		// 	funcName: 'saveDataAndGetStorageId',
-		// 	funcArgs: ['{{testModule.getNewContent}}'],
-		// 	isActive: true,
-		// 	runPeriod: '1',
-		// 	position: '1',
-		// 	totalExecuteAttempts: 3,
-		// 	currentExecuteAttempts: 3
-		// },{
-		// 	moduleName: 'content',
-		// 	funcName: 'saveDataAndGetStorageId',
-		// 	funcArgs: ['{{testModule.getNewContent}}'],
-		// 	isActive: true,
-		// 	runPeriod: '1',
-		// 	position: '1',
-		// 	totalExecuteAttempts: 3,
-		// 	currentExecuteAttempts: 3
-		// }] as IAutoAction[])
+		function buildAutoAction(moduleName, funcName, funcArgs) {
+			return {
+				moduleName,
+				funcName,
+				funcArgs,
+				isActive: true,
+				runPeriod: 1,
+				position: 1,
+				totalExecuteAttempts: 3,
+				currentExecuteAttempts: 3
+			} as IAutoAction;
+		}
+		const actions = await autoActions.addSerialAutoActions(testUser.id, [
+			buildAutoAction('testModule', 'getNewContent', ['val1', 'val2']),
+			buildAutoAction('content', 'saveDataAndGetStorageId', ['{{testModule.getNewContent}}']),
+			buildAutoAction('staticId', 'getOrCreateStaticGroupAccountId', [testGroup.id, staticIdName]),
+			buildAutoAction('staticId', 'bindToStaticIdByGroup', [testGroup.id, '{{testModule.saveDataAndGetStorageId}}', '{{testModule.getOrCreateStaticGroupAccountId}}'])
+		] as IAutoAction[])
 
 
 		async function addTextPostToGroup(group, text) {

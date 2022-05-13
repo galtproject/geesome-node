@@ -35,6 +35,17 @@ function getModule(app: IGeesomeApp, models) {
 			return models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
 		}
 
+		async bindToStaticIdByGroup(userId, groupId, dynamicId, staticId) {
+			if(!(await app.ms.group.canEditGroup(userId, groupId))) {
+				throw new Error("not_permitted");
+			}
+			return this.bindToStaticId(await this.getGroupCreatorId(groupId), dynamicId, staticId);
+		}
+
+		async getGroupCreatorId(groupId) {
+			return app.ms.group.getGroup(groupId).then(g => g.creatorId);
+		}
+
 		async bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem> {
 			log('bindToStaticId', dynamicId, staticId);
 			const userIdOfAccount = await app.ms.accountStorage.getUserIdOfLocalStaticIdAccount(staticId);
@@ -124,9 +135,21 @@ function getModule(app: IGeesomeApp, models) {
 			return app.ms.accountStorage.createAccount(name, userId).then(acc => acc.staticId);
 		}
 
+		async createStaticGroupAccountId(userId, groupId, name) {
+			return app.ms.accountStorage.createAccount(name, userId, groupId).then(acc => acc.staticId);
+		}
+
 		async getOrCreateStaticAccountId(userId, name) {
 			return app.ms.accountStorage.getLocalAccountStaticIdByNameAndUserId(name, userId)
 				.then(staticId => staticId ? staticId : this.createStaticAccountId(userId, name));
+		}
+
+		async getOrCreateStaticGroupAccountId(userId, groupId, name) {
+			if(!(await app.ms.group.canEditGroup(userId, groupId))) {
+				throw new Error("not_permitted");
+			}
+			return app.ms.accountStorage.getLocalAccountStaticIdByNameAndGroupId(name, groupId)
+				.then(async staticId => staticId ? staticId : this.createStaticGroupAccountId(await this.getGroupCreatorId(groupId), groupId, name));
 		}
 
 		async flushDatabase() {
