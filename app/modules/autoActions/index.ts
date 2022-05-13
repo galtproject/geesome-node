@@ -28,10 +28,10 @@ function getModule(app: IGeesomeApp, models) {
 
 		async addSerialAutoActions(userId, autoActions) {
 			const resAutoActions = reverse(await pIteration.map(autoActions, (a) => this.addAutoAction(userId, a)));
-			console.log('resAutoActions', resAutoActions.map(a => a.moduleName));
+			console.log('resAutoActions', resAutoActions.map(a => ({id: a.id, moduleName: a.moduleName})));
 
 			let nextAction;
-			await pIteration.forEach(resAutoActions, async (a) => {
+			await pIteration.forEachSeries(resAutoActions, async (a) => {
 				if (nextAction) {
 					await this.updateAutoAction(userId, a.id, { nextActions: [nextAction] })
 				}
@@ -43,7 +43,7 @@ function getModule(app: IGeesomeApp, models) {
 		async getNextActionsToStore(userId, _nextActions) {
 			let resNextActions;
 			if (_nextActions) {
-				resNextActions = await models.AutoAction.findAll({ id: {[Op.in]: _nextActions.map(a => a.id)} });
+				resNextActions = await models.AutoAction.findAll({ where: {id: {[Op.in]: _nextActions.map(a => a.id)} }});
 				if (some(resNextActions, a => a.userId !== userId)) {
 					throw new Error("next_action_user_dont_match");
 				}
@@ -67,6 +67,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (autoAction.nextActions) {
 				nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
 			}
+			console.log('nextActions', nextActions.map(a => a.moduleName));
 
 			const existAction = await models.AutoAction.findOne({where: {id}});
 			if (existAction.userId !== userId) {
@@ -90,9 +91,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getNextActionsById(userId, id) {
+			const baseAction = await models.AutoAction.findOne({where: {id}});
 			const nextActions = orderBy(
-				(await models.AutoAction.findOne({where: {id}})).getNextActions(),
-				[a => a.nextActions.position],
+				await baseAction.getNextActions(),
+				[a => a.nextActionsPivot.position],
 				['asc']
 			);
 			return nextActions.map(a => {

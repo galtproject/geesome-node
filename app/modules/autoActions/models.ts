@@ -74,8 +74,8 @@ module.exports = async function () {
 
 	const through = {model: NextActionsPivot, unique: false};
 
-	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through, foreignKey: 'baseActionId'});
-	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through, foreignKey: 'nextActionId'});
+	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through, foreignKey: 'baseActionId', otherKey: 'nextActionId'});
+	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through, foreignKey: 'nextActionId', otherKey: 'baseActionId'});
 
 	const AutoActionLog = sequelize.define('autoActionLog', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types

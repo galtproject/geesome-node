@@ -121,7 +121,6 @@ describe.only("autoActions", function () {
 		assert.equal(saveDataNextActions[0].moduleName, 'staticId');
 		assert.equal(saveDataNextActions[0].funcName, 'bindToStaticIdByGroupAndCreateIfNotExists');
 
-
 		assert.equal(getNewContent.moduleName, 'testModule');
 		assert.equal(getNewContent.funcName, 'getNewContent');
 		assert.equal(getNewContent.funcArgs, JSON.stringify(['val1', 'val2']));
