@@ -19,13 +19,16 @@ function getModule(app: IGeesomeApp, models) {
 
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
 		async addAutoAction(userId, autoAction) {
+			console.log('addAutoAction', autoAction);
 			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
 			const res = await models.AutoAction.create({...autoAction, userId});
+			console.log('res', res.id);
 			return this.setNextActions(res, nextActions).then(() => this.getAutoAction(res.id)) as IAutoAction;
 		}
 
 		async addSerialAutoActions(userId, autoActions) {
 			const resAutoActions = reverse(await pIteration.map(autoActions, (a) => this.addAutoAction(userId, a)));
+			console.log('resAutoActions', resAutoActions.map(a => a.moduleName));
 
 			let nextAction;
 			await pIteration.forEach(resAutoActions, async (a) => {
@@ -38,7 +41,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getNextActionsToStore(userId, _nextActions) {
-			let resNextActions = [];
+			let resNextActions;
 			if (_nextActions) {
 				resNextActions = await models.AutoAction.findAll({ id: {[Op.in]: _nextActions.map(a => a.id)} });
 				if (some(resNextActions, a => a.userId !== userId)) {
@@ -49,6 +52,9 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async setNextActions(action, nextActions) {
+			if (!nextActions) {
+				return null;
+			}
 			return action.setNextActions(await pIteration.map(nextActions, async (action, position) => {
 				action.nextActions = {position};
 				return action;
@@ -56,6 +62,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async updateAutoAction(userId, id, autoAction) {
+			console.log('updateAutoAction', id, autoAction);
 			let nextActions;
 			if (autoAction.nextActions) {
 				nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
@@ -75,7 +82,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAutoAction(id) {
-			return models.AutoAction.findOne({ where: { id, include: [ {association: 'nextActions'} ]} });
+			return models.AutoAction.findOne({ where: { id }, include: [ {association: 'nextActions'} ] });
 		}
 
 		async getAutoActionsToExecute() {
@@ -161,6 +168,12 @@ function getModule(app: IGeesomeApp, models) {
 			} else {
 				return this.updateAutoAction(userId, _actionId, { currentExecuteAttempts, isActive: false });
 			}
+		}
+
+		async flushDatabase() {
+			await pIteration.forEachSeries(['NextActionsPivot', 'AutoActionLog', 'AutoAction'], (modelName) => {
+				return models[modelName].destroy({where: {}});
+			});
 		}
 	}
 

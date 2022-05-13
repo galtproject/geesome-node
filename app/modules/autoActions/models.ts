@@ -28,7 +28,8 @@ module.exports = async function () {
 			type: Sequelize.STRING
 		},
 		isActive: {
-			type: Sequelize.BOOLEAN
+			type: Sequelize.BOOLEAN,
+			defaultValue: false
 		},
 		executePeriod: {
 			type: Sequelize.INTEGER,
@@ -48,13 +49,13 @@ module.exports = async function () {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['isActive'], unique: true },
+			{ fields: ['isActive'] },
 		]
 	} as any);
 
 	await AutoAction.sync({});
 
-	const NextActions = sequelize.define('nextActionsPivot',{
+	const NextActionsPivot = sequelize.define('nextActionsPivot',{
 		baseActionId: {
 			type: Sequelize.INTEGER,
 			allowNull: false,
@@ -71,8 +72,10 @@ module.exports = async function () {
 		}
 	} as any);
 
-	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through: NextActions, foreignKey: 'baseActionId'});
-	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through: NextActions, foreignKey: 'nextActionId'});
+	const through = {model: NextActionsPivot, unique: false};
+
+	AutoAction.belongsToMany(AutoAction, {as: 'nextActions', through, foreignKey: 'baseActionId'});
+	AutoAction.belongsToMany(AutoAction, {as: 'baseActions', through, foreignKey: 'nextActionId'});
 
 	const AutoActionLog = sequelize.define('autoActionLog', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
@@ -105,7 +108,7 @@ module.exports = async function () {
 
 	return {
 		AutoAction,
-		NextActions: await NextActions.sync({}),
+		NextActionsPivot: await NextActionsPivot.sync({}),
 		AutoActionLog: await AutoActionLog.sync({})
 	};
 };

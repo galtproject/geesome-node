@@ -152,6 +152,11 @@ function getModule(app: IGeesomeApp, models) {
 				.then(async staticId => staticId ? staticId : this.createStaticGroupAccountId(await this.getGroupCreatorId(groupId), groupId, name));
 		}
 
+		async bindToStaticIdByGroupAndCreateIfNotExists(userId, groupId, name, dynamicId) {
+			const staticId = await this.getOrCreateStaticGroupAccountId(userId, groupId, name);
+			return this.bindToStaticIdByGroup(userId, groupId, dynamicId, staticId);
+		}
+
 		async flushDatabase() {
 			await pIteration.forEachSeries(['StaticIdHistory'], (modelName) => {
 				return models[modelName].destroy({where: {}});

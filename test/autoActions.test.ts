@@ -17,7 +17,7 @@ import {PostStatus} from "../app/modules/group/interface";
 
 const assert = require('assert');
 
-describe.skip("autoActions", function () {
+describe.only("autoActions", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -91,7 +91,7 @@ describe.skip("autoActions", function () {
 			return {
 				moduleName,
 				funcName,
-				funcArgs,
+				funcArgs: JSON.stringify(funcArgs),
 				isActive: true,
 				runPeriod: 1,
 				position: 1,
@@ -99,13 +99,36 @@ describe.skip("autoActions", function () {
 				currentExecuteAttempts: 3
 			} as IAutoAction;
 		}
+
 		const actions = await autoActions.addSerialAutoActions(testUser.id, [
 			buildAutoAction('testModule', 'getNewContent', ['val1', 'val2']),
 			buildAutoAction('content', 'saveDataAndGetStorageId', ['{{testModule.getNewContent}}']),
-			buildAutoAction('staticId', 'getOrCreateStaticGroupAccountId', [testGroup.id, staticIdName]),
-			buildAutoAction('staticId', 'bindToStaticIdByGroup', [testGroup.id, '{{testModule.saveDataAndGetStorageId}}', '{{testModule.getOrCreateStaticGroupAccountId}}'])
-		] as IAutoAction[])
+			buildAutoAction('staticId', 'bindToStaticIdByGroupAndCreateIfNotExists', [testGroup.id, staticIdName, '{{testModule.saveDataAndGetStorageId}}']),
+		]);
 
+		const [bindToStatic, saveData, getNewContent] = actions;
+		assert.equal(bindToStatic.moduleName, 'staticId');
+		assert.equal(bindToStatic.funcName, 'bindToStaticIdByGroupAndCreateIfNotExists');
+		assert.equal(bindToStatic.funcArgs, JSON.stringify([testGroup.id, staticIdName, '{{testModule.saveDataAndGetStorageId}}']));
+		const bindToStaticNextActions = await autoActions.getNextActionsById(testUser.id, bindToStatic.id);
+		assert.equal(bindToStaticNextActions.length, 0);
+
+		assert.equal(saveData.moduleName, 'content');
+		assert.equal(saveData.funcName, 'saveDataAndGetStorageId');
+		assert.equal(saveData.funcArgs, JSON.stringify(['{{testModule.getNewContent}}']));
+		const saveDataNextActions = await autoActions.getNextActionsById(testUser.id, saveData.id);
+		assert.equal(saveDataNextActions.length, 1);
+		assert.equal(saveDataNextActions[0].moduleName, 'staticId');
+		assert.equal(saveDataNextActions[0].funcName, 'bindToStaticIdByGroupAndCreateIfNotExists');
+
+
+		assert.equal(getNewContent.moduleName, 'testModule');
+		assert.equal(getNewContent.funcName, 'getNewContent');
+		assert.equal(getNewContent.funcArgs, JSON.stringify(['val1', 'val2']));
+		const getNewContentNextActions = await autoActions.getNextActionsById(testUser.id, getNewContent.id);
+		assert.equal(getNewContentNextActions.length, 1);
+		assert.equal(getNewContentNextActions[0].moduleName, 'content');
+		assert.equal(getNewContentNextActions[0].funcName, 'saveDataAndGetStorageId');
 
 		async function addTextPostToGroup(group, text) {
 			const post1Content = await app.ms.content.saveData(testUser.id, text, null, {

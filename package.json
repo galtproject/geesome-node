@@ -19,7 +19,7 @@
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ts-node check/geesomePerfomance.ts --trace_gc",
     "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/ts-node -P tsconfig.json check/geesomeClientPerfomance.ts",
     "generate-docs": "./node_modules/.bin/apidoc -i app/modules/api -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
-    "test": "rm -rf database-test.sqlite; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
+    "test": "rm -rf database-test.sqlite; rm -rf data/*.sqlite; rm -rf ./.jsipfs-test; DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts'",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker-compose up",
     "docker-build": "bash/docker-build.sh",
