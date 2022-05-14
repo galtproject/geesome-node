@@ -24,9 +24,8 @@ services:
       - IPFS_PROFILE
     ports:
       - "4001:4001"
-    expose:
-      - "5001"
-      - "8080"
+      - "8080:8080"
+      - "127.0.0.1:5001:5001"
     volumes:
       - "${STORAGE_STAGING}:/export"
       - "${STORAGE_DATA}:/data/ipfs"
