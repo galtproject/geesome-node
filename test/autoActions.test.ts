@@ -14,10 +14,13 @@ import {
 } from "../app/modules/database/interface";
 import IGeesomeAutoActionsModule, {IAutoAction} from "../app/modules/autoActions/interface";
 import {PostStatus} from "../app/modules/group/interface";
+import CronService from "../app/modules/autoActions/cronService";
 
 const assert = require('assert');
+const _ = require('lodash');
+const commonHelpers = require('geesome-libs/src/common');
 
-describe.only("autoActions", function () {
+describe("autoActions", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -88,34 +91,36 @@ describe.only("autoActions", function () {
 		const staticIdName = 'test-static';
 
 		function buildAutoAction(moduleName, funcName, funcArgs) {
+			const runPeriod = funcName === 'getNewContent' ? 1 : 0;
 			return {
+				runPeriod,
 				moduleName,
 				funcName,
 				funcArgs: JSON.stringify(funcArgs),
 				isActive: true,
-				runPeriod: 1,
 				position: 1,
 				totalExecuteAttempts: 3,
-				currentExecuteAttempts: 3
+				currentExecuteAttempts: 3,
+				executeOn: runPeriod ? commonHelpers.moveDate(runPeriod, 'second') : null
 			} as IAutoAction;
 		}
 
 		const actions = await autoActions.addSerialAutoActions(testUser.id, [
 			buildAutoAction('testModule', 'getNewContent', ['val1', 'val2']),
-			buildAutoAction('content', 'saveDataAndGetStorageId', ['{{testModule.getNewContent}}']),
-			buildAutoAction('staticId', 'bindToStaticIdByGroupAndCreateIfNotExists', [testGroup.id, staticIdName, '{{testModule.saveDataAndGetStorageId}}']),
+			buildAutoAction('content', 'saveDataAndGetStorageId', ['{{testModule.getNewContent}}', 'text.txt']),
+			buildAutoAction('staticId', 'bindToStaticIdByGroupAndCreateIfNotExists', [testGroup.id, staticIdName, '{{content.saveDataAndGetStorageId}}']),
 		]);
 
 		const [bindToStatic, saveData, getNewContent] = actions;
 		assert.equal(bindToStatic.moduleName, 'staticId');
 		assert.equal(bindToStatic.funcName, 'bindToStaticIdByGroupAndCreateIfNotExists');
-		assert.equal(bindToStatic.funcArgs, JSON.stringify([testGroup.id, staticIdName, '{{testModule.saveDataAndGetStorageId}}']));
+		assert.equal(bindToStatic.funcArgs, JSON.stringify([testGroup.id, staticIdName, '{{content.saveDataAndGetStorageId}}']));
 		const bindToStaticNextActions = await autoActions.getNextActionsById(testUser.id, bindToStatic.id);
 		assert.equal(bindToStaticNextActions.length, 0);
 
 		assert.equal(saveData.moduleName, 'content');
 		assert.equal(saveData.funcName, 'saveDataAndGetStorageId');
-		assert.equal(saveData.funcArgs, JSON.stringify(['{{testModule.getNewContent}}']));
+		assert.equal(saveData.funcArgs, JSON.stringify(['{{testModule.getNewContent}}', 'text.txt']));
 		const saveDataNextActions = await autoActions.getNextActionsById(testUser.id, saveData.id);
 		assert.equal(saveDataNextActions.length, 1);
 		assert.equal(saveDataNextActions[0].moduleName, 'staticId');
@@ -128,6 +133,50 @@ describe.only("autoActions", function () {
 		assert.equal(getNewContentNextActions.length, 1);
 		assert.equal(getNewContentNextActions[0].moduleName, 'content');
 		assert.equal(getNewContentNextActions[0].funcName, 'saveDataAndGetStorageId');
+
+		const cronService = new CronService(app, autoActions);
+		assert.equal(await autoActions.getAutoActionsToExecute().then(r => r.length), 0);
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		const actionsToExecute = await autoActions.getAutoActionsToExecute();
+		assert.equal(actionsToExecute.length, 1);
+		assert.equal(actionsToExecute[0].moduleName, getNewContent.moduleName);
+
+		await cronService.getActionsAndAddToQueue();
+		assert.equal(cronService.inProcessByModules[getNewContent.moduleName], undefined);
+		assert.equal(cronService.inProcessByModules[saveData.moduleName], undefined);
+		assert.equal(cronService.inProcessByModules[bindToStatic.moduleName], undefined);
+
+		assert.equal(cronService.queueByModules[getNewContent.moduleName].length, 1);
+		assert.equal(cronService.queueByModules[saveData.moduleName], undefined);
+		assert.equal(cronService.queueByModules[bindToStatic.moduleName], undefined);
+
+		await cronService.getActionsAndAddToQueue();
+		assert.equal(cronService.inProcessByModules[getNewContent.moduleName], undefined);
+		assert.equal(cronService.inProcessByModules[saveData.moduleName], undefined);
+		assert.equal(cronService.inProcessByModules[bindToStatic.moduleName], undefined);
+
+		assert.equal(cronService.queueByModules[getNewContent.moduleName].length, 1);
+		assert.equal(cronService.queueByModules[saveData.moduleName], undefined);
+		assert.equal(cronService.queueByModules[bindToStatic.moduleName], undefined);
+
+		assert.equal(cronService.actionsIdsByRootId[getNewContent.id], undefined);
+
+		await cronService.getActionsAndAddToQueueAndRun();
+
+		await new Promise((resolve) => {
+			setInterval(() => {
+				if (cronService.queueByModules[bindToStatic.moduleName] && !cronService.inProcessByModules[bindToStatic.moduleName]) {
+					resolve();
+				}
+			}, 500);
+		});
+
+		assert.equal(cronService.queueByModules[getNewContent.moduleName].length, 0);
+		assert.equal(cronService.queueByModules[saveData.moduleName].length, 0);
+		assert.equal(cronService.queueByModules[bindToStatic.moduleName].length, 0);
+
+		const storageId = await app.ms.staticId.resolveStaticId(await app.ms.staticId.getOrCreateStaticGroupAccountId(testUser.id, testGroup.id, staticIdName));
+		assert.equal(storageId, "QmTiVKQpUoi8TSKjZt48AP9rPyt2TL8jhYnbGNhetwfbpa");
 
 		async function addTextPostToGroup(group, text) {
 			const post1Content = await app.ms.content.saveData(testUser.id, text, null, {

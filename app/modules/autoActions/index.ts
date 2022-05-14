@@ -19,16 +19,14 @@ function getModule(app: IGeesomeApp, models) {
 
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
 		async addAutoAction(userId, autoAction) {
-			console.log('addAutoAction', autoAction);
 			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
 			const res = await models.AutoAction.create({...autoAction, userId});
-			console.log('res', res.id);
 			return this.setNextActions(res, nextActions).then(() => this.getAutoAction(res.id)) as IAutoAction;
 		}
 
 		async addSerialAutoActions(userId, autoActions) {
 			const resAutoActions = reverse(await pIteration.map(autoActions, (a) => this.addAutoAction(userId, a)));
-			console.log('resAutoActions', resAutoActions.map(a => ({id: a.id, moduleName: a.moduleName})));
+			console.log('resAutoActions', resAutoActions.map(a => ({id: a.id, moduleName: a.moduleName, executeOn: a.executeOn})));
 
 			let nextAction;
 			await pIteration.forEachSeries(resAutoActions, async (a) => {
@@ -62,12 +60,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async updateAutoAction(userId, id, autoAction) {
-			console.log('updateAutoAction', id, autoAction);
 			let nextActions;
 			if (autoAction.nextActions) {
 				nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
 			}
-			console.log('nextActions', nextActions.map(a => a.moduleName));
 
 			const existAction = await models.AutoAction.findOne({where: {id}});
 			if (existAction.userId !== userId) {
@@ -87,7 +83,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAutoActionsToExecute() {
-			return models.AutoAction.findAll({where: { executeOn: {[Op.gte]: new Date()}, isActive: true} });
+			return models.AutoAction.findAll({where: { executeOn: {[Op.lte]: new Date()}, isActive: true} });
 		}
 
 		async getNextActionsById(userId, id) {

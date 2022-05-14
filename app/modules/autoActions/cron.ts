@@ -7,6 +7,6 @@ module.exports = (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule
 	const cronService = new CronService(app, autoActionsModule);
 
 	setTimeout(async () => {
-		await cronService.getActionsAndAddToQueue().catch(e => console.error('getActionsAndAddToQueue error', e));
+		await cronService.getActionsAndAddToQueueAndRun().catch(e => console.error('getActionsAndAddToQueue error', e));
 	}, 60 * 1000);
 }

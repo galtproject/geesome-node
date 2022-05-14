@@ -364,7 +364,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async isAutoActionAllowed(userId, funcName, funcArgs) {
-			return funcName === 'saveDataAndGetStorageId';
+			return _.includes(['saveDataAndGetStorageId'], funcName);
 		}
 
 		async saveDataAndGetStorageId(userId: number, dataToSave, fileName?, options = {}) {

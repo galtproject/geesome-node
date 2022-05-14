@@ -5,6 +5,7 @@ const _ = require('lodash');
 
 export default class CronService {
 	queueByModules = {};
+	inProcessByModules = {};
 	prevActionsResultByRootId = {};
 	actionsIdsByRootId = {};
 	app: IGeesomeApp;
@@ -16,44 +17,56 @@ export default class CronService {
 	}
 
 	async getActionsAndAddToQueue() {
-		await this.addActionsListToQueue(await this.autoActionsModule.getAutoActionsToExecute());
+		return this.addActionsListToQueue(await this.autoActionsModule.getAutoActionsToExecute());
+	}
+
+	async getActionsAndAddToQueueAndRun() {
+		return this.addActionsListToQueueAndRun(await this.autoActionsModule.getAutoActionsToExecute());
 	}
 
 	addActionsListToQueue(actions: IAutoAction[], rootActionId = null) {
 		if (rootActionId && !this.actionsIdsByRootId[rootActionId]) {
 			this.actionsIdsByRootId[rootActionId] = [];
 		}
-
-		let inProcessByModules = {};
 		actions.forEach(a => {
-			if (_.isUndefined(inProcessByModules[a.moduleName])) {
-				inProcessByModules[a.moduleName] = this.queueByModules[a.moduleName] && this.queueByModules[a.moduleName].length;
-				if (!inProcessByModules[a.moduleName]) {
-					this.queueByModules[a.moduleName] = [];
+			if(!this.queueByModules[a.moduleName]) {
+				this.queueByModules[a.moduleName] = []
+			}
+			if (!_.some(this.queueByModules[a.moduleName], _a => _a.id === a.id)) {
+				this.queueByModules[a.moduleName].push(a);
+				if (rootActionId) {
+					this.actionsIdsByRootId[rootActionId].push(a.id);
 				}
-			}
-			this.queueByModules[a.moduleName].push(a);
-			if (rootActionId) {
-				this.actionsIdsByRootId[rootActionId].push(a.id);
-			}
-		});
-		Object.keys(this.queueByModules).forEach(moduleName => {
-			this.queueByModules[moduleName] = _.uniqBy(this.queueByModules[moduleName], a => a.id);
-			if (!inProcessByModules[moduleName]) {
-				this.runQueueByModule(moduleName, rootActionId);
 			}
 		});
 	}
 
-	async runQueueByModule(moduleName, rootActionId = null) {
+	addActionsListToQueueAndRun(actions: IAutoAction[], rootActionId = null) {
+		this.addActionsListToQueue(actions, rootActionId);
+
+		const promises = [];
+		Object.keys(this.queueByModules).forEach(moduleName => {
+			if (!this.inProcessByModules[moduleName]) {
+				promises.push(this.runQueueByModule(moduleName, rootActionId));
+			}
+		});
+		return Promise.all(promises);
+	}
+
+	async runQueueByModule(moduleName, rootActionId = null): Promise<IAutoAction[]> {
+		this.inProcessByModules[moduleName] = true;
+		let executedActions = [];
 		while (this.queueByModules[moduleName].length) {
 			let parallelCount = 1;
 			if (this.queueByModules[moduleName].parallelAutoActionsCount) {
 				parallelCount = this.queueByModules[moduleName].parallelAutoActionsCount();
 			}
-			const actionsToParallelExecute = this.queueByModules[moduleName].slice(0, parallelCount);
+			const actionsToParallelExecute = _.uniqBy(this.queueByModules[moduleName].splice(0, parallelCount), a => a.id);
 			await pIteration.forEach(actionsToParallelExecute, a => this.executeActionAndAddNextToQueue(a, rootActionId));
+			executedActions = executedActions.concat(actionsToParallelExecute);
 		}
+		this.inProcessByModules[moduleName] = false;
+		return executedActions;
 	}
 
 	async executeActionAndAddNextToQueue(a: IAutoAction, rootActionId = null) {
@@ -70,7 +83,7 @@ export default class CronService {
 		}
 		this.prevActionsResultByRootId[rootActionId][this.getPrevActionDictName(a)] = result;
 
-		this.addActionsListToQueue(await this.autoActionsModule.getNextActionsById(a.userId, a.id), rootActionId);
+		this.addActionsListToQueueAndRun(await this.autoActionsModule.getNextActionsById(a.userId, a.id), rootActionId);
 
 		this.clearPrevActions(a.id, rootActionId);
 	}
@@ -86,7 +99,8 @@ export default class CronService {
 				this.actionsIdsByRootId[rootActionId].splice(index, 1);
 			}
 			if (!this.actionsIdsByRootId[rootActionId].length) {
-				delete this.prevActionsResultByRootId[rootActionId]
+				delete this.prevActionsResultByRootId[rootActionId];
+				delete this.actionsIdsByRootId[rootActionId];
 			}
 		}
 	}
@@ -94,10 +108,12 @@ export default class CronService {
 	async executeAction(a: IAutoAction, rootActionId = null): Promise<{result?, success}> {
 		const module = this.app.ms[a.moduleName];
 		if (!module.isAutoActionAllowed) {
+			console.error('executeAction', a.id, 'module_dont_support_auto_actions');
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('module_dont_support_auto_actions'), rootActionId);
 			return {success: false};
 		}
 		if (!(await module.isAutoActionAllowed(a.userId, a.funcName, a.funcArgs))) {
+			console.error('executeAction', a.id, 'auto_action_not_allowed_in_module');
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('auto_action_not_allowed_in_module'), rootActionId);
 			return {success: false};
 		}
@@ -108,6 +124,7 @@ export default class CronService {
 				throw new Error("funcArgs_not_array");
 			}
 		} catch (e) {
+			console.error('executeAction', a.id, 'funcArgs_parsing_error', e);
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('funcArgs_parsing_error'), rootActionId);
 			return {success: false};
 		}
@@ -123,6 +140,7 @@ export default class CronService {
 			result = await module[a.funcName].apply(module, [a.userId].concat(funcArgs));
 			await this.autoActionsModule.handleAutoActionSuccessfulExecution(a.userId, a.id, result, rootActionId);
 		} catch (error) {
+			console.error('executeAction', a.id, 'execute error', error);
 			await this.autoActionsModule.handleAutoActionFailedExecution(a.userId, a.id, error, rootActionId);
 			return {success: false};
 		}

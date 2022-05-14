@@ -1,7 +1,6 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeStaticIdModule, {IStaticIdHistoryItem} from "./interface";
-const commonHelper = require('geesome-libs/src/common');
-// + commonHelper.makeCode(8)
+const _ = require('lodash');
 const log = require('debug')('geesome:app');
 const pIteration = require('p-iteration');
 
@@ -161,6 +160,10 @@ function getModule(app: IGeesomeApp, models) {
 			await pIteration.forEachSeries(['StaticIdHistory'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
+		}
+
+		async isAutoActionAllowed(userId, funcName, funcArgs) {
+			return _.includes(['bindToStaticIdByGroupAndCreateIfNotExists'], funcName);
 		}
 	}
 
