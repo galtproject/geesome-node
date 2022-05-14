@@ -54,7 +54,7 @@ module.exports = async function (sequelize, models) {
       // { fields: ['tokensAddress', 'chainAccountAddress'] }
     ]
   } as any);
-  
+
   models.User = User;
   await models.User.sync({});
   

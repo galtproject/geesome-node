@@ -10,7 +10,7 @@
 module.exports = async function (sequelize, models) {
   const Sequelize = require('sequelize');
 
-  const Category = sequelize.define('category', {
+  const GroupCategory = sequelize.define('category', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     name: {
       type: Sequelize.STRING(200)
@@ -63,20 +63,32 @@ module.exports = async function (sequelize, models) {
     ]
   } as any);
 
-  models.CategoryAdministrators = sequelize.define('categoryAdministrators', {} as any, {} as any);
+  models.CategoryAdministratorsPivot = sequelize.define('categoryAdministrators', {} as any, {} as any);
 
-  Category.belongsToMany(models.User, {as: 'administrators', through: models.CategoryAdministrators});
-  models.User.belongsToMany(Category, {as: 'administratorInCategories', through: models.CategoryAdministrators});
+  GroupCategory.belongsToMany(models.User, {as: 'administrators', through: models.CategoryAdministratorsPivot});
+  models.User.belongsToMany(GroupCategory, {as: 'administratorInCategories', through: models.CategoryAdministratorsPivot});
 
-  models.CategoryMembers = sequelize.define('categoryMembers', {} as any, {} as any);
+  models.CategoryMembersPivot = sequelize.define('categoryMembers', {} as any, {} as any);
 
-  Category.belongsToMany(models.User, {as: 'members', through: models.CategoryMembers});
-  models.User.belongsToMany(Category, {as: 'memberInCategories', through: models.CategoryMembers});
+  GroupCategory.belongsToMany(models.User, {as: 'members', through: models.CategoryMembersPivot});
+  models.User.belongsToMany(GroupCategory, {as: 'memberInCategories', through: models.CategoryMembersPivot});
 
-  await Category.sync({});
+  models.CategoryGroupsPivot = sequelize.define('categoryGroups', {} as any, {} as any);
 
-  await models.CategoryAdministrators.sync({});
-  await models.CategoryMembers.sync({});
+  GroupCategory.belongsToMany(models.Group, {as: 'groups', through: models.CategoryGroupsPivot});
+  models.Group.belongsToMany(GroupCategory, {as: 'categories', through: models.CategoryGroupsPivot});
 
-  return Category;
+  models.CategoryGroupsMembershipPivot = sequelize.define('categoryGroupsMembership', {} as any, {} as any);
+
+  GroupCategory.belongsToMany(models.Group, {as: 'membershipGroups', through: models.CategoryGroupsMembershipPivot});
+  models.Group.belongsToMany(GroupCategory, {as: 'membershipCategories', through: models.CategoryGroupsMembershipPivot});
+
+  await GroupCategory.sync({});
+
+  await models.CategoryAdministratorsPivot.sync({});
+  await models.CategoryMembersPivot.sync({});
+  await models.CategoryGroupsPivot.sync({});
+  await models.CategoryGroupsMembershipPivot.sync({});
+
+  return GroupCategory;
 };

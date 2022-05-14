@@ -110,26 +110,7 @@ module.exports = async function (sequelize, models) {
   Content.belongsTo(models.User, {as: 'user', foreignKey: 'userId'});
   models.User.hasMany(Content, {as: 'contents', foreignKey: 'userId'});
 
-  // to what group uploaded
-  Content.belongsTo(models.Group, {as: 'group', foreignKey: 'groupId'});
-  models.Group.hasMany(Content, {as: 'contents', foreignKey: 'groupId'});
-
-  models.Group.belongsTo(Content, {as: 'avatarImage', foreignKey: 'avatarImageId'});
-  models.Group.belongsTo(Content, {as: 'coverImage', foreignKey: 'coverImageId'});
-
   models.User.belongsTo(Content, {as: 'avatarImage', foreignKey: 'avatarImageId'});
 
-  models.PostsContents = sequelize.define('postsContents', {
-    position: {type: Sequelize.INTEGER},
-    view: {type: Sequelize.STRING(200)},
-  } as any, {} as any);
-
-  Content.belongsToMany(models.Post, {as: 'posts', through: models.PostsContents});
-  models.Post.belongsToMany(Content, {as: 'contents', through: models.PostsContents});
-
-  await Content.sync({});
-
-  await models.PostsContents.sync({});
-
-  return Content;
+  return Content.sync({});
 };

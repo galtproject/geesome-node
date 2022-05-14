@@ -10,6 +10,8 @@
 export default interface IGeesomeCommunicatorModule {
   node: any;
 
+  isReady(): Promise<boolean>;
+
   getAccountIdByName(name): Promise<string>;
 
   getAccountPeerId(key): Promise<any>;

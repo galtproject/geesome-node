@@ -1,24 +1,26 @@
-import {IGeesomeApp, IGeesomeFileCatalogModule, ManifestToSave} from "../../interface";
+import {IGeesomeApp, ManifestToSave} from "../../interface";
 import {
-	CorePermissionName, FileCatalogItemType,
-	IContent, IFileCatalogItem,
+	CorePermissionName,
+	IContent,
 	IListParams
 } from "../database/interface";
+import IGeesomeFileCatalogModule, {FileCatalogItemType, IFileCatalogItem} from "./interface";
 const _ = require('lodash');
 const pIteration = require('p-iteration');
 const path = require('path');
+const Op = require("sequelize").Op;
 
-module.exports = (app: IGeesomeApp) => {
-	const module = getModule(app);
+module.exports = async (app: IGeesomeApp) => {
+	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
+	const {sequelize, models} = app.ms.database;
+	const module = getModule(app, await require('./models')(sequelize, models));
 	require('./api')(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
-	app.checkModules(['group', 'storage']);
+function getModule(app: IGeesomeApp, models) {
 
 	class FileCatalogModule implements IGeesomeFileCatalogModule {
-
 		public async addContentToFolder(userId, contentId, folderId) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const content = await app.ms.database.getContent(contentId);
@@ -40,18 +42,18 @@ function getModule(app: IGeesomeApp) {
 			parentItemId = options.folderId;
 
 			if (_.isUndefined(parentItemId) || parentItemId === 'undefined') {
-				const contentFiles = await app.ms.database.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
+				const contentFiles = await this.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
 				if (contentFiles.length) {
 					return content;
 				}
 
-				let folder = await app.ms.database.getFileCatalogItemByDefaultFolderFor(userId, baseType);
+				let folder = await this.getFileCatalogItemByDefaultFolderFor(userId, baseType);
 
 				if (!folder) {
-					folder = await app.ms.database.addFileCatalogItem({
+					folder = await this.addFileCatalogItem({
 						name: _.upperFirst(baseType) + " Uploads",
 						type: FileCatalogItemType.Folder,
-						position: (await app.ms.database.getFileCatalogItemsCount(userId, null)) + 1,
+						position: (await this.getFileCatalogItemsCount(userId, null)) + 1,
 						defaultFolderFor: baseType,
 						userId
 					});
@@ -63,15 +65,15 @@ function getModule(app: IGeesomeApp) {
 				parentItemId = null;
 			}
 
-			if (await app.ms.database.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
+			if (await this.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
 				console.log(`Content ${content.id} already exists in folder`);
 				return;
 			}
 
-			const resultItem = await app.ms.database.addFileCatalogItem({
+			const resultItem = await this.addFileCatalogItem({
 				name: content.name || "Unnamed " + new Date().toISOString(),
 				type: FileCatalogItemType.File,
-				position: (await app.ms.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
+				position: (await this.getFileCatalogItemsCount(userId, parentItemId)) + 1,
 				contentId: content.id,
 				size: content.size,
 				groupId,
@@ -80,8 +82,8 @@ function getModule(app: IGeesomeApp) {
 			});
 
 			if (parentItemId) {
-				const size = await app.ms.database.getFileCatalogItemsSizeSum(parentItemId);
-				await app.ms.database.updateFileCatalogItem(parentItemId, {size});
+				const size = await this.getFileCatalogItemsSizeSum(parentItemId);
+				await models.FileCatalogItem.update({size}, {where: {id: parentItemId}});
 			}
 
 			return resultItem;
@@ -89,10 +91,10 @@ function getModule(app: IGeesomeApp) {
 
 		async createUserFolder(userId, parentItemId, folderName) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			return app.ms.database.addFileCatalogItem({
+			return this.addFileCatalogItem({
 				name: folderName,
 				type: FileCatalogItemType.Folder,
-				position: (await app.ms.database.getFileCatalogItemsCount(userId, parentItemId)) + 1,
+				position: (await this.getFileCatalogItemsCount(userId, parentItemId)) + 1,
 				size: 0,
 				parentItemId,
 				userId
@@ -101,12 +103,12 @@ function getModule(app: IGeesomeApp) {
 
 		public async updateFileCatalogItem(userId, fileCatalogId, updateData) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const fileCatalogItem = await app.ms.database.getFileCatalogItem(fileCatalogId);
+			const fileCatalogItem = await this.getFileCatalogItem(fileCatalogId);
 			if (fileCatalogItem.userId !== userId) {
 				throw new Error("not_permitted");
 			}
-			await app.ms.database.updateFileCatalogItem(fileCatalogId, updateData);
-			return app.ms.database.getFileCatalogItem(fileCatalogId);
+			await models.FileCatalogItem.update(updateData, {where: {id: fileCatalogId}});
+			return this.getFileCatalogItem(fileCatalogId);
 		}
 
 		async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
@@ -124,23 +126,19 @@ function getModule(app: IGeesomeApp) {
 			console.log('userId', userId, 'parentItemId', parentItemId, 'type', type, 'search', search);
 
 			return {
-				list: await app.ms.database.getFileCatalogItems(userId, parentItemId, type, search, listParams),
-				total: await app.ms.database.getFileCatalogItemsCount(userId, parentItemId, type, search)
+				list: await this.getFileCatalogItemsList(userId, parentItemId, type, search, listParams),
+				total: await this.getFileCatalogItemsCount(userId, parentItemId, type, search)
 			};
 		}
 
 		async getFileCatalogItemsBreadcrumbs(userId, itemId) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const item = await app.ms.database.getFileCatalogItem(itemId);
+			const item = await this.getFileCatalogItem(itemId);
 			if (item.userId != userId) {
 				throw new Error("not_permitted");
 			}
 
-			return app.ms.database.getFileCatalogItemsBreadcrumbs(itemId);
-		}
-
-		async getContentsIdsByFileCatalogIds(catalogIds) {
-			return app.ms.database.getContentsIdsByFileCatalogIds(catalogIds);
+			return this.getFileCatalogItemsBreadcrumbsList(itemId);
 		}
 
 		public async makeFolderStorageDir(fileCatalogItem: IFileCatalogItem) {
@@ -158,14 +156,14 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
-			const fileCatalogChildrenFolders = await app.ms.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
+			const fileCatalogChildrenFolders = await this.getFileCatalogItemsList(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
 
 			await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
 				const sPath = await this.makeFolderStorageDir(fItem);
 				return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
 			});
 
-			const fileCatalogChildrenFiles = await app.ms.database.getFileCatalogItems(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
+			const fileCatalogChildrenFiles = await this.getFileCatalogItemsList(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
 
 			await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
 				await app.ms.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
@@ -174,7 +172,7 @@ function getModule(app: IGeesomeApp) {
 
 		public async publishFolder(userId, fileCatalogId, options: {bindToStatic?} = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const fileCatalogItem = await app.ms.database.getFileCatalogItem(fileCatalogId);
+			const fileCatalogItem = await this.getFileCatalogItem(fileCatalogId);
 
 			const storageDirPath = await this.makeFolderStorageDir(fileCatalogItem);
 
@@ -184,12 +182,12 @@ function getModule(app: IGeesomeApp) {
 
 			const user = await app.ms.database.getUser(userId);
 
-			if(!options.bindToStatic) {
+			if (!options.bindToStatic) {
 				return { storageId };
 			}
 
-			const staticId = await app.createStorageAccount(user.name + '@directory:' + storageDirPath);
-			await app.bindToStaticId(storageId, staticId);
+			const staticId = await app.ms.staticId.getOrCreateStaticAccountId(userId, user.name + '@directory:' + storageDirPath);
+			await app.ms.staticId.bindToStaticId(userId, storageId, staticId);
 
 			return {
 				storageId,
@@ -209,16 +207,16 @@ function getModule(app: IGeesomeApp) {
 				if (breakSearch) {
 					return;
 				}
-				const foundItems = await app.ms.database.getFileCatalogItems(userId, currentFolderId, FileCatalogItemType.Folder, name);
+				const foundItems = await this.getFileCatalogItemsList(userId, currentFolderId, FileCatalogItemType.Folder, name);
 
 				if (foundItems.length) {
 					currentFolderId = foundItems[0].id;
 				} else if (createFoldersIfNotExists) {
-					const newFileCatalogFolder = await app.ms.database.addFileCatalogItem({
+					const newFileCatalogFolder = await this.addFileCatalogItem({
 						name,
 						userId,
 						type: FileCatalogItemType.Folder,
-						position: (await app.ms.database.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
+						position: (await this.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
 						parentItemId: currentFolderId
 					});
 					currentFolderId = newFileCatalogFolder.id;
@@ -231,9 +229,9 @@ function getModule(app: IGeesomeApp) {
 				return null;
 			}
 
-			const results = await app.ms.database.getFileCatalogItems(userId, currentFolderId, type, lastItemName);
+			const results = await this.getFileCatalogItemsList(userId, currentFolderId, type, lastItemName);
 			if (results.length > 1) {
-				await pIteration.forEach(results.slice(1), item => app.ms.database.updateFileCatalogItem(item.id, {isDeleted: true}));
+				await pIteration.forEach(results.slice(1), item => models.FileCatalogItem.update({isDeleted: true}, {where: {id: item.id}}));
 				console.log('remove excess file items: ', lastItemName);
 			}
 
@@ -244,43 +242,47 @@ function getModule(app: IGeesomeApp) {
 			};
 		}
 
+		public async saveDataToPath(userId: number, dataToSave, path, options = {}) {
+			options['path'] = path;
+			const content = await app.ms.content.saveData(userId, dataToSave, null, options);
+			return app.ms.fileCatalog.saveContentByPath(userId, path, content.id);
+		}
+
 		public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
+			console.log('saveContentByPath', 'path:', path);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const fileName = _.trim(path, '/').split('/').slice(-1)[0];
-			console.log('saveContentByPath', 'path:', path, 'fileName:', fileName);
+			console.log('saveContentByPath', 'fileName:', fileName);
 
 			let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
 
 			const content = await app.ms.database.getContent(contentId);
 			if (fileItem) {
 				console.log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
-				await app.ms.database.updateFileCatalogItem(fileItem.id, {contentId, size: content.size});
+				await models.FileCatalogItem.update({contentId, size: content.size}, {where: {id: fileItem.id}});
 			} else {
 				console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
-				fileItem = await app.ms.database.addFileCatalogItem({
+				fileItem = await this.addFileCatalogItem({
 					userId,
 					contentId,
 					name: fileName,
 					type: FileCatalogItemType.File,
-					position: (await app.ms.database.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
+					position: (await this.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
 					parentItemId: lastFolderId,
 					groupId: options.groupId,
 					size: content.size
 				});
 			}
 			if (fileItem.parentItemId) {
-				const size = await app.ms.database.getFileCatalogItemsSizeSum(fileItem.parentItemId);
-				await app.ms.database.updateFileCatalogItem(fileItem.parentItemId, {size});
+				const size = await this.getFileCatalogItemsSizeSum(fileItem.parentItemId);
+				await models.FileCatalogItem.update({size}, {where: {id: fileItem.parentItemId}});
 			}
-			return app.ms.database.getFileCatalogItem(fileItem.id);
+			return this.getFileCatalogItem(fileItem.id);
 		}
 
 		public async saveManifestsToFolder(userId, folderPath, toSaveList: ManifestToSave[], options: { groupId? } = {}) {
 			await pIteration.map(toSaveList, async (item: ManifestToSave) => {
-				const content = await app.createContentByRemoteStorageId(item.manifestStorageId, {
-					userId,
-					...options
-				});
+				const content = await app.ms.content.createContentByRemoteStorageId(userId, item.manifestStorageId, options);
 				return this.saveContentByPath(userId, path.join(folderPath, item.path || content.name), content.id, options)
 			});
 
@@ -301,7 +303,7 @@ function getModule(app: IGeesomeApp) {
 
 		public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const fileCatalogItem = await app.ms.database.getFileCatalogItem(itemId);
+			const fileCatalogItem = await this.getFileCatalogItem(itemId);
 			if (fileCatalogItem.userId != userId) {
 				throw new Error("not_permitted");
 			}
@@ -323,8 +325,144 @@ function getModule(app: IGeesomeApp) {
 			return true;
 		}
 
+		async getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor) {
+			return models.FileCatalogItem.findOne({
+				where: {userId, defaultFolderFor}
+			}) as IFileCatalogItem;
+		}
+
+		async getFileCatalogItemsList(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
+			app.ms.database.setDefaultListParamsValues(listParams);
+
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const where: any = {userId, type, isDeleted: false};
+
+			if (!_.isUndefined(parentItemId)) {
+				where.parentItemId = parentItemId;
+			}
+
+			if (search) {
+				where['name'] = {[Op.like]: search};
+			}
+
+			return models.FileCatalogItem.findAll({
+				where,
+				order: [[sortBy, sortDir.toUpperCase()]],
+				include: [{association: 'content'}],
+				limit,
+				offset
+			});
+		}
+
+		async getFileCatalogItemsByContent(userId, contentId, type = null, listParams: IListParams = {}) {
+			app.ms.database.setDefaultListParamsValues(listParams);
+			const {sortBy, sortDir, limit, offset} = listParams;
+
+			return models.FileCatalogItem.findAll({
+				where: {userId, contentId, type, isDeleted: false},
+				order: [[sortBy, sortDir.toUpperCase()]],
+				limit,
+				offset
+			});
+		}
+
+		async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
+			const where: any = {userId, type, isDeleted: false};
+
+			if (!_.isUndefined(parentItemId)) {
+				where.parentItemId = parentItemId;
+			}
+
+			if (search) {
+				where['name'] = {[Op.like]: search};
+			}
+
+			return models.FileCatalogItem.count({where});
+		}
+
+		async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
+			return models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId}}).then(r => !!r);
+		}
+
+		async getFileCatalogItemsBreadcrumbsList(childItemId) {
+			const breadcrumbs = [];
+			if (!childItemId) {
+				return breadcrumbs;
+			}
+			const maxNesting = 20;
+
+			let currentItemId = childItemId;
+			while (currentItemId) {
+				const currentItem = await this.getFileCatalogItem(currentItemId);
+				breadcrumbs.push(currentItem);
+				currentItemId = currentItem.parentItemId;
+
+				if (breadcrumbs.length >= maxNesting || !currentItemId) {
+					return _.reverse(breadcrumbs);
+				}
+			}
+			return _.reverse(breadcrumbs);
+		}
+
+		async getFileCatalogItem(id) {
+			if (!id) {
+				return null;
+			}
+			return models.FileCatalogItem.findOne({
+				where: {id},
+				include: [{association: 'content'}]
+			}) as IFileCatalogItem;
+		}
+
+		async addFileCatalogItem(item) {
+			return models.FileCatalogItem.create(item);
+		}
+
+		async getFileCatalogItemsSizeSum(parentItemId) {
+			return models.FileCatalogItem.sum('size', {
+				where: {parentItemId}
+			});
+		}
+
+		async getContentsIdsByFileCatalogIds(catalogIds) {
+			const links = await models.FileCatalogItem.findAll({
+				attributes: ['id', 'linkOfId'],
+				where: {id: {[Op.in]: catalogIds}, linkOfId: {[Op.ne]: null}}
+			});
+
+			let allCatalogIds = _.difference(catalogIds, links.map((link) => link.id));
+			allCatalogIds = allCatalogIds.concat(links.map((link) => link.linkOfId));
+
+			const folders = await models.FileCatalogItem.findAll({
+				attributes: ['id'],
+				where: {id: {[Op.in]: allCatalogIds}, type: 'folder'}
+			});
+
+			allCatalogIds = _.difference(allCatalogIds, folders.map((folder) => folder.id));
+
+			await pIteration.forEachSeries(folders, async (folder) => {
+				const files = await models.FileCatalogItem.findAll({
+					attributes: ['id'],
+					where: {parentItemId: folder.id, type: 'file'}
+				});
+
+				allCatalogIds = allCatalogIds.concat(files.map(f => f.id));
+			});
+
+			return (await models.FileCatalogItem.findAll({
+				attributes: ['contentId'],
+				where: {id: {[Op.in]: allCatalogIds}}
+			})).map(f => f.contentId);
+		}
+
 		prepareListParams(listParams?: IListParams): IListParams {
 			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+		}
+
+		async flushDatabase() {
+			await pIteration.forEachSeries(['FileCatalogItem', 'FileCatalogItemPermission'], (modelName) => {
+				return models[modelName].destroy({where: {}});
+			});
 		}
 	}
 	return new FileCatalogModule();

@@ -22,20 +22,24 @@ module.exports = {
 			let endBrCount = 0;
 			content = content.replace(/\n+$/g, () => {endBrCount+=1; return ""});
 
-			if (entity && entity.className.endsWith('Url')) {
-				content = `<a href="${entity.url || content}">${content}</a>`;
-			} else if (entity && entity.className === 'MessageEntitySpoiler') {
-				content = `<span class="spoiler">${content}</span>`;
-			} else if (entity && entity.className === 'MessageEntityStrike') {
-				content = `<s>${content}</s>`;
-			} else if (entity && entity.className === 'MessageEntityBold') {
-				content = `<b>${content}</b>`;
-			} else if (entity && entity.className === 'MessageEntityItalic') {
-				content = `<i>${content}</i>`;
-			} else if (entity && entity.className === 'MessageEntityUnderline') {
-				content = `<u>${content}</u>`;
-			} else if (entity && entity.className === 'MessageEntityCode') {
-				content = `<code>${content}</code>`;
+			if (entity) {
+				const { className } = entity;
+
+				if (className.endsWith('Url')) {
+					content = `<a href="${entity.url || content}">${content}</a>`;
+				} else if (className === 'MessageEntitySpoiler') {
+					content = `<span class="spoiler">${content}</span>`;
+				} else if (className === 'MessageEntityStrike') {
+					content = `<s>${content}</s>`;
+				} else if (className === 'MessageEntityBold') {
+					content = `<b>${content}</b>`;
+				} else if (className === 'MessageEntityItalic') {
+					content = `<i>${content}</i>`;
+				} else if (className === 'MessageEntityUnderline') {
+					content = `<u>${content}</u>`;
+				} else if (className === 'MessageEntityCode') {
+					content = `<code>${content}</code>`;
+				}
 			}
 
 			content = "<br>".repeat(startBrCount) + content + "<br>".repeat(endBrCount);

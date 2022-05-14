@@ -6,6 +6,7 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+export {};
 
 const Sequelize: any = require('sequelize');
 
@@ -64,6 +65,13 @@ module.exports = async function () {
 		},
 		lastMessageId: {
 			type: Sequelize.INTEGER
+		},
+		autoImportPeriod: {
+			type: Sequelize.INTEGER,
+			defaultValue: 0
+		},
+		autoImportToken: {
+			type: Sequelize.STRING(200)
 		},
 	} as any, {
 		indexes: [

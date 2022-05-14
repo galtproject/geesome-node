@@ -7,8 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ContentView, GroupType} from "../database/interface";
+import {ContentView} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
+import {GroupType} from "../group/interface";
 
 const {Api, TelegramClient} = require("telegram");
 const {StringSession} = require("telegram/sessions");
@@ -26,7 +27,7 @@ const telegramHelpers = require('./helpers');
 const Op = require("sequelize").Op;
 
 module.exports = async (app: IGeesomeApp) => {
-	const models = await require("./database")();
+	const models = await require("./models")();
 	const module = getModule(app, models);
 
 	require('./api')(app, module, models);
@@ -35,7 +36,7 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
-	app.checkModules(['asyncOperation', 'group']);
+	app.checkModules(['asyncOperation', 'group', 'content']);
 
 	class TelegramClientModule {
 		async login(userId, loginData) {
@@ -270,8 +271,8 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		async runChannelImport(userId, apiKey, accData, channelId, advancedSettings = {}) {
-			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
+		async runChannelImport(userId, apiKey, sessionKey, channelId, advancedSettings = {}) {
+			const {client, result: channel} = await this.getChannelInfoByUserId(userId, {sessionKey}, channelId);
 
 			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 			let group;
@@ -282,10 +283,10 @@ function getModule(app: IGeesomeApp, models) {
 			]);
 			let avatarContent;
 			if (avatarFile) {
-				avatarContent = await app.saveData(avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
+				avatarContent = await app.ms.content.saveData(userId, avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
 			}
 			// console.log('channel', channel);
-			group = dbChannel ? await app.ms.group.getGroup(dbChannel.groupId) : null;
+			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
 				await app.ms.group.updateGroup(userId, dbChannel.groupId, {
 					name: channel.username,
@@ -490,10 +491,6 @@ function getModule(app: IGeesomeApp, models) {
 					}
 				});
 				console.log('_msgData.timestamp', _msgData.timestamp, 'messagesByTimestamp', messagesByTimestamp.map(m => m.msgId), '_msgId', _msgData.msgId);
-				console.log('allMessagesWithTimestamp', await models.Message.findAll().then(ms => ms.map(m => ({
-					msgId: m.msgId,
-					timestamp: m.timestamp
-				}))));
 				if (messagesByTimestamp.length) {
 					postMessageIds = postMessageIds.concat(messagesByTimestamp.map(m => m.msgId));
 					existsPostId = await this.mergePostsToOne(_importState, existsPostId, messagesByTimestamp, _postData);
@@ -532,7 +529,7 @@ function getModule(app: IGeesomeApp, models) {
 			_msgData.postId = existsPostId;
 			await this.storeMessage(_existsChannelMessage, _msgData);
 
-			return app.ms.database.getPost(existsPostId);
+			return app.ms.group.getPostPure(existsPostId);
 		}
 
 		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
@@ -613,7 +610,7 @@ function getModule(app: IGeesomeApp, models) {
 				console.log('m.message', m.message, 'm.entities', m.entities);
 				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
 				console.log('text', text);
-				const content = await app.saveData(text, '', {
+				const content = await app.ms.content.saveData(userId, text, '', {
 					userId,
 					mimeType: 'text/html',
 					view: ContentView.Contents
@@ -630,7 +627,7 @@ function getModule(app: IGeesomeApp, models) {
 				console.log('m.media', m.media);
 				const {result: file} = await this.downloadMediaByClient(client, m.media);
 				if (file && file.content) {
-					const content = await app.saveData(file.content, '', {
+					const content = await app.ms.content.saveData(userId, file.content, '', {
 						userId,
 						mimeType: file.mimeType,
 						view: ContentView.Media
@@ -640,7 +637,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.saveData(telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
+					const content = await app.ms.content.saveData(userId, telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
 						userId,
 						mimeType: 'application/json',
 						view: ContentView.Link

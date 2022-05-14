@@ -8,6 +8,10 @@
  */
 
 export interface IGeesomeDatabaseModule {
+  sequelize: any;
+  models: any;
+  config: any;
+
   getDriver():  Promise<any>;
 
   getSessionStore(): any;
@@ -46,43 +50,11 @@ export interface IGeesomeDatabaseModule {
 
   addObject(objectData): Promise<IObject>;
 
-  addPost(post: IPost): Promise<IPost>;
-
-  getPostByManifestId(manifestStorageId): Promise<IPost>;
-
-  getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId): Promise<IPost>;
-
-  updatePost(id, updateData: any): Promise<IPost>;
-
-  updatePosts(ids, updateData): Promise<IPost>;
-
-  getPostsMetadata(ids): Promise<IPost[]>;
-
-  getPostSizeSum(id): Promise<number>;
-
-  setPostContents(postId, contentsIds): Promise<void>;
-
   getUsersCount(): Promise<number>;
 
   addUser(user: IUser): Promise<IUser>;
 
   updateUser(id, updateData: any): Promise<void>;
-
-  addInvite(invite): Promise<IInvite>;
-
-  updateInvite(id, updateData): Promise<void>;
-
-  getInvite(id): Promise<IInvite>;
-
-  findInviteByCode(code): Promise<IInvite>;
-
-  getJoinedByInviteCount(joinedByInviteId): Promise<number>;
-
-  getUserInvites(createdById, filters, listParams: IListParams): Promise<IInvite[]>;
-
-  getUserInvitesCount(createdById, filters): Promise<number>;
-
-  getAllInvites(filters, listParams: IListParams): Promise<IInvite[]>;
 
   getUserByName(name): Promise<IUser>;
 
@@ -116,84 +88,6 @@ export interface IGeesomeDatabaseModule {
 
   createUserAuthMessage(authMessageData): Promise<IUserAuthMessage>;
 
-  getGroup(id): Promise<IGroup>;
-
-  getGroupByManifestId(manifestId, staticManifestId): Promise<IGroup>;
-
-  getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
-
-  getRemoteGroups(): Promise<IGroup[]>;
-
-  getPersonalChatGroups(): Promise<IGroup[]>;
-
-  addGroup(group): Promise<IGroup>;
-
-  updateGroup(id, updateData): Promise<void>;
-
-  addMemberToGroup(userId, groupId): Promise<void>;
-
-  removeMemberFromGroup(userId, groupId): Promise<void>;
-
-  setMembersToGroup(userIds, groupId): Promise<void>;
-
-  getGroupSection(sectionId): Promise<IGroupSection>;
-
-  addGroupSection(section): Promise<IGroupSection>;
-
-  updateGroupSection(id, updateData): Promise<void>;
-
-  getGroupSections(filters?, listParams?): Promise<IGroupSection[]>;
-
-  getGroupSectionsCount(filters?): Promise<number>;
-
-  addMemberToCategory(userId, categoryId): Promise<void>;
-
-  removeMemberFromCategory(userId, categoryId): Promise<void>;
-
-  getMemberInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
-
-  addAdminToGroup(userId, groupId): Promise<void>;
-
-  removeAdminFromGroup(userId, groupId): Promise<void>;
-
-  setAdminsToGroup(userIds, groupId): Promise<void>;
-
-  getAdminInGroups(userId, types: GroupType[]): Promise<IGroup[]>;
-
-  getCreatorInGroupsByType(userId, type: GroupType): Promise<IGroup[]>;
-
-  getGroupSizeSum(id): Promise<number>;
-
-  getGroupByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IGroup>;
-
-  getPostByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
-
-  getGroupRead(userId, groupId): Promise<IGroupRead>;
-
-  addGroupRead(groupReadData): Promise<IGroupRead>;
-
-  removeGroupRead(userId, groupId): Promise<any>;
-
-  updateGroupRead(id, updateData): Promise<any>;
-
-  getCategory(categoryId): Promise<ICategory>;
-
-  getCategoryByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<ICategory>;
-
-  addCategory(category): Promise<ICategory>;
-
-  updateCategory(id, updateData): Promise<void>;
-
-  addAdminToCategory(userId, categoryId): Promise<void>;
-
-  removeAdminFromCategory(userId, categoryId): Promise<void>;
-
-  addGroupToCategory(groupId, categoryId): Promise<void>;
-
-  removeGroupFromCategory(groupId, categoryId): Promise<void>;
-
-  isAdminInCategory(userId, categoryId): Promise<boolean>;
-
   addCorePermission(userId, permissionName): Promise<void>;
 
   removeCorePermission(userId, permissionName): Promise<void>;
@@ -201,64 +95,6 @@ export interface IGeesomeDatabaseModule {
   getCorePermissions(userId): Promise<ICorePermission[]>;
 
   isHaveCorePermission(userId, permissionName): Promise<boolean>;
-
-  addGroupPermission(userId, groupId, permissionName): Promise<void>;
-
-  removeGroupPermission(userId, groupId, permissionName): Promise<void>;
-
-  removeAllGroupPermission(userId, groupId): Promise<void>;
-
-  getGroupPermissions(userId, groupId): Promise<ICorePermission[]>;
-
-  isHaveGroupPermission(userId, groupId, permissionName): Promise<boolean>;
-
-  isAdminInGroup(userId, groupId): Promise<boolean>;
-
-  isMemberInGroup(userId, groupId): Promise<boolean>;
-
-  isMemberInCategory(userId, categoryId): Promise<boolean>;
-
-  getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
-
-  getGroupPostsCount(groupId, filters?): Promise<number>;
-
-  getCategoryPosts(categoryId, filters?, listParams?: IListParams): Promise<IPost[]>;
-
-  getCategoryPostsCount(categoryId, filters?): Promise<number>;
-
-  getCategoryGroups(categoryId, filters?, listParams?: IListParams): Promise<IGroup[]>;
-
-  getCategoryGroupsCount(categoryId, filters?): Promise<number>;
-
-  getAllPosts(filters?, listParams?: IListParams): Promise<IPost[]>;
-
-  getAllPostsCount(filters?): Promise<number>;
-
-  getPost(postId): Promise<IPost>;
-
-  getPostListByIds(groupId, postIds): Promise<IPost[]>;
-
-  getFileCatalogItem(itemId): Promise<IFileCatalogItem>;
-
-  getFileCatalogItemByDefaultFolderFor(userId, defaultFolderFor): Promise<IFileCatalogItem>;
-
-  getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsByContent(userId, contentId, type?, listParams?: IListParams): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsBreadcrumbs(itemId): Promise<IFileCatalogItem[]>;
-
-  getFileCatalogItemsCount(userId, parentItemId, type?, search?): Promise<number>;
-
-  isFileCatalogItemExistWithContent(userId, parentItemId, contentId): Promise<boolean>;
-
-  getContentsIdsByFileCatalogIds(catalogIds): Promise<number[]>;
-
-  addFileCatalogItem(item: IFileCatalogItem): Promise<IFileCatalogItem>;
-
-  updateFileCatalogItem(id, updateData): Promise<void>;
-
-  getFileCatalogItemsSizeSum(parentItemId): Promise<number>;
 
   getAllUserList(searchString?, listParams?: IListParams): Promise<IUser[]>;
 
@@ -268,33 +104,9 @@ export interface IGeesomeDatabaseModule {
 
   getAllContentCount(searchString): Promise<number>;
 
-  getAllGroupList(searchString?, listParams?: IListParams): Promise<IGroup[]>;
-
-  getAllGroupCount(searchString?): Promise<number>;
-
   addUserContentAction(userContentActionData): Promise<IUserContentAction>;
 
   getUserContentActionsSizeSum(userId, name, periodTimestamp?): Promise<number>;
-
-  addUserAsyncOperation(userAsyncOperation): Promise<IUserAsyncOperation>;
-
-  updateUserAsyncOperation(id, updateData): Promise<IUserAsyncOperation>;
-
-  getUserAsyncOperation(operationId): Promise<IUserAsyncOperation>;
-
-  getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
-
-  closeAllAsyncOperation(): Promise<any>;
-
-  addUserOperationQueue(userOperationQueue): Promise<IUserOperationQueue>;
-
-  updateUserOperationQueue(id, updateData): Promise<any>;
-
-  updateUserOperationQueueByAsyncOperationId(asyncOperationId, updateData): Promise<any>;
-
-  getWaitingOperationQueueByModule(module): Promise<IUserOperationQueue>;
-
-  getUserOperationQueue(id): Promise<IUserOperationQueue>;
 
   addUserLimit(limitData): Promise<IUserLimit>;
 
@@ -302,29 +114,13 @@ export interface IGeesomeDatabaseModule {
 
   getUserLimit(userId, name): Promise<IUserLimit>;
 
-  addStaticIdHistoryItem(staticIdHistoryItem: IStaticIdHistoryItem): Promise<IStaticIdHistoryItem>;
-
-  setStaticIdKey(staticId, publicKey, name?, encryptedPrivateKey?): Promise<IStaticIdKey>;
-
-  getStaticIdPublicKey(staticId, name?): Promise<string>;
-
-  getStaticIdByName(name): Promise<string>;
-
-  getStaticIdEncryptedPrivateKey(staticId, name?): Promise<string>;
-
-  destroyStaticId(staticId, name?): Promise<void>;
-
-  getActualStaticIdItem(staticId): Promise<IStaticIdHistoryItem>;
-
-  getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
-
-  destroyStaticIdHistory(staticId): Promise<void>;
-
   getValue(key: string): Promise<string>;
 
   setValue(key: string, content: string): Promise<void>;
 
   clearValue(key: string): Promise<void>;
+
+  setDefaultListParamsValues(listParams: IListParams, defaultParams?: IListParams);
 }
 
 export interface IInvite {
@@ -418,60 +214,6 @@ export enum ContentView {
   Link = 'link'
 }
 
-export interface IPost {
-  id?: number;
-  status: PostStatus;
-  publishedAt?;
-  publishOn?;
-  groupId;
-  group?: IGroup;
-  userId;
-  view?;
-  type?;
-  contents?: IContent[];
-  size?;
-  isDeleted?: boolean;
-  isPinned?: boolean;
-  isRemote?: boolean;
-  isEncrypted?: boolean;
-  isFullyPinned?: boolean;
-  isReplyForbidden?: boolean;
-  peersCount?: number;
-  fullyPeersCount?: number;
-  propertiesJson?: string;
-  localId?;
-  storageId?;
-  staticStorageId?;
-  manifestStorageId?: string;
-  manifestStaticStorageId?: string;
-
-  authorStaticStorageId?: string;
-  authorStorageId?: string;
-
-  groupStaticStorageId?: string;
-  groupStorageId?: string;
-
-  replyToId?: number;
-  repostOfId?: string;
-
-  source?: string;
-  sourceChannelId?: string;
-  sourcePostId?: string;
-  sourceDate?;
-
-  encryptedManifestStorageId?: string;
-
-  createdAt;
-  updatedAt;
-}
-
-export enum PostStatus {
-  Queue = 'queue',
-  Published = 'published',
-  Draft = 'draft',
-  Deleted = 'deleted'
-}
-
 export interface IUser {
   id?: number;
   name: string;
@@ -494,12 +236,6 @@ export interface IUser {
   removeFriends?(users: IUser[]);
   getFriends?(options): IUser[];
   countFriends?(options?): number;
-
-  getMemberInGroups?(options): IGroup[];
-  getAdministratorInGroups?(options): IGroup[];
-
-  getMemberInCategories?(options): ICategory[];
-  getAdministratorInCategories?(options): ICategory[];
 }
 
 export interface IUserAccount {
@@ -521,162 +257,6 @@ export interface IUserAuthMessage {
   provider: string;
   address: string;
   message: string;
-}
-
-export interface IGroup {
-  id: number;
-
-  name: string;
-  title: string;
-  homePage: string;
-  type: GroupType;
-  view: GroupView;
-  theme: string;
-  isPublic: boolean;
-  isRemote: boolean;
-  isOpen: boolean;
-  isReplyForbidden: boolean;
-
-  description?: string;
-  creatorId: number;
-  avatarImageId?: number;
-  avatarImage?: IContent;
-  coverImageId?: number;
-  coverImage?: IContent;
-  size?: number;
-  isPinned?: boolean;
-  isFullyPinned?: boolean;
-  isEncrypted?: boolean;
-  peersCount?: number;
-  fullyPeersCount?: number;
-  storageId?: string;
-  staticStorageId?: string;
-  manifestStorageId?: string;
-  manifestStaticStorageId?: string;
-  publishedPostsCount?: number;
-  availablePostsCount?: number;
-
-  encryptedManifestStorageId?: string;
-
-  membershipOfCategoryId?: number;
-
-  storageUpdatedAt: Date;
-  staticStorageUpdatedAt: Date;
-
-  propertiesJson?: string;
-
-  addMembers?(users: IUser[]);
-  removeMembers?(users: IUser[]);
-  setMembers?(users: IUser[]);
-  getMembers?(options): IUser[];
-  countMembers?(options?): number;
-
-  addAdministrators?(users: IUser[]);
-  removeAdministrators?(users: IUser[]);
-  setAdministrators?(users: IUser[]);
-  getAdministrators?(options): IUser[];
-  countAdministrators?(options?): number;
-}
-
-export interface IGroupSection {
-  id: number;
-
-  name: string;
-  title: string;
-
-  description?: string;
-  creatorId: number;
-  categoryId: number;
-  avatarImageId?: number;
-  avatarImage?: IContent;
-  coverImageId?: number;
-  coverImage?: IContent;
-  isGlobal?: boolean;
-  storageId?: string;
-  staticStorageId?: string;
-  manifestStorageId?: string;
-  manifestStaticStorageId?: string;
-}
-
-export interface ICategory {
-  id: number;
-
-  name: string;
-  title: string;
-
-  description?: string;
-  creatorId: number;
-  avatarImageId?: number;
-  avatarImage?: IContent;
-  coverImageId?: number;
-  coverImage?: IContent;
-  isGlobal?: boolean;
-  storageId?: string;
-  staticStorageId?: string;
-  manifestStorageId?: string;
-  manifestStaticStorageId?: string;
-
-  addAdministrators?(users: IUser[]);
-  removeAdministrators?(users: IUser[]);
-  setAdministrators?(users: IUser[]);
-  getAdministrators?(options): IUser[];
-  countAdministrators?(): number;
-
-  addGroups?(users: IGroup[]);
-  removeGroups?(users: IGroup[]);
-  setGroups?(users: IGroup[]);
-  getGroups?(options): IGroup[];
-  countGroups?(options?): number;
-
-  addMembers?(users: IUser[]);
-  removeMembers?(users: IUser[]);
-  getMembers?(options): IUser[];
-  countMembers?(options?): number;
-}
-
-export enum GroupType {
-  Channel = 'channel',
-  Chat = 'chat',
-  PersonalChat = 'personal_chat'
-}
-
-export enum GroupView {
-  PinterestLike = 'pinterest-like',
-  InstagramLike = 'instagram-like',
-  TumblrLike = 'tumblr-like',
-  TelegramLike = 'telegram-like'
-}
-
-export interface IGroupRead {
-  id?: number;
-  readFrom?;
-  readAt?;
-  userId: number;
-  groupId: number;
-  cachedPostsCount: number;
-}
-
-export interface IFileCatalogItem {
-  id?: number;
-  name: string;
-  type: FileCatalogItemType;
-  position: number;
-  userId: number;
-  defaultFolderFor?: string;
-  linkOfId?: number;
-  parentItemId?: number;
-  contentId?: number;
-  groupId?: number;
-  size?: number;
-  manifestStorageId?: string;
-  nativeStorageId?: string;
-
-  content?: IContent;
-}
-
-export enum FileCatalogItemType {
-  Folder = 'folder',
-  File = 'file'
 }
 
 export interface IUserContentAction {
@@ -701,53 +281,6 @@ export interface IUserLimit {
   adminId: number;
   periodTimestamp: number;
   isActive: boolean;
-}
-
-export interface IUserAsyncOperation {
-  id?: number;
-  name: string;
-  channel: string;
-  size: number;
-  percent: number;
-  finishedAt: Date;
-  errorType: string;
-  errorMessage: string;
-  inProcess: boolean;
-  cancel: boolean;
-
-  userId: number;
-  contentId?: number;
-  content?: IContent;
-}
-
-export interface IUserOperationQueue {
-  id?: number;
-  module: string;
-  inputHash: string;
-  startedAt: Date;
-  inputJson: string;
-  isWaiting: boolean;
-  userId: number;
-  asyncOperationId: number;
-  userApiKeyId: number;
-  asyncOperation?: IUserAsyncOperation;
-}
-
-export interface IStaticIdHistoryItem {
-  id?: number;
-  staticId: string;
-  dynamicId: string;
-  periodTimestamp?: number;
-  isActive: boolean;
-  boundAt: Date;
-}
-
-export interface IStaticIdKey {
-  id?: number;
-  name?: number;
-  staticId: string;
-  publicKey: string;
-  encryptedPrivateKey?: string;
 }
 
 export enum UserLimitName {

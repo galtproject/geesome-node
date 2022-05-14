@@ -14,13 +14,14 @@ const {createDaemonNode} = require("geesome-libs/src/ipfsHelper");
 
 module.exports = async (app: IGeesomeApp) => {
   let node;
-  try {
-    node = await createDaemonNode({}, app.config.storageConfig.jsNode);
-    console.log('🎁 IPFS node have started');
-  } catch (e) {
-    console.error('❌ IPFS not started', e);
-    return null;
+  while (true) {
+    try {
+      node = await createDaemonNode({}, app.config.storageConfig.jsNode);
+      console.log('🎁 IPFS node have started');
+      return JsIpfsServiceNodePass(node, app.config.storageConfig.jsNode.pass);
+    } catch (e) {
+      console.warn('createDaemonNode error, trying to reconnect...', e.message);
+      await new Promise((resolve) => setTimeout(resolve, 5 * 1000));
+    }
   }
-
-  return JsIpfsServiceNodePass(node, app.config.storageConfig.jsNode.pass);
 };

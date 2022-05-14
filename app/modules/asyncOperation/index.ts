@@ -1,29 +1,30 @@
-import {IGeesomeApp, IGeesomeAsyncOperationModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
 import {
 	CorePermissionName
 } from "../database/interface";
+import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface";
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
+const Op = require("sequelize").Op;
 
 module.exports = async (app: IGeesomeApp) => {
-	const module = getModule(app);
-	await app.ms.database.closeAllAsyncOperation();
+	// app.checkModules([]);
+	const module = getModule(app, await require('./models')());
+	await module.closeAllAsyncOperation();
 	require('./api')(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
-	app.checkModules(['database']);
-
+function getModule(app: IGeesomeApp, models) {
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
-		async asyncOperationWrapper(methodName, args, options) {
+		async asyncOperationWrapper(moduleName, funcName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
 
 			if (!options.async) {
-				return app[methodName].apply(app, args);
+				return app.ms[moduleName][funcName].apply(app, args);
 			}
 
-			const asyncOperation = await app.ms.database.addUserAsyncOperation({
+			const asyncOperation = await this.addUserAsyncOperation({
 				userId: options.userId,
 				userApiKeyId: options.userApiKeyId,
 				name: 'save-data',
@@ -35,7 +36,7 @@ function getModule(app: IGeesomeApp) {
 			if (_.isObject(_.last(args))) {
 				_.last(args).onProgress = (progress) => {
 					console.log('onProgress', progress);
-					app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
+					this.updateUserAsyncOperation(asyncOperation.id, {
 						percent: progress.percent
 					});
 				}
@@ -51,18 +52,18 @@ function getModule(app: IGeesomeApp) {
 					resolve(true);
 				}
 			});
-			const methodPromise = app[methodName].apply(app, args);
+			const methodPromise = app[funcName].apply(app, args);
 
 			methodPromise
 				.then((res: any) => {
-					app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
+					this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						contentId: res.id
 					});
 					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
 				.catch((e) => {
-					return app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
+					return this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						errorType: 'unknown',
 						errorMessage: e && e.message ? e.message : e
@@ -72,7 +73,7 @@ function getModule(app: IGeesomeApp) {
 			try {
 				await dataSendingPromise;
 			} catch(e) {
-				await app.ms.database.updateUserAsyncOperation(asyncOperation.id, {
+				await this.updateUserAsyncOperation(asyncOperation.id, {
 					inProcess: false,
 					errorType: 'unknown',
 					errorMessage: e && e.message ? e.message : e
@@ -84,7 +85,7 @@ function getModule(app: IGeesomeApp) {
 
 
 		async getAsyncOperation(userId, operationId) {
-			const asyncOperation = await app.ms.database.getUserAsyncOperation(operationId);
+			const asyncOperation = await this.getUserAsyncOperation(operationId);
 			if (asyncOperation.userId != userId) {
 				throw new Error("not_permitted");
 			}
@@ -92,11 +93,11 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async findAsyncOperations(userId, name, channelLike) {
-			return app.ms.database.getUserAsyncOperationList(userId, name, channelLike);
+			return this.getUserAsyncOperationList(userId, name, channelLike);
 		}
 
 		async addAsyncOperation(userId, asyncOperationData) {
-			return app.ms.database.addUserAsyncOperation({
+			return this.addUserAsyncOperation({
 				...asyncOperationData,
 				userId,
 				inProcess: true,
@@ -105,17 +106,17 @@ function getModule(app: IGeesomeApp) {
 
 		async updateAsyncOperation(userId, asyncOperationId, percent) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.ms.database.updateUserAsyncOperation(asyncOperationId, { percent });
+			return this.updateUserAsyncOperation(asyncOperationId, { percent });
 		}
 
 		async cancelAsyncOperation(userId, asyncOperationId) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.ms.database.updateUserAsyncOperation(asyncOperationId, { cancel: true });
+			return this.updateUserAsyncOperation(asyncOperationId, { cancel: true });
 		}
 
 		async finishAsyncOperation(userId, asyncOperationId, contentId = null) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.ms.database.updateUserAsyncOperation(asyncOperationId, {
+			return this.updateUserAsyncOperation(asyncOperationId, {
 				contentId,
 				percent: 100,
 				inProcess: false,
@@ -125,12 +126,12 @@ function getModule(app: IGeesomeApp) {
 
 		async errorAsyncOperation(userId, asyncOperationId, errorMessage) {
 			await this.getAsyncOperation(userId, asyncOperationId);
-			return app.ms.database.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
+			return this.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
 		}
 
 		addUserOperationQueue(userId, module, userApiKeyId, input) {
 			const inputJson = JSON.stringify(input);
-			return app.ms.database.addUserOperationQueue({
+			return models.UserOperationQueue.create({
 				userId,
 				module,
 				inputJson,
@@ -141,11 +142,11 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		getWaitingOperationByModule(module) {
-			return app.ms.database.getWaitingOperationQueueByModule(module);
+			return this.getWaitingOperationQueueByModule(module);
 		}
 
 		async getUserOperationQueue(userId, userOperationQueueId) {
-			const userOperationQueue = await app.ms.database.getUserOperationQueue(userOperationQueueId);
+			const userOperationQueue = await models.UserOperationQueue.findOne({where: {id: userOperationQueueId}, include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
 			if (userOperationQueue.userId != userId) {
 				throw new Error("not_permitted");
 			}
@@ -153,12 +154,48 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		setAsyncOperationToUserOperationQueue(userOperationQueueId, asyncOperationId) {
-			return app.ms.database.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
+			return this.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
 		}
 
 		closeUserOperationQueueByAsyncOperationId(userAsyncOperationId) {
-			return app.ms.database.updateUserOperationQueueByAsyncOperationId(userAsyncOperationId, { isWaiting: false });
+			return models.UserOperationQueue.update({ isWaiting: false }, {where: {asyncOperationId: userAsyncOperationId}});
 		}
+
+		async addUserAsyncOperation(asyncOperationData) {
+			return models.UserAsyncOperation.create(asyncOperationData);
+		}
+
+		async updateUserAsyncOperation(id, updateData) {
+			return models.UserAsyncOperation.update(updateData, {where: {id}});
+		}
+
+		async closeAllAsyncOperation() {
+			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true}});
+		}
+
+		async getUserAsyncOperation(id) {
+			return models.UserAsyncOperation.findOne({where: {id}}) as IUserAsyncOperation;
+		}
+
+		async getUserAsyncOperationList(userId, name = null, channelLike = null) {
+			const where = {userId, inProcess: true};
+			if (name) {
+				where['name'] = name;
+			}
+			if (channelLike) {
+				where['channel'] = {[Op.like]: channelLike};
+			}
+			return models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 100});
+		}
+
+		async updateUserOperationQueue(id, updateData) {
+			return models.UserOperationQueue.update(updateData, {where: {id}});
+		}
+
+		async getWaitingOperationQueueByModule(module) {
+			return models.UserOperationQueue.findOne({where: {module, isWaiting: true}, order: [['createdAt', 'ASC']], include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
+		}
+
 	}
 
 	return new AsyncOperationModule();

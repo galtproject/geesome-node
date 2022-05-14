@@ -32,10 +32,6 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		}, 200);
 	});
 
-	module.onGet('self-account-id', async (req, res) => {
-		res.send({ result: await app.getSelfAccountId() }, 200);
-	});
-
 	/**
 	 * @api {post} setup Setup first admin user
 	 * @apiName RunSetup
@@ -145,72 +141,6 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		req.stream.pipe(busboy);
 	});
 
-	/**
-	 * @api {post} user/save-data Save data
-	 * @apiDescription Store data (string or buffer)
-	 * @apiName UserSaveData
-	 * @apiGroup UserContent
-	 *
-	 * @apiUse ApiKey
-	 *
-	 * @apiInterface (../../interface.ts) {IDataContentInput} apiParam
-	 *
-	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
-	 */
-	module.onAuthorizedPost('user/save-data', async (req, res) => {
-		const options = {
-			userId: req.user.id,
-			userApiKeyId: req.apiKey.id,
-			..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
-		};
-
-		res.send(await app.ms.asyncOperation.asyncOperationWrapper('saveData', [req.body['content'], req.body['fileName'] || req.body['name'], options], options));
-	});
-
-	/**
-	 * @api {post} user/save-data-by-url Save data by url
-	 * @apiDescription Download and store data by url
-	 * @apiName UserSaveDataByUrl
-	 * @apiGroup UserContent
-	 *
-	 * @apiUse ApiKey
-	 *
-	 * @apiInterface (../../interface.ts) {IUrlContentInput} apiParam
-	 *
-	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
-	 */
-	module.onAuthorizedPost('user/save-data-by-url', async (req, res) => {
-		const options = {
-			userId: req.user.id,
-			userApiKeyId: req.apiKey.id,
-			..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
-		};
-
-		res.send(await app.ms.asyncOperation.asyncOperationWrapper('saveDataByUrl', [req.body['url'], options], options));
-	});
-
-	/**
-	 * @api {post} user/save-directory Save directory
-	 * @apiDescription Store directory content
-	 * @apiName UserSaveDirectory
-	 * @apiGroup UserContent
-	 *
-	 * @apiUse ApiKey
-	 *
-	 * @apiInterface (../../interface.ts) {IDataContentInput} apiParam
-	 *
-	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
-	 */
-	module.onAuthorizedPost('user/save-directory', async (req, res) => {
-		const options = {
-			userId: req.user.id,
-			userApiKeyId: req.apiKey.id,
-			..._.pick(req.body, ['groupId', 'async', 'driver'])
-		};
-
-		res.send(await app.ms.asyncOperation.asyncOperationWrapper('saveDirectoryToStorage', [req.user.id, req.body['path'], options], options));
-	});
-
 	//TODO: add limit for this action
 
 	// module.onAuthorizedPost('user/regenerate-previews', async (req, res) => {
@@ -267,9 +197,6 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	module.onAuthorizedGet('admin/all-users', async (req, res) => {
 		res.send(await app.getAllUserList(req.user.id, req.query.search, req.query));
 	});
-	module.onAuthorizedGet('admin/all-content', async (req, res) => {
-		res.send(await app.getAllContentList(req.user.id, req.query.search, req.query));
-	});
 
 
 	module.onAuthorizedGet('admin/boot-nodes', async (req, res) => {
@@ -302,170 +229,6 @@ module.exports = (app, module: IGeesomeApiModule) => {
 		res.send(limit);
 	});
 
-	module.onGet('content/:contentId', async (req, res) => {
-		res.send(await app.getContent(req.params.contentId));
-	});
-
-	module.onGet('content-by-storage-id/:contentStorageId', async (req, res) => {
-		res.send(await app.getContentByStorageId(req.params.contentStorageId));
-	});
-
-	module.onGet('content-stats/*', async (req, res) => {
-		const dataPath = req.route.replace('content-stats/', '');
-		return app.ms.storage.getFileStat(dataPath).then(d => res.send(d));
-	});
-
-	module.onGet('content-data/*', async (req, res) => {
-		const dataPath = req.route.replace('content-data/', '');
-		getFileStream(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
-	});
-
-	module.onGet('/ipfs/*', async (req, res) => {
-		const ipfsPath = req.route.replace('/ipfs/', '');
-		getFileStream(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
-	});
-
-	module.onHead('content-data/*', async (req, res) => {
-		const dataPath = req.route.replace('content-data/', '');
-		getContentHead(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
-	});
-
-	module.onHead('/ipfs/*', async (req, res) => {
-		const ipfsPath = req.route.replace('/ipfs/', '');
-		getContentHead(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
-	});
-
-	async function getContentHead(req, res, hash) {
-		module.setDefaultHeaders(res);
-		const content = await app.ms.database.getContentByStorageId(hash, true);
-		if (content) {
-			res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
-			res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-		}
-		res.send(200);
-	}
-
-	async function getFileStream(req, res, dataPath) {
-		module.setStorageHeaders(res);
-
-		dataPath = _.trimStart(dataPath, '/')
-
-		let splitPath = dataPath.split('.');
-		console.log('isIpfsHash', splitPath[0]);
-		if (ipfsHelper.isIpfsHash(splitPath[0])) {
-			// cut extension, TODO: use regex
-			dataPath = splitPath[0];
-		}
-
-		let range = req.headers['range'];
-		if (!range) {
-			let content = await app.ms.database.getContentByStorageId(dataPath, false);
-			if (!content && dataPath.split('/').length > 1) {
-				content = await app.ms.database.getContentByStorageId(dataPath.split('/')[0], false);
-			}
-			if (content) {
-				console.log('content.mimeType', dataPath, content.mimeType);
-				const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
-				if (contentType) {
-					res.setHeader('Content-Type', contentType);
-				}
-				if (content.mimeType === ContentMimeType.Directory && !_.includes(_.last(dataPath.split('/')), '.')) {
-					dataPath += '/index.html';
-				}
-			}
-			return app.getFileStream(dataPath).then((stream) => {
-				stream.pipe(res.stream);
-			});
-		}
-
-		const content = await app.getContentByStorageId(dataPath);
-		console.log('content.mimeType', dataPath, content.mimeType);
-
-		if (content.mimeType === ContentMimeType.Directory) {
-			dataPath += '/index.html';
-		}
-
-		let dataSize = content ? content.size : null;
-		// if (!dataSize) {
-		//   console.log('dataSize is null', dataPath, dataSize);
-		//TODO: check if some size not correct
-		const stat = await app.ms.storage.getFileStat(dataPath);
-		dataSize = stat.size;
-		// }
-
-		console.log('dataSize', dataSize);
-
-		let chunkSize = 1024 * 1024;
-		if(dataSize > chunkSize * 2) {
-			chunkSize = Math.ceil(dataSize * 0.25);
-		}
-
-		range = range.replace(/bytes=/, "").split("-");
-
-		range[0] = range[0] ? parseInt(range[0], 10) : 0;
-		range[1] = range[1] ? parseInt(range[1], 10) : range[0] + chunkSize;
-		if(range[1] > dataSize - 1) {
-			range[1] = dataSize - 1;
-		}
-		range = {start: range[0], end: range[1]};
-
-		const contentLength = range.end - range.start + 1;
-
-		const fileStreamOptions = {
-			offset: range.start,
-			length: contentLength
-		};
-
-		return app.getFileStream(dataPath, fileStreamOptions).then((stream) => {
-			//
-			let resultLength = 0;
-			stream.on('data', (data) => {
-				resultLength += data.length;
-			});
-			stream.on('end', (data) => {
-				console.log('range.start', range.start);
-				console.log('contentLength', contentLength);
-				console.log('resultLength ', resultLength);
-				console.log(range.start + contentLength, '/', dataSize);
-				console.log(range.start + resultLength, '/', dataSize);
-			});
-
-			let mimeType = '';
-			if(content) {
-				mimeType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
-			}
-			res.writeHead(206, {
-				// 'Cache-Control': 'no-cache, no-store, must-revalidate',
-				// 'Pragma': 'no-cache',
-				// 'Expires': 0,
-				'Cross-Origin-Resource-Policy': 'cross-origin',
-				'Content-Type': mimeType,
-				'Accept-Ranges': 'bytes',
-				'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
-				'Content-Length': contentLength
-			});
-			stream.pipe(res.stream);
-		});
-	}
-
-	module.onGet('/ipns/*', async (req, res) => {
-		// console.log('ipns req.route', req.route);
-		const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
-		const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
-		const ipfsId = await app.resolveStaticId(ipnsId);
-
-		// console.log('ipnsPath', ipnsPath);
-		// console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
-
-		getFileStream(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
-	});
-
-	module.onGet('/resolve/:storageId', async (req, res) => {
-		app.resolveStaticId(req.params.storageId).then(res.send.bind(res)).catch((err) => {
-			res.send(err.message, 500)
-		})
-	});
-
 	module.onGet('/ipld/*', async (req, res) => {
 		module.setStorageHeaders(res);
 		const ipldPath = req.route.replace('/ipld/', '');
@@ -494,17 +257,4 @@ module.exports = (app, module: IGeesomeApiModule) => {
 			res.send(null, 500)
 		});
 	});
-
-	if (app.frontendStorageId) {
-		module.onGet('/node*', async (req, res) => {
-			if (req.route === '/node') {
-				return res.redirect('/node/');
-			}
-			let path = req.route.replace('/node', '');
-			if (!path || path === '/') {
-				path = '/index.html';
-			}
-			getFileStream(req, res, app.frontendStorageId + path).catch((e) => {console.error(e); res.send(400)});
-		});
-	}
 }

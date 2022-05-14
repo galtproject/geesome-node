@@ -1,4 +1,5 @@
-import {IGeesomeApp, IGeesomeFileCatalogModule} from "../../interface";
+import {IGeesomeApp} from "../../interface";
+import IGeesomeFileCatalogModule from "./interface";
 
 module.exports = (app: IGeesomeApp, fileCatalogModule: IGeesomeFileCatalogModule) => {
     const api = app.ms.api.prefix('user/file-catalog/');
