@@ -20,7 +20,7 @@ const assert = require('assert');
 const _ = require('lodash');
 const commonHelpers = require('geesome-libs/src/common');
 
-describe("autoActions", function () {
+describe.only("autoActions", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -98,6 +98,7 @@ describe("autoActions", function () {
 				funcName,
 				funcArgs: JSON.stringify(funcArgs),
 				isActive: true,
+				isEncrypted: true,
 				position: 1,
 				totalExecuteAttempts: 3,
 				currentExecuteAttempts: 3,

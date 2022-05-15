@@ -1,6 +1,11 @@
+export {};
+
 const _ = require('lodash');
 const bcrypt = require('bcrypt');
+const fs = require('fs');
 const saltRounds = 10;
+const commonHelper = require('geesome-libs/src/common');
+const cryptoJS = require("crypto-js");
 
 module.exports = {
 	validateEmail(email) {
@@ -29,6 +34,31 @@ module.exports = {
 		});
 	},
 
+	async getSecretKey(keyName, mode) {
+		const keyDir = `${__dirname}/../data`;
+		if (!fs.existsSync(keyDir)) {
+			fs.mkdirSync(keyDir);
+		}
+		const keyPath = `${keyDir}/${keyName}.key`;
+		let secretKey;
+		try {
+			secretKey = fs.readFileSync(keyPath).toString();
+			if (secretKey) {
+				return secretKey;
+			}
+		} catch (e) {}
+		secretKey = commonHelper.random(mode);
+		fs.writeFileSync(keyPath, secretKey, {encoding: 'utf8'});
+		return secretKey;
+	},
+
+	encryptText(text, pass) {
+		return cryptoJS.AES.encrypt(text, pass).toString();
+	},
+
+	decryptText(text, pass) {
+		return cryptoJS.AES.decrypt(text, pass).toString(cryptoJS.enc.Utf8);
+	},
 
 	log(){
 		const logArgs = _.map(arguments, (arg) => arg);
