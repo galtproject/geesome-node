@@ -25,10 +25,10 @@ export default {
   methods: {
     async ok() {
       await this.$coreApi.socNetUpdateDbChannel(this.socNetName, this.channel.id, this.channel);
-      await this.$coreApi.socNetUpdateDbAccount(this.socNetName, this.channel.accountId, {
-        sessionKey: ,
-        isEncrypted: false
-      });
+      // await this.$coreApi.socNetUpdateDbAccount(this.socNetName, this.channel.accountId, {
+      //   sessionKey: ,
+      //   isEncrypted: false
+      // });
       this.close();
     },
     close() {
