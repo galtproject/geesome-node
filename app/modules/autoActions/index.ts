@@ -8,15 +8,14 @@ const commonHelpers = require('geesome-libs/src/common');
 const orderBy = require("lodash/orderBy");
 const reverse = require("lodash/reverse");
 
-module.exports = async (app: IGeesomeApp, options: any = {}) => {
+module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./models")();
-	const module = await getModule(app, models, options.pass || app.config.storageConfig.jsNode.pass);
+	const module = await getModule(app, models);
 	require('./api')(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models, pass) {
-	console.log('pass', pass);
+function getModule(app: IGeesomeApp, models) {
 
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
 		async addAutoAction(userId, autoAction) {
