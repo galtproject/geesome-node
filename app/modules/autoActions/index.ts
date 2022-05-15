@@ -30,8 +30,6 @@ function getModule(app: IGeesomeApp, models) {
 		async encryptAutoActionIfNecessary(autoAction) {
 			if (autoAction.isEncrypted && autoAction.funcArgs) {
 				autoAction.funcArgsEncrypted = await app.encryptTextWithAppPass(autoAction.funcArgs);
-				console.log('encryptAutoActionIfNecessary autoAction.funcArgs', autoAction.funcArgs);
-				console.log('encryptAutoActionIfNecessary autoAction.funcArgsEncrypted', autoAction.funcArgsEncrypted);
 				autoAction.funcArgs = "";
 			}
 			return autoAction;
@@ -40,8 +38,6 @@ function getModule(app: IGeesomeApp, models) {
 		async decryptAutoActionIfNecessary(autoAction) {
 			if (autoAction.isEncrypted && autoAction.funcArgsEncrypted) {
 				autoAction.funcArgs = await app.decryptTextWithAppPass(autoAction.funcArgsEncrypted);
-				console.log('decryptAutoActionIfNecessary autoAction.funcArgsEncrypted', autoAction.funcArgsEncrypted);
-				console.log('decryptAutoActionIfNecessary autoAction.funcArgs', autoAction.funcArgs);
 			}
 			return autoAction;
 		}

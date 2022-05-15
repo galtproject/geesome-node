@@ -21,7 +21,7 @@ function getModule(app: IGeesomeApp, models) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
 
 			if (!options.async) {
-				return app.ms[moduleName][funcName].apply(app, args);
+				return this.executeOperation(moduleName, funcName, args);
 			}
 
 			const asyncOperation = await this.addUserAsyncOperation({
@@ -52,7 +52,7 @@ function getModule(app: IGeesomeApp, models) {
 					resolve(true);
 				}
 			});
-			const methodPromise = app[funcName].apply(app, args);
+			const methodPromise = this.executeOperation(moduleName, funcName, args);
 
 			methodPromise
 				.then((res: any) => {
@@ -83,6 +83,9 @@ function getModule(app: IGeesomeApp, models) {
 			return {asyncOperationId: asyncOperation.id, channel: asyncOperation.channel};
 		}
 
+		async executeOperation(moduleName, funcName, args) {
+			return app.ms[moduleName][funcName].apply(app.ms[moduleName], args);
+		}
 
 		async getAsyncOperation(userId, operationId) {
 			const asyncOperation = await this.getUserAsyncOperation(operationId);
