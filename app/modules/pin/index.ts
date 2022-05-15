@@ -1,127 +1,121 @@
 import {IGeesomeApp} from "../../interface";
-import IGeesomeAccountStorageModule from "./interface";
-const peerIdHelper = require('geesome-libs/src/peerIdHelper');
-const Op = require("sequelize").Op;
+import IGeesomePinModule, {IPinAccount} from "./interface";
 const pIteration = require("p-iteration");
+const axios = require('axios');
+const _ = require('lodash');
 
-module.exports = async (app: IGeesomeApp, options: any = {}) => {
-	const module = getModule(app, await require('./models')(), options.pass || app.config.storageConfig.jsNode.pass);
-	// require('./api')(app, module);
+module.exports = async (app: IGeesomeApp) => {
+	app.checkModules(['group', 'content', 'storage']);
+
+	const module = getModule(app, await require('./models')());
+	require('./api')(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models, pass) {
-	class DatabaseAccountStorage implements IGeesomeAccountStorageModule {
-		async createAccount(name, userId, groupId?) {
-			if (!name || !userId) {
-				throw new Error("name_and_userId_cannot_be_null");
+function getModule(app: IGeesomeApp, models) {
+	class PinModule implements IGeesomePinModule {
+		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
+			return models.PinAccount.create({
+				...await this.encryptPinAccountIfNecessary(account),
+				userId
+			})
+		}
+
+		async updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount> {
+			const account = await models.PinAccount.findOne({where: {id}});
+			if (account.userId !== userId && !(await app.ms.group.canEditGroup(userId, account.groupId))) {
+				throw new Error("not_permitted");
 			}
-			const peerId = await peerIdHelper.createPeerId();
-			const privateBase64 = peerIdHelper.peerIdToPrivateBase64(peerId);
-			const publicBase64 = peerIdHelper.peerIdToPublicBase64(peerId);
-			const publicBase58 = peerIdHelper.peerIdToPublicBase58(peerId);
-			const encryptedPrivateKey = await peerIdHelper.encryptPrivateBase64WithPass(privateBase64, pass);
-			return models.Account.create({userId, groupId, staticId: publicBase58, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
+			return models.PinAccount.update(updateData, {where: {id}})
+				.then(() => models.PinAccount.findOne({where: {id}}))
+				.then(acc => this.decryptPinAccountIfNecessary(acc));
 		}
 
-		async getAccountPublicKey(name) {
-			return this.getStaticIdPublicKeyByOr(name, name).then(publicKey => peerIdHelper.base64ToPublicKey(publicKey));
+		async getUserAccount(userId: number, name: string): Promise<IPinAccount> {
+			return models.PinAccount.findOne({where: {userId, name}}).then(acc => this.decryptPinAccountIfNecessary(acc));
 		}
 
-		async getUserIdOfLocalStaticIdAccount(staticId) {
-			return models.Account.findOne({ where: { staticId, isRemote: false } })
-				.then(acc => acc ? acc.userId : null);
+		async getUserAccountsList(userId: number): Promise<IPinAccount[]> {
+			return models.PinAccount.findAll({where: {userId}});
 		}
 
-		async getLocalAccountStaticIdByNameAndUserId(name, userId) {
-			if (!name || !userId) {
+		async getGroupAccountsList(userId: number, groupId: number): Promise<IPinAccount[]> {
+			if (!await app.ms.group.canEditGroup(userId, groupId)) {
+				throw new Error("not_permitted");
+			}
+			return models.PinAccount.findAll({where: {groupId}});
+		}
+
+		async getGroupAccount(userId: number, groupId: number, name: string): Promise<IPinAccount> {
+			if (!await app.ms.group.canEditGroup(userId, groupId)) {
+				throw new Error("not_permitted");
+			}
+			return models.PinAccount.findOne({where: {groupId, name}}).then(acc => this.decryptPinAccountIfNecessary(acc));
+		}
+
+		async pinByUserAccount(userId: number, name: string, storageId: string, options = {}): Promise<any> {
+			const account = await this.getUserAccount(userId, name);
+			return this.pinByAnyService(storageId, account)
+		}
+
+		async pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options = {}): Promise<any> {
+			const account = await this.getGroupAccount(userId, groupId, name);
+			return this.pinByAnyService(storageId, account)
+		}
+
+		async pinByAnyService(storageId: string, account: IPinAccount, options?) {
+			if (account.service === 'pinata') {
+				return this.pinByPinata(storageId, account, options);
+			} else {
+				throw new Error("unknown_service");
+			}
+		}
+
+		async pinByPinata(storageId: string, account: IPinAccount, options?) {
+			const content = await app.ms.content.getContentByStorageId(storageId);
+			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
+			console.log('hostNodes', hostNodes);
+			return axios
+				.post(account.endpoint || `https://api.pinata.cloud/pinning/pinByHash`, {
+					hostNodes,
+					hashToPin: storageId,
+					pinataMetadata: {
+						name: content ? content.name : '',
+						keyvalues: options || {}
+					}
+				},{
+					headers: { pinata_api_key: account.apiKey, pinata_secret_api_key: account.secretApiKey }
+				});
+		}
+
+		async encryptPinAccountIfNecessary(pinAccount: IPinAccount) {
+			if (pinAccount.isEncrypted && pinAccount.secretApiKey) {
+				pinAccount.secretApiKeyEncrypted = await app.encryptTextWithAppPass(pinAccount.secretApiKey);
+				pinAccount.secretApiKey = "";
+			}
+			return pinAccount;
+		}
+
+		async decryptPinAccountIfNecessary(pinAccount) {
+			if(!pinAccount) {
 				return null;
 			}
-			return models.Account.findOne({ where: { name, userId, isRemote: false } })
-				.then(acc => acc ? acc.staticId : null);
-		}
-
-		async getLocalAccountStaticIdByNameAndGroupId(name, groupId) {
-			if (!name || !groupId) {
-				return null;
+			if (pinAccount.isEncrypted && pinAccount.secretApiKeyEncrypted) {
+				pinAccount.secretApiKey = await app.decryptTextWithAppPass(pinAccount.secretApiKeyEncrypted);
 			}
-			return models.Account.findOne({ where: { name, groupId, isRemote: false } })
-				.then(acc => acc ? acc.staticId : null);
-		}
-
-		async getAccountPeerId(name) {
-			if (!name) {
-				return null;
-			}
-			const encryptedPrivateKey = await this.getStaticIdEncryptedPrivateKey(name, name);
-			if (!encryptedPrivateKey) {
-				return null;
-			}
-			const privateKey = await peerIdHelper.decryptPrivateBase64WithPass(encryptedPrivateKey, pass);
-			return peerIdHelper.createPeerIdFromPrivateBase64(privateKey);
-		}
-
-		async createAccountAndGetStaticId(name, userId, groupId?) {
-			return this.createAccount(name, userId, groupId).then(acc => acc.staticId);
-		}
-
-		async getAccountStaticId(name) {
-			return this.getStaticIdByName(name);
-		}
-
-		async getOrCreateAccountStaticId(name, userId, groupId?) {
-			const staticId = await this.getAccountStaticId(name);
-			return staticId || this.createAccountAndGetStaticId(name, userId, groupId);
-		}
-
-		async destroyStaticId(name) {
-			return this.destroyStaticIdByOr(name, name);
-		}
-
-		async createRemoteAccount(staticId, publicKey, name?, groupId?) {
-			return models.Account.create({staticId, publicKey, name, groupId, isRemote: true});
-		}
-
-		async getStaticIdByName(name) {
-			return models.Account.findOne({where: { name }}).then(item => item ? item.staticId : null);
-		}
-
-		async getStaticIdPublicKeyByOr(staticId = null, name = null) {
-			if (!staticId && !name) {
-				return null;
-			}
-			const or = [];
-			staticId && or.push({staticId});
-			name && or.push({name});
-			return models.Account.findOne({ where: {[Op.or]: or} }).then(item => item ? item.publicKey : null);
-		}
-
-		async getStaticIdEncryptedPrivateKey(staticId = null, name = null) {
-			if (!staticId && !name) {
-				return null;
-			}
-			const or = [];
-			staticId && or.push({staticId});
-			name && or.push({name});
-			return models.Account.findOne({ where: {[Op.or]: or} }).then(item => item ? item.encryptedPrivateKey : null);
-		}
-
-		async destroyStaticIdByOr(staticId = null, name = null) {
-			if (!staticId && !name) {
-				return null;
-			}
-			const or = [];
-			staticId && or.push({staticId});
-			name && or.push({name});
-			return models.Account.destroy({ where: {[Op.or]: or} });
+			return pinAccount;
 		}
 
 		async flushDatabase() {
-			await pIteration.forEachSeries(['Account'], (modelName) => {
+			await pIteration.forEachSeries(['PinAccount'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
 		}
+
+		async isAutoActionAllowed(userId, funcName, funcArgs) {
+			return _.includes(['pinByUserAccount', 'pinByGroupAccount'], funcName);
+		}
 	}
 
-	return new DatabaseAccountStorage();
+	return new PinModule();
 }

@@ -10,7 +10,7 @@
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
   'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'entityJsonManifest', 'remoteGroup', 'fileCatalog'],
-  'improve': ['groupCategory', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization', 'autoActions']
+  'improve': ['groupCategory', 'invite', 'telegramClient', 'staticSiteGenerator', 'rss', 'ethereumAuthorization', 'autoActions', 'pin']
 };
 
 //TODO: refactor modules config

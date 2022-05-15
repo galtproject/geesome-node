@@ -241,7 +241,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 
 	module.onGet('node-address-list', async (req, res) => {
 		res.send({
-			result: req.query.type === 'ipfs' ? await app.ms.storage.nodeAddressList() : await app.ms.communicator.nodeAddressList()
+			result: req.query.type === 'ipfs' ? await app.ms.storage.remoteNodeAddressList([]) : await app.ms.communicator.nodeAddressList()
 		});
 	});
 

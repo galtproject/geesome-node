@@ -187,18 +187,6 @@ export interface IContentInput {
    */
   async?: boolean;
 }
-export interface IFileContentInput extends IContentInput {
-  file: File;
-}
-
-export interface IDataContentInput {
-  /**
-   * String or buffer
-   */
-  content: string;
-  fileName: string;
-  mimeType: string;
-}
 
 export interface IUrlContentInput {
   url: string;
@@ -207,21 +195,6 @@ export interface IUrlContentInput {
    */
   driver: string;
   mimeType: string;
-}
-
-export interface IPostInput {
-  /**
-   * Bind content to specific group
-   */
-  groupId?: any;
-  /**
-   * 'published', 'queue', 'draft', 'deleted'
-   */
-  status?: string;
-  /**
-   * Content database ids array
-   */
-  contentsIds: number[];
 }
 
 export interface ManifestToSave {

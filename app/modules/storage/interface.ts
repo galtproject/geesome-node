@@ -52,6 +52,8 @@ export default interface IGeesomeStorageModule {
 
   nodeAddressList(): Promise<string[]>;
 
+  remoteNodeAddressList(types: string[]): Promise<string[]>;
+
   stop(): Promise<any>;
 }
 
