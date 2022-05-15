@@ -10,18 +10,41 @@ const reverse = require("lodash/reverse");
 
 module.exports = async (app: IGeesomeApp, options: any = {}) => {
 	const models = await require("./models")();
-	const module = await getModule(app, models);
+	const module = await getModule(app, models, options.pass || app.config.storageConfig.jsNode.pass);
 	require('./api')(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+function getModule(app: IGeesomeApp, models, pass) {
+	console.log('pass', pass);
 
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
 		async addAutoAction(userId, autoAction) {
-			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions)
+			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions);
+
+			await this.encryptAutoActionIfNecessary(autoAction);
+
 			const res = await models.AutoAction.create({...autoAction, userId});
 			return this.setNextActions(res, nextActions).then(() => this.getAutoAction(res.id)) as IAutoAction;
+		}
+
+		async encryptAutoActionIfNecessary(autoAction) {
+			if (autoAction.isEncrypted && autoAction.funcArgs) {
+				autoAction.funcArgsEncrypted = await app.encryptTextWithAppPass(autoAction.funcArgs);
+				console.log('encryptAutoActionIfNecessary autoAction.funcArgs', autoAction.funcArgs);
+				console.log('encryptAutoActionIfNecessary autoAction.funcArgsEncrypted', autoAction.funcArgsEncrypted);
+				autoAction.funcArgs = "";
+			}
+			return autoAction;
+		}
+
+		async decryptAutoActionIfNecessary(autoAction) {
+			if (autoAction.isEncrypted && autoAction.funcArgsEncrypted) {
+				autoAction.funcArgs = await app.decryptTextWithAppPass(autoAction.funcArgsEncrypted);
+				console.log('decryptAutoActionIfNecessary autoAction.funcArgsEncrypted', autoAction.funcArgsEncrypted);
+				console.log('decryptAutoActionIfNecessary autoAction.funcArgs', autoAction.funcArgs);
+			}
+			return autoAction;
 		}
 
 		async addSerialAutoActions(userId, autoActions) {
@@ -69,6 +92,9 @@ function getModule(app: IGeesomeApp, models) {
 			if (existAction.userId !== userId) {
 				throw new Error("userId_dont_match");
 			}
+
+			await this.encryptAutoActionIfNecessary(autoAction);
+
 			await existAction.update({ ...autoAction, userId });
 
 			if (nextActions) {
@@ -79,17 +105,17 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAutoAction(id) {
-			return models.AutoAction.findOne({ where: { id }, include: [ {association: 'nextActions'} ] });
+			return models.AutoAction.findOne({ where: { id }, include: [ {association: 'nextActions'} ] }).then(a => this.decryptAutoActionIfNecessary(a));
 		}
 
 		async getAutoActionsToExecute() {
-			return models.AutoAction.findAll({where: { executeOn: {[Op.lte]: new Date()}, isActive: true} });
+			return models.AutoAction.findAll({where: { executeOn: {[Op.lte]: new Date()}, isActive: true} }).then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a)));
 		}
 
 		async getNextActionsById(userId, id) {
 			const baseAction = await models.AutoAction.findOne({where: {id}});
 			const nextActions = orderBy(
-				await baseAction.getNextActions(),
+				await baseAction.getNextActions().then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a))),
 				[a => a.nextActionsPivot.position],
 				['asc']
 			);

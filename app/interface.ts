@@ -57,8 +57,6 @@ export interface IGeesomeApp {
 
   checkModules(modulesList: string[]);
 
-  getSecretKey(keyName, mode): Promise<string>;
-
   setup(userData: IUserInput): Promise<{user: IUser, apiKey: string}>;
 
   registerUser(userData: IUserInput): Promise<IUser>;
@@ -98,6 +96,10 @@ export interface IGeesomeApp {
   getUserLimitRemained(userId, limitName: UserLimitName): Promise<number>;
 
   generateAndSaveManifest(entityName, entityObj): Promise<string>; //returns hash
+
+  encryptTextWithAppPass(text): Promise<string>;
+
+  decryptTextWithAppPass(text): Promise<string>;
 
   // getPreviewContentData()
 

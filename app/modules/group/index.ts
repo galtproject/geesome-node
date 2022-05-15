@@ -401,13 +401,13 @@ function getModule(app: IGeesomeApp, models) {
 				return true;
 			}
 			const post = await this.getPostPure(replyToPostId);
-			if(post.isReplyForbidden) {
+			if (post.isReplyForbidden) {
 				return false;
 			}
-			if(post.isReplyForbidden === false) {
+			if (post.isReplyForbidden === false) {
 				return true;
 			}
-			if(await this.isAdminInGroupPure(userId, post.groupId)) {
+			if (await this.isAdminInGroupPure(userId, post.groupId)) {
 				return true;
 			}
 			console.log('post.group.isReplyForbidden', post.group.isReplyForbidden);

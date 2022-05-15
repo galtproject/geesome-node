@@ -25,7 +25,14 @@ module.exports = async function () {
 			type: Sequelize.STRING(200)
 		},
 		funcArgs: {
-			type: Sequelize.STRING
+			type: Sequelize.TEXT
+		},
+		isEncrypted: {
+			type: Sequelize.BOOLEAN,
+			defaultValue: false
+		},
+		funcArgsEncrypted: {
+			type: Sequelize.TEXT
 		},
 		isActive: {
 			type: Sequelize.BOOLEAN,
