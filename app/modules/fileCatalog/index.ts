@@ -457,16 +457,12 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async afterContentAdding(userId, content: IContent, options) {
-			console.log('afterContentAdding', userId, await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement));
 			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
-				log('isUserCan');
 				await this.addContentToUserFileCatalog(userId, content, options);
-				log('addContentToUserFileCatalog');
 			}
 		}
 
 		async existsContentAdding(userId, content: IContent, options) {
-			console.log('existsContentAdding', userId, await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement));
 			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
 				await this.addContentToUserFileCatalog(userId, content, options);
 			}

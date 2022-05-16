@@ -9,11 +9,9 @@
 
 import {
   CorePermissionName,
-  GroupType, GroupView, ICategory,
   IContent,
   IGeesomeDatabaseModule,
-  IFileCatalogItem,
-  IGroupSection, IInvite, IListParams,
+  IInvite, IListParams,
   IUser, IUserAccount,
   IUserApiKey,
   IUserLimit, UserLimitName
@@ -30,7 +28,7 @@ import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface";
 import IGeesomeInviteModule from "./modules/invite/interface";
 import IGeesomeFileCatalogModule from "./modules/fileCatalog/interface";
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface";
-import IGeesomeGroupModule, {IGroupListResponse, IPostListResponse} from "./modules/group/interface";
+import IGeesomeGroupModule from "./modules/group/interface";
 
 export interface IGeesomeApp {
   config: any;
