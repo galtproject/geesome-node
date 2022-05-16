@@ -27,9 +27,9 @@ module.exports = (app: IGeesomeApp) => {
 
     console.log('Docs IPFS:', result.id);
 
-    const geesomeDocsAcc = await app.ms.communicator.createAccountIfNotExists('geesome.docs');
-    await app.ms.communicator.bindToStaticId(result.id, geesomeDocsAcc);
-
-    console.log('Docs IPNS:', geesomeDocsAcc);
+    // const geesomeDocsAcc = await app.ms.communicator.createAccountIfNotExists('geesome.docs');
+    // await app.ms.communicator.bindToStaticId(result.id, geesomeDocsAcc);
+    //
+    // console.log('Docs IPNS:', geesomeDocsAcc);
   });
 };

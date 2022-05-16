@@ -1,11 +1,11 @@
 import IGeesomeApiModule from "./interface";
-import {ContentMimeType, CorePermissionName, UserLimitName} from "../database/interface";
+import {CorePermissionName, UserLimitName} from "../database/interface";
+import {IGeesomeApp} from "../../interface";
 const request = require('request');
 const Busboy = require('busboy');
 const _ = require('lodash');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
-module.exports = (app, module: IGeesomeApiModule) => {
+module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	//TODO: move to core module
 
 	// v1 route
@@ -80,7 +80,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	});
 
 	module.onAuthorizedGet('user/permissions/core/is-have/:permissionName', async (req, res) => {
-		res.send({result: await app.ms.database.isHaveCorePermission(req.user.id, req.params.permissionName)});
+		res.send({result: await app.isUserCan(req.user.id, req.params.permissionName)});
 	});
 
 	module.onAuthorizedPost('user/update', async (req, res) => {
@@ -134,7 +134,7 @@ module.exports = (app, module: IGeesomeApiModule) => {
 				..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
 			};
 
-			const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('saveData', [file, filename, options], options);
+			const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [file, filename, options], options);
 			res.send(asyncOperationRes);
 		});
 
@@ -149,22 +149,22 @@ module.exports = (app, module: IGeesomeApiModule) => {
 
 	//TODO: move permissions checks to app class
 	module.onAuthorizedPost('admin/add-user', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUser)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminAddUser)) {
 			return res.send(403);
 		}
-		if (req.body.permissions && !await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+		if (req.body.permissions && !await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
 			return res.send(403);
 		}
 		res.send(await app.registerUser(req.body));
 	});
 	module.onAuthorizedPost('admin/add-user-api-key', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
 			return res.send(403);
 		}
 		res.send(await app.generateUserApiKey(req.body.userId, req.body, true));
 	});
 	module.onAuthorizedGet('admin/get-user-by-api-key/:apiKey', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminRead)) {
 			return res.send(403);
 		}
 		res.send(await app.getUserByApiKey(req.params.apiKey).then(({user}) => user));
@@ -174,21 +174,21 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	});
 
 	module.onAuthorizedPost('admin/permissions/core/add_permission', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
 			return res.send(403);
 		}
 		res.send(await app.ms.database.addCorePermission(req.body.userId, req.body.permissionName));
 	});
 
 	module.onAuthorizedPost('admin/permissions/core/remove_permission', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
 			return res.send(403);
 		}
 		res.send(await app.ms.database.removeCorePermission(req.body.userId, req.body.permissionName));
 	});
 
 	module.onAuthorizedPost('admin/permissions/core/get_list', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminSetPermissions)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
 			return res.send(403);
 		}
 		res.send(await app.ms.database.getCorePermissions(req.body.userId));
@@ -212,14 +212,14 @@ module.exports = (app, module: IGeesomeApiModule) => {
 	});
 
 	module.onAuthorizedPost('admin/get-user-account', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminRead)) {
 			return res.send(403);
 		}
 		res.send(await app.ms.database.getUserAccountByAddress(req.body.provider, req.body.address));
 	});
 
 	module.onAuthorizedGet('admin/get-user/:userId/limit/:limitName', async (req, res) => {
-		if (!await app.ms.database.isHaveCorePermission(req.user.id, CorePermissionName.AdminRead)) {
+		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminRead)) {
 			return res.send(403);
 		}
 		const limit: any = JSON.parse(JSON.stringify(await app.getUserLimit(req.user.id, req.params.userId, req.params.limitName)));

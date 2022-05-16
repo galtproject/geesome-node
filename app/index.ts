@@ -431,36 +431,6 @@ function getModule(config, appPass) {
       }
     }
 
-    async hookBeforeContentAdding(userId, contentData, options) {
-      if (options.groupId) {
-        const groupId = await this.ms.group.checkGroupId(options.groupId);
-        let group;
-        if (groupId) {
-          contentData.groupId = groupId;
-          group = await this.ms.group.getGroup(groupId);
-        }
-        contentData.isPublic = group && group.isPublic;
-      }
-
-      if (!contentData.userId) {
-        contentData.userId = userId;
-      }
-    }
-
-    async hookAfterContentAdding(userId, content: IContent, options) {
-      if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
-        log('isUserCan');
-        await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
-        log('addContentToUserFileCatalog');
-      }
-    }
-
-    async hookExistsContentAdding(userId, content: IContent, options) {
-      if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
-        await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
-      }
-    }
-
     async callHook(callFromModule, name, args) {
       return pIteration.mapSeries(this.config.modules, (moduleName) => {
         if (moduleName === callFromModule) {
@@ -553,17 +523,20 @@ function getModule(config, appPass) {
       return this.ms.database.isHaveCorePermission(userId, permission);
     }
 
+    async isAdminCan(userId, permission) {
+      const adminCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll);
+      if (adminCanAll) {
+        return true;
+      }
+      return this.ms.database.isHaveCorePermission(userId, permission);
+    }
+
     async checkUserCan(userId, permission) {
       if (_.startsWith(permission, 'admin:')) {
-        if (await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll)) {
-          return;
+        if (await this.isAdminCan(userId, permission).then(can => !can)) {
+          throw new Error("not_permitted");
         }
-      } else { // user:
-        if (await this.ms.database.isHaveCorePermission(userId, CorePermissionName.UserAll)) {
-          return;
-        }
-      }
-      if (!await this.ms.database.isHaveCorePermission(userId, permission)) {
+      } else if (await this.isUserCan(userId, permission).then(can => !can)) {
         throw new Error("not_permitted");
       }
     }

@@ -9,6 +9,7 @@ const _ = require('lodash');
 const pIteration = require('p-iteration');
 const path = require('path');
 const Op = require("sequelize").Op;
+const log = require('debug')('geesome:app');
 
 module.exports = async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
@@ -453,6 +454,22 @@ function getModule(app: IGeesomeApp, models) {
 				attributes: ['contentId'],
 				where: {id: {[Op.in]: allCatalogIds}}
 			})).map(f => f.contentId);
+		}
+
+		async afterContentAdding(userId, content: IContent, options) {
+			console.log('afterContentAdding', userId, await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement));
+			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+				log('isUserCan');
+				await this.addContentToUserFileCatalog(userId, content, options);
+				log('addContentToUserFileCatalog');
+			}
+		}
+
+		async existsContentAdding(userId, content: IContent, options) {
+			console.log('existsContentAdding', userId, await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement));
+			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+				await this.addContentToUserFileCatalog(userId, content, options);
+			}
 		}
 
 		prepareListParams(listParams?: IListParams): IListParams {

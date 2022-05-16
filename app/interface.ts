@@ -85,6 +85,8 @@ export interface IGeesomeApp {
 
   isUserCan(userId, permission): Promise<boolean>;
 
+  isAdminCan(userId, permission): Promise<boolean>;
+
   getDataStructure(dataId, isResolve?);
 
   saveDataStructure(data);
@@ -102,12 +104,6 @@ export interface IGeesomeApp {
   decryptTextWithAppPass(text): Promise<string>;
 
   // getPreviewContentData()
-
-  hookBeforeContentAdding(userId, contentData, options): Promise<void>;
-
-  hookAfterContentAdding(userId, content: IContent, options): Promise<void>;
-
-  hookExistsContentAdding(userId, content: IContent, options): Promise<void>;
 
   callHook(callFromModule, name, args): Promise<void>;
 
