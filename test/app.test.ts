@@ -460,30 +460,4 @@ describe("app", function () {
 
 		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
 	});
-
-	it('user accounts should work properly', async () => {
-		const userAccountPrivateKey = '0xec63de747a7872b20793af42814ce92b5749dd13017887b6ab26754907b4934f';
-		const userAccountAddress = '0x2FAa9af0dbD9d32722C494bAD6B4A2521d132003';
-
-		const newMember = await app.registerUser({
-			email: 'new1@user.com',
-			name: 'new1',
-			password: 'new1',
-			permissions: [CorePermissionName.UserAll],
-			accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
-		});
-		assert.equal(newMember.accounts.length, 1);
-		assert.equal(newMember.accounts[0].provider, 'ethereum');
-		assert.equal(newMember.accounts[0].address, userAccountAddress.toLowerCase());
-
-		const userAccounts = await app.ms.database.getUserAccountList(newMember.id);
-		assert.equal(userAccounts.length, 1);
-		assert.equal(userAccounts[0].provider, 'ethereum');
-		assert.equal(userAccounts[0].address, userAccountAddress.toLowerCase());
-
-		const userObject = await app.getDataStructure(newMember.manifestStorageId);
-		assert.equal(userObject.accounts.length, 1);
-		assert.equal(userObject.accounts[0].provider, 'ethereum');
-		assert.equal(userObject.accounts[0].address, userAccountAddress.toLowerCase());
-	});
 });

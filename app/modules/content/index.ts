@@ -705,7 +705,7 @@ function getModule(app: IGeesomeApp) {
 				return dbContent;
 			}
 
-			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId);
+			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'content');
 			contentObject.isRemote = true;
 			return this.createContentByObject(userId, manifestStorageId, options);
 		}

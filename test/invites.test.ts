@@ -12,10 +12,13 @@ import {
 	CorePermissionName,
 	UserLimitName
 } from "../app/modules/database/interface";
+import IGeesomeForeignAccountsModule from "../app/modules/foreignAccounts/interface";
 
 const assert = require('assert');
 const _ = require('lodash');
 const commonHelper = require('geesome-libs/src/common');
+const sigUtil = require('eth-sig-util');
+const aesjs = require('aes-js');
 
 describe("app", function () {
 	const databaseConfig = {
@@ -27,7 +30,7 @@ describe("app", function () {
 
 	this.timeout(60000);
 
-	let admin, app: IGeesomeApp;
+	let admin, app: IGeesomeApp, foreignAccounts: IGeesomeForeignAccountsModule;
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
@@ -58,6 +61,7 @@ describe("app", function () {
 				name: 'test',
 				title: 'Test'
 			});
+			foreignAccounts = app.ms['foreignAccounts'] as IGeesomeForeignAccountsModule;
 		} catch (e) {
 			console.error('error', e);
 			assert.equal(true, false);
@@ -95,21 +99,43 @@ describe("app", function () {
 				name: 'new2',
 				password: 'new2',
 				permissions: [CorePermissionName.UserAll],
-				accounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
+				foreignAccounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
 			});
 			assert.equal(true, false);
 		} catch (e) {
 			assert.equal(_.includes(e.toString(), "signature_required"), true);
-			//TODO: add test for ethereum signature
+		}
+		const messageToSign = await app.ms.invite.getRegisterMessage(invite.code);
+		const signature = signTypedData(userAccountPrivateKey, [{type: 'string', name: 'message', value: messageToSign}]);
+		try {
+			await app.ms.invite.registerUserByInviteCode(invite.code, {
+				email: 'new2@user.com',
+				name: 'new2',
+				password: 'new2',
+				permissions: [CorePermissionName.UserAll],
+				foreignAccounts: [
+					{'address': userAccountAddress, 'provider': 'ethereum', signature },
+					{'address': userAccountAddress, 'provider': 'bitcoin', signature }
+				]
+			})
+			assert.equal(true, false);
+		} catch (e) {
+			assert.equal(_.includes(e.toString(), "not_supported_provider"), true);
 		}
 		const {user: newMember} = await app.ms.invite.registerUserByInviteCode(invite.code, {
 			email: 'new2@user.com',
 			name: 'new2',
 			password: 'new2',
 			permissions: [CorePermissionName.UserAll],
+			foreignAccounts: [{'address': userAccountAddress, 'provider': 'ethereum', signature }]
 		});
 		assert.equal(await app.ms.invite.getInvitedUserOfJoinedUser(newMember.id).then(u => u.id), invite.createdById);
 		assert.equal(await app.ms.invite.getInviteOfJoinedUser(newMember.id).then(i => i.id), invite.id);
+
+		const accs = await foreignAccounts.getUserAccountsList(newMember.id);
+		assert.equal(accs.length, 1);
+		assert.equal(accs[0].address, userAccountAddress.toLowerCase());
+		assert.equal(accs[0].signature, signature);
 
 		const userLimit = await app.getUserLimit(testAdmin.id, newMember.id, UserLimitName.SaveContentSize);
 		assert.equal(userLimit.isActive, true);
@@ -175,3 +201,14 @@ describe("app", function () {
 		}
 	});
 });
+
+function hexToBuffer(hex) {
+	return Buffer.from(hexToBytes(hex));
+}
+function hexToBytes(hex) {
+	return aesjs.utils.hex.toBytes(hex.indexOf('0x') === 0 ? hex.slice(2) : hex);
+}
+function signTypedData(privateKey, msgParams) {
+	const privateKeyBytes = hexToBuffer(privateKey);
+	return sigUtil.signTypedData(privateKeyBytes, {data: msgParams});
+}

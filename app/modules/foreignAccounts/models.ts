@@ -45,7 +45,32 @@ module.exports = async function () {
 		]
 	} as any);
 
+	await ForeignAccount.sync({});
+
+	const AuthMessage = sequelize.define('authMessage', {
+		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
+		provider: {
+			type: Sequelize.STRING(200)
+		},
+		address: {
+			type: Sequelize.STRING(200)
+		},
+		message: {
+			type: Sequelize.TEXT
+		}
+	} as any, {
+		indexes: [
+			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+			{ fields: ['foreignAccountId'] },
+			{ fields: ['address', 'provider'] }
+		]
+	} as any);
+
+	AuthMessage.belongsTo(ForeignAccount, {as: 'foreignAccount', foreignKey: 'foreignAccountId'});
+	ForeignAccount.hasMany(AuthMessage, {as: 'authMessages', foreignKey: 'foreignAccountId'});
+
 	return {
-		ForeignAccount: await ForeignAccount.sync({})
+		ForeignAccount,
+		AuthMessage: await AuthMessage.sync({})
 	};
 };

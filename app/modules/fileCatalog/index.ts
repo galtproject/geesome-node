@@ -246,7 +246,7 @@ function getModule(app: IGeesomeApp, models) {
 		public async saveDataToPath(userId: number, dataToSave, path, options = {}) {
 			options['path'] = path;
 			const content = await app.ms.content.saveData(userId, dataToSave, null, options);
-			return app.ms.fileCatalog.saveContentByPath(userId, path, content.id);
+			return this.saveContentByPath(userId, path, content.id);
 		}
 
 		public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {

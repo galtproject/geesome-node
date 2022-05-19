@@ -12,7 +12,7 @@ module.exports = `
 
   <md-field>
     <label>Ethereum Address</label>
-    <md-input v-model="user.accounts.ethereum.address"></md-input>
+    <md-input v-model="user.foreignAccounts.ethereum.address"></md-input>
   </md-field>
 
   <md-field>

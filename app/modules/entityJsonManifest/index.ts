@@ -30,8 +30,8 @@ function getModule(app: IGeesomeApp) {
 
     }
 
-    async generateContent(name, data, options?) {
-      if (name === 'group-manifest') {
+    async generateManifest(name, data, options?) {
+      if (name === 'group') {
         //TODO: size => postsSize
         const group: IGroup = data;
         const groupManifest = ipfsHelper.pickObjectFields(group, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
@@ -74,14 +74,14 @@ function getModule(app: IGeesomeApp) {
         this.setManifestMeta(groupManifest, name);
 
         return groupManifest;
-      } else if (name === 'category-manifest') {
+      } else if (name === 'category') {
         const category: IGroupCategory = data;
         const categoryManifest = ipfsHelper.pickObjectFields(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
 
         this.setManifestMeta(categoryManifest, name);
 
         return categoryManifest;
-      } else if (name === 'post-manifest') {
+      } else if (name === 'post') {
         const post: IPost = data;
         //TODO: fix size, view and type
         //TODO: add groupNumber
@@ -107,7 +107,7 @@ function getModule(app: IGeesomeApp) {
         this.setManifestMeta(postManifest, name);
 
         return postManifest;
-      } else if (name === 'user-manifest') {
+      } else if (name === 'user') {
         const user: IUser = data;
         const userManifest = ipfsHelper.pickObjectFields(user, ['name', 'title', 'email', 'description', 'updatedAt', 'createdAt']);
 
@@ -118,14 +118,12 @@ function getModule(app: IGeesomeApp) {
           userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
         }
 
-        userManifest.accounts = await app.ms.database.getUserAccountList(user.id).then(list => {
-          return list.map(({provider, address}) => ({provider, address}))
-        });
-
         this.setManifestMeta(userManifest, name);
 
+        await app.callHook('entityJsonManifest', 'beforeEntityManifestStore', [user.id, 'user', user, userManifest]);
+
         return userManifest;
-      } else if (name === 'content-manifest') {
+      } else if (name === 'content') {
         const content: IContent = data;
         const contentManifest = ipfsHelper.pickObjectFields(content, ['name', 'description', 'mimeType', 'storageType', 'size', 'extension']);
 
@@ -169,25 +167,25 @@ function getModule(app: IGeesomeApp) {
       manifestId = ipfsHelper.getStorageIdHash(manifestId);
       let manifest: any = {};
 
-      if(!options.isEncrypted) {
+      if (!options.isEncrypted) {
         log('manifestIdToDbObject:getObject', type, manifestId);
         manifest = await app.ms.storage.getObject(manifestId);
         log('manifestIdToDbObject:manifest', manifest);
 
-        if(!type) {
-          type = manifest._type;
+        if (!type) {
+          type = manifest._entityName;
         }
       }
 
-      if (type === 'group-manifest') {
+      if (type === 'group') {
         const group: IGroup = ipfsHelper.pickObjectFields(manifest, ['name', 'homePage', 'title', 'type', 'view', 'isPublic', 'description', 'size']);
         group.manifestStorageId = manifestId;
 
         if (manifest.avatarImage) {
-          group.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage)) as any;
+          group.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage, 'content')) as any;
         }
         if (manifest.coverImage) {
-          group.coverImage = (await this.manifestIdToDbObject(manifest.coverImage)) as any;
+          group.coverImage = (await this.manifestIdToDbObject(manifest.coverImage, 'content')) as any;
         }
 
         group.publishedPostsCount = manifest.postsCount;
@@ -204,12 +202,12 @@ function getModule(app: IGeesomeApp) {
 
         //TODO: import posts too
         return group;
-      } else if (type === 'user-manifest') {
+      } else if (type === 'user') {
         const user: IUser = ipfsHelper.pickObjectFields(manifest, ['name', 'title', 'email', 'description']);
         user.manifestStorageId = manifestId;
 
         if (manifest.avatarImage) {
-          user.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage)) as any;
+          user.avatarImage = (await this.manifestIdToDbObject(manifest.avatarImage, 'content')) as any;
         }
 
         user.manifestStaticStorageId = manifest.staticId;
@@ -225,10 +223,10 @@ function getModule(app: IGeesomeApp) {
         }).catch(() => {});
 
         return user;
-      } else if (type === 'post-manifest') {
+      } else if (type === 'post') {
         let post: IPost;
 
-        if(options.isEncrypted) {
+        if (options.isEncrypted) {
           post = { ...options, isEncrypted: true, encryptedManifestStorageId: manifestId };
         } else {
           post = ipfsHelper.pickObjectFields(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
@@ -252,7 +250,7 @@ function getModule(app: IGeesomeApp) {
         }
 
         return post;
-      } else if (type === 'content-manifest') {
+      } else if (type === 'content') {
         const content: IContent = ipfsHelper.pickObjectFields(manifest, ['name', 'mimeType', 'storageType', 'view', 'size', 'extension']);
 
         if(manifest.isEncrypted) {
@@ -304,11 +302,12 @@ function getModule(app: IGeesomeApp) {
       return storageId;
     }
 
-    setManifestMeta(manifest, type) {
+    setManifestMeta(manifest, entityName) {
       manifest._version = "0.1";
       manifest._source = "geesome-node";
       manifest._protocol = "geesome-ipsp";
-      manifest._type = type;
+      manifest._type = 'manifest';
+      manifest._entityName = entityName;
     }
   }
 

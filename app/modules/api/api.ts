@@ -87,10 +87,6 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(await app.updateUser(req.user.id, req.body));
 	});
 
-	module.onAuthorizedPost('user/set-account', async (req, res) => {
-		res.send(await app.setUserAccount(req.user.id, req.body));
-	});
-
 	module.onAuthorizedGet('user/api-key-list', async (req, res) => {
 		res.send(await app.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, req.query), 200);
 	});
@@ -209,13 +205,6 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
 	module.onAuthorizedPost('admin/boot-nodes/remove', async (req, res) => {
 		res.send(await app.removeBootNode(req.user.id, req.body.address, req.body.type));
-	});
-
-	module.onAuthorizedPost('admin/get-user-account', async (req, res) => {
-		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminRead)) {
-			return res.send(403);
-		}
-		res.send(await app.ms.database.getUserAccountByAddress(req.body.provider, req.body.address));
 	});
 
 	module.onAuthorizedGet('admin/get-user/:userId/limit/:limitName', async (req, res) => {

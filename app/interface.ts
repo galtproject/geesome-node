@@ -44,7 +44,6 @@ export interface IGeesomeApp {
     staticId: IGeesomeStaticIdModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
-    fileCatalog: IGeesomeFileCatalogModule;
     accountStorage: IGeesomeAccountStorageModule;
     storage: IGeesomeStorageModule;
     communicator: IGeesomeCommunicatorModule;
@@ -62,8 +61,6 @@ export interface IGeesomeApp {
   loginPassword(usernameOrEmail, password): Promise<IUser>;
 
   updateUser(userId, updateData): Promise<IUser>;
-
-  setUserAccount(userId, accountData): Promise<IUserAccount>;
 
   checkUserId(userId, targetId, createIfNotExist?): Promise<number>;
 
@@ -119,24 +116,14 @@ export interface IGeesomeApp {
   flushDatabase(): Promise<void>;
 }
 
-export interface IUserInput {
+export interface IUserInput extends Record<string, any> {
   name: string;
   email?: string;
   password?: string;
 
-  accounts?: IUserAccountInput[];
   permissions?: CorePermissionName[];
 
   joinedByInviteId?: number;
-}
-
-export interface IUserAccountInput {
-  id?: number;
-  provider: string;
-  address: string;
-  description?: string;
-  signature?: string;
-  type?: string;
 }
 
 export interface IUserAuthResponse {
@@ -149,18 +136,6 @@ export interface IUserAuthMessageResponse {
   provider: string;
   address: string;
   message: string;
-}
-
-export interface IGroupInput {
-  name: string;
-  title: string;
-  type: GroupType;
-  view: GroupView;
-  theme: string;
-  isPublic: boolean;
-  description?: string;
-  avatarImageId?: number;
-  coverImageId?: number;
 }
 
 export interface IContentInput {

@@ -72,22 +72,6 @@ export interface IGeesomeDatabaseModule {
 
   getUserFriendsCount(userId, search?): Promise<number>;
 
-  getUserAccount(id): Promise<IUserAccount>;
-
-  getUserAccountByProvider(userId, provider): Promise<IUserAccount>;
-
-  getUserAccountByAddress(provider, address): Promise<IUserAccount>;
-
-  getUserAccountList(userId): Promise<IUserAccount[]>;
-
-  createUserAccount(accountData): Promise<IUserAccount>;
-
-  updateUserAccount(id, updateData): Promise<IUserAccount>;
-
-  getUserAuthMessage(id): Promise<IUserAuthMessage>;
-
-  createUserAuthMessage(authMessageData): Promise<IUserAuthMessage>;
-
   addCorePermission(userId, permissionName): Promise<void>;
 
   removeCorePermission(userId, permissionName): Promise<void>;
@@ -230,33 +214,10 @@ export interface IUser {
 
   joinedByInviteId?: number;
 
-  accounts?: [any];
-
   addFriends?(users: IUser[]);
   removeFriends?(users: IUser[]);
   getFriends?(options): IUser[];
   countFriends?(options?): number;
-}
-
-export interface IUserAccount {
-  id?: number;
-  userId: number;
-  title: string;
-  provider: string;
-  type: string;
-  description: string;
-  address: string;
-  signature: string;
-
-  toJSON?();
-}
-
-export interface IUserAuthMessage {
-  id: number;
-  userAccountId: number;
-  provider: string;
-  address: string;
-  message: string;
 }
 
 export interface IUserContentAction {

@@ -18,14 +18,14 @@ export default {
   components: {ContentManifestItem, ProfileForm},
   async created() {
     this.user = await this.$coreApi.getCurrentUser();
-    const ethereumAccount = _.find(this.user.accounts, {provider: 'ethereum'});
+    const ethereumAccount = _.find(this.user.foreignAccounts, {provider: 'ethereum'});
     
     if(ethereumAccount) {
-      this.user.accounts = {
+      this.user.foreignAccounts = {
         ethereum: ethereumAccount
       };
     } else {
-      this.user.accounts = {
+      this.user.foreignAccounts = {
         ethereum: {
           provider: 'ethereum',
           address: ''
@@ -36,7 +36,7 @@ export default {
   methods: {
     update() {
       this.$coreApi.updateCurrentUser(this.user).then(async (updatedUser) => {
-        await this.$coreApi.setUserAccount(this.user.accounts.ethereum);
+        await this.$coreApi.setUserAccount(this.user.foreignAccounts.ethereum);
         EventBus.$emit(UPDATE_CURRENT_USER);
         this.$router.push({name: 'current-user-profile'})
       }).catch(() => {

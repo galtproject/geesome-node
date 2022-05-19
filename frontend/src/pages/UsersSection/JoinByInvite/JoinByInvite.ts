@@ -25,11 +25,11 @@ export default {
       }
 
       if (this.user.ethereumAddress) {
-        this.user.accounts = [
+        this.user.foreignAccounts = [
           { provider: 'ethereum', address: this.user.ethereumAddress, signature: this.user.ethereumSignature },
         ];
       } else {
-        this.user.accounts = [];
+        this.user.foreignAccounts = [];
       }
       this.creation = true;
       this.error = null;
