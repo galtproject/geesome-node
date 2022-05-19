@@ -20,7 +20,7 @@ const assert = require('assert');
 const _ = require('lodash');
 const commonHelpers = require('geesome-libs/src/common');
 
-describe.only("autoActions", function () {
+describe("autoActions", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {

@@ -9,13 +9,12 @@
 
 import {
   IContent,
-  IGeesomeDatabaseModule, IInvite,
+  IGeesomeDatabaseModule,
   IListParams,
   IObject,
   IUser,
-  IUserAccount,
   IUserApiKey,
-  IUserAuthMessage, IUserLimit
+  IUserLimit
 } from "./interface";
 import {IGeesomeApp} from "../../interface";
 
@@ -198,14 +197,14 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   async getUserByName(name) {
     return this.models.User.findOne({
       where: {name},
-      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
+      include: [ {association: 'avatarImage'} ]
     }) as IUser;
   }
 
   async getUserByNameOrEmail(nameOrEmail) {
     return this.models.User.findOne({
       where: { [Op.or]: [{name: nameOrEmail}, {email: nameOrEmail}] },
-      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
+      include: [ {association: 'avatarImage'} ]
     }) as IUser;
   }
 
@@ -215,7 +214,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     }
     return this.models.User.findOne({
       where: {id},
-      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
+      include: [ {association: 'avatarImage'} ]
     }) as IUser;
   }
 
@@ -232,7 +231,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     }
     return this.models.User.findOne({
       where: {[Op.or]: whereOr},
-      include: [ {association: 'avatarImage'}, {association: 'accounts'} ]
+      include: [ {association: 'avatarImage'} ]
     }) as IUser;
   }
 
@@ -260,32 +259,6 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return (await this.getUser(userId)).countFriends();
   }
 
-  async getUserAccount(id) {
-    return this.models.UserAccount.findOne({
-      where: { id }
-    }) as IUserAccount;
-  }
-
-  async getUserAccountList(userId) {
-    return this.models.UserAccount.findAll({
-      where: { userId }
-    });
-  }
-
-  async getUserAccountByProvider(userId, provider) {
-    return this.models.UserAccount.findOne({
-      where: {userId, provider}
-    }) as IUserAccount;
-  }
-
-  async getUserAccountByAddress(provider, address) {
-    address = address.toLowerCase();
-    return this.models.UserAccount.findOne({
-      where: {provider, address},
-      include: [{association: 'user'}]
-    }) as IUserAccount;
-  }
-
   async createUserAccount(accountData) {
     accountData.address = accountData.address.toLowerCase();
     return this.models.UserAccount.create(accountData);
@@ -294,14 +267,6 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   async updateUserAccount(id, updateData) {
     updateData.address = updateData.address.toLowerCase();
     return this.models.UserAccount.update(updateData, {where: {id}});
-  }
-
-  async createUserAuthMessage(authMessageData) {
-    return this.models.UserAuthMessage.create(authMessageData);
-  }
-
-  async getUserAuthMessage(id) {
-    return this.models.UserAuthMessage.findOne({where: {id}}) as IUserAuthMessage;
   }
 
   async addCorePermission(userId, permissionName) {

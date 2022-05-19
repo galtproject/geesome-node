@@ -79,7 +79,7 @@ function getModule(app: IGeesomeApp) {
             await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
             // run in background
-            this.generateContent(userId, type, id, {
+            this.generateManifest(userId, type, id, {
                 ...options,
                 userApiKeyId,
                 asyncOperationId: asyncOperation.id
@@ -140,7 +140,7 @@ function getModule(app: IGeesomeApp) {
             return merged;
         }
 
-        async generateContent(userId, name, groupId, options: any = {}): Promise<IContent> {
+        async generateManifest(userId, name, groupId, options: any = {}): Promise<IContent> {
             const distPath = path.resolve(__dirname, './.vuepress/dist');
             rmDir(distPath);
 

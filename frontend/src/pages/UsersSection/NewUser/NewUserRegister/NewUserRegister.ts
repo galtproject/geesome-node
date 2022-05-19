@@ -19,7 +19,7 @@ export default {
     create() {
       this.creation = true;
       if(this.user.ethereumAddress) {
-        this.user.accounts = [{provider: 'ethereum', address: this.user.ethereumAddress}];
+        this.user.foreignAccounts = [{provider: 'ethereum', address: this.user.ethereumAddress}];
       }
 
       this.user.permissions = [];

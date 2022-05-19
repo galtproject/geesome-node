@@ -72,22 +72,6 @@ export interface IGeesomeDatabaseModule {
 
   getUserFriendsCount(userId, search?): Promise<number>;
 
-  getUserAccount(id): Promise<IUserAccount>;
-
-  getUserAccountByProvider(userId, provider): Promise<IUserAccount>;
-
-  getUserAccountByAddress(provider, address): Promise<IUserAccount>;
-
-  getUserAccountList(userId): Promise<IUserAccount[]>;
-
-  createUserAccount(accountData): Promise<IUserAccount>;
-
-  updateUserAccount(id, updateData): Promise<IUserAccount>;
-
-  getUserAuthMessage(id): Promise<IUserAuthMessage>;
-
-  createUserAuthMessage(authMessageData): Promise<IUserAuthMessage>;
-
   addCorePermission(userId, permissionName): Promise<void>;
 
   removeCorePermission(userId, permissionName): Promise<void>;
@@ -230,33 +214,10 @@ export interface IUser {
 
   joinedByInviteId?: number;
 
-  accounts?: [any];
-
   addFriends?(users: IUser[]);
   removeFriends?(users: IUser[]);
   getFriends?(options): IUser[];
   countFriends?(options?): number;
-}
-
-export interface IUserAccount {
-  id?: number;
-  userId: number;
-  title: string;
-  provider: string;
-  type: string;
-  description: string;
-  address: string;
-  signature: string;
-
-  toJSON?();
-}
-
-export interface IUserAuthMessage {
-  id: number;
-  userAccountId: number;
-  provider: string;
-  address: string;
-  message: string;
 }
 
 export interface IUserContentAction {
@@ -299,8 +260,8 @@ export enum CorePermissionName {
   UserAll = 'user:all',
   UserSaveData = 'user:save_data',
   UserApiKeyManagement = 'user:api_key_management',
-  UserFileCatalogManagement = 'user:file_catalog_management',
-  UserGroupManagement = 'user:group_management',
+  UserFileCatalogManagement = 'user:fileCatalog:all',
+  UserGroupManagement = 'user:group:all',
   UserFriendsManagement = 'user:friends_management',
   UserAccountManagement = 'user:account_management',
 

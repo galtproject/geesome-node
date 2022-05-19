@@ -1,40 +1,32 @@
 
 export default interface IGeesomePinModule {
-	getAccountPeerId(name: string): Promise<any>;
+	createAccount(userId: number, account: IPinAccount): Promise<IPinAccount>;
 
-	createAccount(name: string, userId: number, groupId?: number): Promise<IStaticIdAccount>;
+	updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount>;
 
-	getOrCreateAccountStaticId(name: string, userId: number, groupId?: number): Promise<string>;
+	getUserAccount(userId: number, name: string): Promise<IPinAccount>;
 
-	getLocalAccountStaticIdByNameAndUserId(name: string, userId: number): Promise<string>;
+	getGroupAccount(userId: number, groupId: number, name: string): Promise<IPinAccount>;
 
-	getLocalAccountStaticIdByNameAndGroupId(name: string, groupId: number): Promise<string>;
+	getUserAccountsList(userId: number): Promise<IPinAccount[]>;
 
-	getAccountStaticId(name): Promise<string>;
+	getGroupAccountsList(userId: number, groupId: number): Promise<IPinAccount[]>;
 
-	getAccountPublicKey(name): Promise<string>;
+	pinByUserAccount(userId: number, name: string, storageId: string, options?): Promise<any>;
 
-	destroyStaticId(name): Promise<any>;
-
-	createRemoteAccount(staticId, publicKey, name?, groupId?): Promise<IStaticIdAccount>;
-
-	getStaticIdPublicKeyByOr(staticId, name?): Promise<string>;
-
-	getStaticIdByName(name): Promise<string>;
-
-	getUserIdOfLocalStaticIdAccount(staticId): Promise<number>;
-
-	getStaticIdEncryptedPrivateKey(staticId?, name?): Promise<string>;
-
-	destroyStaticIdByOr(staticId, name?): Promise<void>;
+	pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options?): Promise<any>;
 }
 
-export interface IStaticIdAccount {
+export interface IPinAccount {
 	id?: number;
 	name?: string;
+	service?: string;
+	endpoint?: string;
 	userId?: number;
-	isRemote: boolean;
-	staticId: string;
-	publicKey: string;
-	encryptedPrivateKey?: string;
+	groupId?: number;
+	apiKey?: string;
+	isEncrypted?: boolean;
+	secretApiKeyEncrypted?: string;
+	secretApiKey?: string;
+	options?: string;
 }

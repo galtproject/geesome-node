@@ -297,3 +297,15 @@ export enum PostStatus {
 	Draft = 'draft',
 	Deleted = 'deleted'
 }
+
+export interface IGroupInput {
+	name: string;
+	title: string;
+	type: GroupType;
+	view: GroupView;
+	theme: string;
+	isPublic: boolean;
+	description?: string;
+	avatarImageId?: number;
+	coverImageId?: number;
+}

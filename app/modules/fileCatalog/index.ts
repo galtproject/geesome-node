@@ -9,6 +9,7 @@ const _ = require('lodash');
 const pIteration = require('p-iteration');
 const path = require('path');
 const Op = require("sequelize").Op;
+const log = require('debug')('geesome:app');
 
 module.exports = async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
@@ -245,7 +246,7 @@ function getModule(app: IGeesomeApp, models) {
 		public async saveDataToPath(userId: number, dataToSave, path, options = {}) {
 			options['path'] = path;
 			const content = await app.ms.content.saveData(userId, dataToSave, null, options);
-			return app.ms.fileCatalog.saveContentByPath(userId, path, content.id);
+			return this.saveContentByPath(userId, path, content.id);
 		}
 
 		public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
@@ -453,6 +454,18 @@ function getModule(app: IGeesomeApp, models) {
 				attributes: ['contentId'],
 				where: {id: {[Op.in]: allCatalogIds}}
 			})).map(f => f.contentId);
+		}
+
+		async afterContentAdding(userId, content: IContent, options) {
+			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+				await this.addContentToUserFileCatalog(userId, content, options);
+			}
+		}
+
+		async existsContentAdding(userId, content: IContent, options) {
+			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+				await this.addContentToUserFileCatalog(userId, content, options);
+			}
 		}
 
 		prepareListParams(listParams?: IListParams): IListParams {

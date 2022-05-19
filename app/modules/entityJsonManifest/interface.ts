@@ -8,7 +8,7 @@
  */
 
 export default interface IGeesomeEntityJsonManifestModule {
-  generateContent(name, data, options?): Promise<any>;
+  generateManifest(name, data, options?): Promise<any>;
 
   manifestIdToDbObject(manifest, type?, options?: any): Promise<any>;
 }

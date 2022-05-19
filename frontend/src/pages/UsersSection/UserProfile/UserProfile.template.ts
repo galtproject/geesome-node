@@ -19,7 +19,7 @@ module.exports = `
             <div><label>Email:</label> <span>{{user.email}}</span></div>
             <div><label>IPNS:</label> <pretty-hex :hex="user.manifestStaticStorageId"></pretty-hex></div>
             <div><label>IPLD:</label> <pretty-hex :hex="user.manifestStorageId"></pretty-hex></div>
-            <div v-for="account in user.accounts"><label>{{account.provider}}:</label> {{account.address}}</div>
+            <div v-for="account in user.foreignAccounts"><label>{{account.provider}}:</label> {{account.address}}</div>
             <div v-if="permissions.length">
               <div><label>Permissions:</label> <span v-for="(p, i) in permissions">{{i ? ', ' : ''}}{{p.name}}</span></div>
             </div>

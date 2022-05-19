@@ -3,9 +3,8 @@ import {CorePermissionName, IInvite, IListParams} from "../database/interface";
 import IGeesomeInviteModule from "./interface";
 const pIteration = require('p-iteration');
 const _ = require('lodash');
-const ethereumAuthorization = require('geesome-libs/src/ethereum');
-const geesomeMessages = require("geesome-libs/src/messages");
 const commonHelpers = require("geesome-libs/src/common");
+const geesomeMessages = require("geesome-libs/src/messages");
 
 module.exports = async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group']);
@@ -20,8 +19,6 @@ function getModule(app: IGeesomeApp, models) {
 
 	class InviteModule implements IGeesomeInviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
-			userData = _.pick(userData, ['email', 'name', 'password', 'accounts']);
-
 			const invite = await this.findInviteByCode(inviteCode);
 			if (!invite) {
 				throw new Error("invite_not_found");
@@ -34,23 +31,9 @@ function getModule(app: IGeesomeApp, models) {
 				throw new Error("invite_max_count");
 			}
 
-			if (userData.accounts) {
-				const selfIpnsId = await app.ms.staticId.getSelfStaticAccountId();
-
-				userData.accounts.forEach(acc => {
-					if (acc.provider === 'ethereum') {
-						if (!acc.signature) {
-							throw new Error("signature_required");
-						}
-						const isValid = ethereumAuthorization.isSignatureValid(acc.address, acc.signature, geesomeMessages.acceptInvite(selfIpnsId, inviteCode), 'message');
-						if (!isValid) {
-							throw Error('account_signature_not_valid');
-						}
-					} else {
-						throw Error('not_supported_provider');
-					}
-				});
-			}
+			await app.callHook('invite', 'beforeUserRegistering', [null, userData, {
+				checkMessage: await this.getRegisterMessage(inviteCode),
+			}]);
 
 			const user = await app.registerUser({
 				...userData,
@@ -79,6 +62,11 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			return { user, apiKey: await app.generateUserApiKey(user.id, {type: "invite"})};
+		}
+
+		async getRegisterMessage(inviteCode) {
+			const selfIpnsId = await app.ms.staticId.getSelfStaticAccountId();
+			return geesomeMessages.acceptInvite(selfIpnsId, inviteCode);
 		}
 
 		async createInvite(userId, inviteData) {

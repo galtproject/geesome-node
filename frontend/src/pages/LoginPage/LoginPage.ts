@@ -24,7 +24,7 @@ export default {
     },
     ethereumLogin() {
       Web3Manager.onAccountAddressChange(async (address) => {
-        const fieldName = 'key';
+        const fieldName = 'message';
         Web3Manager.onAccountAddressChangeCallbacks = [];
 
         const authMessage = await this.$coreApi.generateAuthMessage('ethereum', address);

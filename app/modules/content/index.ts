@@ -331,7 +331,10 @@ function getModule(app: IGeesomeApp) {
 
 		private async addContent(userId: number, contentData: IContent, options: { userApiKeyId? } = {}): Promise<IContent> {
 			log('addContent');
-			await app.hookBeforeContentAdding(userId, contentData, options);
+			if (!contentData.userId) {
+				contentData.userId = userId;
+			}
+			await app.callHook('content', 'beforeContentAdding', [userId, contentData, options]);
 
 			if (!contentData.size) {
 				const storageContentStat = await app.ms.storage.getFileStat(contentData.storageId);
@@ -345,8 +348,8 @@ function getModule(app: IGeesomeApp) {
 			log('content');
 
 			await Promise.all([
-				async () => app.hookAfterContentAdding(userId, content, contentData),
-				async () => app.ms.database.addUserContentAction({
+				app.callHook('content', 'afterContentAdding', [userId, content, options]),
+				app.ms.database.addUserContentAction({
 					name: UserContentActionName.Upload,
 					userId: content.userId,
 					size: content.size,
@@ -432,7 +435,7 @@ function getModule(app: IGeesomeApp) {
 			if (existsContent) {
 				console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
 				await this.updateExistsContentMetadata(userId, existsContent, options);
-				await app.hookExistsContentAdding(userId, existsContent, options);
+				await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
 				return existsContent;
 			}
 
@@ -502,7 +505,7 @@ function getModule(app: IGeesomeApp) {
 			const existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 			if (existsContent) {
 				await this.updateExistsContentMetadata(userId, existsContent, options);
-				await app.hookExistsContentAdding(userId, existsContent, options);
+				await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
 				return existsContent;
 			}
 
@@ -702,7 +705,7 @@ function getModule(app: IGeesomeApp) {
 				return dbContent;
 			}
 
-			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId);
+			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'content');
 			contentObject.isRemote = true;
 			return this.createContentByObject(userId, manifestStorageId, options);
 		}

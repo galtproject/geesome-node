@@ -19,7 +19,6 @@ import {
 } from "./modules/database/interface";
 import {
   IGeesomeApp,
-  IUserAccountInput,
   IUserInput,
 } from "./interface";
 import IGeesomeStorageModule from "./modules/storage/interface";
@@ -31,7 +30,6 @@ import IGeesomeApiModule from "./modules/api/interface";
 import IGeesomeStaticIdModule from "./modules/staticId/interface";
 import IGeesomeContentModule from "./modules/content/interface";
 import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface";
-import IGeesomeFileCatalogModule from "./modules/fileCatalog/interface";
 import IGeesomeInviteModule from "./modules/invite/interface";
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface";
 import IGeesomeGroupModule from "./modules/group/interface";
@@ -93,7 +91,6 @@ function getModule(config, appPass) {
       api: IGeesomeApiModule,
       asyncOperation: IGeesomeAsyncOperationModule,
       staticId: IGeesomeStaticIdModule,
-      fileCatalog: IGeesomeFileCatalogModule,
       invite: IGeesomeInviteModule,
       group: IGeesomeGroupModule,
       accountStorage: IGeesomeAccountStorageModule,
@@ -178,11 +175,8 @@ function getModule(config, appPass) {
         manifestStaticStorageId: storageAccountId
       }).then(() => this.ms.database.getUser(newUser.id));
 
-      if (userData.accounts && userData.accounts.length) {
-        await pIteration.forEach(userData.accounts, (userAccount) => {
-          return this.setUserAccount(newUser.id, userAccount);
-        });
-      }
+      await this.callHook('core', 'afterUserRegistering', [newUser.id, userData]);
+
       const manifestStorageId = await this.generateAndSaveManifest('user', newUser);
       await this.ms.staticId.bindToStaticId(newUser.id, manifestStorageId, newUser.manifestStaticStorageId);
       await this.ms.database.updateUser(newUser.id, {
@@ -244,27 +238,6 @@ function getModule(config, appPass) {
       return this.ms.database.getUser(userId);
     }
 
-    async setUserAccount(userId, accountData: IUserAccountInput) {
-      let userAccount;
-
-      if (accountData.id) {
-        userAccount = await this.ms.database.getUserAccount(accountData.id);
-      } else {
-        userAccount = await this.ms.database.getUserAccountByProvider(userId, accountData.provider);
-      }
-
-      accountData['userId'] = userId;
-
-      if (userAccount) {
-        if (userAccount.userId !== userId) {
-          throw new Error("not_permitted");
-        }
-        return this.ms.database.updateUserAccount(userAccount.id, accountData);
-      } else {
-        return this.ms.database.createUserAccount(accountData);
-      }
-    }
-
     prepareListParams(listParams?: IListParams): IListParams {
       return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
     }
@@ -312,7 +285,7 @@ function getModule(config, appPass) {
         return dbUser;
       }
       log('createUserByRemoteStorageId::manifestIdToDbObject', staticStorageId);
-      const userObject: IUser = await this.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
+      const userObject: IUser = await this.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId, 'user');
       log('createUserByRemoteStorageId::userObject', userObject);
       userObject.isRemote = true;
       return this.createUserByObject(userId, userObject);
@@ -431,36 +404,6 @@ function getModule(config, appPass) {
       }
     }
 
-    async hookBeforeContentAdding(userId, contentData, options) {
-      if (options.groupId) {
-        const groupId = await this.ms.group.checkGroupId(options.groupId);
-        let group;
-        if (groupId) {
-          contentData.groupId = groupId;
-          group = await this.ms.group.getGroup(groupId);
-        }
-        contentData.isPublic = group && group.isPublic;
-      }
-
-      if (!contentData.userId) {
-        contentData.userId = userId;
-      }
-    }
-
-    async hookAfterContentAdding(userId, content: IContent, options) {
-      if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
-        log('isUserCan');
-        await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
-        log('addContentToUserFileCatalog');
-      }
-    }
-
-    async hookExistsContentAdding(userId, content: IContent, options) {
-      if (await this.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
-        await this.ms.fileCatalog.addContentToUserFileCatalog(userId, content, options);
-      }
-    }
-
     async callHook(callFromModule, name, args) {
       return pIteration.mapSeries(this.config.modules, (moduleName) => {
         if (moduleName === callFromModule) {
@@ -480,7 +423,7 @@ function getModule(config, appPass) {
      **/
 
     async generateAndSaveManifest(entityName, entityObj) {
-      const manifestContent = await this.ms.entityJsonManifest.generateContent(entityName + '-manifest', entityObj);
+      const manifestContent = await this.ms.entityJsonManifest.generateManifest(entityName, entityObj);
       console.log('manifestContent', manifestContent);
       const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
       console.log(entityName, hash, JSON.stringify(manifestContent.posts ? {...manifestContent, posts: ['hidden']} : manifestContent, null, ' '));
@@ -553,17 +496,20 @@ function getModule(config, appPass) {
       return this.ms.database.isHaveCorePermission(userId, permission);
     }
 
+    async isAdminCan(userId, permission) {
+      const adminCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll);
+      if (adminCanAll) {
+        return true;
+      }
+      return this.ms.database.isHaveCorePermission(userId, permission);
+    }
+
     async checkUserCan(userId, permission) {
       if (_.startsWith(permission, 'admin:')) {
-        if (await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll)) {
-          return;
+        if (await this.isAdminCan(userId, permission).then(can => !can)) {
+          throw new Error("not_permitted");
         }
-      } else { // user:
-        if (await this.ms.database.isHaveCorePermission(userId, CorePermissionName.UserAll)) {
-          return;
-        }
-      }
-      if (!await this.ms.database.isHaveCorePermission(userId, permission)) {
+      } else if (await this.isUserCan(userId, permission).then(can => !can)) {
         throw new Error("not_permitted");
       }
     }

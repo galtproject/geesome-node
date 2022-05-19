@@ -34,7 +34,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
-			const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post-manifest', {
+			const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post', {
 				isEncrypted,
 				groupId,
 				publishedAt
@@ -70,7 +70,7 @@ function getModule(app: IGeesomeApp) {
 				//TODO: update group if necessary
 				return dbGroup;
 			}
-			const groupObject: IGroup = await app.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId);
+			const groupObject: IGroup = await app.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId, 'group');
 			groupObject.isRemote = true;
 			return app.ms.group.createGroupByObject(userId, groupObject);
 		}

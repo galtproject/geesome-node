@@ -29,4 +29,6 @@ export default interface IGeesomeInviteModule {
 	getUsersListJoinedByInvite(inviteId): Promise<IUser[]>;
 
 	getUsersListJoinedByUser(userId): Promise<IUser[]>;
+
+	getRegisterMessage(inviteCode): Promise<string>;
 }

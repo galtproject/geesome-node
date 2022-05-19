@@ -1043,6 +1043,10 @@ function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
+		// async beforeContentAdding(userId, contentData, options) {
+		//
+		// }
+
 		prepareListParams(listParams?: IListParams): IListParams {
 			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
