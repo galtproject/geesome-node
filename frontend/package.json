@@ -22,7 +22,7 @@
     "axios": "^0.21.2",
     "bluebird": "^3.5.2",
     "default-passive-events": "^1.0.7",
-    "dexie": "^2.0.4",
+    "dexie": "^3.2.2",
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome",
