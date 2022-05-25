@@ -13,7 +13,6 @@ const _ = require('lodash');
 const pIteration = require('p-iteration');
 const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 const log = require('debug')('geesome:app:group');
-const {getPersonalChatTopic, getGroupUpdatesTopic} = require('geesome-libs/src/name');
 const pgpHelper = require('geesome-libs/src/pgpHelper');
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const commonHelpers = require('geesome-libs/src/common');
@@ -28,6 +27,7 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
+	const {communicator} = app.ms;
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
@@ -303,7 +303,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getGroupPeers(groupId) {
 			let ipnsId;
-			if (ipfsHelper.isIpfsHash(groupId)) {
+			if (ipfsHelper.isAccountCidHash(groupId)) {
 				ipnsId = groupId;
 			} else {
 				const group = await this.getGroup(groupId);
@@ -512,13 +512,13 @@ function getModule(app: IGeesomeApp, models) {
 				// Encrypt post id
 				const keyForEncrypt = await app.ms.accountStorage.getStaticIdPublicKeyByOr(group.staticStorageId);
 
-				const userKey = await app.ms.communicator.keyLookup(user.manifestStaticStorageId);
+				const userKey = await communicator.keyLookup(user.manifestStaticStorageId);
 				const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
 				const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
 				const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
 				const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-				await app.ms.communicator.publishEventByStaticId(user.manifestStaticStorageId, getPersonalChatTopic([user.manifestStaticStorageId, group.staticStorageId], group.theme), {
+				communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getAccountsGroupUpdatesTopic([user.manifestStaticStorageId, group.staticStorageId], group.name), {
 					type: 'new_post',
 					postId: encryptedText,
 					groupId: group.manifestStaticStorageId,
@@ -530,7 +530,7 @@ function getModule(app: IGeesomeApp, models) {
 				await this.updateGroupManifest(userId, group.id);
 			} else {
 				// Send plain post id
-				app.ms.communicator.publishEventByStaticId(user.manifestStaticStorageId, getGroupUpdatesTopic(group.staticStorageId), {
+				communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getUpdatesTopic(group.staticStorageId, 'update'), {
 					type: 'new_post',
 					postId: post.manifestStorageId,
 					groupId: group.manifestStaticStorageId,

@@ -21,10 +21,10 @@ export default {
   methods: {
     async setIpldData() {
       console.log('setIpldData', this.ipld);
-      if(isObject(this.ipld)) {
+      if (isObject(this.ipld)) {
         this.ipldHash = null;
         this.ipldData = this.ipld;
-      } else if(ipfsHelper.isIpfsHash(this.ipld)) {
+      } else if (ipfsHelper.isAccountCidHash(this.ipld)) {
         this.ipldHash = await this.$coreApi.resolveIpns(this.ipld);
         this.ipldData = await this.$coreApi.getDbContentByStorageId(this.ipldHash);
       } else {
@@ -33,14 +33,14 @@ export default {
       }
       this.ipldKeys = [];
       this.isIpldHashByKey = {};
-      if(isObject(this.ipldData)) {
+      if (isObject(this.ipldData)) {
         this.ipldKeys = Object.keys(this.ipldData);
       }
       console.log('ipldHash', this.ipldHash);
       console.log('ipldData', this.ipldData);
       console.log('ipldKeys', this.ipldKeys);
       this.ipldKeys.forEach((key) => {
-        this.$set(this.isIpldHashByKey, key, ipfsHelper.isIpldHash(this.ipldData[key]));
+        this.$set(this.isIpldHashByKey, key, ipfsHelper.isObjectCidHash(this.ipldData[key]));
       });
     }
   },

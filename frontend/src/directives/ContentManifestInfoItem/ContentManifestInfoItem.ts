@@ -46,7 +46,7 @@ export default {
 
       if (manifestObj) {
         this.manifestObj = manifestObj;
-      } else if (ipfsHelper.isIpldHash(this.manifest)) {
+      } else if (ipfsHelper.isObjectCidHash(this.manifest)) {
         this.manifestId = this.manifest;
         this.manifestObj = await this.$coreApi.getObject(this.manifest);
       } else if (this.manifest) {

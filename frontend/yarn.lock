@@ -7447,9 +7447,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#22de1e2":
+"geesome-libs@https://github.com/galtproject/geesome-libs#0a07e90":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#22de1e2c1417240790d13795d981af3077c2c412"
+  resolved "https://github.com/galtproject/geesome-libs#0a07e904379150f553f61394f28f60006c099a34"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
@@ -7470,8 +7470,6 @@ gc-stats@^1.4.0:
     ipfs-http-client "52.0.3"
     ipfs-utils "8.1.6"
     ipfsd-ctl "10.0.3"
-    ipld-dag-cbor "^1.0.0"
-    ipld-dag-pb "^0.22.1"
     ipns "0.15.0"
     it-all "^1.0.4"
     it-concat "^1.0.3"
@@ -7479,10 +7477,8 @@ gc-stats@^1.4.0:
     it-last "^1.0.4"
     it-to-stream "^1.0.0"
     libp2p-crypto "0.19.4"
-    libp2p-gossipsub "0.11.3"
     libp2p-interfaces "1.1.0"
     lodash "^4.17.11"
-    multicodec "^3.0.1"
     multiformats "^9.4.7"
     multihashes "^4.0.2"
     node-forge "0.10.0"
@@ -10418,22 +10414,6 @@ libp2p-floodsub@^0.27.0:
   dependencies:
     debug "^4.2.0"
     libp2p-interfaces "^1.0.1"
-    time-cache "^0.3.0"
-    uint8arrays "^3.0.0"
-
-libp2p-gossipsub@0.11.3:
-  version "0.11.3"
-  resolved "https://registry.yarnpkg.com/libp2p-gossipsub/-/libp2p-gossipsub-0.11.3.tgz#353f81c6c7cbf2b7da98524151ec246b8f2f5497"
-  integrity sha512-5Ol2OGYEcRb1wAv7QVhNVxSywLj8a+wB+bQayyS3zLfuQyB5dL3tJk7iubvk+ucG/pUzI0xjnunJabst2l4e1Q==
-  dependencies:
-    "@types/debug" "^4.1.5"
-    debug "^4.3.1"
-    denque "^1.5.0"
-    err-code "^3.0.1"
-    it-pipe "^1.1.0"
-    libp2p-interfaces "^1.1.0"
-    peer-id "^0.15.3"
-    protobufjs "^6.11.2"
     time-cache "^0.3.0"
     uint8arrays "^3.0.0"
 

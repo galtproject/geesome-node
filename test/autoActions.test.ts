@@ -177,7 +177,7 @@ describe("autoActions", function () {
 		assert.equal(cronService.queueByModules[bindToStatic.moduleName].length, 0);
 
 		const storageId = await app.ms.staticId.resolveStaticId(await app.ms.staticId.getOrCreateStaticGroupAccountId(testUser.id, testGroup.id, staticIdName));
-		assert.equal(storageId, "QmTiVKQpUoi8TSKjZt48AP9rPyt2TL8jhYnbGNhetwfbpa");
+		assert.equal(storageId, "bafkreihndyo47fyzsda3rftwvz4finqqn52urmnoihixjsu5hp5zmyneo4");
 
 		async function addTextPostToGroup(group, text) {
 			const post1Content = await app.ms.content.saveData(testUser.id, text, null, {
