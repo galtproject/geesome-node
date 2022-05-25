@@ -9,7 +9,7 @@ import {IUser} from "../database/interface";
 const _ = require('lodash');
 
 module.exports = async (app: IGeesomeApp, options: any = {}) => {
-	const module = await getModule(app, 'v1', process.env.PORT || app.config.port || 7711);
+	const module = await getModule(app, 'v1', process.env.PORT || app.config.port || 2052);
 	require('./api')(app, module);
 	return module;
 }
