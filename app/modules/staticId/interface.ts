@@ -25,6 +25,10 @@ export default interface IGeesomeStaticIdModule {
 	getOrCreateStaticAccountId(userId, accountName): Promise<string>;
 
 	getOrCreateStaticGroupAccountId(userId, groupId, name): Promise<string>;
+
+	renameStaticAccountId(userId, oldName, newName): Promise<any>;
+
+	renameGroupStaticAccountId(userId, groupId, oldName, newName): Promise<any>;
 }
 
 export interface IStaticIdHistoryItem {

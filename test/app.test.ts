@@ -16,6 +16,7 @@ import {
 import {PostStatus} from "../app/modules/group/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
+const commonHelpers = require("geesome-libs/src/common");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
@@ -389,7 +390,6 @@ describe("app", function () {
 		}
 	});
 
-	//TODO: test case with group deletion and creating the new one with the same name
 	it('groups administration', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
@@ -420,6 +420,36 @@ describe("app", function () {
 		await app.ms.group.setMembersOfGroup(newUser.id, testGroup.id, [testUser.id]);
 
 		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, testGroup.id), true);
+
+		const groupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
+		assert.equal(groupAccount.staticId, testGroup.manifestStaticStorageId);
+
+		try {
+			await app.ms.group.updateGroup(testUser.id, testGroup.id, {
+				name: testGroup.name + '_deleted_' + commonHelpers.makeCode(16),
+				isDeleted: true
+			});
+			assert.equal(true, false);
+		} catch (e) {
+			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+		}
+
+		await app.ms.group.updateGroup(newUser.id, testGroup.id, {
+			name: testGroup.name + '_deleted_' + commonHelpers.makeCode(16),
+			isDeleted: true
+		});
+
+		const deletedGroupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
+		assert.equal(deletedGroupAccount, null);
+
+		const newGroup = await app.ms.group.createGroup(testUser.id, {
+			name: testGroup.name,
+			title: 'Test 2'
+		});
+
+		const newGroupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
+		assert.equal(newGroupAccount.staticId, newGroup.manifestStaticStorageId);
+		assert.notEqual(newGroupAccount.staticId, testGroup.manifestStaticStorageId);
 	});
 
 	it('groupRead', async () => {

@@ -40,9 +40,8 @@ module.exports = async function () {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['name'] },
+			{ fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
 			{ fields: ['staticId'], unique: true },
-			{ fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} }
 		]
 	} as any);
 
