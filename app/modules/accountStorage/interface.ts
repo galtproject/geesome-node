@@ -12,6 +12,10 @@ export default interface IGeesomeAccountStorageModule {
 
 	getAccountStaticId(name): Promise<string>;
 
+	getAccountByName(name): Promise<IStaticIdAccount>;
+
+	renameAccount(oldName, newName): Promise<any>;
+
 	getAccountPublicKey(name): Promise<string>;
 
 	destroyStaticId(name): Promise<any>;
@@ -33,6 +37,7 @@ export interface IStaticIdAccount {
 	id?: number;
 	name?: string;
 	userId?: number;
+	groupId?: number;
 	isRemote: boolean;
 	staticId: string;
 	publicKey: string;

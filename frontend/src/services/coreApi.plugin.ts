@@ -77,7 +77,8 @@ export default {
           'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
           'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetUpdateDbChannel', 'socNetUpdateDbAccount', 'socNetDbChannel',
           'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
-          'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId'
+          'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId',
+          'staticSiteBind', 'getStaticSiteInfo'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

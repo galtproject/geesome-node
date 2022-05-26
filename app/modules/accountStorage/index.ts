@@ -1,5 +1,5 @@
 import {IGeesomeApp} from "../../interface";
-import IGeesomeAccountStorageModule from "./interface";
+import IGeesomeAccountStorageModule, {IStaticIdAccount} from "./interface";
 const peerIdHelper = require('geesome-libs/src/peerIdHelper');
 const Op = require("sequelize").Op;
 const pIteration = require("p-iteration");
@@ -22,6 +22,14 @@ function getModule(app: IGeesomeApp, models, pass) {
 			const cid = peerIdHelper.peerIdToCid(peerId);
 			const encryptedPrivateKey = await peerIdHelper.encryptPrivateBase64WithPass(privateBase64, pass);
 			return models.Account.create({userId, groupId, staticId: cid, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
+		}
+
+		async getAccountByName(name) {
+			return models.Account.findOne({where: {name}}) as IStaticIdAccount;
+		}
+
+		async renameAccount(name, newName) {
+			return models.Account.update({name: newName}, {where: {name}});
 		}
 
 		async getAccountPublicKey(name) {

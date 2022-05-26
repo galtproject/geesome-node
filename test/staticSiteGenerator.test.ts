@@ -11,7 +11,7 @@ import {IGeesomeApp} from "../app/interface";
 import {
 	CorePermissionName,
 } from "../app/modules/database/interface";
-import IGeesomeStaticSiteManagerModule from "../app/modules/staticSiteGenerator/interface";
+import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface";
 
 const {getTitleAndDescription} = require('../app/modules/staticSiteGenerator/helpers');
 
@@ -27,7 +27,7 @@ describe("staticSiteGenerator", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteManagerModule;
+	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');

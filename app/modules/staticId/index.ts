@@ -143,6 +143,22 @@ function getModule(app: IGeesomeApp, models) {
 				.then(staticId => staticId ? staticId : this.createStaticAccountId(userId, name));
 		}
 
+		async renameStaticAccountId(userId, oldName, newName) {
+			const account = await app.ms.accountStorage.getAccountByName(oldName);
+			if (userId !== account.userId) {
+				throw new Error("not_permitted");
+			}
+			return app.ms.accountStorage.renameAccount(oldName, newName);
+		}
+
+		async renameGroupStaticAccountId(userId, groupId, oldName, newName) {
+			const account = await app.ms.accountStorage.getAccountByName(oldName);
+			if (account.groupId === groupId && !(await app.ms.group.canEditGroup(userId, groupId))) {
+				throw new Error("not_permitted");
+			}
+			return app.ms.accountStorage.renameAccount(oldName, newName);
+		}
+
 		async getOrCreateStaticGroupAccountId(userId, groupId, name) {
 			if(!(await app.ms.group.canEditGroup(userId, groupId))) {
 				throw new Error("not_permitted");

@@ -271,8 +271,8 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		async runChannelImport(userId, apiKey, sessionKey, channelId, advancedSettings = {}) {
-			const {client, result: channel} = await this.getChannelInfoByUserId(userId, {sessionKey}, channelId);
+		async runChannelImport(userId, apiKey, accData, channelId, advancedSettings = {}) {
+			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
 
 			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 			let group;

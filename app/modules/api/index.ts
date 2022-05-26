@@ -99,6 +99,11 @@ async function getModule(app: IGeesomeApp, version, port) {
 			service.get(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
+		onUnversionGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
+			routeName = _.trimStart(routeName, '/');
+			service.get(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
+		}
+
 		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
 			routeName = _.trimStart(routeName, '/');
 			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
@@ -107,6 +112,11 @@ async function getModule(app: IGeesomeApp, version, port) {
 		onHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
 			routeName = _.trimStart(routeName, '/');
 			service.head(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
+		}
+
+		onUnversionHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
+			routeName = _.trimStart(routeName, '/');
+			service.head(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		async authorizeAndHandleCallback(req: IApiModuleGetInput, res: IApiModuleCommonOutput, callback) {

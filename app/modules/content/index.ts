@@ -731,6 +731,11 @@ function getModule(app: IGeesomeApp) {
 				dataPath = splitPath[0];
 			}
 
+			const cid = dataPath.split('/')[0];
+			if (ipfsHelper.isAccountCidHash(cid)) {
+				dataPath = dataPath.replace(cid, await app.ms.staticId.resolveStaticId(cid));
+			}
+
 			let range = req.headers['range'];
 			if (!range) {
 				let content = await app.ms.database.getContentByStorageId(dataPath, false);
@@ -820,6 +825,16 @@ function getModule(app: IGeesomeApp) {
 				});
 				stream.pipe(res.stream);
 			});
+		}
+
+		async getContentHead(req, res, hash) {
+			app.ms.api.setDefaultHeaders(res);
+			const content = await app.ms.database.getContentByStorageId(hash, true);
+			if (content) {
+				res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
+				res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+			}
+			res.send(200);
 		}
 
 		prepareListParams(listParams?: IListParams): IListParams {

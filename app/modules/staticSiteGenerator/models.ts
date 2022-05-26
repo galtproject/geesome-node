@@ -11,41 +11,40 @@ export {};
 const Sequelize: any = require('sequelize');
 
 module.exports = async function () {
-	let sequelize = new Sequelize('geesome-account-storage', 'geesome', 'geesome', require('./config').options);
+	let sequelize = new Sequelize('geesome-static-site-generator', 'geesome', 'geesome', require('./config').options);
 
-	const Account = sequelize.define('account', {
+	const StaticSite = sequelize.define('staticSite', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		name: {
 			type: Sequelize.STRING(100)
 		},
-		userId: {
+		title: {
+			type: Sequelize.TEXT
+		},
+		options: {
+			type: Sequelize.TEXT
+		},
+		type: {
+			type: Sequelize.STRING(100)
+		},
+		entityId: {
 			type: Sequelize.INTEGER
 		},
-		groupId: {
-			type: Sequelize.INTEGER
+		storageId: {
+			type: Sequelize.STRING(100)
 		},
 		staticId: {
-			type: Sequelize.STRING(50)
-		},
-		publicKey: {
-			type: Sequelize.STRING(400)
-		},
-		isRemote: {
-			type: Sequelize.BOOLEAN,
-			defaultValue: true,
-		},
-		encryptedPrivateKey: {
-			type: Sequelize.TEXT
+			type: Sequelize.STRING(100)
 		},
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
-			{ fields: ['staticId'], unique: true },
+			{ fields: ['name'], unique: true },
+			{ fields: ['type', 'entityId'] },
 		]
 	} as any);
 
 	return {
-		Account: await Account.sync({})
+		StaticSite: await StaticSite.sync({})
 	};
 };

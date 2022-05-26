@@ -476,6 +476,14 @@ a.icon-link {
   padding: 0 20px;
 }
 
+.static-site-manager {
+  .properties {
+    .separator {
+      display: none;
+    }
+  }
+}
+
 .drawer-header {
   background: #19161C;
   position: relative;

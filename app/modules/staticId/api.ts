@@ -8,16 +8,18 @@ module.exports = (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
         res.send({ result: await staticIdModule.getSelfStaticAccountId() }, 200);
     });
 
-    app.ms.api.onGet('/ipns/*', async (req, res) => {
-        // console.log('ipns req.route', req.route);
+    app.ms.api.onUnversionGet('/ipns/*', async (req, res) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
         const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
         const ipfsId = await staticIdModule.resolveStaticId(ipnsId);
-
-        // console.log('ipnsPath', ipnsPath);
-        // console.log('ipfsPath', ipnsPath.replace(ipnsId, ipfsId));
-
         app.ms.content.getFileStreamForApiRequest(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
+    });
+
+    app.ms.api.onUnversionHead('/ipns/*', async (req, res) => {
+        const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
+        const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
+        const ipfsId = await staticIdModule.resolveStaticId(ipnsId);
+        app.ms.content.getContentHead(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
     });
 
     app.ms.api.onGet('/resolve/:storageId', async (req, res) => {

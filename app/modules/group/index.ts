@@ -212,7 +212,11 @@ function getModule(app: IGeesomeApp, models) {
 			if (updateData['name'] && !helpers.validateUsername(updateData['name'])) {
 				throw new Error("incorrect_name");
 			}
+			const group = await this.getGroup(groupId);
 			await this.updateGroupPure(groupId, updateData);
+			if (updateData['name'] && updateData['name'] !== group.name) {
+				await app.ms.staticId.renameGroupStaticAccountId(userId, groupId, group.name, updateData['name']);
+			}
 
 			await this.updateGroupManifest(userId, groupId);
 
