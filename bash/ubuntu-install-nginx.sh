@@ -36,7 +36,7 @@ sudo sed -i -e "s~\%app_dir\%~$FRONTEND_DIST_DIR~g" /etc/nginx/sites-enabled/def
 
 sudo service nginx restart
 
-if [[ ($GATEWAY == *"y"*) ]];
+if [[ ($GATEWAY == *"y"*) || ($GATEWAY == *"1"*) ]];
 then
   sudo mkdir -p $WWW_GATEWAY_DOMAIN || :
   sudo chown -R www-data:www-data $WWW_GATEWAY_DOMAIN
