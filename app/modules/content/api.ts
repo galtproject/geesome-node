@@ -92,30 +92,20 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         contentModule.getFileStreamForApiRequest(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
     });
 
-    app.ms.api.onGet('/ipfs/*', async (req, res) => {
+    app.ms.api.onHead('content-data/*', async (req, res) => {
+        const dataPath = req.route.replace('content-data/', '');
+        contentModule.getContentHead(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
+    });
+
+    app.ms.api.onUnversionGet('/ipfs/*', async (req, res) => {
         const ipfsPath = req.route.replace('/ipfs/', '');
         contentModule.getFileStreamForApiRequest(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
     });
 
-    app.ms.api.onHead('content-data/*', async (req, res) => {
-        const dataPath = req.route.replace('content-data/', '');
-        getContentHead(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
-    });
-
-    app.ms.api.onHead('/ipfs/*', async (req, res) => {
+    app.ms.api.onUnversionHead('/ipfs/*', async (req, res) => {
         const ipfsPath = req.route.replace('/ipfs/', '');
-        getContentHead(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
+        contentModule.getContentHead(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
     });
-
-    async function getContentHead(req, res, hash) {
-        app.ms.api.setDefaultHeaders(res);
-        const content = await app.ms.database.getContentByStorageId(hash, true);
-        if (content) {
-            res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
-            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-        }
-        res.send(200);
-    }
 
 
     if (app.frontendStorageId) {

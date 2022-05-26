@@ -11,7 +11,7 @@ export default {
 	template: require('./StaticSiteManager.template'),
 	components: {},
 	async created() {
-		this.getGroup();
+		this.getData();
 		this.getPendingOperations();
 	},
 	methods: {
@@ -25,18 +25,25 @@ export default {
 			return false;
 		},
 		async getGroup() {
-			[this.dbGroup, this.defaultOptions] = await Promise.all([
+			[this.dbGroup] = await Promise.all([
 				this.$coreApi.getDbGroup(this.dbGroupId),
-				this.$coreApi.staticSiteGetDefaultOptions(this.type, this.dbGroupId)
 			]);
+		},
+		async getData() {
+			[this.dbGroup, this.defaultOptions, this.siteInfo] = await Promise.all([
+				this.$coreApi.getDbGroup(this.dbGroupId),
+				this.$coreApi.staticSiteGetDefaultOptions(this.type, this.dbGroupId),
+				this.$coreApi.getStaticSiteInfo(this.type, this.dbGroupId)
+			]);
+			this.setDefaultOptions();
+		},
+		setDefaultOptions() {
+			if (this.options) {
+				return;
+			}
 			this.options = {
-				baseStorageUri: document.location['hostname'] === 'localhost' ? this.defaultOptions.baseStorageUri : document.location['origin'] + ':2053/v1/content-data/',
-				site: {
-					title: this.dbGroup.title,
-					description: this.dbGroup.description,
-				},
-				post: this.defaultOptions.post,
-				postList: this.defaultOptions.postList,
+				baseStorageUri: document.location['hostname'] === 'localhost' ? this.defaultOptions.baseStorageUri : document.location['origin'] + ':2053/ipfs/',
+				...this.defaultOptions
 			}
 		},
 		async runGenerate() {
@@ -56,36 +63,40 @@ export default {
 				}, 10 * 1000)
 			}
 		},
+		async bindToStatic() {
+			await this.$coreApi.staticSiteBind(this.type, this.dbGroupId, this.options.site.name);
+		},
 		waitForOperation(operation) {
 			this.curOperation = operation;
-			this.$coreApi.waitForAsyncOperation(operation.id, (op) => {
+			this.$coreApi.waitForAsyncOperation(operation.id, async (op) => {
 				//TODO: cancel wait on new operation
 				if (op.id < this.curOperation.id) {
 					return;
 				}
-				console.log('op', op)
-				if (op.percent > this.curOperation.percent) {
-					this.getGroup();
-				}
+				console.log('op', op);
+				const prevOperation = this.curOperation;
 				this.curOperation = op;
 				if (!op.inProcess) {
+					await this.bindToStatic();
+					await this.getData();
 					this.curOperation = null;
 					this.loading = false;
 					this.done = true;
+				} else if(op.percent > prevOperation.percent) {
+					await this.getGroup();
 				}
 			})
 		}
 	},
 	watch: {
-		async staticSiteManifestStorageId() {
-			if (!this.staticSiteManifestStorageId) {
-				this.staticSiteManifest = null;
+		async siteInfo() {
+			console.log('this.siteInfo', this.siteInfo);
+			if (!this.siteInfo) {
+				this.siteLink = null;
 				return;
 			}
-			this.staticSiteManifest = await this.$coreApi.getObject(this.staticSiteManifestStorageId);
-			console.log('this.staticSiteManifest', this.staticSiteManifest);
-			if (this.staticSiteStorageId) {
-				this.siteLink = await this.$coreApi.getContentLink(this.staticSiteStorageId);
+			if (this.siteInfo) {
+				this.siteLink = await this.$coreApi.getContentLink(this.siteInfo.staticId || this.siteInfo.storageId);
 			}
 		}
 	},
@@ -99,12 +110,6 @@ export default {
 		dbGroupId() {
 			return this.$route.params.id;
 		},
-		staticSiteManifestStorageId() {
-			return this.dbGroup && this.dbGroup.propertiesJson ? JSON.parse(this.dbGroup.propertiesJson).staticSiteManifestStorageId : '';
-		},
-		staticSiteStorageId() {
-			return this.staticSiteManifest ? this.staticSiteManifest.storageId : '';
-		},
 		percent() {
 			return this.curOperation ? this.curOperation.percent : 0;
 		}
@@ -116,11 +121,11 @@ export default {
 			dbGroup: null,
 			pendingOperations: [],
 			curOperation: null,
-			staticSiteManifest: null,
 			defaultOptions: null,
 			options: null,
 			siteLink: null,
 			done: false,
+			siteInfo: null,
 		};
 	}
 }

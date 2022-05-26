@@ -6,7 +6,11 @@ export default interface IGeesomeApiModule {
 
 	onGet(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
+	onUnversionGet(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
+
 	onHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
+
+	onUnversionHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
 	onPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any): any;
 

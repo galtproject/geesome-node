@@ -1,19 +1,21 @@
 module.exports = `
-<div id="profile-page" class="container-page" v-if="dbGroup">
+<div class="container-page static-site-manager" v-if="dbGroup">
   <router-link :to="{name: 'group-page', params: {groupId: dbGroup.staticStorageId}}" class="back">< Back to group</router-link>
   <h3>Static Site Manager for {{type | prettyName}}</h3>
   
   <md-card>
     <md-card-content>
       <div class="md-layout">
-        <div class="md-layout-item md-size-20 md-small-size-100">
+        <div class="md-layout-item md-size-30 md-small-size-100">
           <div class="properties">
             <div><label>Group title:</label> <span>{{dbGroup.title}}</span></div>
 		  	<div><label>Group posts count:</label> <span>{{dbGroup.publishedPostsCount}}</span></div>
-		  	<div v-if="staticSiteStorageId"><label>Link to site:</label> <pretty-hex :href="siteLink" :hex="staticSiteStorageId"></pretty-hex></div>
+			<div v-if="siteInfo"><label>Link to site:</label> <pretty-hex :href="siteLink" :hex="siteInfo.staticId || siteInfo.storageId"></pretty-hex></div>
+			<div v-if="siteInfo"><label>Storage id(IPFS):</label> <pretty-hex :hex="siteInfo.storageId"></pretty-hex></div>
+			<div v-if="siteInfo"><label>Static id(IPNS):</label> <pretty-hex :hex="siteInfo.staticId"></pretty-hex></div>
 		  </div>
         </div>
-        <div class="md-layout-item md-size-80 md-small-size-100">
+        <div class="md-layout-item md-size-70 md-small-size-100">
 			<div style="display: flex; justify-content: space-between;">
 			  <h3>Generate Static Site</h3>
 			</div>
@@ -26,6 +28,11 @@ module.exports = `
 			<md-field>
                 <label>Site description</label>
                 <md-textarea v-model="options.site.description"></md-textarea>
+            </md-field>
+			
+			<md-field>
+                <label>Site name (IPNS)</label>
+                <md-input v-model="options.site.name"></md-input>
             </md-field>
             
 			<md-field>

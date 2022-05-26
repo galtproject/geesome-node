@@ -25,4 +25,6 @@ export default interface IGeesomeContentModule {
 	createContentByRemoteStorageId(userId, manifestStorageId, options?: { groupId?, userApiKeyId? }): Promise<IContent>;
 
 	getFileStreamForApiRequest(req, res, dataPath);
+
+	getContentHead(req, res, hash);
 }
