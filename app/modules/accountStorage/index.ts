@@ -19,9 +19,9 @@ function getModule(app: IGeesomeApp, models, pass) {
 			const peerId = await peerIdHelper.createPeerId();
 			const privateBase64 = peerIdHelper.peerIdToPrivateBase64(peerId);
 			const publicBase64 = peerIdHelper.peerIdToPublicBase64(peerId);
-			const publicBase58 = peerIdHelper.peerIdToPublicBase58(peerId);
+			const cid = peerIdHelper.peerIdToCid(peerId);
 			const encryptedPrivateKey = await peerIdHelper.encryptPrivateBase64WithPass(privateBase64, pass);
-			return models.Account.create({userId, groupId, staticId: publicBase58, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
+			return models.Account.create({userId, groupId, staticId: cid, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
 		}
 
 		async getAccountPublicKey(name) {

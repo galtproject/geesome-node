@@ -102,7 +102,7 @@ function getModule(app: IGeesomeApp) {
         }
 
         getDefaultOptions(group, baseStorageUri = null) {
-            baseStorageUri = baseStorageUri || 'http://localhost:7711/v1/content-data/';
+            baseStorageUri = baseStorageUri || 'http://localhost:2052/v1/content-data/';
             return {
                 baseStorageUri,
                 lang: 'en',

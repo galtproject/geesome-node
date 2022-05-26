@@ -60,7 +60,7 @@ function getModule(app: IGeesomeApp) {
 
 		async createGroupByRemoteStorageId(userId, manifestStorageId) {
 			let staticStorageId;
-			if (ipfsHelper.isIpfsHash(manifestStorageId)) {
+			if (ipfsHelper.isAccountCidHash(manifestStorageId)) {
 				staticStorageId = manifestStorageId;
 				manifestStorageId = await app.ms.staticId.resolveStaticId(staticStorageId);
 			}

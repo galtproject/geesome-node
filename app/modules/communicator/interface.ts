@@ -56,5 +56,9 @@ export default interface IGeesomeCommunicatorModule {
 
   getPeers(topic): Promise<string[]>;
 
+  getUpdatesTopic(cid, type): Promise<string>;
+
+  getAccountsGroupUpdatesTopic(cids, type): Promise<string>;
+
   stop(): Promise<any>;
 }

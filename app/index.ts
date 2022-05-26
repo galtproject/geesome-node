@@ -273,7 +273,7 @@ function getModule(config, appPass) {
 
     async createUserByRemoteStorageId(userId, manifestStorageId) {
       let staticStorageId;
-      if (ipfsHelper.isIpfsHash(manifestStorageId)) {
+      if (ipfsHelper.isAccountCidHash(manifestStorageId)) {
         staticStorageId = manifestStorageId;
         log('createUserByRemoteStorageId::resolveStaticId', staticStorageId);
         manifestStorageId = await this.ms.staticId.resolveStaticId(staticStorageId);
@@ -432,7 +432,8 @@ function getModule(config, appPass) {
 
     async getDataStructure(storageId, isResolve = true) {
       const dataPathSplit = storageId.split('/');
-      if (ipfsHelper.isIpfsHash(dataPathSplit[0])) {
+      console.log('ipfsHelper.isAccountCidHash', dataPathSplit[0], ipfsHelper.isAccountCidHash(dataPathSplit[0]));
+      if (ipfsHelper.isAccountCidHash(dataPathSplit[0])) {
         try {
           const dynamicIdByStaticId = await this.ms.staticId.resolveStaticId(dataPathSplit[0]);
           if (dynamicIdByStaticId) {

@@ -6,7 +6,8 @@ services:
     command: npm run in-docker-start
     restart: always
     ports:
-      - "7711:7711"
+      - "2052:2052"
+      - "2082:2082"
     depends_on:
       - ipfs
     volumes:

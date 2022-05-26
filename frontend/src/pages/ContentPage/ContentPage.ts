@@ -40,7 +40,7 @@ export default {
       this.contentType = 'image';
       this.subManifests = [];
       try {
-        if (ipfsHelper.isIpfsHash(manifestId)) {
+        if (ipfsHelper.isAccountCidHash(manifestId)) {
           manifestId = await this.$coreApi.resolveIpns(manifestId);
         }
 

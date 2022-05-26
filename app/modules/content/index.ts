@@ -725,8 +725,8 @@ function getModule(app: IGeesomeApp) {
 			dataPath = _.trimStart(dataPath, '/')
 
 			let splitPath = dataPath.split('.');
-			console.log('isIpfsHash', splitPath[0]);
-			if (ipfsHelper.isIpfsHash(splitPath[0])) {
+			console.log('isFileCidHash', splitPath[0]);
+			if (ipfsHelper.isFileCidHash(splitPath[0])) {
 				// cut extension, TODO: use regex
 				dataPath = splitPath[0];
 			}
