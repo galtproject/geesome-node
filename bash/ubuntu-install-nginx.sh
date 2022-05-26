@@ -6,6 +6,7 @@ sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
 [ -z "$DOMAIN" ] && read -p "Enter Your Domain: " DOMAIN
 [ -z "$EMAIL" ] && read -p "Enter Your Email: " EMAIL
+[ -z "$GATEWAY" ] && read -p "Do you want to install gateway?(y/n) " GATEWAY
 
 sudo add-apt-repository universe -y
 sudo add-apt-repository ppa:certbot/certbot -y
@@ -13,9 +14,11 @@ sudo apt-get update -y
 sudo apt-get install certbot python3-certbot-nginx  -y
 
 DOMAIN_FRONTEND_DIR="/var/www/geesome-frontend"
-DOMAIN_DIST_DIR="$DOMAIN_FRONTEND_DIR/dist"
+FRONTEND_DIST_DIR="$DOMAIN_FRONTEND_DIR/dist"
+GATEWAY_DOMAIN="gateway.$DOMAIN"
 
 WWW_DOMAIN="/var/www/$DOMAIN/"
+WWW_GATEWAY_DOMAIN="/var/www/$GATEWAY_DOMAIN/"
 
 sudo mkdir -p $WWW_DOMAIN || :
 sudo chown -R www-data:www-data $WWW_DOMAIN
@@ -25,19 +28,27 @@ sudo mkdir -p $DOMAIN_FRONTEND_DIR || :
 sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
 sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
 
-sudo chmod -R 755 $DOMAIN_DIST_DIR
-sudo chown -R www-data:www-data $DOMAIN_DIST_DIR
+sudo chmod -R 755 $FRONTEND_DIST_DIR
+sudo chown -R www-data:www-data $FRONTEND_DIST_DIR
 
 sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
+sudo sed -i -e "s~\%app_dir\%~$FRONTEND_DIST_DIR~g" /etc/nginx/sites-enabled/default
 
 sudo service nginx restart
 
-certbotOutput=$( sudo certbot --webroot certonly -w=$WWW_DOMAIN --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
+if [[ ($GATEWAY == *"y"*) ]];
+then
+  sudo mkdir -p $WWW_GATEWAY_DOMAIN || :
+  sudo chown -R www-data:www-data $WWW_GATEWAY_DOMAIN
+  sudo chmod -R 755 $WWW_GATEWAY_DOMAIN
+  certbotOutput=$( sudo certbot --webroot certonly -w=$WWW_GATEWAY_DOMAIN --email $EMAIL --agree-tos -d $GATEWAY_DOMAIN -n 2>&1 )
+  echo "$certbotOutput";
+fi
 
+certbotOutput=$( sudo certbot --webroot certonly -w=$WWW_DOMAIN --email $EMAIL --agree-tos -d $DOMAIN -n 2>&1 )
 echo "$certbotOutput";
 
-if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet due for renewal"*) ]]; 
+if [[ ($certbotOutput == *"Congratulations"*)  || ($certbotOutput == *"not yet due for renewal"*) ]];
 then
     if [ ! -z "$CF" ]
     then
@@ -45,9 +56,9 @@ then
     else
         sudo cp bash/nginx.conf /etc/nginx/sites-enabled/default
     fi
-    
+
     sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-    sudo sed -i -e "s~\%app_dir\%~$DOMAIN_DIST_DIR~g" /etc/nginx/sites-enabled/default
+    sudo sed -i -e "s~\%app_dir\%~$FRONTEND_DIST_DIR~g" /etc/nginx/sites-enabled/default
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     
