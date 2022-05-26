@@ -96,9 +96,9 @@ PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 3. Run script with parameters: domain and email for letsencrypt
 ```
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
-sudo bash/ubuntu-install-nginx.sh # add CF=1 before script to install for cloudflare
+DOMAIN=geesome.your-site.com EMAIL=your@email.com GATEWAY=1 sudo bash/ubuntu-install-nginx.sh # add CF=1 before script to install for cloudflare
 ```
-4. Open your-site.com/#/setup and create first admin user
+4. Open geesome.your-site.com/#/setup and create first admin user
 
 ## Getting started with GeeSome Node API
 1. Install GeeSome libs by npm:

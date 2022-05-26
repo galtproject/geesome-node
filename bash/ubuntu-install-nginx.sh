@@ -4,7 +4,7 @@ sudo apt-get update -y
 sudo apt-get install nginx software-properties-common -y
 sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
-[ -z "$DOMAIN" ] && read -p "Enter Your Domain: " DOMAIN
+[ -z "$DOMAIN" ] && read -p "Enter Your Geesome Node Domain: " DOMAIN
 [ -z "$EMAIL" ] && read -p "Enter Your Email: " EMAIL
 [ -z "$GATEWAY" ] && read -p "Do you want to install gateway?(y/n) " GATEWAY
 
