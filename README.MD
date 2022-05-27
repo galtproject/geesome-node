@@ -83,7 +83,7 @@ Currently its storing in GeeSome node, but need to improve it.
 | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469801-5080ac00-b799-11e9-8fa7-374d2186665d.png) | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469811-55ddf680-b799-11e9-9138-219be5cf1364.png) | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469812-55ddf680-b799-11e9-8116-1c6692040422.png) | ![GeeSome Mobile UI](https://user-images.githubusercontent.com/4842007/62469813-56768d00-b799-11e9-87c5-7664103a2460.png) |
 
 ## Install with domain to your server
-1. Set DNS settings for domain: ip address of server
+1. Set `A` DNS record for your `geesome.your-site.com` domain with ip address of server
 2. Clone repo to server that bound to domain
 ```
 git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
@@ -93,12 +93,23 @@ Recommend actions before install:
 sudo bash/ubuntu-init-swapfile.sh # Init 8GB Swapfile
 sudo PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 ```
-3. Run script with parameters: domain and email for letsencrypt
+3. Run bash script with parameters: domain and email for letsencrypt
 ```
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 sudo DOMAIN=geesome.your-site.com EMAIL=your@email.com GATEWAY=1 bash/ubuntu-install-nginx.sh # add CF=1 before script to install for cloudflare
 ```
-4. Open geesome.your-site.com/#/setup and create first admin user
+4. Open `geesome.your-site.com/#/setup` and create first admin user
+
+# How to use gateway
+1. Set `A` DNS record for your `gateway.geesome.your-site.com` domain with ip address of server
+2. Set `CNAME` DNS record for your `your-site.com` or `blog.your-site.com`(for example) with gateway domain: `gateway.geesome.your-site.com`
+3. Set `TXT` DNS record for your `your-site.com` or `blog.your-site.com`(for example) with IPFS or IPNS content: `dnslink=/ipns/bafzbeidjvkkvlsfeko4s43lhvi3zd4phlkfoudhf6ygqatl4rrveigmdi4`
+4. Run bash script with parameters: domain and email for letsencrypt
+```
+sudo DOMAIN=your-site.com EMAIL=your@email.com bash/ubuntu-cert-domain.sh
+```
+
+Note: You can generate a static site from Geesome groups by UI and get IPNS or IPFS of static sites for the gateway using.
 
 ## Getting started with GeeSome Node API
 1. Install GeeSome libs by npm:
