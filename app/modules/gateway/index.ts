@@ -1,8 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeGatewayModule from "./interface";
 
-const _ = require('lodash');
-const childProcess = require("child_process");
+const helpers = require("./helpers");
 
 module.exports = async (app: IGeesomeApp) => {
 	const module = await getModule(app, process.env.GATEWAY_PORT || 2082);
@@ -61,12 +60,10 @@ async function getModule(app: IGeesomeApp, port) {
 			this.port = port;
 		}
 		async getDnsLinkPathFromRequest(req) {
-			return new Promise((resolve, reject) => {
-				childProcess.exec(`dig -t txt ${req.headers.host.split(':')[0]} +short`, (e, output) => e ? reject(e) : resolve(_.trim(output, '"').split('=')[1]));
-			}) as Promise<string>;
+			return helpers.getDnsLinkPathFromHost(req.headers.host);
 		}
 		onGetRequest(callback) {
-			service.get("/*", (req, res, next) => {
+			service.get("/*", (req, res) => {
 				setHeaders(res);
 				callback(app.ms.api.reqToModuleInput(req), app.ms.api.resToModuleOutput(res));
 			});
