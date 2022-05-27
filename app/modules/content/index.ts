@@ -722,7 +722,8 @@ function getModule(app: IGeesomeApp) {
 		async getFileStreamForApiRequest(req, res, dataPath) {
 			app.ms.api.setStorageHeaders(res);
 
-			dataPath = _.trimStart(dataPath, '/')
+			dataPath = _.trim(dataPath, '/')
+			console.log('dataPath', dataPath);
 
 			let splitPath = dataPath.split('.');
 			console.log('isFileCidHash', splitPath[0]);
@@ -752,6 +753,7 @@ function getModule(app: IGeesomeApp) {
 						dataPath += '/index.html';
 					}
 				}
+				console.log('getFileStream', dataPath);
 				return this.getFileStream(dataPath).then((stream) => {
 					stream.pipe(res.stream);
 				});

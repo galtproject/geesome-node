@@ -193,6 +193,14 @@ async function getModule(app: IGeesomeApp, version, port) {
 				}
 			});
 		}
+
+		reqToModuleInput(req) {
+			return reqToModuleInput(req);
+		}
+
+		resToModuleOutput(res) {
+			return resToModuleOutput(res);
+		}
 	}
 
 	function reqToModuleInput(req) {
