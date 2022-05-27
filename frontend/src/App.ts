@@ -158,7 +158,7 @@ export default {
   data() {
     return {
       localeKey: 'app_container',
-      version: '0.2.0',
+      version: '0.3.0',
       menuVisible: false,
       menuMinimized: true,
       loading: true
