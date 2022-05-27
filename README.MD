@@ -5,7 +5,7 @@
 
 <h3 align="center">File Storage and Social Media Node</h3>
 <div align="center">
-  Current state: 0.2.0 - Alpha
+  Current state: 0.3.0 - Beta
 </div>
 
 <br />
@@ -90,7 +90,7 @@ git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
 ```
 Recommend actions before install:
 ```
-sudo bash/ubuntu-init-swapfile.sh # Init 8GB Swapfile
+sudo SIZE=8G bash/ubuntu-init-swapfile.sh # Init 8GB Swapfile
 sudo PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 ```
 3. Run bash script with parameters: domain and email for letsencrypt
@@ -128,7 +128,7 @@ yarn add git://github.com/galtproject/geesome-libs.git
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
 const geesomeClient = new GeesomeClient({
-    server: 'https://your-site.com:7722', // or 'http://localhost:7711',
+    server: 'https://your-site.com:2053', // or 'http://localhost:2052',
     // apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E' // if you paste your apiKey here, so no need to authorization by loginPassword function
 });
 
@@ -239,13 +239,14 @@ geesomeClient.init().then(async () => {
 - PubSub communication with modules
 - Auto-backup shared groups and folders to another node
 - Auto-backup social networks channels(Telegram, YouTube, Instagram)
+- Pin to services lik pinata from UI
 
-## GeeSome Modules
-You can develop your own GeeSome module in any programming language for extend GeeSome node functional by
+## GeeSome Services
+You can develop your own GeeSome service in any programming language for extend GeeSome node functional by
 communication by API with api keys. Module can communicate with GeeSome node by http requests and 
 PubSub events(in future) for uploading content, managing users and groups.
 
-Existing modules:
+Existing services:
 - [GeeSome ETH Manager](https://github.com/galtproject/geesome-eth-manager): Ethereum listener library for managing GeeSome node by Smart Contracts events: register users, set storage limits.
 
 ## Minimal requirements
@@ -262,20 +263,17 @@ Existing modules:
 
 ## Local install and run
 ```
-bash/ubuntu-install-deps.sh # if not ubuntu - execute commands manually for your OS
-npm i -g yarn # install if not installed
-yarn
-npm rebuild youtube-dl
-npm run start
+sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
+npm run docker
 ```
 In another terminal tab:
 ```
 cd frontend && yarn
 npm run local
 ```
-Open UI page by url: [http://localhost:8081/](http://localhost:8081/)
+Open UI page by url: [http://localhost:1234](http://localhost:1234)
 
-Api available by [http://localhost:7711](http://localhost:7711) endpoint.
+Api available by [http://localhost:2052](http://localhost:2052) endpoint.
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)
