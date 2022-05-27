@@ -239,7 +239,7 @@ geesomeClient.init().then(async () => {
 - PubSub communication with modules
 - Auto-backup shared groups and folders to another node
 - Auto-backup social networks channels(Telegram, YouTube, Instagram)
-- Pin to services lik pinata from UI
+- Pin to services like pinata from UI
 
 ## GeeSome Services
 You can develop your own GeeSome service in any programming language for extend GeeSome node functional by
