@@ -726,7 +726,7 @@ function getModule(app: IGeesomeApp) {
 			console.log('dataPath', dataPath);
 
 			let splitPath = dataPath.split('.');
-			console.log('isFileCidHash', splitPath[0]);
+			console.log('isFileCidHash', splitPath[0], ipfsHelper.isFileCidHash(splitPath[0]));
 			if (ipfsHelper.isFileCidHash(splitPath[0])) {
 				// cut extension, TODO: use regex
 				dataPath = splitPath[0];
@@ -759,6 +759,7 @@ function getModule(app: IGeesomeApp) {
 				});
 			}
 
+			console.log('getContentByStorageId', dataPath);
 			const content = await this.getContentByStorageId(dataPath);
 			console.log('content.mimeType', dataPath, content.mimeType);
 

@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+const includes = require('lodash/includes');
+
 export default {
 	template: require('./StaticSiteManager.template'),
 	components: {},
@@ -42,8 +44,8 @@ export default {
 				return;
 			}
 			this.options = {
-				baseStorageUri: document.location['hostname'] === 'localhost' ? this.defaultOptions.baseStorageUri : document.location['origin'] + ':2053/ipfs/',
-				...this.defaultOptions
+				...this.defaultOptions,
+				baseStorageUri: this.defaultOptions.baseStorageUri || this.$coreApi.getServerStorageUri(),
 			}
 		},
 		async runGenerate() {
@@ -63,7 +65,12 @@ export default {
 				}, 10 * 1000)
 			}
 		},
-		async bindToStatic() {
+		async bindToStaticAndSaveOptions() {
+			await this.$coreApi.updateStaticSiteInfo(this.type, this.dbGroupId, {
+				name: this.options.name,
+				title: this.options.title,
+				options: JSON.stringify(this.options)
+			});
 			await this.$coreApi.staticSiteBind(this.type, this.dbGroupId, this.options.site.name);
 		},
 		waitForOperation(operation) {
@@ -77,7 +84,7 @@ export default {
 				const prevOperation = this.curOperation;
 				this.curOperation = op;
 				if (!op.inProcess) {
-					await this.bindToStatic();
+					await this.bindToStaticAndSaveOptions();
 					await this.getData();
 					this.curOperation = null;
 					this.loading = false;
@@ -86,6 +93,9 @@ export default {
 					await this.getGroup();
 				}
 			})
+		},
+		toggleAdvanced() {
+			this.showAdvanced = !this.showAdvanced;
 		}
 	},
 	watch: {
@@ -126,6 +136,7 @@ export default {
 			siteLink: null,
 			done: false,
 			siteInfo: null,
+			showAdvanced: false,
 		};
 	}
 }

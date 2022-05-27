@@ -29,11 +29,6 @@ module.exports = `
                 <label>Site description</label>
                 <md-textarea v-model="options.site.description"></md-textarea>
             </md-field>
-			
-			<md-field>
-                <label>Site name (IPNS)</label>
-                <md-input v-model="options.site.name"></md-input>
-            </md-field>
             
 			<md-field>
                 <label>Post title preview length</label>
@@ -49,6 +44,22 @@ module.exports = `
                 <label>Posts per page</label>
                 <md-input v-model="options.postList.postsPerPage" type="number"></md-input>
             </md-field>
+            
+            <div class="margin-bottom">
+				<a href @click.stop.prevent="toggleAdvanced()">Advanced settings</a>
+			</div>
+			
+			<div v-if="showAdvanced">
+				<md-field>
+					<label>Site name (IPNS)</label>
+					<md-input v-model="options.site.name"></md-input>
+				</md-field>
+				
+				<md-field>
+					<label>Assets base URL</label>
+					<md-input v-model="options.baseStorageUri"></md-input>
+				</md-field>
+			</div>
 		
 			<md-button :disabled="loading || !!curOperation" @click="runGenerate" class="md-raised md-accent"><span v-locale="localeKey + '.generate'"></span></md-button>
 

@@ -70,7 +70,7 @@ function getModule(app: IGeesomeApp) {
         ) {
             return pIteration.mapSeries(_.chunk(posts, 10), (postsChunk) => {
                 return pIteration.map(postsChunk, post => {
-                    return app.ms.group.getPostContent(host + '/v1/content-data/', post).then((contents) => {
+                    return app.ms.group.getPostContentWithUrl(host + '/ipfs/', post).then((contents) => {
                         console.log('contents', contents);
                         let text = (_.find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text;
                         if (!text) {
