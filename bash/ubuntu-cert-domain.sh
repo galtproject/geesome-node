@@ -12,6 +12,9 @@ sudo mkdir -p $WWW_DOMAIN || :
 sudo chown -R www-data:www-data $WWW_DOMAIN
 sudo chmod -R 755 $WWW_DOMAIN
 
+sudo chown -R www-data:www-data /etc/letsencrypt/
+sudo chmod -R 755 /etc/letsencrypt/
+
 sudo mv /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default.bak
 sudo cp bash/uncert-nginx.conf /etc/nginx/sites-enabled/default
 
