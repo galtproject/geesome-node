@@ -28,7 +28,7 @@
 GeeSome Node allows you to run your own file storage with social media functional: 
 make you own public or private group with posts and content.
 It's a Node on top of IPFS for define and manage data structure of files, users and groups.
-Node provides a UI for storing and accessing your saved data or remote data of other nodes: files, posts, groups.
+Node provides an UI and API for storing and accessing your saved data or remote data of other nodes: files, posts, groups.
 
 ![GeeSome Main Page](./frontend/assets/screenshots/main-page.png)
 
