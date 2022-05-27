@@ -11,7 +11,7 @@ RUN add-apt-repository ppa:savoury1/multimedia -y
 RUN add-apt-repository ppa:lovell/cgif -y
 RUN apt full-upgrade -y
 
-RUN apt-get install python build-essential pkg-config libglib2.0-dev libexpat1-dev libssl-dev libcgif-dev imagemagick libimagequant-dev ffmpeg git -y
+RUN apt-get install python build-essential pkg-config libglib2.0-dev libexpat1-dev libssl-dev libcgif-dev imagemagick libimagequant-dev ffmpeg git dnsutils -y
 
 # https://github.com/lovell/sharp/issues/3161
 #RUN curl -OL https://github.com/libvips/libvips/releases/download/v8.12.2/vips-8.12.2.tar.gz && tar xf vips-8.12.2.tar.gz
