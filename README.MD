@@ -46,17 +46,17 @@ A new open protocol for unstopable social networking and communication on IPFS.
 It defines the structure of social network data to describe familiar to the modern user entities: content, posts, tags, groups.
 
 ## GeeSome UI
-GeeSome UI - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient class in your projects for build you own UI with some important for you functions.
+GeeSome UI - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient library in your project to build you own UI with some important features special for you.
 
 ## Summary
 With the help of GeeSome Node, anyone can create an instance of a decentralized social network, with groups like in YouTube, Instagram or Telegram but with content preservation and no locks or censorship thanks to the concept of personal GeeSome Node using IPFS Node to store content, access data and receive updates by libp2p.
 
 GeeSome Node can be used:
-- to create and maintain your blog
+- to create and maintain your blog and generate static site for blog
 - to save important content like Saved messages in telegrams and / or in the form of a file structure as in Google Drive
 - as a media platform for adding and viewing / listening to audio and video content, creating playlists
 - to share the uploaded content in any form (blog, playlist, file, folder)
-- to create chat groups
+- to create chat groups and communicate with your friends (they can be invited by special links)
 
 ## GeeSome Scheme
 ![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/68893921-d912cf00-072e-11ea-8fe4-7d2937f32342.png)
@@ -228,6 +228,7 @@ geesomeClient.init().then(async () => {
 - Ethereum authentication by signature
 - Import telegram channel's posts
 - Generate static sites from groups with posts and upload to IPFS
+- Invite system for new users
 
 ## TODO:
 - Share folder by ipld, ipns manifest
