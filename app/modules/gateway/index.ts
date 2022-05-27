@@ -60,15 +60,15 @@ async function getModule(app: IGeesomeApp, port) {
 		constructor(port) {
 			this.port = port;
 		}
-		async getDnsLinkFromRequest(req) {
+		async getDnsLinkPathFromRequest(req) {
 			return new Promise((resolve, reject) => {
-				childProcess.exec(`dig -t txt ${req.headers.host.split(':')[0]} +short`, (e, output) => e ? reject(e) : resolve(output));
+				childProcess.exec(`dig -t txt ${req.headers.host.split(':')[0]} +short`, (e, output) => e ? reject(e) : resolve(_.trim(output, '"').split('=')[1]));
 			}) as Promise<string>;
 		}
 		onGetRequest(callback) {
 			service.get("/*", (req, res, next) => {
 				setHeaders(res);
-				callback(req, res);
+				callback(app.ms.api.reqToModuleInput(req), app.ms.api.resToModuleOutput(res));
 			});
 		}
 	}

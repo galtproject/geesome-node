@@ -24,6 +24,10 @@ export default interface IGeesomeApiModule {
 
 	setStorageHeaders(res: IApiModuleCommonOutput): void;
 
+	reqToModuleInput(req): IApiModuleCommonInput;
+
+	resToModuleOutput(res): IApiModuleCommonOutput
+
 	prefix(routePrefix: string): IGeesomeApiModule;
 
 	stop(): any;

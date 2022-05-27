@@ -1,7 +1,7 @@
 export default interface IGeesomeGatewayModule {
 	port;
 
-	getDnsLinkFromRequest(req): Promise<string>;
+	getDnsLinkPathFromRequest(req): Promise<string>;
 
 	onGetRequest(callback);
 }

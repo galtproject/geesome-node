@@ -82,7 +82,10 @@ function getModule(app: IGeesomeApp, models) {
 					}
 					alreadyHandled = true;
 					log('resolve by timeout', staticId, '=>', staticIdItem ? staticIdItem.dynamicId : null);
-				}, 1000);
+					if (staticIdItem) {
+						return resolve(staticIdItem.dynamicId);
+					}
+				}, 200);
 
 				let dynamicId;
 				try {
