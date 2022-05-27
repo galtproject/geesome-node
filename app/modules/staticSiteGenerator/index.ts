@@ -11,6 +11,7 @@ const {rmDir} = require('./helpers');
 const commonHelper = require('geesome-libs/src/common');
 const childProcess = require("child_process");
 const fs = require("fs");
+let helpers = require('../../helpers');
 
 module.exports = async (app: IGeesomeApp) => {
     app.checkModules(['asyncOperation', 'group', 'content']);
@@ -28,8 +29,8 @@ function getModule(app: IGeesomeApp, models) {
     class StaticSiteGenerator implements IGeesomeStaticSiteGeneratorModule {
         moduleName = 'static-site-generator';
 
-        async addRenderToQueueAndProcess(userId, token, type, entityId, options) {
-            if (type === 'group') {
+        async addRenderToQueueAndProcess(userId, token, entityType, entityId, options) {
+            if (entityType === 'group') {
                 const isAdmin = await app.ms.group.isAdminInGroup(userId, entityId);
                 if (!isAdmin) {
                     throw Error('not_enough_rights');
@@ -37,11 +38,14 @@ function getModule(app: IGeesomeApp, models) {
             } else {
                 throw Error('unknown_type');
             }
+            if (options['name'] && !helpers.validateUsername(options['name'])) {
+                throw new Error("incorrect_name");
+            }
 
             const userApiKeyId = await app.getApyKeyId(token);
             apiKeyIdToTokenTemp[userApiKeyId] = token;
             await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
-                type,
+                entityType,
                 entityId,
                 options
             });
@@ -68,18 +72,18 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             const {userId, userApiKeyId} = waitingQueue;
-            const {type, entityId, options} = JSON.parse(waitingQueue.inputJson);
+            const {entityType, entityId, options} = JSON.parse(waitingQueue.inputJson);
 
             const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
                 userApiKeyId,
                 name: 'run-' + this.moduleName,
-                channel: 'type:' + type + ';id:' + entityId + ';op:' + await commonHelper.random()
+                channel: 'type:' + entityType + ';id:' + entityId + ';op:' + await commonHelper.random()
             });
 
             await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
             // run in background
-            this.generateManifest(userId, type, entityId, {
+            this.generate(userId, entityType, entityId, {
                 ...options,
                 userApiKeyId,
                 asyncOperationId: asyncOperation.id
@@ -95,17 +99,15 @@ function getModule(app: IGeesomeApp, models) {
             return this.getDefaultOptions(await app.ms.group.getLocalGroup(userId, groupId));
         }
 
-        async getDefaultOptions(group, baseStorageUri = null) {
-            const staticSite = await models.StaticSite.findOne({where: {type: 'group', entityId: group.id}});
+        async getDefaultOptions(group) {
+            const staticSite = await models.StaticSite.findOne({where: {entityType: 'group', entityId: group.id}});
 
-            baseStorageUri = baseStorageUri || 'http://localhost:2052/ipfs/';
             let staticSiteOptions = {};
             try {
                 staticSiteOptions = JSON.parse(staticSite.options)
             } catch (e) {}
 
             return _.merge({
-                baseStorageUri,
                 lang: 'en',
                 dateFormat: 'DD.MM.YYYY hh:mm:ss',
                 post: {
@@ -119,7 +121,7 @@ function getModule(app: IGeesomeApp, models) {
                     title: staticSite ? staticSite.title : group.title,
                     name: staticSite ? staticSite.name : group.name + '_site',
                     description: staticSite ? staticSite.description : group.description,
-                    avatarUrl: group.avatarImage ? baseStorageUri + group.avatarImage.storageId : null,
+                    avatarStorageId: group.avatarImage ? group.avatarImage.storageId : null,
                     username: group.name,
                     postsCount: group.publishedPostsCount,
                     base
@@ -129,15 +131,18 @@ function getModule(app: IGeesomeApp, models) {
 
         async getResultOptions(group, options) {
             options = _.clone(options) || {};
-            const defaultOptions = await this.getDefaultOptions(group, options.baseStorageUri);
+            const defaultOptions = await this.getDefaultOptions(group);
             const merged = _.merge(defaultOptions, options);
             ['post.titleLength', 'post.descriptionLength', 'postList.postsPerPage'].forEach(name => {
                 _.set(merged, name, parseInt(_.get(merged, name)))
             });
+            if (!merged.site.avatarUrl && merged.site.avatarStorageId) {
+                merged.site.avatarUrl = options.baseStorageUri + merged.site.avatarStorageId;
+            }
             return merged;
         }
 
-        async generateManifest(userId, type, entityId, options: any = {}): Promise<IContent> {
+        async generate(userId, entityType, entityId, options: any = {}): Promise<IContent> {
             const distPath = path.resolve(__dirname, './.vuepress/dist');
             rmDir(distPath);
 
@@ -145,7 +150,6 @@ function getModule(app: IGeesomeApp, models) {
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             options = await this.getResultOptions(group, options);
 
-            console.log('getGroupPosts', entityId);
             const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
                 sortBy: 'publishedAt',
                 sortDir: 'desc',
@@ -156,7 +160,7 @@ function getModule(app: IGeesomeApp, models) {
             const {baseStorageUri} = options;
 
             const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-                const contents = await app.ms.group.getPostContent(baseStorageUri, gp);
+                const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
 ;
                 if (options.asyncOperationId && i % 10 === 0) {
                     await app.ms.asyncOperation.updateAsyncOperation(userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
@@ -201,17 +205,25 @@ function getModule(app: IGeesomeApp, models) {
                 groupId: group.id,
                 userApiKeyId: options.userApiKeyId
             });
-            const staticSite = await models.StaticSite.findOne({where: {type, entityId}});
+            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
             if (staticSite) {
-                await models.StaticSite.update({storageId: content.storageId}, {where: {type, entityId}});
+                await this.updateDbStaticSite(staticSite.id, {storageId: content.storageId});
             } else {
-                await models.StaticSite.create({userId, type, entityId, storageId: content.storageId, title: options.title, options: JSON.stringify(options)});
+                await this.createDbStaticSite({userId, entityType, entityId, storageId: content.storageId, title: options.title, options: JSON.stringify(options)});
             }
             return content;
         }
 
-        async bindSiteToStaticId(userId, type, entityId, name) {
-            const staticSite = await models.StaticSite.findOne({where: {type, entityId}});
+        async updateDbStaticSite(id, data) {
+            return models.StaticSite.update(data, {where: {id}});
+        }
+
+        async createDbStaticSite(data) {
+            return models.StaticSite.create(data);
+        }
+
+        async bindSiteToStaticId(userId, entityType, entityId, name) {
+            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
             if (!staticSite) {
                throw new Error("static_site_not_found");
             }
@@ -223,12 +235,12 @@ function getModule(app: IGeesomeApp, models) {
                 staticId = await app.ms.staticId.getOrCreateStaticAccountId(userId, name);
                 await app.ms.staticId.bindToStaticId(userId, staticSite.storageId, staticId);
             }
-            return models.StaticSite.update({staticId, name}, {where: {type, entityId}});
+            return this.updateDbStaticSite(staticSite.id, {staticId, name});
         }
 
-        async getStaticSiteInfo(userId, type, entityId) {
-            const where: any = {type, entityId};
-            if (type === 'group') {
+        async getStaticSiteInfo(userId, entityType, entityId) {
+            const where: any = {entityType, entityId};
+            if (entityType === 'group') {
                 if(!(await app.ms.group.canEditGroup(userId, entityId))) {
                     throw new Error("not_permitted");
                 }
@@ -237,6 +249,24 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             return models.StaticSite.findOne({ where }) as IStaticSite;
+        }
+
+        async updateStaticSiteInfo(userId, entityType, entityId, updateData) {
+            const staticSiteInfo = await this.getStaticSiteInfo(userId, entityType, entityId);
+            if (!staticSiteInfo) {
+                throw new Error("static_site_not_found");
+            }
+            if (updateData['name'] && !helpers.validateUsername(updateData['name'])) {
+                throw new Error("incorrect_name");
+            }
+            if (updateData['name'] && updateData['name'] !== staticSiteInfo.name) {
+                if (entityType === 'group') {
+                    await app.ms.staticId.renameGroupStaticAccountId(userId, entityId, staticSiteInfo.name, updateData['name']);
+                } else {
+                    await app.ms.staticId.renameStaticAccountId(userId, staticSiteInfo.name, updateData['name']);
+                }
+            }
+            return this.updateDbStaticSite(staticSiteInfo.id, updateData);
         }
     }
 

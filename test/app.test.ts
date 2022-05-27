@@ -450,6 +450,32 @@ describe("app", function () {
 		const newGroupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
 		assert.equal(newGroupAccount.staticId, newGroup.manifestStaticStorageId);
 		assert.notEqual(newGroupAccount.staticId, testGroup.manifestStaticStorageId);
+
+		try {
+			await app.ms.group.createGroup(testUser.id, {
+				name: testGroup.name,
+				title: 'Test 3'
+			});
+			assert.equal(true, false);
+		} catch (e) {
+			assert.equal(_.includes(e.toString(), "name_already_exists"), true);
+		}
+
+		const test3Group = await app.ms.group.createGroup(testUser.id, {
+			name: testGroup.name + '1',
+			title: 'Test 3'
+		});
+		try {
+			await app.ms.group.updateGroup(testUser.id, test3Group.id, {
+				name: testGroup.name,
+				isDeleted: true
+			});
+			assert.equal(true, false);
+		} catch (e) {
+			assert.equal(_.includes(e.toString(), "SequelizeUniqueConstraintError"), true);
+		}
+		const test3GroupAfterUpdate = await app.ms.group.getGroup(test3Group.id);
+		assert.equal(test3GroupAfterUpdate.name, testGroup.name + '1');
 	});
 
 	it('groupRead', async () => {

@@ -24,7 +24,7 @@ module.exports = async function () {
 		options: {
 			type: Sequelize.TEXT
 		},
-		type: {
+		entityType: {
 			type: Sequelize.STRING(100)
 		},
 		entityId: {
@@ -40,7 +40,7 @@ module.exports = async function () {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
 			{ fields: ['name'], unique: true },
-			{ fields: ['type', 'entityId'] },
+			{ fields: ['entityType', 'entityId'] },
 		]
 	} as any);
 

@@ -213,10 +213,10 @@ function getModule(app: IGeesomeApp, models) {
 				throw new Error("incorrect_name");
 			}
 			const group = await this.getGroup(groupId);
-			await this.updateGroupPure(groupId, updateData);
 			if (updateData['name'] && updateData['name'] !== group.name) {
 				await app.ms.staticId.renameGroupStaticAccountId(userId, groupId, group.name, updateData['name']);
 			}
+			await this.updateGroupPure(groupId, updateData);
 
 			await this.updateGroupManifest(userId, groupId);
 
@@ -568,7 +568,7 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
-		async getPostContent(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, url?, previewUrl?}[]> {
+		async getPostContent(post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
 			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async c => {
 				const baseData = {
 					mimeType: c.mimeType,
@@ -584,14 +584,14 @@ function getModule(app: IGeesomeApp, models) {
 				} else if (_.includes(c.mimeType, 'image')) {
 					return {
 						type: 'image',
-						url: baseStorageUri + c.storageId,
+						storageId: c.storageId,
 						...baseData
 					};
 				} else if (_.includes(c.mimeType, 'video')) {
 					return {
 						type: 'video',
-						previewUrl: baseStorageUri + c.mediumPreviewStorageId,
-						url: baseStorageUri + c.storageId,
+						previewStorageId: c.mediumPreviewStorageId,
+						storageId: c.storageId,
 						...baseData
 					};
 				} else if (_.includes(c.mimeType, 'json')) {
@@ -602,6 +602,18 @@ function getModule(app: IGeesomeApp, models) {
 					};
 				}
 			}).then(contents => contents.filter(c => c));
+		}
+
+		async getPostContentWithUrl(baseStorageUri, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?, url?, previewUrl?}[]> {
+			return this.getPostContent(post).then(contents => contents.map(c => {
+				if (c.storageId) {
+					c['url'] = baseStorageUri + c.storageId;
+				}
+				if (c.previewStorageId) {
+					c['previewUrl'] = baseStorageUri + c.previewStorageId;
+				}
+				return c;
+			}));
 		}
 
 		async updatePost(userId, postId, postData) {

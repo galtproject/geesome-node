@@ -319,7 +319,7 @@ describe("telegramClient", function () {
 			status: PostStatus.Published
 		});
 
-		const postContents = await app.ms.group.getPostContent('https://my.site/ipfs/', testPost);
+		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testPost);
 		assert.equal(postContents.length, 3);
 		const [messageC, imageC, linkC] = postContents;
 
