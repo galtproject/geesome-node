@@ -270,7 +270,7 @@ npm run docker
 In another terminal tab:
 ```
 cd frontend && yarn
-npm run local
+npm run dev
 ```
 Open UI page by url: [http://localhost:1234](http://localhost:1234)
 
