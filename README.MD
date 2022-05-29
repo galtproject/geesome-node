@@ -84,21 +84,22 @@ Currently its storing in GeeSome node, but need to improve it.
 
 ## Install with domain to your server
 1. Set `A` DNS record for your `geesome.your-site.com` domain with ip address of server
-2. Clone repo to server that bound to domain
+2. [Recommended] If you want to use gateway - set `A` DNS record for your `gateway.geesome.your-site.com` domain with ip address of server
+3. Clone repo to server that bound to domain
 ```
 git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
 ```
-Recommend actions before install:
+4. [Recommended] actions before install:
 ```
 sudo SIZE=8G bash/ubuntu-init-swapfile.sh # Init 8GB Swapfile
 sudo PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 ```
-3. Run bash script with parameters: domain and email for letsencrypt
+5. Run bash script with parameters: domain and email for letsencrypt
 ```
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 sudo DOMAIN=geesome.your-site.com EMAIL=your@email.com GATEWAY=1 bash/ubuntu-install-nginx.sh # add CF=1 before script to install for cloudflare
 ```
-4. Open `geesome.your-site.com/#/setup` and create first admin user
+6. Open `geesome.your-site.com/#/setup` to create first admin user
 
 # How to use gateway
 1. Set `A` DNS record for your `gateway.geesome.your-site.com` domain with ip address of server
@@ -287,7 +288,7 @@ Api available by [http://localhost:2052](http://localhost:2052) endpoint.
 - Use GeeSome as IPFS file storage in your decentralized project (Soon...)
 - IPNS updates problem and how we solved it (Soon...)
 - Are we ready for true decentralized messages and content? (Soon...)
-- We need backups for our Social Neworks! (Soon...)
+- We need backups for our Social Networks! (Soon...)
 
 ## Do you like the project? ✨
 Put a star and fork it. Join Us On [Telegram](https://t.me/geesome). Thank you!
