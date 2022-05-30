@@ -1,7 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
-const {getTitleAndDescription} = require('./helpers');
+const {getTitleAndDescription, getMainMediaContent, getOgHeaders} = require('./helpers');
 // const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
@@ -19,18 +19,24 @@ module.exports = function(posts, settings) {
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
 
-                const {title, description} = getTitleAndDescription(post.texts, postSettings);
+                let {title: postTitle, description: postDescription} = getTitleAndDescription(post.texts, postSettings);
+                let pageTitle = postTitle;
+                if(!pageTitle) {
+                    const result = getTitleAndDescription(post.texts, {titleLength: 100});
+                    pageTitle = result.title;
+                }
+                const mediaContent = getMainMediaContent(post.contents);
 
-                console.log('title', title, 'description', description);
                 const page = await createPage(app, {
                     path: getPostPath(post.id),
                     frontmatter: {
                         layout: 'Post',
                         permalink: getPostPath(post.id),
                         // permalinkPattern?: string;
-                        head: [],
-                        title,
-                        description,
+                        head: getOgHeaders(site.title, post.lang, pageTitle, postDescription, mediaContent.previewUrl || mediaContent.url),
+                        title: pageTitle,
+                        postTitle,
+                        postDescription,
                         date: post.date,
                         ..._.pick(post, ['lang', 'id', 'contents', 'images', 'videos'])
                     },
@@ -47,9 +53,8 @@ module.exports = function(posts, settings) {
                     frontmatter: {
                         layout: 'BaseList',
                         permalink: getPaginationPostPath(i),
+                        title: 'Page ' + i,
                     },
-                    title: 'Page ' + i,
-                    content: 'Page ' + i,
                 });
 
                 app.pages.push(page);
@@ -59,11 +64,11 @@ module.exports = function(posts, settings) {
                 path: '/',
                 frontmatter: {
                     layout: 'BaseList',
+                    head: getOgHeaders(site.title, posts[0].lang, '', site.description, site.avatarUrl),
                     permalink: '/',
                     home: true,
+                    title: 'Home',
                 },
-                title: 'Home',
-                content: 'Welcome',
             }));
 
             app.pages.push(await createPage(app, {
@@ -71,8 +76,8 @@ module.exports = function(posts, settings) {
                 frontmatter: {
                     layout: '404',
                     permalink: '/404',
+                    title: '404',
                 },
-                title: '404',
                 content: '404',
             }));
         },

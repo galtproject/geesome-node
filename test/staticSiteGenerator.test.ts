@@ -70,13 +70,23 @@ describe("staticSiteGenerator", function () {
 		await app.stop();
 	});
 
-	it('webpage message should import properly', async () => {
+	it('title and description should working properly', async () => {
 		const text = 'Кто плюсист?<br><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br><br><i>Language<br>concepts[6], with terse syntax.[7]<br>modules[8]<br><br>Library<br>ranges (The One Ranges Proposal)[35]</i>';
 		const {title, description} = getTitleAndDescription([{view: 'contents', text}], {
-			titleLength: 200,
-			descriptionLength: 200
+			titleLength: 66,
+			descriptionLength: 156
 		})
-		console.log('title', title, 'description', description);
-		assert.equal(title, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><br/><i>Language<br/>concepts[6], with terse syntax.[7]<br/>modules[8]<br/><br/>Library<br/>r...</i>');
+		assert.equal(title, 'Кто плюсист? https://en.wikipedia.org/wiki/C%2B%2B20');
+		assert.equal(description, '<i>Language<br/>concepts[6], with terse syntax.[7]<br/>modules[8]...</i>');
+	});
+
+	it('zero title and description should working properly', async () => {
+		const text = 'Кто плюсист?<br><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br><br><i>Language<br>concepts[6], with terse syntax.[7]<br>modules[8]<br><br>Library<br>ranges (The One Ranges Proposal)[35]</i>';
+		const {title, description} = getTitleAndDescription([{view: 'contents', text}], {
+			titleLength: 0,
+			descriptionLength: 156
+		})
+		assert.equal(title, '');
+		assert.equal(description, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><i>Language<br/>concepts[6], with terse syntax.[7]...</i>');
 	});
 });

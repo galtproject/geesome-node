@@ -2,7 +2,7 @@ import {IGeesomeApp} from "../../interface";
 import {
 	ContentView,
 	CorePermissionName,
-	GroupPermissionName,
+	GroupPermissionName, IContent,
 	IListParams,
 } from "../database/interface";
 import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface";
@@ -568,9 +568,10 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
-		async getPostContent(post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
-			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async c => {
+		async getPostContent(post: IPost): Promise<{type, mimeType, extension, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
+			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async (c: IContent) => {
 				const baseData = {
+					extension: c.extension,
 					mimeType: c.mimeType,
 					view: c.view || ContentView.Contents,
 					manifestId: c.manifestStorageId,

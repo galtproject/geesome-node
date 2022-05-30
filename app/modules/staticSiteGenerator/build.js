@@ -11,6 +11,8 @@ module.exports = async (config) => {
     console.log('createBuildApp');
     const staticSiteApp = createBuildApp({
         base: config.base,
+        title: config.options.site.title,
+        description: config.options.site.description,
         source: __dirname,
         theme: path.resolve(__dirname, './theme'),
         templateBuild: path.resolve(__dirname, './theme/index.ssr.html'),

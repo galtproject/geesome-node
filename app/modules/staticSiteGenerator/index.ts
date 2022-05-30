@@ -111,8 +111,8 @@ function getModule(app: IGeesomeApp, models) {
                 lang: 'en',
                 dateFormat: 'DD.MM.YYYY hh:mm:ss',
                 post: {
-                    titleLength: 200,
-                    descriptionLength: 200,
+                    titleLength: 0,
+                    descriptionLength: 400,
                 },
                 postList: {
                     postsPerPage: 10,
@@ -146,7 +146,7 @@ function getModule(app: IGeesomeApp, models) {
             const distPath = path.resolve(__dirname, './.vuepress/dist');
             rmDir(distPath);
 
-            const {userApiKeyId} = options;
+            const {userApiKeyId, baseStorageUri} = options;
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             options = await this.getResultOptions(group, options);
 
@@ -157,7 +157,6 @@ function getModule(app: IGeesomeApp, models) {
                 offset: 0
             });
             console.log('groupPosts.length', groupPosts.length);
-            const {baseStorageUri} = options;
 
             const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
                 const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
