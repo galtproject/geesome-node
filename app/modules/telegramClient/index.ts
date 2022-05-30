@@ -426,7 +426,7 @@ function getModule(app: IGeesomeApp, models) {
 					await onMessageProcess(m, null);
 					return;
 				}
-				const msgId = m.id.toString();
+				const msgId = parseInt(m.id.toString());
 				if (!messageLinkTpl) {
 					messageLinkTpl = await this.getMessageLink(client, dbChannel.channelId, msgId)
 						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
@@ -438,7 +438,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				const contents = await this.messageToContents(client, dbChannel, m, userId);
-				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
+				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId : null;
 				const postData = {
 					groupId,
 					userId,
@@ -534,14 +534,6 @@ function getModule(app: IGeesomeApp, models) {
 
 		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
 			const postIds = uniq(_messages.map(m => m.postId));
-			console.log('postIds', postIds);
-			const postsIdsWithoutExists = postIds.filter(postId => _existsPostId !== postId);
-			console.log('postsIdsWithoutExists', postIds);
-			// 1 case: there's created post and appears new one to merge(not created): _existsPostId is null, postsIdsWithoutExists.length > 0
-			// 2 case: there's created post and appears new one to merge(created): _existsPostId not null, postsIdsWithoutExists.length > 0
-			if (!postsIdsWithoutExists.length) {
-				return _existsPostId;
-			}
 			console.log('mergePostsToOne', _existsPostId, postIds);
 			if (_existsPostId && !includes(postIds, _existsPostId)) {
 				postIds.push(_existsPostId);
