@@ -40,10 +40,10 @@ const _ = require('lodash');
 
     await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
     user = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
-    group = await app.createGroup(user.id, {
+    group = await app.ms.group.createGroup(user.id, {
       name: 'microwave',
       title: 'Microwave'
-    }).then(() => app.getGroupByParams({name: 'microwave'}));
+    }).then(() => app.ms.group.getGroupByParams({name: 'microwave'}));
   } catch (e) {
     console.error(e);
     // group = await app.createGroup(user.id, {
@@ -52,9 +52,7 @@ const _ = require('lodash');
     // })
   }
 
-  const TelegramClient = require('../app/modules/telegramClient');
-  const telegram = new TelegramClient();
-  await telegram.init(app.api);
+  const telegram = await require('../app/modules/telegramClient')(app);
 
   // const {client, result: channelInfo} = await telegram.getChannelInfoByUserId(2, 'inside_microwave'); //1,2,3,4,5,
   // const {result: file} = await telegram.downloadMediaByClient(client, { photo: channelInfo.fullChat.chatPhoto });
