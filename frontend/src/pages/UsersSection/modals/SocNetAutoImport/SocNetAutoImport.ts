@@ -13,22 +13,34 @@ const clone = require('lodash/clone');
 
 export default {
   template: require('./SocNetAutoImport.template'),
-  props: ['socNetName', 'dbChannel'],
+  props: ['socNetName', 'dbChannel', 'staticSiteOptions'],
   components: {
     ModalItem
   },
   created() {
-    this.channel = clone(this.dbChannel);
-    this.channel.autoImportToken = this.$coreApi.getApiKey();
-    this.isDisabled = this.channel.autoImportPeriod === 0;
+
   },
   methods: {
     async ok() {
-      await this.$coreApi.socNetUpdateDbChannel(this.socNetName, this.channel.id, this.channel);
-      // await this.$coreApi.socNetUpdateDbAccount(this.socNetName, this.channel.accountId, {
-      //   sessionKey: ,
-      //   isEncrypted: false
-      // });
+      const apiKey = await this.$coreApi.getCurrentUserApiKey();
+
+      await this.$coreApi.addSerialAutoActions(this.$coreApi.buildAutoActions([{
+        moduleName: 'telegramClient',
+        funcName: 'runChannelImportAndWaitForFinish',
+        funcArgs: [apiKey.id, {id: this.dbChannel.accountId}, this.dbChannel.channelId, this.advancedSettings],
+        isEncrypted: false,
+      }, {
+        moduleName: 'staticSiteGenerator',
+        funcName: 'addRenderAndWaitForFinish',
+        funcArgs: [this.$coreApi.getApiToken(), 'group', this.dbChannel.groupId, this.staticSiteOptions],
+        isEncrypted: true
+      }, {
+        moduleName: 'staticSiteGenerator',
+        funcName: 'bindSiteToStaticId',
+        funcArgs: ['group', this.dbChannel.groupId, this.staticSiteOptions.name],
+        isEncrypted: true
+      }]), this.runPeriod);
+
       this.close();
     },
     close() {
@@ -48,7 +60,8 @@ export default {
     return {
       localeKey: 'soc_net_channel.auto_import',
       channel: null,
-      isDisabled: false
+      isDisabled: false,
+      runPeriod: 60,
     }
   }
 }

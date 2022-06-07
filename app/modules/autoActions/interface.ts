@@ -7,6 +7,8 @@ export default interface IGeesomeAutoActionsModule {
 
 	getAutoActionsToExecute(): Promise<IAutoAction[]>;
 
+	getUserActions(userId: number): Promise<{list: IAutoAction[]}>;
+
 	getNextActionsById(userId, id): Promise<IAutoAction[]>;
 
 	updateAutoActionExecuteOn(userId, id, extendData?: IAutoAction): Promise<any>;

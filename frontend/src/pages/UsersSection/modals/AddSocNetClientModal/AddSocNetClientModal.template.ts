@@ -38,7 +38,7 @@ module.exports = `
       <md-input v-model="phoneNumber"></md-input>
     </md-field>
     
-	<md-checkbox v-model="isEncrypted">Encrypt session key (will disable background jobs)</md-checkbox>
+	<md-checkbox v-model="isEncrypted">Encrypt session key with api token</md-checkbox>
 
     <md-field v-if="phoneCodeRequired">
       <label>Phone code</label>

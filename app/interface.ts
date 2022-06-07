@@ -12,7 +12,7 @@ import {
   IContent,
   IGeesomeDatabaseModule,
   IInvite, IListParams,
-  IUser, IUserAccount,
+  IUser,
   IUserApiKey,
   IUserLimit, UserLimitName
 } from "./modules/database/interface";
@@ -26,7 +26,6 @@ import IGeesomeStaticIdModule from "./modules/staticId/interface";
 import IGeesomeContentModule from "./modules/content/interface";
 import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface";
 import IGeesomeInviteModule from "./modules/invite/interface";
-import IGeesomeFileCatalogModule from "./modules/fileCatalog/interface";
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface";
 import IGeesomeGroupModule from "./modules/group/interface";
 
@@ -70,7 +69,9 @@ export interface IGeesomeApp {
 
   getApyKeyId(apiKey): Promise<number>;
 
-  getUserByApiKey(apiKey): Promise<{user: IUser, apiKey: IUserApiKey}>;
+  getUserApyKeyById(userId, apiKeyId): Promise<IUserApiKey>;
+
+  getUserByApiToken(apiKey): Promise<{user: IUser, apiKey: IUserApiKey}>;
 
   getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
 
@@ -176,11 +177,6 @@ export interface IInvitesListResponse {
   total: number;
 }
 
-export interface IFileCatalogListResponse {
-  list: IFileCatalogItem[];
-  total: number;
-}
-
 export interface IUserApiKeysListResponse {
   list: IUserApiKey[];
   total: number;
@@ -188,12 +184,6 @@ export interface IUserApiKeysListResponse {
 
 export interface IUserListResponse {
   list: IUser[];
-  total: number;
-}
-
-
-export interface IGroupSectionListResponse {
-  list: IGroupSection[];
   total: number;
 }
 

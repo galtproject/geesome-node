@@ -79,6 +79,10 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(req.user, 200);
 	});
 
+	module.onAuthorizedPost('get-user-by-api-token', async (req, res) => {
+		res.send(await app.getUserByApiToken(req.body.token));
+	});
+
 	module.onAuthorizedGet('user/permissions/core/is-have/:permissionName', async (req, res) => {
 		res.send({result: await app.isUserCan(req.user.id, req.params.permissionName)});
 	});
@@ -89,6 +93,10 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
 	module.onAuthorizedGet('user/api-key-list', async (req, res) => {
 		res.send(await app.getUserApiKeys(req.user.id, req.query.isDisabled, req.query.search, req.query), 200);
+	});
+
+	module.onAuthorizedGet('user/api-key/current', async (req, res) => {
+		res.send(req.apiKey);
 	});
 
 	module.onAuthorizedPost('user/api-key/add', async (req, res) => {
@@ -158,12 +166,6 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 			return res.send(403);
 		}
 		res.send(await app.generateUserApiKey(req.body.userId, req.body, true));
-	});
-	module.onAuthorizedGet('admin/get-user-by-api-key/:apiKey', async (req, res) => {
-		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminRead)) {
-			return res.send(403);
-		}
-		res.send(await app.getUserByApiKey(req.params.apiKey).then(({user}) => user));
 	});
 	module.onAuthorizedPost('admin/set-user-limit', async (req, res) => {
 		res.send(await app.setUserLimit(req.user.id, req.body));

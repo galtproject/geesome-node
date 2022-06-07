@@ -38,6 +38,9 @@ module.exports = async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp, models) {
 	app.checkModules(['asyncOperation', 'group', 'content']);
 
+	let finishCallbacks = {
+
+	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
 			let {phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage} = loginData;
@@ -271,7 +274,24 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		async runChannelImport(userId, apiKey, accData, channelId, advancedSettings = {}) {
+		isAutoActionAllowed(userId, funcName, funcArgs) {
+			return _.includes(['runChannelImportAndWaitForFinish'], funcName);
+		}
+
+		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+			const operationQueue = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r.result.asyncOperation);
+			const finishedOperation = await new Promise((resolve) => {
+				finishCallbacks[operationQueue.id] = resolve;
+			});
+			delete finishCallbacks[operationQueue.id];
+			return finishedOperation;
+		}
+
+		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
+			if (apiKey.userId !== userId) {
+				throw new Error("not_permitted");
+			}
 			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
 
 			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
@@ -349,7 +369,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			let asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
-				userApiKeyId: apiKey.id,
+				userApiKeyId,
 				name: 'run-telegram-channel-import',
 				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
 			});
@@ -375,8 +395,11 @@ function getModule(app: IGeesomeApp, models) {
 						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 					});
 				}
-			})().then(() => {
-				return app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+			})().then(async () => {
+				await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+				if (finishCallbacks[asyncOperation.id]) {
+					finishCallbacks[asyncOperation.id](await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id));
+				}
 			}).catch((e) => {
 				console.error('run-telegram-channel-import error', e);
 				return app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);

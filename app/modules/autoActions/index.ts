@@ -103,6 +103,12 @@ function getModule(app: IGeesomeApp, models) {
 			return models.AutoAction.findOne({ where: { id }, include: [ {association: 'nextActions'} ] }).then(a => this.decryptAutoActionIfNecessary(a));
 		}
 
+		async getUserActions(userId) {
+			return {
+				list: await models.AutoAction.findAll({ where: { userId }, include: [ {association: 'nextActions'}, {association: 'baseActions'} ] }).then(as => pIteration.map(as, a => this.decryptAutoActionIfNecessary(a)))
+			}
+		}
+
 		async getAutoActionsToExecute() {
 			return models.AutoAction.findAll({where: { executeOn: {[Op.lte]: new Date()}, isActive: true} }).then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a)));
 		}

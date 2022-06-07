@@ -73,12 +73,13 @@ export default {
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
-          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
+          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiToken', 'getCurrentUserApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
           'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
           'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetUpdateDbChannel', 'socNetUpdateDbAccount', 'socNetDbChannel',
           'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
           'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId',
-          'staticSiteBind', 'getStaticSiteInfo', 'getServerStorageUri', 'updateStaticSiteInfo'
+          'staticSiteBind', 'getStaticSiteInfo', 'getServerStorageUri', 'updateStaticSiteInfo',
+          'addSerialAutoActions', 'getAutoActions', 'updateAutoAction', 'buildAutoActions'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');
@@ -99,7 +100,7 @@ export default {
         return result;
       },
 
-      getApiKey() {
+      getApiToken() {
         return geesomeClient.apiKey;
       },
 

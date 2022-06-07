@@ -94,6 +94,7 @@ export default {
 				props: {
 					channel: this.dbChannel,
 					socNetName: this.$route.params.socNet,
+					advancedSettings: this.advancedSettings
 				},
 				onClose: async () => {
 					this.getChannelInfo();

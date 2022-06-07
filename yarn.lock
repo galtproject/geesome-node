@@ -8526,9 +8526,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#e2d606d":
+"geesome-libs@https://github.com/galtproject/geesome-libs#f68b34e":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#e2d606ded00b993c31081759d83b6ebf2b36dcf8"
+  resolved "https://github.com/galtproject/geesome-libs#f68b34e06228262493f0b36fb1166711d43297cd"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
@@ -8560,7 +8560,7 @@ gc-stats@^1.4.0:
     lodash "^4.17.11"
     multiformats "^9.4.7"
     multihashes "^4.0.2"
-    node-forge "0.10.0"
+    node-forge "1.3.0"
     openpgp "^4.10.0"
     p-iteration "^1.1.8"
     peer-id "0.15.3"
@@ -14860,7 +14860,12 @@ node-fetch@~1.7.1:
     encoding "^0.1.11"
     is-stream "^1.0.1"
 
-node-forge@0.10.0, node-forge@^0.10.0:
+node-forge@1.3.0:
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/node-forge/-/node-forge-1.3.0.tgz#37a874ea723855f37db091e6c186e5b67a01d4b2"
+  integrity sha512-08ARB91bUi6zNKzVmaj3QO7cr397uiDT2nJ63cHjyNtCTWIgvS47j3eT0WfzUwS9+6Z5YshRaoasFkXCKrIYbA==
+
+node-forge@^0.10.0:
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/node-forge/-/node-forge-0.10.0.tgz#32dea2afb3e9926f02ee5ce8794902691a676bf3"
   integrity sha512-PPmu8eEeG9saEUvI97fm4OYxXVB6bFvyNTyiUOBichBpFG8A1Ljw3bY62+5oOjDEMHRnd0Y7HQ+x7uzxOzC6JA==

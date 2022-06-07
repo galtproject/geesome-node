@@ -33,7 +33,7 @@ export default {
 
       if(!itemsData.total && this.activeTab === 'users' && this.search) {
         if(this.search.split('-').length === 4) {
-          const user = await this.$coreApi.getUserByApiKey(this.search);
+          const user = await this.$coreApi.getUserByApiToken(this.search).then(r => r.user);
           this.items = [user];
           itemsData.total = 1;
         }

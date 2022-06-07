@@ -123,7 +123,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 			if (!req.token) {
 				return res.send({error: "Need authorization token", errorCode: 1}, 401);
 			}
-			const {user, apiKey} = await app.getUserByApiKey(req.token);
+			const {user, apiKey} = await app.getUserByApiToken(req.token);
 			req.user = user;
 			req.apiKey = apiKey;
 			if (!req.user || !req.user.id) {

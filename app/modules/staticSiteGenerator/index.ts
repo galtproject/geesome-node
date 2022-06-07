@@ -26,6 +26,10 @@ function getModule(app: IGeesomeApp, models) {
 
     };
 
+    let finishCallbacks = {
+
+    };
+
     class StaticSiteGenerator implements IGeesomeStaticSiteGeneratorModule {
         moduleName = 'static-site-generator';
 
@@ -50,6 +54,15 @@ function getModule(app: IGeesomeApp, models) {
                 options
             });
             return this.processQueue();
+        }
+
+        async addRenderAndWaitForFinish(userId, token, entityType, entityId, options) {
+            const operationQueue = await this.addRenderToQueueAndProcess(userId, token, entityType, entityId, options);
+            const finishedOperation = await new Promise((resolve) => {
+                finishCallbacks[operationQueue.id] = resolve;
+            });
+            delete finishCallbacks[operationQueue.id];
+            return finishedOperation;
         }
 
         async processQueue() {
@@ -92,7 +105,11 @@ function getModule(app: IGeesomeApp, models) {
                 await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
             });
 
-            return app.ms.asyncOperation.getUserOperationQueue(waitingQueue.userId, waitingQueue.id);
+            const finishedOperation = await app.ms.asyncOperation.getUserOperationQueue(waitingQueue.userId, waitingQueue.id);
+            if (finishCallbacks[finishedOperation.id]) {
+                finishCallbacks[finishedOperation.id](finishedOperation);
+            }
+            return finishedOperation;
         }
 
         async getDefaultOptionsByGroupId(userId, groupId) {
@@ -248,6 +265,10 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             return models.StaticSite.findOne({ where }) as IStaticSite;
+        }
+
+        isAutoActionAllowed(userId, funcName, funcArgs) {
+            return _.includes(['addRenderToQueueAndProcess', 'addRenderAndWaitForFinish', 'bindSiteToStaticId'], funcName);
         }
 
         async updateStaticSiteInfo(userId, entityType, entityId, updateData) {
