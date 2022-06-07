@@ -275,7 +275,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		isAutoActionAllowed(userId, funcName, funcArgs) {
-			return _.includes(['runChannelImportAndWaitForFinish'], funcName);
+			return includes(['runChannelImportAndWaitForFinish'], funcName);
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
