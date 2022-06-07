@@ -39,7 +39,7 @@ export default {
         funcName: 'bindSiteToStaticId',
         funcArgs: ['group', this.dbChannel.groupId, this.staticSiteOptions.name],
         isEncrypted: true
-      }]), this.runPeriod);
+      }], this.runPeriod));
 
       this.close();
     },
