@@ -10,14 +10,13 @@ module.exports = `
   </template>
 
   <div class="modal-body" slot="body">
-    <p>For auto import will used unencrypted social network session key and Geesome session token stored in database.</p>
+    <p>Auto import data will be encrypted by GeeSome node key and stored to GeeSome node database.</p>
 
-	<period-input :locale-label="localeKey + '.period'" v-model="channel.autoImportPeriod"
-				  :disabled="saving"></period-input>
+	<period-input :locale-label="localeKey + '.period'" v-model="runPeriod" :disabled="saving"></period-input>
 
     <md-field>
-      <label>Geesome token</label>
-      <md-input type="password" v-model="channel.autoImportToken"></md-input>
+      <label>GeeSome API token</label>
+      <md-input type="password" v-model="apiToken"></md-input>
     </md-field>
 
     <md-checkbox v-model="isDisabled" @change="onDisabled">Disable</md-checkbox>
@@ -25,7 +24,7 @@ module.exports = `
 
   <template slot="footer">
     <md-button @click="cancel" class="md-raised"><span>Close</span></md-button>
-    <md-button @click="ok" class="md-raised md-accent" :disabled="!apiKey.type" v-if="!resultApiKey">Ok</md-button>
+    <md-button @click="ok" class="md-raised md-accent" :disabled="!apiToken">Ok</md-button>
   </template>
 </modal-item>
 `;

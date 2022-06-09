@@ -14,6 +14,10 @@ module.exports = `
 			<div v-if="siteInfo"><label>Storage id(IPFS):</label> <pretty-hex :hex="siteInfo.storageId"></pretty-hex></div>
 			<div v-if="siteInfo"><label>Static id(IPNS):</label> <pretty-hex :hex="siteInfo.staticId"></pretty-hex></div>
 		  </div>
+		  
+            <div v-if="socNetChannel">
+                <md-button @click="setAutoGenerate()" class="md-raised md-accent">Auto import and generate</md-button>
+            </div>
         </div>
         <div class="md-layout-item md-size-70 md-small-size-100">
 			<div style="display: flex; justify-content: space-between;">

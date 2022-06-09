@@ -9,16 +9,22 @@
 
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
 
-const clone = require('lodash/clone');
-
 export default {
   template: require('./SocNetAutoImport.template'),
-  props: ['socNetName', 'dbChannel', 'staticSiteOptions'],
+  props: ['dbChannel', 'staticSiteOptions'],
   components: {
     ModalItem
   },
-  created() {
+  async created() {
+    this.apiToken = this.$coreApi.getApiToken();
 
+    const existAutoActions = await this.$coreApi.getAutoActions({
+      moduleName: 'telegramClient',
+      funcName: 'runChannelImportAndWaitForFinish'
+    });
+
+    this.existAction = existAutoActions.filter(a => JSON.parse(a.funcArgs)[2] === this.dbChannel.channelId)[0];
+    console.log('this.existAction', this.existAction);
   },
   methods: {
     async ok() {
@@ -32,7 +38,7 @@ export default {
       }, {
         moduleName: 'staticSiteGenerator',
         funcName: 'addRenderAndWaitForFinish',
-        funcArgs: [this.$coreApi.getApiToken(), 'group', this.dbChannel.groupId, this.staticSiteOptions],
+        funcArgs: [this.apiToken, 'group', this.dbChannel.groupId, this.staticSiteOptions],
         isEncrypted: true
       }, {
         moduleName: 'staticSiteGenerator',
@@ -48,9 +54,9 @@ export default {
     },
     onDisabled() {
       if (this.isDisabled) {
-        this.channel.autoImportPeriod = 0;
+        this.runPeriod = 0;
       } else {
-        this.channel.autoImportPeriod = 60;
+        this.runPeriod = 60;
       }
     }
   },
@@ -59,9 +65,10 @@ export default {
   data: function () {
     return {
       localeKey: 'soc_net_channel.auto_import',
-      channel: null,
+      existAction: null,
       isDisabled: false,
       runPeriod: 60,
+      apiToken: null,
     }
   }
 }

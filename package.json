@@ -28,7 +28,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#5a9df7e",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#23d12da",
     "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.19",
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",
     "@types/es6-promise": "^3.3.0",

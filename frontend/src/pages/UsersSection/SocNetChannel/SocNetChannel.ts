@@ -7,8 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import SocNetAutoImport from "../modals/SocNetAutoImport/SocNetAutoImport";
-
 const includes = require('lodash/includes');
 
 export default {
@@ -86,20 +84,6 @@ export default {
 					this.curOperation = null;
 				}
 			})
-		},
-		setAutoImport() {
-			this.$root.$asyncModal.open({
-				id: 'soc-net-auto-import',
-				component: SocNetAutoImport,
-				props: {
-					channel: this.dbChannel,
-					socNetName: this.$route.params.socNet,
-					advancedSettings: this.advancedSettings
-				},
-				onClose: async () => {
-					this.getChannelInfo();
-				}
-			});
 		},
 	},
 	watch: {},

@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const includes = require('lodash/includes');
+import SocNetAutoImport from "../modals/SocNetAutoImport/SocNetAutoImport";
 
 export default {
 	template: require('./StaticSiteManager.template'),
@@ -96,7 +96,23 @@ export default {
 		},
 		toggleAdvanced() {
 			this.showAdvanced = !this.showAdvanced;
-		}
+		},
+		async checkSocNetChannel() {
+			this.socNetChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {groupId: this.dbGroupId});
+		},
+		setAutoGenerate() {
+			this.$root.$asyncModal.open({
+				id: 'soc-net-auto-import',
+				component: SocNetAutoImport,
+				props: {
+					channel: this.socNetChannel,
+					staticSiteOptions: this.options
+				},
+				onClose: async () => {
+					this.getData();
+				}
+			});
+		},
 	},
 	watch: {
 		async siteInfo() {
@@ -137,6 +153,7 @@ export default {
 			done: false,
 			siteInfo: null,
 			showAdvanced: false,
+			socNetChannel: null,
 		};
 	}
 }

@@ -48,7 +48,7 @@ module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient
 		return res.send(await wrapApiResult(telegramClientModule.getChannelInfoByUserId(req.user.id, req.body.accountData, req.body.channelId)), 200);
 	});
 	api.onAuthorizedPost('run-channel-import', async (req, res) => {
-		return res.send(await telegramClientModule.runChannelImport(req.user.id, req.apiKey, req.body.accountData, req.body.channelId, req.body.advancedSettings).then(r => r.result), 200);
+		return res.send(await telegramClientModule.runChannelImport(req.user.id, req.apiKey.id, req.body.accountData, req.body.channelId, req.body.advancedSettings).then(r => r.result), 200);
 	});
 
 	async function wrapApiResult(promise) {

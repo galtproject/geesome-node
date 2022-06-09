@@ -103,9 +103,9 @@ function getModule(app: IGeesomeApp, models) {
 			return models.AutoAction.findOne({ where: { id }, include: [ {association: 'nextActions'} ] }).then(a => this.decryptAutoActionIfNecessary(a));
 		}
 
-		async getUserActions(userId) {
+		async getUserActions(userId, params = {}) {
 			return {
-				list: await models.AutoAction.findAll({ where: { userId }, include: [ {association: 'nextActions'}, {association: 'baseActions'} ] }).then(as => pIteration.map(as, a => this.decryptAutoActionIfNecessary(a)))
+				list: await models.AutoAction.findAll({ where: { ...params, userId }, include: [ {association: 'nextActions'}, {association: 'baseActions'} ] }).then(as => pIteration.map(as, a => this.decryptAutoActionIfNecessary(a)))
 			}
 		}
 

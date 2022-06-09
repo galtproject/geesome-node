@@ -16,7 +16,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#5a9df7e",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#23d12da",
     "@galtproject/vue-locale": "0.1.10",
     "@swc/helpers": "^0.2.13",
     "async": "^2.6.4",
