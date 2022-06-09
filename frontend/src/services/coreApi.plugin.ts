@@ -27,7 +27,7 @@ export default {
         appStore = $vueInstance.$store;
         notify = $vueInstance.$notify;
 
-        let server = localStorage.getItem('geesome-server');
+        let server = process.env.SERVER || localStorage.getItem('geesome-server');
         let apiKey = localStorage.getItem('geesome-api-key');
 
         function undefinedValue(v) {
