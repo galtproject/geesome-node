@@ -1,7 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
-const {getTitleAndDescription, getMainMediaContent, getOgHeaders} = require('./helpers');
+const {getTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml} = require('./helpers');
 // const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
@@ -25,6 +25,8 @@ module.exports = function(posts, settings) {
                     const result = getTitleAndDescription(post.texts, {titleLength: 100});
                     pageTitle = result.title;
                 }
+                pageTitle = removeHtml(pageTitle);
+                const pageDescription = removeHtml(postDescription);
                 const mediaContent = getMainMediaContent(post.contents);
 
                 const page = await createPage(app, {
@@ -33,8 +35,9 @@ module.exports = function(posts, settings) {
                         layout: 'Post',
                         permalink: getPostPath(post.id),
                         // permalinkPattern?: string;
-                        head: getOgHeaders(site.title, post.lang, pageTitle, postDescription, mediaContent.previewUrl || mediaContent.url),
+                        head: getOgHeaders(site.title, post.lang, pageTitle, pageDescription, mediaContent ? mediaContent.previewUrl || mediaContent.url : null),
                         title: pageTitle,
+                        description: pageDescription,
                         postTitle,
                         postDescription,
                         date: post.date,
@@ -103,7 +106,8 @@ module.exports = function(posts, settings) {
                     path: page.permalink,
                     date: page.frontmatter.date,
                     title: page.frontmatter.title,
-                    excerpt: page.frontmatter.description,
+                    postTitle: page.frontmatter.postTitle,
+                    postDescription: page.frontmatter.postDescription,
                     images: page.frontmatter.images,
                     videos: page.frontmatter.videos
                 }));

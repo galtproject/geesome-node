@@ -69,7 +69,7 @@ module.exports = `
 
 			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
 			
-	  		<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site bellow.</div>
+	  		<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site above.</div>
         </div>
       </div>
     </md-card-content>

@@ -15,13 +15,13 @@
 
             <router-link :to="page.path" class="post-date">{{ resolvePostDate(page.date) }}</router-link>
 
-            <p v-if="page.postTitle" class="post-intro" v-html="page.postTitle"></p>
-            <p v-if="page.postDescription" class="post-intro" v-html="page.postDescription"></p>
+            <p v-if="page.postTitle" class="post-intro title" v-html="page.postTitle"></p>
+            <p v-if="page.postDescription" class="post-intro description" v-html="page.postDescription"></p>
 <!--            <header class="ui-post-title" itemprop="name headline">-->
 <!--              <nav-link :link="page.path">{{ page.title }}</nav-link>-->
 <!--            </header>-->
 
-            <div v-if="page.excerpt || page.images || page.videos">
+            <div v-if="page.images || page.videos">
               <!-- eslint-disable vue/no-v-html -->
               <div v-if="page.images && page.images.length">
                 <img :src="page.images[0].url" class="post-image">

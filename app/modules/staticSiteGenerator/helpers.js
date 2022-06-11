@@ -212,4 +212,4 @@ async function apiRequest(port, method, token, body) {
     }).then(r => r.json());
 }
 
-module.exports = { rmDir, getTitleAndDescription, getMainMediaContent, apiRequest, getOgHeaders };
+module.exports = { rmDir, getTitleAndDescription, getMainMediaContent, apiRequest, getOgHeaders, removeHtml };
