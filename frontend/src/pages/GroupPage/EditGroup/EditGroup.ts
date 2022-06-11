@@ -28,8 +28,12 @@ export default {
       }).then((updatedGroup) => {
         EventBus.$emit(UPDATE_ADMIN_GROUPS);
         this.$router.push({name: 'group-page', params: {groupId: updatedGroup.manifestStaticStorageId}})
-      }).catch(() => {
-        this.error = 'failed';
+      }).catch((e) => {
+        this.$notify({
+          type: 'error',
+          title: 'Failed',
+          text: e.message
+        });
       })
     },
     deleteGroup() {
@@ -43,8 +47,12 @@ export default {
       }).then((updatedGroup) => {
         EventBus.$emit(UPDATE_ADMIN_GROUPS);
         this.$router.push({name: 'group-page', params: {groupId: updatedGroup.manifestStaticStorageId}})
-      }).catch(() => {
-        this.error = 'failed';
+      }).catch((e) => {
+        this.$notify({
+          type: 'error',
+          title: 'Failed',
+          text: e.message
+        });
       })
     },
     makeid(length) {

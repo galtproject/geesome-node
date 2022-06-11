@@ -15,7 +15,7 @@ module.exports = `
 			<div v-if="siteInfo"><label>Static id(IPNS):</label> <pretty-hex :hex="siteInfo.staticId"></pretty-hex></div>
 		  </div>
 		  
-            <div v-if="socNetChannel">
+            <div v-if="siteInfo && socNetChannel">
                 <md-button @click="setAutoGenerate()" class="md-raised md-accent">Auto import and generate</md-button>
             </div>
         </div>

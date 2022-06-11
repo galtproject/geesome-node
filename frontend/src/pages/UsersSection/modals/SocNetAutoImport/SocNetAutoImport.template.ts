@@ -1,7 +1,7 @@
 module.exports = `
 <modal-item>
   <template slot="header">
-    <md-button class="md-icon-button close" @click="cancel">
+    <md-button class="md-icon-button close" @click="close">
       <md-icon>clear</md-icon>
     </md-button>
     <h4>
@@ -23,7 +23,7 @@ module.exports = `
   </div>
 
   <template slot="footer">
-    <md-button @click="cancel" class="md-raised"><span>Close</span></md-button>
+    <md-button @click="close" class="md-raised"><span>Close</span></md-button>
     <md-button @click="ok" class="md-raised md-accent" :disabled="!apiToken">Ok</md-button>
   </template>
 </modal-item>

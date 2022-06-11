@@ -114,16 +114,21 @@ function getModule(app: IGeesomeApp, models) {
 			return userAcc ? userAcc.update(accData).then(() => models.Account.findOne({where})) : models.Account.create(accData);
 		}
 
+		async getAccountByAccData(userId, accData) {
+			return models.Account.findOne({where: {...accData, userId}});
+		}
+
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
-			const acc = await models.Account.findOne({where: {...accData, userId}});
+			const acc = await this.getAccountByAccData(userId, accData);
 			let {apiId, apiHash} = acc;
 			if (!sessionKey) {
 				sessionKey = acc.sessionKey;
 			}
 			apiId = parseInt(apiId);
 			const client = new TelegramClient(new StringSession(sessionKey), apiId, apiHash, {});
+			client.account = acc;
 			await client.connect();
 			return client;
 		}
@@ -293,6 +298,7 @@ function getModule(app: IGeesomeApp, models) {
 				throw new Error("not_permitted");
 			}
 			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
+			const {account} = client;
 
 			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 			let group;
@@ -309,14 +315,14 @@ function getModule(app: IGeesomeApp, models) {
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
 				await app.ms.group.updateGroup(userId, dbChannel.groupId, {
-					name: channel.username,
+					name: advancedSettings['name'] || channel.username,
 					title: channel.title,
 					description: channel.about,
 					avatarImageId: avatarContent ? avatarContent.id : null,
 				});
 			} else {
 				group = await app.ms.group.createGroup(userId, {
-					name: channel.username || channel.id.toString(),
+					name: advancedSettings['name'] || channel.username || channel.id.toString(),
 					title: channel.title,
 					description: channel.about,
 					isPublic: true,
@@ -333,6 +339,7 @@ function getModule(app: IGeesomeApp, models) {
 					userId,
 					groupId: group.id,
 					channelId: channel.id.toString(),
+					accountId: account.id,
 					title: channel.title,
 					lastMessageId: 0,
 					postsCounts: 0,

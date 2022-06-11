@@ -37,6 +37,7 @@ export default {
 				this.$coreApi.staticSiteGetDefaultOptions(this.type, this.dbGroupId),
 				this.$coreApi.getStaticSiteInfo(this.type, this.dbGroupId)
 			]);
+			this.checkSocNetChannel();
 			this.setDefaultOptions();
 		},
 		setDefaultOptions() {
@@ -98,14 +99,17 @@ export default {
 			this.showAdvanced = !this.showAdvanced;
 		},
 		async checkSocNetChannel() {
-			this.socNetChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {groupId: this.dbGroupId});
+			console.log('checkSocNetChannel');
+			//TODO: use more unified way to run autoimport
+			this.socNetChannel = await this.$coreApi.socNetDbChannel('telegram', {groupId: this.dbGroupId});
+			console.log('socNetChannel', this.socNetChannel);
 		},
 		setAutoGenerate() {
 			this.$root.$asyncModal.open({
 				id: 'soc-net-auto-import',
 				component: SocNetAutoImport,
 				props: {
-					channel: this.socNetChannel,
+					dbChannel: this.socNetChannel,
 					staticSiteOptions: this.options
 				},
 				onClose: async () => {

@@ -19,6 +19,10 @@ module.exports = `
 			<div style="display: flex; justify-content: space-between;">
 			  <h3>Import channel to IPFS</h3>
 			</div>
+			<md-field>
+                <label>Group name</label>
+                <md-input type="text" v-model="advancedSettings.name"></md-input>
+            </md-field>
 			<div>
 				<a href @click.prevent.stop="advancedSettingsEnabled = !advancedSettingsEnabled;">Advanced settings</a>
 				<div v-if="advancedSettingsEnabled" class="md-layout">

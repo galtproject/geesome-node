@@ -42,6 +42,7 @@
     "unit_minutes": "Minutes",
     "unit_hours": "Hours",
     "unit_days": "Days",
+    "unit_seconds": "Seconds",
     "period_value": "Value",
     "period_unit": "Unit"
   },

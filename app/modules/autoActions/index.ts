@@ -12,6 +12,7 @@ module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./models")();
 	const module = await getModule(app, models);
 	require('./api')(app, module);
+	require('./cron')(app, module);
 	return module;
 }
 

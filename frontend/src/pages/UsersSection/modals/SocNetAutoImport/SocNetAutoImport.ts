@@ -8,12 +8,14 @@
  */
 
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
+import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/PeriodInput";
 
 export default {
   template: require('./SocNetAutoImport.template'),
   props: ['dbChannel', 'staticSiteOptions'],
   components: {
-    ModalItem
+    ModalItem,
+    PeriodInput,
   },
   async created() {
     this.apiToken = this.$coreApi.getApiToken();
@@ -21,7 +23,7 @@ export default {
     const existAutoActions = await this.$coreApi.getAutoActions({
       moduleName: 'telegramClient',
       funcName: 'runChannelImportAndWaitForFinish'
-    });
+    }).then(d => d.list);
 
     this.existAction = existAutoActions.filter(a => JSON.parse(a.funcArgs)[2] === this.dbChannel.channelId)[0];
     console.log('this.existAction', this.existAction);
@@ -33,7 +35,7 @@ export default {
       await this.$coreApi.addSerialAutoActions(this.$coreApi.buildAutoActions([{
         moduleName: 'telegramClient',
         funcName: 'runChannelImportAndWaitForFinish',
-        funcArgs: [apiKey.id, {id: this.dbChannel.accountId}, this.dbChannel.channelId, this.advancedSettings],
+        funcArgs: [apiKey.id, {id: this.dbChannel.accountId}, this.dbChannel.channelId],
         isEncrypted: false,
       }, {
         moduleName: 'staticSiteGenerator',
@@ -43,7 +45,7 @@ export default {
       }, {
         moduleName: 'staticSiteGenerator',
         funcName: 'bindSiteToStaticId',
-        funcArgs: ['group', this.dbChannel.groupId, this.staticSiteOptions.name],
+        funcArgs: ['group', this.dbChannel.groupId, this.staticSiteOptions.site.name],
         isEncrypted: true
       }], this.runPeriod));
 
@@ -65,6 +67,7 @@ export default {
   data: function () {
     return {
       localeKey: 'soc_net_channel.auto_import',
+      saving: false,
       existAction: null,
       isDisabled: false,
       runPeriod: 60,

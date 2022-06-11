@@ -33,12 +33,12 @@ function getModule(app: IGeesomeApp, models) {
 		async createGroup(userId, groupData) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 
+			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
+				throw new Error("incorrect_name");
+			}
 			const existUserWithName = await this.getGroupByParams({name: groupData['name']});
 			if (existUserWithName) {
 				throw new Error("name_already_exists");
-			}
-			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
-				throw new Error("incorrect_name");
 			}
 
 			groupData.creatorId = userId;
