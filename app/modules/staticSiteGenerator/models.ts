@@ -24,11 +24,17 @@ module.exports = async function () {
 		options: {
 			type: Sequelize.TEXT
 		},
+		userId: {
+			type: Sequelize.INTEGER
+		},
 		entityType: {
 			type: Sequelize.STRING(100)
 		},
 		entityId: {
 			type: Sequelize.INTEGER
+		},
+		lastEntityManifestStorageId: {
+			type: Sequelize.STRING(100)
 		},
 		storageId: {
 			type: Sequelize.STRING(100)

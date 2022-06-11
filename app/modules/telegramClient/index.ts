@@ -284,11 +284,11 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
-			const operationQueue = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r.result.asyncOperation);
+			const asyncOperation = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r.result.asyncOperation);
 			const finishedOperation = await new Promise((resolve) => {
-				finishCallbacks[operationQueue.id] = resolve;
+				finishCallbacks[asyncOperation.id] = resolve;
 			});
-			delete finishCallbacks[operationQueue.id];
+			delete finishCallbacks[asyncOperation.id];
 			return finishedOperation;
 		}
 

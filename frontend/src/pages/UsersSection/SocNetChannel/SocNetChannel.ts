@@ -45,6 +45,10 @@ export default {
 			}
 		},
 		async getGroup() {
+			if (!this.dbChannel) {
+				this.dbGroup = null;
+				return;
+			}
 			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId).then(g => g && g.isDeleted ? null : g);
 			if (this.dbGroup && !this.advancedSettings.name) {
 				this.advancedSettings.name = this.dbGroup.name;

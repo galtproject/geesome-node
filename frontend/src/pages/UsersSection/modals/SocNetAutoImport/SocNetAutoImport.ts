@@ -12,7 +12,7 @@ import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/Perio
 
 export default {
   template: require('./SocNetAutoImport.template'),
-  props: ['dbChannel', 'staticSiteOptions'],
+  props: ['dbChannel', 'staticSiteOptions', 'dbStaticSite'],
   components: {
     ModalItem,
     PeriodInput,
@@ -27,32 +27,73 @@ export default {
 
     this.existAction = existAutoActions.filter(a => JSON.parse(a.funcArgs)[2] === this.dbChannel.channelId)[0];
     console.log('this.existAction', this.existAction);
+    if (this.existAction) {
+      this.runPeriod = this.existAction.executePeriod;
+      this.isDisabled = this.runPeriod === 0;
+    } else {
+      this.runPeriod = 60;
+    }
   },
   methods: {
     async ok() {
-      const apiKey = await this.$coreApi.getCurrentUserApiKey();
+      this.saving = true;
+      if (this.existAction) {
+        await this.$coreApi.updateAutoAction(this.existAction.id, this.$coreApi.buildAutoActions([
+            await this.runChannelImportData(),
+        ], this.runPeriod)[0]);
 
-      await this.$coreApi.addSerialAutoActions(this.$coreApi.buildAutoActions([{
+        const generateSiteAction = await this.$coreApi.getAutoActions({
+          id: this.existAction.nextActions[0].id
+        }).then(d => d.list[0]);
+
+        await this.$coreApi.updateAutoAction(generateSiteAction.id, this.$coreApi.buildAutoActions([
+          this.generateSiteData()
+        ], 0)[0]);
+
+        const bindStaticIdAction = generateSiteAction.nextActions[0];
+
+        await this.$coreApi.updateAutoAction(bindStaticIdAction.id, this.$coreApi.buildAutoActions([
+          this.bindStaticIdData()
+        ], 0)[0]);
+      } else {
+        await this.$coreApi.addSerialAutoActions(this.$coreApi.buildAutoActions([
+          await this.runChannelImportData(),
+          this.generateSiteData(),
+          this.bindStaticIdData()
+        ], this.runPeriod));
+      }
+
+      this.close(true);
+    },
+    async runChannelImportData() {
+      const apiKey = await this.$coreApi.getCurrentUserApiKey();
+      const socNetAccData: any = {id: this.dbChannel.accountId};
+      socNetAccData.sessionKey = await this.$coreApi.getSocNetSessionKey('telegram', socNetAccData);
+      return {
         moduleName: 'telegramClient',
         funcName: 'runChannelImportAndWaitForFinish',
-        funcArgs: [apiKey.id, {id: this.dbChannel.accountId}, this.dbChannel.channelId],
-        isEncrypted: false,
-      }, {
+        funcArgs: [apiKey.id, socNetAccData, this.dbChannel.channelId],
+        isEncrypted: true,
+      };
+    },
+    generateSiteData() {
+      return {
         moduleName: 'staticSiteGenerator',
-        funcName: 'addRenderAndWaitForFinish',
+        funcName: 'runRenderAndWaitForFinish',
         funcArgs: [this.apiToken, 'group', this.dbChannel.groupId, this.staticSiteOptions],
         isEncrypted: true
-      }, {
+      };
+    },
+    bindStaticIdData() {
+      return {
         moduleName: 'staticSiteGenerator',
         funcName: 'bindSiteToStaticId',
-        funcArgs: ['group', this.dbChannel.groupId, this.staticSiteOptions.site.name],
+        funcArgs: [this.dbStaticSite.id],
         isEncrypted: true
-      }], this.runPeriod));
-
-      this.close();
+      }
     },
-    close() {
-      this.$root.$asyncModal.close('soc-net-auto-import');
+    close(success = false) {
+      this.$root.$asyncModal.close('soc-net-auto-import', success);
     },
     onDisabled() {
       if (this.isDisabled) {
@@ -70,7 +111,7 @@ export default {
       saving: false,
       existAction: null,
       isDisabled: false,
-      runPeriod: 60,
+      runPeriod: null,
       apiToken: null,
     }
   }

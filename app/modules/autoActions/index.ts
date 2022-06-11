@@ -121,6 +121,7 @@ function getModule(app: IGeesomeApp, models) {
 				[a => a.nextActionsPivot.position],
 				['asc']
 			);
+			console.log('getNextActionsById', id, 'nextActions.length', nextActions.length);
 			return nextActions.map(a => {
 				if (a.userId !== userId) {
 					throw new Error("userId_dont_match");

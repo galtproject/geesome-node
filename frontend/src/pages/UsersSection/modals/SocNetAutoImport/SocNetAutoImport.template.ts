@@ -24,7 +24,7 @@ module.exports = `
 
   <template slot="footer">
     <md-button @click="close" class="md-raised"><span>Close</span></md-button>
-    <md-button @click="ok" class="md-raised md-accent" :disabled="!apiToken">Ok</md-button>
+    <md-button @click="ok" class="md-raised md-accent" :disabled="!apiToken || saving">Ok</md-button>
   </template>
 </modal-item>
 `;

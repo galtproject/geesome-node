@@ -17,7 +17,7 @@ module.exports = (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperation
     });
 
     app.ms.api.onAuthorizedPost('user/find-async-operations', async (req, res) => {
-        res.send(await asyncOperationModule.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike));
+        res.send(await asyncOperationModule.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike, req.body.inProcess));
     });
 
     app.ms.api.onAuthorizedPost('user/cancel-async-operation/:id', async (req, res) => {

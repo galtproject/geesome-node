@@ -180,15 +180,15 @@ function getModule(app: IGeesomeApp, models) {
 			return models.UserAsyncOperation.findOne({where: {id}}) as IUserAsyncOperation;
 		}
 
-		async getUserAsyncOperationList(userId, name = null, channelLike = null) {
-			const where = {userId, inProcess: true};
+		async getUserAsyncOperationList(userId, name = null, channelLike = null, inProcess = true) {
+			const where = {userId, inProcess};
 			if (name) {
 				where['name'] = name;
 			}
 			if (channelLike) {
 				where['channel'] = {[Op.like]: channelLike};
 			}
-			return models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 100});
+			return models.UserAsyncOperation.findAll({where, order: [['createdAt', 'DESC']], limit: 10});
 		}
 
 		async updateUserOperationQueue(id, updateData) {

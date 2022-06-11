@@ -48,16 +48,18 @@ function getModule(app: IGeesomeApp, models) {
 
             const userApiKeyId = await app.getApyKeyId(token);
             apiKeyIdToTokenTemp[userApiKeyId] = token;
-            await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
+            const operationQueue = await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
                 entityType,
                 entityId,
                 options
             });
-            return this.processQueue();
+            this.processQueue();
+            return operationQueue;
         }
 
-        async addRenderAndWaitForFinish(userId, token, entityType, entityId, options) {
+        async runRenderAndWaitForFinish(userId, token, entityType, entityId, options) {
             const operationQueue = await this.addRenderToQueueAndProcess(userId, token, entityType, entityId, options);
+            console.log('runRenderAndWaitForFinish operationQueue', operationQueue.id);
             const finishedOperation = await new Promise((resolve) => {
                 finishCallbacks[operationQueue.id] = resolve;
             });
@@ -72,7 +74,7 @@ function getModule(app: IGeesomeApp, models) {
                 return;
             }
 
-            console.log('!!waitingQueue.asyncOperation', !!waitingQueue.asyncOperation);
+            console.log('processQueue waitingQueue', waitingQueue.id);
             if (waitingQueue.asyncOperation) {
                 if (waitingQueue.asyncOperation.inProcess) {
                     console.log('return');
@@ -103,13 +105,14 @@ function getModule(app: IGeesomeApp, models) {
             }).then(async (content: IContent) => {
                 await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                 await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
+                console.log('finishAsyncOperation waitingQueue', waitingQueue.id);
+                console.log('finishCallbacks[waitingQueue.id]', finishCallbacks[waitingQueue.id]);
+                if (finishCallbacks[waitingQueue.id]) {
+                    finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
+                }
             });
 
-            const finishedOperation = await app.ms.asyncOperation.getUserOperationQueue(waitingQueue.userId, waitingQueue.id);
-            if (finishCallbacks[finishedOperation.id]) {
-                finishCallbacks[finishedOperation.id](finishedOperation);
-            }
-            return finishedOperation;
+            return waitingQueue;
         }
 
         async getDefaultOptionsByGroupId(userId, groupId) {
@@ -165,6 +168,11 @@ function getModule(app: IGeesomeApp, models) {
 
             const {userApiKeyId, baseStorageUri} = options;
             const group = await app.ms.group.getLocalGroup(userId, entityId);
+            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+            if (group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
+                console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
+                return app.ms.content.getContent(staticSite.storageId);
+            }
             options = await this.getResultOptions(group, options);
 
             const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
@@ -221,11 +229,11 @@ function getModule(app: IGeesomeApp, models) {
                 groupId: group.id,
                 userApiKeyId: options.userApiKeyId
             });
-            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+            const baseData = {storageId: content.storageId, lastEntityManifestStorageId: group.manifestStorageId};
             if (staticSite) {
-                await this.updateDbStaticSite(staticSite.id, {storageId: content.storageId});
+                await this.updateDbStaticSite(staticSite.id, baseData);
             } else {
-                await this.createDbStaticSite({userId, entityType, entityId, storageId: content.storageId, title: options.title, options: JSON.stringify(options)});
+                await this.createDbStaticSite({...baseData, userId, entityType, entityId, title: options.title, options: JSON.stringify(options)});
             }
             return content;
         }
@@ -238,13 +246,14 @@ function getModule(app: IGeesomeApp, models) {
             return models.StaticSite.create(data);
         }
 
-        async bindSiteToStaticId(userId, entityType, entityId, name) {
-            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+        async bindSiteToStaticId(userId, staticSiteId) {
+            const staticSite = await models.StaticSite.findOne({where: {id: staticSiteId}});
             if (!staticSite) {
                throw new Error("static_site_not_found");
             }
+            const {entityType, entityId, name} = staticSite;
             let staticId;
-            if (name === 'group') {
+            if (entityType === 'group') {
                 staticId = await app.ms.staticId.getOrCreateStaticGroupAccountId(userId, entityId, name);
                 await app.ms.staticId.bindToStaticIdByGroup(userId, entityId, staticSite.storageId, staticId);
             } else {
@@ -268,22 +277,23 @@ function getModule(app: IGeesomeApp, models) {
         }
 
         isAutoActionAllowed(userId, funcName, funcArgs) {
-            return _.includes(['addRenderToQueueAndProcess', 'addRenderAndWaitForFinish', 'bindSiteToStaticId'], funcName);
+            return _.includes(['addRenderToQueueAndProcess', 'runRenderAndWaitForFinish', 'bindSiteToStaticId'], funcName);
         }
 
-        async updateStaticSiteInfo(userId, entityType, entityId, updateData) {
-            const staticSiteInfo = await this.getStaticSiteInfo(userId, entityType, entityId);
+        async updateStaticSiteInfo(userId, staticSiteId, updateData) {
+            const staticSiteInfo = await models.StaticSite.findOne({ where: {id: staticSiteId}}) as IStaticSite;
+            const {entityType, entityId, name} = staticSiteInfo;
             if (!staticSiteInfo) {
                 throw new Error("static_site_not_found");
             }
             if (updateData['name'] && !helpers.validateUsername(updateData['name'])) {
                 throw new Error("incorrect_name");
             }
-            if (updateData['name'] && updateData['name'] !== staticSiteInfo.name) {
+            if (name && updateData['name'] && updateData['name'] !== name) {
                 if (entityType === 'group') {
-                    await app.ms.staticId.renameGroupStaticAccountId(userId, entityId, staticSiteInfo.name, updateData['name']);
+                    await app.ms.staticId.renameGroupStaticAccountId(userId, entityId, name, updateData['name']);
                 } else {
-                    await app.ms.staticId.renameStaticAccountId(userId, staticSiteInfo.name, updateData['name']);
+                    await app.ms.staticId.renameStaticAccountId(userId, name, updateData['name']);
                 }
             }
             return this.updateDbStaticSite(staticSiteInfo.id, updateData);
