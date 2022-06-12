@@ -24,12 +24,16 @@ function getModule(app: IGeesomeApp, models, pass) {
 			return models.Account.create({userId, groupId, staticId: cid, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
 		}
 
-		async getAccountByName(name) {
-			return models.Account.findOne({where: {name}}) as IStaticIdAccount;
+		async getLocalAccountByName(name) {
+			return models.Account.findOne({where: {name, isRemote: false}}) as IStaticIdAccount;
 		}
 
-		async renameAccount(name, newName) {
-			return models.Account.update({name: newName}, {where: {name}});
+		async updateLocalAccountGroupId(name, groupId) {
+			return models.Account.update({groupId}, {where: {name, isRemote: false}});
+		}
+
+		async renameLocalAccount(name, newName) {
+			return models.Account.update({name: newName}, {where: {name, isRemote: false}});
 		}
 
 		async getAccountPublicKey(name) {

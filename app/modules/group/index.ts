@@ -53,6 +53,8 @@ function getModule(app: IGeesomeApp, models) {
 
 			const group = await this.addGroup(groupData);
 
+			await app.ms.staticId.setStaticAccountGroupId(userId, groupData['name'], group.id);
+
 			// await app.callHook('hookAfterGroupSaving', [userId, group.id, groupData])
 
 			if (groupData.type !== GroupType.PersonalChat) {
