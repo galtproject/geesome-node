@@ -59,7 +59,6 @@ function getModule(app: IGeesomeApp, models) {
 
         async runRenderAndWaitForFinish(userId, token, entityType, entityId, options) {
             const operationQueue = await this.addRenderToQueueAndProcess(userId, token, entityType, entityId, options);
-            console.log('runRenderAndWaitForFinish operationQueue', operationQueue.id);
             const finishedOperation = await new Promise((resolve) => {
                 finishCallbacks[operationQueue.id] = resolve;
             });
@@ -74,13 +73,11 @@ function getModule(app: IGeesomeApp, models) {
                 return;
             }
 
-            console.log('processQueue waitingQueue', waitingQueue.id);
             if (waitingQueue.asyncOperation) {
                 if (waitingQueue.asyncOperation.inProcess) {
                     console.log('return');
                     return;
                 } else {
-                    console.log('closeUserOperationQueueByAsyncOperationId', waitingQueue.asyncOperation.id);
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(waitingQueue.asyncOperation.id);
                     return this.processQueue();
                 }
@@ -105,11 +102,10 @@ function getModule(app: IGeesomeApp, models) {
             }).then(async (content: IContent) => {
                 await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                 await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
-                console.log('finishAsyncOperation waitingQueue', waitingQueue.id);
-                console.log('finishCallbacks[waitingQueue.id]', finishCallbacks[waitingQueue.id]);
                 if (finishCallbacks[waitingQueue.id]) {
                     finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                 }
+                this.processQueue();
             });
 
             return waitingQueue;
@@ -141,9 +137,7 @@ function getModule(app: IGeesomeApp, models) {
                     title: staticSite ? staticSite.title : group.title,
                     name: staticSite ? staticSite.name : group.name + '_site',
                     description: staticSite ? staticSite.description : group.description,
-                    avatarStorageId: group.avatarImage ? group.avatarImage.storageId : null,
                     username: group.name,
-                    postsCount: group.publishedPostsCount,
                     base
                 }
             }, staticSiteOptions);
@@ -152,7 +146,12 @@ function getModule(app: IGeesomeApp, models) {
         async getResultOptions(group, options) {
             options = _.clone(options) || {};
             const defaultOptions = await this.getDefaultOptions(group);
-            const merged = _.merge(defaultOptions, options);
+            const merged = _.merge(defaultOptions, options, {
+                site: {
+                    avatarStorageId: group.avatarImage ? group.avatarImage.storageId : null,
+                    postsCount: group.publishedPostsCount,
+                }
+            });
             ['post.titleLength', 'post.descriptionLength', 'postList.postsPerPage'].forEach(name => {
                 _.set(merged, name, parseInt(_.get(merged, name)))
             });
@@ -169,9 +168,9 @@ function getModule(app: IGeesomeApp, models) {
             const {userApiKeyId, baseStorageUri} = options;
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
-            if (group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
+            if (staticSite && group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
                 console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
-                return app.ms.content.getContent(staticSite.storageId);
+                return app.ms.content.getContentByStorageId(staticSite.storageId);
             }
             options = await this.getResultOptions(group, options);
 
@@ -230,6 +229,7 @@ function getModule(app: IGeesomeApp, models) {
                 userApiKeyId: options.userApiKeyId
             });
             const baseData = {storageId: content.storageId, lastEntityManifestStorageId: group.manifestStorageId};
+            console.log('baseData', baseData);
             if (staticSite) {
                 await this.updateDbStaticSite(staticSite.id, baseData);
             } else {

@@ -18,7 +18,7 @@ export default {
 	},
 	methods: {
 		async getPendingOperations(startedAt = null) {
-			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`, false);
+			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`, null);
 			console.log('this.pendingOperations', this.pendingOperations);
 			if (this.pendingOperations.length) {
 				if (this.pendingOperations[0].inProcess || (startedAt && this.pendingOperations[0].createdAt > startedAt)) {

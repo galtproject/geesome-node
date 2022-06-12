@@ -21,6 +21,7 @@ const uniq = require('lodash/uniq');
 const uniqBy = require('lodash/uniqBy');
 const orderBy = require('lodash/orderBy');
 const find = require('lodash/find');
+const some = require('lodash/some');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -314,12 +315,15 @@ function getModule(app: IGeesomeApp, models) {
 			// console.log('channel', channel);
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
-				await app.ms.group.updateGroup(userId, dbChannel.groupId, {
+				const updateData = {
 					name: advancedSettings['name'] || channel.username,
 					title: channel.title,
 					description: channel.about,
 					avatarImageId: avatarContent ? avatarContent.id : null,
-				});
+				};
+				if (some(Object.keys(updateData), (key) => updateData[key] !== group[key])) {
+					await app.ms.group.updateGroup(userId, dbChannel.groupId, updateData);
+				}
 			} else {
 				group = await app.ms.group.createGroup(userId, {
 					name: advancedSettings['name'] || channel.username || channel.id.toString(),

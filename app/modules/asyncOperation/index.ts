@@ -181,7 +181,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserAsyncOperationList(userId, name = null, channelLike = null, inProcess = true) {
-			const where = {userId, inProcess};
+			const where = {userId};
+			if (inProcess !== null && inProcess !== undefined) {
+				where['inProcess'] = inProcess;
+			}
 			if (name) {
 				where['name'] = name;
 			}
