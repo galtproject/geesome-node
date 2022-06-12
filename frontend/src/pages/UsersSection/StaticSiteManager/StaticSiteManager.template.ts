@@ -14,6 +14,10 @@ module.exports = `
 			<div v-if="siteInfo"><label>Storage id(IPFS):</label> <pretty-hex :hex="siteInfo.storageId"></pretty-hex></div>
 			<div v-if="siteInfo"><label>Static id(IPNS):</label> <pretty-hex :hex="siteInfo.staticId"></pretty-hex></div>
 		  </div>
+		  
+            <div v-if="siteInfo && socNetChannel">
+                <md-button @click="setAutoGenerate()" class="md-raised md-accent">Auto import and generate</md-button>
+            </div>
         </div>
         <div class="md-layout-item md-size-70 md-small-size-100">
 			<div style="display: flex; justify-content: space-between;">
@@ -65,7 +69,7 @@ module.exports = `
 
 			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
 			
-	  		<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site bellow.</div>
+	  		<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site above.</div>
         </div>
       </div>
     </md-card-content>

@@ -326,13 +326,12 @@ describe("telegramClient", function () {
 		assert.equal(imageC.type, 'image');
 		assert.equal(imageC.mimeType, 'image/jpg');
 		assert.equal(imageC.view, 'media');
-		assert.equal(imageC.manifestId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-		assert.equal(imageC.url, 'https://my.site/ipfs/QmQ6thGsFtJstZu2PKkZ11zLwdXNnL1kyd2TqYHLZB33tr');
+		assert.equal(imageC.url, 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly');
+		assert.equal(imageC.manifestId, 'bafyreid6pyinkrwmqlqww4y3qunvwzlu4oz6e2jolsnc7rtgvbomstuubq');
 
 		assert.equal(linkC.type, 'json');
 		assert.equal(linkC.mimeType, 'application/json');
 		assert.equal(linkC.view, 'link');
-		assert.equal(linkC.manifestId, 'bafyreibwegei7vtbrwq4tee3ag3akyjybplfefl2kmou6iqidmmou5vzpy');
 		assert.deepEqual(linkC.json, {
 			description: 'Разбираемся простыми словами',
 			displayUrl: 'vas3k.ru/blog/machine_learning',
@@ -341,12 +340,13 @@ describe("telegramClient", function () {
 			type: 'url',
 			url: 'https://vas3k.ru/blog/machine_learning/'
 		});
+		assert.equal(linkC.manifestId, 'bafyreigrlqgzid43vgdjsq3r3beazr7mivb3fpq4qv3famn3b6wcqvulca');
 
 		assert.equal(messageC.type, 'text');
 		assert.equal(messageC.mimeType, 'text/html');
 		assert.equal(messageC.view, 'contents');
-		assert.equal(messageC.manifestId, 'bafyreiajv76tijggtjfrjlmuqmzkchp6ivofamkvekcvfemij6qf7ocyy4');
 		assert.equal(messageC.text, 'btw, а это тут было: <a href="https://vas3k.ru/blog/machine_learning/">https://vas3k.ru/blog/machine_learning/</a>?');
+		assert.equal(messageC.manifestId, 'bafyreifbyileppejprgcv4yvmvgotsp7xzckneaiz3hgmkfjot3zss4g34');
 	});
 
 	it('local webpage message should import properly', async () => {
@@ -567,7 +567,7 @@ describe("telegramClient", function () {
 
 		const contents1 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 		assert.equal(contents1.length, 1);
-		assert.equal(contents1[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
+		assert.equal(contents1[0].manifestStorageId, 'bafyreic4hvcncqyg7s52yc2vhl7nqygx2iyw5act57zc3yt72xtc4wemga');
 
 		postData.contents = contents1;
 		let post1 = await telegramClient.publishPost(importState, null, postData, msgData);
@@ -579,8 +579,8 @@ describe("telegramClient", function () {
 
 		const contents2 = await telegramClient.messageToContents(null, channel, message2, testUser.id);
 		assert.equal(contents2.length, 2);
-		assert.equal(contents2[0].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
-		assert.equal(contents2[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+		assert.equal(contents2[0].manifestStorageId, 'bafyreihjglmtrd6tqyyqqqwwg67ljpy3z4hfenvakuylj5vyn7hbrfqei4');
+		assert.equal(contents2[1].manifestStorageId, 'bafyreid6pyinkrwmqlqww4y3qunvwzlu4oz6e2jolsnc7rtgvbomstuubq');
 
 		postData.sourcePostId = message2.id;
 		postData.sourceDate = new Date(message2.date * 1000);
@@ -592,15 +592,15 @@ describe("telegramClient", function () {
 		const post2 = await telegramClient.publishPost(importState, null, postData, msgData);
 		assert.equal(post2.id, post1.id);
 		assert.equal(post2.contents.length, 3);
-		assert.equal(post2.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
-		assert.equal(post2.contents[1].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
-		assert.equal(post2.contents[2].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+		assert.equal(post2.contents[0].manifestStorageId, 'bafyreic4hvcncqyg7s52yc2vhl7nqygx2iyw5act57zc3yt72xtc4wemga');
+		assert.equal(post2.contents[1].manifestStorageId, 'bafyreihjglmtrd6tqyyqqqwwg67ljpy3z4hfenvakuylj5vyn7hbrfqei4');
+		assert.equal(post2.contents[2].manifestStorageId, 'bafyreid6pyinkrwmqlqww4y3qunvwzlu4oz6e2jolsnc7rtgvbomstuubq');
 
 		message1.message = 'test';
 		message1.entities = [];
 		const contents3 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 		assert.equal(contents3.length, 1);
-		assert.equal(contents3[0].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
+		assert.equal(contents3[0].manifestStorageId, 'bafyreichk3lcfjjzyzpisrnejebqqojppvpjowl7m6tshmg67jlql6dhaq');
 
 		message1.id -= 1;
 		message1.date -= 10;
@@ -626,10 +626,10 @@ describe("telegramClient", function () {
 
 		post3 = await telegramClient.publishPost(importState, existsChannelMessage, postData, msgData);
 		assert.equal(post3.contents.length, 4);
-		assert.equal(post3.contents[0].manifestStorageId, 'bafyreiahjfoe22losimiveztmjdicikq2m3cg6nu4imwop2vokn4y6uspe');
-		assert.equal(post3.contents[1].manifestStorageId, 'bafyreid7t7hx3c6jfbffws2pqr54n23grqxoywj6blicff7p7ylgixehby');
-		assert.equal(post3.contents[2].manifestStorageId, 'bafyreigwjwhygtt3celpyvniiwplehjpweoni7eifv6ttcqnk3m23mzetu');
-		assert.equal(post3.contents[3].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+		assert.equal(post3.contents[0].manifestStorageId, 'bafyreic4hvcncqyg7s52yc2vhl7nqygx2iyw5act57zc3yt72xtc4wemga');
+		assert.equal(post3.contents[1].manifestStorageId, 'bafyreichk3lcfjjzyzpisrnejebqqojppvpjowl7m6tshmg67jlql6dhaq');
+		assert.equal(post3.contents[2].manifestStorageId, 'bafyreihjglmtrd6tqyyqqqwwg67ljpy3z4hfenvakuylj5vyn7hbrfqei4');
+		assert.equal(post3.contents[3].manifestStorageId, 'bafyreid6pyinkrwmqlqww4y3qunvwzlu4oz6e2jolsnc7rtgvbomstuubq');
 		assert.equal(post2.id, post3.id);
 
 		post3 = await app.ms.group.getPost(testUser.id, post3PrevId);
@@ -889,72 +889,89 @@ describe("telegramClient", function () {
 			groupId: testGroup.id,
 		};
 
-		let groupedContents = [];
-		let groupedId;
-		await pIteration.forEachSeries(messages, async (m, i) => {
-			const postData = {
-				groupId: testGroup.id,
-				status: 'published',
-				source: 'telegram',
-				sourceChannelId: channel.channelId,
-				sourcePostId: m.id,
-				sourceDate: new Date(m.date * 1000),
-				contents: [],
-				properties: {},
-			}
-			const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: m.date, msgId: m.id};
+		for (let j = 0; j < 2; j++) {
+			let groupedContents = [];
+			let groupedId;
+			await pIteration.forEachSeries(messages, async (m, i) => {
+				const postData = {
+					groupId: testGroup.id,
+					status: 'published',
+					source: 'telegram',
+					sourceChannelId: channel.channelId,
+					sourcePostId: m.id,
+					sourceDate: new Date(m.date * 1000),
+					contents: [],
+					properties: {},
+				}
+				const msgData = {dbChannelId: channel.id, userId: testUser.id, timestamp: m.date, msgId: m.id};
 
-			const contents = await telegramClient.messageToContents(null, channel, m, testUser.id);
-			postData.sourcePostId = m.id;
-			postData.sourceDate = new Date(m.date * 1000);
+				const contents = await telegramClient.messageToContents(null, channel, m, testUser.id);
+				postData.sourcePostId = m.id;
+				postData.sourceDate = new Date(m.date * 1000);
 
-			if (m.groupedId) {
-				groupedId = m.groupedId;
-				groupedContents = contents.concat(groupedContents);
-				if (!messages[i + 1] || !messages[i + 1].groupedId) {
-					postData.contents = groupedContents;
+				if (m.groupedId) {
+					groupedId = m.groupedId;
+					groupedContents = contents.concat(groupedContents);
+					if (!messages[i + 1] || !messages[i + 1].groupedId) {
+						postData.contents = groupedContents;
+						await telegramClient.publishPost(importState, null, postData, msgData);
+					}
+				} else {
+					postData.contents = contents;
 					await telegramClient.publishPost(importState, null, postData, msgData);
 				}
-			} else {
-				postData.contents = contents;
-				await telegramClient.publishPost(importState, null, postData, msgData);
-			}
-		});
+			});
 
-		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id);
-		console.log('groupPosts', await pIteration.map(groupPosts, async p => {
-			return {
-				id: p.id,
-				contents: await pIteration.map(p.contents, async c => (JSON.stringify({
-					id: c.id,
-					text: c.mimeType.indexOf('text') > -1 ? await app.ms.storage.getFileDataText(c.storageId) : '[image]'
-				})))
-			};
-		}));
-		assert.equal(groupPosts.length, 3);
-		const [horribleEdgeCases, spotifyPremium, link] = groupPosts;
+			const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id);
+			assert.equal(groupPosts.length, 3);
+			const [horribleEdgeCases, spotifyPremium, link] = groupPosts;
 
-		console.log(link.publishedAt.getTime() / 1000);
-		console.log(spotifyPremium.publishedAt.getTime() / 1000);
-		console.log(horribleEdgeCases.publishedAt.getTime() / 1000);
-		assert.equal(link.contents.length, 1);
-		assert.equal(spotifyPremium.contents.length, 3);
-		assert.equal(horribleEdgeCases.contents.length, 3);
+			console.log(link.publishedAt.getTime() / 1000);
+			console.log(spotifyPremium.publishedAt.getTime() / 1000);
+			console.log(horribleEdgeCases.publishedAt.getTime() / 1000);
+			assert.equal(link.contents.length, 1);
+			assert.equal(spotifyPremium.contents.length, 3);
+			assert.equal(horribleEdgeCases.contents.length, 3);
 
-		assert.equal(await app.ms.storage.getFileDataText(link.contents[0].storageId), '<a href="https://t.me/ctodailychat/263223">jump to message 👇</a>')
-		assert.equal(await app.ms.storage.getFileDataText(spotifyPremium.contents[0].storageId), 'держи)')
-		assert.equal(spotifyPremium.contents[1].mimeType, 'image/jpg')
-		assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg')
-		assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[0].storageId), '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>')
-		assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[1].storageId), '<a href="https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html">https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html</a>')
-		assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[2].storageId), JSON.stringify({
-			"url": "https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html",
-			"displayUrl": "dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html",
-			"siteName": "dustri.org",
-			"title": "Horrible edge cases to consider when dealing with music",
-			"description": "Personal blog of Julien (jvoisin) Voisin",
-			"type": "url"
-		}))
+			assert.equal(await app.ms.storage.getFileDataText(link.contents[0].storageId), '<a href="https://t.me/ctodailychat/263223">jump to message 👇</a>');
+			assert.equal(await app.ms.storage.getFileDataText(spotifyPremium.contents[0].storageId), 'держи)');
+			assert.equal(spotifyPremium.contents[1].mimeType, 'image/jpg');
+			assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg');
+
+			const postContents = await app.ms.group.getPostContent(horribleEdgeCases);
+			assert.equal(postContents[0].text, '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>');
+			assert.equal(postContents[0].type, 'text');
+			assert.equal(postContents[0].mimeType, 'text/html');
+			assert.equal(postContents[0].view, 'contents');
+
+			assert.equal(postContents[1].text, '<a href="https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html">https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html</a>');
+			assert.equal(postContents[1].type, 'text');
+			assert.equal(postContents[1].mimeType, 'text/html');
+			assert.equal(postContents[1].view, 'contents');
+
+			assert.equal(postContents[2].type, 'json');
+			assert.deepEqual(postContents[2].json, {
+				url: 'https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html',
+				displayUrl: 'dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html',
+				siteName: 'dustri.org',
+				title: 'Horrible edge cases to consider when dealing with music',
+				description: 'Personal blog of Julien (jvoisin) Voisin',
+				type: 'url'
+			});
+			assert.equal(postContents[2].mimeType, 'application/json');
+			assert.equal(postContents[2].view, 'link');
+
+			assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[0].storageId), '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>');
+			assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[1].storageId), '<a href="https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html">https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html</a>');
+			assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[2].storageId), JSON.stringify({
+				"url": "https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html",
+				"displayUrl": "dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html",
+				"siteName": "dustri.org",
+				"title": "Horrible edge cases to consider when dealing with music",
+				"description": "Personal blog of Julien (jvoisin) Voisin",
+				"type": "url"
+			}));
+		}
 	});
 
 	it('should merge posts by groupedId', async () => {
@@ -1142,8 +1159,8 @@ describe("telegramClient", function () {
 
 		const contents1 = await telegramClient.messageToContents(null, channel, message1, testUser.id);
 		assert.equal(contents1.length, 2);
-		assert.equal(contents1[0].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');
-		assert.equal(contents1[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
+		assert.equal(contents1[0].manifestStorageId, 'bafyreihrydk7t5w3vxixxzyqmkeyz6bw3kvqvhux2llfigu5js4nzg5rmm');
+		assert.equal(contents1[1].manifestStorageId, 'bafyreid6pyinkrwmqlqww4y3qunvwzlu4oz6e2jolsnc7rtgvbomstuubq');
 
 		postData.contents = contents1;
 		let post1 = await telegramClient.publishPost(importState, null, postData, msgData);
@@ -1151,7 +1168,7 @@ describe("telegramClient", function () {
 
 		const contents2 = await telegramClient.messageToContents(null, channel, message2, testUser.id);
 		assert.equal(contents2.length, 1);
-		assert.equal(contents2[0].manifestStorageId, 'bafyreigzlgo4uejpzomdjic5d5pvfilsbgbty5gt3of43f5rnfe6y46suq');
+		assert.equal(contents2[0].manifestStorageId, 'bafyreidf5y45lwpe3nkkhqg4bistgzeu7jbyw254chcayq7v2sgjn6mdm4');
 
 		postData.sourcePostId = message2.id;
 		postData.sourceDate = new Date(message2.date * 1000);
@@ -1161,9 +1178,9 @@ describe("telegramClient", function () {
 		const post2 = await telegramClient.publishPost(importState, null, postData, msgData);
 		assert.equal(post2.id, post1.id);
 		assert.equal(post2.contents.length, 3);
-		assert.equal(post2.contents[0].manifestStorageId, 'bafyreicwdifjygmoc64jpxvz2dsuibhbinqqfdd4yeybur3egkdvfjphx4');
-		assert.equal(post2.contents[1].manifestStorageId, 'bafyreicz6serfekjba3dhidcxevtrioxbf7vt4gmpgy2oakmcj7tfe5bte');
-		assert.equal(post2.contents[2].manifestStorageId, 'bafyreigzlgo4uejpzomdjic5d5pvfilsbgbty5gt3of43f5rnfe6y46suq');
+		assert.equal(post2.contents[0].manifestStorageId, 'bafyreihrydk7t5w3vxixxzyqmkeyz6bw3kvqvhux2llfigu5js4nzg5rmm');
+		assert.equal(post2.contents[1].manifestStorageId, 'bafyreid6pyinkrwmqlqww4y3qunvwzlu4oz6e2jolsnc7rtgvbomstuubq');
+		assert.equal(post2.contents[2].manifestStorageId, 'bafyreidf5y45lwpe3nkkhqg4bistgzeu7jbyw254chcayq7v2sgjn6mdm4');
 	});
 });
 

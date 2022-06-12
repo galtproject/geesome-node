@@ -156,7 +156,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async renameGroupStaticAccountId(userId, groupId, oldName, newName) {
 			const account = await app.ms.accountStorage.getAccountByName(oldName);
-			if (account.groupId === groupId && !(await app.ms.group.canEditGroup(userId, groupId))) {
+			if (account.groupId !== groupId || !(await app.ms.group.canEditGroup(userId, groupId))) {
 				throw new Error("not_permitted");
 			}
 			return app.ms.accountStorage.renameAccount(oldName, newName);

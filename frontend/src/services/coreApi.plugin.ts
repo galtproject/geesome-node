@@ -27,7 +27,7 @@ export default {
         appStore = $vueInstance.$store;
         notify = $vueInstance.$notify;
 
-        let server = localStorage.getItem('geesome-server');
+        let server = process.env.SERVER || localStorage.getItem('geesome-server');
         let apiKey = localStorage.getItem('geesome-api-key');
 
         function undefinedValue(v) {
@@ -73,12 +73,13 @@ export default {
           'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
-          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
-          'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
+          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiToken', 'getCurrentUserApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
+          'getSocNetSessionKey', 'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
           'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetUpdateDbChannel', 'socNetUpdateDbAccount', 'socNetDbChannel',
           'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
           'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId',
-          'staticSiteBind', 'getStaticSiteInfo', 'getServerStorageUri', 'updateStaticSiteInfo'
+          'staticSiteBind', 'getStaticSiteInfo', 'getServerStorageUri', 'updateStaticSiteInfo',
+          'addSerialAutoActions', 'getAutoActions', 'updateAutoAction', 'buildAutoActions'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');
@@ -99,7 +100,7 @@ export default {
         return result;
       },
 
-      getApiKey() {
+      getApiToken() {
         return geesomeClient.apiKey;
       },
 

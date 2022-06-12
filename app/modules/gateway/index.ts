@@ -2,8 +2,10 @@ import {IGeesomeApp} from "../../interface";
 import IGeesomeGatewayModule from "./interface";
 
 const helpers = require("./helpers");
+const _ = require("lodash");
 
 module.exports = async (app: IGeesomeApp) => {
+	app.checkModules(['api']);
 	const module = await getModule(app, process.env.GATEWAY_PORT || 2082);
 	require('./api')(app, module);
 	return module;
@@ -66,6 +68,13 @@ async function getModule(app: IGeesomeApp, port) {
 			service.get("/*", (req, res) => {
 				setHeaders(res);
 				callback(app.ms.api.reqToModuleInput(req), app.ms.api.resToModuleOutput(res));
+			});
+		}
+		stop(): any {
+			return service.close().catch(e => {
+				if (!_.includes(e.message, 'Server is not running')) {
+					throw e;
+				}
 			});
 		}
 	}

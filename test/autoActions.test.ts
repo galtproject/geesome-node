@@ -167,7 +167,7 @@ describe("autoActions", function () {
 		await new Promise((resolve) => {
 			setInterval(() => {
 				if (cronService.queueByModules[bindToStatic.moduleName] && !cronService.inProcessByModules[bindToStatic.moduleName]) {
-					resolve();
+					resolve(true);
 				}
 			}, 500);
 		});

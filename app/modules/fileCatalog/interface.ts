@@ -1,4 +1,4 @@
-import {IFileCatalogListResponse, ManifestToSave} from "../../interface";
+import {ManifestToSave} from "../../interface";
 import {IContent, IListParams} from "../database/interface";
 
 export default interface IGeesomeFileCatalogModule {
@@ -66,4 +66,9 @@ export interface IFileCatalogItem {
 export enum FileCatalogItemType {
 	Folder = 'folder',
 	File = 'file'
+}
+
+export interface IFileCatalogListResponse {
+	list: IFileCatalogItem[];
+	total: number;
 }

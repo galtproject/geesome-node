@@ -21,6 +21,7 @@ const uniq = require('lodash/uniq');
 const uniqBy = require('lodash/uniqBy');
 const orderBy = require('lodash/orderBy');
 const find = require('lodash/find');
+const some = require('lodash/some');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -38,6 +39,9 @@ module.exports = async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp, models) {
 	app.checkModules(['asyncOperation', 'group', 'content']);
 
+	let finishCallbacks = {
+
+	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
 			let {phoneNumber, apiId, apiHash, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage} = loginData;
@@ -111,16 +115,21 @@ function getModule(app: IGeesomeApp, models) {
 			return userAcc ? userAcc.update(accData).then(() => models.Account.findOne({where})) : models.Account.create(accData);
 		}
 
+		async getAccountByAccData(userId, accData) {
+			return models.Account.findOne({where: {...accData, userId}});
+		}
+
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
-			const acc = await models.Account.findOne({where: {...accData, userId}});
+			const acc = await this.getAccountByAccData(userId, accData);
 			let {apiId, apiHash} = acc;
 			if (!sessionKey) {
 				sessionKey = acc.sessionKey;
 			}
 			apiId = parseInt(apiId);
 			const client = new TelegramClient(new StringSession(sessionKey), apiId, apiHash, {});
+			client.account = acc;
 			await client.connect();
 			return client;
 		}
@@ -271,8 +280,26 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		async runChannelImport(userId, apiKey, accData, channelId, advancedSettings = {}) {
+		isAutoActionAllowed(userId, funcName, funcArgs) {
+			return includes(['runChannelImportAndWaitForFinish'], funcName);
+		}
+
+		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+			const asyncOperation = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r.result.asyncOperation);
+			const finishedOperation = await new Promise((resolve) => {
+				finishCallbacks[asyncOperation.id] = resolve;
+			});
+			delete finishCallbacks[asyncOperation.id];
+			return finishedOperation;
+		}
+
+		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
+			if (apiKey.userId !== userId) {
+				throw new Error("not_permitted");
+			}
 			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
+			const {account} = client;
 
 			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 			let group;
@@ -288,15 +315,18 @@ function getModule(app: IGeesomeApp, models) {
 			// console.log('channel', channel);
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
-				await app.ms.group.updateGroup(userId, dbChannel.groupId, {
-					name: channel.username,
+				const updateData = {
+					name: advancedSettings['name'] || channel.username,
 					title: channel.title,
 					description: channel.about,
 					avatarImageId: avatarContent ? avatarContent.id : null,
-				});
+				};
+				if (some(Object.keys(updateData), (key) => updateData[key] !== group[key])) {
+					await app.ms.group.updateGroup(userId, dbChannel.groupId, updateData);
+				}
 			} else {
 				group = await app.ms.group.createGroup(userId, {
-					name: channel.username || channel.id.toString(),
+					name: advancedSettings['name'] || channel.username || channel.id.toString(),
 					title: channel.title,
 					description: channel.about,
 					isPublic: true,
@@ -313,6 +343,7 @@ function getModule(app: IGeesomeApp, models) {
 					userId,
 					groupId: group.id,
 					channelId: channel.id.toString(),
+					accountId: account.id,
 					title: channel.title,
 					lastMessageId: 0,
 					postsCounts: 0,
@@ -349,7 +380,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			let asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
-				userApiKeyId: apiKey.id,
+				userApiKeyId,
 				name: 'run-telegram-channel-import',
 				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
 			});
@@ -375,8 +406,11 @@ function getModule(app: IGeesomeApp, models) {
 						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 					});
 				}
-			})().then(() => {
-				return app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+			})().then(async () => {
+				await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+				if (finishCallbacks[asyncOperation.id]) {
+					finishCallbacks[asyncOperation.id](await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id));
+				}
 			}).catch((e) => {
 				console.error('run-telegram-channel-import error', e);
 				return app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
@@ -426,7 +460,7 @@ function getModule(app: IGeesomeApp, models) {
 					await onMessageProcess(m, null);
 					return;
 				}
-				const msgId = m.id.toString();
+				const msgId = parseInt(m.id.toString());
 				if (!messageLinkTpl) {
 					messageLinkTpl = await this.getMessageLink(client, dbChannel.channelId, msgId)
 						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
@@ -438,7 +472,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				const contents = await this.messageToContents(client, dbChannel, m, userId);
-				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
+				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId : null;
 				const postData = {
 					groupId,
 					userId,
@@ -534,14 +568,6 @@ function getModule(app: IGeesomeApp, models) {
 
 		async mergePostsToOne(_importState, _existsPostId, _messages, _postData) {
 			const postIds = uniq(_messages.map(m => m.postId));
-			console.log('postIds', postIds);
-			const postsIdsWithoutExists = postIds.filter(postId => _existsPostId !== postId);
-			console.log('postsIdsWithoutExists', postIds);
-			// 1 case: there's created post and appears new one to merge(not created): _existsPostId is null, postsIdsWithoutExists.length > 0
-			// 2 case: there's created post and appears new one to merge(created): _existsPostId not null, postsIdsWithoutExists.length > 0
-			if (!postsIdsWithoutExists.length) {
-				return _existsPostId;
-			}
 			console.log('mergePostsToOne', _existsPostId, postIds);
 			if (_existsPostId && !includes(postIds, _existsPostId)) {
 				postIds.push(_existsPostId);

@@ -112,6 +112,13 @@ sudo DOMAIN=your-site.com EMAIL=your@email.com bash/ubuntu-cert-domain.sh
 
 Note: You can generate a static site from Geesome groups by UI and get IPNS or IPFS of static sites for the gateway using.
 
+# Getting updates
+```
+bash/docker-prune.sh && bash/docker-rebuild-and-upgrade.sh
+```
+Warning: above commands deletes all stopped containers, not used images and docker build cache. Also, it's reverting not commited local git changes. 
+If you know more efficient way to update GeeSome container app - please, make a PR.
+
 ## Getting started with GeeSome Node API
 1. Install GeeSome libs by npm:
 ```

@@ -7,8 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import SocNetAutoImport from "../modals/SocNetAutoImport/SocNetAutoImport";
-
 const includes = require('lodash/includes');
 
 export default {
@@ -22,6 +20,10 @@ export default {
 		async getChannelInfo() {
 			this.info = await this.$coreApi.socNetGetChannelInfo(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
 			this.advancedSettings.toMessage = this.info.messagesCount;
+			await this.getGroup();
+			if (!this.advancedSettings.name) {
+				this.advancedSettings.name = this.info.username || 'tg_' + this.info.id;
+			}
 			console.log('this.info', this.info);
 			console.log('socNetUserInfo', await this.$coreApi.socNetUserInfo(this.$route.params.socNet, {id: this.$route.params.accId}));
 		},
@@ -43,7 +45,14 @@ export default {
 			}
 		},
 		async getGroup() {
+			if (!this.dbChannel) {
+				this.dbGroup = null;
+				return;
+			}
 			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId).then(g => g && g.isDeleted ? null : g);
+			if (this.dbGroup && !this.advancedSettings.name) {
+				this.advancedSettings.name = this.dbGroup.name;
+			}
 		},
 		async runImport() {
 			this.loading = true;
@@ -52,7 +61,7 @@ export default {
 					this.$route.params.socNet,
 					{id: this.$route.params.accId},
 					this.$route.params.channelId,
-					this.advancedSettingsEnabled ? this.advancedSettings : {mergeSeconds: 5}
+					this.advancedSettingsEnabled ? this.advancedSettings : {name: this.advancedSettings.name, mergeSeconds: 5}
 				);
 				await this.getDbChannel();
 				this.getGroup();
@@ -87,19 +96,6 @@ export default {
 				}
 			})
 		},
-		setAutoImport() {
-			this.$root.$asyncModal.open({
-				id: 'soc-net-auto-import',
-				component: SocNetAutoImport,
-				props: {
-					channel: this.dbChannel,
-					socNetName: this.$route.params.socNet,
-				},
-				onClose: async () => {
-					this.getChannelInfo();
-				}
-			});
-		},
 	},
 	watch: {},
 	computed: {
@@ -123,6 +119,7 @@ export default {
 			curOperation: null,
 			advancedSettingsEnabled: false,
 			advancedSettings: {
+				name: '',
 				fromMessage: 1,
 				toMessage: 2,
 				mergeSeconds: 5

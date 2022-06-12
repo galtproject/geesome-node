@@ -1,7 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
-const {getTitleAndDescription} = require('./helpers');
+const {getTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml} = require('./helpers');
 // const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
@@ -19,18 +19,27 @@ module.exports = function(posts, settings) {
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
 
-                const {title, description} = getTitleAndDescription(post.texts, postSettings);
+                let {title: postTitle, description: postDescription} = getTitleAndDescription(post.texts, postSettings);
+                let pageTitle = postTitle;
+                if(!pageTitle) {
+                    const result = getTitleAndDescription(post.texts, {titleLength: 100});
+                    pageTitle = result.title;
+                }
+                pageTitle = removeHtml(pageTitle);
+                const pageDescription = removeHtml(postDescription);
+                const mediaContent = getMainMediaContent(post.contents);
 
-                console.log('title', title, 'description', description);
                 const page = await createPage(app, {
                     path: getPostPath(post.id),
                     frontmatter: {
                         layout: 'Post',
                         permalink: getPostPath(post.id),
                         // permalinkPattern?: string;
-                        head: [],
-                        title,
-                        description,
+                        head: getOgHeaders(site.title, post.lang, pageTitle, pageDescription, mediaContent ? mediaContent.previewUrl || mediaContent.url : null),
+                        title: pageTitle,
+                        description: pageDescription,
+                        postTitle,
+                        postDescription,
                         date: post.date,
                         ..._.pick(post, ['lang', 'id', 'contents', 'images', 'videos'])
                     },
@@ -47,9 +56,8 @@ module.exports = function(posts, settings) {
                     frontmatter: {
                         layout: 'BaseList',
                         permalink: getPaginationPostPath(i),
+                        title: 'Page ' + i,
                     },
-                    title: 'Page ' + i,
-                    content: 'Page ' + i,
                 });
 
                 app.pages.push(page);
@@ -59,11 +67,11 @@ module.exports = function(posts, settings) {
                 path: '/',
                 frontmatter: {
                     layout: 'BaseList',
+                    head: getOgHeaders(site.title, posts[0].lang, '', site.description, site.avatarUrl),
                     permalink: '/',
                     home: true,
+                    title: 'Home',
                 },
-                title: 'Home',
-                content: 'Welcome',
             }));
 
             app.pages.push(await createPage(app, {
@@ -71,8 +79,8 @@ module.exports = function(posts, settings) {
                 frontmatter: {
                     layout: '404',
                     permalink: '/404',
+                    title: '404',
                 },
-                title: '404',
                 content: '404',
             }));
         },
@@ -98,7 +106,8 @@ module.exports = function(posts, settings) {
                     path: page.permalink,
                     date: page.frontmatter.date,
                     title: page.frontmatter.title,
-                    excerpt: page.frontmatter.description,
+                    postTitle: page.frontmatter.postTitle,
+                    postDescription: page.frontmatter.postDescription,
                     images: page.frontmatter.images,
                     videos: page.frontmatter.videos
                 }));

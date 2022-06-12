@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const includes = require('lodash/includes');
+import SocNetAutoImport from "../modals/SocNetAutoImport/SocNetAutoImport";
 
 export default {
 	template: require('./StaticSiteManager.template'),
@@ -17,12 +17,14 @@ export default {
 		this.getPendingOperations();
 	},
 	methods: {
-		async getPendingOperations() {
-			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`);
+		async getPendingOperations(startedAt = null) {
+			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`, null);
 			console.log('this.pendingOperations', this.pendingOperations);
 			if (this.pendingOperations.length) {
-				this.waitForOperation(this.pendingOperations[0]);
-				return true;
+				if (this.pendingOperations[0].inProcess || (startedAt && this.pendingOperations[0].createdAt > startedAt)) {
+					this.waitForOperation(this.pendingOperations[0]);
+					return true;
+				}
 			}
 			return false;
 		},
@@ -37,6 +39,7 @@ export default {
 				this.$coreApi.staticSiteGetDefaultOptions(this.type, this.dbGroupId),
 				this.$coreApi.getStaticSiteInfo(this.type, this.dbGroupId)
 			]);
+			this.checkSocNetChannel();
 			this.setDefaultOptions();
 		},
 		setDefaultOptions() {
@@ -51,14 +54,19 @@ export default {
 		async runGenerate() {
 			this.loading = true;
 			this.done = false;
+			const startedAt = new Date();
 			const res = await this.$coreApi.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
 			this.getGroup();
 			if (res && res.asyncOperation) {
 				this.waitForOperation(res.asyncOperation);
 				this.loading = false;
 			} else {
+				const isFound = await this.getPendingOperations(startedAt);
+				if (isFound) {
+					return;
+				}
 				const interval = setInterval(async () => {
-					const isFound = await this.getPendingOperations();
+					const isFound = await this.getPendingOperations(startedAt);
 					if (isFound) {
 						clearInterval(interval);
 					}
@@ -66,12 +74,12 @@ export default {
 			}
 		},
 		async bindToStaticAndSaveOptions() {
-			await this.$coreApi.updateStaticSiteInfo(this.type, this.dbGroupId, {
-				name: this.options.name,
-				title: this.options.title,
+			await this.$coreApi.updateStaticSiteInfo(this.siteInfo.id, {
+				name: this.options.site.name,
+				title: this.options.site.title,
 				options: JSON.stringify(this.options)
 			});
-			await this.$coreApi.staticSiteBind(this.type, this.dbGroupId, this.options.site.name);
+			await this.$coreApi.staticSiteBind(this.siteInfo.id);
 		},
 		waitForOperation(operation) {
 			this.curOperation = operation;
@@ -84,7 +92,13 @@ export default {
 				const prevOperation = this.curOperation;
 				this.curOperation = op;
 				if (!op.inProcess) {
-					await this.bindToStaticAndSaveOptions();
+					await this.bindToStaticAndSaveOptions().catch(e => {
+						this.$notify({
+							type: 'error',
+							title: 'Bind to static error',
+							text: e.message
+						})
+					});
 					await this.getData();
 					this.curOperation = null;
 					this.loading = false;
@@ -96,7 +110,33 @@ export default {
 		},
 		toggleAdvanced() {
 			this.showAdvanced = !this.showAdvanced;
-		}
+		},
+		async checkSocNetChannel() {
+			console.log('checkSocNetChannel');
+			//TODO: use more unified way to run autoimport
+			this.socNetChannel = await this.$coreApi.socNetDbChannel('telegram', {groupId: this.dbGroupId});
+			console.log('socNetChannel', this.socNetChannel);
+		},
+		setAutoGenerate() {
+			this.$root.$asyncModal.open({
+				id: 'soc-net-auto-import',
+				component: SocNetAutoImport,
+				props: {
+					dbChannel: this.socNetChannel,
+					dbStaticSite: this.siteInfo,
+					staticSiteOptions: this.options
+				},
+				onClose: async (success) => {
+					if (success) {
+						this.$notify({
+							type: 'success',
+							title: 'Success'
+						});
+						this.getData();
+					}
+				}
+			});
+		},
 	},
 	watch: {
 		async siteInfo() {
@@ -137,6 +177,7 @@ export default {
 			done: false,
 			siteInfo: null,
 			showAdvanced: false,
+			socNetChannel: null,
 		};
 	}
 }

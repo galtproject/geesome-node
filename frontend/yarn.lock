@@ -4161,7 +4161,7 @@ axios@^0.19.0:
     follow-redirects "1.5.10"
     is-buffer "^2.0.2"
 
-axios@^0.21.0, axios@^0.21.1, axios@^0.21.2:
+axios@^0.21.1, axios@^0.21.2:
   version "0.21.2"
   resolved "https://registry.yarnpkg.com/axios/-/axios-0.21.2.tgz#21297d5084b2aeeb422f5d38e7be4fbb82239017"
   integrity sha512-87otirqUw3e8CzHTMO+/9kh/FSgXt/eVDvipijwDtEuwbkySWZ9SBm6VEubmJ/kLKEoLQV/POhxXFb66bfekfg==
@@ -7441,9 +7441,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#e2d606d":
+"geesome-libs@https://github.com/galtproject/geesome-libs#11e5a41":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#e2d606ded00b993c31081759d83b6ebf2b36dcf8"
+  resolved "https://github.com/galtproject/geesome-libs#11e5a412be1ac0e63deac38009e1458e525bc902"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
@@ -7487,19 +7487,19 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-vue-components@https://github.com/galtproject/geesome-vue-components#2875185":
+"geesome-vue-components@https://github.com/galtproject/geesome-vue-components#135bcdc":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-vue-components#2875185f7ee5898cd60fa03daaaed4f55419ab99"
+  resolved "https://github.com/galtproject/geesome-vue-components#135bcdc45f8e7de59f01a904f9d3d300a39bda9a"
   dependencies:
-    axios "^0.21.0"
+    axios "^0.21.2"
     bs58 "^4.0.1"
     file-saver "^2.0.2"
     font-awesome "https://github.com/FortAwesome/Font-Awesome.git"
     is-ipfs "^2.0.0"
-    lodash "^4.17.19"
+    lodash "^4.17.21"
     mediaelement "^4.2.16"
     mime "^2.4.3"
-    moment "^2.29.1"
+    moment "^2.29.2"
     vue "2.6.11"
     vue-material "^1.0.0-beta-11"
     vuex "3.1.0"
@@ -11357,7 +11357,7 @@ mocha@^5.2.0:
     mkdirp "0.5.1"
     supports-color "5.4.0"
 
-moment@^2.29.1, moment@^2.29.2:
+moment@^2.29.2:
   version "2.29.2"
   resolved "https://registry.yarnpkg.com/moment/-/moment-2.29.2.tgz#00910c60b20843bcba52d37d58c628b47b1f20e4"
   integrity sha512-UgzG4rvxYpN15jgCmVJwac49h9ly9NurikMWGPdVxm8GZD6XjkKPxDTjQQ43gtGgnV3X0cAyWDdP2Wexoquifg==
