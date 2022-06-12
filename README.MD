@@ -253,7 +253,7 @@ geesomeClient.init().then(async () => {
 
 ## GeeSome Services
 You can develop your own GeeSome service in any programming language for extend GeeSome node functional by
-communication by API with api keys. Module can communicate with GeeSome node by http requests and 
+communication by API with api keys. Service can communicate with GeeSome node by http requests and 
 PubSub events(in future) for uploading content, managing users and groups.
 
 Existing services:
