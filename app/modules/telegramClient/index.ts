@@ -285,10 +285,11 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
-			const asyncOperation = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r.result.asyncOperation);
+			const {result: { asyncOperation }, client} = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r);
 			const finishedOperation = await new Promise((resolve) => {
 				finishCallbacks[asyncOperation.id] = resolve;
 			});
+			await client.disconnect();
 			delete finishCallbacks[asyncOperation.id];
 			return finishedOperation;
 		}
