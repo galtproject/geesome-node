@@ -4,6 +4,8 @@ export default interface IGeesomeAccountStorageModule {
 
 	createAccount(name: string, userId: number, groupId?: number): Promise<IStaticIdAccount>;
 
+	updateLocalAccountGroupId(name: string, groupId: number): Promise<any>;
+
 	getOrCreateAccountStaticId(name: string, userId: number, groupId?: number): Promise<string>;
 
 	getLocalAccountStaticIdByNameAndUserId(name: string, userId: number): Promise<string>;
@@ -12,9 +14,9 @@ export default interface IGeesomeAccountStorageModule {
 
 	getAccountStaticId(name): Promise<string>;
 
-	getAccountByName(name): Promise<IStaticIdAccount>;
+	getLocalAccountByName(name): Promise<IStaticIdAccount>;
 
-	renameAccount(oldName, newName): Promise<any>;
+	renameLocalAccount(oldName, newName): Promise<any>;
 
 	getAccountPublicKey(name): Promise<string>;
 

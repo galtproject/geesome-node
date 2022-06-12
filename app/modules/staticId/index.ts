@@ -137,6 +137,14 @@ function getModule(app: IGeesomeApp, models) {
 			return app.ms.accountStorage.createAccount(name, userId).then(acc => acc.staticId);
 		}
 
+		async setStaticAccountGroupId(userId, name, groupId) {
+			const account = await app.ms.accountStorage.getLocalAccountByName(name);
+			if (account.userId !== userId) {
+				throw new Error("not_permitted");
+			}
+			return app.ms.accountStorage.updateLocalAccountGroupId(name, groupId);
+		}
+
 		async createStaticGroupAccountId(userId, groupId, name) {
 			return app.ms.accountStorage.createAccount(name, userId, groupId).then(acc => acc.staticId);
 		}
@@ -147,19 +155,21 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async renameStaticAccountId(userId, oldName, newName) {
-			const account = await app.ms.accountStorage.getAccountByName(oldName);
+			const account = await app.ms.accountStorage.getLocalAccountByName(oldName);
 			if (userId !== account.userId) {
 				throw new Error("not_permitted");
 			}
-			return app.ms.accountStorage.renameAccount(oldName, newName);
+			return app.ms.accountStorage.renameLocalAccount(oldName, newName);
 		}
 
 		async renameGroupStaticAccountId(userId, groupId, oldName, newName) {
-			const account = await app.ms.accountStorage.getAccountByName(oldName);
-			if (account.groupId !== groupId || !(await app.ms.group.canEditGroup(userId, groupId))) {
-				throw new Error("not_permitted");
+			const account = await app.ms.accountStorage.getLocalAccountByName(oldName);
+			if (account.userId !== userId) {
+				if (account.groupId !== groupId || !(await app.ms.group.canEditGroup(userId, groupId))) {
+					throw new Error("not_permitted");
+				}
 			}
-			return app.ms.accountStorage.renameAccount(oldName, newName);
+			return app.ms.accountStorage.renameLocalAccount(oldName, newName);
 		}
 
 		async getOrCreateStaticGroupAccountId(userId, groupId, name) {
