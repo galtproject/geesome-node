@@ -18,7 +18,7 @@ module.exports = `
 
 	<md-field>
 		<label>Social Network</label>
-		<md-select v-model="socnet">
+		<md-select v-model="socNet">
 			<md-option value="telegram">Telegram</md-option>
 		</md-select>
 	</md-field>
@@ -53,6 +53,8 @@ module.exports = `
     <div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">
       {{passwordRequired ? 'Password' : 'Phone code'}} required! Please enter and try login again.
     </div>
+    
+  	<md-checkbox v-model="forceSMS">Force SMS</md-checkbox>
   </div>
 
   <template slot="footer">

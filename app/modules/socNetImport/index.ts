@@ -20,7 +20,9 @@ const Op = require("sequelize").Op;
 
 module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./models")();
-	return getModule(app, models);
+	const module = getModule(app, models);
+	require('./api')(app, module, models);
+	return module;
 }
 
 function getModule(app: IGeesomeApp, models) {
@@ -52,26 +54,32 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
 		}
 
-		async importChannelPosts(client, userId, dbChannel, messages, force = false, advancedSettings = {}, onMessageProcess = null) {
+		async importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client: any = {}) {
 			const {id: dbChannelId, groupId} = dbChannel;
 			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
+			const force = !!advancedSettings['force'];
 			const importState = { mergeSeconds, userId, groupId, dbChannelId };
 
+			console.log('messages.length', messages.length);
 			let messageLinkTpl;
 			await pIteration.forEachSeries(messages, async (m, i) => {
 				console.log('m', m);
 				if (!m.date) {
-					await onMessageProcess(m, null);
+					if (client.onRemotePostProcess) {
+						await client.onRemotePostProcess(m, null);
+					}
 					return;
 				}
 				const msgId = m.id.toString();
 				if (!messageLinkTpl) {
-					messageLinkTpl = await client.getMessageLink(dbChannel.channelId, msgId)
+					messageLinkTpl = await client.getRemotePostLink(dbChannel.channelId, msgId)
 						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
 				}
 				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
 				if (existsChannelMessage && !force) {
-					await onMessageProcess(m, null);
+					if (client.onRemotePostProcess) {
+						await client.onRemotePostProcess(m, null);
+					}
 					return;
 				}
 
@@ -103,8 +111,8 @@ function getModule(app: IGeesomeApp, models) {
 					timestamp: m.date,
 					replyToMsgId
 				});
-				if (onMessageProcess) {
-					await onMessageProcess(m, post);
+				if (client.onRemotePostProcess) {
+					await client.onRemotePostProcess(m, post);
 				}
 			});
 		}

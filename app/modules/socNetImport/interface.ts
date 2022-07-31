@@ -8,7 +8,7 @@ export default interface IGeesomeSocNetImport {
 
 	reinitializeDbChannel(id, channelData);
 
-	importChannelPosts(client, userId, dbChannel, messages, force = false, advancedSettings = {}, onMessageProcess = null);
+	importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client = {});
 
 	storeContentMessage(contentMessageData, content: IContent);
 

@@ -31,7 +31,7 @@ export default {
       this.loading = true;
       console.log('loading', this.loading);
       try {
-        const result = await this.$coreApi.socNetLogin(this.socnet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted', 'firstStage']));
+        const result = await this.$coreApi.socNetLogin(this.socNet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted', 'firstStage', 'forceSMS']));
         console.log('result', result);
         this.firstStage = false;
         if (result.response.phoneCodeHash) {
@@ -79,7 +79,8 @@ export default {
       phoneCodeRequired: false,
       passwordRequired: false,
       firstStage: true,
-      socnet: 'telegram'
+      socNet: 'telegram',
+      forceSMS: false
     }
   }
 }

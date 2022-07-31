@@ -1,7 +1,7 @@
 export default interface IGeesomeSocNetAccount {
 	createOrUpdateAccount(userId, accData): Promise<IAccount>;
 
-	getAccount(userId, accountData): Promise<IAccount>;
+	getAccount(userId, socNet, accountData): Promise<IAccount>;
 
 	getAccountByUsernameOrPhone(userId, socNet, username, phoneNumber): Promise<IAccount>;
 

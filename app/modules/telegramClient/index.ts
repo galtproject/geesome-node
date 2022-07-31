@@ -43,10 +43,10 @@ function getModule(app: IGeesomeApp) {
 	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
-			let {phoneNumber, apiId, apiHash: apiKey, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage} = loginData;
+			let {phoneNumber, apiId, apiHash: apiKey, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage, forceSMS} = loginData;
 			apiId = parseInt(apiId);
 
-			let acc = await socNetAccount.getAccount(userId, {phoneNumber});
+			let acc = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
 			sessionKey = isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
 			const stringSession = new StringSession(sessionKey);
 			const client = new TelegramClient(stringSession, apiId, apiKey, {});
@@ -87,22 +87,24 @@ function getModule(app: IGeesomeApp) {
 						sessionKey,
 						username,
 						fullName,
-						isEncrypted
+						isEncrypted,
+						socNet
 					});
 				} catch (e) {}
 				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			} else {
-				response = await client.sendCode({apiId, apiHash: apiKey}, phoneNumber);
+				response = await client.sendCode({apiId, apiHash: apiKey}, phoneNumber, forceSMS);
 				try {
 					if (!isEncrypted) {
 						sessionKey = client.session.save();
 					}
-					const existAccount = await socNetAccount.getAccount(userId, {phoneNumber});
+					const existAccount = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
 					acc = await this.createOrUpdateAccount(userId, {
 						id: existAccount ? existAccount.id : null,
 						phoneNumber,
 						sessionKey,
-						isEncrypted
+						isEncrypted,
+						socNet
 					});
 				} catch (e) {
 					console.error('sendCode error', e);
@@ -118,7 +120,7 @@ function getModule(app: IGeesomeApp) {
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
-			const acc = await socNetAccount.getAccount(userId, accData);
+			const acc = await socNetAccount.getAccount(userId, socNet, accData);
 			let {apiId, apiKey: apiHash} = acc;
 			if (!sessionKey) {
 				sessionKey = acc.sessionKey;
@@ -361,9 +363,9 @@ function getModule(app: IGeesomeApp) {
 				lastMessageId = parseInt(advancedSettings['toMessage']);
 			}
 
-			const force = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
+			advancedSettings['force'] = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
 
-			if (!force) {
+			if (!advancedSettings['force']) {
 				const lastMessage = await socNetImport.getDbChannelLastMessage(dbChannel.id);
 				if (lastMessage && lastMessage.id === lastMessageId) {
 					throw new Error('already_done');
@@ -387,25 +389,26 @@ function getModule(app: IGeesomeApp) {
 					}
 					const startPost = currentMessageId + 1;
 					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
-					const messages = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
+					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 
-					await socNetImport.importChannelPosts({
+					await socNetImport.importChannelPosts(userId, dbChannel, messages, advancedSettings, {
 						getRemotePostLink: (channelId, msgId) => this.getMessageLink(client, channelId, msgId),
 						getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
 						getRemotePostProperties: (userId, dbChannel, m) => {
 							//TODO: get forward from username and id
 							return {};
+						},
+						async onRemotePostProcess(m, post) {
+							console.log('onMessageProcess', m.id.toString());
+							currentMessageId = parseInt(m.id.toString());
+							dbChannel.update({lastMessageId: currentMessageId});
+							asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id);
+							if (asyncOperation.cancel) {
+								await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
+								throw new Error("import_canceled");
+							}
+							return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 						}
-					}, userId, dbChannel, messages, force, advancedSettings, async (m, post) => {
-						console.log('onMessageProcess', m.id.toString());
-						currentMessageId = parseInt(m.id.toString());
-						dbChannel.update({lastMessageId: currentMessageId});
-						asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id);
-						if (asyncOperation.cancel) {
-							await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
-							throw new Error("import_canceled");
-						}
-						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 					});
 				}
 			})().then(async () => {

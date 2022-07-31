@@ -30,7 +30,9 @@ function getModule(app: IGeesomeApp, models) {
 				where['id'] = accData.id;
 			}
 			const userAcc = await models.Account.findOne({where});
-			return userAcc ? userAcc.update(accData).then(() => models.Account.findOne({where})) : models.Account.create(accData);
+			return userAcc ?
+				userAcc.update(accData).then(() => models.Account.findOne({where})) :
+				models.Account.create({ ...accData, userId });
 		}
 		async getAccount(userId, socNet, accountData) {
 			return models.Account.findOne({where: {...accountData, userId, socNet}});
@@ -38,8 +40,12 @@ function getModule(app: IGeesomeApp, models) {
 		async getAccountByUsernameOrPhone(userId, socNet, username, phoneNumber) {
 			return models.Account.findOne({where: {userId, socNet, [Op.or]: [{username}, {phoneNumber}]}});
 		}
-		async getAccountList(userId, socNet) {
-			return models.Account.findAll({where: {userId, socNet}});
+		async getAccountList(userId, socNet = null) {
+			let where = {userId};
+			if (socNet) {
+				where['socNet'] = socNet;
+			}
+			return models.Account.findAll({ where });
 		}
 		async flushDatabase() {
 			await pIteration.forEachSeries(['Account'], (modelName) => {

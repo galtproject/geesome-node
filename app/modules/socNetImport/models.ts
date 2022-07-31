@@ -33,13 +33,6 @@ module.exports = async function () {
 		lastMessageId: {
 			type: Sequelize.INTEGER
 		},
-		autoImportPeriod: {
-			type: Sequelize.INTEGER,
-			defaultValue: 0
-		},
-		autoImportToken: {
-			type: Sequelize.STRING(200)
-		},
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
