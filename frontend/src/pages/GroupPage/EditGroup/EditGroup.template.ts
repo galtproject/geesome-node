@@ -15,7 +15,7 @@ module.exports = `
             <md-button class="md-raised md-accent" @click="update()" :disabled="invalidInputs">
               Update
             </md-button>
-            <md-button class="md-warn" @click="deleteGroup()" :disabled="invalidInputs">
+            <md-button class="md-warn" @click="deleteGroup()">
               Delete
             </md-button>
           </div>

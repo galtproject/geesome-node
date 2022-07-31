@@ -1,4 +1,4 @@
-import {IContent, IUserAsyncOperation, IUserOperationQueue} from "../database/interface";
+import {IContent} from "../database/interface";
 
 export default interface IGeesomeAsyncOperationModule {
 
@@ -16,7 +16,7 @@ export default interface IGeesomeAsyncOperationModule {
 
 	errorAsyncOperation(userId, asyncOperationId, errorMessage);
 
-	findAsyncOperations(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
+	findAsyncOperations(userId, name?, channelLike?, inProcess?): Promise<IUserAsyncOperation[]>;
 
 	addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
 

@@ -123,7 +123,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 			if (!req.token) {
 				return res.send({error: "Need authorization token", errorCode: 1}, 401);
 			}
-			const {user, apiKey} = await app.getUserByApiKey(req.token);
+			const {user, apiKey} = await app.getUserByApiToken(req.token);
 			req.user = user;
 			req.apiKey = apiKey;
 			if (!req.user || !req.user.id) {
@@ -153,7 +153,8 @@ async function getModule(app: IGeesomeApp, version, port) {
 		}
 
 		setStorageHeaders(res: IApiModuleCommonOutput) {
-			res.setHeader('Cache-Control', 'public, max-age=31536000, stale-if-error=0');
+			//TODO: store max-age cache to content database?
+			res.setHeader('Cache-Control', 'public, max-age=3600, stale-if-error=0');
 			res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 			res.setHeader('Connection', 'close'); //TODO: determine the best solution https://serverfault.com/questions/708319/chrome-requests-get-stuck-pending
 		}

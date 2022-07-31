@@ -2,7 +2,7 @@ import {IGeesomeApp} from "../../interface";
 import {
 	ContentView,
 	CorePermissionName,
-	GroupPermissionName,
+	GroupPermissionName, IContent,
 	IListParams,
 } from "../database/interface";
 import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface";
@@ -33,12 +33,12 @@ function getModule(app: IGeesomeApp, models) {
 		async createGroup(userId, groupData) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 
+			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
+				throw new Error("incorrect_name");
+			}
 			const existUserWithName = await this.getGroupByParams({name: groupData['name']});
 			if (existUserWithName) {
 				throw new Error("name_already_exists");
-			}
-			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
-				throw new Error("incorrect_name");
 			}
 
 			groupData.creatorId = userId;
@@ -52,6 +52,8 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			const group = await this.addGroup(groupData);
+
+			await app.ms.staticId.setStaticAccountGroupId(userId, groupData['name'], group.id);
 
 			// await app.callHook('hookAfterGroupSaving', [userId, group.id, groupData])
 
@@ -572,9 +574,10 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
-		async getPostContent(post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
-			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async c => {
+		async getPostContent(post: IPost): Promise<{type, mimeType, extension, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
+			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async (c: IContent) => {
 				const baseData = {
+					extension: c.extension,
 					mimeType: c.mimeType,
 					view: c.view || ContentView.Contents,
 					manifestId: c.manifestStorageId,

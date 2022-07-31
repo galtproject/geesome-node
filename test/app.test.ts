@@ -334,6 +334,18 @@ describe("app", function () {
 			permissions: [CorePermissionName.UserAll]
 		});
 
+		try {
+			await app.ms.group.createGroup(newUser.id, {name: '', title: 'Test2'});
+			assert.equal(true, false);
+		} catch (e) {
+			assert.equal(_.includes(e.toString(), "incorrect_name"), true);
+		}
+		try {
+			await app.ms.group.createGroup(newUser.id, {title: 'Test2'});
+			assert.equal(true, false);
+		} catch (e) {
+			assert.equal(_.includes(e.toString(), "incorrect_name"), true);
+		}
 		const group2 = await app.ms.group.createGroup(newUser.id, {name: 'test2', title: 'Test2'});
 
 		await app.ms.group.createPost(newUser.id, {
@@ -421,7 +433,7 @@ describe("app", function () {
 
 		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, testGroup.id), true);
 
-		const groupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
+		const groupAccount = await app.ms.accountStorage.getLocalAccountByName(testGroup.name);
 		assert.equal(groupAccount.staticId, testGroup.manifestStaticStorageId);
 
 		try {
@@ -439,7 +451,7 @@ describe("app", function () {
 			isDeleted: true
 		});
 
-		const deletedGroupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
+		const deletedGroupAccount = await app.ms.accountStorage.getLocalAccountByName(testGroup.name);
 		assert.equal(deletedGroupAccount, null);
 
 		const newGroup = await app.ms.group.createGroup(testUser.id, {
@@ -447,7 +459,7 @@ describe("app", function () {
 			title: 'Test 2'
 		});
 
-		const newGroupAccount = await app.ms.accountStorage.getAccountByName(testGroup.name);
+		const newGroupAccount = await app.ms.accountStorage.getLocalAccountByName(testGroup.name);
 		assert.equal(newGroupAccount.staticId, newGroup.manifestStaticStorageId);
 		assert.notEqual(newGroupAccount.staticId, testGroup.manifestStaticStorageId);
 

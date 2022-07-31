@@ -325,7 +325,7 @@ function getModule(config, appPass) {
       return generated.apiKey;
     }
 
-    async getUserByApiKey(token) {
+    async getUserByApiToken(token) {
       if (!token || token === 'null') {
         return null;
       }
@@ -338,6 +338,14 @@ function getModule(config, appPass) {
         user: await this.ms.database.getUser(keyObj.userId),
         apiKey: keyObj,
       };
+    }
+
+    async getUserApyKeyById(userId, apiKeyId) {
+      const keyObj = await this.ms.database.getApiKey(apiKeyId);
+      if (keyObj.userId !== userId) {
+        throw new Error("not_permitted");
+      }
+      return keyObj;
     }
 
     async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
@@ -424,7 +432,6 @@ function getModule(config, appPass) {
 
     async generateAndSaveManifest(entityName, entityObj) {
       const manifestContent = await this.ms.entityJsonManifest.generateManifest(entityName, entityObj);
-      console.log('manifestContent', manifestContent);
       const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
       console.log(entityName, hash, JSON.stringify(manifestContent.posts ? {...manifestContent, posts: ['hidden']} : manifestContent, null, ' '));
       return hash;

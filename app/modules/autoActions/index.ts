@@ -12,6 +12,7 @@ module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./models")();
 	const module = await getModule(app, models);
 	require('./api')(app, module);
+	require('./cron')(app, module);
 	return module;
 }
 
@@ -103,6 +104,12 @@ function getModule(app: IGeesomeApp, models) {
 			return models.AutoAction.findOne({ where: { id }, include: [ {association: 'nextActions'} ] }).then(a => this.decryptAutoActionIfNecessary(a));
 		}
 
+		async getUserActions(userId, params = {}) {
+			return {
+				list: await models.AutoAction.findAll({ where: { ...params, userId }, include: [ {association: 'nextActions'}, {association: 'baseActions'} ] }).then(as => pIteration.map(as, a => this.decryptAutoActionIfNecessary(a)))
+			}
+		}
+
 		async getAutoActionsToExecute() {
 			return models.AutoAction.findAll({where: { executeOn: {[Op.lte]: new Date()}, isActive: true} }).then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a)));
 		}
@@ -114,6 +121,7 @@ function getModule(app: IGeesomeApp, models) {
 				[a => a.nextActionsPivot.position],
 				['asc']
 			);
+			console.log('getNextActionsById', id, 'nextActions.length', nextActions.length);
 			return nextActions.map(a => {
 				if (a.userId !== userId) {
 					throw new Error("userId_dont_match");

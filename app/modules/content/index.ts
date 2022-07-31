@@ -256,7 +256,7 @@ function getModule(app: IGeesomeApp) {
 						const data = new BufferListStream(await app.ms.storage.getFileData(storageFile.id));
 						//TODO: find more efficient way to store content from IPFS to fs
 						await new Promise((resolve, reject) => {
-							data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve()).on('error', reject);
+							data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve(true)).on('error', reject);
 						})
 						storageFile.emitFinish = () => {
 							fs.unlinkSync(storageFile.tempPath);

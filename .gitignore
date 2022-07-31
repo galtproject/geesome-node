@@ -12,3 +12,4 @@ docs
 *.sqlite
 .docker-data
 frontend/.parcel-cache
+*.zip

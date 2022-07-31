@@ -13,6 +13,8 @@ export default interface IGeesomeStaticIdModule {
 
 	resolveStaticId(staticId): Promise<string>;
 
+	setStaticAccountGroupId(userId, name, groupId): Promise<any>;
+
 	//TODO: define interface
 	getStaticIdPeers(ipns): Promise<any>;
 

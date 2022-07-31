@@ -1,5 +1,4 @@
 import {IGroup, IGroupListResponse, IPostListResponse} from "../group/interface";
-import {IGroupSectionListResponse} from "../../interface";
 import {IContent, IListParams, IUser} from "../database/interface";
 
 export default interface IGeesomeGroupCategoryModule {
@@ -120,4 +119,9 @@ export interface IGroupCategory {
 	removeMembers?(users: IUser[]);
 	getMembers?(options): IUser[];
 	countMembers?(options?): number;
+}
+
+export interface IGroupSectionListResponse {
+	list: IGroupSection[];
+	total: number;
 }

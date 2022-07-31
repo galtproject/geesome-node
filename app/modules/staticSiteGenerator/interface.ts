@@ -14,11 +14,11 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	addRenderToQueueAndProcess(userId, apiKey, type, id, options): Promise<IUserOperationQueue>;
 
-	bindSiteToStaticId(userId, type, entityId, name): Promise<any>;
+	bindSiteToStaticId(userId, staticSiteId): Promise<any>;
 
 	getStaticSiteInfo(userId, type, entityId): Promise<IStaticSite>;
 
-	updateStaticSiteInfo(userId, entityType, entityId, updateData): Promise<any>;
+	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
 }
 
 export interface IStaticSite {
@@ -26,7 +26,7 @@ export interface IStaticSite {
 	name: string;
 	title: string;
 	options: string;
-	type: string;
+	entityType: string;
 	entityId: number;
 	storageId: string;
 	staticId: string;

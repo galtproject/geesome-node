@@ -16,6 +16,7 @@
   "author": "Galt Project Core Team",
   "license": "ISC",
   "dependencies": {
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#11e5a41",
     "@galtproject/vue-locale": "0.1.10",
     "@swc/helpers": "^0.2.13",
     "async": "^2.6.4",
@@ -26,8 +27,7 @@
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#880d8a5",
-    "geesome-vue-components": "https://github.com/galtproject/geesome-vue-components#2875185",
+    "geesome-vue-components": "https://github.com/galtproject/geesome-vue-components#135bcdc",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",
     "js-yaml": "^3.13.1",
