@@ -92,6 +92,7 @@ export default {
 				const prevOperation = this.curOperation;
 				this.curOperation = op;
 				if (!op.inProcess) {
+					await this.getData();
 					await this.bindToStaticAndSaveOptions().catch(e => {
 						this.$notify({
 							type: 'error',
