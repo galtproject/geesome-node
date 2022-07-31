@@ -16,12 +16,6 @@ module.exports = async function () {
 	const Account = sequelize.define('socNetClient_telegram_account', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
-		},
-		userAddress: {
-			type: Sequelize.STRING(200)
-		},
-		phoneNumber: {
 			type: Sequelize.STRING(200)
 		},
 		username: {
@@ -30,13 +24,7 @@ module.exports = async function () {
 		fullName: {
 			type: Sequelize.STRING(200)
 		},
-		apiId: {
-			type: Sequelize.STRING(200)
-		},
-		apiHash: {
-			type: Sequelize.STRING(200)
-		},
-		sessionKey: {
+		apiToken: {
 			type: Sequelize.TEXT
 		},
 		isEncrypted: {
@@ -45,7 +33,8 @@ module.exports = async function () {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['userId', 'phoneNumber'], unique: true },
+			{ fields: ['userId'], unique: true },
+			{ fields: ['username'], unique: true },
 		]
 	} as any);
 

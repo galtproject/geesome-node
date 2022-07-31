@@ -10,119 +10,57 @@
 import {ContentView} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
 import {GroupType} from "../group/interface";
-import IGeesomeSocNetImport from "../socNetImport/interface";
-import IGeesomeSocNetAccount from "../socNetAccount/interface";
 
-const {Api, TelegramClient} = require("telegram");
-const {StringSession} = require("telegram/sessions");
-const {computeCheck} = require("telegram/Password");
-const includes = require('lodash/includes');
+const pIteration = require('p-iteration');
 const pick = require('lodash/pick');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
+import { TwitterApi } from 'twitter-api-v2';
+import IGeesomeSocNetImport from "../socNetImport/interface";
 
 module.exports = async (app: IGeesomeApp) => {
-	const module = getModule(app);
+	const models = await require("./models")();
+	const module = getModule(app, models);
 
-	require('./api')(app, module);
+	require('./api')(app, module, models);
 
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
-	app.checkModules(['asyncOperation', 'group', 'content', 'socNetAccount', 'socNetImport']);
+function getModule(app: IGeesomeApp, models) {
+	app.checkModules(['asyncOperation', 'group', 'content', 'socNetImport']);
 
-	const socNet = 'telegram';
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
-	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
 	class TelegramClientModule {
 		async login(userId, loginData) {
-			let {phoneNumber, apiId, apiHash: apiKey, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage} = loginData;
-			apiId = parseInt(apiId);
+			let {apiToken, encryptedApiToken, isEncrypted} = loginData;
 
-			let acc = await socNetAccount.getAccount(userId, {phoneNumber});
-			sessionKey = isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
-			const stringSession = new StringSession(sessionKey);
-			const client = new TelegramClient(stringSession, apiId, apiKey, {});
+			const client = new TwitterApi(apiToken);
+			const roClient = client.readOnly;
+			const [user] = await roClient.v2.me();
 
-			if (isEncrypted) {
-				sessionKey = encryptedSessionKey;
-			}
-			if (firstStage) {
-				sessionKey = '';
-			}
-
-			await client.connect();
-
-			let response;
-			if (phoneCodeHash) {
-				try {
-					response = await client.invoke(new Api.auth.SignIn({phoneNumber, phoneCodeHash, phoneCode}) as any);
-				} catch (e) {
-					if (!includes(e.message, 'SESSION_PASSWORD_NEEDED') || !password) {
-						throw e;
-					}
-					const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
-					const passwordSrpCheck = await computeCheck(passwordSrpResult, password);
-					response = await client.invoke(new Api.auth.CheckPassword({password: passwordSrpCheck}) as any);
-				}
-				try {
-					if (!isEncrypted) {
-						sessionKey = client.session.save();
-					}
-					const username = response.user ? response.user.username : null;
-					const fullName = response.user ? response.user.firstName + ' ' + response.user.lastName : null;
-					const existAccount = await socNetAccount.getAccountByUsernameOrPhone(userId, socNet, username, phoneNumber);
-					acc = await this.createOrUpdateAccount(userId, {
-						id: existAccount ? existAccount.id : null,
-						phoneNumber,
-						apiId,
-						apiKey,
-						sessionKey,
-						username,
-						fullName,
-						isEncrypted
-					});
-				} catch (e) {}
-				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
-			} else {
-				response = await client.sendCode({apiId, apiHash: apiKey}, phoneNumber);
-				try {
-					if (!isEncrypted) {
-						sessionKey = client.session.save();
-					}
-					const existAccount = await socNetAccount.getAccount(userId, {phoneNumber});
-					acc = await this.createOrUpdateAccount(userId, {
-						id: existAccount ? existAccount.id : null,
-						phoneNumber,
-						sessionKey,
-						isEncrypted
-					});
-				} catch (e) {
-					console.error('sendCode error', e);
-				}
-				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
-			}
+			const acc = await this.createOrUpdateAccount({
+				userId,
+				apiToken: isEncrypted ? encryptedApiToken : apiToken,
+				username: user.username,
+				fullName: user.name,
+				isEncrypted
+			});
+			return {client, result: {response: user, account: acc}};
 		}
 
-		createOrUpdateAccount(userId, accData) {
-			return socNetAccount.createOrUpdateAccount(userId, accData);
+		async createOrUpdateAccount(accData) {
+			let where = {userId: accData.userId};
+			const userAcc = await models.Account.findOne({where});
+			return userAcc ? userAcc.update(accData).then(() => models.Account.findOne({where})) : models.Account.create(accData);
 		}
 
 		async getClient(userId, accData: any = {}) {
-			let {sessionKey} = accData;
-			delete accData['sessionKey'];
-			const acc = await socNetAccount.getAccount(userId, accData);
-			let {apiId, apiKey: apiHash} = acc;
-			if (!sessionKey) {
-				sessionKey = acc.sessionKey;
-			}
-			apiId = parseInt(apiId, 10);
-			const client = new TelegramClient(new StringSession(sessionKey), apiId, apiHash, {});
-			await client.connect();
-			return client;
+			let {apiToken} = accData;
+			delete accData['apiToken'];
+			return new TwitterApi(apiToken);
 		}
 
 		async getUserInfoByUserId(userId, accData, userName) {
@@ -132,7 +70,7 @@ function getModule(app: IGeesomeApp) {
 		async getUserInfoByClient(client, userName) {
 			return {
 				client,
-				result: await client.invoke(new Api['users'].GetFullUser({id: userName}))
+				result: await client.readOnly.v2.userByUsername(userName)
 			}
 		}
 
@@ -274,7 +212,7 @@ function getModule(app: IGeesomeApp) {
 		async runChannelImport(userId, apiKey, accData, channelId, advancedSettings = {}) {
 			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
 
-			let dbChannel = await socNetImport.getDbChannel(userId, {channelId: channel.id.toString()});
+			let dbChannel = await models.Channel.findOne({where: {userId, channelId: channel.id.toString()}});
 			let group;
 
 			const [{result: avatarFile}, {result: user}] = await Promise.all([
@@ -337,7 +275,10 @@ function getModule(app: IGeesomeApp) {
 			const force = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
 
 			if (!force) {
-				const lastMessage = await socNetImport.getDbChannelLastMessage(dbChannel.id);
+				const lastMessage = await models.Message.findOne({
+					where: {dbChannelId: dbChannel.id},
+					order: [['msgId', 'DESC']]
+				});
 				if (lastMessage && lastMessage.id === lastMessageId) {
 					throw new Error('already_done');
 				}
@@ -358,18 +299,7 @@ function getModule(app: IGeesomeApp) {
 					if (countToFetch > 50) {
 						countToFetch = 50;
 					}
-					const startPost = currentMessageId + 1;
-					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
-					const messages = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
-
-					await socNetImport.importChannelPosts({
-						getRemotePostLink: (channelId, msgId) => this.getMessageLink(client, channelId, msgId),
-						getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
-						getRemotePostProperties: (userId, dbChannel, m) => {
-							//TODO: get forward from username and id
-							return {};
-						}
-					}, userId, dbChannel, messages, force, advancedSettings, async (m, post) => {
+					await this.importChannelPosts(client, userId, group.id, dbChannel, currentMessageId + 1, countToFetch, force, advancedSettings, async (m, post) => {
 						console.log('onMessageProcess', m.id.toString());
 						currentMessageId = parseInt(m.id.toString());
 						dbChannel.update({lastMessageId: currentMessageId});
@@ -394,7 +324,7 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async messageToContents(client, userId, dbChannel, m) {
+		async messageToContents(client, dbChannel, m, userId) {
 			let contents = [];
 			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
 
@@ -408,7 +338,7 @@ function getModule(app: IGeesomeApp) {
 					view: ContentView.Contents
 				});
 				contents.push(content);
-				await socNetImport.storeContentMessage(contentMessageData, content);
+				await this.storeContentMessage(contentMessageData, content);
 			}
 
 			if (m.media) {
@@ -425,7 +355,7 @@ function getModule(app: IGeesomeApp) {
 						view: ContentView.Media
 					});
 					contents.push(content);
-					await socNetImport.storeContentMessage(contentMessageData, content);
+					await this.storeContentMessage(contentMessageData, content);
 				}
 
 				if (m.media.webpage && m.media.webpage.url) {
@@ -435,11 +365,17 @@ function getModule(app: IGeesomeApp) {
 						view: ContentView.Link
 					});
 					contents.push(content);
-					await socNetImport.storeContentMessage(contentMessageData, content);
+					await this.storeContentMessage(contentMessageData, content);
 				}
 			}
 
 			return contents;
+		}
+
+		async flushDatabase() {
+			await pIteration.forEachSeries(['Message', 'Channel', 'Account', 'ContentMessage'], (modelName) => {
+				return models[modelName].destroy({where: {}});
+			});
 		}
 	}
 

@@ -1,11 +1,31 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeTelegramClient from "./interface";
+const _ = require('lodash');
 
-module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient) => {
+module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient, models) => {
 	const api = app.ms.api.prefix('soc-net/telegram/');
 
 	api.onAuthorizedPost('login', async (req, res) => {
 		return res.send(await wrapApiResult(telegramClientModule.login(req.user.id, req.body)), 200);
+	});
+	api.onAuthorizedPost('db-account', async (req, res) => {
+		return res.send(await models.Account.findOne({where: {...req.body.accountData, userId: req.user.id}}), 200);
+	});
+	api.onAuthorizedPost('db-account-list', async (req, res) => {
+		return res.send(await models.Account.findAll({where: {userId: req.user.id}}), 200);
+	});
+	api.onAuthorizedPost('db-channel', async (req, res) => {
+		return res.send(await models.Channel.findOne({where: {...req.body.channelData, userId: req.user.id}}), 200);
+	});
+	api.onAuthorizedPost('update-db-channel', async (req, res) => {
+		const channel = await models.Channel.findOne({where: {..._.pick(req.body.channelData, ['id', 'groupId', 'channelId']), userId: req.user.id}});
+		await channel.update(_.pick(req.body.updateData, ['autoImportPeriod', 'autoImportToken']));
+		return res.send(await models.Channel.findOne({where: {id: channel.id}}), 200);
+	});
+	api.onAuthorizedPost('update-db-account', async (req, res) => {
+		const account = await models.Account.findOne({where: {..._.pick(req.body.accountData, ['id', 'username', 'phoneNumber', 'apiId']), userId: req.user.id}});
+		await account.update(_.pick(req.body.updateData, ['fullName', 'type', 'isEncrypted']));
+		return res.send(await models.Account.findOne({where: {id: account.id}}), 200);
 	});
 	api.onAuthorizedPost('user-info', async (req, res) => {
 		if (req.body.username === 'me') {
@@ -18,7 +38,8 @@ module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient
 		const user = await wrapApiResult(telegramClientModule.getMeByUserId(req.user.id, req.body.accountData));
 		const username = user['username'];
 		const fullName = res.user['firstName'] + ' ' + res.user['lastName'];
-		return res.send(await telegramClientModule.createOrUpdateAccount({...req.body.accountData, userId: req.user.id, username, fullName}), 200);
+		await telegramClientModule.createOrUpdateAccount({...req.body.accountData, userId: req.user.id, username, fullName});
+		return res.send(await models.Account.findOne({where: {...req.body.accountData, userId: req.user.id}}), 200);
 	});
 	api.onAuthorizedPost('channels', async (req, res) => {
 		return res.send(await wrapApiResult(telegramClientModule.getUserChannelsByUserId(req.user.id, req.body.accountData)), 200);
