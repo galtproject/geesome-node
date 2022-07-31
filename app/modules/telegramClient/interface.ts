@@ -28,7 +28,5 @@ export default interface IGeesomeTelegramClient {
 
 	messageToContents(client, dbChannel, m, userId): Promise<IContent[]>;
 
-	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
-
 	flushDatabase(): Promise<any>;
 }
