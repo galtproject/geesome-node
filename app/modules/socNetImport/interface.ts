@@ -13,5 +13,7 @@ export default interface IGeesomeSocNetImport {
 
 	getDbChannelLastMessage(dbChannelId);
 
+	findExistsChannelMessage(msgId, dbChannelId, userId);
+
 	flushDatabase(): Promise<any>;
 }

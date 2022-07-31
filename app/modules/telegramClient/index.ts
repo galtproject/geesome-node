@@ -18,6 +18,7 @@ const {StringSession} = require("telegram/sessions");
 const {computeCheck} = require("telegram/Password");
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
+const some = require('lodash/some');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -114,10 +115,6 @@ function getModule(app: IGeesomeApp) {
 			return socNetAccount.createOrUpdateAccount(userId, accData);
 		}
 
-		async getAccountByAccData(userId, accData) {
-			return models.Account.findOne({where: {...accData, userId}});
-		}
-
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
@@ -126,9 +123,8 @@ function getModule(app: IGeesomeApp) {
 			if (!sessionKey) {
 				sessionKey = acc.sessionKey;
 			}
-			apiId = parseInt(apiId, 10);
-			const client = new TelegramClient(new StringSession(sessionKey), apiId, apiHash, {});
-			client.account = acc;
+			const client = new TelegramClient(new StringSession(sessionKey), parseInt(apiId, 10), apiHash, {});
+			client['account'] = acc;
 			await client.connect();
 			return client;
 		}

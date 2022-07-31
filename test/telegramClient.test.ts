@@ -14,6 +14,8 @@ import {
 } from "../app/modules/database/interface";
 import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
 import {PostStatus} from "../app/modules/group/interface";
+import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
+import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
 
 const pIteration = require('p-iteration');
 
@@ -31,7 +33,7 @@ describe("telegramClient", function () {
 
 	this.timeout(60000);
 
-	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient;
+	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount, socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -64,6 +66,8 @@ describe("telegramClient", function () {
 				title: 'Test'
 			});
 			telegramClient = app.ms['telegramClient'];
+			socNetImport = app.ms['socNetImport'];
+			socNetAccount = app.ms['socNetAccount'];
 		} catch (e) {
 			console.error('error', e);
 			assert.equal(true, false);
@@ -297,7 +301,7 @@ describe("telegramClient", function () {
 		assert.equal(mimeType, 'image/jpg');
 		assert.equal(thumbSize, 'y');
 
-		const channel = await telegramClient.createDbChannel({
+		const channel = await socNetImport.createDbChannel({
 			userId: testUser.id,
 			groupId: testGroup.id,
 			channelId: 1,
@@ -415,7 +419,7 @@ describe("telegramClient", function () {
 		};
 
 
-		const channel = await telegramClient.createDbChannel({
+		const channel = await socNetImport.createDbChannel({
 			userId: testUser.id,
 			groupId: testGroup.id,
 			channelId: 1,
@@ -537,7 +541,7 @@ describe("telegramClient", function () {
 			groupedId: null
 		};
 
-		const channel = await telegramClient.createDbChannel({
+		const channel = await socNetImport.createDbChannel({
 			userId: testUser.id,
 			groupId: testGroup.id,
 			channelId: 1,
@@ -573,7 +577,7 @@ describe("telegramClient", function () {
 		let post1 = await telegramClient.publishPost(importState, null, postData, msgData);
 		assert.equal(post1.contents.length, 1);
 
-		const existsChannelMessagePost1 = await telegramClient.findExistsChannelMessage(message1.id, channel.id, testUser.id);
+		const existsChannelMessagePost1 = await socNetImport.findExistsChannelMessage(message1.id, channel.id, testUser.id);
 		post1 = await telegramClient.publishPost(importState, existsChannelMessagePost1, postData, msgData);
 		assert.equal(post1.contents.length, 1);
 
@@ -621,7 +625,7 @@ describe("telegramClient", function () {
 		message1.date += 9;
 		msgData.timestamp = message1.date;
 
-		const existsChannelMessage = await telegramClient.findExistsChannelMessage(message1.id, channel.id, testUser.id);
+		const existsChannelMessage = await socNetImport.findExistsChannelMessage(message1.id, channel.id, testUser.id);
 		assert.equal(existsChannelMessage.msgId, message1.id);
 
 		post3 = await telegramClient.publishPost(importState, existsChannelMessage, postData, msgData);
@@ -874,7 +878,7 @@ describe("telegramClient", function () {
 			}
 		];
 
-		const channel = await telegramClient.createDbChannel({
+		const channel = await socNetImport.createDbChannel({
 			userId: testUser.id,
 			groupId: testGroup.id,
 			channelId: 1,
@@ -1123,7 +1127,7 @@ describe("telegramClient", function () {
 			groupedId: 13192231545901354
 		};
 
-		const channel = await telegramClient.createDbChannel({
+		const channel = await socNetImport.createDbChannel({
 			userId: testUser.id,
 			groupId: testGroup.id,
 			channelId: 1,
