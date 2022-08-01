@@ -46,7 +46,7 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({where: {msgId, dbChannelId, userId}});
 		}
 
-		async getDbPostIdByTelegramMsgId(dbChannelId, msgId) {
+		async getDbPostIdByMsgId(dbChannelId, msgId) {
 			if (!msgId) {
 				return;
 			}
@@ -55,7 +55,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client: any = {}) {
-			const {id: dbChannelId, groupId} = dbChannel;
+			const {id: dbChannelId, groupId, source} = dbChannel;
 			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
 			const force = !!advancedSettings['force'];
 			const importState = { mergeSeconds, userId, groupId, dbChannelId };
@@ -94,11 +94,11 @@ function getModule(app: IGeesomeApp, models) {
 						replyToMsgId,
 						...await client.getRemotePostProperties(userId, dbChannel, m)
 					},
-					source: 'telegram',
+					source,
 					sourceChannelId: dbChannel.channelId,
 					sourcePostId: msgId,
 					sourceDate: new Date(m.date * 1000),
-					replyToId: await this.getDbPostIdByTelegramMsgId(dbChannelId, replyToMsgId),
+					replyToId: await this.getDbPostIdByMsgId(dbChannelId, replyToMsgId),
 					contents,
 				}
 				console.log('postData', postData);

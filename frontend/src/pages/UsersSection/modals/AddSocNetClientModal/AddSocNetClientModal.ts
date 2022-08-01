@@ -7,9 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal'
+import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal';
 
-const pick = require('lodash/pick');
 const includes = require('lodash/includes');
 
 export default {
@@ -20,10 +19,11 @@ export default {
   },
   created() {
     if (this.account) {
-      this.apiId = this.account.apiId;
-      this.apiHash = this.account.apiHash;
-      this.phoneNumber = this.account.phoneNumber;
-      this.isEncrypted = !!this.account.isEncrypted;
+      this.socNet = this.account.socNet;
+      this.inputs = this.account;
+      ['isEncrypted'].forEach(boolField => {
+        this.$set(this.inputs, boolField, !!this.account[boolField]);
+      })
     }
   },
   methods: {
@@ -31,11 +31,11 @@ export default {
       this.loading = true;
       console.log('loading', this.loading);
       try {
-        const result = await this.$coreApi.socNetLogin(this.socNet, pick(this, ['apiId', 'apiHash', 'phoneNumber', 'phoneCodeHash', 'phoneCode', 'password', 'isEncrypted', 'firstStage', 'forceSMS']));
+        const result = await this.$coreApi.socNetLogin(this.socNet, this.inputs);
         console.log('result', result);
         this.firstStage = false;
         if (result.response.phoneCodeHash) {
-          this.phoneCodeHash = result.response.phoneCodeHash;
+          this.inputs.phoneCodeHash = result.response.phoneCodeHash;
           this.phoneCodeRequired = true;
         } else if (result.response.user) {
           this.close();
@@ -63,24 +63,26 @@ export default {
   watch: {},
   computed: {
     loginDisabled() {
-      return !this.phoneNumber || !this.apiId || !this.apiHash || (this.phoneCodeRequired && !this.phoneCode) || (this.passwordRequired && !this.password);
+      return !this.inputs.phoneNumber || !this.inputs.apiId || !this.inputs.apiKey || (this.phoneCodeRequired && !this.inputs.phoneCode) || (this.passwordRequired && !this.inputs.password);
     }
   },
   data: function () {
     return {
       loading: false,
-      apiId: '',
-      apiHash: '',
-      phoneNumber: '',
-      phoneCodeHash: '',
-      phoneCode: '',
-      password: '',
-      isEncrypted: true,
-      phoneCodeRequired: false,
-      passwordRequired: false,
-      firstStage: true,
       socNet: 'telegram',
-      forceSMS: false
+      inputs: {
+        apiId: '',
+        apiKey: '',
+        phoneNumber: '',
+        phoneCodeHash: '',
+        phoneCode: '',
+        password: '',
+        isEncrypted: true,
+        stage: 1,
+        forceSMS: false,
+      },
+      phoneCodeRequired: false,
+      passwordRequired: false
     }
   }
 }

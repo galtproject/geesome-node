@@ -20,41 +20,42 @@ module.exports = `
 		<label>Social Network</label>
 		<md-select v-model="socNet">
 			<md-option value="telegram">Telegram</md-option>
+			<md-option value="twitter">Twitter</md-option>
 		</md-select>
 	</md-field>
   
     <md-field>
       <label>App id</label>
-      <md-input v-model="apiId"></md-input>
+      <md-input v-model="inputs.apiId"></md-input>
     </md-field>
   
     <md-field>
       <label>App hash</label>
-      <md-input v-model="apiHash" type="password"></md-input>
+      <md-input v-model="inputs.apiKey" type="password"></md-input>
     </md-field>
   
     <md-field>
       <label>Phone</label>
-      <md-input v-model="phoneNumber"></md-input>
+      <md-input v-model="inputs.phoneNumber"></md-input>
     </md-field>
     
-	<md-checkbox v-model="isEncrypted">Encrypt session key with api token</md-checkbox>
+	<md-checkbox v-model="inputs.isEncrypted">Encrypt session key with api token</md-checkbox>
 
     <md-field v-if="phoneCodeRequired">
       <label>Phone code</label>
-      <md-input v-model="phoneCode"></md-input>
+      <md-input v-model="inputs.phoneCode"></md-input>
     </md-field>
   
     <md-field v-if="passwordRequired">
       <label>Password</label>
-      <md-input v-model="password" type="password"></md-input>
+      <md-input v-model="inputs.password" type="password"></md-input>
     </md-field>
 
     <div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">
       {{passwordRequired ? 'Password' : 'Phone code'}} required! Please enter and try login again.
     </div>
     
-  	<md-checkbox v-model="forceSMS">Force SMS</md-checkbox>
+  	<md-checkbox v-model="inputs.forceSMS">Force SMS</md-checkbox>
   </div>
 
   <template slot="footer">

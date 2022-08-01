@@ -21,6 +21,9 @@ module.exports = async function () {
 		accountId: {
 			type: Sequelize.INTEGER
 		},
+		source: {
+			type: Sequelize.STRING(50)
+		},
 		groupId: {
 			type: Sequelize.INTEGER
 		},

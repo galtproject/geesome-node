@@ -43,7 +43,8 @@ function getModule(app: IGeesomeApp) {
 	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
-			let {phoneNumber, apiId, apiHash: apiKey, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, firstStage, forceSMS} = loginData;
+			let {phoneNumber, apiId, apiKey, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS} = loginData;
+			console.log('apiKey', apiKey);
 			apiId = parseInt(apiId);
 
 			let acc = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
@@ -54,7 +55,7 @@ function getModule(app: IGeesomeApp) {
 			if (isEncrypted) {
 				sessionKey = encryptedSessionKey;
 			}
-			if (firstStage) {
+			if (parseInt(stage) === 1) {
 				sessionKey = '';
 			}
 
@@ -332,7 +333,7 @@ function getModule(app: IGeesomeApp) {
 					avatarImageId: avatarContent ? avatarContent.id : null,
 					propertiesJson: JSON.stringify({
 						lang: user.langCode || 'en',
-						source: 'telegram',
+						source: socNet,
 						sourceId: channel.id.toString(),
 						sourceUsername: channel.username,
 					})
@@ -345,6 +346,7 @@ function getModule(app: IGeesomeApp) {
 					title: channel.title,
 					lastMessageId: 0,
 					postsCounts: 0,
+					source: socNet
 				}
 				if (dbChannel) {
 					// update channel after group deletion
