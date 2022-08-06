@@ -26,36 +26,47 @@ module.exports = `
   
     <md-field>
       <label>App id</label>
-      <md-input v-model="inputs.apiId"></md-input>
+      <md-input v-model="inputs.apiId" name="api_id"></md-input>
     </md-field>
   
     <md-field>
       <label>App hash</label>
-      <md-input v-model="inputs.apiKey" type="password"></md-input>
+      <md-input v-model="inputs.apiKey" name="api_key" type="password"></md-input>
     </md-field>
   
-    <md-field>
-      <label>Phone</label>
-      <md-input v-model="inputs.phoneNumber"></md-input>
-    </md-field>
+   <md-switch v-model="inputs.byQrCode" class="md-primary">Login by QR code</md-switch>
+   
+	<div v-if="inputs.byQrCode">
+		<md-button class="md-raised" @click="getQrCode" :disabled="!inputs.apiId || !inputs.apiKey">Show QR code</md-button>
+		<img ref="qrimage">
+		<div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">
+		  {{passwordRequired ? 'Password' : 'Phone code'}} required! Please enter and try login again.
+		</div>
+	</div>
+   	<div v-else>
+		<md-field>
+		  <label>Phone</label>
+		  <md-input v-model="inputs.phoneNumber"></md-input>
+		</md-field>
+		
+		<md-field v-if="phoneCodeRequired">
+		  <label>Phone code</label>
+		  <md-input v-model="inputs.phoneCode"></md-input>
+		</md-field>
+	  
+		<md-field v-if="passwordRequired">
+		  <label>Password</label>
+		  <md-input v-model="inputs.password" type="password"></md-input>
+		</md-field>
+	
+		<div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">
+		  {{passwordRequired ? 'Password' : 'Phone code'}} required! Please enter and try login again.
+		</div>
+		
+		<md-checkbox v-model="inputs.forceSMS">Force SMS</md-checkbox>
+	</div>
     
-	<md-checkbox v-model="inputs.isEncrypted">Encrypt session key with api token</md-checkbox>
-
-    <md-field v-if="phoneCodeRequired">
-      <label>Phone code</label>
-      <md-input v-model="inputs.phoneCode"></md-input>
-    </md-field>
-  
-    <md-field v-if="passwordRequired">
-      <label>Password</label>
-      <md-input v-model="inputs.password" type="password"></md-input>
-    </md-field>
-
-    <div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">
-      {{passwordRequired ? 'Password' : 'Phone code'}} required! Please enter and try login again.
-    </div>
-    
-  	<md-checkbox v-model="inputs.forceSMS">Force SMS</md-checkbox>
+	<md-checkbox v-model="inputs.isEncrypted" class="md-primary">Encrypt session key with api token</md-checkbox>
   </div>
 
   <template slot="footer">

@@ -59,10 +59,10 @@ module.exports = `
               </md-table-row>
 
               <md-table-row v-for="item in socNetAccounts">
-				<md-table-cell><router-link :to="{name: 'soc-net-client', params: {socNet: 'telegram', accId: item.id}}">{{item.fullName}}</router-link></md-table-cell>
-                <md-table-cell>Telegram</md-table-cell>
+				<md-table-cell><router-link :to="{name: 'soc-net-client', params: {socNet: item.socNet, accId: item.id}}">{{item.fullName}}</router-link></md-table-cell>
+                <md-table-cell>{{item.socNet | prettyName}}</md-table-cell>
                 <md-table-cell>
-                <md-button class="md-accent md-icon-button" @click="editApiKey(item)"><md-icon>sync</md-icon></md-button>
+                <md-button class="md-accent md-icon-button" @click="editSocNet(item)"><md-icon>sync</md-icon></md-button>
                 </md-table-cell>
               </md-table-row>
             </md-table>

@@ -48,6 +48,16 @@ export default {
         }
       });
     },
+    editSocNet(account) {
+      this.$root.$asyncModal.open({
+        id: 'add-soc-net-client-modal',
+        component: AddSocNetClientModal,
+        props: { account },
+        onClose: async () => {
+          this.getSocNetsAccounts();
+        }
+      });
+    },
     addApiKey() {
       this.$root.$asyncModal.open({
         id: 'api-key-form-modal',
