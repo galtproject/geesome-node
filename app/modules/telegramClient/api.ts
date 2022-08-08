@@ -33,7 +33,11 @@ module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient
 	async function wrapApiResult(promise) {
 		const {result, client, error} = await promise.catch(error => ({error}));
 		if (error) {
-			throw error;
+			if (result) {
+				result.error = error;
+			} else {
+				throw error;
+			}
 		}
 		if (client) {
 			await client.disconnect();

@@ -37,10 +37,27 @@ module.exports = `
    <md-switch v-model="inputs.byQrCode" class="md-primary">Login by QR code</md-switch>
    
 	<div v-if="inputs.byQrCode">
-		<md-button class="md-raised" @click="getQrCode" :disabled="!inputs.apiId || !inputs.apiKey">Show QR code</md-button>
-		<img ref="qrimage">
-		<div style="margin-top: 20px" class="md-warn" v-if="phoneCodeRequired || passwordRequired">
-		  {{passwordRequired ? 'Password' : 'Phone code'}} required! Please enter and try login again.
+		<div v-if="passwordRequired">
+			<md-field >
+			  <label>Password</label>
+			  <md-input v-model="inputs.password" type="password"></md-input>
+			</md-field>
+			
+			<div style="margin-top: 20px" class="md-warn">
+			  Password required! Please enter and login.
+			</div>
+		</div>
+		
+		<div v-else>
+<!--			<md-button class="md-raised" @click="getQrCode" :disabled="!inputs.apiId || !inputs.apiKey">Show QR code</md-button>-->
+			<img ref="qrimage">
+			<div>
+				<md-field>
+				  <label>Password</label>
+				  <md-input v-model="inputs.password" type="password"></md-input>
+				</md-field>
+			</div>
+<!--			<md-button class="md-raised" @click="login" :disabled="inputs.stage !== 2">Confirm scanned</md-button>-->
 		</div>
 	</div>
    	<div v-else>
