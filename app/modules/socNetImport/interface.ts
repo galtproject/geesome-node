@@ -8,6 +8,12 @@ export default interface IGeesomeSocNetImport {
 
 	reinitializeDbChannel(id, channelData);
 
+	importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData);
+
+	prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings);
+
+	openImportAsyncOperation(userId, userApiKeyId, dbChannel);
+
 	importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client = {});
 
 	storeContentMessage(contentMessageData, content: IContent);

@@ -49,15 +49,15 @@ module.exports = async function () {
 			type: Sequelize.INTEGER
 		},
 		groupedId: {
-			type: Sequelize.INTEGER
+			type: Sequelize.STRING(50)
 		},
 		msgId: {
-			type: Sequelize.INTEGER
-		},
-		postId: {
-			type: Sequelize.INTEGER
+			type: Sequelize.STRING(50)
 		},
 		replyToMsgId: {
+			type: Sequelize.STRING(50)
+		},
+		postId: {
 			type: Sequelize.INTEGER
 		},
 		timestamp: {
@@ -76,10 +76,10 @@ module.exports = async function () {
 			type: Sequelize.INTEGER
 		},
 		groupedId: {
-			type: Sequelize.INTEGER
+			type: Sequelize.STRING(50)
 		},
 		msgId: {
-			type: Sequelize.INTEGER
+			type: Sequelize.STRING(50)
 		},
 		dbContentId: {
 			type: Sequelize.INTEGER

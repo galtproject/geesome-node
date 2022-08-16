@@ -16,9 +16,15 @@ export default interface IGeesomeAsyncOperationModule {
 
 	errorAsyncOperation(userId, asyncOperationId, errorMessage);
 
+	handleOperationCancel(userId, asyncOperationId);
+
 	findAsyncOperations(userId, name?, channelLike?, inProcess?): Promise<IUserAsyncOperation[]>;
 
 	addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+
+	closeImportAsyncOperation(userId, asyncOperation, error);
+
+	waitForImportAsyncOperation(asyncOperation);
 
 	getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
 

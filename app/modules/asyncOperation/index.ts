@@ -16,6 +16,10 @@ module.exports = async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
+	let finishCallbacks = {
+
+	};
+
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
 		async asyncOperationWrapper(moduleName, funcName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
@@ -130,6 +134,33 @@ function getModule(app: IGeesomeApp, models) {
 		async errorAsyncOperation(userId, asyncOperationId, errorMessage) {
 			await this.getAsyncOperation(userId, asyncOperationId);
 			return this.updateUserAsyncOperation(asyncOperationId, { inProcess: false, errorMessage });
+		}
+
+		async handleOperationCancel(userId, asyncOperationId) {
+			const asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperationId);
+			if (asyncOperation.cancel) {
+				await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
+				throw new Error("import_canceled");
+			}
+		}
+
+		async closeImportAsyncOperation(userId, asyncOperation, error) {
+			if (finishCallbacks[asyncOperation.id]) {
+				finishCallbacks[asyncOperation.id](await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id));
+			}
+			if (error) {
+				return app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, error.message);
+			} else {
+				return app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+			}
+		}
+
+		async waitForImportAsyncOperation(asyncOperation) {
+			const finishedOperation = await new Promise((resolve) => {
+				finishCallbacks[asyncOperation.id] = resolve;
+			});
+			delete finishCallbacks[asyncOperation.id];
+			return finishedOperation;
 		}
 
 		addUserOperationQueue(userId, module, userApiKeyId, input) {

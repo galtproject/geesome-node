@@ -8,6 +8,7 @@
  */
 
 import {IGeesomeApp} from "../../interface";
+import {GroupType} from "../group/interface";
 
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
@@ -16,7 +17,10 @@ const uniq = require('lodash/uniq');
 const uniqBy = require('lodash/uniqBy');
 const orderBy = require('lodash/orderBy');
 const find = require('lodash/find');
+const some = require('lodash/some');
+const isString = require('lodash/isString');
 const Op = require("sequelize").Op;
+const commonHelper = require('geesome-libs/src/common');
 
 module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./models")();
@@ -52,6 +56,85 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			msgId = parseInt(msgId);
 			return models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
+		}
+
+		async importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData) {
+			const channelId = isString(channelMetadata.id) ? channelMetadata.id : channelMetadata.id.toString();
+			let dbChannel = await this.getDbChannel(userId, {channelId});
+			let group;
+
+			// console.log('channel', channel);
+			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
+			if (group && !group.isDeleted) {
+				const data = {
+					name: updateData['name'] || channelMetadata.username,
+					title: channelMetadata.title,
+					description: channelMetadata.about,
+					avatarImageId: updateData.avatarImageId,
+				};
+				if (some(Object.keys(data), (key) => data[key] !== group[key])) {
+					await app.ms.group.updateGroup(userId, dbChannel.groupId, data);
+				}
+			} else {
+				group = await app.ms.group.createGroup(userId, {
+					name: updateData['name'] || channelMetadata.username || channelMetadata.id.toString(),
+					title: channelMetadata.title,
+					description: channelMetadata.about,
+					isPublic: true,
+					type: GroupType.Channel,
+					avatarImageId: updateData.avatarImageId,
+					propertiesJson: JSON.stringify({
+						lang: channelMetadata.lang || 'en',
+						source: socNet,
+						sourceId: channelMetadata.id.toString(),
+						sourceUsername: channelMetadata.username,
+					})
+				});
+				const channelData = {
+					userId,
+					accountId,
+					channelId,
+					groupId: group.id,
+					title: channelMetadata.title,
+					lastMessageId: 0,
+					postsCounts: 0,
+					source: socNet
+				}
+				if (dbChannel) {
+					// update channel after group deletion
+					dbChannel = await this.reinitializeDbChannel(dbChannel.id, channelData);
+				} else {
+					dbChannel = await this.createDbChannel(channelData);
+				}
+			}
+			return dbChannel;
+		}
+
+		async prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings) {
+			const lastMessage = await this.getDbChannelLastMessage(dbChannel.id);
+			let startMessageId = dbChannel ? lastMessage.msgId : 0;
+			let lastMessageId = remotePostsCount;
+			if (advancedSettings['fromMessage']) {
+				startMessageId = advancedSettings['fromMessage'];
+			}
+			if (advancedSettings['toMessage']) {
+				lastMessageId = advancedSettings['toMessage'];
+			}
+			advancedSettings['force'] = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
+			if (!advancedSettings['force']) {
+				if (lastMessage && lastMessage.msgId === lastMessageId) {
+					throw new Error('already_done');
+				}
+			}
+			return {startMessageId, lastMessageId}
+		}
+
+		async openImportAsyncOperation(userId, userApiKeyId, dbChannel) {
+			return app.ms.asyncOperation.addAsyncOperation(userId, {
+				userApiKeyId,
+				name: 'run-soc-net-channel-import',
+				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
+			});
 		}
 
 		async importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client: any = {}) {
@@ -252,7 +335,7 @@ function getModule(app: IGeesomeApp, models) {
 		getDbChannelLastMessage(dbChannelId) {
 			return models.Message.findOne({
 				where: {dbChannelId},
-				order: [['msgId', 'DESC']]
+				order: [['postId', 'DESC']]
 			});
 		}
 
