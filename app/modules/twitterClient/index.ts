@@ -69,7 +69,8 @@ function getModule(app: IGeesomeApp) {
 		async getUserChannelsByUserId(userId, accData) {
 			const {account, client} = await this.getClient(userId, accData);
 			const {data} = await client.readOnly.v2.following(account.accountId);
-			return data;
+			const {data: user} = await client.readOnly.v2.me();
+			return [user].concat(data);
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {

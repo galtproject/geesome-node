@@ -10,6 +10,7 @@ module.exports = `
           <div class="properties">
             <div><label>Username:</label> <span>@{{account.username}}</span></div>
             <div><label>FullName:</label> <span>{{account.fullName}}</span></div>
+		    <div><label>Social network:</label> <span>{{socNet | prettyName}}</span></div>
 		  </div>
         </div>
         <div class="md-layout-item md-size-80 md-small-size-100">
