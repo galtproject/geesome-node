@@ -2,29 +2,26 @@ import {IContent} from "../database/interface";
 import {IPost} from "../group/interface";
 import {IUserAsyncOperation} from "../asyncOperation/interface";
 
-export default interface IGeesomeTelegramClient {
-	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;
+export default interface IGeesomeTwitterClient {
+	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{asyncOperation: IUserAsyncOperation}>;
 
 	getChannelInfoByUserId(userId, accData, channelId): Promise<{
-		client,
-		result: {
-			//TODO: add fields from ...chats[0],
-			photo,
-			about
-			chat,
-			messagesCount
-		}
+		//TODO: add fields from ...chats[0],
+		photo,
+		about
+		chat,
+		messagesCount
 	}>
 
-	getUserChannelsByUserId(userId, accData): Promise <{ result, client }>;
+	getUserChannelsByUserId(userId, accData): Promise <any>;
 
 	createOrUpdateAccount(accData): Promise <any>;
 
-	getMeByUserId(userId, accData): Promise<{ result, client }>;
+	getMeByUserId(userId, accData): Promise<any>;
 
-	getUserInfoByUserId(userId, accData, userName): Promise<{ client, result }>;
+	getUserInfoByUserId(userId, accData, userName): Promise<any>;
 
-	login(userId, loginData): Promise<{ client, result: { response, sessionKey, account } }>;
+	login(userId, loginData): Promise<any>;
 
 	messageToContents(client, dbChannel, m, userId): Promise<IContent[]>;
 
@@ -33,6 +30,4 @@ export default interface IGeesomeTelegramClient {
 	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
-
-	flushDatabase(): Promise<any>;
 }

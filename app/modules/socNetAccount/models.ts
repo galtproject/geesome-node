@@ -21,7 +21,7 @@ module.exports = async function () {
 		socNet: {
 			type: Sequelize.STRING(50)
 		},
-		userAddress: {
+		accountId: {
 			type: Sequelize.STRING(200)
 		},
 		phoneNumber: {
@@ -37,6 +37,9 @@ module.exports = async function () {
 			type: Sequelize.STRING(200)
 		},
 		apiKey: {
+			type: Sequelize.STRING(200)
+		},
+		accessToken: {
 			type: Sequelize.STRING(200)
 		},
 		sessionKey: {

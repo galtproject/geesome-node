@@ -76,6 +76,7 @@ function getModule(app: IGeesomeApp) {
 				try {
 					acc = await socNetAccount.createOrUpdateAccount(userId, {
 						id: acc ? acc.id : null,
+						accountId: user.id,
 						phoneNumber,
 						apiId,
 						apiKey,
@@ -83,7 +84,7 @@ function getModule(app: IGeesomeApp) {
 						username,
 						fullName,
 						isEncrypted,
-						socNet
+						socNet,
 					});
 				} catch (e) {
 					console.warn('handleAuthorized createOrUpdateAccount', e);

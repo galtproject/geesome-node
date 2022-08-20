@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import { TwitterApi } from 'twitter-api-v2';
+import {TwitterApi} from 'twitter-api-v2';
 import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
@@ -29,26 +29,47 @@ function getModule(app: IGeesomeApp) {
 
 	class TelegramClientModule {
 		async login(userId, loginData) {
-			let {id: accountId, apiToken, encryptedApiToken, isEncrypted} = loginData;
+			let {id: accountId, apiId, apiKey, accessToken, sessionKey, encryptedSessionKey, encryptedApiKey, isEncrypted} = loginData;
 
-			const client = new TwitterApi(apiToken);
+			const client = new TwitterApi({
+				appKey: apiId,
+				appSecret: apiKey,
+				accessToken,
+				accessSecret: sessionKey
+			});
 			const roClient = client.readOnly;
-			const [user] = await roClient.v2.me();
-
-			const sessionKey = isEncrypted ? apiToken : encryptedApiToken;
-
-			const existAccount = await socNetAccount.getAccount(userId, socNet, {id: accountId});
+			const {data: user} = await roClient.v2.me();
+			const existAccount = accountId ? await socNetAccount.getAccount(userId, socNet, {id: accountId}) : null;
 			const acc = await socNetAccount.createOrUpdateAccount(userId, {
 				id: existAccount ? existAccount.id : null,
-				sessionKey,
+				accountId: user.id,
+				username: user.username,
+				fullName: user.name,
+				apiId,
+				apiKey: isEncrypted ? encryptedApiKey : apiKey,
+				accessToken,
+				sessionKey: isEncrypted ? encryptedSessionKey : sessionKey,
 				isEncrypted,
 				socNet
 			});
-			return {client, result: {response: user, account: acc}};
+			return {response: user, account: acc, sessionKey, apiKey};
 		}
 
 		async getClient(userId, accData) {
-			return new TwitterApi(accData.sessionKey);
+			const account = await socNetAccount.getAccount(userId, socNet, {id: accData.id});
+			const client = new TwitterApi({
+				appKey: account.apiId,
+				appSecret: accData.apiKey,
+				accessToken: account.accessToken,
+				accessSecret: accData.sessionKey
+			});
+			return {account, client: client};
+		}
+
+		async getUserChannelsByUserId(userId, accData) {
+			const {account, client} = await this.getClient(userId, accData);
+			const {data} = await client.readOnly.v2.following(account.accountId);
+			return data;
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
@@ -61,9 +82,9 @@ function getModule(app: IGeesomeApp) {
 			if (apiKey.userId !== userId) {
 				throw new Error("not_permitted");
 			}
-			const client = await this.getClient(userId, accData);
+			const {client} = await this.getClient(userId, accData);
 			const {v2} = client.readOnly;
-			const [channel] = await v2.user(username);
+			const {data: channel} = await v2.me();
 
 			let avatarContent;
 			if (channel.profile_image_url) {

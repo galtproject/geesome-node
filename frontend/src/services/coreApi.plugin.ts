@@ -74,7 +74,7 @@ export default {
           'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
           'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
           'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiToken', 'getCurrentUserApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
-          'getSocNetSessionKey', 'socNetNamesList', 'socNetLogin', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
+          'getSocNetSessionKey', 'socNetNamesList', 'socNetLogin', 'setKeysToSocNetAccountData', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
           'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetUpdateDbChannel', 'socNetDbChannel',
           'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
           'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId',

@@ -27,7 +27,7 @@ export default {
 		},
 		async getChannels() {
 			this.channels = await this.$coreApi.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.accId}).catch(e => {
-				if (includes(e.message, "Not a valid string") || includes(e.message, "AUTH_KEY")) {
+				if (includes(e.message, "Not a valid string") || includes(e.message, "AUTH_KEY") || includes(e.message, "401")) {
 					this.incorrectSessionKey = true;
 				}
 				this.$notify({
@@ -55,8 +55,11 @@ export default {
 		currentUser() {
 			return this.$store.state.user;
 		},
+		socNet() {
+			return this.$route.params.socNet;
+		},
 		showChannels() {
-			if (this.onlyAdmined) {
+			if (this.socNet === 'telegram' && this.onlyAdmined) {
 				return this.channels.filter(c => c.adminRights);
 			}
 			return this.channels;
