@@ -9,8 +9,8 @@ module.exports = `
         <div class="md-layout-item md-size-20 md-small-size-100">
           <div class="properties">
             <div><label>Title:</label> <span>{{info.title}}</span></div>
-            <div v-if="info.username"><label>Username:</label> <span>@{{info.username}}</span></div>
-		    <div><label>Channel messages count:</label> <span>{{info.messagesCount}}</span></div>
+            <div v-if="info.username"><label>Username:</label> <span>@{{info.username || info.name}}</span></div>
+		    <div><label>Channel messages count:</label> <span>{{info.messagesCount | prettyNumber}}</span></div>
 		  	<div v-if="dbGroup"><label>Result posts count:</label> <span>{{dbGroup.publishedPostsCount}}{{curOperation ? '...' : ''}}</span></div>
 		  	<div v-if="dbGroup"><router-link :to="{name: 'group-page', params: {groupId: dbGroup.staticStorageId}}">Group page</router-link></div>
 		  </div>
@@ -51,7 +51,10 @@ module.exports = `
 				<md-button style="position: absolute; top: 0; right: 0;" v-if="curOperation" @click="stopImport" class="md-warn"><span v-locale="localeKey + '.stop_import'"></span></md-button>
 			</div>
 			
-			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+			<div v-if="curOperation">
+				<md-progress-bar v-if="percent === -1" class="md-accent"  md-mode="indeterminate"></md-progress-bar>
+				<md-progress-bar v-else class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+			</div>
 
 			<div style="display: flex; justify-content: space-between;">
 			  <h3>Generate static site and upload to IPFS</h3>

@@ -156,7 +156,7 @@ function getModule(app: IGeesomeApp, models) {
 				const msgId = m.id.toString();
 				if (!messageLinkTpl) {
 					messageLinkTpl = await client.getRemotePostLink(dbChannel.channelId, msgId)
-						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
+						.then(r => r.split('/').slice(0, -1).join('/') + '/{msgId}');
 				}
 				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
 				if (existsChannelMessage && !force) {
@@ -167,7 +167,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				const contents = await client.getRemotePostContents(userId, dbChannel, m);
-				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
+				const replyToMsgId = client.getRemotePostReplyTo(m);
 				const postData = {
 					groupId,
 					userId,

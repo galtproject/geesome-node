@@ -23,7 +23,7 @@ const telegramHelpers = require('../app/modules/telegramClient/helpers');
 
 const assert = require('assert');
 
-describe.only("telegramClient", function () {
+describe("telegramClient", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {

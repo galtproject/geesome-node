@@ -13,7 +13,7 @@ export default interface IGeesomeTelegramClient {
 			chat,
 			messagesCount
 		}
-	}>
+	}>;
 
 	getUserChannelsByUserId(userId, accData): Promise <{ result, client }>;
 

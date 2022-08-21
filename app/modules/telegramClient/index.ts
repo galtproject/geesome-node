@@ -298,14 +298,11 @@ function getModule(app: IGeesomeApp) {
 				channel = await this.getChannelEntity(client, channelId);
 			}
 			messageId = parseInt(messageId);
-			return {
-				client,
-				result: await client.invoke(new Api.channels.ExportMessageLink({
-					channel,
-					id: messageId,
-					thread: true,
-				}) as any)
-			};
+			return client.invoke(new Api.channels.ExportMessageLink({
+				channel,
+				id: messageId,
+				thread: true,
+			})).then(r => r.link);
 		}
 
 		async downloadMediaByUserId(userId, accData, media) {
@@ -417,6 +414,7 @@ function getModule(app: IGeesomeApp) {
 
 					await socNetImport.importChannelPosts(userId, dbChannel, messages, advancedSettings, {
 						getRemotePostLink: (channelId, msgId) => this.getMessageLink(client, channelId, msgId),
+						getRemotePostReplyTo: (m) => m.replyTo ? m.replyTo.replyToMsgId.toString() : null,
 						getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
 						getRemotePostProperties: (userId, dbChannel, m) => {
 							//TODO: get forward from username and id
