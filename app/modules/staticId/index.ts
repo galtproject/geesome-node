@@ -54,7 +54,9 @@ function getModule(app: IGeesomeApp, models) {
 
 			try {
 				if (await app.ms.communicator.isReady()) {
-					await app.ms.communicator.bindToStaticId(dynamicId, staticId);
+					//TODO: enable on fluence update
+
+					// await app.ms.communicator.bindToStaticId(staticId, dynamicId);
 					log('bindToStaticId:communicator finish');
 				} else {
 					log('bindToStaticId:communicator not ready');

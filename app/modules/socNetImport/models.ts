@@ -11,48 +11,18 @@ export {};
 const Sequelize: any = require('sequelize');
 
 module.exports = async function () {
-	let sequelize = new Sequelize('geesome-soc-net', 'geesome', 'geesome', require('./config').options);
+	let sequelize = new Sequelize('geesome-soc-net-import', 'geesome', 'geesome', require('./config').options);
 
-	const Account = sequelize.define('socNetClient_telegram_account', {
+	const Channel = sequelize.define('socNetImport_channel', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
 			type: Sequelize.INTEGER
 		},
-		userAddress: {
-			type: Sequelize.STRING(200)
-		},
-		phoneNumber: {
-			type: Sequelize.STRING(200)
-		},
-		username: {
-			type: Sequelize.STRING(200)
-		},
-		fullName: {
-			type: Sequelize.STRING(200)
-		},
-		apiId: {
-			type: Sequelize.STRING(200)
-		},
-		apiHash: {
-			type: Sequelize.STRING(200)
-		},
-		sessionKey: {
-			type: Sequelize.TEXT
-		},
-		isEncrypted: {
-			type: Sequelize.BOOLEAN
-		},
-	} as any, {
-		indexes: [
-			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['userId', 'phoneNumber'], unique: true },
-		]
-	} as any);
-
-	const Channel = sequelize.define('socNetClient_telegram_channel', {
-		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
-		userId: {
+		accountId: {
 			type: Sequelize.INTEGER
+		},
+		source: {
+			type: Sequelize.STRING(50)
 		},
 		groupId: {
 			type: Sequelize.INTEGER
@@ -66,13 +36,6 @@ module.exports = async function () {
 		lastMessageId: {
 			type: Sequelize.INTEGER
 		},
-		autoImportPeriod: {
-			type: Sequelize.INTEGER,
-			defaultValue: 0
-		},
-		autoImportToken: {
-			type: Sequelize.STRING(200)
-		},
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
@@ -80,7 +43,7 @@ module.exports = async function () {
 		]
 	} as any);
 
-	const Message = sequelize.define('socNetClient_telegram_message', {
+	const Message = sequelize.define('socNetImport_message', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
 			type: Sequelize.INTEGER
@@ -107,7 +70,7 @@ module.exports = async function () {
 		]
 	} as any);
 
-	const ContentMessage = sequelize.define('socNetClient_telegram_contentMessage', {
+	const ContentMessage = sequelize.define('socNetImport_contentMessage', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
 			type: Sequelize.INTEGER
@@ -129,9 +92,6 @@ module.exports = async function () {
 		]
 	} as any);
 
-	Channel.belongsTo(Account, {as: 'account', foreignKey: 'accountId'});
-	Account.hasMany(Channel, {as: 'channels', foreignKey: 'accountId'});
-
 	Message.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
 	Channel.hasMany(Message, {as: 'messages', foreignKey: 'dbChannelId'});
 
@@ -139,7 +99,6 @@ module.exports = async function () {
 	Channel.hasMany(ContentMessage, {as: 'contentMessages', foreignKey: 'dbChannelId'});
 
 	return {
-		Account: await Account.sync({}),
 		Channel: await Channel.sync({}),
 		Message: await Message.sync({}),
 		ContentMessage: await ContentMessage.sync({}),

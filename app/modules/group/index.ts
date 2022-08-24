@@ -207,7 +207,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (!canEditGroup && !groupPermission) {
 				throw new Error("not_permitted");
 			}
-			if(!canEditGroup && groupPermission) {
+			if (!canEditGroup && groupPermission) {
 				delete updateData.name;
 				delete updateData.propertiesJson;
 			}
@@ -524,25 +524,29 @@ function getModule(app: IGeesomeApp, models) {
 				const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
 				const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
 
-				communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getAccountsGroupUpdatesTopic([user.manifestStaticStorageId, group.staticStorageId], group.name), {
-					type: 'new_post',
-					postId: encryptedText,
-					groupId: group.manifestStaticStorageId,
-					isEncrypted: true,
-					sentAt: (post.publishedAt || post.createdAt).toString()
-				});
+				//TODO: enable on fluence update
+
+				// communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getAccountsGroupUpdatesTopic([user.manifestStaticStorageId, group.staticStorageId], group.name), {
+				// 	type: 'new_post',
+				// 	postId: encryptedText,
+				// 	groupId: group.manifestStaticStorageId,
+				// 	isEncrypted: true,
+				// 	sentAt: (post.publishedAt || post.createdAt).toString()
+				// });
 
 				await models.Post.update({isEncrypted: true, encryptedManifestStorageId: encryptedText}, {where: {id: post.id}});
 				await this.updateGroupManifest(userId, group.id);
 			} else {
 				// Send plain post id
-				communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getUpdatesTopic(group.staticStorageId, 'update'), {
-					type: 'new_post',
-					postId: post.manifestStorageId,
-					groupId: group.manifestStaticStorageId,
-					isEncrypted: false,
-					sentAt: (post.publishedAt || post.createdAt).toString()
-				});
+				//TODO: enable on fluence update
+
+				// communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getUpdatesTopic(group.staticStorageId, 'update'), {
+				// 	type: 'new_post',
+				// 	postId: post.manifestStorageId,
+				// 	groupId: group.manifestStaticStorageId,
+				// 	isEncrypted: false,
+				// 	sentAt: (post.publishedAt || post.createdAt).toString()
+				// });
 				log('publishEventByStaticId');
 			}
 
