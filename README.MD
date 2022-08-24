@@ -237,6 +237,7 @@ geesomeClient.init().then(async () => {
 - Import telegram channel's posts
 - Generate static sites from groups with posts and upload to IPFS
 - Invite system for new users
+- Auto-backup social networks channels(Telegram)
 
 ## TODO:
 - Share folder by ipld, ipns manifest
@@ -247,12 +248,12 @@ geesomeClient.init().then(async () => {
 - Local IPNS accounts (in-browser) and signing authentication or publish transactions
 - PubSub communication with modules
 - Auto-backup shared groups and folders to another node
-- Auto-backup social networks channels(Telegram, YouTube, Instagram)
+- Auto-backup social networks channels(Twitter, YouTube, Instagram)
 - Pin to services like pinata from UI
 
 ## GeeSome Services
 You can develop your own GeeSome service in any programming language for extend GeeSome node functional by
-communication by API with api keys. Module can communicate with GeeSome node by http requests and 
+communication by API with api keys. Service can communicate with GeeSome node by http requests and 
 PubSub events(in future) for uploading content, managing users and groups.
 
 Existing services:
