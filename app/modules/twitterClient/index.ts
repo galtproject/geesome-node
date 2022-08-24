@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {TwitterApi} from 'twitter-api-v2';
+import {Tweetv2FieldsParams, TwitterApi} from 'twitter-api-v2';
 import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
@@ -31,6 +31,43 @@ function getModule(app: IGeesomeApp) {
 	const socNet = 'twitter';
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
+
+	const FETCH_LIMIT = 100;
+
+	function getTweetsParams(max_results = 20, pagination_token = undefined) {
+		return {
+			max_results,
+			pagination_token,
+			"expansions": ['attachments.media_keys', 'referenced_tweets.id.author_id', 'referenced_tweets.id', 'author_id', 'in_reply_to_user_id'],
+			"media.fields": ['url', 'alt_text', 'type', 'preview_image_url', 'duration_ms'],
+			// "place.fields": ['contained_within', 'country', 'country_code', 'full_name', 'geo', 'id', 'name', 'place_type'],
+			// "poll.fields": ['duration_minutes', 'end_datetime', 'id', 'options', 'voting_status'],
+			"user.fields": ['profile_image_url'],
+			"tweet.fields": ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at', 'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'possibly_sensitive', 'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
+		} as Tweetv2FieldsParams;
+	}
+
+	async function handleTwitterLimits(response) {
+		const {limit, remaining, reset} = response['_rateLimit'];
+		if (!remaining) {
+			const currentTimestamp = Math.round(new Date().getTime() / 1000);
+			if (currentTimestamp < reset) {
+				await new Promise((resolve) => setTimeout(resolve, reset - currentTimestamp));
+			}
+			return FETCH_LIMIT;
+		} else {
+			return remaining;
+		}
+	}
+
+	function parseTweetsData(response, mediasByKey = {}) {
+		const {data: list, meta, includes} = response['_realData'];
+
+		includes.media.forEach(item => {
+			mediasByKey[item.media_key] = item;
+		});
+		return {list, nextToken: meta.next_token, mediasByKey};
+	}
 
 	class TelegramClientModule {
 		async login(userId, loginData) {
@@ -79,14 +116,7 @@ function getModule(app: IGeesomeApp) {
 
 		async getChannelInfoByUserId(userId, accData, channelId) {
 			const {client} = await this.getClient(userId, accData);
-			const timeline = await client.readOnly.v2.userTimeline(channelId, {
-				max_results: 20,
-				"expansions": ['attachments.media_keys', 'referenced_tweets.id.author_id', 'referenced_tweets.id', 'author_id', 'in_reply_to_user_id'],
-				"media.fields": ['url', 'alt_text', 'type', 'preview_image_url', 'duration_ms'],
-				// "place.fields": ['contained_within', 'country', 'country_code', 'full_name', 'geo', 'id', 'name', 'place_type'],
-				// "poll.fields": ['duration_minutes', 'end_datetime', 'id', 'options', 'voting_status'],
-				"tweet.fields": ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at', 'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'possibly_sensitive', 'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
-			});
+			const timeline = await client.readOnly.v2.userTimeline(channelId, getTweetsParams(20));
 			// console.log('timeline', timeline);
 			const {limit, remaining, reset} = timeline['_rateLimit'];
 			const {data, meta, includes} = timeline['_realData'];
@@ -126,22 +156,14 @@ function getModule(app: IGeesomeApp) {
 			let asyncOperation = await socNetImport.openImportAsyncOperation(userId, userApiKeyId, dbChannel);
 
 			let currentMessageId = startMessageId;
-			let limitItems = 100;
+			let limitItems = FETCH_LIMIT;
 
 			(async () => {
 				let pagination_token;
 
 				while (pagination_token) {
 					let timeline;
-					const options = {
-						max_results: limitItems,
-						pagination_token,
-						"expansions": ['attachments.media_keys', 'referenced_tweets.id.author_id', 'referenced_tweets.id', 'author_id', 'in_reply_to_user_id'],
-						"media.fields": ['url', 'alt_text', 'type', 'preview_image_url', 'duration_ms'],
-						// "place.fields": ['contained_within', 'country', 'country_code', 'full_name', 'geo', 'id', 'name', 'place_type'],
-						// "poll.fields": ['duration_minutes', 'end_datetime', 'id', 'options', 'voting_status'],
-						"tweet.fields": ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at', 'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'possibly_sensitive', 'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
-					} as TweetV2UserTimelineParams;
+					const options = getTweetsParams(limitItems, pagination_token);
 
 					if (startMessageId) {
 						options['since_id'] = startMessageId;
@@ -152,42 +174,17 @@ function getModule(app: IGeesomeApp) {
 						timeline = await v2.userTimeline(username, options);
 					}
 					// console.log('timeline', timeline);
-					const {limit, remaining, reset} = timeline['_rateLimit'];
-					const {data: list, meta, includes} = timeline['_realData'];
 					// console.log('data', data[0], 'includes', includes, 'meta', meta);
 
-					pagination_token = meta.next_token;
+					limitItems = await handleTwitterLimits(timeline);
+					const {list, mediasByKey, nextToken} = parseTweetsData(timeline);
+					pagination_token = nextToken;
 
-					if (remaining < limitItems) {
-						limitItems = remaining;
-					}
-					if (!limitItems) {
-						const currentTimestamp = Math.round(new Date().getTime() / 1000);
-						if (currentTimestamp < reset) {
-							await new Promise((resolve) => setTimeout(resolve, reset - currentTimestamp));
-						}
-						continue;
-					}
-					const mediasByKey = {};
-					includes.media.forEach(item => {
-						mediasByKey[item.media_key] = item;
-					});
-
-					await socNetImport.importChannelPosts(userId, dbChannel, list, advancedSettings, {
-						getRemotePostLink: (channelId, msgId) => `https://twitter.com/${dbChannel.username}/${msgId}`,
-						getRemotePostReplyTo: (m) => m.replyTo ? m.replyTo.replyToMsgId.toString() : null,
-						getRemotePostContents: async (userId, dbChannel, m) => this.messageToContents(userId, dbChannel, m, mediasByKey),
-						getRemotePostProperties: (userId, dbChannel, m) => {
-							//TODO: get forward from username and id
-							return {};
-						},
-						async onRemotePostProcess(m, post) {
-							console.log('onMessageProcess', m.id);
-							currentMessageId = parseInt(m.id);
-							dbChannel.update({lastMessageId: currentMessageId});
-							await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
-							return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, -1);
-						}
+					await this.importMessagesList(userId, dbChannel, list, advancedSettings, mediasByKey, async (m, post) => {
+						console.log('onMessageProcess', m.id);
+						currentMessageId = parseInt(m.id);
+						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
+						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, -1);
 					});
 				}
 			})().then(async () => {
@@ -224,6 +221,76 @@ function getModule(app: IGeesomeApp) {
 					return app.ms.content.saveDataByUrl(userId, url, {description, view: ContentView.Media});
 				})
 				.then(list => [textContent].concat(list).filter(i => i));
+		}
+
+		async importReplies(userId, accData, dbChannel, m, messagesById, channelsById, mediasByKey) {
+			const {client} = await this.getClient(userId, accData);
+
+			let tweetsToFetch = [];
+			let repliesToImport = [];
+			let limitItems = FETCH_LIMIT;
+
+			this.makeRepliesList(m, messagesById, repliesToImport, tweetsToFetch);
+
+			while (tweetsToFetch.length > 0) {
+				const tweets = await client.v2.readOnly.tweets(tweetsToFetch, getTweetsParams(limitItems));
+				tweetsToFetch = [];
+
+				repliesToImport = repliesToImport.concat(tweets);
+
+				limitItems = await handleTwitterLimits(tweets);
+				const {list} = parseTweetsData(tweets, mediasByKey);
+				list.forEach(item => {
+					this.makeRepliesList(item, messagesById, repliesToImport, tweetsToFetch);
+				});
+			}
+
+			if (!repliesToImport.length) {
+				return;
+			}
+
+			await this.importMessagesList(userId, dbChannel, repliesToImport, {}, mediasByKey);
+		}
+
+		makeRepliesList(m, messagesById, repliesToImport = [], tweetsToFetch = []) {
+			if (!m.referenced_tweets) {
+				return;
+			}
+			m.referenced_tweets.forEach(rt => {
+				if (messagesById[rt.id].inList) {
+					return;
+				}
+				if (messagesById[rt.id]) {
+					repliesToImport.push(messagesById[rt.id]);
+					messagesById[rt.id].inList = true;
+					this.makeRepliesList(m, messagesById, repliesToImport, tweetsToFetch);
+				} else {
+					tweetsToFetch.push(rt.id);
+				}
+			});
+			messagesById[m.id] = {inList: true}
+			return {repliesToImport, tweetsToFetch};
+		}
+
+		async importMessagesList(userId, dbChannel, list, advancedSettings, mediasByKey, onRemotePostProcess?) {
+			return socNetImport.importChannelPosts(userId, dbChannel, list, advancedSettings, {
+				getRemotePostLink: (channelId, msgId) => `https://twitter.com/${dbChannel.username}/${msgId}`,
+				getRemotePostReplyTo: (m) => this.getReplyTo(m),
+				getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(userId, dbChannel, m, mediasByKey),
+				getRemotePostProperties: (userId, dbChannel, m) => {
+					//TODO: get forward from username and id
+					return {};
+				},
+				async onRemotePostProcess(m, post) {
+					if (onRemotePostProcess) {
+						return onRemotePostProcess(m, post);
+					}
+				}
+			});
+		}
+
+		getReplyTo(m) {
+			return m.referenced_tweets ? (m.referenced_tweets.filter(rt => rt.type === 'replied_to')[0] || {id: null}).id : null
 		}
 	}
 

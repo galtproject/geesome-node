@@ -423,7 +423,6 @@ function getModule(app: IGeesomeApp) {
 						async onRemotePostProcess(m, post) {
 							console.log('onMessageProcess', m.id.toString());
 							currentMessageId = parseInt(m.id.toString());
-							dbChannel.update({lastMessageId: currentMessageId});
 							await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
 							return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 						}

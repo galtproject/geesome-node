@@ -33,6 +33,9 @@ module.exports = async function (sequelize, models) {
     isOpen: {
       type: Sequelize.BOOLEAN
     },
+    isCollateral: {
+      type: Sequelize.BOOLEAN
+    },
     type: {
       type: Sequelize.STRING(200)
     },
