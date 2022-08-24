@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import QRCode from 'qrcode';
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal';
 
 const includes = require('lodash/includes');
@@ -32,8 +33,10 @@ export default {
       console.log('loading', this.loading);
       try {
         const result = await this.$coreApi.socNetLogin(this.socNet, this.inputs);
+        if (result.error) {
+          throw new Error(result.error);
+        }
         console.log('result', result);
-        this.firstStage = false;
         if (result.response.phoneCodeHash) {
           this.inputs.phoneCodeHash = result.response.phoneCodeHash;
           this.phoneCodeRequired = true;
@@ -56,13 +59,33 @@ export default {
       }
       this.loading = false;
     },
+    async getQrCode() {
+      this.loading = true;
+      const result = await this.$coreApi.socNetLogin(this.socNet, this.inputs);
+      console.log('result', result);
+      this.$refs.qrimage.src = await QRCode.toDataURL(result.response.url);
+      this.$set(this.inputs, 'stage', 2);
+      this.$set(this.inputs, 'id', result.account.id);
+      this.loading = false;
+    },
     async close() {
       this.$root.$asyncModal.close('add-soc-net-client-modal');
     }
   },
-  watch: {},
+  watch: {
+    'inputs.byQrCode'() {
+      console.log("inputs.byQrCode");
+      if (this.inputs.byQrCode) {
+        this.$set(this.inputs, 'stage', 1);
+        this.getQrCode();
+      }
+    }
+  },
   computed: {
     loginDisabled() {
+      if (this.inputs.byQrCode) {
+        return this.passwordRequired ? !this.inputs.password : false;
+      }
       return !this.inputs.phoneNumber || !this.inputs.apiId || !this.inputs.apiKey || (this.phoneCodeRequired && !this.inputs.phoneCode) || (this.passwordRequired && !this.inputs.password);
     }
   },
@@ -80,6 +103,7 @@ export default {
         isEncrypted: true,
         stage: 1,
         forceSMS: false,
+        byQrCode: true,
       },
       phoneCodeRequired: false,
       passwordRequired: false

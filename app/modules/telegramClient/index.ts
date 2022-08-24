@@ -43,11 +43,18 @@ function getModule(app: IGeesomeApp) {
 	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
-			let {phoneNumber, apiId, apiKey, password, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS} = loginData;
+			let {id: accountId, phoneNumber, apiId, apiKey, password, dcId, qrToken, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS, byQrCode} = loginData;
 			console.log('apiKey', apiKey);
 			apiId = parseInt(apiId);
+			stage = parseInt(stage);
+			let acc;
+			if (accountId) {
+				acc = await socNetAccount.getAccount(userId, socNet, {id: accountId});
+			}
+			if (!acc && phoneNumber) {
+				acc = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
+			}
 
-			let acc = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
 			sessionKey = isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
 			const stringSession = new StringSession(sessionKey);
 			const client = new TelegramClient(stringSession, apiId, apiKey, {});
@@ -55,33 +62,22 @@ function getModule(app: IGeesomeApp) {
 			if (isEncrypted) {
 				sessionKey = encryptedSessionKey;
 			}
-			if (parseInt(stage) === 1) {
+			if (stage === 1) {
 				sessionKey = '';
 			}
 
 			await client.connect();
 
-			let response;
-			if (phoneCodeHash) {
-				try {
-					response = await client.invoke(new Api.auth.SignIn({phoneNumber, phoneCodeHash, phoneCode}) as any);
-				} catch (e) {
-					if (!includes(e.message, 'SESSION_PASSWORD_NEEDED') || !password) {
-						throw e;
-					}
-					const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
-					const passwordSrpCheck = await computeCheck(passwordSrpResult, password);
-					response = await client.invoke(new Api.auth.CheckPassword({password: passwordSrpCheck}) as any);
+			const handleAuthorized = async (response) => {
+				const {user} = response;
+				if (!isEncrypted) {
+					sessionKey = client.session.save();
 				}
+				const username = user ? user.username : null;
+				const fullName = user ? user['firstName'] + ' ' + user['lastName'] : null;
 				try {
-					if (!isEncrypted) {
-						sessionKey = client.session.save();
-					}
-					const username = response.user ? response.user.username : null;
-					const fullName = response.user ? response.user.firstName + ' ' + response.user.lastName : null;
-					const existAccount = await socNetAccount.getAccountByUsernameOrPhone(userId, socNet, username, phoneNumber);
-					acc = await this.createOrUpdateAccount(userId, {
-						id: existAccount ? existAccount.id : null,
+					acc = await socNetAccount.createOrUpdateAccount(userId, {
+						id: acc ? acc.id : null,
 						phoneNumber,
 						apiId,
 						apiKey,
@@ -91,8 +87,95 @@ function getModule(app: IGeesomeApp) {
 						isEncrypted,
 						socNet
 					});
-				} catch (e) {}
+				} catch (e) {
+					console.warn('handleAuthorized createOrUpdateAccount', e);
+				}
+				// console.log('getUserChannelsByUserId', await this.getUserChannelsByUserId(acc.userId, {sessionKey: client.session.save(), id: acc.id}).then(r => r.result.length));
 				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
+			}
+
+			const handlePasswordAuth = async (response, promise) => {
+				try {
+					return await promise;
+				} catch (error) {
+					if (!includes(error.message, 'SESSION_PASSWORD_NEEDED')) {
+						throw error;
+					}
+					console.error('handlePasswordAuth', error);
+					if (!password) {
+						if (response.token) {
+							response = {
+								...response,
+								token: response.token.toString("base64url"),
+							}
+						}
+						return {client, error: error.message, result: {response, sessionKey: client.session.save(), account: acc}};
+					}
+					const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
+					const passwordSrpCheck = await computeCheck(passwordSrpResult, password);
+					const result = await client.invoke(new Api.auth.CheckPassword({password: passwordSrpCheck}) as any);
+					return handleAuthorized(result);
+				}
+			};
+
+			let response;
+			if (phoneCodeHash) {
+				return handlePasswordAuth(
+					response,
+					client.invoke(new Api.auth.SignIn({phoneNumber, phoneCodeHash, phoneCode}) as any)
+						.then(response => handleAuthorized(response))
+				);
+			}
+
+			if (byQrCode) {
+				let response = await client.invoke(new Api.auth.ExportLoginToken({
+					apiId: Number(apiId),
+					apiHash: apiKey,
+					exceptIds: [],
+				}) as any);
+				dcId = response.dcId;
+				qrToken = response.token.toString("base64url");
+
+				if (stage === 1) {
+					if (!(response instanceof Api.auth.LoginToken)) {
+						throw new Error("Unexpected");
+					}
+					// const { token, expires } = response;
+					if (!isEncrypted) {
+						sessionKey = client.session.save();
+					}
+					acc = await socNetAccount.createOrUpdateAccount(userId, {
+						id: acc ? acc.id : null,
+						apiId,
+						apiKey,
+						sessionKey,
+						isEncrypted,
+						socNet
+					});
+					const token = response.token.toString("base64url");
+					response = {
+						...response,
+						token,
+						url: `tg://login?token=${token}`
+					}
+					return {client, result: {response, sessionKey: client.session.save(), account: acc}};
+				} else {
+					if (
+						response instanceof Api.auth.LoginTokenSuccess &&
+						response.authorization instanceof Api.auth.Authorization
+					) {
+						return handleAuthorized(response.authorization);
+					} else if (response instanceof Api.auth.LoginTokenMigrateTo) {
+						await client._switchDC(dcId);
+						return handlePasswordAuth(
+							response,
+							client.invoke(new Api.auth.ImportLoginToken({token: Buffer.from(qrToken, 'base64')}) as any)
+								.then(res => handleAuthorized(res.authorization))
+						);
+					} else {
+						throw new Error("QR_CODE_DIDNT_SCANNED");
+					}
+				}
 			} else {
 				response = await client.sendCode({apiId, apiHash: apiKey}, phoneNumber, forceSMS);
 				try {
