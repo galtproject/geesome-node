@@ -112,7 +112,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings) {
 			const lastMessage = await this.getDbChannelLastMessage(dbChannel.id);
-			let startMessageId = dbChannel ? lastMessage.msgId : 0;
+			let startMessageId = lastMessage ? lastMessage.msgId : 0;
 			let lastMessageId = remotePostsCount;
 			if (advancedSettings['fromMessage']) {
 				startMessageId = advancedSettings['fromMessage'];
@@ -190,7 +190,7 @@ function getModule(app: IGeesomeApp, models) {
 					dbChannelId,
 					userId,
 					msgId,
-					groupedId: m.groupedId,
+					groupedId: m.groupedId ? m.groupedId.toString() : null,
 					timestamp: m.date,
 					replyToMsgId
 				});
@@ -241,7 +241,7 @@ function getModule(app: IGeesomeApp, models) {
 			console.log('existsPostId', existsPostId);
 
 			if (_postData.contents) {
-				_postData.contents = await this.sortContentsByMessagesContents(_postData.contents);
+				_postData.contents = await this.sortContentsByMessagesContents(_msgData.dbChannelId, _postData.contents);
 			}
 			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
 			_postData.isDeleted = false;
@@ -276,7 +276,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (_existsPostId && !includes(postIds, _existsPostId)) {
 				postIds.push(_existsPostId);
 			}
-			const {userId, groupId} = _importState;
+			const {userId, groupId, dbChannelId} = _importState;
 
 			const posts = await app.ms.group
 				.getPostListByIds(userId, groupId, postIds).then(posts => posts.filter(p => !p.isDeleted));
@@ -289,7 +289,7 @@ function getModule(app: IGeesomeApp, models) {
 			console.log('postsContents', postsContents.map(c => c.id));
 			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
 
-			_postData.contents = await this.sortContentsByMessagesContents(postsContents);
+			_postData.contents = await this.sortContentsByMessagesContents(dbChannelId, postsContents);
 			console.log('_postData.contents', _postData.contents.map(c => c.id));
 
 			console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
@@ -298,10 +298,10 @@ function getModule(app: IGeesomeApp, models) {
 			return resultPost.id;
 		}
 
-		async sortContentsByMessagesContents(contents) {
+		async sortContentsByMessagesContents(dbChannelId, contents) {
 			contents = uniqBy(contents, c => c.manifestStorageId);
 			const messageContents = await models.ContentMessage.findAll({
-				where: {dbContentId: {[Op.in]: contents.map(c => c.id)}}
+				where: {dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}}
 			});
 			console.log('sortContentsByMessagesContents contents.map(c => c.id)', contents.map(c => c.id));
 			console.log('sortContentsByMessagesContents messageContents.map(c => c.dbContentId)', messageContents.map(c => ({
@@ -329,7 +329,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		storeContentMessage(contentMessageData, content) {
-			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch(() => {/* already added */});
+			console.log('storeContentMessage', contentMessageData, 'content.id', content.id);
+			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch((e) => {
+				console.error('models.ContentMessage.create', e);
+			});
 		}
 
 		getDbChannelLastMessage(dbChannelId) {

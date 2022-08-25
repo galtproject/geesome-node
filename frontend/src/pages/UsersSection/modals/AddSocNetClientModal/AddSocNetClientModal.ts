@@ -121,7 +121,7 @@ export default {
         isEncrypted: true,
         stage: 1,
         forceSMS: false,
-        byQrCode: true,
+        byQrCode: false,
       },
       phoneCodeRequired: false,
       passwordRequired: false

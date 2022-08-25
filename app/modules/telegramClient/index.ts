@@ -36,9 +36,6 @@ function getModule(app: IGeesomeApp) {
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
-	let finishCallbacks = {
-
-	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
 			let {id: accountId, phoneNumber, apiId, apiKey, password, dcId, qrToken, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS, byQrCode} = loginData;
@@ -71,12 +68,13 @@ function getModule(app: IGeesomeApp) {
 				if (!isEncrypted) {
 					sessionKey = client.session.save();
 				}
+				console.log('user', user);
 				const username = user ? user.username : null;
 				const fullName = user ? user['firstName'] + ' ' + user['lastName'] : null;
 				try {
 					acc = await socNetAccount.createOrUpdateAccount(userId, {
 						id: acc ? acc.id : null,
-						accountId: user.id,
+						accountId: user.id.toString(),
 						phoneNumber,
 						apiId,
 						apiKey,
@@ -203,6 +201,7 @@ function getModule(app: IGeesomeApp) {
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
+			delete accData['apiKey'];
 			const acc = await socNetAccount.getAccount(userId, socNet, accData);
 			let {apiId, apiKey: apiHash} = acc;
 			if (!sessionKey) {
@@ -444,6 +443,10 @@ function getModule(app: IGeesomeApp) {
 		async messageToContents(client, userId, dbChannel, m) {
 			let contents = [];
 			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
+
+			if (contentMessageData.groupedId) {
+				contentMessageData.groupedId = contentMessageData.groupedId.toString();
+			}
 
 			if (m.message) {
 				console.log('m.message', m.message, 'm.entities', m.entities);
