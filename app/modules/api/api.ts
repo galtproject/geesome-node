@@ -1,8 +1,7 @@
 import IGeesomeApiModule from "./interface";
-import {CorePermissionName, UserLimitName} from "../database/interface";
+import {CorePermissionName} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
 const request = require('request');
-const Busboy = require('busboy');
 const _ = require('lodash');
 
 module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
@@ -105,44 +104,6 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
 	module.onAuthorizedPost('user/api-key/:userApiKeyId/update', async (req, res) => {
 		res.send(await app.updateApiKey(req.user.id, req.params.userApiKeyId, req.body));
-	});
-
-	/**
-	 * @api {post} user/save-file Save file
-	 * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
-	 * @apiName UserSaveFile
-	 * @apiGroup UserContent
-	 *
-	 * @apiUse ApiKey
-	 *
-	 * @apiInterface (../../interface.ts) {IFileContentInput} apiParam
-	 *
-	 * @apiInterface (../database/interface.ts) {IContent} apiSuccess
-	 */
-	module.onAuthorizedPost('user/save-file', async (req, res) => {
-		const busboy = new Busboy({
-			headers: req.headers,
-			limits: {
-				fileSize: await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize)
-			}
-		});
-
-		const body = {};
-		busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
-			body[fieldname] = val;
-		});
-		busboy.on('file', async function (fieldname, file, filename) {
-			const options = {
-				userId: req.user.id,
-				userApiKeyId: req.apiKey.id,
-				..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
-			};
-
-			const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [file, filename, options], options);
-			res.send(asyncOperationRes);
-		});
-
-		req.stream.pipe(busboy);
 	});
 
 	//TODO: add limit for this action
