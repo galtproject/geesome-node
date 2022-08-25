@@ -38,7 +38,7 @@ export default {
 				return;
 			}
 			this.getGroup();
-			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-telegram-channel-import', 'id:' + this.dbChannel.id + ';%');
+			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-soc-net-channel-import', 'id:' + this.dbChannel.id + ';%');
 			console.log('this.pendingOperations', this.pendingOperations);
 			if (this.pendingOperations.length) {
 				this.waitForOperation(this.pendingOperations[0]);
