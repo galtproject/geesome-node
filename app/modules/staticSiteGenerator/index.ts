@@ -68,11 +68,13 @@ function getModule(app: IGeesomeApp, models) {
 
         async processQueue() {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
+            // console.log('waitingQueue', waitingQueue);
             if (!waitingQueue) {
                 apiKeyIdToTokenTemp = {};
                 return;
             }
 
+            // console.log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
             if (waitingQueue.asyncOperation) {
                 if (waitingQueue.asyncOperation.inProcess) {
                     console.log('return');
@@ -91,6 +93,7 @@ function getModule(app: IGeesomeApp, models) {
                 name: 'run-' + this.moduleName,
                 channel: 'type:' + entityType + ';id:' + entityId + ';op:' + await commonHelper.random()
             });
+            // console.log('asyncOperation', asyncOperation);
 
             await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
@@ -162,12 +165,14 @@ function getModule(app: IGeesomeApp, models) {
         }
 
         async generate(userId, entityType, entityId, options: any = {}): Promise<IContent> {
+            // console.log('generate', userId, entityType, entityId);
             const distPath = path.resolve(__dirname, './.vuepress/dist');
             rmDir(distPath);
 
             const {userApiKeyId, baseStorageUri} = options;
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+            // console.log('staticSite', staticSite);
             if (staticSite && group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
                 console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
                 return app.ms.content.getContentByStorageId(staticSite.storageId);
@@ -207,7 +212,7 @@ function getModule(app: IGeesomeApp, models) {
                 posts,
                 options,
                 bundlerConfig: { baseStorageUri },
-                groupId: entityId
+                groupId: group.id
             };
 
             if (process.env.SSG_RUNTIME) {
@@ -229,7 +234,7 @@ function getModule(app: IGeesomeApp, models) {
                 userApiKeyId: options.userApiKeyId
             });
             const baseData = {storageId: content.storageId, lastEntityManifestStorageId: group.manifestStorageId};
-            console.log('baseData', baseData);
+            // console.log('baseData', baseData);
             if (staticSite) {
                 await this.updateDbStaticSite(staticSite.id, baseData);
             } else {
@@ -252,6 +257,7 @@ function getModule(app: IGeesomeApp, models) {
                throw new Error("static_site_not_found");
             }
             const {entityType, entityId, name} = staticSite;
+            // console.log('entityType', entityType, 'entityId', entityId, 'name', name);
             let staticId;
             if (entityType === 'group') {
                 staticId = await app.ms.staticId.getOrCreateStaticGroupAccountId(userId, entityId, name);

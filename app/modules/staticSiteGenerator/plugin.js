@@ -67,7 +67,7 @@ module.exports = function(posts, settings) {
                 path: '/',
                 frontmatter: {
                     layout: 'BaseList',
-                    head: getOgHeaders(site.title, posts[0].lang, '', site.description, site.avatarUrl),
+                    head: getOgHeaders(site.title, posts[0] ? posts[0].lang : 'en', '', site.description, site.avatarUrl),
                     permalink: '/',
                     home: true,
                     title: 'Home',
@@ -101,16 +101,18 @@ module.exports = function(posts, settings) {
                 const pageNumber = parseInt(splitLink[splitLink.length - 1]);
                 const interval = page.frontmatter.home ? intervallers[0] : intervallers[pageNumber - 1];
 
-                page.data.$pagesList = postPages.slice(interval[0] - 1, interval[1]).map(page => ({
-                    key: page.key,
-                    path: page.permalink,
-                    date: page.frontmatter.date,
-                    title: page.frontmatter.title,
-                    postTitle: page.frontmatter.postTitle,
-                    postDescription: page.frontmatter.postDescription,
-                    images: page.frontmatter.images,
-                    videos: page.frontmatter.videos
-                }));
+                if (interval) {
+                    page.data.$pagesList = postPages.slice(interval[0] - 1, interval[1]).map(page => ({
+                        key: page.key,
+                        path: page.permalink,
+                        date: page.frontmatter.date,
+                        title: page.frontmatter.title,
+                        postTitle: page.frontmatter.postTitle,
+                        postDescription: page.frontmatter.postDescription,
+                        images: page.frontmatter.images,
+                        videos: page.frontmatter.videos
+                    }));
+                }
                 page.data.$pagination = {
                     pages: intervallers.map((interval, i) => {
                         const page = i + 1;

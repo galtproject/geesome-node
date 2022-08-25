@@ -35,6 +35,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async bindToStaticIdByGroup(userId, groupId, dynamicId, staticId) {
+			groupId = await app.ms.group.checkGroupId(groupId);
 			if(!(await app.ms.group.canEditGroup(userId, groupId))) {
 				throw new Error("not_permitted");
 			}
@@ -42,6 +43,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupCreatorId(groupId) {
+			groupId = await app.ms.group.checkGroupId(groupId);
 			return app.ms.group.getGroup(groupId).then(g => g.creatorId);
 		}
 
@@ -140,6 +142,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async setStaticAccountGroupId(userId, name, groupId) {
+			groupId = await app.ms.group.checkGroupId(groupId);
 			const account = await app.ms.accountStorage.getLocalAccountByName(name);
 			if (account.userId !== userId) {
 				throw new Error("not_permitted");
@@ -148,6 +151,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async createStaticGroupAccountId(userId, groupId, name) {
+			groupId = await app.ms.group.checkGroupId(groupId);
 			return app.ms.accountStorage.createAccount(name, userId, groupId).then(acc => acc.staticId);
 		}
 
@@ -165,6 +169,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async renameGroupStaticAccountId(userId, groupId, oldName, newName) {
+			groupId = await app.ms.group.checkGroupId(groupId);
 			const account = await app.ms.accountStorage.getLocalAccountByName(oldName);
 			if (account.userId !== userId) {
 				if (account.groupId !== groupId || !(await app.ms.group.canEditGroup(userId, groupId))) {
@@ -175,7 +180,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getOrCreateStaticGroupAccountId(userId, groupId, name) {
-			if(!(await app.ms.group.canEditGroup(userId, groupId))) {
+			groupId = await app.ms.group.checkGroupId(groupId);
+			if (!(await app.ms.group.canEditGroup(userId, groupId))) {
 				throw new Error("not_permitted");
 			}
 			return app.ms.accountStorage.getLocalAccountStaticIdByNameAndGroupId(name, groupId)
