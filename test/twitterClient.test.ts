@@ -23,7 +23,7 @@ const twitterHelpers = require('../app/modules/twitterClient/helpers');
 
 const assert = require('assert');
 
-describe.only("twitterClient", function () {
+describe("twitterClient", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -909,7 +909,7 @@ describe.only("twitterClient", function () {
 		assert.equal(imageC.manifestId, 'bafyreifukz7avkeb6rhkmj4jgnqv3u2e72ipbnmrezdui5d47fzjgdv3le');
 	});
 
-	it.only('webpage message should import properly', async () => {
+	it('webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 

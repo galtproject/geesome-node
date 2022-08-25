@@ -44,7 +44,7 @@ function getModule(app: IGeesomeApp) {
 			// "poll.fields": ['duration_minutes', 'end_datetime', 'id', 'options', 'voting_status'],
 			"user.fields": ['profile_image_url'],
 			"tweet.fields": ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at', 'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'possibly_sensitive', 'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
-		} as Tweetv2FieldsParams;
+		} as any;
 	}
 
 	async function handleTwitterLimits(response) {
