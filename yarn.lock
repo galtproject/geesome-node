@@ -8566,9 +8566,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#fff75a6":
+"geesome-libs@https://github.com/galtproject/geesome-libs#73abf44":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#fff75a6309ce80aeabd202ef44509b97cce4db04"
+  resolved "https://github.com/galtproject/geesome-libs#73abf443254c89f5ab4efc9e97578978bd9a76cf"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
@@ -19096,6 +19096,11 @@ tweetnacl@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/tweetnacl/-/tweetnacl-1.0.3.tgz#ac0af71680458d8a6378d0d0d050ab1407d35596"
   integrity sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==
+
+twitter-api-v2@^1.12.3:
+  version "1.12.3"
+  resolved "https://registry.yarnpkg.com/twitter-api-v2/-/twitter-api-v2-1.12.3.tgz#9f05321ea83afd9de96ac18aa721aae339110302"
+  integrity sha512-FM+RmHdVbCKw/KZ99+if4JQyl2Nx5eF/Jl8CNDeV5J/NSnuFgk3bFw1cZHcNusXitxTWIQ0TQFHr1BkgWDz0wQ==
 
 type-detect@4.0.8, type-detect@^4.0.0, type-detect@^4.0.5, type-detect@^4.0.8:
   version "4.0.8"

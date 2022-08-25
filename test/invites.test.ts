@@ -98,7 +98,6 @@ describe("app", function () {
 				email: 'new2@user.com',
 				name: 'new2',
 				password: 'new2',
-				permissions: [CorePermissionName.UserAll],
 				foreignAccounts: [{'address': userAccountAddress, 'provider': 'ethereum'}]
 			});
 			assert.equal(true, false);
@@ -112,7 +111,6 @@ describe("app", function () {
 				email: 'new2@user.com',
 				name: 'new2',
 				password: 'new2',
-				permissions: [CorePermissionName.UserAll],
 				foreignAccounts: [
 					{'address': userAccountAddress, 'provider': 'ethereum', signature },
 					{'address': userAccountAddress, 'provider': 'bitcoin', signature }
@@ -126,7 +124,6 @@ describe("app", function () {
 			email: 'new2@user.com',
 			name: 'new2',
 			password: 'new2',
-			permissions: [CorePermissionName.UserAll],
 			foreignAccounts: [{'address': userAccountAddress, 'provider': 'ethereum', signature }]
 		});
 		assert.equal(await app.ms.invite.getInvitedUserOfJoinedUser(newMember.id).then(u => u.id), invite.createdById);
@@ -153,7 +150,6 @@ describe("app", function () {
 				email: 'new3@user.com',
 				name: 'new3',
 				password: 'new3',
-				permissions: [CorePermissionName.UserAll],
 			});
 			assert.equal(true, false);
 		} catch (e) {
@@ -165,7 +161,6 @@ describe("app", function () {
 				email: 'new3@user.com',
 				name: 'new3',
 				password: 'new3',
-				permissions: [CorePermissionName.UserAll],
 			});
 			assert.equal(true, false);
 		} catch (e) {
@@ -180,7 +175,6 @@ describe("app", function () {
 			email: 'new3@user.com',
 			name: 'new3',
 			password: 'new3',
-			permissions: [CorePermissionName.UserAll],
 		});
 
 		assert.equal(await app.ms.group.isMemberInGroup(newMember.id, testGroup.id), false);
@@ -193,12 +187,37 @@ describe("app", function () {
 				email: 'new4@user.com',
 				name: 'new4',
 				password: 'new4',
-				permissions: [CorePermissionName.UserAll],
 			});
 			assert.equal(true, false);
 		} catch (e) {
 			assert.equal(_.includes(e.toString(), "invite_not_active"), true);
 		}
+	});
+
+	it('admin invites should work properly', async () => {
+		const testAdmin = (await app.ms.database.getAllUserList('admin'))[0];
+
+		const invite = await app.ms.invite.createInvite(testAdmin.id, {
+			title: 'test invite',
+			limits: JSON.stringify([{
+				name: UserLimitName.SaveContentSize,
+				value: 100 * (10 ** 3),
+				periodTimestamp: 60,
+				isActive: true
+			}]),
+			permissions: JSON.stringify([CorePermissionName.UserAll, CorePermissionName.AdminAll]),
+			maxCount: 1,
+			isActive: true
+		});
+		assert.equal(testAdmin.id, invite.createdById);
+
+		const {user: newMember} = await app.ms.invite.registerUserByInviteCode(invite.code, {
+			email: 'new2@user.com',
+			name: 'new2',
+			password: 'new2',
+		});
+
+		assert.equal(await app.ms.database.isHaveCorePermission(newMember.id, CorePermissionName.AdminAll), true);
 	});
 });
 

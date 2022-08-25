@@ -17,22 +17,26 @@ export default {
   components: {ContentManifestItem, GroupForm},
   methods: {
     create() {
+      this.sending = true;
       this.$coreApi.createGroup(this.group).then(async (createdGroup) => {
         EventBus.$emit(UPDATE_ADMIN_GROUPS);
         await this.$coreApi.updateGroup({
           id: createdGroup.id,
           homePage: common.getGroupHomePage(this.$router, createdGroup.manifestStaticStorageId)
         });
+        this.sending = false;
         this.$router.push({name: 'group-page', params: {groupId: createdGroup.manifestStaticStorageId}});
       }).catch(() => {
         this.error = 'failed';
-      })
+        this.sending = false;
+      });
     }
   },
   computed: {},
   data() {
     return {
       localeKey: 'login_page',
+      sending: false,
       group: {
         name: '',
         title: '',

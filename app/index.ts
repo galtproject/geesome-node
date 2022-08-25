@@ -513,6 +513,7 @@ function getModule(config, appPass) {
     }
 
     async checkUserCan(userId, permission) {
+      log('checkUserCan start', userId, permission);
       if (_.startsWith(permission, 'admin:')) {
         if (await this.isAdminCan(userId, permission).then(can => !can)) {
           throw new Error("not_permitted");
@@ -520,6 +521,7 @@ function getModule(config, appPass) {
       } else if (await this.isUserCan(userId, permission).then(can => !can)) {
         throw new Error("not_permitted");
       }
+      log('checkUserCan finish', userId, permission);
     }
 
     async encryptTextWithAppPass(text) {

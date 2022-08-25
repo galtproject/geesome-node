@@ -8,6 +8,7 @@
  */
 
 import {IGeesomeApp} from "../../interface";
+import {GroupType} from "../group/interface";
 
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
@@ -16,7 +17,10 @@ const uniq = require('lodash/uniq');
 const uniqBy = require('lodash/uniqBy');
 const orderBy = require('lodash/orderBy');
 const find = require('lodash/find');
+const some = require('lodash/some');
+const isString = require('lodash/isString');
 const Op = require("sequelize").Op;
+const commonHelper = require('geesome-libs/src/common');
 
 module.exports = async (app: IGeesomeApp) => {
 	const models = await require("./models")();
@@ -54,6 +58,85 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
 		}
 
+		async importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData) {
+			const channelId = isString(channelMetadata.id) ? channelMetadata.id : channelMetadata.id.toString();
+			let dbChannel = await this.getDbChannel(userId, {channelId});
+			let group;
+
+			// console.log('channel', channel);
+			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
+			if (group && !group.isDeleted) {
+				const data = {
+					name: updateData['name'] || channelMetadata.username,
+					title: channelMetadata.title,
+					description: channelMetadata.about,
+					avatarImageId: updateData.avatarImageId,
+				};
+				if (some(Object.keys(data), (key) => data[key] !== group[key])) {
+					await app.ms.group.updateGroup(userId, dbChannel.groupId, data);
+				}
+			} else {
+				group = await app.ms.group.createGroup(userId, {
+					name: updateData['name'] || channelMetadata.username || channelMetadata.id.toString(),
+					title: channelMetadata.title,
+					description: channelMetadata.about,
+					isPublic: true,
+					type: GroupType.Channel,
+					avatarImageId: updateData.avatarImageId,
+					propertiesJson: JSON.stringify({
+						lang: channelMetadata.lang || 'en',
+						source: socNet,
+						sourceId: channelMetadata.id.toString(),
+						sourceUsername: channelMetadata.username,
+					})
+				});
+				const channelData = {
+					userId,
+					accountId,
+					channelId,
+					groupId: group.id,
+					title: channelMetadata.title,
+					lastMessageId: 0,
+					postsCounts: 0,
+					source: socNet
+				}
+				if (dbChannel) {
+					// update channel after group deletion
+					dbChannel = await this.reinitializeDbChannel(dbChannel.id, channelData);
+				} else {
+					dbChannel = await this.createDbChannel(channelData);
+				}
+			}
+			return dbChannel;
+		}
+
+		async prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings) {
+			const lastMessage = await this.getDbChannelLastMessage(dbChannel.id);
+			let startMessageId = lastMessage ? lastMessage.msgId : 0;
+			let lastMessageId = remotePostsCount;
+			if (advancedSettings['fromMessage']) {
+				startMessageId = advancedSettings['fromMessage'];
+			}
+			if (advancedSettings['toMessage']) {
+				lastMessageId = advancedSettings['toMessage'];
+			}
+			advancedSettings['force'] = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
+			if (!advancedSettings['force']) {
+				if (lastMessage && lastMessage.msgId === lastMessageId) {
+					throw new Error('already_done');
+				}
+			}
+			return {startMessageId, lastMessageId}
+		}
+
+		async openImportAsyncOperation(userId, userApiKeyId, dbChannel) {
+			return app.ms.asyncOperation.addAsyncOperation(userId, {
+				userApiKeyId,
+				name: 'run-soc-net-channel-import',
+				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
+			});
+		}
+
 		async importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client: any = {}) {
 			const {id: dbChannelId, groupId, source} = dbChannel;
 			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
@@ -73,7 +156,7 @@ function getModule(app: IGeesomeApp, models) {
 				const msgId = m.id.toString();
 				if (!messageLinkTpl) {
 					messageLinkTpl = await client.getRemotePostLink(dbChannel.channelId, msgId)
-						.then(r => r.result.link.split('/').slice(0, -1).join('/') + '/{msgId}');
+						.then(r => r.split('/').slice(0, -1).join('/') + '/{msgId}');
 				}
 				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
 				if (existsChannelMessage && !force) {
@@ -84,7 +167,7 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				const contents = await client.getRemotePostContents(userId, dbChannel, m);
-				const replyToMsgId = m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
+				const replyToMsgId = client.getRemotePostReplyTo(m);
 				const postData = {
 					groupId,
 					userId,
@@ -107,7 +190,7 @@ function getModule(app: IGeesomeApp, models) {
 					dbChannelId,
 					userId,
 					msgId,
-					groupedId: m.groupedId,
+					groupedId: m.groupedId ? m.groupedId.toString() : null,
 					timestamp: m.date,
 					replyToMsgId
 				});
@@ -158,7 +241,7 @@ function getModule(app: IGeesomeApp, models) {
 			console.log('existsPostId', existsPostId);
 
 			if (_postData.contents) {
-				_postData.contents = await this.sortContentsByMessagesContents(_postData.contents);
+				_postData.contents = await this.sortContentsByMessagesContents(_msgData.dbChannelId, _postData.contents);
 			}
 			_postData.publishedAt = new Date(_msgData.timestamp * 1000);
 			_postData.isDeleted = false;
@@ -193,7 +276,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (_existsPostId && !includes(postIds, _existsPostId)) {
 				postIds.push(_existsPostId);
 			}
-			const {userId, groupId} = _importState;
+			const {userId, groupId, dbChannelId} = _importState;
 
 			const posts = await app.ms.group
 				.getPostListByIds(userId, groupId, postIds).then(posts => posts.filter(p => !p.isDeleted));
@@ -206,7 +289,7 @@ function getModule(app: IGeesomeApp, models) {
 			console.log('postsContents', postsContents.map(c => c.id));
 			posts.forEach(({contents}) => postsContents = postsContents.concat(contents));
 
-			_postData.contents = await this.sortContentsByMessagesContents(postsContents);
+			_postData.contents = await this.sortContentsByMessagesContents(dbChannelId, postsContents);
 			console.log('_postData.contents', _postData.contents.map(c => c.id));
 
 			console.log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
@@ -215,10 +298,10 @@ function getModule(app: IGeesomeApp, models) {
 			return resultPost.id;
 		}
 
-		async sortContentsByMessagesContents(contents) {
+		async sortContentsByMessagesContents(dbChannelId, contents) {
 			contents = uniqBy(contents, c => c.manifestStorageId);
 			const messageContents = await models.ContentMessage.findAll({
-				where: {dbContentId: {[Op.in]: contents.map(c => c.id)}}
+				where: {dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}}
 			});
 			console.log('sortContentsByMessagesContents contents.map(c => c.id)', contents.map(c => c.id));
 			console.log('sortContentsByMessagesContents messageContents.map(c => c.dbContentId)', messageContents.map(c => ({
@@ -246,13 +329,16 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		storeContentMessage(contentMessageData, content) {
-			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch(() => {/* already added */});
+			console.log('storeContentMessage', contentMessageData, 'content.id', content.id);
+			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch((e) => {
+				console.error('models.ContentMessage.create', e);
+			});
 		}
 
 		getDbChannelLastMessage(dbChannelId) {
 			return models.Message.findOne({
 				where: {dbChannelId},
-				order: [['msgId', 'DESC']]
+				order: [['postId', 'DESC']]
 			});
 		}
 

@@ -11,6 +11,7 @@ import QRCode from 'qrcode';
 import {ModalItem} from 'geesome-vue-components/src/modals/AsyncModal';
 
 const includes = require('lodash/includes');
+const clone = require('lodash/clone');
 
 export default {
   template: require('./AddSocNetClientModal.template'),
@@ -18,10 +19,12 @@ export default {
   components: {
     ModalItem
   },
-  created() {
+  async created() {
     if (this.account) {
       this.socNet = this.account.socNet;
-      this.inputs = this.account;
+      const account = clone(this.account);
+      await this.$coreApi.setKeysToSocNetAccountData(this.socNet, account);
+      this.inputs = account;
       ['isEncrypted'].forEach(boolField => {
         this.$set(this.inputs, boolField, !!this.account[boolField]);
       })
@@ -40,7 +43,8 @@ export default {
         if (result.response.phoneCodeHash) {
           this.inputs.phoneCodeHash = result.response.phoneCodeHash;
           this.phoneCodeRequired = true;
-        } else if (result.response.user) {
+          this.$set(this.inputs, 'stage', 2);
+        } else if (result.response.user || result.response.id) {
           this.close();
           this.$notify({
             type: 'success',
@@ -55,6 +59,7 @@ export default {
         });
         if (includes(e.message, 'SESSION_PASSWORD_NEEDED')) {
           this.passwordRequired = true;
+          this.$set(this.inputs, 'stage', 3);
         }
       }
       this.loading = false;
@@ -74,10 +79,16 @@ export default {
   },
   watch: {
     'inputs.byQrCode'() {
-      console.log("inputs.byQrCode");
       if (this.inputs.byQrCode) {
         this.$set(this.inputs, 'stage', 1);
         this.getQrCode();
+      }
+    },
+    'socNet'() {
+      if (this.socNet === 'telegram') {
+        this.inputs.stage = 1;
+      } else {
+        this.inputs.stage = 0;
       }
     }
   },
@@ -86,7 +97,12 @@ export default {
       if (this.inputs.byQrCode) {
         return this.passwordRequired ? !this.inputs.password : false;
       }
-      return !this.inputs.phoneNumber || !this.inputs.apiId || !this.inputs.apiKey || (this.phoneCodeRequired && !this.inputs.phoneCode) || (this.passwordRequired && !this.inputs.password);
+      if (this.socNet === 'telegram') {
+        return !this.inputs.phoneNumber || !this.inputs.apiId || !this.inputs.apiKey || (this.phoneCodeRequired && !this.inputs.phoneCode) || (this.passwordRequired && !this.inputs.password);
+      }
+      if (this.socNet === 'twitter') {
+        return !this.inputs.apiId || !this.inputs.apiKey || !this.inputs.accessToken || !this.inputs.sessionKey;
+      }
     }
   },
   data: function () {
@@ -96,6 +112,8 @@ export default {
       inputs: {
         apiId: '',
         apiKey: '',
+        accessToken: '',
+        sessionKey: '',
         phoneNumber: '',
         phoneCodeHash: '',
         phoneCode: '',
@@ -103,7 +121,7 @@ export default {
         isEncrypted: true,
         stage: 1,
         forceSMS: false,
-        byQrCode: true,
+        byQrCode: false,
       },
       phoneCodeRequired: false,
       passwordRequired: false

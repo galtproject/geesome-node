@@ -47,7 +47,7 @@ export default {
         return this.$coreApi.saveFile(file, {
           groupId: this.groupId, 
           folderId: this.folderId,
-          async: true
+          async: true,
         })
           .then((contentObj) => {
             return this.contentUploaded(contentObj, mode);

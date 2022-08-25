@@ -10,6 +10,7 @@ module.exports = `
           <div class="properties">
             <div><label>Username:</label> <span>@{{account.username}}</span></div>
             <div><label>FullName:</label> <span>{{account.fullName}}</span></div>
+		    <div><label>Social network:</label> <span>{{socNet | prettyName}}</span></div>
 		  </div>
         </div>
         <div class="md-layout-item md-size-80 md-small-size-100">
@@ -19,10 +20,10 @@ module.exports = `
 		  </div>
 		  
 			<div style="display: flex; justify-content: space-between;">
-			  <h3>My channels</h3>
+			  <h3>Channels list</h3>
 			</div>
 	
-	    	<md-checkbox v-model="onlyAdmined">Only admined</md-checkbox>
+	    	<md-checkbox v-if="socNet === 'telegram'" v-model="onlyAdmined">Only admined</md-checkbox>
 
 			<md-table>
 			  <md-table-row>
@@ -32,7 +33,7 @@ module.exports = `
 			  </md-table-row>
 	
 			  <md-table-row v-for="item in showChannels">
-				<md-table-cell><router-link :to="{name: 'soc-net-channel', params: {channelId: item.id}}">{{item.title}}</router-link></md-table-cell>
+				<md-table-cell><router-link :to="{name: 'soc-net-channel', params: {channelId: item.id}}">{{item.title || item.name}}</router-link></md-table-cell>
 				<md-table-cell>{{item.username}}</md-table-cell>
 				<md-table-cell>
 <!--				<md-button class="md-accent md-icon-button" @click="editApiKey(item)"><md-icon>sync</md-icon></md-button>-->

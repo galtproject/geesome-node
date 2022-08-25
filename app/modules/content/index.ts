@@ -452,15 +452,17 @@ function getModule(app: IGeesomeApp) {
 			}, options);
 		}
 
-		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress? } = {}) {
+		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, name?, description?, view?, path?, onProgress? } = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
-			let name;
-			if (options.path) {
-				name = commonHelper.getFilenameFromPath(options.path);
-			} else {
-				name = _.last(url.split('/'))
+			let {name, description, view} = options;
+			if (!name) {
+				if (options.path) {
+					name = commonHelper.getFilenameFromPath(options.path);
+				} else {
+					name = _.last(url.split('/'))
+				}
 			}
-			let extension = commonHelper.getExtensionFromName(name);
+			let extension = commonHelper.getExtensionFromName(options.path || url);
 			let type, properties;
 
 			if (options.apiKey && !options.userApiKeyId) {
@@ -510,13 +512,14 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			return this.addContentWithPreview(userId, storageFile, {
+				name,
+				description,
 				extension,
 				storageType: ContentStorageType.IPFS,
 				mimeType: type,
-				view: ContentView.Attachment,
+				view: view || ContentView.Attachment,
 				storageId: storageFile.id,
 				size: storageFile.size,
-				name: name,
 				propertiesJson: JSON.stringify(properties)
 			}, options, url);
 		}

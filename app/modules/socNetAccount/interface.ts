@@ -14,12 +14,14 @@ export interface IAccount {
 	id: number;
 	userId: number;
 	socNet: string;
+	accountId: string;
 	userAddress: string;
 	phoneNumber: string;
 	username: string;
 	fullName: string;
 	apiId: string;
 	apiKey: string;
+	accessToken: string;
 	sessionKey: string;
 	isEncrypted: boolean;
 }

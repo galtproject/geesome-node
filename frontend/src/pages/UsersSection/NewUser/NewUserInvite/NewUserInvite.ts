@@ -11,6 +11,7 @@ import PeriodInput from "geesome-vue-components/src/directives/PeriodInput/Perio
 import Helper from "geesome-vue-components/src/services/helper";
 
 const pick = require('lodash/pick');
+const uniq = require('lodash/uniq');
 import common from "../../../../libs/common";
 
 export default {
@@ -23,7 +24,7 @@ export default {
       this.invite.permissions = [];
 
       if (this.isAdmin) {
-        this.invite.permissions.push('admin:all');
+        this.invite.permissions = this.invite.permissions.concat(['user:all', 'admin:all']);
       } else {
         if(this.isOnlySaveData) {
           this.invite.permissions = this.invite.permissions.concat(['user:save_data']);
@@ -32,7 +33,7 @@ export default {
         }
       }
 
-      this.invite.permissions = JSON.stringify(this.invite.permissions);
+      this.invite.permissions = JSON.stringify(uniq(this.invite.permissions));
 
       if (this.inviteLimit.isActive) {
         this.invite.limits = JSON.stringify([{

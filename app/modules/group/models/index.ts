@@ -14,6 +14,8 @@ module.exports = async function (sequelize, appModels) {
   appModels.GroupRead = await require('./groupRead')(sequelize, appModels);
   appModels.Post = await require('./post')(sequelize, appModels);
 
+  appModels.Mention = await require('./mention')(sequelize, appModels);
+
   appModels.Tag = await require('./tag')(sequelize, appModels);
   appModels.AutoTag = await require('./autoTag')(sequelize, appModels);
 

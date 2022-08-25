@@ -9,7 +9,6 @@
 
 import {ContentView} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
-import {GroupType} from "../group/interface";
 import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
 
@@ -18,7 +17,6 @@ const {StringSession} = require("telegram/sessions");
 const {computeCheck} = require("telegram/Password");
 const includes = require('lodash/includes');
 const pick = require('lodash/pick');
-const some = require('lodash/some');
 const commonHelper = require('geesome-libs/src/common');
 const bigInt = require('big-integer');
 const telegramHelpers = require('./helpers');
@@ -38,9 +36,6 @@ function getModule(app: IGeesomeApp) {
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
-	let finishCallbacks = {
-
-	};
 	class TelegramClientModule {
 		async login(userId, loginData) {
 			let {id: accountId, phoneNumber, apiId, apiKey, password, dcId, qrToken, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS, byQrCode} = loginData;
@@ -73,11 +68,13 @@ function getModule(app: IGeesomeApp) {
 				if (!isEncrypted) {
 					sessionKey = client.session.save();
 				}
+				console.log('user', user);
 				const username = user ? user.username : null;
 				const fullName = user ? user['firstName'] + ' ' + user['lastName'] : null;
 				try {
 					acc = await socNetAccount.createOrUpdateAccount(userId, {
 						id: acc ? acc.id : null,
+						accountId: user.id.toString(),
 						phoneNumber,
 						apiId,
 						apiKey,
@@ -85,7 +82,7 @@ function getModule(app: IGeesomeApp) {
 						username,
 						fullName,
 						isEncrypted,
-						socNet
+						socNet,
 					});
 				} catch (e) {
 					console.warn('handleAuthorized createOrUpdateAccount', e);
@@ -204,6 +201,7 @@ function getModule(app: IGeesomeApp) {
 		async getClient(userId, accData: any = {}) {
 			let {sessionKey} = accData;
 			delete accData['sessionKey'];
+			delete accData['apiKey'];
 			const acc = await socNetAccount.getAccount(userId, socNet, accData);
 			let {apiId, apiKey: apiHash} = acc;
 			if (!sessionKey) {
@@ -299,14 +297,11 @@ function getModule(app: IGeesomeApp) {
 				channel = await this.getChannelEntity(client, channelId);
 			}
 			messageId = parseInt(messageId);
-			return {
-				client,
-				result: await client.invoke(new Api.channels.ExportMessageLink({
-					channel,
-					id: messageId,
-					thread: true,
-				}) as any)
-			};
+			return client.invoke(new Api.channels.ExportMessageLink({
+				channel,
+				id: messageId,
+				thread: true,
+			})).then(r => r.link);
 		}
 
 		async downloadMediaByUserId(userId, accData, media) {
@@ -367,12 +362,9 @@ function getModule(app: IGeesomeApp) {
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
 			const {result: { asyncOperation }, client} = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r);
-			const finishedOperation = await new Promise((resolve) => {
-				finishCallbacks[asyncOperation.id] = resolve;
+			return app.ms.asyncOperation.waitForImportAsyncOperation(asyncOperation).then(() => {
+				return client.disconnect();
 			});
-			await client.disconnect();
-			delete finishCallbacks[asyncOperation.id];
-			return finishedOperation;
 		}
 
 		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
@@ -383,9 +375,6 @@ function getModule(app: IGeesomeApp) {
 			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
 			const {account} = client;
 
-			let dbChannel = await socNetImport.getDbChannel(userId, {channelId: channel.id.toString()});
-			let group;
-
 			const [{result: avatarFile}, {result: user}] = await Promise.all([
 				this.downloadMediaByClient(client, channel),
 				this.getMeByClient(client)
@@ -394,74 +383,20 @@ function getModule(app: IGeesomeApp) {
 			if (avatarFile) {
 				avatarContent = await app.ms.content.saveData(userId, avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
 			}
-			// console.log('channel', channel);
-			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
-			if (group && !group.isDeleted) {
-				const updateData = {
-					name: advancedSettings['name'] || channel.username,
-					title: channel.title,
-					description: channel.about,
-					avatarImageId: avatarContent ? avatarContent.id : null,
-				};
-				if (some(Object.keys(updateData), (key) => updateData[key] !== group[key])) {
-					await app.ms.group.updateGroup(userId, dbChannel.groupId, updateData);
-				}
-			} else {
-				group = await app.ms.group.createGroup(userId, {
-					name: advancedSettings['name'] || channel.username || channel.id.toString(),
-					title: channel.title,
-					description: channel.about,
-					isPublic: true,
-					type: GroupType.Channel,
-					avatarImageId: avatarContent ? avatarContent.id : null,
-					propertiesJson: JSON.stringify({
-						lang: user.langCode || 'en',
-						source: socNet,
-						sourceId: channel.id.toString(),
-						sourceUsername: channel.username,
-					})
-				});
-				const channelData = {
-					userId,
-					groupId: group.id,
-					channelId: channel.id.toString(),
-					accountId: account.id,
-					title: channel.title,
-					lastMessageId: 0,
-					postsCounts: 0,
-					source: socNet
-				}
-				if (dbChannel) {
-					// update channel after group deletion
-					dbChannel = await socNetImport.reinitializeDbChannel(dbChannel.id, channelData);
-				} else {
-					dbChannel = await socNetImport.createDbChannel(channelData);
-				}
-			}
-
-			let startMessageId = dbChannel ? dbChannel.lastMessageId : 0;
-			let lastMessageId = channel.messagesCount;
-			if (advancedSettings['fromMessage']) {
-				startMessageId = parseInt(advancedSettings['fromMessage']) - 1;
-			}
-			if (advancedSettings['toMessage']) {
-				lastMessageId = parseInt(advancedSettings['toMessage']);
-			}
-
-			advancedSettings['force'] = advancedSettings['toMessage'] || advancedSettings['fromMessage'];
-
-			if (!advancedSettings['force']) {
-				const lastMessage = await socNetImport.getDbChannelLastMessage(dbChannel.id);
-				if (lastMessage && lastMessage.id === lastMessageId) {
-					throw new Error('already_done');
-				}
-			}
-
-			let asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
-				userApiKeyId,
-				name: 'run-telegram-channel-import',
-				channel: 'id:' + dbChannel.id + ';op:' + await commonHelper.random()
+			const dbChannel = await socNetImport.importChannelMetadata(userId, socNet, account.id, {
+				...channel,
+				lang: user.langCode
+			}, {
+				avatarImageId: avatarContent ? avatarContent.id : null
 			});
+
+			let {startMessageId, lastMessageId} = await socNetImport.prepareChannelQuery(dbChannel, channel.messagesCount, advancedSettings);
+			startMessageId = parseInt(startMessageId);
+			if (advancedSettings['fromMessage']) {
+				startMessageId--;
+			}
+			lastMessageId = parseInt(lastMessageId);
+			let asyncOperation = await socNetImport.openImportAsyncOperation(userId, userApiKeyId, dbChannel);
 
 			const totalCountToFetch = lastMessageId - startMessageId;
 			let currentMessageId = startMessageId;
@@ -478,6 +413,7 @@ function getModule(app: IGeesomeApp) {
 
 					await socNetImport.importChannelPosts(userId, dbChannel, messages, advancedSettings, {
 						getRemotePostLink: (channelId, msgId) => this.getMessageLink(client, channelId, msgId),
+						getRemotePostReplyTo: (m) => m.replyTo ? m.replyTo.replyToMsgId.toString() : null,
 						getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
 						getRemotePostProperties: (userId, dbChannel, m) => {
 							//TODO: get forward from username and id
@@ -486,24 +422,16 @@ function getModule(app: IGeesomeApp) {
 						async onRemotePostProcess(m, post) {
 							console.log('onMessageProcess', m.id.toString());
 							currentMessageId = parseInt(m.id.toString());
-							dbChannel.update({lastMessageId: currentMessageId});
-							asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id);
-							if (asyncOperation.cancel) {
-								await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
-								throw new Error("import_canceled");
-							}
+							await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
 							return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
 						}
 					});
 				}
 			})().then(async () => {
-				await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
-				if (finishCallbacks[asyncOperation.id]) {
-					finishCallbacks[asyncOperation.id](await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id));
-				}
+				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null);
 			}).catch((e) => {
-				console.error('run-telegram-channel-import error', e);
-				return app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
+				console.error('run-channel-import error', e);
+				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, e);
 			});
 
 			return {
@@ -515,6 +443,10 @@ function getModule(app: IGeesomeApp) {
 		async messageToContents(client, userId, dbChannel, m) {
 			let contents = [];
 			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
+
+			if (contentMessageData.groupedId) {
+				contentMessageData.groupedId = contentMessageData.groupedId.toString();
+			}
 
 			if (m.message) {
 				console.log('m.message', m.message, 'm.entities', m.entities);

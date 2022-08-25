@@ -1,5 +1,4 @@
 import {IContent} from "../database/interface";
-import {IPost} from "../group/interface";
 import {IUserAsyncOperation} from "../asyncOperation/interface";
 
 export default interface IGeesomeTelegramClient {
@@ -14,7 +13,7 @@ export default interface IGeesomeTelegramClient {
 			chat,
 			messagesCount
 		}
-	}>
+	}>;
 
 	getUserChannelsByUserId(userId, accData): Promise <{ result, client }>;
 
@@ -27,6 +26,4 @@ export default interface IGeesomeTelegramClient {
 	login(userId, loginData): Promise<{ client, result: { response, sessionKey, account } }>;
 
 	messageToContents(client, dbChannel, m, userId): Promise<IContent[]>;
-
-	flushDatabase(): Promise<any>;
 }

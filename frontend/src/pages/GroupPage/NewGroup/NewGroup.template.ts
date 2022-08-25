@@ -12,7 +12,7 @@ module.exports = `
           <group-form :group.sync="group" :invalid.sync="invalidInputs"></group-form>
 
           <div>
-            <md-button class="md-raised md-accent" @click="create()" :disabled="invalidInputs">
+            <md-button class="md-raised md-accent" @click="create()" :disabled="invalidInputs || sending">
               Create
             </md-button>
           </div>
