@@ -82,7 +82,10 @@
           </article>
         </div>
 
-        <pagination :pages-count="pages.length" :current-href="curPath" :display-pages="10" :base-href="pages[0].baseHref"></pagination>
+
+        <div v-if="pages.length">
+          <pagination :pages-count="pages.length" :current-href="curPath" :display-pages="10" :base-href="pages[0].baseHref"></pagination>
+        </div>
       </div>
     </template>
   </layout>
