@@ -66,6 +66,9 @@ function getModule(app: IGeesomeApp, models) {
 			// console.log('channel', channel);
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
+				if (!group.isCollapsed) {
+					delete updateData['isCollapsed'];
+				}
 				const data = {
 					name: updateData['name'] || channelMetadata.username,
 					title: channelMetadata.title,
@@ -137,52 +140,50 @@ function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
-		async importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client: any = {}) {
-			const {id: dbChannelId, groupId, source} = dbChannel;
+		async importChannelPosts(userId, mainDbChannel, messages, advancedSettings = {}, client: any = {}) {
+			let {id: dbChannelId, groupId, socNet} = mainDbChannel;
 			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
 			const force = !!advancedSettings['force'];
-			const importState = { mergeSeconds, userId, groupId, dbChannelId };
+			const importState = { mergeSeconds, dbChannelId };
 
 			console.log('messages.length', messages.length);
-			let messageLinkTpl;
-			await pIteration.forEachSeries(messages, async (m, i) => {
+			await pIteration.forEachSeries(messages, async (m) => {
 				console.log('m', m);
 				if (!m.date) {
-					if (client.onRemotePostProcess) {
-						await client.onRemotePostProcess(m, null);
-					}
-					return;
+					return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null) : null;
 				}
 				const msgId = m.id.toString();
-				if (!messageLinkTpl) {
-					messageLinkTpl = await client.getRemotePostLink(dbChannel.channelId, msgId)
-						.then(r => r.split('/').slice(0, -1).join('/') + '/{msgId}');
-				}
-				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
-				if (existsChannelMessage && !force) {
-					if (client.onRemotePostProcess) {
-						await client.onRemotePostProcess(m, null);
-					}
-					return;
+				const sourceChannel = await client.getRemotePostDbChannel(m);
+				const properties = {
+					sourceLink: await client.getRemotePostLink(mainDbChannel, msgId),
+					replyToMsgId: client.getRemotePostReplyTo(m),
+					repostOfMsgId: client.getRemotePostRepostOf(m),
+					...await client.getRemotePostProperties(userId, mainDbChannel, m)
+				};
+
+				if (properties.repostOfMsgId) {
+					dbChannelId = sourceChannel.id;
+					groupId = sourceChannel.groupId;
 				}
 
-				const contents = await client.getRemotePostContents(userId, dbChannel, m);
-				const replyToMsgId = client.getRemotePostReplyTo(m);
+				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
+				if (existsChannelMessage && !force) {
+					return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null) : null;
+				}
+
+				const contents = await client.getRemotePostContents(userId, mainDbChannel, m);
 				const postData = {
 					groupId,
 					userId,
+					properties,
+					contents,
+					source: socNet,
 					status: 'published',
-					properties: {
-						sourceLink: messageLinkTpl.replace('{msgId}', msgId),
-						replyToMsgId,
-						...await client.getRemotePostProperties(userId, dbChannel, m)
-					},
-					source,
-					sourceChannelId: dbChannel.channelId,
+					sourceChannelId: mainDbChannel.channelId,
 					sourcePostId: msgId,
 					sourceDate: new Date(m.date * 1000),
-					replyToId: await this.getDbPostIdByMsgId(dbChannelId, replyToMsgId),
-					contents,
+					replyToId: await this.getDbPostIdByMsgId(dbChannelId, properties.replyToMsgId),
+					repostOfId: await this.getDbPostIdByMsgId(dbChannelId, properties.repostOfMsgId),
 				}
 				console.log('postData', postData);
 
@@ -192,7 +193,7 @@ function getModule(app: IGeesomeApp, models) {
 					msgId,
 					groupedId: m.groupedId ? m.groupedId.toString() : null,
 					timestamp: m.date,
-					replyToMsgId
+					replyToMsgId: properties.replyToMsgId
 				});
 				if (client.onRemotePostProcess) {
 					await client.onRemotePostProcess(m, post);
@@ -201,7 +202,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async publishPost(_importState, _existsChannelMessage, _postData, _msgData) {
-			const {userId, mergeSeconds} = _importState;
+			const {mergeSeconds} = _importState;
+			const {userId} = _postData;
 			let existsPostId = _existsChannelMessage && _existsChannelMessage.postId;
 
 			if (!_postData.contents.length) {
@@ -276,7 +278,8 @@ function getModule(app: IGeesomeApp, models) {
 			if (_existsPostId && !includes(postIds, _existsPostId)) {
 				postIds.push(_existsPostId);
 			}
-			const {userId, groupId, dbChannelId} = _importState;
+			const {userId, groupId} = _postData;
+			const {dbChannelId} = _importState;
 
 			const posts = await app.ms.group
 				.getPostListByIds(userId, groupId, postIds).then(posts => posts.filter(p => !p.isDeleted));

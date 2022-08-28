@@ -25,7 +25,7 @@ export default interface IGeesomeTwitterClient {
 
 	login(userId, loginData): Promise<any>;
 
-	messageToContents(userId, dbChannel, m, mediasByKey): Promise<IContent[]>;
+	messageToContents(userId, dbChannel, m): Promise<IContent[]>;
 
 	createDbChannel(channelData): Promise<any>;
 

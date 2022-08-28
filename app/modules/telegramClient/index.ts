@@ -367,14 +367,9 @@ function getModule(app: IGeesomeApp) {
 			});
 		}
 
-		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
-			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
-			if (apiKey.userId !== userId) {
-				throw new Error("not_permitted");
-			}
-			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
+		async storeChannelToDb(client, userId, channelId) {
+			const {result: channel} = this.getChannelInfoByClient(client, channelId);
 			const {account} = client;
-
 			const [{result: avatarFile}, {result: user}] = await Promise.all([
 				this.downloadMediaByClient(client, channel),
 				this.getMeByClient(client)
@@ -389,6 +384,17 @@ function getModule(app: IGeesomeApp) {
 			}, {
 				avatarImageId: avatarContent ? avatarContent.id : null
 			});
+			return {client, dbChannel, channel}
+		}
+
+		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
+			if (apiKey.userId !== userId) {
+				throw new Error("not_permitted");
+			}
+
+			const client = await this.getClient(userId, accData)
+			const {dbChannel, channel} = await this.storeChannelToDb(client, userId, channelId);
 
 			let {startMessageId, lastMessageId} = await socNetImport.prepareChannelQuery(dbChannel, channel.messagesCount, advancedSettings);
 			startMessageId = parseInt(startMessageId);
@@ -411,21 +417,12 @@ function getModule(app: IGeesomeApp) {
 					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
 					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 
-					await socNetImport.importChannelPosts(userId, dbChannel, messages, advancedSettings, {
-						getRemotePostLink: (channelId, msgId) => this.getMessageLink(client, channelId, msgId),
-						getRemotePostReplyTo: (m) => m.replyTo ? m.replyTo.replyToMsgId.toString() : null,
-						getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
-						getRemotePostProperties: (userId, dbChannel, m) => {
-							//TODO: get forward from username and id
-							return {};
-						},
-						async onRemotePostProcess(m, post) {
-							console.log('onMessageProcess', m.id.toString());
-							currentMessageId = parseInt(m.id.toString());
-							await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
-							return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
-						}
-					});
+					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, post) => {
+						console.log('onMessageProcess', m.id.toString());
+						currentMessageId = parseInt(m.id.toString());
+						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
+						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
+					})
 				}
 			})().then(async () => {
 				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null);
@@ -490,6 +487,39 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			return contents;
+		}
+
+		async importMessagesList(client, userId, dbChannel, list, advancedSettings, onRemotePostProcess?) {
+			const msgLinkTplByAccountId = {
+
+			};
+			const channelByAuthorId = {
+				[dbChannel.accountId]: dbChannel
+			};
+			socNetImport.importChannelPosts(userId, dbChannel, list, advancedSettings, {
+				getRemotePostLink: async (_channel, _msgId) => {
+					if (!msgLinkTplByAccountId[_channel.accountId]) {
+						const msgLink = await this.getMessageLink(client, _channel, _msgId);
+						msgLinkTplByAccountId[_channel.accountId] = msgLink.split('/').slice(0, -1).join('/') + '/{msgId}';
+					}
+					return msgLinkTplByAccountId[_channel.accountId].replace('{msgId}', _msgId);
+				},
+				getRemotePostReplyTo: (m) => m.replyTo ? m.replyTo.replyToMsgId.toString() : null,
+				// getRemotePostRepostOf: (m) => getRetweetId(m),
+				getRemotePostDbChannel: async (m) => {
+					return dbChannel;
+					// if (!channelByAuthorId[m.author_id]) {
+					// 	channelByAuthorId[m.author_id] = await this.storeChannelToDb(client, userId, m.author, dbChannel.accountId !== m.author_id);
+					// }
+					// return channelByAuthorId[m.author_id];
+				},
+				getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
+				getRemotePostProperties: (userId, dbChannel, m) => {
+					//TODO: get forward from username and id
+					return {};
+				},
+				onRemotePostProcess
+			});
 		}
 	}
 
