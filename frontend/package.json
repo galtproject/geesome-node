@@ -26,7 +26,7 @@
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#73abf44",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#a4f4a7b",
     "geesome-vue-components": "https://github.com/galtproject/geesome-vue-components#6bd9215",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",

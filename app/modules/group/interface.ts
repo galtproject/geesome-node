@@ -282,6 +282,9 @@ export interface IPost {
 	replyToId?: number;
 	repostOfId?: string;
 
+	replyTo?: IPost;
+	repostOf?: IPost;
+
 	source?: string;
 	sourceChannelId?: string;
 	sourcePostId?: string;

@@ -8,7 +8,7 @@ export default interface IGeesomeSocNetImport {
 
 	reinitializeDbChannel(id, channelData);
 
-	importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData);
+	importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData?);
 
 	prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings);
 
@@ -25,4 +25,24 @@ export default interface IGeesomeSocNetImport {
 	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
 	flushDatabase(): Promise<any>;
+}
+
+export interface IGeesomeSocNetImportClient {
+	getRemotePostLink(_channel, msgId): Promise<string>;
+	getRemotePostReplyToMsgId(m): string;
+	getRemotePostRepostOfMsgId(m): string;
+	getRemotePostDbChannel(m, type): Promise<ISocNetDbChannel>;
+	getRemotePostContents(userId, dbChannel, m, type): Promise<IContent[]>;
+	getRemotePostProperties(userId, dbChannel, m, type): Promise<any>;
+	onRemotePostProcess(m, post: IPost, type);
+}
+
+export interface ISocNetDbChannel {
+	id;
+	title;
+	socNet;
+	userId;
+	groupId;
+	accountId;
+	channelId;
 }

@@ -17,8 +17,6 @@ import {PostStatus} from "../app/modules/group/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
 
-const pIteration = require('p-iteration');
-
 const twitterHelpers = require('../app/modules/twitterClient/helpers');
 
 const assert = require('assert');
@@ -655,7 +653,7 @@ describe("twitterClient", function () {
 
 	});
 
-	it.only('local webpage message should import properly', async () => {
+	it('local webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 

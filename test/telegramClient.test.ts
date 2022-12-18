@@ -33,7 +33,8 @@ describe("telegramClient", function () {
 
 	this.timeout(60000);
 
-	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount, socNetImport: IGeesomeSocNetImport;
+	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount,
+		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -552,11 +553,11 @@ describe("telegramClient", function () {
 
 		const importState = {
 			mergeSeconds: 5,
-			userId: testUser.id,
-			groupId: testGroup.id,
+			dbChannelId: channel.id
 		};
 
 		const postData = {
+			userId: testUser.id,
 			groupId: testGroup.id,
 			status: 'published',
 			source: 'telegram',
@@ -889,8 +890,7 @@ describe("telegramClient", function () {
 
 		const importState = {
 			mergeSeconds: 5,
-			userId: testUser.id,
-			groupId: testGroup.id,
+			dbChannelId: channel.id,
 		};
 
 		for (let j = 0; j < 2; j++) {
@@ -898,6 +898,7 @@ describe("telegramClient", function () {
 			let groupedId;
 			await pIteration.forEachSeries(messages, async (m, i) => {
 				const postData = {
+					userId: testUser.id,
 					groupId: testGroup.id,
 					status: 'published',
 					source: 'telegram',
@@ -1138,11 +1139,11 @@ describe("telegramClient", function () {
 
 		const importState = {
 			mergeSeconds: 5,
-			userId: testUser.id,
-			groupId: testGroup.id,
+			dbChannelId: channel.id,
 		};
 
 		const postData = {
+			userId: testUser.id,
 			groupId: testGroup.id,
 			status: 'published',
 			source: 'telegram',
@@ -1186,6 +1187,282 @@ describe("telegramClient", function () {
 		assert.equal(post2.contents[1].manifestStorageId, 'bafyreiarrzvojk2eqsvgmmkc77fong6cnef57r25wvdvums44vgiy5ptre');
 		assert.equal(post2.contents[2].manifestStorageId, 'bafyreifoksuhwlkn73jgzcbluzwvf3g62cpbuki6igalddkmgoexwcy3pm');
 	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const message1 = {
+			"id": 12,
+			"replyTo": null,
+			"fwdFrom": {
+				"flags": 32,
+				"imported": false,
+				"fromId": null,
+				"fromName": "X ✰",
+				"date": 1661713612,
+				"channelPost": null,
+				"postAuthor": null,
+				"savedFromPeer": null,
+				"savedFromMsgId": null,
+				"psaType": null
+			},
+			"date": 1661781574,
+			"message": "у меня ваще половина чатов так выглядит (но это у меня аккаунт сломан)",
+			"groupedId": null,
+			"media": {
+				"flags": 1,
+				"photo": {
+					"flags": 0,
+					"hasStickers": false,
+					"id": "5215629871777169243",
+					"accessHash": "1240871343489722844",
+					"fileReference": Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6c c1 0d 7e 15 5b e1 09 68 33 c1 05 20 a6 82 6e fe 3d 23*/]),
+					"date": 1661713590,
+					"sizes": [{
+						"type": "i",
+						"bytes": Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6c c1 0d 7e 15 5b e1 09 68 33 c1 05 20 a6 82 6e fe 3d 23*/]),
+					}, {"type": "m", "w": 320, "h": 162, "size": 5747}, {
+						"type": "x",
+						"w": 733,
+						"h": 372,
+						"sizes": [1972, 13362, 16260]
+					}],
+					"dcId": 2
+				},
+			},
+		};
+
+		const message2 = {
+			"id": 13,
+			"replyTo": {"flags": 0, "replyToMsgId": 12, "replyToPeerId": null, "replyToTopId": null},
+			"fwdFrom": {
+				"flags": 32,
+				"imported": false,
+				"fromId": null,
+				"fromName": "X ✰",
+				"date": 1661713916,
+				"channelPost": null,
+				"postAuthor": null,
+				"savedFromPeer": null,
+				"savedFromMsgId": null,
+				"psaType": null
+			},
+			"date": 1661781574,
+			"message": "виш",
+			"entities": null,
+			"media": null,
+			"groupedId": null
+		};
+
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0,
+		});
+
+		const importState = {
+			mergeSeconds: 5,
+			dbChannelId: channel.id,
+		};
+
+		const postData = {
+			userId: testUser.id,
+			groupId: testGroup.id,
+			status: 'published',
+			source: 'telegram',
+			sourceChannelId: channel.channelId,
+			sourcePostId: message1.id,
+			sourceDate: new Date(message1.date * 1000),
+			contents: [],
+			properties: {},
+		}
+
+		const msgData = {
+			dbChannelId: channel.id,
+			userId: testUser.id,
+			timestamp: message1.date,
+			groupedId: message1.groupedId,
+			msgId: message1.id
+		};
+
+		const contents1 = await telegramClient.messageToContents(null, testUser.id, channel, message1);
+		assert.equal(contents1.length, 2);
+		assert.equal(await app.ms.storage.getFileDataText(contents1[0].storageId), 'у меня ваще половина чатов так выглядит (но это у меня аккаунт сломан)');
+		assert.equal(contents1[1].mimeType, 'image/jpg');
+
+		postData.contents = contents1;
+		let post1 = await socNetImport.publishPost(importState, null, postData, msgData);
+		assert.equal(post1.contents.length, 2);
+
+		const contents2 = await telegramClient.messageToContents(null, testUser.id, channel, message2);
+		assert.equal(contents2.length, 1);
+		assert.equal(await app.ms.storage.getFileDataText(contents2[0].storageId), 'виш');
+	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const message1 = {
+			"id": 10,
+			"replyTo": null,
+			"fwdFrom": null,
+			"date": 1661781492,
+			"message": "111",
+			"entities": null,
+			"media": null,
+			"groupedId": null
+		};
+
+		const message2 = {
+			"id": 11,
+			"replyTo": {"flags": 0, "replyToMsgId": 10, "replyToPeerId": null, "replyToTopId": null},
+			"fwdFrom": null,
+			"date": 1661781495,
+			"message": "222",
+			"entities": null,
+			"media": null,
+			"groupedId": null
+		};
+
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0,
+		});
+
+		const importState = {
+			mergeSeconds: 5,
+			dbChannelId: channel.id,
+		};
+
+		const postData = {
+			userId: testUser.id,
+			groupId: testGroup.id,
+			status: 'published',
+			source: 'telegram',
+			sourceChannelId: channel.channelId,
+			sourcePostId: message1.id,
+			sourceDate: new Date(message1.date * 1000),
+			contents: [],
+			properties: {},
+		}
+
+		const msgData = {
+			dbChannelId: channel.id,
+			userId: testUser.id,
+			timestamp: message1.date,
+			groupedId: message1.groupedId,
+			msgId: message1.id
+		};
+
+		const contents1 = await telegramClient.messageToContents(null, testUser.id, channel, message1);
+		assert.equal(contents1.length, 1);
+		assert.equal(await app.ms.storage.getFileDataText(contents1[0].storageId), '111');
+
+		postData.contents = contents1;
+		let post1 = await socNetImport.publishPost(importState, null, postData, msgData);
+		assert.equal(post1.contents.length, 1);
+
+		const contents2 = await telegramClient.messageToContents(null, testUser.id, channel, message2);
+		assert.equal(contents2.length, 1);
+		assert.equal(await app.ms.storage.getFileDataText(contents2[0].storageId), '222');
+	});
+
+	it.only('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const message1 = {
+			"id": 14,
+			"replyTo": null,
+			"fwdFrom": {
+				"flags": 1,
+				"imported": false,
+				"fromId": {"userId": "1580239374"},
+				"fromName": null,
+				"date": 1664115778,
+				"channelPost": null,
+				"postAuthor": null,
+				"savedFromPeer": null,
+				"savedFromMsgId": null,
+				"psaType": null
+			},
+			"date": 1664115787,
+			"message": "test",
+			"entities": null,
+			"media": null,
+			"groupedId": null
+		};
+
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0,
+		});
+
+		const importState = {
+			mergeSeconds: 5,
+			dbChannelId: channel.id,
+		};
+
+		const postData = {
+			userId: testUser.id,
+			groupId: testGroup.id,
+			status: 'published',
+			source: 'telegram',
+			sourceChannelId: channel.channelId,
+			sourcePostId: message1.id,
+			sourceDate: new Date(message1.date * 1000),
+			contents: [],
+			properties: {},
+		}
+
+		const msgData = {
+			dbChannelId: channel.id,
+			userId: testUser.id,
+			timestamp: message1.date,
+			groupedId: message1.groupedId,
+			msgId: message1.id
+		};
+
+		const contents1 = await telegramClient.messageToContents(null, testUser.id, channel, message1);
+		assert.equal(contents1.length, 1);
+		assert.equal(await app.ms.storage.getFileDataText(contents1[0].storageId), 'test');
+
+		postData.contents = contents1;
+		let post1 = await socNetImport.publishPost(importState, null, postData, msgData);
+		assert.equal(post1.contents.length, 1);
+
+		msgData.groupedId = null;
+		msgData.msgId++;
+		msgData.timestamp += 100;
+		postData.contents = [];
+		postData['repostOfId'] = post1.id;
+		postData.sourceDate = new Date(msgData.timestamp * 2000);
+		let repost = await socNetImport.publishPost(importState, null, postData, msgData);
+		assert.equal(repost.contents.length, 0);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(repost.groupId, {}, {});
+		repost = groupPosts.filter(p => p.id === repost.id)[0];
+
+		const repostContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', repost);
+		assert.equal(repostContents.length, 1);
+	});
+
+	//{"id":15,"replyTo":null,"fwdFrom":{"flags":5,"imported":false,"fromId":{"channelId":"1396915475"},"fromName":null,"date":1664116202,"channelPost":483,"postAuthor":null,"savedFromPeer":null,"savedFromMsgId":null,"psaType":null},"date":1664116211,"message":"test 2","entities":null,"media":null,"groupedId":null}
+	//{"id":16,"replyTo":null,"fwdFrom":{"flags":5,"imported":false,"fromId":{"channelId":"1628711649"},"fromName":null,"date":1664116228,"channelPost":496,"postAuthor":null,"savedFromPeer":null,"savedFromMsgId":null,"psaType":null},"date":1664116233,"message":"test 3","entities":null,"media":null,"groupedId":null}
+
 });
 
 function _base64ToArrayBuffer(base64) {

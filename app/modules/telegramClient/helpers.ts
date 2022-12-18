@@ -5,6 +5,7 @@ const maxBy = require('lodash/maxBy');
 const isNumber = require('lodash/isNumber');
 
 module.exports = {
+	importFields: ['id', 'replyTo', 'fwdFrom', 'date', 'message', 'entities', 'media', 'action', 'groupedId'],
 	messageWithEntitiesToHtml(message, entities = []) {
 		const splitText = [];
 		let lastIndex = 0;
@@ -55,7 +56,7 @@ module.exports = {
 		let thumbSize = 'y';
 		if (media.photo || (media.webpage && media.webpage.photo)) {
 			file = media.photo || media.webpage.photo;
-			console.log('file.sizes', file.sizes);
+			// console.log('file.sizes', file.sizes);
 			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
 			if (!ySize || !ySize.sizes) {
 				return {};
@@ -84,5 +85,16 @@ module.exports = {
 			...pick(webpage, ['url', 'displayUrl', 'siteName', 'title', 'description']),
 			type: 'url'
 		});
+	},
+
+	getReplyToId(m) {
+		return m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
+	},
+	getReplyToMsgId(m) {
+		return m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
+	},
+	getForwardMsgId(m) {
+		console.log('getForwardMsgId', m.fwdFrom);
+		return m.fwdFrom ? m.fwdFrom.channelPost : null;
 	}
 }

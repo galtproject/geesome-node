@@ -26,4 +26,12 @@ export default interface IGeesomeTelegramClient {
 	login(userId, loginData): Promise<{ client, result: { response, sessionKey, account } }>;
 
 	messageToContents(client, dbChannel, m, userId): Promise<IContent[]>;
+
+	getMessageLink(client, channelId, messageId): Promise<string>;
+
+	getMessagesByClient(client, channelId, messagesIds): Promise<{client, result: {list, authorById}}>;
+
+	storeToChannelDbByType(client, userId, type, storeId, isCollateral?): Promise<{dbChannel}>
+
+	storeObjToChannelDbByType(client, userId, type, storeObj, isCollateral?): Promise<{dbChannel}>
 }

@@ -1,7 +1,7 @@
 const {createPage} = require('@vuepress/core');
 
 const _ = require('lodash');
-const {getTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml} = require('./helpers');
+const {getPostTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml} = require('./helpers');
 // const markdown = require('markdown-it');
 
 module.exports = function(posts, settings) {
@@ -19,14 +19,7 @@ module.exports = function(posts, settings) {
             for (let i = 0; i < posts.length; i++) {
                 const post = posts[i];
 
-                let {title: postTitle, description: postDescription} = getTitleAndDescription(post.texts, postSettings);
-                let pageTitle = postTitle;
-                if(!pageTitle) {
-                    const result = getTitleAndDescription(post.texts, {titleLength: 100});
-                    pageTitle = result.title;
-                }
-                pageTitle = removeHtml(pageTitle);
-                const pageDescription = removeHtml(postDescription);
+                let {pageTitle, pageDescription} = getPostTitleAndDescription(post, postSettings);
                 const mediaContent = getMainMediaContent(post.contents);
 
                 const page = await createPage(app, {
@@ -36,12 +29,7 @@ module.exports = function(posts, settings) {
                         permalink: getPostPath(post.id),
                         // permalinkPattern?: string;
                         head: getOgHeaders(site.title, post.lang, pageTitle, pageDescription, mediaContent ? mediaContent.previewUrl || mediaContent.url : null),
-                        title: pageTitle,
-                        description: pageDescription,
-                        postTitle,
-                        postDescription,
-                        date: post.date,
-                        ..._.pick(post, ['lang', 'id', 'contents', 'images', 'videos'])
+                        ...getPostFrontmatter(post),
                     },
                     content: post.content,
                 });
@@ -76,11 +64,7 @@ module.exports = function(posts, settings) {
 
             app.pages.push(await createPage(app, {
                 path: '/404.html',
-                frontmatter: {
-                    layout: '404',
-                    permalink: '/404',
-                    title: '404',
-                },
+                frontmatter: { layout: '404', permalink: '/404', title: '404' },
                 content: '404',
             }));
         },
@@ -105,23 +89,14 @@ module.exports = function(posts, settings) {
                     page.data.$pagesList = postPages.slice(interval[0] - 1, interval[1]).map(page => ({
                         key: page.key,
                         path: page.permalink,
-                        date: page.frontmatter.date,
-                        title: page.frontmatter.title,
-                        postTitle: page.frontmatter.postTitle,
-                        postDescription: page.frontmatter.postDescription,
-                        images: page.frontmatter.images,
-                        videos: page.frontmatter.videos
+                        ...page.frontmatter,
                     }));
                 }
                 page.data.$pagination = {
                     pages: intervallers.map((interval, i) => {
                         const page = i + 1;
                         const baseHref = '/posts/page/';
-                        return {
-                            page,
-                            baseHref,
-                            path: baseHref + page
-                        }
+                        return { page, baseHref, path: baseHref + page }
                     })
                 };
             } else if (page.frontmatter.layout === 'Post') {
@@ -130,6 +105,23 @@ module.exports = function(posts, settings) {
             return;
         }
     };
+
+    function getPostFrontmatter(post) {
+        if (!post) {
+            return null;
+        }
+        let {postTitle, postDescription, pageTitle, pageDescription} = getPostTitleAndDescription(post, postSettings);
+        return {
+            title: pageTitle,
+            description: pageDescription,
+            postTitle,
+            postDescription,
+            date: post.date,
+            replyTo: getPostFrontmatter(post.replyTo),
+            repostOf: getPostFrontmatter(post.repostOf),
+            ..._.pick(post, ['lang', 'id', 'contents', 'images', 'videos', 'group'])
+        };
+    }
 };
 
 function getIntervallers(max, interval) {

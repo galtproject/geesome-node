@@ -667,7 +667,7 @@ function getModule(app: IGeesomeApp) {
 							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
 							// log('getFileStat', resultFile, 'resultFile');
 							const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
-							log('storageContentStat', storageContentStat);
+							// log('storageContentStat', storageContentStat);
 							resultFile.size = storageContentStat.size;
 							log('resultFile.size', resultFile.size);
 						}
@@ -677,7 +677,7 @@ function getModule(app: IGeesomeApp) {
 						console.log('mimeType', mimeType);
 						if (_.startsWith(mimeType, 'image')) {
 							properties = await app.ms.drivers.metadata['image'].processByStream(stream);
-							console.log('metadata processByStream', properties);
+							// console.log('metadata processByStream', properties);
 						}
 					})()
 				]);

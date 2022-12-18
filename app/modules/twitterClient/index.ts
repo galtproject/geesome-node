@@ -9,7 +9,7 @@
 
 import {TwitterApi} from 'twitter-api-v2';
 import {IGeesomeApp} from "../../interface";
-import IGeesomeSocNetImport from "../socNetImport/interface";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
 import {ContentView} from "../database/interface";
 
@@ -158,7 +158,7 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async messageToContents(userId, dbChannel, m) {
+		async messageToContents(userId, dbChannel, m, type) {
 			let {entities, text} = m;
 			if (entities) {
 				text = clearMessageFromMediaMessages(m);
@@ -177,7 +177,7 @@ function getModule(app: IGeesomeApp) {
 					const {url, alt_text: description} = media;
 					return app.ms.content.saveDataByUrl(userId, url, {description, view: ContentView.Media});
 				})
-				.then(list => [textContent].concat(list).filter(i => i));
+				.then(list => [textContent].concat(list).filter(c => c));
 		}
 
 		async importReplies(userId, accData, dbChannel, m, messagesById, channelsById) {
@@ -219,21 +219,21 @@ function getModule(app: IGeesomeApp) {
 			};
 			return socNetImport.importChannelPosts(userId, dbChannel, list, advancedSettings, {
 				getRemotePostLink: (_channel, msgId) => `https://twitter.com/${_channel.username}/${msgId}`,
-				getRemotePostReplyTo: (m) => getReplyToId(m),
-				getRemotePostRepostOf: (m) => getRetweetId(m),
+				getRemotePostReplyToMsgId: (m) => getReplyToId(m),
+				getRemotePostRepostOfMsgId: (m) => getRetweetId(m),
 				getRemotePostDbChannel: async (m) => {
 					if (!channelByAuthorId[m.author_id]) {
 						channelByAuthorId[m.author_id] = await this.storeChannelToDb(userId, m.author, dbChannel.accountId !== m.author_id);
 					}
 					return channelByAuthorId[m.author_id];
 				},
-				getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(userId, dbChannel, m),
+				getRemotePostContents: (userId, dbChannel, m, type) => this.messageToContents(userId, dbChannel, m, type),
 				getRemotePostProperties: (userId, dbChannel, m) => {
 					//TODO: get forward from username and id
 					return {};
 				},
 				onRemotePostProcess
-			});
+			} as any);
 		}
 	}
 

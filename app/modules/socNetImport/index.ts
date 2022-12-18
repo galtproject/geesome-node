@@ -9,6 +9,7 @@
 
 import {IGeesomeApp} from "../../interface";
 import {GroupType} from "../group/interface";
+import {IGeesomeSocNetImportClient} from "./interface";
 
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
@@ -51,6 +52,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getDbPostIdByMsgId(dbChannelId, msgId) {
+			console.log('getDbPostIdByMsgId msgId', msgId);
 			if (!msgId) {
 				return;
 			}
@@ -58,7 +60,7 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
 		}
 
-		async importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData) {
+		async importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData: any = {}) {
 			const channelId = isString(channelMetadata.id) ? channelMetadata.id : channelMetadata.id.toString();
 			let dbChannel = await this.getDbChannel(userId, {channelId});
 			let group;
@@ -66,24 +68,26 @@ function getModule(app: IGeesomeApp, models) {
 			// console.log('channel', channel);
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
 			if (group && !group.isDeleted) {
-				if (!group.isCollapsed) {
-					delete updateData['isCollapsed'];
+				if (!group.isCollateral) {
+					delete updateData['isCollateral'];
 				}
 				const data = {
 					name: updateData['name'] || channelMetadata.username,
 					title: channelMetadata.title,
 					description: channelMetadata.about,
 					avatarImageId: updateData.avatarImageId,
+					isCollateral: updateData['isCollateral']
 				};
 				if (some(Object.keys(data), (key) => data[key] !== group[key])) {
 					await app.ms.group.updateGroup(userId, dbChannel.groupId, data);
 				}
 			} else {
 				group = await app.ms.group.createGroup(userId, {
-					name: updateData['name'] || channelMetadata.username || channelMetadata.id.toString(),
+					name: updateData['name'] || channelMetadata.username || (socNet + '-' + channelMetadata.id.toString() + '-' + Math.round(new Date().getTime() / 1000)),
 					title: channelMetadata.title,
 					description: channelMetadata.about,
 					isPublic: true,
+					isCollateral: updateData['isCollateral'],
 					type: GroupType.Channel,
 					avatarImageId: updateData.avatarImageId,
 					propertiesJson: JSON.stringify({
@@ -97,11 +101,10 @@ function getModule(app: IGeesomeApp, models) {
 					userId,
 					accountId,
 					channelId,
+					socNet,
 					groupId: group.id,
 					title: channelMetadata.title,
-					lastMessageId: 0,
 					postsCounts: 0,
-					source: socNet
 				}
 				if (dbChannel) {
 					// update channel after group deletion
@@ -115,7 +118,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings) {
 			const lastMessage = await this.getDbChannelLastMessage(dbChannel.id);
-			let startMessageId = lastMessage ? lastMessage.msgId : 0;
+			let startMessageId = lastMessage ? lastMessage.msgId || 0 : 0;
 			let lastMessageId = remotePostsCount;
 			if (advancedSettings['fromMessage']) {
 				startMessageId = advancedSettings['fromMessage'];
@@ -141,82 +144,118 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async importChannelPosts(userId, mainDbChannel, messages, advancedSettings = {}, client: any = {}) {
-			let {id: dbChannelId, groupId, socNet} = mainDbChannel;
 			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
 			const force = !!advancedSettings['force'];
-			const importState = { mergeSeconds, dbChannelId };
-
+			const importState = { mergeSeconds, force };
 			console.log('messages.length', messages.length);
-			await pIteration.forEachSeries(messages, async (m) => {
-				console.log('m', m);
-				if (!m.date) {
-					return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null) : null;
-				}
-				const msgId = m.id.toString();
-				const sourceChannel = await client.getRemotePostDbChannel(m);
-				const properties = {
-					sourceLink: await client.getRemotePostLink(mainDbChannel, msgId),
-					replyToMsgId: client.getRemotePostReplyTo(m),
-					repostOfMsgId: client.getRemotePostRepostOf(m),
-					...await client.getRemotePostProperties(userId, mainDbChannel, m)
-				};
+			await pIteration.forEachSeries(messages, (m) => {
+				return this.publishPostAndRelated(client, userId, m, importState).catch(e => {
+					console.error('publishPostAndRelated error', e);
+				});
+			});
+		}
 
-				if (properties.repostOfMsgId) {
-					dbChannelId = sourceChannel.id;
-					groupId = sourceChannel.groupId;
-				}
+		async publishPostAndRelated(client: IGeesomeSocNetImportClient, userId, m, importState: any = {}) {
+			console.log('\n\npublishPostAndRelated m', JSON.stringify(m));
+			const repostOfMsgId = client.getRemotePostRepostOfMsgId(m);
+			const replyToMsgId = client.getRemotePostReplyToMsgId(m);
+			let replyTo, repostOf, repostOfDbChannel;
 
-				const existsChannelMessage = await this.findExistsChannelMessage(msgId, dbChannelId, userId);
-				if (existsChannelMessage && !force) {
-					return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null) : null;
-				}
+			const postDbChannel = await client.getRemotePostDbChannel(m, 'post');
 
-				const contents = await client.getRemotePostContents(userId, mainDbChannel, m);
+			await pIteration.forEachSeries(['repost', 'reply', 'post'], async (type) => {
+				const dbChannel = type == 'post' ? postDbChannel : await client.getRemotePostDbChannel(m, type);
+				console.log('\n\n', m ? m.id : null, 'type:', type, 'dbChannel:', JSON.stringify(dbChannel))
+				if (!dbChannel) {
+					return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null, type) : null;
+				}
+				importState.dbChannelId = dbChannel.id;
+				let properties = {} as any;
 				const postData = {
-					groupId,
 					userId,
 					properties,
-					contents,
-					source: socNet,
 					status: 'published',
-					sourceChannelId: mainDbChannel.channelId,
-					sourcePostId: msgId,
+					groupId: dbChannel.groupId,
+					source: 'socNetImport:' + dbChannel.socNet,
+					sourceChannelId: dbChannel.channelId,
 					sourceDate: new Date(m.date * 1000),
-					replyToId: await this.getDbPostIdByMsgId(dbChannelId, properties.replyToMsgId),
-					repostOfId: await this.getDbPostIdByMsgId(dbChannelId, properties.repostOfMsgId),
-				}
-				console.log('postData', postData);
+				} as any;
 
-				let post = await this.publishPost(importState, existsChannelMessage, postData, {
-					dbChannelId,
-					userId,
-					msgId,
-					groupedId: m.groupedId ? m.groupedId.toString() : null,
-					timestamp: m.date,
-					replyToMsgId: properties.replyToMsgId
-				});
-				if (client.onRemotePostProcess) {
-					await client.onRemotePostProcess(m, post);
+				let msgId = m.id;
+				if (type === 'post') {
+					properties.repostOfMsgId = repostOfMsgId;
+					postData.repostOfId = repostOf ? repostOf.id : null;
+
+					if (postData.repostOfId) {
+
+					}
+				} else if (type === 'repost') {
+					msgId = repostOfMsgId;
+					repostOfDbChannel = dbChannel;
+
+					properties.replyToMsgId = replyToMsgId;
+					postData.replyToId = replyTo ? replyTo.id : null;
+				} else if (type === 'reply') {
+					msgId = replyToMsgId;
 				}
+				if (!msgId) {
+					return;
+				}
+				postData.sourcePostId = msgId;
+
+				const post = await this.checkExistMessageAndPublishPost(client, userId, postData, {...m, id: msgId}, dbChannel, importState, type);
+				if (type === 'reply') {
+					replyTo = post;
+				} else if (type === 'repost') {
+					repostOf = post;
+				}
+				console.log('❗️message', type, msgId, '=> post', post ? post.id : null);
+				return client.onRemotePostProcess ? await client.onRemotePostProcess(m, post, type) : null;
+			});
+		}
+
+		async checkExistMessageAndPublishPost(client, userId, postData, m, dbChannel, importState, type) {
+			const {force} = importState;
+
+			const existsChannelMessage = await this.findExistsChannelMessage(m.id, dbChannel.id, userId);
+			console.log('existsChannelMessage:', existsChannelMessage ? JSON.stringify(existsChannelMessage) : null)
+			if (existsChannelMessage && !force) {
+				return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null, type) : null;
+			}
+			postData.properties = {
+				sourceLink: await client.getRemotePostLink(dbChannel, m.id),
+				...await client.getRemotePostProperties(userId, dbChannel, m, type)
+			};
+			postData.contents = await client.getRemotePostContents(userId, dbChannel, m, type);
+			console.log('postData', postData);
+
+			return this.publishPost(importState, existsChannelMessage, postData, {
+				userId,
+				msgId: m.id,
+				dbChannelId: dbChannel.id,
+				groupedId: m.groupedId ? m.groupedId.toString() : null,
+				timestamp: m.date,
+				replyToMsgId: postData.properties.replyToMsgId,
+				repostOfMsgId: postData.properties.repostOfMsgId,
 			});
 		}
 
 		async publishPost(_importState, _existsChannelMessage, _postData, _msgData) {
 			const {mergeSeconds} = _importState;
-			const {userId} = _postData;
+			const {userId, replyToId, repostOfId} = _postData;
 			let existsPostId = _existsChannelMessage && _existsChannelMessage.postId;
 
-			if (!_postData.contents.length) {
+			if (!_postData.contents.length && !_postData.repostOfId) {
 				await this.storeMessage(_existsChannelMessage, _msgData);
 				return;
 			}
 
 			let postMessageIds = [_msgData.msgId];
 
-			if (mergeSeconds) {
+			if (mergeSeconds && !replyToId) {
 				const messagesByTimestamp = await models.Message.findAll({
 					where: {
-						dbChannelId: _msgData.dbChannelId, timestamp: {
+						dbChannelId: _msgData.dbChannelId, repostOfMsgId: _msgData.repostOfMsgId || null, timestamp: {
 							[Op.lte]: _msgData.timestamp + mergeSeconds,
 							[Op.gte]: _msgData.timestamp - mergeSeconds,
 						}
@@ -231,7 +270,8 @@ function getModule(app: IGeesomeApp, models) {
 				const messagesByGroupedId = await models.Message.findAll({
 					where: {
 						dbChannelId: _msgData.dbChannelId,
-						groupedId: _msgData.groupedId
+						groupedId: _msgData.groupedId,
+						repostOfMsgId: _msgData.repostOfMsgId || null
 					}
 				});
 				if (messagesByGroupedId.length) {
@@ -282,7 +322,8 @@ function getModule(app: IGeesomeApp, models) {
 			const {dbChannelId} = _importState;
 
 			const posts = await app.ms.group
-				.getPostListByIds(userId, groupId, postIds).then(posts => posts.filter(p => !p.isDeleted));
+				.getPostListByIds(userId, groupId, postIds)
+				.then(posts => posts.filter(p => !p.isDeleted));
 			if (!posts.length) {
 				return _existsPostId;
 			}
@@ -318,6 +359,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		storeMessage(existsChannelMessage, _messageData) {
+			console.log('storeMessage', JSON.stringify(_messageData));
 			if (existsChannelMessage && existsChannelMessage.msgId === _messageData.msgId) {
 				return models.Message.update(_messageData, {where: {id: existsChannelMessage.id}});
 			} else {
@@ -334,7 +376,7 @@ function getModule(app: IGeesomeApp, models) {
 		storeContentMessage(contentMessageData, content) {
 			console.log('storeContentMessage', contentMessageData, 'content.id', content.id);
 			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch((e) => {
-				console.error('models.ContentMessage.create', e);
+				console.error('models.ContentMessage.create', JSON.stringify(e.errors));
 			});
 		}
 

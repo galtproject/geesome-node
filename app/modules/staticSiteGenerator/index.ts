@@ -173,10 +173,10 @@ function getModule(app: IGeesomeApp, models) {
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
             // console.log('staticSite', staticSite);
-            if (staticSite && group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
-                console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
-                return app.ms.content.getContentByStorageId(staticSite.storageId);
-            }
+            // if (staticSite && group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
+            //     console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
+            //     return app.ms.content.getContentByStorageId(staticSite.storageId);
+            // }
             options = await this.getResultOptions(group, options);
 
             const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
@@ -188,22 +188,30 @@ function getModule(app: IGeesomeApp, models) {
             console.log('groupPosts.length', groupPosts.length);
 
             const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-                const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
-;
                 if (options.asyncOperationId && i % 10 === 0) {
                     await app.ms.asyncOperation.updateAsyncOperation(userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
                 }
-
+                console.log('postToObj', await postToObj(gp));
+                return postToObj(gp);
+            });
+            async function postToObj(gp) {
+                if (!gp) {
+                    return null;
+                }
+                const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
                 return {
                     id: gp.localId,
                     lang: options.lang,
                     contents: contents,
+                    group: gp.group ? _.pick(gp.group, ['name', 'title', 'manifestStorageId', 'manifestStaticStorageId', 'propertiesJson']) : null,
+                    replyTo: await postToObj(gp.replyTo),
+                    repostOf: await postToObj(gp.repostOf),
                     texts: contents.filter(c => c.type === 'text'),
                     images: contents.filter(c => c.type === 'image'),
                     videos: contents.filter(c => c.type === 'video'),
                     date: gp.publishedAt.getTime()
                 }
-            });
+            }
 
             const childProcessData = {
                 token: apiKeyIdToTokenTemp[userApiKeyId],
@@ -266,7 +274,7 @@ function getModule(app: IGeesomeApp, models) {
                 staticId = await app.ms.staticId.getOrCreateStaticAccountId(userId, name);
                 await app.ms.staticId.bindToStaticId(userId, staticSite.storageId, staticId);
             }
-            return this.updateDbStaticSite(staticSite.id, {staticId, name});
+            return this.updateDbStaticSite(staticSite.id, {staticId, storageId: staticSite.storageId, name});
         }
 
         async getStaticSiteInfo(userId, entityType, entityId) {
