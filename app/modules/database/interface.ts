@@ -76,6 +76,8 @@ export interface IGeesomeDatabaseModule {
 
   removeCorePermission(userId, permissionName): Promise<void>;
 
+  setCorePermissions(userId, permissionNames: string[]): Promise<void>;
+
   getCorePermissions(userId): Promise<ICorePermission[]>;
 
   isHaveCorePermission(userId, permissionName): Promise<boolean>;
