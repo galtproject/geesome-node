@@ -8,11 +8,7 @@
  */
 
 import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-	UserLimitName
-} from "../app/modules/database/interface";
+import {ContentView, CorePermissionName, UserLimitName} from "../app/modules/database/interface";
 import {PostStatus} from "../app/modules/group/interface";
 
 const ipfsHelper = require("geesome-libs/src/ipfsHelper");
@@ -159,6 +155,30 @@ describe("app", function () {
 		assert.equal(byIncorrectPassword, null);
 		byCorrectPassword = await app.loginPassword('new-admin', 'new-pass')
 		assert.equal(byCorrectPassword.id, adminUser.id);
+	});
+
+	it('should correctly set permissions', async () => {
+		const permissionsTestUser = await app.registerUser({
+			email: 'user-permissions@user.com',
+			name: 'user-permissions',
+			permissions: [CorePermissionName.UserSaveData, CorePermissionName.UserApiKeyManagement]
+		});
+
+		let permissions = await app.ms.database.getCorePermissions(permissionsTestUser.id);
+
+		assert.equal(permissions.length, 2);
+		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserSaveData).length, 1);
+		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserApiKeyManagement).length, 1);
+
+		await app.ms.database.setCorePermissions(permissionsTestUser.id, [CorePermissionName.UserSaveData, CorePermissionName.UserFileCatalogManagement, CorePermissionName.UserGroupManagement]);
+
+		permissions = await app.ms.database.getCorePermissions(permissionsTestUser.id);
+
+		assert.equal(permissions.length, 3);
+		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserSaveData).length, 1);
+		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserApiKeyManagement).length, 0);
+		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserFileCatalogManagement).length, 1);
+		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserGroupManagement).length, 1);
 	});
 
 	it('should correctly save data with only save permission', async () => {
