@@ -277,6 +277,23 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return this.models.CorePermission.destroy({where: {userId, name: permissionName}})
   }
 
+  async setCorePermissions(userId, permissionNameList) {
+    const allUserPermissions = await this.getCorePermissions(userId);
+    const existPermissions = {};
+    const permissionsToDestroy = allUserPermissions.filter(p => {
+      existPermissions[p.name] = true;
+      return !_.includes(permissionNameList, p.name);
+    });
+
+    await pIteration.forEach(permissionsToDestroy, (p) => p.destroy());
+
+    return pIteration.forEach(permissionNameList, name => {
+      if (!existPermissions[name]) {
+        return this.addCorePermission(userId, name);
+      }
+    });
+  }
+
   async getCorePermissions(userId) {
     return this.models.CorePermission.findAll({where: {userId}})
   }

@@ -186,11 +186,8 @@ function getModule(config, appPass) {
       });
 
       if (userData.permissions && userData.permissions.length) {
-        await pIteration.forEach(userData.permissions, (permissionName) => {
-          return this.ms.database.addCorePermission(newUser.id, permissionName);
-        });
+        await this.ms.database.setCorePermissions(newUser.id, userData.permissions);
       }
-
       return this.ms.database.getUser(newUser.id);
     }
 
