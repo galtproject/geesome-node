@@ -139,13 +139,6 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(await app.ms.database.addCorePermission(req.body.userId, req.body.permissionName));
 	});
 
-	module.onAuthorizedPost('admin/permissions/core/set_permissions', async (req, res) => {
-		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
-			return res.send(403);
-		}
-		res.send(await app.ms.database.removeCorePermission(req.body.userId, req.body.permissionName));
-	});
-
 	module.onAuthorizedPost('admin/permissions/core/remove_permission', async (req, res) => {
 		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
 			return res.send(403);
