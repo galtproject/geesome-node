@@ -455,12 +455,13 @@ function getModule(app: IGeesomeApp) {
 					const startPost = currentMessageId + 1;
 					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
 					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
+					console.log('messages.authorById', JSON.stringify(messages.authorById), 'messages.list', JSON.stringify(messages.list));
 
 					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, post, type) => {
-						console.log('onMessageProcess', type, m.id.toString());
-						if (type !== 'post') {
+						if (type !== 'post' || !m) {
 							return;
 						}
+						console.log('onMessageProcess', type, m.id.toString());
 						currentMessageId = parseInt(m.id.toString());
 						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
 						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);

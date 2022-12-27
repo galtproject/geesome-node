@@ -2,6 +2,7 @@ import IGeesomeTelegramClient from "./interface";
 import IGeesomeSocNetImport, {ISocNetDbChannel} from "../socNetImport/interface";
 
 const telegramHelpers = require('./helpers');
+const clone = require('lodash/clone');
 
 export class TelegramImportClient {
 	socNet = 'telegram';
@@ -82,23 +83,27 @@ export class TelegramImportClient {
 		const {fwdFrom} = m;
 		return this.getDbChannelByFwdFrom(fwdFrom);
 	}
+	async getReplyMessage(dbChannel, m) {
+		if (m.replyTo) {
+			const {replyToMsgId} = m.replyTo;
+			const {result: messages} = await this.telegramClient.getMessagesByClient(this.connectClient, dbChannel.channelId, [replyToMsgId]);
+			return messages.list[0];
+		} else {
+			return null;
+		}
+	}
+	async getRepostMessage(dbChannel, m) {
+		m = clone(m);
+		m.id = m.fwdFrom ? m.fwdFrom.channelPost || 1 : null;
+		delete m.fwdFrom;
+		return m;
+	}
 	async getRemotePostContents (userId, dbChannel, m, type) {
-		if (type === 'post') {
-			return m.fwdFrom ? [] : this.telegramClient.messageToContents(this.connectClient, userId, dbChannel, m);
+		if (type === 'post' && m.fwdFrom) {
+			return [];
 		}
-		if (type === 'repost') {
-			return m.fwdFrom ? this.telegramClient.messageToContents(this.connectClient, userId, dbChannel, m) : [];
-		}
-		if (type === 'reply') {
-			if (m.replyTo) {
-				const {replyToMsgId} = m.replyTo;
-				const {result: messages} = await this.telegramClient.getMessagesByClient(this.connectClient, dbChannel.channelId, [replyToMsgId]);
-				return this.telegramClient.messageToContents(this.connectClient, userId, dbChannel, messages.list[0]);
-			} else {
-				return [];
-			}
-		}
-		return [];
+		console.log("getRemotePostContents", m);
+		return this.telegramClient.messageToContents(this.connectClient, userId, dbChannel, m);
 	}
 	getRemotePostProperties (userId, dbChannel, m) {
 		//TODO: get forward from username and id

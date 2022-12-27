@@ -95,6 +95,9 @@ module.exports = async function () {
 	Message.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
 	Channel.hasMany(Message, {as: 'messages', foreignKey: 'dbChannelId'});
 
+	Message.belongsTo(Channel, {as: 'repostOfChannel', foreignKey: 'repostOfDbChannelId'});
+	Channel.hasMany(Message, {as: 'repostedMessages', foreignKey: 'repostOfDbChannelId'});
+
 	ContentMessage.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
 	Channel.hasMany(ContentMessage, {as: 'contentMessages', foreignKey: 'dbChannelId'});
 

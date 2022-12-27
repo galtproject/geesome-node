@@ -35,6 +35,8 @@ export interface IGeesomeSocNetImportClient {
 	getRemotePostContents(userId, dbChannel, m, type): Promise<IContent[]>;
 	getRemotePostProperties(userId, dbChannel, m, type): Promise<any>;
 	onRemotePostProcess(m, post: IPost, type);
+	getReplyMessage(dbChannel, m): Promise<any>
+	getRepostMessage(dbChannel, m): Promise<any>
 }
 
 export interface ISocNetDbChannel {

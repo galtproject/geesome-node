@@ -34,4 +34,6 @@ export default interface IGeesomeTelegramClient {
 	storeToChannelDbByType(client, userId, type, storeId, isCollateral?): Promise<{dbChannel}>
 
 	storeObjToChannelDbByType(client, userId, type, storeObj, isCollateral?): Promise<{dbChannel}>
+
+	getMessage(dbChannel, m): Promise<any>
 }

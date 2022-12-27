@@ -16,6 +16,7 @@ import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
 import {PostStatus} from "../app/modules/group/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
+import {TelegramImportClient} from "../app/modules/telegramClient/importClient";
 
 const pIteration = require('p-iteration');
 
@@ -1376,7 +1377,8 @@ describe("telegramClient", function () {
 		assert.equal(await app.ms.storage.getFileDataText(contents2[0].storageId), '222');
 	});
 
-	it.only('should get reply info from anonymous forward', async () => {
+	//TODO: rework test
+	it.skip('should get reply info from anonymous forward', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
@@ -1460,9 +1462,89 @@ describe("telegramClient", function () {
 		assert.equal(repostContents.length, 1);
 	});
 
-	//{"id":15,"replyTo":null,"fwdFrom":{"flags":5,"imported":false,"fromId":{"channelId":"1396915475"},"fromName":null,"date":1664116202,"channelPost":483,"postAuthor":null,"savedFromPeer":null,"savedFromMsgId":null,"psaType":null},"date":1664116211,"message":"test 2","entities":null,"media":null,"groupedId":null}
-	//{"id":16,"replyTo":null,"fwdFrom":{"flags":5,"imported":false,"fromId":{"channelId":"1628711649"},"fromName":null,"date":1664116228,"channelPost":496,"postAuthor":null,"savedFromPeer":null,"savedFromMsgId":null,"psaType":null},"date":1664116233,"message":"test 3","entities":null,"media":null,"groupedId":null}
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
+		const messages = {
+			list: [
+				{"id":9,"replyTo":null,"fwdFrom":null,"date":1671714854,"message":"test 1","entities":null,"media":null,"groupedId":null},
+				{"id":10,"replyTo":null,"fwdFrom":null,"date":1671714855,"message":"test 2","entities":null,"media":null,"groupedId":null},
+				{"id":11,"replyTo":{"flags":2,"replyToMsgId":8,"replyToPeerId":null,"replyToTopId":6},"fwdFrom":null,"date":1671714860,"message":"test 3","entities":null,"media":null,"groupedId":null},
+				{"id":12,"replyTo":null,"fwdFrom":null,"date":1671714862,"message":"test 4","entities":null,"media":null,"groupedId":null}
+			],
+		};
+		const advancedSettings = {mergeSeconds: 5};
+		const channel = await socNetImport.createDbChannel({ userId: testUser.id, groupId: testGroup.id, channelId: 1, title: "1", lastMessageId: 0, postsCounts: 0 });
+
+		const tgImportClient = new TelegramImportClient(null, telegramClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
+		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+		telegramClient['getMessagesByClient'] = async () => {
+			return {result: {list: [{"id":8,"replyTo":null,"fwdFrom":null,"date":1671713854,"message":"test 0","entities":null,"media":null,"groupedId":null}]}} as any;
+		};
+
+		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+
+		const postDataBySourceId = {
+			8: { groupedMsgIds: undefined, contents: ['test 0'] },
+			10: { groupedMsgIds: ["9","10"], contents: ['test 1', 'test 2'] },
+			11: { groupedMsgIds: undefined, contents: ['test 3'], replyToMsgId: 8 },
+			12: { groupedMsgIds: undefined, contents: ['test 4'] }
+		}
+		assert.equal(groupPosts.length, 4);
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+		})
+	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const messages = {
+			list: [
+				{"id":6,"replyTo":null,"fwdFrom":{"flags":5,"imported":false,"fromId":{"channelId":"1197285959"},"fromName":null,"date":1665757679,"channelPost":2520,"postAuthor":null,"savedFromPeer":null,"savedFromMsgId":null,"psaType":null},"date":1665757707,"message":"Repost from private channel","entities":null,"media":null,"groupedId":null},
+				{"id":7,"replyTo":{"flags":0,"replyToMsgId":6,"replyToPeerId":null,"replyToTopId":null},"fwdFrom":{"flags":5,"imported":false,"fromId":{"channelId":"1197285959"},"fromName":null,"date":1665757701,"channelPost":2521,"postAuthor":null,"savedFromPeer":null,"savedFromMsgId":null,"psaType":null},"date":1665757707,"message":"Reply from private channel","entities":null,"media":null,"groupedId":null},
+				{"id":8,"replyTo":{"flags":2,"replyToMsgId":7,"replyToPeerId":null,"replyToTopId":6},"fwdFrom":null,"date":1665757722,"message":"reply to reply","entities":null,"media":null,"groupedId":null},
+			],
+			authorById: {"136817688":{"flags":33570859,"self":false,"contact":false,"mutualContact":false,"deleted":false,"bot":true,"botChatHistory":false,"botNochats":false,"verified":false,"restricted":false,"min":false,"botInlineGeo":false,"support":false,"scam":false,"applyMinPhoto":true,"fake":false,"id":"136817688","accessHash":"7446835122123657915","firstName":"Channel","lastName":null,"username":"Channel_Bot","phone":null,"photo":{"flags":2,"hasVideo":false,"photoId":"587627495930570665","strippedThumb":{"type":"Buffer","data":[1,8,8,177,242,249,95,237,103,52,81,69,112,51,173,31]},"dcId":1},"status":null,"botInfoVersion":4,"restrictionReason":null,"botInlinePlaceholder":null,"langCode":null},"1197285959":{"flags":24609,"creator":true,"left":false,"broadcast":true,"verified":false,"megagroup":false,"restricted":false,"signatures":false,"min":false,"scam":false,"hasLink":false,"hasGeo":false,"slowmodeEnabled":false,"callActive":false,"callNotEmpty":false,"fake":false,"gigagroup":false,"noforwards":false,"id":"1197285959","accessHash":"-3234143468344367843","title":"Контент Микроволновки","username":null,"photo":{},"date":1619725900,"restrictionReason":null,"adminRights":{"flags":6847,"changeInfo":true,"postMessages":true,"editMessages":true,"deleteMessages":true,"banUsers":true,"inviteUsers":true,"pinMessages":true,"addAdmins":true,"anonymous":false,"manageCall":true,"other":true},"bannedRights":null,"defaultBannedRights":null,"participantsCount":null},"1844974974":{"flags":24609,"creator":true,"left":false,"broadcast":true,"verified":false,"megagroup":false,"restricted":false,"signatures":false,"min":false,"scam":false,"hasLink":false,"hasGeo":false,"slowmodeEnabled":false,"callActive":false,"callNotEmpty":false,"fake":false,"gigagroup":false,"noforwards":false,"id":"1844974974","accessHash":"-7778418840942769051","title":"test import","username":null,"photo":{},"date":1665757604,"restrictionReason":null,"adminRights":{"flags":6847,"changeInfo":true,"postMessages":true,"editMessages":true,"deleteMessages":true,"banUsers":true,"inviteUsers":true,"pinMessages":true,"addAdmins":true,"anonymous":false,"manageCall":true,"other":true},"bannedRights":null,"defaultBannedRights":null,"participantsCount":null}}
+		};
+		const advancedSettings = {mergeSeconds: 5};
+		const channel = await socNetImport.createDbChannel({ userId: testUser.id, groupId: testGroup.id, channelId: 1, title: "1", lastMessageId: 0, postsCounts: 0 });
+
+		const tgImportClient = new TelegramImportClient({account: {}}, telegramClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
+		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
+			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
+		};
+
+		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+
+		const postDataBySourceId = {
+			8: { groupedMsgIds: undefined, replyToMsgId: 7, contents: ['reply to reply'], repostContents: [] },
+			6: { groupedMsgIds: undefined, repostOfMsgId: 2520, contents: [], repostContents: ['Repost from private channel'] },
+			7: { groupedMsgIds: undefined, replyToMsgId: 6, repostOfMsgId: 2521, contents: [], repostContents: ['Reply from private channel'] },
+		}
+		assert.equal(groupPosts.length, 3);
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+			assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
+		})
+	});
 });
 
 function _base64ToArrayBuffer(base64) {
