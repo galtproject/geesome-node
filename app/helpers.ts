@@ -6,6 +6,7 @@ const fs = require('fs');
 const saltRounds = 10;
 const commonHelper = require('geesome-libs/src/common');
 const cryptoJS = require("crypto-js");
+const createKeccakHash = require('keccak');
 
 module.exports = {
 	validateEmail(email) {
@@ -14,6 +15,20 @@ module.exports = {
 
 	validateUsername(username) {
 		return /^\w+([\.-]?\w)+$/.test(username) && username.length <= 42;
+	},
+
+	keccak(text) {
+		return createKeccakHash('keccak256').update(text).digest('hex');
+	},
+
+	base64ToArrayBuffer(base64) {
+		let binary_string = atob(base64);
+		let len = binary_string.length;
+		let bytes = new Uint8Array(len);
+		for (let i = 0; i < len; i++) {
+			bytes[i] = binary_string.charCodeAt(i);
+		}
+		return bytes;
 	},
 
 	async hashPassword(password) {

@@ -3,6 +3,7 @@ import IGeesomeSocNetImport, {ISocNetDbChannel} from "../socNetImport/interface"
 
 const telegramHelpers = require('./helpers');
 const clone = require('lodash/clone');
+const helpers = require('../../helpers');
 
 export class TelegramImportClient {
 	socNet = 'telegram';
@@ -93,8 +94,11 @@ export class TelegramImportClient {
 		}
 	}
 	async getRepostMessage(dbChannel, m) {
+		if (!m.fwdFrom) {
+			return null;
+		}
 		m = clone(m);
-		m.id = m.fwdFrom ? m.fwdFrom.channelPost || 1 : null;
+		m.id = m.fwdFrom.channelPost ? m.fwdFrom.channelPost : helpers.keccak(JSON.stringify(m));
 		delete m.fwdFrom;
 		return m;
 	}
@@ -145,6 +149,7 @@ export class TelegramImportClient {
 		console.log('setChannelAuthorAndReturn', type, tgId);
 		tgId = tgId.toString();
 		if (!this.channelByAuthorId[tgId]) {
+			console.log('authorById', this.authorById);
 			if (this.authorById[tgId]) {
 				this.channelByAuthorId[tgId] = await this.telegramClient.storeObjToChannelDbByType(this.connectClient, this.userId, type, this.authorById[tgId], true).then(r => r.dbChannel);
 			} else {

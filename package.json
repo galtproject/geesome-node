@@ -59,6 +59,7 @@
     "http-proxy-agent": "^2.1.0",
     "ipfs": "0.54.4",
     "ipfs-http-client": "^50.1.2",
+    "keccak": "^3.0.3",
     "lodash": "^4.17.13",
     "markdown-it": "^12.2.0",
     "mime": "1.6.0",

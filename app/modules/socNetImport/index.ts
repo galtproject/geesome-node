@@ -219,7 +219,10 @@ function getModule(app: IGeesomeApp, models) {
 			const existsChannelMessage = await this.findExistsChannelMessage(m.id, dbChannel.id, userId);
 			console.log('existsChannelMessage:', existsChannelMessage ? JSON.stringify(existsChannelMessage) : null)
 			if (existsChannelMessage && !force) {
-				return client.onRemotePostProcess ? await client.onRemotePostProcess(m, null, type) : null;
+				const post = await app.ms.group.getPost(userId, existsChannelMessage.postId);
+				// console.log('post:', JSON.stringify(post));
+				client.onRemotePostProcess ? await client.onRemotePostProcess(m, post, type) : null;
+				return post;
 			}
 			postData.properties = {
 				sourceLink: await client.getRemotePostLink(dbChannel, m.id),
