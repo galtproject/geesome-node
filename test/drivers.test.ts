@@ -218,7 +218,8 @@ describe("drivers", function () {
   });
 
   describe('preview gif-thumbnail', () => {
-    it("should get gif screenshot correctly", async () => {
+    //TODO: make the source to download gif for test
+    it.skip("should get gif screenshot correctly", async () => {
       await new Promise(async (resolve, reject) => {
         const gifPath = await resourcesHelper.prepare('test-gif.gif');
         const result = await drivers['preview']['gif'].processByPath(gifPath, {
