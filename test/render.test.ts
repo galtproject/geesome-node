@@ -93,6 +93,7 @@ describe("renders", function () {
 		assert.equal(includes(staticSiteContent2, "Test 2 post"), true);
 		assert.equal(includes(staticSiteContent2, "Test 2 group"), true);
 
+		console.log('generateStaticSiteAndGetContent end')
 		async function addTextPostToGroup(group, text) {
 			const post1Content = await app.ms.content.saveData(testUser.id, text, null, {
 				mimeType: 'text/html'
@@ -114,15 +115,15 @@ describe("renders", function () {
 				postList: defaultOptions.postList,
 			});
 
-			while (userOperationQueue.isWaiting) {
+			do {
 				await new Promise((resolve) => setTimeout(resolve, 1000));
 				userOperationQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, userOperationQueue.id);
-			}
+			} while (userOperationQueue.isWaiting)
 
-			group = await app.ms.group.getLocalGroup(testUser.id, group.id);
-			const {staticSiteManifestStorageId} = JSON.parse(group.propertiesJson);
-			const storageId = await app.ms.storage.getObjectProp(staticSiteManifestStorageId, 'storageId');
-			return app.ms.storage.getFileDataText(storageId + '/index.html');
+			console.log('staticSiteGenerator.getStaticSiteInfo');
+			const staticSiteInfo = await staticSiteGenerator.getStaticSiteInfo(testUser.id, 'group', group.id);
+			console.log('staticSiteInfo', staticSiteInfo);
+			return app.ms.storage.getFileDataText(staticSiteInfo.storageId + '/index.html');
 		}
 	});
 

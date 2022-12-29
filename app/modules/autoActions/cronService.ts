@@ -107,7 +107,7 @@ export default class CronService {
 
 	async executeAction(a: IAutoAction, rootActionId = null): Promise<{result?, success}> {
 		const module = this.app.ms[a.moduleName];
-		if (!module.isAutoActionAllowed) {
+		if (!module || !module.isAutoActionAllowed) {
 			console.error('executeAction', a.id, 'module_dont_support_auto_actions');
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('module_dont_support_auto_actions'), rootActionId);
 			return {success: false};

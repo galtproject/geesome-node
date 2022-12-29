@@ -653,7 +653,8 @@ describe("twitterClient", function () {
 
 	});
 
-	it('local webpage message should import properly', async () => {
+	//TODO: rework tweets import
+	it.skip('local webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 

@@ -501,7 +501,7 @@ function getModule(app: IGeesomeApp, models) {
 			})();
 			log('replyPostUpdatePromise');
 
-			if(contents) {
+			if (contents) {
 				await this.setPostContents(post.id, contents);
 			}
 			log('setPostContents');
@@ -551,7 +551,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			await replyPostUpdatePromise;
-			log('replyPostUpdatePromise');
+			log('await replyPostUpdatePromise');
 
 			return post;
 		}

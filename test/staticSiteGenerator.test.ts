@@ -77,7 +77,7 @@ describe("staticSiteGenerator", function () {
 			descriptionLength: 156
 		})
 		assert.equal(title, 'Кто плюсист? https://en.wikipedia.org/wiki/C%2B%2B20');
-		assert.equal(description, '<i>Language<br/>concepts[6], with terse syntax.[7]<br/>modules[8]...</i>');
+		assert.equal(description, '<i>Language<br/>concepts[6], with terse syntax.[7]<br/>modules[8]<br/>Library<br/>ranges (The One Ranges Proposal)[35]</i>');
 	});
 
 	it('zero title and description should working properly', async () => {
