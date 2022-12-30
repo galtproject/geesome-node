@@ -48,12 +48,6 @@ export class TelegramImportClient {
 		}
 		return this.msgLinkTplByAccountId[channelId] ? this.msgLinkTplByAccountId[channelId].replace('{msgId}', _msgId) : null;
 	}
-	getRemotePostReplyToMsgId(m) {
-		return telegramHelpers.getReplyToId(m);
-	}
-	getRemotePostRepostOfMsgId(m) {
-		return telegramHelpers.getForwardMsgId(m);
-	}
 	async getRemotePostDbChannel (m, type = 'post') {
 		if(!m || !m.date) {
 			return null;

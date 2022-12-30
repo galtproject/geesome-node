@@ -16,9 +16,9 @@ import IGeesomeTwitterClient from "../app/modules/twitterClient/interface";
 import {PostStatus} from "../app/modules/group/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
+import {TelegramImportClient} from "../app/modules/telegramClient/importClient";
 
 const twitterHelpers = require('../app/modules/twitterClient/helpers');
-
 const assert = require('assert');
 
 describe("twitterClient", function () {
@@ -85,47 +85,16 @@ describe("twitterClient", function () {
 	//{"entities":{"hashtags":[{"start":0,"end":7,"tag":"shitUX"}],"annotations":[{"start":11,"end":21,"probability":0.3696,"type":"Product","normalized_text":"Google maps"}],"urls":[{"start":267,"end":290,"url":"https://t.co/MNwZoHsqcY","expanded_url":"https://twitter.com/jony_bang/status/1228369054949396482/photo/1","display_url":"pic.twitter.com/MNwZoHsqcY","media_key":"3_1228369041208811520"},{"start":267,"end":290,"url":"https://t.co/MNwZoHsqcY","expanded_url":"https://twitter.com/jony_bang/status/1228369054949396482/photo/1","display_url":"pic.twitter.com/MNwZoHsqcY","media_key":"3_1228369048309768198"}]},"context_annotations":[{"domain":{"id":"30","name":"Entities [Entity Service]","description":"Entity Service top level domain, every item that is in Entity Service should be in this domain"},"entity":{"id":"781974596752842752","name":"Services"}},{"domain":{"id":"47","name":"Brand","description":"Brands and Companies"},"entity":{"id":"10026378521","name":"Google "}},{"domain":{"id":"48","name":"Product","description":"Products created by Brands.  Examples: Ford Explorer, Apple iPhone."},"entity":{"id":"1006154112021377024","name":"Google Maps","description":"Google Maps"}},{"domain":{"id":"67","name":"Interests and Hobbies","description":"Interests, opinions, and behaviors of individuals, groups, or cultures; like Speciality Cooking or Theme Parks"},"entity":{"id":"1037076248877395968","name":"GPS and maps","description":"GPS & Maps"}},{"domain":{"id":"30","name":"Entities [Entity Service]","description":"Entity Service top level domain, every item that is in Entity Service should be in this domain"},"entity":{"id":"781974596752842752","name":"Services"}},{"domain":{"id":"47","name":"Brand","description":"Brands and Companies"},"entity":{"id":"10026378521","name":"Google "}},{"domain":{"id":"48","name":"Product","description":"Products created by Brands.  Examples: Ford Explorer, Apple iPhone."},"entity":{"id":"10043701926","name":"Google Maps"}},{"domain":{"id":"131","name":"Unified Twitter Taxonomy","description":"A taxonomy view into the Semantic Core knowledge graph"},"entity":{"id":"10026378521","name":"Google "}}],"author_id":"3142378517","created_at":"2020-02-14T17:22:59.000Z","possibly_sensitive":false,"lang":"en","attachments":{"media_keys":["3_1228369041208811520","3_1228369048309768198"]},"source":"Twitter for Android","reply_settings":"everyone","conversation_id":"1228369054949396482","text":"#shitUX in Google maps.\nThey changed buttons placement, and now - in the most convenient place you can find menu with settings, account management and so on. How many times user should press that menu button? I don't think that often. So why it placed in that place? https://t.co/MNwZoHsqcY","id":"1228369054949396482"}
 	//{"id":"1296972062662234112","entities":{"urls":[{"start":13,"end":36,"url":"https://t.co/YLaRuCVX7F","expanded_url":"https://twitter.com/galtproject/status/1296887930074607616","display_url":"twitter.com/galtproject/st…"}]},"referenced_tweets":[{"type":"quoted","id":"1296887930074607616"}],"context_annotations":[{"domain":{"id":"45","name":"Brand Vertical","description":"Top level entities that describe a Brands industry"},"entity":{"id":"781974596148793345","name":"Business & finance"}},{"domain":{"id":"30","name":"Entities [Entity Service]","description":"Entity Service top level domain, every item that is in Entity Service should be in this domain"},"entity":{"id":"781974596794716162","name":"Financial services"}},{"domain":{"id":"30","name":"Entities [Entity Service]","description":"Entity Service top level domain, every item that is in Entity Service should be in this domain"},"entity":{"id":"1007361429752594432","name":"Ethereum cryptocurrency","description":"Ethereum Cryptocurrency"}},{"domain":{"id":"65","name":"Interests and Hobbies Vertical","description":"Top level interests and hobbies groupings, like Food or Travel"},"entity":{"id":"781974596148793345","name":"Business & finance"}},{"domain":{"id":"66","name":"Interests and Hobbies Category","description":"A grouping of interests and hobbies entities, like Novelty Food or Destinations"},"entity":{"id":"847888632711061504","name":"Personal finance","description":"Personal finance"}},{"domain":{"id":"30","name":"Entities [Entity Service]","description":"Entity Service top level domain, every item that is in Entity Service should be in this domain"},"entity":{"id":"857879456773357569","name":"Technology","description":"Technology"}},{"domain":{"id":"66","name":"Interests and Hobbies Category","description":"A grouping of interests and hobbies entities, like Novelty Food or Destinations"},"entity":{"id":"913142676819648512","name":"Cryptocurrencies","description":"Cryptocurrency"}},{"domain":{"id":"30","name":"Entities [Entity Service]","description":"Entity Service top level domain, every item that is in Entity Service should be in this domain"},"entity":{"id":"1001503516555337728","name":"Blockchain","description":"Blockchain"}},{"domain":{"id":"131","name":"Unified Twitter Taxonomy","description":"A taxonomy view into the Semantic Core knowledge graph"},"entity":{"id":"781974596148793345","name":"Business & finance"}},{"domain":{"id":"131","name":"Unified Twitter Taxonomy","description":"A taxonomy view into the Semantic Core knowledge graph"},"entity":{"id":"913142676819648512","name":"Cryptocurrencies","description":"Cryptocurrency"}},{"domain":{"id":"131","name":"Unified Twitter Taxonomy","description":"A taxonomy view into the Semantic Core knowledge graph"},"entity":{"id":"1007361429752594432","name":"Ethereum cryptocurrency","description":"Ethereum Cryptocurrency"}},{"domain":{"id":"65","name":"Interests and Hobbies Vertical","description":"Top level interests and hobbies groupings, like Food or Travel"},"entity":{"id":"781974596148793345","name":"Business & finance"}},{"domain":{"id":"66","name":"Interests and Hobbies Category","description":"A grouping of interests and hobbies entities, like Novelty Food or Destinations"},"entity":{"id":"847888632711061504","name":"Personal finance","description":"Personal finance"}},{"domain":{"id":"67","name":"Interests and Hobbies","description":"Interests, opinions, and behaviors of individuals, groups, or cultures; like Speciality Cooking or Theme Parks"},"entity":{"id":"847894737281470464","name":"Real estate","description":"Real estate"}},{"domain":{"id":"131","name":"Unified Twitter Taxonomy","description":"A taxonomy view into the Semantic Core knowledge graph"},"entity":{"id":"847894737281470464","name":"Real estate","description":"Real estate"}}],"lang":"en","reply_settings":"everyone","possibly_sensitive":false,"source":"Twitter for Android","author_id":"3142378517","created_at":"2020-08-22T00:46:50.000Z","text":"We did it! 🎉 https://t.co/YLaRuCVX7F","conversation_id":"1296972062662234112"}
 	const includes = {
-		"users": [{
-			"username": "MicrowaveDev",
-			"id": "3142378517",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/1465436672942878726/FQc-4TP__normal.jpg",
-			"name": "Microwave Dev"
-		}, {
-			"username": "sparkpool_eth",
-			"id": "955345726858452992",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/1143714781666217984/aUVasr8L_normal.png",
-			"name": "SparkPool"
-		}, {
-			"username": "IliaAskey",
-			"id": "846770450462072833",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/941128141115936768/LpKoSTDZ_normal.jpg",
-			"name": "Ilia Askey"
-		}, {
-			"username": "galtproject",
-			"id": "1041654490523287552",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/1163710784377110529/LZCq11V4_normal.jpg",
-			"name": "Galt Project"
-		}, {
-			"username": "mudgen",
-			"id": "6078352",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/1449724448614109189/lk5uULBG_normal.jpg",
-			"name": "Nick Mudge 💎"
-		}, {
-			"username": "UR_LYING_MORGAN",
-			"id": "783283130958569472",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/1458073873937747976/7FLDP6xZ_normal.jpg",
-			"name": "метатель кабанчиков"
-		}, {
-			"username": "vasa_develop",
-			"id": "893875627916378112",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/935095664165339136/ZL_MUi2U_normal.jpg",
-			"name": "vasa"
-		}, {
-			"username": "zeligenm",
-			"id": "781435180800176128",
-			"profile_image_url": "https://pbs.twimg.com/profile_images/1358412570881892354/8xHb-Nym_normal.jpg",
-			"name": "Maria Zeligen"
-		}],
+		"users": [
+			{"username": "MicrowaveDev", "id": "3142378517", "profile_image_url": "https://pbs.twimg.com/profile_images/1465436672942878726/FQc-4TP__normal.jpg", "name": "Microwave Dev"},
+			{"username": "sparkpool_eth", "id": "955345726858452992", "profile_image_url": "https://pbs.twimg.com/profile_images/1143714781666217984/aUVasr8L_normal.png", "name": "SparkPool"},
+			{"username": "IliaAskey", "id": "846770450462072833", "profile_image_url": "https://pbs.twimg.com/profile_images/941128141115936768/LpKoSTDZ_normal.jpg", "name": "Ilia Askey"},
+			{"username": "galtproject", "id": "1041654490523287552", "profile_image_url": "https://pbs.twimg.com/profile_images/1163710784377110529/LZCq11V4_normal.jpg", "name": "Galt Project"},
+			{"username": "mudgen", "id": "6078352", "profile_image_url": "https://pbs.twimg.com/profile_images/1449724448614109189/lk5uULBG_normal.jpg", "name": "Nick Mudge 💎"},
+			{"username": "UR_LYING_MORGAN", "id": "783283130958569472", "profile_image_url": "https://pbs.twimg.com/profile_images/1458073873937747976/7FLDP6xZ_normal.jpg", "name": "метатель кабанчиков"},
+			{"username": "vasa_develop", "id": "893875627916378112", "profile_image_url": "https://pbs.twimg.com/profile_images/935095664165339136/ZL_MUi2U_normal.jpg", "name": "vasa"},
+			{"username": "zeligenm", "id": "781435180800176128", "profile_image_url": "https://pbs.twimg.com/profile_images/1358412570881892354/8xHb-Nym_normal.jpg", "name": "Maria Zeligen"}
+		],
 		"tweets": [
 			{
 				"author_id": "955345726858452992",
@@ -141,14 +110,7 @@ describe("twitterClient", function () {
 				"text": "2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share. https://t.co/NY6CGB7WtB",
 				"id": "1395662836840288261",
 				"entities": {
-					"urls": [{
-						"start": 92,
-						"end": 115,
-						"url": "https://t.co/NY6CGB7WtB",
-						"expanded_url": "https://twitter.com/sparkpool_eth/status/1395662836840288261/photo/1",
-						"display_url": "pic.twitter.com/NY6CGB7WtB",
-						"media_key": "3_1395662829345132544"
-					}]
+					"urls": [{"start": 92, "end": 115, "url": "https://t.co/NY6CGB7WtB", "expanded_url": "https://twitter.com/sparkpool_eth/status/1395662836840288261/photo/1", "display_url": "pic.twitter.com/NY6CGB7WtB", "media_key": "3_1395662829345132544"}]
 				}
 			},
 			{
@@ -163,48 +125,21 @@ describe("twitterClient", function () {
 				"text": "LOL WTF?! THat's the house I used to live in! (not first floor though), but OMFG THE WORLD IS SO SMALL!!! Поздравляю, Жека =D https://t.co/05VGyxiyK8",
 				"id": "1297041073445928960",
 				"entities": {
-					"urls": [{
-						"start": 126,
-						"end": 149,
-						"url": "https://t.co/05VGyxiyK8",
-						"expanded_url": "https://twitter.com/MicrowaveDev/status/1296972062662234112",
-						"display_url": "twitter.com/MicrowaveDev/s…"
-					}]
+					"urls": [{"start": 126, "end": 149, "url": "https://t.co/05VGyxiyK8", "expanded_url": "https://twitter.com/MicrowaveDev/status/1296972062662234112", "display_url": "twitter.com/MicrowaveDev/s…"}]
 				}
 			},
 			{
 				"entities": {
-					"hashtags": [{"start": 211, "end": 220, "tag": "Ethereum"}, {
-						"start": 221,
-						"end": 230,
-						"tag": "proptech"
-					}, {"start": 231, "end": 235, "tag": "DAO"}],
-					"mentions": [{
-						"start": 29,
-						"end": 41,
-						"username": "galtproject",
-						"id": "1041654490523287552"
-					}, {"start": 46, "end": 56, "username": "xdaichain", "id": "1448922864380416006"}, {
-						"start": 182,
-						"end": 192,
-						"username": "xdaichain",
-						"id": "1448922864380416006"
-					}],
-					"urls": [{
-						"start": 236,
-						"end": 259,
-						"url": "https://t.co/toAO8u2UR2",
-						"expanded_url": "https://twitter.com/galtproject/status/1296887930074607616/photo/1",
-						"display_url": "pic.twitter.com/toAO8u2UR2",
-						"media_key": "3_1296887923065917441"
-					}, {
-						"start": 236,
-						"end": 259,
-						"url": "https://t.co/toAO8u2UR2",
-						"expanded_url": "https://twitter.com/galtproject/status/1296887930074607616/photo/1",
-						"display_url": "pic.twitter.com/toAO8u2UR2",
-						"media_key": "3_1296887923045011458"
-					}]
+					"hashtags": [{"start": 211, "end": 220, "tag": "Ethereum"}, {"start": 221,"end": 230,"tag": "proptech"}, {"start": 231, "end": 235, "tag": "DAO"}],
+					"mentions": [
+						{"start": 29, "end": 41, "username": "galtproject", "id": "1041654490523287552"},
+						{"start": 46, "end": 56, "username": "xdaichain", "id": "1448922864380416006"},
+						{"start": 182,"end": 192,"username": "xdaichain","id": "1448922864380416006"}
+					],
+					"urls": [
+						{"start": 236, "end": 259, "url": "https://t.co/toAO8u2UR2", "expanded_url": "https://twitter.com/galtproject/status/1296887930074607616/photo/1", "display_url": "pic.twitter.com/toAO8u2UR2", "media_key": "3_1296887923065917441"},
+						{"start": 236, "end": 259, "url": "https://t.co/toAO8u2UR2", "expanded_url": "https://twitter.com/galtproject/status/1296887930074607616/photo/1", "display_url": "pic.twitter.com/toAO8u2UR2", "media_key": "3_1296887923045011458"}
+					]
 				},
 				"author_id": "1041654490523287552",
 				"created_at": "2020-08-21T19:12:32.000Z",
@@ -219,23 +154,9 @@ describe("twitterClient", function () {
 			},
 			{
 				"entities": {
-					"hashtags": [{"start": 93, "end": 102, "tag": "ethereum"}, {
-						"start": 103,
-						"end": 112,
-						"tag": "solidity"
-					}, {"start": 113, "end": 128, "tag": "smartcontracts"}, {
-						"start": 129,
-						"end": 140,
-						"tag": "blockchain"
-					}],
+					"hashtags": [{"start": 93, "end": 102, "tag": "ethereum"}, {"start": 103, "end": 112, "tag": "solidity"}, {"start": 113, "end": 128, "tag": "smartcontracts"}, {"start": 129, "end": 140, "tag": "blockchain"}],
 					"mentions": [{"start": 24, "end": 34, "username": "jony_bang", "id": "1500113611108196356"}],
-					"urls": [{
-						"start": 69,
-						"end": 92,
-						"url": "https://t.co/przCAVYNNe",
-						"expanded_url": "https://medium.com/coinmonks/how-to-optimize-eth-smart-contract-size-part-1-a393f444a1df",
-						"display_url": "medium.com/coinmonks/how-…"
-					}]
+					"urls": [{"start": 69, "end": 92, "url": "https://t.co/przCAVYNNe", "expanded_url": "https://medium.com/coinmonks/how-to-optimize-eth-smart-contract-size-part-1-a393f444a1df", "display_url": "medium.com/coinmonks/how-…"}]
 				},
 				"author_id": "6078352",
 				"created_at": "2020-08-13T12:06:35.000Z",
@@ -250,28 +171,11 @@ describe("twitterClient", function () {
 			{
 				"entities": {
 					"hashtags": [{"start": 0, "end": 7, "tag": "shitUX"}],
-					"annotations": [{
-						"start": 11,
-						"end": 21,
-						"probability": 0.3696,
-						"type": "Product",
-						"normalized_text": "Google maps"
-					}],
-					"urls": [{
-						"start": 267,
-						"end": 290,
-						"url": "https://t.co/MNwZoHsqcY",
-						"expanded_url": "https://twitter.com/jony_bang/status/1228369054949396482/photo/1",
-						"display_url": "pic.twitter.com/MNwZoHsqcY",
-						"media_key": "3_1228369041208811520"
-					}, {
-						"start": 267,
-						"end": 290,
-						"url": "https://t.co/MNwZoHsqcY",
-						"expanded_url": "https://twitter.com/jony_bang/status/1228369054949396482/photo/1",
-						"display_url": "pic.twitter.com/MNwZoHsqcY",
-						"media_key": "3_1228369048309768198"
-					}]
+					"annotations": [{"start": 11, "end": 21, "probability": 0.3696, "type": "Product", "normalized_text": "Google maps"}],
+					"urls": [
+						{"start": 267, "end": 290, "url": "https://t.co/MNwZoHsqcY", "expanded_url": "https://twitter.com/jony_bang/status/1228369054949396482/photo/1", "display_url": "pic.twitter.com/MNwZoHsqcY", "media_key": "3_1228369041208811520"},
+						{"start": 267, "end": 290, "url": "https://t.co/MNwZoHsqcY", "expanded_url": "https://twitter.com/jony_bang/status/1228369054949396482/photo/1", "display_url": "pic.twitter.com/MNwZoHsqcY", "media_key": "3_1228369048309768198"}
+					]
 				},
 				"author_id": "3142378517",
 				"created_at": "2020-02-14T17:22:59.000Z",
@@ -286,31 +190,11 @@ describe("twitterClient", function () {
 			},
 			{
 				"entities": {
-					"hashtags": [{"start": 229, "end": 238, "tag": "ethereum"}, {
-						"start": 239,
-						"end": 243,
-						"tag": "dao"
-					}, {"start": 244, "end": 249, "tag": "web3"}, {"start": 250, "end": 256, "tag": "DApps"}, {
-						"start": 257,
-						"end": 261,
-						"tag": "ETH"
-					}, {"start": 262, "end": 271, "tag": "PropTech"}],
-					"urls": [{
-						"start": 91,
-						"end": 114,
-						"url": "https://t.co/1y7g8B7tMN",
-						"expanded_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6",
-						"display_url": "medium.com/galtproject/ga…",
-						"status": 200,
-						"unwound_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6"
-					}, {
-						"start": 131,
-						"end": 154,
-						"url": "https://t.co/Ey9CKYSBph",
-						"expanded_url": "http://app.galtproject.io",
-						"display_url": "app.galtproject.io",
-						"unwound_url": "http://app.galtproject.io"
-					}]
+					"hashtags": [{"start": 229, "end": 238, "tag": "ethereum"}, {"start": 239, "end": 243, "tag": "dao"}, {"start": 244, "end": 249, "tag": "web3"}, {"start": 250, "end": 256, "tag": "DApps"}, {"start": 257, "end": 261, "tag": "ETH"}, {"start": 262, "end": 271, "tag": "PropTech"}],
+					"urls": [
+						{"start": 91, "end": 114, "url": "https://t.co/1y7g8B7tMN", "expanded_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6", "display_url": "medium.com/galtproject/ga…", "status": 200, "unwound_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6"},
+						{"start": 131, "end": 154, "url": "https://t.co/Ey9CKYSBph", "expanded_url": "http://app.galtproject.io", "display_url": "app.galtproject.io", "unwound_url": "http://app.galtproject.io"}
+					]
 				},
 				"author_id": "1041654490523287552",
 				"created_at": "2020-01-15T11:23:20.000Z",
@@ -329,12 +213,7 @@ describe("twitterClient", function () {
 				"lang": "und",
 				"source": "Twitter for Android",
 				"entities": {
-					"mentions": [{"start": 0, "end": 10, "username": "chebyster", "id": "197293842"}, {
-						"start": 11,
-						"end": 21,
-						"username": "jony_bang",
-						"id": "1500113611108196356"
-					}]
+					"mentions": [{"start": 0, "end": 10, "username": "chebyster", "id": "197293842"}, {"start": 11, "end": 21, "username": "jony_bang", "id": "1500113611108196356"}]
 				},
 				"referenced_tweets": [{"type": "replied_to", "id": "1167413304584785921"}],
 				"reply_settings": "everyone",
@@ -352,14 +231,7 @@ describe("twitterClient", function () {
 				"source": "Twitter Web Client",
 				"entities": {
 					"mentions": [{"start": 56, "end": 67, "username": "passportjs", "id": "401463291"}],
-					"urls": [{
-						"start": 68,
-						"end": 91,
-						"url": "https://t.co/rd5WWeQiId",
-						"expanded_url": "https://twitter.com/jony_bang/status/1124450838188052481/photo/1",
-						"display_url": "pic.twitter.com/rd5WWeQiId",
-						"media_key": "3_1124450638400716801"
-					}]
+					"urls": [{"start": 68, "end": 91, "url": "https://t.co/rd5WWeQiId", "expanded_url": "https://twitter.com/jony_bang/status/1124450838188052481/photo/1", "display_url": "pic.twitter.com/rd5WWeQiId", "media_key": "3_1124450638400716801"}]
 				},
 				"reply_settings": "everyone",
 				"conversation_id": "1124450838188052481",
@@ -378,42 +250,16 @@ describe("twitterClient", function () {
 				"text": "Who would win? https://t.co/5CGtg47NMU",
 				"id": "1123932977195515904",
 				"entities": {
-					"urls": [{
-						"start": 15,
-						"end": 38,
-						"url": "https://t.co/5CGtg47NMU",
-						"expanded_url": "https://twitter.com/jony_bang/status/1123932977195515904/photo/1",
-						"display_url": "pic.twitter.com/5CGtg47NMU",
-						"media_key": "3_1123932947881582594"
-					}, {
-						"start": 15,
-						"end": 38,
-						"url": "https://t.co/5CGtg47NMU",
-						"expanded_url": "https://twitter.com/jony_bang/status/1123932977195515904/photo/1",
-						"display_url": "pic.twitter.com/5CGtg47NMU",
-						"media_key": "3_1123932965329952770"
-					}]
+					"urls": [
+						{"start": 15, "end": 38, "url": "https://t.co/5CGtg47NMU", "expanded_url": "https://twitter.com/jony_bang/status/1123932977195515904/photo/1", "display_url": "pic.twitter.com/5CGtg47NMU", "media_key": "3_1123932947881582594"},
+						{"start": 15, "end": 38, "url": "https://t.co/5CGtg47NMU", "expanded_url": "https://twitter.com/jony_bang/status/1123932977195515904/photo/1", "display_url": "pic.twitter.com/5CGtg47NMU", "media_key": "3_1123932965329952770"}
+					]
 				}
 			},
 			{
 				"entities": {
-					"hashtags": [{"start": 11, "end": 15, "tag": "bjd"}, {
-						"start": 16,
-						"end": 32,
-						"tag": "balljointeddoll"
-					}, {"start": 33, "end": 38, "tag": "doll"}, {"start": 39, "end": 46, "tag": "zombie"}, {
-						"start": 47,
-						"end": 57,
-						"tag": "fairyland"
-					}],
-					"urls": [{
-						"start": 58,
-						"end": 81,
-						"url": "https://t.co/042cUgItDi",
-						"expanded_url": "https://twitter.com/zeligenm/status/1117795803005845504/photo/1",
-						"display_url": "pic.twitter.com/042cUgItDi",
-						"media_key": "3_1117795791274500102"
-					}]
+					"hashtags": [{"start": 11, "end": 15, "tag": "bjd"}, {"start": 16, "end": 32, "tag": "balljointeddoll"}, {"start": 33, "end": 38, "tag": "doll"}, {"start": 39, "end": 46, "tag": "zombie"}, {"start": 47, "end": 57, "tag": "fairyland"}],
+					"urls": [{"start": 58, "end": 81, "url": "https://t.co/042cUgItDi", "expanded_url": "https://twitter.com/zeligenm/status/1117795803005845504/photo/1", "display_url": "pic.twitter.com/042cUgItDi", "media_key": "3_1117795791274500102"}]
 				},
 				"author_id": "781435180800176128",
 				"created_at": "2019-04-15T14:24:21.000Z",
@@ -428,71 +274,23 @@ describe("twitterClient", function () {
 			}
 		],
 		"media": [
-			{
-				"media_key": "3_1317238234095779846",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EkfFMePXgAYd1zm.jpg"
-			}, {
-				"media_key": "3_1317238236327063553",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EkfFMmjWMAEpGZ0.jpg"
-			}, {
-				"media_key": "3_1289679911796576258",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EeXdC_iXkAISk6X.jpg"
-			}, {
-				"media_key": "3_1228370112291524609",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EQwMG-PX0AEw1hX.jpg"
-			}, {
-				"media_key": "3_1228370120042569728",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EQwMHbHXYAA3SP5.jpg"
-			}, {
-				"media_key": "3_1228369041208811520",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EQwLIoJWoAANMJC.jpg"
-			}, {
-				"media_key": "3_1228369048309768198",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EQwLJCmWoAY37Ji.jpg"
-			}, {
-				"media_key": "3_1218102715173220354",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EOeR9zXWsAIzjf2.jpg"
-			}, {
-				"media_key": "3_1182615617603604480",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/EGl-o3EXkAATDov.jpg"
-			}, {
-				"media_key": "3_1126597347973242889",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D6J6UarXoAkspq4.jpg"
-			}, {
-				"media_key": "3_1124451483641106432",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D5raqrGW0AAvDai.jpg"
-			}, {
-				"media_key": "3_1124450638400716801",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D5rZ5eVWAAEWB7C.jpg"
-			}, {
-				"media_key": "3_1123933187758088195",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D5kDR4eX4AMZGj5.jpg"
-			}, {
-				"media_key": "3_1123932947881582594",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D5kDD63W4AIzg04.jpg"
-			}, {
-				"media_key": "3_1123932965329952770",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D5kDE73X4AIaID2.jpg"
-			}, {
-				"media_key": "3_1117942294227881984",
-				"type": "photo",
-				"url": "https://pbs.twimg.com/media/D4O6l-7WkAAtD_H.jpg"
-			}]
+			{"media_key": "3_1317238234095779846", "type": "photo", "url": "https://pbs.twimg.com/media/EkfFMePXgAYd1zm.jpg"},
+			{"media_key": "3_1317238236327063553", "type": "photo", "url": "https://pbs.twimg.com/media/EkfFMmjWMAEpGZ0.jpg"},
+			{"media_key": "3_1289679911796576258", "type": "photo", "url": "https://pbs.twimg.com/media/EeXdC_iXkAISk6X.jpg"},
+			{"media_key": "3_1228370112291524609", "type": "photo", "url": "https://pbs.twimg.com/media/EQwMG-PX0AEw1hX.jpg"},
+			{"media_key": "3_1228370120042569728", "type": "photo", "url": "https://pbs.twimg.com/media/EQwMHbHXYAA3SP5.jpg"},
+			{"media_key": "3_1228369041208811520", "type": "photo", "url": "https://pbs.twimg.com/media/EQwLIoJWoAANMJC.jpg"},
+			{"media_key": "3_1228369048309768198", "type": "photo", "url": "https://pbs.twimg.com/media/EQwLJCmWoAY37Ji.jpg"},
+			{"media_key": "3_1218102715173220354", "type": "photo", "url": "https://pbs.twimg.com/media/EOeR9zXWsAIzjf2.jpg"},
+			{"media_key": "3_1182615617603604480", "type": "photo", "url": "https://pbs.twimg.com/media/EGl-o3EXkAATDov.jpg"},
+			{"media_key": "3_1126597347973242889", "type": "photo", "url": "https://pbs.twimg.com/media/D6J6UarXoAkspq4.jpg"},
+			{"media_key": "3_1124451483641106432", "type": "photo", "url": "https://pbs.twimg.com/media/D5raqrGW0AAvDai.jpg"},
+			{"media_key": "3_1124450638400716801", "type": "photo", "url": "https://pbs.twimg.com/media/D5rZ5eVWAAEWB7C.jpg"},
+			{"media_key": "3_1123933187758088195", "type": "photo", "url": "https://pbs.twimg.com/media/D5kDR4eX4AMZGj5.jpg"},
+			{"media_key": "3_1123932947881582594", "type": "photo", "url": "https://pbs.twimg.com/media/D5kDD63W4AIzg04.jpg"},
+			{"media_key": "3_1123932965329952770", "type": "photo", "url": "https://pbs.twimg.com/media/D5kDE73X4AIaID2.jpg"},
+			{"media_key": "3_1117942294227881984", "type": "photo", "url": "https://pbs.twimg.com/media/D4O6l-7WkAAtD_H.jpg"}
+		]
 	};
 	const mediasByKey = {};
 	includes.media.forEach(item => {
@@ -507,7 +305,7 @@ describe("twitterClient", function () {
 		channelsById[item.id] = item;
 	});
 
-	it('entities and line breaks should handle correctly', async () => {
+	it.only('entities and line breaks should handle correctly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
@@ -517,14 +315,8 @@ describe("twitterClient", function () {
 			"reply_settings": "everyone",
 			"source": "Twitter for Android",
 			"entities": {
-				"urls": [{
-					"start": 114,
-					"end": 137,
-					"url": "https://t.co/UUvfhl88b2",
-					"expanded_url": "https://twitter.com/jony_bang/status/1289679914124247040/photo/1",
-					"display_url": "pic.twitter.com/UUvfhl88b2",
-					"media_key": "3_1289679911796576258"
-				}], "mentions": [{"start": 15, "end": 27, "username": "fontawesome", "id": "515543735"}]
+				"urls": [{"start": 114, "end": 137, "url": "https://t.co/UUvfhl88b2", "expanded_url": "https://twitter.com/jony_bang/status/1289679914124247040/photo/1", "display_url": "pic.twitter.com/UUvfhl88b2", "media_key": "3_1289679911796576258"}],
+				"mentions": [{"start": 15, "end": 27, "username": "fontawesome", "id": "515543735"}]
 			},
 			"conversation_id": "1289679914124247040",
 			"possibly_sensitive": false,
@@ -534,7 +326,6 @@ describe("twitterClient", function () {
 			"id": "1289679914124247040"
 		};
 
-		const {list: [m]} = twitterHelpers.parseTweetsList([message], includes);
 
 		const channel = await socNetImport.createDbChannel({
 			userId: testUser.id,
@@ -545,33 +336,55 @@ describe("twitterClient", function () {
 			postsCounts: 0,
 		});
 
-		const contents = await twitterClient.messageToContents(testUser.id, channel, m);
-		assert.equal(contents.length, 2);
-		const [messageContent, imageContent] = contents;
-		assert.equal(messageContent.view, ContentView.Contents);
-		assert.equal(imageContent.view, ContentView.Media);
+		const advancedSettings = {mergeSeconds: 5};
+		const tgImportClient = new TelegramImportClient({account: {}}, twitterClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
+		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
+			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
+		};
 
-		const testPost = await app.ms.group.createPost(testUser.id, {
-			contents,
-			groupId: testGroup.id,
-			status: PostStatus.Published
-		});
+		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
 
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testPost);
-		assert.equal(postContents.length, 2);
-		const [messageC, imageC] = postContents;
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 
-		assert.equal(messageC.type, 'text');
-		assert.equal(messageC.mimeType, 'text/html');
-		assert.equal(messageC.view, 'contents');
-		assert.equal(messageC.text, "It's not cool, @fontawesome why did you spam several messages in a day to me? I should have unsubscribed long ago");
-		assert.equal(messageC.manifestId, 'bafyreihs2buxiuh7m5bqkq57pnthcoa2hvxc2oq2w7kthijmanodckpuya');
-
-		assert.equal(imageC.type, 'image');
-		assert.equal(imageC.mimeType, 'image/jpeg');
-		assert.equal(imageC.view, 'media');
-		assert.equal(imageC.url, 'https://my.site/ipfs/bafkreihlgzev575iuq3stroxmymtprwbfpd4aocdrreqmtzxgbitvcfc5e');
-		assert.equal(imageC.manifestId, 'bafyreifukz7avkeb6rhkmj4jgnqv3u2e72ipbnmrezdui5d47fzjgdv3le');
+		// const {list: [m]} = twitterHelpers.parseTweetsList([message], includes);
+		//
+		// const channel = await socNetImport.createDbChannel({
+		// 	userId: testUser.id,
+		// 	groupId: testGroup.id,
+		// 	channelId: 1,
+		// 	title: "1",
+		// 	lastMessageId: 0,
+		// 	postsCounts: 0,
+		// });
+		//
+		// const contents = await twitterClient.messageToContents(testUser.id, channel, m);
+		// assert.equal(contents.length, 2);
+		// const [messageContent, imageContent] = contents;
+		// assert.equal(messageContent.view, ContentView.Contents);
+		// assert.equal(imageContent.view, ContentView.Media);
+		//
+		// const testPost = await app.ms.group.createPost(testUser.id, {
+		// 	contents,
+		// 	groupId: testGroup.id,
+		// 	status: PostStatus.Published
+		// });
+		//
+		// const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testPost);
+		// assert.equal(postContents.length, 2);
+		// const [messageC, imageC] = postContents;
+		//
+		// assert.equal(messageC.type, 'text');
+		// assert.equal(messageC.mimeType, 'text/html');
+		// assert.equal(messageC.view, 'contents');
+		// assert.equal(messageC.text, "It's not cool, @fontawesome why did you spam several messages in a day to me? I should have unsubscribed long ago");
+		// assert.equal(messageC.manifestId, 'bafyreihs2buxiuh7m5bqkq57pnthcoa2hvxc2oq2w7kthijmanodckpuya');
+		//
+		// assert.equal(imageC.type, 'image');
+		// assert.equal(imageC.mimeType, 'image/jpeg');
+		// assert.equal(imageC.view, 'media');
+		// assert.equal(imageC.url, 'https://my.site/ipfs/bafkreihlgzev575iuq3stroxmymtprwbfpd4aocdrreqmtzxgbitvcfc5e');
+		// assert.equal(imageC.manifestId, 'bafyreifukz7avkeb6rhkmj4jgnqv3u2e72ipbnmrezdui5d47fzjgdv3le');
 	});
 
 	it('webpage message should import properly', async () => {
@@ -584,14 +397,7 @@ describe("twitterClient", function () {
 			"possibly_sensitive": false,
 			"lang": "en",
 			"source": "Twitter for Android",
-			"entities": {
-				"mentions": [{
-					"start": 0,
-					"end": 14,
-					"username": "sparkpool_eth",
-					"id": "955345726858452992"
-				}]
-			},
+			"entities": {"mentions": [{"start": 0, "end": 14, "username": "sparkpool_eth", "id": "955345726858452992"}]},
 			"referenced_tweets": [{"type": "replied_to", "id": "1395662836840288261"}],
 			"reply_settings": "everyone",
 			"in_reply_to_user_id": "955345726858452992",
@@ -666,15 +472,7 @@ describe("twitterClient", function () {
 			"source": "Twitter for Android",
 			"entities": {
 				"mentions": [{"start": 3, "end": 15, "username": "galtproject", "id": "1041654490523287552"}],
-				"urls": [{
-					"start": 108,
-					"end": 131,
-					"url": "https://t.co/1y7g8B7tMN",
-					"expanded_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6",
-					"display_url": "medium.com/galtproject/ga…",
-					"status": 200,
-					"unwound_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6"
-				}]
+				"urls": [{"start": 108, "end": 131, "url": "https://t.co/1y7g8B7tMN", "expanded_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6", "display_url": "medium.com/galtproject/ga…", "status": 200, "unwound_url": "https://medium.com/galtproject/galt-project-live-on-ethereum-mainnet-athens-release-ca11087828f6"}]
 			},
 			"referenced_tweets": [{"type": "retweeted", "id": "1217406911303372800"}],
 			"reply_settings": "everyone",

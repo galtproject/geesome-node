@@ -12,8 +12,10 @@ import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
 import {ContentView} from "../database/interface";
+import {TwitterImportClient} from "./importClient";
 
 const pIteration = require('p-iteration');
+const merge = require('lodash/merge');
 const {FETCH_LIMIT, clearMessageFromMediaMessages, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList, getReplyToId, getRetweetId} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
@@ -31,7 +33,7 @@ function getModule(app: IGeesomeApp) {
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
-	class TelegramClientModule {
+	class TwitterClientModule {
 		async login(userId, loginData) {
 			let {id: accountId, apiId, apiKey, accessToken, sessionKey, encryptedSessionKey, encryptedApiKey, isEncrypted} = loginData;
 
@@ -135,10 +137,10 @@ function getModule(app: IGeesomeApp) {
 					}
 
 					limitItems = await handleTwitterLimits(timeline);
-					const {list, nextToken} = parseTweetsData(timeline);
-					pagination_token = nextToken;
+					const messages = parseTweetsData(timeline);
+					pagination_token = messages.nextToken;
 
-					await this.importMessagesList(userId, dbChannel, list, advancedSettings, async (m, post) => {
+					await this.importMessagesList(userId, client, dbChannel, messages, advancedSettings, async (m, post) => {
 						console.log('onMessageProcess', m.id);
 						currentMessageId = parseInt(m.id);
 						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
@@ -158,7 +160,7 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async messageToContents(userId, dbChannel, m, type) {
+		async messageToContents(userId, dbChannel, m, type?) {
 			let {entities, text} = m;
 			if (entities) {
 				text = clearMessageFromMediaMessages(m);
@@ -184,58 +186,51 @@ function getModule(app: IGeesomeApp) {
 			const {client} = await this.getClient(userId, accData);
 
 			let tweetsToFetch = [];
-			let repliesToImport = [];
 			let limitItems = FETCH_LIMIT;
 
-			makeRepliesList(m, messagesById, repliesToImport, tweetsToFetch);
+			const messagesToImport = {
+				list: [],
+				mediasByKey: {},
+				tweetsById: {},
+				usersById: {}
+			};
+			makeRepliesList(m, messagesById, messagesToImport.list, tweetsToFetch);
 
 			while (tweetsToFetch.length > 0) {
 				const tweets = await client.v2.readOnly.tweets(tweetsToFetch, getTweetsParams(limitItems));
 				limitItems = await handleTwitterLimits(tweets);
-				const {list} = parseTweetsData(tweets);
+
+				const messages = parseTweetsData(tweets);
+				['mediasByKey', 'tweetsById', 'usersById', 'list'].forEach(name => {
+					messagesToImport[name] = merge(messagesToImport[name], messages[name]);
+				});
+
 				tweetsToFetch = [];
-
-				repliesToImport = repliesToImport.concat(list);
-
-				list.forEach(item => {
-					makeRepliesList(item, messagesById, repliesToImport, tweetsToFetch);
+				messages.list.forEach(item => {
+					makeRepliesList(item, messagesById, messagesToImport.list, tweetsToFetch);
 				});
 			}
 
-			if (!repliesToImport.length) {
+			if (!messagesToImport.list.length) {
 				return;
 			}
 
-			await this.importMessagesList(userId, dbChannel, repliesToImport, {});
+			await this.importMessagesList(userId, client, dbChannel, messagesToImport, {});
 		}
 
-		async getRemoteRepostOf(m) {
-
-		}
-
-		async importMessagesList(userId, dbChannel, list, advancedSettings, onRemotePostProcess?) {
-			const channelByAuthorId = {
+		async importMessagesList(userId, client, dbChannel, messages, advancedSettings, onRemotePostProcess?) {
+			messages.channelByAuthorId = {
 				[dbChannel.accountId]: dbChannel
 			};
-			return socNetImport.importChannelPosts(userId, dbChannel, list, advancedSettings, {
-				getRemotePostLink: (_channel, msgId) => `https://twitter.com/${_channel.username}/${msgId}`,
-				getRemotePostReplyToMsgId: (m) => getReplyToId(m),
-				getRemotePostRepostOfMsgId: (m) => getRetweetId(m),
-				getRemotePostDbChannel: async (m) => {
-					if (!channelByAuthorId[m.author_id]) {
-						channelByAuthorId[m.author_id] = await this.storeChannelToDb(userId, m.author, dbChannel.accountId !== m.author_id);
-					}
-					return channelByAuthorId[m.author_id];
-				},
-				getRemotePostContents: (userId, dbChannel, m, type) => this.messageToContents(userId, dbChannel, m, type),
-				getRemotePostProperties: (userId, dbChannel, m) => {
-					//TODO: get forward from username and id
-					return {};
-				},
-				onRemotePostProcess
-			} as any);
+			return socNetImport.importChannelPosts(
+				userId,
+				dbChannel,
+				messages.list,
+				advancedSettings,
+				new TwitterImportClient(client, this, socNetImport, userId, dbChannel, messages, advancedSettings, onRemotePostProcess)
+			);
 		}
 	}
 
-	return new TelegramClientModule();
+	return new TwitterClientModule();
 }
