@@ -9,14 +9,14 @@
 
 import {TwitterApi} from 'twitter-api-v2';
 import {IGeesomeApp} from "../../interface";
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "../socNetImport/interface";
+import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
 import {ContentView} from "../database/interface";
 import {TwitterImportClient} from "./importClient";
 
-const pIteration = require('p-iteration');
 const merge = require('lodash/merge');
-const {FETCH_LIMIT, clearMessageFromMediaMessages, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList, getReplyToId, getRetweetId} = require('./helpers');
+const concat = require('lodash/concat');
+const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
 	const module = getModule(app);
@@ -160,26 +160,11 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async messageToContents(userId, dbChannel, m, type?) {
-			let {entities, text} = m;
-			if (entities) {
-				text = clearMessageFromMediaMessages(m);
-			}
-			let textContent;
-			if (text) {
-				textContent = await app.ms.content.saveData(userId, text, 'tw-' + m.id, {
-					mimeType: 'text/html',
-					view: ContentView.Contents
-				});
-			}
-			return pIteration
-				.map(m.medias, (media) => {
-					if (!media)
-						return null;
-					const {url, alt_text: description} = media;
-					return app.ms.content.saveDataByUrl(userId, url, {description, view: ContentView.Media});
-				})
-				.then(list => [textContent].concat(list).filter(c => c));
+		async saveMedia(userId, media) {
+			if (!media)
+				return null;
+			const {url, alt_text: description} = media;
+			return app.ms.content.saveDataByUrl(userId, url, {description, view: ContentView.Media});
 		}
 
 		async importReplies(userId, accData, dbChannel, m, messagesById, channelsById) {
@@ -202,7 +187,7 @@ function getModule(app: IGeesomeApp) {
 
 				const messages = parseTweetsData(tweets);
 				['mediasByKey', 'tweetsById', 'usersById', 'list'].forEach(name => {
-					messagesToImport[name] = merge(messagesToImport[name], messages[name]);
+					messagesToImport[name] = name === 'list' ? concat(messagesToImport[name], messages[name]) : merge(messagesToImport[name], messages[name]);
 				});
 
 				tweetsToFetch = [];
@@ -222,13 +207,8 @@ function getModule(app: IGeesomeApp) {
 			messages.channelByAuthorId = {
 				[dbChannel.accountId]: dbChannel
 			};
-			return socNetImport.importChannelPosts(
-				userId,
-				dbChannel,
-				messages.list,
-				advancedSettings,
-				new TwitterImportClient(client, this, socNetImport, userId, dbChannel, messages, advancedSettings, onRemotePostProcess)
-			);
+			const twImportClient = new TwitterImportClient(app, client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
+			return socNetImport.importChannelPosts(twImportClient);
 		}
 	}
 

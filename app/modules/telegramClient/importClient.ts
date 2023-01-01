@@ -1,31 +1,38 @@
 import IGeesomeTelegramClient from "./interface";
-import IGeesomeSocNetImport, {ISocNetDbChannel} from "../socNetImport/interface";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
+import {IPost} from "../group/interface";
+import {ContentView} from "../database/interface";
+import IGeesomeContentModule from "../content/interface";
 
-const telegramHelpers = require('./helpers');
 const clone = require('lodash/clone');
-const helpers = require('../../helpers');
+const appHelpers = require('../../helpers');
+const telegramHelpers = require('./helpers');
 
-export class TelegramImportClient {
+export class TelegramImportClient implements IGeesomeSocNetImportClient {
 	socNet = 'telegram';
+	userId: number;
+	dbChannel: ISocNetDbChannel;
+	advancedSettings: {fromMessage, toMessage, mergeSeconds, force};
+	messages: {list, authorById};
 
 	connectClient;
 	telegramClient: IGeesomeTelegramClient;
 	socNetImport: IGeesomeSocNetImport;
-	userId: number;
-	dbChannel: ISocNetDbChannel;
-	messages: {list, authorById};
-	advancedSettings: {fromMessage, toMessage, mergeSeconds, force};
-	onRemotePostProcess: Function;
+	content: IGeesomeContentModule;
+	onRemotePostProcess: (m: any, post: IPost, type: any) => any;
 
 	authorById: {};
 	msgLinkTplByAccountId = {};
 	channelByAuthorId = {};
 	messagesById = {};
 
-	constructor(_connectClient, _telegramClient, _socNetImport, _userId, _dbChannel, _messages, _advancedSettings, _onRemotePostProcess) {
+	constructor(_app, _connectClient, _userId, _dbChannel, _messages, _advancedSettings, _onRemotePostProcess) {
 		this.connectClient = _connectClient;
-		this.telegramClient = _telegramClient;
-		this.socNetImport = _socNetImport;
+
+		this.telegramClient = _app.ms.telegramClient;
+		this.socNetImport = _app.ms.socNetImport;
+		this.content = _app.ms.content;
+
 		this.userId = _userId;
 		this.dbChannel = _dbChannel;
 		this.messages = _messages;
@@ -92,18 +99,18 @@ export class TelegramImportClient {
 			return null;
 		}
 		m = clone(m);
-		m.id = m.fwdFrom.channelPost ? m.fwdFrom.channelPost : helpers.keccak(JSON.stringify(m));
+		m.id = m.fwdFrom.channelPost ? m.fwdFrom.channelPost : appHelpers.keccak(JSON.stringify(m));
 		delete m.fwdFrom;
 		return m;
 	}
-	async getRemotePostContents (userId, dbChannel, m, type) {
+	async getRemotePostContents (dbChannel, m, type) {
 		if (type === 'post' && m.fwdFrom) {
 			return [];
 		}
 		console.log("getRemotePostContents", m);
-		return this.telegramClient.messageToContents(this.connectClient, userId, dbChannel, m);
+		return this.messageToContents(this.connectClient, this.userId, dbChannel, m);
 	}
-	getRemotePostProperties (userId, dbChannel, m) {
+	async getRemotePostProperties (dbChannel, m) {
 		//TODO: get forward from username and id
 		return {};
 	}
@@ -151,5 +158,57 @@ export class TelegramImportClient {
 			}
 		}
 		return this.channelByAuthorId[tgId];
+	}
+
+	async messageToContents(client, userId, dbChannel, m) {
+		let contents = [];
+		const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
+
+		if (contentMessageData.groupedId) {
+			contentMessageData.groupedId = contentMessageData.groupedId.toString();
+		}
+
+		if (m.message) {
+			// console.log('m.message', m.message, 'm.entities', m.entities);
+			let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
+			// console.log('text', text);
+			const content = await this.content.saveData(userId, text, '', {
+				userId,
+				mimeType: 'text/html',
+				view: ContentView.Contents
+			});
+			contents.push(content);
+			await this.socNetImport.storeContentMessage(contentMessageData, content);
+		}
+
+		if (m.media) {
+			if (m.media.poll) {
+				//TODO: handle and save polls (325)
+				return contents;
+			}
+			// console.log('m.media', m.media);
+			const {result: file} = await this.telegramClient.downloadMediaByClient(client, m.media);
+			if (file && file.content) {
+				const content = await this.content.saveData(userId, file.content, '', {
+					userId,
+					mimeType: file.mimeType,
+					view: ContentView.Media
+				});
+				contents.push(content);
+				await this.socNetImport.storeContentMessage(contentMessageData, content);
+			}
+
+			if (m.media.webpage && m.media.webpage.url) {
+				const content = await this.content.saveData(userId, telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
+					userId,
+					mimeType: 'application/json',
+					view: ContentView.Link
+				});
+				contents.push(content);
+				await this.socNetImport.storeContentMessage(contentMessageData, content);
+			}
+		}
+
+		return contents;
 	}
 }

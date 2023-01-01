@@ -77,7 +77,7 @@ describe("telegramClient", function () {
 		}
 		let count = 0;
 
-		telegramClient['downloadMediaByClient'] = (client, media) => {
+		telegramClient['downloadMediaByClient'] = async (client, media) => {
 			const {file} = telegramHelpers.getMediaFileAndSize(media);
 			if (!file) {
 				return {client, result: null};
@@ -91,7 +91,7 @@ describe("telegramClient", function () {
 							: 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC'),
 					mimeType: 'image/jpg'
 				}
-			};
+			} as any;
 		};
 	});
 
@@ -1003,13 +1003,13 @@ describe("telegramClient", function () {
 		});
 
 		const advancedSettings = {mergeSeconds: 5};
-		const tgImportClient = new TelegramImportClient({account: {}}, telegramClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
+		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
 		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
 		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
 			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
 		};
 
-		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
+		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		const postDataBySourceId = {
@@ -1098,12 +1098,12 @@ describe("telegramClient", function () {
 			postsCounts: 0
 		});
 
-		const tgImportClient = new TelegramImportClient({account: {}}, telegramClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
+		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
 		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
 		telegramClient['getMessagesByClient'] = async () => {
 			return {result: {list: [{"id":8,"replyTo":null,"fwdFrom":null,"date":1671713854,"message":"test 0","entities":null,"media":null,"groupedId":null}]}} as any;
 		};
-		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
+		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 
@@ -1194,13 +1194,13 @@ describe("telegramClient", function () {
 			postsCounts: 0
 		});
 
-		const tgImportClient = new TelegramImportClient({account: {}}, telegramClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
+		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
 		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
 		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
 			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
 		};
 
-		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
+		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 

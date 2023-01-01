@@ -14,7 +14,7 @@ export default interface IGeesomeSocNetImport {
 
 	openImportAsyncOperation(userId, userApiKeyId, dbChannel);
 
-	importChannelPosts(userId, dbChannel, messages, advancedSettings = {}, client = {});
+	importChannelPosts(client: IGeesomeSocNetImportClient);
 
 	storeContentMessage(contentMessageData, content: IContent);
 
@@ -28,15 +28,19 @@ export default interface IGeesomeSocNetImport {
 }
 
 export interface IGeesomeSocNetImportClient {
-	getRemotePostLink(_channel, msgId): Promise<string>;
-	getRemotePostReplyToMsgId(m): string;
-	getRemotePostRepostOfMsgId(m): string;
-	getRemotePostDbChannel(m, type): Promise<ISocNetDbChannel>;
-	getRemotePostContents(userId, dbChannel, m, type): Promise<IContent[]>;
-	getRemotePostProperties(userId, dbChannel, m, type): Promise<any>;
+	socNet: string;
+	userId: number;
+	dbChannel: ISocNetDbChannel;
+	advancedSettings: {fromMessage, toMessage, mergeSeconds, force};
+	messages: {list, authorById};
+
+	getRemotePostLink(dbChannel, msgId): Promise<string>;
+	getRemotePostDbChannel (m, type: string): Promise<ISocNetDbChannel>;
+	getReplyMessage(dbChannel, m): Promise<any>;
+	getRepostMessage(dbChannel, m): Promise<any>;
 	onRemotePostProcess(m, post: IPost, type);
-	getReplyMessage(dbChannel, m): Promise<any>
-	getRepostMessage(dbChannel, m): Promise<any>
+	getRemotePostProperties(dbChannel, m, type): Promise<any>;
+	getRemotePostContents(dbChannel, m, type): Promise<IContent[]>;
 }
 
 export interface ISocNetDbChannel {

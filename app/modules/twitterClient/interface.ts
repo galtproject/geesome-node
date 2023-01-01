@@ -1,4 +1,4 @@
-import {IContent} from "../database/interface";
+import {ContentView, IContent} from "../database/interface";
 import {IPost} from "../group/interface";
 import {IUserAsyncOperation} from "../asyncOperation/interface";
 
@@ -34,4 +34,6 @@ export default interface IGeesomeTwitterClient {
 	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
+
+	saveMedia(userId, media: {url, alt_text}): Promise<IContent>;
 }

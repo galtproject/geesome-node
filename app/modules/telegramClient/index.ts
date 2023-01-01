@@ -7,7 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ContentView} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
@@ -480,61 +479,9 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async messageToContents(client, userId, dbChannel, m) {
-			let contents = [];
-			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
-
-			if (contentMessageData.groupedId) {
-				contentMessageData.groupedId = contentMessageData.groupedId.toString();
-			}
-
-			if (m.message) {
-				// console.log('m.message', m.message, 'm.entities', m.entities);
-				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
-				// console.log('text', text);
-				const content = await app.ms.content.saveData(userId, text, '', {
-					userId,
-					mimeType: 'text/html',
-					view: ContentView.Contents
-				});
-				contents.push(content);
-				await socNetImport.storeContentMessage(contentMessageData, content);
-			}
-
-			if (m.media) {
-				if (m.media.poll) {
-					//TODO: handle and save polls (325)
-					return contents;
-				}
-				// console.log('m.media', m.media);
-				const {result: file} = await this.downloadMediaByClient(client, m.media);
-				if (file && file.content) {
-					const content = await app.ms.content.saveData(userId, file.content, '', {
-						userId,
-						mimeType: file.mimeType,
-						view: ContentView.Media
-					});
-					contents.push(content);
-					await socNetImport.storeContentMessage(contentMessageData, content);
-				}
-
-				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.ms.content.saveData(userId, telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
-						userId,
-						mimeType: 'application/json',
-						view: ContentView.Link
-					});
-					contents.push(content);
-					await socNetImport.storeContentMessage(contentMessageData, content);
-				}
-			}
-
-			return contents;
-		}
-
 		async importMessagesList(client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess?) {
-			const tgImportClient = new TelegramImportClient(client, this, socNetImport, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
-			return socNetImport.importChannelPosts(userId, dbChannel, messages.list, advancedSettings, tgImportClient);
+			const tgImportClient = new TelegramImportClient(app, client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
+			return socNetImport.importChannelPosts(tgImportClient);
 		}
 	}
 

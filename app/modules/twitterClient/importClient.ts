@@ -1,30 +1,37 @@
-import IGeesomeSocNetImport, {ISocNetDbChannel} from "../socNetImport/interface";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
 import IGeesomeTwitterClient from "./interface";
+import {IPost} from "../group/interface";
+import {ContentView} from "../database/interface";
+import IGeesomeContentModule from "../content/interface";
 
-const {getReplyToId, getRetweetId} = require('./helpers');
+const pIteration = require('p-iteration');
 
-export class TwitterImportClient {
+const {getReplyToId, getRetweetId, clearMessageFromMediaMessages} = require('./helpers');
+
+export class TwitterImportClient implements IGeesomeSocNetImportClient {
 	socNet = 'twitter';
+	userId: number;
+	dbChannel: ISocNetDbChannel;
+	advancedSettings: {fromMessage, toMessage, mergeSeconds, force};
+	messages: {list, authorById};
 
 	connectClient;
 	twitterClient: IGeesomeTwitterClient;
 	socNetImport: IGeesomeSocNetImport;
-	userId: number;
-	dbChannel: ISocNetDbChannel;
-	messages: {list, authorById};
-	advancedSettings: {fromMessage, toMessage, mergeSeconds, force};
-
-	onRemotePostProcess: Function;
-
+	content: IGeesomeContentModule;
+	onRemotePostProcess: (m: any, post: IPost, type: any) => any;
 	authorById: {};
 	msgLinkTplByAccountId = {};
 	channelByAuthorId = {};
 	messagesById = {};
 
-	constructor(_connectClient, _twitterClient, _socNetImport, _userId, _dbChannel, _messages, _advancedSettings, _onRemotePostProcess) {
+	constructor(_app, _connectClient, _userId, _dbChannel, _messages, _advancedSettings, _onRemotePostProcess) {
 		this.connectClient = _connectClient;
-		this.twitterClient = _twitterClient;
-		this.socNetImport = _socNetImport;
+
+		this.twitterClient = _app.ms.twitterClient;
+		this.socNetImport = _app.ms.socNetImport;
+		this.content = _app.ms.content;
+
 		this.userId = _userId;
 		this.dbChannel = _dbChannel;
 		this.messages = _messages;
@@ -33,7 +40,7 @@ export class TwitterImportClient {
 		this.onRemotePostProcess = _onRemotePostProcess;
 	}
 
-	getRemotePostLink(_channel, msgId) {
+	async getRemotePostLink(_channel, msgId) {
 		return `https://twitter.com/${_channel.username}/${msgId}`;
 	}
 	getRemotePostReplyToMsgId(m) {
@@ -48,11 +55,53 @@ export class TwitterImportClient {
 		}
 		return this.channelByAuthorId[m.author_id];
 	}
-	getRemotePostContents (userId, dbChannel, m, type) {
-		return this.twitterClient.messageToContents(userId, dbChannel, m, type);
+	async getRemotePostContents (dbChannel, m, type) {
+		return this.messageToContents(this.userId, dbChannel, m, type);
 	}
-	getRemotePostProperties(userId, dbChannel, m) {
+	async getRemotePostProperties(userId, dbChannel, m) {
 		//TODO: get forward from username and id
 		return {};
+	}
+	async getReplyMessage(dbChannel, m) {
+		return null;
+		// if (m.replyTo) {
+		// 	const {replyToMsgId} = m.replyTo;
+		// 	const {result: messages} = await this.telegramClient.getMessagesByClient(this.connectClient, dbChannel.channelId, [replyToMsgId]);
+		// 	return messages.list[0];
+		// } else {
+		// 	return null;
+		// }
+	}
+	async getRepostMessage(dbChannel, m) {
+		return null;
+		// if (!m.fwdFrom) {
+		// 	return null;
+		// }
+		// m = clone(m);
+		// m.id = m.fwdFrom.channelPost ? m.fwdFrom.channelPost : helpers.keccak(JSON.stringify(m));
+		// delete m.fwdFrom;
+		// return m;
+	}
+	async messageToContents(userId, dbChannel, m, type?) {
+		const contentMessageData = {userId, msgId: m.id, dbChannelId: dbChannel.id};
+		let {entities, text} = m;
+		if (entities) {
+			text = clearMessageFromMediaMessages(m);
+		}
+		let textContent;
+		if (text) {
+			textContent = await this.content.saveData(userId, text, 'tw-' + m.id, {
+				mimeType: 'text/html',
+				view: ContentView.Contents
+			});
+			await this.socNetImport.storeContentMessage(contentMessageData, textContent);
+		}
+		return pIteration
+			.map(m.medias, async (media) => {
+				const content = await this.twitterClient.saveMedia(userId, media);
+				await this.socNetImport.storeContentMessage(contentMessageData, content);
+				return content;
+			})
+			.then(list => [textContent].concat(list).filter(c => c));
 	}
 }

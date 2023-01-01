@@ -58,11 +58,11 @@ const helpers = {
 			return remaining;
 		}
 	},
-	parseTweetsData(response, mediasByKey = {}, tweetsById = {}) {
+	parseTweetsData(response, mediasByKey = {}, tweetsById = {}): {list, mediasByKey, tweetsById, usersById, nextToken} {
 		const {data: list, meta, includes} = response['_realData'];
 		const result = helpers.parseTweetsList(list, includes, mediasByKey, tweetsById);
 		result['nextToken'] = meta.next_token;
-		return result;
+		return result as any;
 	},
 	parseTweetsList(list, includes, mediasByKey = {}, tweetsById = {}, usersById = {}) {
 		includes.users.forEach(item => {

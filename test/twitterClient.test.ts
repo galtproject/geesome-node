@@ -16,9 +16,10 @@ import IGeesomeTwitterClient from "../app/modules/twitterClient/interface";
 import {PostStatus} from "../app/modules/group/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
-import {TelegramImportClient} from "../app/modules/telegramClient/importClient";
+import {TwitterImportClient} from "../app/modules/twitterClient/importClient";
 
 const twitterHelpers = require('../app/modules/twitterClient/helpers');
+const appHelpers = require('../app/helpers');
 const assert = require('assert');
 
 describe("twitterClient", function () {
@@ -67,6 +68,15 @@ describe("twitterClient", function () {
 			twitterClient = app.ms['twitterClient'];
 			socNetImport = app.ms['socNetImport'];
 			socNetAccount = app.ms['socNetAccount'];
+
+			twitterClient['saveMedia'] = (userId, media) => {
+				const content = appHelpers.base64ToArrayBuffer('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC');
+				return app.ms.content.saveData(userId, content, '', {
+					userId,
+					mimeType: 'image/jpeg',
+					view: ContentView.Media
+				});
+			};
 		} catch (e) {
 			console.error('error', e);
 			assert.equal(true, false);
@@ -307,7 +317,6 @@ describe("twitterClient", function () {
 
 	it.only('entities and line breaks should handle correctly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		let message = {
 			"attachments": {"media_keys": ["3_1289679911796576258"]},
@@ -326,65 +335,39 @@ describe("twitterClient", function () {
 			"id": "1289679914124247040"
 		};
 
+		const channel = await twitterClient.storeChannelToDb(testUser.id, includes.users.filter(u => u.id === message.author_id)[0]);
 
-		const channel = await socNetImport.createDbChannel({
-			userId: testUser.id,
-			groupId: testGroup.id,
-			channelId: 1,
-			title: "1",
-			lastMessageId: 0,
-			postsCounts: 0,
-		});
+		const messages = twitterHelpers.parseTweetsData({_realData: {
+			includes,
+			data: [message],
+			meta: {}
+		}});
 
 		const advancedSettings = {mergeSeconds: 5};
-		const tgImportClient = new TelegramImportClient({account: {}}, twitterClient, socNetImport, testUser.id, channel, messages, advancedSettings, () => {});
-		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
-		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
-			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
-		};
+		const twImportClient = new TwitterImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
+		twImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
 
-		await socNetImport.importChannelPosts(testUser.id, channel, messages.list, advancedSettings, tgImportClient);
+		await socNetImport.importChannelPosts(twImportClient);
 
-		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
+		console.log('groupPosts', groupPosts);
 
-		// const {list: [m]} = twitterHelpers.parseTweetsList([message], includes);
-		//
-		// const channel = await socNetImport.createDbChannel({
-		// 	userId: testUser.id,
-		// 	groupId: testGroup.id,
-		// 	channelId: 1,
-		// 	title: "1",
-		// 	lastMessageId: 0,
-		// 	postsCounts: 0,
-		// });
-		//
-		// const contents = await twitterClient.messageToContents(testUser.id, channel, m);
-		// assert.equal(contents.length, 2);
-		// const [messageContent, imageContent] = contents;
-		// assert.equal(messageContent.view, ContentView.Contents);
-		// assert.equal(imageContent.view, ContentView.Media);
-		//
-		// const testPost = await app.ms.group.createPost(testUser.id, {
-		// 	contents,
-		// 	groupId: testGroup.id,
-		// 	status: PostStatus.Published
-		// });
-		//
-		// const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testPost);
-		// assert.equal(postContents.length, 2);
-		// const [messageC, imageC] = postContents;
-		//
-		// assert.equal(messageC.type, 'text');
-		// assert.equal(messageC.mimeType, 'text/html');
-		// assert.equal(messageC.view, 'contents');
-		// assert.equal(messageC.text, "It's not cool, @fontawesome why did you spam several messages in a day to me? I should have unsubscribed long ago");
-		// assert.equal(messageC.manifestId, 'bafyreihs2buxiuh7m5bqkq57pnthcoa2hvxc2oq2w7kthijmanodckpuya');
-		//
-		// assert.equal(imageC.type, 'image');
-		// assert.equal(imageC.mimeType, 'image/jpeg');
-		// assert.equal(imageC.view, 'media');
-		// assert.equal(imageC.url, 'https://my.site/ipfs/bafkreihlgzev575iuq3stroxmymtprwbfpd4aocdrreqmtzxgbitvcfc5e');
-		// assert.equal(imageC.manifestId, 'bafyreifukz7avkeb6rhkmj4jgnqv3u2e72ipbnmrezdui5d47fzjgdv3le');
+		assert.equal(groupPosts.length, 1);
+		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		assert.equal(postContents.length, 2);
+		const [messageC, imageC] = postContents;
+
+		assert.equal(messageC.type, 'text');
+		assert.equal(messageC.mimeType, 'text/html');
+		assert.equal(messageC.view, 'contents');
+		assert.equal(messageC.text, "It's not cool, @fontawesome why did you spam several messages in a day to me? I should have unsubscribed long ago");
+		assert.equal(messageC.manifestId, 'bafyreihs2buxiuh7m5bqkq57pnthcoa2hvxc2oq2w7kthijmanodckpuya');
+
+		assert.equal(imageC.type, 'image');
+		assert.equal(imageC.mimeType, 'image/jpeg');
+		assert.equal(imageC.view, 'media');
+		assert.equal(imageC.url, 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly');
+		assert.equal(imageC.manifestId, 'bafyreiagvoan5sb3zjorhvzw3qiq4o23hn5oi3dnryequknxsafjzjcb6y');
 	});
 
 	it('webpage message should import properly', async () => {

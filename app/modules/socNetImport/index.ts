@@ -9,7 +9,7 @@
 
 import {IGeesomeApp} from "../../interface";
 import {GroupType} from "../group/interface";
-import {IGeesomeSocNetImportClient} from "./interface";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface";
 
 const pIteration = require('p-iteration');
 const includes = require('lodash/includes');
@@ -22,7 +22,6 @@ const some = require('lodash/some');
 const isString = require('lodash/isString');
 const reverse = require('lodash/reverse');
 const last = require('lodash/last');
-const concat = require('lodash/concat');
 const Op = require("sequelize").Op;
 const commonHelper = require('geesome-libs/src/common');
 
@@ -36,7 +35,7 @@ module.exports = async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp, models) {
 	app.checkModules(['asyncOperation', 'group', 'content']);
 
-	class SocNetImportModule {
+	class SocNetImportModule implements IGeesomeSocNetImport {
 		async getDbChannel(userId, where) {
 			return models.Channel.findOne({where: {...where, userId}});
 		}
@@ -146,19 +145,20 @@ function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
-		async importChannelPosts(userId, mainDbChannel, messages, advancedSettings = {}, client: any = {}) {
-			const mergeSeconds = parseInt(advancedSettings['mergeSeconds']);
-			const force = !!advancedSettings['force'];
+		async importChannelPosts(client: IGeesomeSocNetImportClient) {
+			const mergeSeconds = parseInt(client.advancedSettings['mergeSeconds']);
+			const force = !!client.advancedSettings['force'];
 			const importState = { mergeSeconds, force };
-			console.log('messages.length', messages.length);
-			await pIteration.forEachSeries(messages, (m) => {
-				return this.publishPostAndRelated(client, userId, m, importState).catch(e => {
+			console.log('client.messages.list.length', client.messages.list.length);
+			await pIteration.forEachSeries(client.messages.list, (m) => {
+				return this.publishPostAndRelated(client, m, importState).catch(e => {
 					console.error('publishPostAndRelated error', e);
 				});
 			});
 		}
 
-		async publishPostAndRelated(_client: IGeesomeSocNetImportClient, _userId, _m, _importState: any = {}) {
+		async publishPostAndRelated(_client: IGeesomeSocNetImportClient, _m, _importState: any = {}) {
+			const {userId, socNet} = _client;
 			console.log('\n\npublishPostAndRelated m', JSON.stringify(_m));
 			const dbChannels = {
 				'repost': await _client.getRemotePostDbChannel(_m, 'repost'),
@@ -182,10 +182,10 @@ function getModule(app: IGeesomeApp, models) {
 				_importState.repostOfDbChannelId = dbChannels['repost'] ? dbChannels['repost'].id : null;
 				let properties = {} as any;
 				const postData = {
-					userId: _userId,
+					userId,
 					status: 'published',
 					groupId: dbChannel.groupId,
-					source: 'socNetImport:' + dbChannel.socNet,
+					source: 'socNetImport:' + socNet,
 					sourceChannelId: dbChannel.channelId,
 					sourceDate: new Date(m.date * 1000),
 				} as any;
@@ -202,7 +202,7 @@ function getModule(app: IGeesomeApp, models) {
 				postData.properties = properties;
 				postData.sourcePostId = m.id;
 
-				const post = await this.checkExistMessageAndPublishPost(_client, _userId, postData, m, dbChannel, _importState, type);
+				const post = await this.checkExistMessageAndPublishPost(_client, postData, m, dbChannel, _importState, type);
 				if (type === 'reply') {
 					replyTo = post;
 				} else if (type === 'repost') {
@@ -213,7 +213,8 @@ function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
-		async checkExistMessageAndPublishPost(client, userId, postData, m, dbChannel, importState, type) {
+		async checkExistMessageAndPublishPost(client, postData, m, dbChannel, importState, type) {
+			const {userId} = client;
 			const {force} = importState;
 
 			const existsChannelMessage = await this.findExistsChannelMessage(m.id, dbChannel.id, userId);
@@ -227,9 +228,9 @@ function getModule(app: IGeesomeApp, models) {
 			postData.properties = {
 				sourceLink: await client.getRemotePostLink(dbChannel, m.id),
 				...postData.properties,
-				...await client.getRemotePostProperties(userId, dbChannel, m, type)
+				...await client.getRemotePostProperties(dbChannel, m, type)
 			};
-			postData.contents = await client.getRemotePostContents(userId, dbChannel, m, type);
+			postData.contents = await client.getRemotePostContents(dbChannel, m, type);
 			console.log('postData', postData);
 
 			return this.publishPost(importState, existsChannelMessage, postData, {

@@ -36,4 +36,6 @@ export default interface IGeesomeTelegramClient {
 	storeObjToChannelDbByType(client, userId, type, storeObj, isCollateral?): Promise<{dbChannel}>
 
 	getMessage(dbChannel, m): Promise<any>
+
+	downloadMediaByClient(client, media): Promise<{client, result}>;
 }
