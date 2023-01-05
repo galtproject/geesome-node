@@ -1,4 +1,4 @@
-import {IContent} from "../database/interface";
+import {ContentView, IContent} from "../database/interface";
 import {IPost} from "../group/interface";
 import {IUserAsyncOperation} from "../asyncOperation/interface";
 
@@ -17,6 +17,8 @@ export default interface IGeesomeTwitterClient {
 
 	getChannelInfoByUserId(userId, accData, channelId): Promise<any>;
 
+	getChannelInfoByClient(client, channelId): Promise<any>;
+
 	createOrUpdateAccount(accData): Promise <any>;
 
 	getMeByUserId(userId, accData): Promise<any>;
@@ -25,11 +27,15 @@ export default interface IGeesomeTwitterClient {
 
 	login(userId, loginData): Promise<any>;
 
-	messageToContents(userId, dbChannel, m, mediasByKey): Promise<IContent[]>;
+	messageToContents(userId, dbChannel, m, type?): Promise<IContent[]>;
 
 	createDbChannel(channelData): Promise<any>;
+
+	storeChannelToDb(userId, channel, isCollateral = false): Promise<any>;
 
 	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
+
+	saveMedia(userId, media: {url, alt_text}): Promise<IContent>;
 }

@@ -30,7 +30,7 @@ module.exports = `
           </md-field>
 
           <div>
-            <md-button class="md-raised md-accent" @click="setup()" :disabled="invalidInputs">
+            <md-button class="md-raised md-accent" @click="setup()" :disabled="invalidInputs || sending">
               Submit
             </md-button>
           </div>

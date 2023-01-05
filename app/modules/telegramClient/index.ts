@@ -7,10 +7,10 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {ContentView} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
+import {TelegramImportClient} from "./importClient";
 
 const {Api, TelegramClient} = require("telegram");
 const {StringSession} = require("telegram/sessions");
@@ -170,6 +170,7 @@ function getModule(app: IGeesomeApp) {
 								.then(res => handleAuthorized(res.authorization))
 						);
 					} else {
+						console.log('response', response);
 						throw new Error("QR_CODE_DIDNT_SCANNED");
 					}
 				}
@@ -229,6 +230,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getChannelInfoByClient(client, channelId) {
+			console.log('getChannelInfoByClient', channelId);
 			const channel = await this.getChannelEntity(client, channelId);
 			const [response, messagesCount] = await Promise.all([
 				client.invoke(new Api.channels.GetFullChannel({channel})),
@@ -256,16 +258,7 @@ function getModule(app: IGeesomeApp) {
 
 		async getChannelLastMessageId(client, channel) {
 			const channelHistory = await client.invoke(
-				new Api.messages.GetHistory({
-					peer: channel,
-					offsetId: 0,
-					offsetDate: 2147483647,
-					addOffset: 0,
-					limit: 1,
-					maxId: 0,
-					minId: 0,
-					hash: 0,
-				})
+				new Api.messages.GetHistory({peer: channel, offsetId: 0, offsetDate: 2147483647, addOffset: 0, limit: 1, maxId: 0, minId: 0, hash: 0})
 			);
 			return channelHistory.messages[0].id;
 		}
@@ -281,27 +274,33 @@ function getModule(app: IGeesomeApp) {
 			}
 			return {
 				client,
-				result: await client.invoke(new Api.channels.GetMessages({
-					channel,
-					id: messagesIds
-				}) as any).then(({messages}) => {
-					return messages
-						.map(m => pick(m, ['id', 'replyTo', 'date', 'message', 'entities', 'media', 'action', 'groupedId']));
-				})
+				result: await client.invoke(new Api.channels.GetMessages({ channel, id: messagesIds }) as any)
+					.then((data) => {
+						const {chats, users, messages} = data;
+						const authorById = {};
+						chats.forEach(chat => authorById[chat.id.toString()] = chat);
+						users.forEach(user => authorById[user.id.toString()] = user);
+						return { authorById, list: messages.map(m => pick(m, telegramHelpers.importFields)) };
+					})
 			};
 		}
 
 		async getMessageLink(client, channelId, messageId) {
+			console.log('getMessageLink', channelId, messageId);
 			let channel = channelId;
 			if (commonHelper.isNumber(channel)) {
 				channel = await this.getChannelEntity(client, channelId);
 			}
 			messageId = parseInt(messageId);
+			console.log('channelId', channelId, 'messageId', messageId);
 			return client.invoke(new Api.channels.ExportMessageLink({
 				channel,
 				id: messageId,
 				thread: true,
-			})).then(r => r.link);
+			})).then(r => r.link).catch(e => {
+				console.error('getMessageLink Error', 'channelId', channelId, 'messageId', messageId, 'e', e.message);
+				return null;
+			});
 		}
 
 		async downloadMediaByUserId(userId, accData, media) {
@@ -322,14 +321,8 @@ function getModule(app: IGeesomeApp) {
 					mimeType,
 					fileSize,
 					content: await client.downloadFile(
-						new Api[media.document ? 'InputDocumentFileLocation' : 'InputPhotoFileLocation']({
-							...pick(file, ['id', 'accessHash', 'fileReference']),
-							thumbSize
-						}),
-						{
-							dcId: file.dcId,
-							fileSize,
-						}
+						new Api[media.document ? 'InputDocumentFileLocation' : 'InputPhotoFileLocation']({...pick(file, ['id', 'accessHash', 'fileReference']), thumbSize}),
+						{dcId: file.dcId, fileSize}
 					),
 				}
 			};
@@ -341,56 +334,107 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getMeByClient(client) {
-			return {
-				result: await client.getMe(),
-				client
-			};
+			return {result: await client.getMe(), client};
 		}
 
 		async getUserChannelsByUserId(userId, accData) {
 			const client = await this.getClient(userId, accData);
 			const channels = await client.invoke(new Api.messages.GetAllChats({exceptIds: []}) as any);
-			return {
-				result: channels.chats.filter(c => c.className === 'Channel' && !c.megagroup),
-				client
-			}
+			return {result: channels.chats.filter(c => c.className === 'Channel' && !c.megagroup), client}
 		}
 
 		isAutoActionAllowed(userId, funcName, funcArgs) {
 			return includes(['runChannelImportAndWaitForFinish'], funcName);
 		}
 
-		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings: any = {}) {
 			const {result: { asyncOperation }, client} = await this.runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings).then(r => r);
 			return app.ms.asyncOperation.waitForImportAsyncOperation(asyncOperation).then(() => {
 				return client.disconnect();
 			});
 		}
 
-		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
-			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
-			if (apiKey.userId !== userId) {
-				throw new Error("not_permitted");
-			}
-			const {client, result: channel} = await this.getChannelInfoByUserId(userId, accData, channelId);
-			const {account} = client;
-
-			const [{result: avatarFile}, {result: user}] = await Promise.all([
-				this.downloadMediaByClient(client, channel),
+		async storeChannelToChannelDb(client, userId, channelId, updateData: any = {isCollateral: false}) {
+			const [{result: channel}, {result: user}] = await Promise.all([
+				this.getChannelInfoByClient(client, channelId),
 				this.getMeByClient(client)
 			]);
+			return this.storeChannelObjToChannelDb(client, userId, channel, user.langCode, updateData);
+		}
+
+		async storeChannelObjToChannelDb(client, userId, channelObj, lang, updateData) {
+			const {account} = client;
+			const {result: avatarFile} = await this.downloadMediaByClient(client, channelObj);
 			let avatarContent;
 			if (avatarFile) {
 				avatarContent = await app.ms.content.saveData(userId, avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
 			}
 			const dbChannel = await socNetImport.importChannelMetadata(userId, socNet, account.id, {
-				...channel,
-				lang: user.langCode
+				...channelObj,
+				lang
 			}, {
+				...updateData,
 				avatarImageId: avatarContent ? avatarContent.id : null
+			});
+			return {client, dbChannel, channel: channelObj}
+		}
+
+		async storeToChannelDbByType(client, userId, type, storeId, isCollateral = false) {
+			console.log('storeToChannelDbByType', userId, type, storeId);
+			if (type === 'User') {
+				return this.storeUserToChannelDb(client, userId, storeId, {isCollateral});
+			} else {
+				return this.storeChannelToChannelDb(client, userId, storeId, {isCollateral});
+			}
+		}
+
+		async storeObjToChannelDbByType(client, userId, type, storeObj, isCollateral = false) {
+			if (type === 'User') {
+				return this.storeUserObjToChannelDb(client, userId, storeObj, {isCollateral});
+			} else {
+				return this.storeChannelObjToChannelDb(client, userId, storeObj, null, {isCollateral});
+			}
+		}
+
+		async storeUserToChannelDb(client, userId, storeUserId, updateData) {
+			const {result: {fullUser: userInfo, users: [user]}} = await this.getUserInfoByClient(client, storeUserId);
+			return this.storeUserObjToChannelDb(client, userId, {...userInfo, ...user}, updateData);
+		}
+
+		async storeUserObjToChannelDb(client, userId, storeUserObj, updateData) {
+			const {account} = client;
+			const {result: avatarFile} = await this.downloadMediaByClient(client, storeUserObj);
+			let avatarContent;
+			if (avatarFile) {
+				avatarContent = await app.ms.content.saveData(userId, avatarFile.content, '', {mimeType: avatarFile.mimeType, userId});
+			}
+			const dbChannel = await socNetImport.importChannelMetadata(userId, socNet, account.id, {
+				id: storeUserObj.id.toString(),
+				username: storeUserObj.username,
+				title: storeUserObj['firstName'] + ' ' + storeUserObj['lastName'],
+				about: storeUserObj.about,
+				lang: storeUserObj['langCode']
+			}, {
+				...updateData,
+				avatarImageId: avatarContent ? avatarContent.id : null
+			});
+			return {client, dbChannel, user: storeUserObj}
+		}
+
+		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
+			console.log('runChannelImport');
+			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
+			if (apiKey.userId !== userId) {
+				throw new Error("not_permitted");
+			}
+
+			const client = await this.getClient(userId, accData)
+			const {dbChannel, channel} = await this.storeChannelToChannelDb(client, userId, channelId, {
+				name: advancedSettings['name']
 			});
 
 			let {startMessageId, lastMessageId} = await socNetImport.prepareChannelQuery(dbChannel, channel.messagesCount, advancedSettings);
+			console.log('startMessageId', startMessageId);
 			startMessageId = parseInt(startMessageId);
 			if (advancedSettings['fromMessage']) {
 				startMessageId--;
@@ -410,22 +454,17 @@ function getModule(app: IGeesomeApp) {
 					const startPost = currentMessageId + 1;
 					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
 					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
+					console.log('messages.authorById', JSON.stringify(messages.authorById), 'messages.list', JSON.stringify(messages.list));
 
-					await socNetImport.importChannelPosts(userId, dbChannel, messages, advancedSettings, {
-						getRemotePostLink: (channelId, msgId) => this.getMessageLink(client, channelId, msgId),
-						getRemotePostReplyTo: (m) => m.replyTo ? m.replyTo.replyToMsgId.toString() : null,
-						getRemotePostContents: (userId, dbChannel, m) => this.messageToContents(client, userId, dbChannel, m),
-						getRemotePostProperties: (userId, dbChannel, m) => {
-							//TODO: get forward from username and id
-							return {};
-						},
-						async onRemotePostProcess(m, post) {
-							console.log('onMessageProcess', m.id.toString());
-							currentMessageId = parseInt(m.id.toString());
-							await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
-							return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
+					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, post, type) => {
+						if (type !== 'post' || !m) {
+							return;
 						}
-					});
+						console.log('onMessageProcess', type, m.id.toString());
+						currentMessageId = parseInt(m.id.toString());
+						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
+						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);
+					})
 				}
 			})().then(async () => {
 				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null);
@@ -440,56 +479,9 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
-		async messageToContents(client, userId, dbChannel, m) {
-			let contents = [];
-			const contentMessageData = {userId, msgId: m.id, groupedId: m.groupedId, dbChannelId: dbChannel.id};
-
-			if (contentMessageData.groupedId) {
-				contentMessageData.groupedId = contentMessageData.groupedId.toString();
-			}
-
-			if (m.message) {
-				console.log('m.message', m.message, 'm.entities', m.entities);
-				let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
-				console.log('text', text);
-				const content = await app.ms.content.saveData(userId, text, '', {
-					userId,
-					mimeType: 'text/html',
-					view: ContentView.Contents
-				});
-				contents.push(content);
-				await socNetImport.storeContentMessage(contentMessageData, content);
-			}
-
-			if (m.media) {
-				if (m.media.poll) {
-					//TODO: handle and save polls (325)
-					return contents;
-				}
-				console.log('m.media', m.media);
-				const {result: file} = await this.downloadMediaByClient(client, m.media);
-				if (file && file.content) {
-					const content = await app.ms.content.saveData(userId, file.content, '', {
-						userId,
-						mimeType: file.mimeType,
-						view: ContentView.Media
-					});
-					contents.push(content);
-					await socNetImport.storeContentMessage(contentMessageData, content);
-				}
-
-				if (m.media.webpage && m.media.webpage.url) {
-					const content = await app.ms.content.saveData(userId, telegramHelpers.mediaWebpageToLinkStructure(m.media.webpage), '', {
-						userId,
-						mimeType: 'application/json',
-						view: ContentView.Link
-					});
-					contents.push(content);
-					await socNetImport.storeContentMessage(contentMessageData, content);
-				}
-			}
-
-			return contents;
+		async importMessagesList(client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess?) {
+			const tgImportClient = new TelegramImportClient(app, client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
+			return socNetImport.importChannelPosts(tgImportClient);
 		}
 	}
 

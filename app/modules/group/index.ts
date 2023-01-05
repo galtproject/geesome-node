@@ -359,7 +359,7 @@ function getModule(app: IGeesomeApp, models) {
 			return {
 				list: await models.Post.findAll({
 					where: this.getGroupPostsWhere(groupId, filters),
-					include: [{association: 'contents'}],
+					include: [{association: 'contents'}, {association: 'repostOf', include: [{association: 'contents'}, {association: 'group'}]}],
 					order: [[sortBy, sortDir.toUpperCase()]],
 					limit,
 					offset
@@ -501,7 +501,7 @@ function getModule(app: IGeesomeApp, models) {
 			})();
 			log('replyPostUpdatePromise');
 
-			if(contents) {
+			if (contents) {
 				await this.setPostContents(post.id, contents);
 			}
 			log('setPostContents');
@@ -551,7 +551,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			await replyPostUpdatePromise;
-			log('replyPostUpdatePromise');
+			log('await replyPostUpdatePromise');
 
 			return post;
 		}
@@ -575,6 +575,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getPostContent(post: IPost): Promise<{type, mimeType, extension, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
+			// console.log('post.repostOf', post.repostOf);
 			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async (c: IContent) => {
 				const baseData = {
 					extension: c.extension,

@@ -17,9 +17,7 @@ const { join } = require('path');
 const fetch = require('node-fetch');
 
 const includes = require('lodash/includes');
-const trimStart = require('lodash/trimStart');
 const trim = require('lodash/trim');
-const find = require('lodash/find');
 const cheerio = require('cheerio');
 
 const isDir = path => {
@@ -160,6 +158,18 @@ function getTitleAndDescription(texts, postSettings, plainText = false) {
     return {title: removeHtml(title), description: fixHtml(description)};
 }
 
+function getPostTitleAndDescription(post, postSettings) {
+    const {title: postTitle, description: postDescription} = getTitleAndDescription(post.texts, postSettings);
+
+    let pageTitle = postTitle;
+    if(!pageTitle) {
+        const result = getTitleAndDescription(post.texts, {titleLength: 100});
+        pageTitle = result.title;
+    }
+    pageTitle = removeHtml(pageTitle);
+    return { postTitle, postDescription, pageTitle, pageDescription: removeHtml(postDescription) };
+}
+
 function getOgHeaders(siteName, lang, title, description, imageUrl) {
     const localesByLang = {
         'ru': 'ru_RU',
@@ -212,4 +222,4 @@ async function apiRequest(port, method, token, body) {
     }).then(r => r.json());
 }
 
-module.exports = { rmDir, getTitleAndDescription, getMainMediaContent, apiRequest, getOgHeaders, removeHtml };
+module.exports = { rmDir, getTitleAndDescription, getPostTitleAndDescription, getMainMediaContent, apiRequest, getOgHeaders, removeHtml };

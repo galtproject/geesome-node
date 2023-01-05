@@ -17,7 +17,6 @@ import {PostStatus} from "../app/modules/group/interface";
 import CronService from "../app/modules/autoActions/cronService";
 
 const assert = require('assert');
-const _ = require('lodash');
 const commonHelpers = require('geesome-libs/src/common');
 
 describe("autoActions", function () {
@@ -71,6 +70,7 @@ describe("autoActions", function () {
 
 	afterEach(async () => {
 		await app.stop();
+		await app.flushDatabase();
 	});
 
 	it('autoActions should be executed successfully', async () => {

@@ -10,7 +10,8 @@
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
   'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'entityJsonManifest', 'remoteGroup'],
-  'improve': ['groupCategory', 'invite', 'socNetAccount', 'socNetImport', 'telegramClient', 'twitterClient', 'staticSiteGenerator', 'rss', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'fileCatalog', 'gateway']
+  'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'fileCatalog', 'gateway'],
+  'socNet': ['socNetAccount', 'socNetImport', 'telegramClient', 'twitterClient']
 };
 
 //TODO: refactor modules config
@@ -31,5 +32,5 @@ module.exports = {
       protocol: process.env.STORAGE_PORT || 'http'
     }
   },
-  modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve)
+  modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };

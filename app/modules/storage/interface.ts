@@ -32,7 +32,7 @@ export default interface IGeesomeStorageModule {
 
   remove(hash, options?): Promise<any>;
 
-  saveObject(objData: any): Promise<string>;
+  saveObject(objData: any, options?): Promise<string>;
 
   getObject(storageId: string, resolveProp?: boolean): Promise<any>;
 

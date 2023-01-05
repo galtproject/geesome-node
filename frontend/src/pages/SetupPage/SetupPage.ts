@@ -14,12 +14,15 @@ export default {
   components: {},
   methods: {
     setup() {
+      this.sending = true;
       this.$coreApi.setup(this.setupData).then(() => {
+        this.sending = false;
         // EventBus.$emit(UPDATE_ADMIN_GROUPS);
         EventBus.$emit(UPDATE_CURRENT_USER);
         this.$router.push({name: 'main-page'});
       }).catch(() => {
         this.error = 'failed';
+        this.sending = false;
       })
     }
   },
@@ -31,6 +34,7 @@ export default {
   data() {
     return {
       localeKey: 'setup_page',
+      sending: false,
       setupData: {
         name: '',
         email: '',

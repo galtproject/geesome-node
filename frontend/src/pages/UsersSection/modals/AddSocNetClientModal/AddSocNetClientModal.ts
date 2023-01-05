@@ -35,6 +35,7 @@ export default {
       this.loading = true;
       console.log('loading', this.loading);
       try {
+        console.log('this.inputs', this.inputs);
         const result = await this.$coreApi.socNetLogin(this.socNet, this.inputs);
         if (result.error) {
           throw new Error(result.error);

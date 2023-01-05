@@ -21,7 +21,7 @@ module.exports = async function () {
 		accountId: {
 			type: Sequelize.INTEGER
 		},
-		source: {
+		socNet: {
 			type: Sequelize.STRING(50)
 		},
 		groupId: {
@@ -32,9 +32,6 @@ module.exports = async function () {
 		},
 		title: {
 			type: Sequelize.STRING(200)
-		},
-		lastMessageId: {
-			type: Sequelize.INTEGER
 		},
 	} as any, {
 		indexes: [
@@ -55,6 +52,9 @@ module.exports = async function () {
 			type: Sequelize.STRING(50)
 		},
 		replyToMsgId: {
+			type: Sequelize.STRING(50)
+		},
+		repostOfMsgId: {
 			type: Sequelize.STRING(50)
 		},
 		postId: {
@@ -94,6 +94,9 @@ module.exports = async function () {
 
 	Message.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
 	Channel.hasMany(Message, {as: 'messages', foreignKey: 'dbChannelId'});
+
+	Message.belongsTo(Channel, {as: 'repostOfChannel', foreignKey: 'repostOfDbChannelId'});
+	Channel.hasMany(Message, {as: 'repostedMessages', foreignKey: 'repostOfDbChannelId'});
 
 	ContentMessage.belongsTo(Channel, {as: 'channel', foreignKey: 'dbChannelId'});
 	Channel.hasMany(ContentMessage, {as: 'contentMessages', foreignKey: 'dbChannelId'});

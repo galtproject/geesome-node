@@ -148,6 +148,7 @@ describe("groupCategory", function () {
 		assert.equal(await app.ms.group.isMemberInGroup(newUser.id, testGroup.id), true);
 		assert.equal(await groupCategory.isMemberInCategory(newUser.id, category.id), true);
 
+		console.log('createPost 1');
 		let post = await app.ms.group.createPost(newUser.id, {
 			contents: [{id: postContent.id}],
 			groupId: testGroup.id,
@@ -155,7 +156,8 @@ describe("groupCategory", function () {
 			name: 'my-post'
 		});
 
-		const manifestId = await app.ms.communicator.resolveStaticId(testGroup.staticStorageId);
+		console.log('resolveStaticId');
+		const manifestId = await app.ms.staticId.resolveStaticId(testGroup.staticStorageId);
 		console.log('testGroup.staticStorageId', testGroup.staticStorageId, 'manifestId', manifestId);
 		const groupManifest = await app.ms.storage.getObject(manifestId);
 		console.log('groupManifest', groupManifest);
@@ -267,11 +269,12 @@ describe("groupCategory", function () {
 			mimeType: 'text/markdown'
 		});
 
+		console.log('createPost 2');
 		const post2 = await app.ms.group.createPost(testUser.id, {
-			contents: [{
-				id: post2Content1.id,
-				view: ContentView.Contents
-			}, {manifestStorageId: post2Content2.manifestStorageId, view: ContentView.Attachment}],
+			contents: [
+				{id: post2Content1.id,view: ContentView.Contents},
+				{manifestStorageId: post2Content2.manifestStorageId, view: ContentView.Attachment}
+			],
 			replyToId: post.id,
 			groupId: group2.id,
 			status: PostStatus.Published

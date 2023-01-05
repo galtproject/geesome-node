@@ -430,7 +430,7 @@ function getModule(config, appPass) {
     async generateAndSaveManifest(entityName, entityObj) {
       const manifestContent = await this.ms.entityJsonManifest.generateManifest(entityName, entityObj);
       const hash = await this.saveDataStructure(manifestContent, {waitForStorage: true});
-      console.log(entityName, hash, JSON.stringify(manifestContent.posts ? {...manifestContent, posts: ['hidden']} : manifestContent, null, ' '));
+      // console.log(entityName, hash, JSON.stringify(manifestContent.posts ? {...manifestContent, posts: ['hidden']} : manifestContent, null, ' '));
       return hash;
     }
 

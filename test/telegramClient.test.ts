@@ -16,12 +16,14 @@ import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
 import {PostStatus} from "../app/modules/group/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
+import {TelegramImportClient} from "../app/modules/telegramClient/importClient";
 
 const pIteration = require('p-iteration');
 
 const telegramHelpers = require('../app/modules/telegramClient/helpers');
 
 const assert = require('assert');
+const helpers = require('../app/helpers');
 
 describe("telegramClient", function () {
 	const databaseConfig = {
@@ -33,7 +35,8 @@ describe("telegramClient", function () {
 
 	this.timeout(60000);
 
-	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount, socNetImport: IGeesomeSocNetImport;
+	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount,
+		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -74,7 +77,7 @@ describe("telegramClient", function () {
 		}
 		let count = 0;
 
-		telegramClient['downloadMediaByClient'] = (client, media) => {
+		telegramClient['downloadMediaByClient'] = async (client, media) => {
 			const {file} = telegramHelpers.getMediaFileAndSize(media);
 			if (!file) {
 				return {client, result: null};
@@ -82,13 +85,13 @@ describe("telegramClient", function () {
 			count++;
 			return {
 				result: {
-					content: _base64ToArrayBuffer(
+					content: helpers.base64ToArrayBuffer(
 						count > 1
 							? 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAByFBMVEUgM1cgMlYgMlUeMVUcMFQiMFIhMFMgNFgdOWAcPGUdOWEfNFkhMVMiL1IhMVQgNFgZQm0YQGogNFghMVQfNVsTT4AfNlsgNFghMFMZQm0hMFMgNFggNFgdOmEfNVscO2MnOVwiN1s1RmcyQ2UjNlkkNloXK1BRYHxSYX0XK1AVKU8iNVgiNVkVKU8YLFEpO14pO14YLFEiNVlSYX0XK1AjNlo2R2dAUG82R2ckNloPV40IZ6QFb7AJZqMRUoYFbq8BeL0AeL4GaagrVn8ye6wST4EDc7YBd7wBd70Eba4hYpMmhb8Cc7cTT4EAdrwBdrsGbKwCdbkPWI4IaKUJZaIaP2kIaKYPVIkfUn9QXXgXVIYCdboKX5oGaqgBdboBdLgtQ2ZEV3a/w804V3wEa6sNW5M2TG4eTnoCcrUDcrUQVYoZUoIgU4ArTnWGkKSdpbX29/h9ip8TQ3FHYIDGydJse5MOUoYXUIBsepKssr6+wsyrsb+XoLD8/f3////T1t1baYPAxc/S1t1EVnV2g5nu7/KbpLTj5ur+/v7v8PP9/v79/f7S1d3s7fDk5up9iJ3z9Pb09fd+iZ7k5uuaorPO0trl5+uao7MtbbI9AAAAOnRSTlMAAAAAAAdGntn12Z9HBxiM6emNGan+q45H6kifodv2+Pb42tygokjq60oHjpAIGaytGo/qSaLc+d2j9tPZtgAAAAFvck5UAc+id5oAAAD+SURBVBjTY2BgYGRlY+fg5OTi5uFlZAACJj5+AStrGxtbO0EhYSagPJ+IqL2Dg4Ojk7OLq5gwIwMrv6ibg7u7u4enl7ePrzgrg4SAvaM7GPj5OdhLSjFIW/kHBLpDgUOQDANHcEhoiIO7gwNYIEyWQS48IjLKPzom1sHdPy7eSZ5BISExKTklNS09IzMrOydXkUEpL7+gsKi4pLSsvKKyqlqZQaWmtq6+obGuqbmlta6uTZVBTb29rqOzq667p7eurk9Dk0FLu39CHRRMnKSjy8Csp9/fDuFPnmRgyMzAwKJnZDxl6rRpU6dr6BiygLzLrGViamZubmGpqQuUBwD7mkc7yNTEawAAAABJRU5ErkJggg=='
 							: 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAABR1BMVEUAAAAgM1cgM1cgM1cgNFggNFggM1cgM1cgM1cgM1ccO2MgM1cgM1cgM1cgM1cgM1cgM1ccPGQgM1cgM1cgM1cfNFkgM1cgM1cgM1c8TGw9Tm0gM1cgM1cgM1cgM1cgM1cgM1cgM1c9TW0+Tm0gM1cgM1clOFsPWY8Fba0BdrsFba4UTX0CdLgBd7wGbKspRGk2ir4UTX4DcrQbVoYmicQFbq8OWpAHaacfNFkHaqkOW5IXR3VWZH8TUIILYZsFbq4Bd7suQWMvQmTp6u4lPWIDdLcNXZYwQ2QZQ28SUoUXRnQeOmGnrryLlaf///94g5kWSXg3SWrk5utgbYcPWI8WSnlmc4y0usfGy9TS1t2dprXl5+wzRWYsPmBve5P8/PygqLf39/n9/f7W2eD5+fr3+Pl3gph5hJp3g5n4+Pnj5er+/v6gqLjJuAnyAAAAJ3RSTlMALJLU9PXVky0H/ZUIvL2Ulv0u1/X4+NbY/f4wl5m/wAmY/f4v2flxXoaXAAAAAW9yTlQBz6J3mgAAANdJREFUGNNjYAACRiZmFlY2dg4GCOBk51LX0NTUUufi5gHzebV1dIFAT9/AkA8kwq+tCwZGxia6hgJA/Vw6unCgIyjEwK6ua4oQMeNmYNMyt7CEC5gKM4hYWdvY6ura2YMFHEQZRBydnF1c3dw9NDU9tb28xRjEfXz9/AMCg4JDQsPCIyIlGPij/PyiYyL9omPj4v38EgQYhCQT/fyS/Pz8klP8/FKlpBkYZNL84CBdFuhSHrmMVAg3M11eAeQZHkWlhKzs7KwcZVkFqH9VBFTV1FRlpEFsANI2LfvWO/vxAAAAAElFTkSuQmCC'),
 					mimeType: 'image/jpg'
 				}
-			};
+			} as any;
 		};
 	});
 
@@ -101,83 +104,16 @@ describe("telegramClient", function () {
 			id: 5,
 			replyTo: null,
 			date: 1647614599,
-			message: 'Text\n' +
-				'\n' +
-				'Text after 2 br\n' +
-				'Link\n' +
-				'www.google.com\n' +
-				'Spoiler\n' +
-				'Strike\n' +
-				'Bold\n' +
-				'Italian\n' +
-				'Underline\n' +
-				'Code',
+			message: 'Text\n' + '\n' + 'Text after 2 br\n' + 'Link\n' + 'www.google.com\n' + 'Spoiler\n' + 'Strike\n' + 'Bold\n' + 'Italian\n' + 'Underline\n' + 'Code',
 			entities: [
-				{
-					CONSTRUCTOR_ID: 1990644519,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityTextUrl',
-					classType: 'constructor',
-					offset: 22,
-					length: 5,
-					url: 'https://www.google.com/'
-				},
-				{
-					CONSTRUCTOR_ID: 1859134776,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityUrl',
-					classType: 'constructor',
-					offset: 27,
-					length: 14
-				},
-				{
-					CONSTRUCTOR_ID: 852137487,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntitySpoiler',
-					classType: 'constructor',
-					offset: 42,
-					length: 8
-				},
-				{
-					CONSTRUCTOR_ID: 3204879316,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityStrike',
-					classType: 'constructor',
-					offset: 50,
-					length: 7
-				},
-				{
-					CONSTRUCTOR_ID: 3177253833,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityBold',
-					classType: 'constructor',
-					offset: 57,
-					length: 5
-				},
-				{
-					CONSTRUCTOR_ID: 2188348256,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityItalic',
-					classType: 'constructor',
-					offset: 62,
-					length: 8
-				},
-				{
-					CONSTRUCTOR_ID: 2622389899,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityUnderline',
-					classType: 'constructor',
-					offset: 70,
-					length: 10
-				},
-				{
-					CONSTRUCTOR_ID: 681706865,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityCode',
-					classType: 'constructor',
-					offset: 80,
-					length: 4
-				}
+				{CONSTRUCTOR_ID: 1990644519, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityTextUrl', classType: 'constructor', offset: 22,length: 5,url: 'https://www.google.com/'},
+				{CONSTRUCTOR_ID: 1859134776, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityUrl', classType: 'constructor', offset: 27, length: 14},
+				{CONSTRUCTOR_ID: 852137487, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntitySpoiler', classType: 'constructor', offset: 42, length: 8},
+				{CONSTRUCTOR_ID: 3204879316, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityStrike', classType: 'constructor', offset: 50, length: 7},
+				{CONSTRUCTOR_ID: 3177253833, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityBold', classType: 'constructor', offset: 57, length: 5},
+				{CONSTRUCTOR_ID: 2188348256, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityItalic', classType: 'constructor', offset: 62, length: 8},
+				{CONSTRUCTOR_ID: 2622389899, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityUnderline', classType: 'constructor', offset: 70, length: 10},
+				{CONSTRUCTOR_ID: 681706865, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityCode', classType: 'constructor', offset: 80, length: 4}
 			],
 			media: null,
 			action: undefined,
@@ -196,16 +132,7 @@ describe("telegramClient", function () {
 			replyTo: null,
 			date: 1586786046,
 			message: 'btw, а это тут было: https://vas3k.ru/blog/machine_learning/?',
-			entities: [
-				{
-					CONSTRUCTOR_ID: 1859134776,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityUrl',
-					classType: 'constructor',
-					offset: 21,
-					length: 39
-				}
-			],
+			entities: [{CONSTRUCTOR_ID: 1859134776, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityUrl', classType: 'constructor', offset: 21, length: 39}],
 			media: {
 				CONSTRUCTOR_ID: 2737690112,
 				SUBCLASS_OF_ID: 1198308914,
@@ -236,46 +163,7 @@ describe("telegramClient", function () {
 						accessHash: 439149036367074527,
 						fileReference: Buffer.from([/*00 62 6a 96 ff 65 28 83 5a 0b 0e a1 7b 61 44 39 a7 70 fb f6 70*/]),
 						date: 1549035239,
-						sizes: [
-							{
-								CONSTRUCTOR_ID: 3769678894,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoStrippedSize',
-								classType: 'constructor',
-								type: 'i',
-								bytes: Buffer.from([/*01 14 28 d8 3f a5 27 3d ba 7b 9a 0e 3d 4d 2f e3 40 07 38 a4 e7 23 d2 97 b7 5a 4c 1f 6a 00 07 e3 45 00 f3 d2 8a 00 76 01 a3 14 51 40 06 28 c0 14 51 40 ... 6 more bytes*/]),
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'm',
-								w: 320,
-								h: 163,
-								size: 12107
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'x',
-								w: 800,
-								h: 408,
-								size: 45932
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'y',
-								w: 900,
-								h: 459,
-								size: 50629
-							}
-						],
+						sizes: [{CONSTRUCTOR_ID: 3769678894, SUBCLASS_OF_ID: 399256025, className: 'PhotoStrippedSize', classType: 'constructor', type: 'i', bytes: Buffer.from([/*01 14 28 d8 3f a5 27 3d ba 7b 9a 0e 3d 4d 2f e3 40 07 38 a4 e7 23 d2 97 b7 5a 4c 1f 6a 00 07 e3 45 00 f3 d2 8a 00 76 01 a3 14 51 40 06 28 c0 14 51 40 ... 6 more bytes*/])}, {CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'm', w: 320, h: 163, size: 12107},{CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'x', w: 800, h: 408, size: 45932},{CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'y', w: 900, h: 459, size: 50629}],
 						videoSizes: null,
 						dcId: 4
 					},
@@ -362,16 +250,7 @@ describe("telegramClient", function () {
 			replyTo: null,
 			date: 1651067259,
 			message: 'https://t.me/inside_microwave/161',
-			entities: [
-				{
-					CONSTRUCTOR_ID: 1859134776,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityUrl',
-					classType: 'constructor',
-					offset: 0,
-					length: 33
-				}
-			],
+			entities: [{CONSTRUCTOR_ID: 1859134776, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityUrl', classType: 'constructor', offset: 0, length: 33}],
 			media: {
 				CONSTRUCTOR_ID: 2737690112,
 				SUBCLASS_OF_ID: 1198308914,
@@ -453,17 +332,7 @@ describe("telegramClient", function () {
 			replyTo: null,
 			date: 1650964373,
 			message: 'jump to message 👇',
-			entities: [
-				{
-					CONSTRUCTOR_ID: 1990644519,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityTextUrl',
-					classType: 'constructor',
-					offset: 0,
-					length: 18,
-					url: 'https://t.me/ctodailychat/267937'
-				}
-			],
+			entities: [{CONSTRUCTOR_ID: 1990644519, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityTextUrl', classType: 'constructor', offset: 0, length: 18, url: 'https://t.me/ctodailychat/267937'}],
 			media: null,
 			action: undefined,
 			groupedId: null
@@ -475,16 +344,7 @@ describe("telegramClient", function () {
 			date: 1650964374,
 			message: 'https://twitter.com/benstopford/status/1518544410191007746\n' +
 				'\n(превьюха не грузится и твиттер не дает скопировать текст)',
-			entities: [
-				{
-					CONSTRUCTOR_ID: 1859134776,
-					SUBCLASS_OF_ID: 3479443932,
-					className: 'MessageEntityUrl',
-					classType: 'constructor',
-					offset: 0,
-					length: 58
-				}
-			],
+			entities: [{CONSTRUCTOR_ID: 1859134776, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityUrl', classType: 'constructor', offset: 0, length: 58}],
 			media: {
 				CONSTRUCTOR_ID: 1766936791,
 				SUBCLASS_OF_ID: 1198308914,
@@ -502,36 +362,7 @@ describe("telegramClient", function () {
 					accessHash: 0,
 					fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 dd 62 6b db 4a ea 35 3c 7c f2 20 b0 d6 c4 84 2f 5e 1e 5c 8c df*/]),
 					date: 1650925653,
-					sizes: [
-						{
-							CONSTRUCTOR_ID: 3769678894,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoStrippedSize',
-							classType: 'constructor',
-							type: 'i',
-							bytes: Buffer.from([/*01 1b 28 ba e2 7f b7 a1 50 e6 3c 73 f3 7c a3 f0 ab 18 93 1f 78 fe 63 fc 29 18 90 fc 67 f3 14 87 3e ad d3 fb c2 80 25 5c e3 9a 5a 88 96 e7 19 f6 f9 85 ... 65 more bytes*/]),
-						},
-						{
-							CONSTRUCTOR_ID: 1976012384,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSize',
-							classType: 'constructor',
-							type: 'm',
-							w: 320,
-							h: 212,
-							size: 18298
-						},
-						{
-							CONSTRUCTOR_ID: 4198431637,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSizeProgressive',
-							classType: 'constructor',
-							type: 'x',
-							w: 750,
-							h: 496,
-							sizes: [3341, 9007, 17892, 25486, 39802]
-						}
-					],
+					sizes: [{CONSTRUCTOR_ID: 3769678894, SUBCLASS_OF_ID: 399256025, className: 'PhotoStrippedSize', classType: 'constructor', type: 'i', bytes: Buffer.from([/*01 1b 28 ba e2 7f b7 a1 50 e6 3c 73 f3 7c a3 f0 ab 18 93 1f 78 fe 63 fc 29 18 90 fc 67 f3 14 87 3e ad d3 fb c2 80 25 5c e3 9a 5a 88 96 e7 19 f6 f9 85 ... 65 more bytes*/])}, {CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'm', w: 320, h: 212, size: 18298}, {CONSTRUCTOR_ID: 4198431637, SUBCLASS_OF_ID: 399256025, className: 'PhotoSizeProgressive', classType: 'constructor', type: 'x', w: 750, h: 496, sizes: [3341, 9007, 17892, 25486, 39802]}],
 					videoSizes: null,
 					dcId: 2
 				},
@@ -552,11 +383,11 @@ describe("telegramClient", function () {
 
 		const importState = {
 			mergeSeconds: 5,
-			userId: testUser.id,
-			groupId: testGroup.id,
+			dbChannelId: channel.id
 		};
 
 		const postData = {
+			userId: testUser.id,
 			groupId: testGroup.id,
 			status: 'published',
 			source: 'telegram',
@@ -650,17 +481,7 @@ describe("telegramClient", function () {
 				replyTo: null,
 				date: 1649028625,
 				message: 'jump to message 👇',
-				entities: [
-					{
-						CONSTRUCTOR_ID: 1990644519,
-						SUBCLASS_OF_ID: 3479443932,
-						className: 'MessageEntityTextUrl',
-						classType: 'constructor',
-						offset: 0,
-						length: 18,
-						url: 'https://t.me/ctodailychat/263223'
-					}
-				],
+				entities: [{CONSTRUCTOR_ID: 1990644519, SUBCLASS_OF_ID: 3479443932, className: 'MessageEntityTextUrl', classType: 'constructor', offset: 0, length: 18, url: 'https://t.me/ctodailychat/263223'}],
 				media: null,
 				action: undefined,
 				groupedId: null
@@ -688,46 +509,7 @@ describe("telegramClient", function () {
 						accessHash: 3581324060,
 						fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 ba 62 6e 09 b9 c4 6b 2b db 2d 9c c3 7a 2b 7b 69 2e 9f 75 0b c1*/]),
 						date: 1649023284,
-						sizes: [
-							{
-								CONSTRUCTOR_ID: 3769678894,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoStrippedSize',
-								classType: 'constructor',
-								type: 'i',
-								bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/]),
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'm',
-								w: 148,
-								h: 320,
-								size: 9356
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'x',
-								w: 369,
-								h: 800,
-								size: 33650
-							},
-							{
-								CONSTRUCTOR_ID: 4198431637,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSizeProgressive',
-								classType: 'constructor',
-								type: 'y',
-								w: 591,
-								h: 1280,
-								sizes: [5161, 12582, 23194, 30735, 46885]
-							}
-						],
+						sizes: [{CONSTRUCTOR_ID: 3769678894,SUBCLASS_OF_ID: 399256025,className: 'PhotoStrippedSize',classType: 'constructor',type: 'i',bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/])}, {CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'm', w: 148, h: 320, size: 9356}, {CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'x', w: 369, h: 800, size: 33650}, {CONSTRUCTOR_ID: 4198431637, SUBCLASS_OF_ID: 399256025, className: 'PhotoSizeProgressive', classType: 'constructor', type: 'y', w: 591, h: 1280, sizes: [5161, 12582, 23194, 30735, 46885]}],
 						videoSizes: null,
 						dcId: 2
 					},
@@ -759,46 +541,7 @@ describe("telegramClient", function () {
 						accessHash: 3581324060,
 						fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6e 09 b9 89 8f 97 e3 29 33 4a 4c dd 77 69 3a 69 1a 5c 20*/]),
 						date: 1649023285,
-						sizes: [
-							{
-								CONSTRUCTOR_ID: 3769678894,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoStrippedSize',
-								classType: 'constructor',
-								type: 'i',
-								bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/]),
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'm',
-								w: 148,
-								h: 320,
-								size: 9356
-							},
-							{
-								CONSTRUCTOR_ID: 1976012384,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSize',
-								classType: 'constructor',
-								type: 'x',
-								w: 369,
-								h: 800,
-								size: 33650
-							},
-							{
-								CONSTRUCTOR_ID: 4198431637,
-								SUBCLASS_OF_ID: 399256025,
-								className: 'PhotoSizeProgressive',
-								classType: 'constructor',
-								type: 'y',
-								w: 591,
-								h: 1280,
-								sizes: [5161, 12582, 23194, 30735, 46885]
-							}
-						],
+						sizes: [{CONSTRUCTOR_ID: 3769678894, SUBCLASS_OF_ID: 399256025, className: 'PhotoStrippedSize', classType: 'constructor', type: 'i', bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/])},{CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'm', w: 148, h: 320, size: 9356},{CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'x', w: 369, h: 800, size: 33650},{CONSTRUCTOR_ID: 4198431637, SUBCLASS_OF_ID: 399256025, className: 'PhotoSizeProgressive', classType: 'constructor', type: 'y', w: 591, h: 1280, sizes: [5161, 12582, 23194, 30735, 46885]}],
 						videoSizes: null,
 						dcId: 2
 					},
@@ -812,17 +555,7 @@ describe("telegramClient", function () {
 				replyTo: null,
 				date: 1649064970,
 				message: 'jump to message 👇',
-				entities: [
-					{
-						CONSTRUCTOR_ID: 1990644519,
-						SUBCLASS_OF_ID: 3479443932,
-						className: 'MessageEntityTextUrl',
-						classType: 'constructor',
-						offset: 0,
-						length: 18,
-						url: 'https://t.me/ctodailychat/263251'
-					}
-				],
+				entities: [{CONSTRUCTOR_ID: 1990644519,SUBCLASS_OF_ID: 3479443932,className: 'MessageEntityTextUrl',classType: 'constructor',offset: 0,length: 18,url: 'https://t.me/ctodailychat/263251'}],
 				media: null,
 				action: undefined,
 				groupedId: null
@@ -832,16 +565,7 @@ describe("telegramClient", function () {
 				replyTo: null,
 				date: 1649064970,
 				message: 'https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html',
-				entities: [
-					{
-						CONSTRUCTOR_ID: 1859134776,
-						SUBCLASS_OF_ID: 3479443932,
-						className: 'MessageEntityUrl',
-						classType: 'constructor',
-						offset: 0,
-						length: 81
-					}
-				],
+				entities: [{CONSTRUCTOR_ID: 1859134776,SUBCLASS_OF_ID: 3479443932,className: 'MessageEntityUrl',classType: 'constructor',offset: 0,length: 81}],
 				media: {
 					CONSTRUCTOR_ID: 2737690112,
 					SUBCLASS_OF_ID: 1198308914,
@@ -889,8 +613,7 @@ describe("telegramClient", function () {
 
 		const importState = {
 			mergeSeconds: 5,
-			userId: testUser.id,
-			groupId: testGroup.id,
+			dbChannelId: channel.id,
 		};
 
 		for (let j = 0; j < 2; j++) {
@@ -898,6 +621,7 @@ describe("telegramClient", function () {
 			let groupedId;
 			await pIteration.forEachSeries(messages, async (m, i) => {
 				const postData = {
+					userId: testUser.id,
 					groupId: testGroup.id,
 					status: 'published',
 					source: 'telegram',
@@ -1005,47 +729,7 @@ describe("telegramClient", function () {
 					accessHash: 3581324060,
 					fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 ba 62 6c c1 0d af d3 68 9d 1f ee df 85 7b cf 66 d2 d1 55 ed 43*/]),
 					date: 1649023284,
-					sizes: [
-						{
-							CONSTRUCTOR_ID: 3769678894,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoStrippedSize',
-							classType: 'constructor',
-							type: 'i',
-							bytes: Buffer.from([/*01 28 13 d3 a2 99 21 f9 70 06 4d 45 1c ac 25 d9 20 03 3c 71 93 53 62 0b 14 51 45 02 2a ca 92 99 c9 57 c0 e3 03 f2 a6 4b 11 92 5d f9 e8 7a 72 6a 7b 89 ... 51 more bytes*/]),
-						},
-						{
-							CONSTRUCTOR_ID: 1976012384,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSize',
-							classType: 'constructor',
-							type: 'm',
-							w: 148,
-							h: 320,
-							size: 10621
-						},
-						{
-							CONSTRUCTOR_ID: 1976012384,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSize',
-							classType: 'constructor',
-							type: 'x',
-							w: 369,
-							h: 800,
-							size: 40330
-						},
-						{
-							CONSTRUCTOR_ID: 4198431637,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSizeProgressive',
-							classType: 'constructor',
-							type: 'y',
-							w: 591,
-							h: 1280,
-							sizes: [5923, 15115, 28050, 38041, 59580]
-						}
-					]
-					,
+					sizes: [{CONSTRUCTOR_ID: 3769678894, SUBCLASS_OF_ID: 399256025, className: 'PhotoStrippedSize', classType: 'constructor', type: 'i', bytes: Buffer.from([/*01 28 13 d3 a2 99 21 f9 70 06 4d 45 1c ac 25 d9 20 03 3c 71 93 53 62 0b 14 51 45 02 2a ca 92 99 c9 57 c0 e3 03 f2 a6 4b 11 92 5d f9 e8 7a 72 6a 7b 89 ... 51 more bytes*/])},{CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'm', w: 148, h: 320, size: 10621},{CONSTRUCTOR_ID: 1976012384, SUBCLASS_OF_ID: 399256025, className: 'PhotoSize', classType: 'constructor', type: 'x', w: 369, h: 800, size: 40330},{CONSTRUCTOR_ID: 4198431637, SUBCLASS_OF_ID: 399256025, className: 'PhotoSizeProgressive', classType: 'constructor', type: 'y', w: 591, h: 1280, sizes: [5923, 15115, 28050, 38041, 59580]}],
 					videoSizes: null,
 					dcId: 2
 				},
@@ -1078,46 +762,7 @@ describe("telegramClient", function () {
 					accessHash: 3581324060,
 					fileReference: Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6c c1 0d 7e 15 5b e1 09 68 33 c1 05 20 a6 82 6e fe 3d 23*/]),
 					date: 1649023285,
-					sizes: [
-						{
-							CONSTRUCTOR_ID: 3769678894,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoStrippedSize',
-							classType: 'constructor',
-							type: 'i',
-							bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/]),
-						},
-						{
-							CONSTRUCTOR_ID: 1976012384,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSize',
-							classType: 'constructor',
-							type: 'm',
-							w: 148,
-							h: 320,
-							size: 9356
-						},
-						{
-							CONSTRUCTOR_ID: 1976012384,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSize',
-							classType: 'constructor',
-							type: 'x',
-							w: 369,
-							h: 800,
-							size: 33650
-						},
-						{
-							CONSTRUCTOR_ID: 4198431637,
-							SUBCLASS_OF_ID: 399256025,
-							className: 'PhotoSizeProgressive',
-							classType: 'constructor',
-							type: 'y',
-							w: 591,
-							h: 1280,
-							sizes: [5161, 12582, 23194, 30735, 46885]
-						}
-					],
+					sizes: [{CONSTRUCTOR_ID: 3769678894,SUBCLASS_OF_ID: 399256025,className: 'PhotoStrippedSize',classType: 'constructor',type: 'i',bytes: Buffer.from([/*01 28 13 d3 a2 9b 21 01 79 e8 48 1d 71 48 8c 09 23 9c 8e bc d4 91 61 f4 51 45 02 2b 5d a1 94 28 18 6d a7 25 4f 43 51 43 03 45 2a 3e ee 06 49 03 3c 75 ... 52 more bytes*/])},{CONSTRUCTOR_ID: 1976012384,SUBCLASS_OF_ID: 399256025,className: 'PhotoSize',classType: 'constructor',type: 'm',w: 148,h: 320,size: 9356},{CONSTRUCTOR_ID: 1976012384,SUBCLASS_OF_ID: 399256025,className: 'PhotoSize',classType: 'constructor',type: 'x',w: 369,h: 800,size: 33650},{CONSTRUCTOR_ID: 4198431637, SUBCLASS_OF_ID: 399256025, className: 'PhotoSizeProgressive', classType: 'constructor',type: 'y',w: 591,h: 1280,sizes: [5161, 12582, 23194, 30735, 46885]}],
 					videoSizes: null,
 					dcId: 2
 				},
@@ -1138,11 +783,11 @@ describe("telegramClient", function () {
 
 		const importState = {
 			mergeSeconds: 5,
-			userId: testUser.id,
-			groupId: testGroup.id,
+			dbChannelId: channel.id,
 		};
 
 		const postData = {
+			userId: testUser.id,
 			groupId: testGroup.id,
 			status: 'published',
 			source: 'telegram',
@@ -1186,14 +831,407 @@ describe("telegramClient", function () {
 		assert.equal(post2.contents[1].manifestStorageId, 'bafyreiarrzvojk2eqsvgmmkc77fong6cnef57r25wvdvums44vgiy5ptre');
 		assert.equal(post2.contents[2].manifestStorageId, 'bafyreifoksuhwlkn73jgzcbluzwvf3g62cpbuki6igalddkmgoexwcy3pm');
 	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const message1 = {
+			"id": 12,
+			"replyTo": null,
+			"fwdFrom": {
+				"flags": 32,
+				"imported": false,
+				"fromId": null,
+				"fromName": "X ✰",
+				"date": 1661713612,
+				"channelPost": null,
+				"postAuthor": null,
+				"savedFromPeer": null,
+				"savedFromMsgId": null,
+				"psaType": null
+			},
+			"date": 1661781574,
+			"message": "у меня ваще половина чатов так выглядит (но это у меня аккаунт сломан)",
+			"groupedId": null,
+			"media": {
+				"flags": 1,
+				"photo": {
+					"flags": 0,
+					"hasStickers": false,
+					"id": "5215629871777169243",
+					"accessHash": "1240871343489722844",
+					"fileReference": Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6c c1 0d 7e 15 5b e1 09 68 33 c1 05 20 a6 82 6e fe 3d 23*/]),
+					"date": 1661713590,
+					"sizes": [{"type": "i","bytes": Buffer.from([/*02 50 ef 70 e0 00 00 04 bb 62 6c c1 0d 7e 15 5b e1 09 68 33 c1 05 20 a6 82 6e fe 3d 23*/]),}, {"type": "m", "w": 320, "h": 162, "size": 5747}, {"type": "x","w": 733,"h": 372,"sizes": [1972, 13362, 16260]}],
+					"dcId": 2
+				},
+			},
+		};
+
+		const message2 = {
+			"id": 13,
+			"replyTo": {"flags": 0, "replyToMsgId": 12, "replyToPeerId": null, "replyToTopId": null},
+			"fwdFrom": {
+				"flags": 32,
+				"imported": false,
+				"fromId": null,
+				"fromName": "X ✰",
+				"date": 1661713916,
+				"channelPost": null,
+				"postAuthor": null,
+				"savedFromPeer": null,
+				"savedFromMsgId": null,
+				"psaType": null
+			},
+			"date": 1661781574,
+			"message": "виш",
+			"entities": null,
+			"media": null,
+			"groupedId": null
+		};
+
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0,
+		});
+
+		const importState = {
+			mergeSeconds: 5,
+			dbChannelId: channel.id,
+		};
+
+		const postData = {
+			userId: testUser.id,
+			groupId: testGroup.id,
+			status: 'published',
+			source: 'telegram',
+			sourceChannelId: channel.channelId,
+			sourcePostId: message1.id,
+			sourceDate: new Date(message1.date * 1000),
+			contents: [],
+			properties: {},
+		}
+
+		const msgData = {
+			dbChannelId: channel.id,
+			userId: testUser.id,
+			timestamp: message1.date,
+			groupedId: message1.groupedId,
+			msgId: message1.id
+		};
+
+		const contents1 = await telegramClient.messageToContents(null, testUser.id, channel, message1);
+		assert.equal(contents1.length, 2);
+		assert.equal(await app.ms.storage.getFileDataText(contents1[0].storageId), 'у меня ваще половина чатов так выглядит (но это у меня аккаунт сломан)');
+		assert.equal(contents1[1].mimeType, 'image/jpg');
+
+		postData.contents = contents1;
+		let post1 = await socNetImport.publishPost(importState, null, postData, msgData);
+		assert.equal(post1.contents.length, 2);
+
+		const contents2 = await telegramClient.messageToContents(null, testUser.id, channel, message2);
+		assert.equal(contents2.length, 1);
+		assert.equal(await app.ms.storage.getFileDataText(contents2[0].storageId), 'виш');
+	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const messages = {
+			authorById: {"1234567890":{"flags":33555583,"self":true,"contact":false,"mutualContact":false,"deleted":false,"bot":false,"botChatHistory":false,"botNochats":false,"verified":false,"restricted":false,"min":false,"botInlineGeo":false,"support":false,"scam":false,"applyMinPhoto":true,"fake":false,"id":"1234567890","accessHash":"7758749997229638832","firstName":"Microwave","lastName":"Dev","username":"MicrowaveDev","phone":"79676974783","photo":{"flags":2,"hasVideo":false,"photoId":"5289617684247460167","strippedThumb":{"type":"Buffer","data":[1,8,8,120,158,6,64,161,142,214,99,198,223,74,40,162,137,59,9,179]},"dcId":2},"status":{"expires":1672235429},"botInfoVersion":null,"restrictionReason":null,"botInlinePlaceholder":null,"langCode":null}},
+			list: [{
+				"id":15,
+				"replyTo":null,
+				"fwdFrom": {
+					"flags":1,
+					"imported":false,
+					"fromId":{"userId":"1234567890"},
+					"fromName":null,
+					"date":1672235097,
+					"channelPost":null,
+					"postAuthor":null,
+					"savedFromPeer":null,
+					"savedFromMsgId":null,
+					"psaType":null
+				},
+				"date":1672235108,
+				"message":"test",
+				"entities":null,
+				"media":null,
+				"groupedId":null
+			},{
+				"id":16,
+				"replyTo":{
+					"flags":0,
+					"replyToMsgId":15,
+					"replyToPeerId":null,
+					"replyToTopId":null
+				},
+				"fwdFrom":{
+					"flags":1,
+					"imported":false,
+					"fromId":{"userId":"1234567890"},
+					"fromName":null,
+					"date":1672235101,
+					"channelPost":null,
+					"postAuthor":null,
+					"savedFromPeer":null,
+					"savedFromMsgId":null,
+					"psaType":null
+				},
+				"date":1672235108,
+				"message":"test reply",
+				"entities":null,
+				"media":null,
+				"groupedId":null
+			}]
+		}
+
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0,
+		});
+
+		const advancedSettings = {mergeSeconds: 5};
+		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
+		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
+			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
+		};
+
+		await socNetImport.importChannelPosts(tgImportClient);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		assert.equal(groupPosts.length, 2);
+
+		const postDataBySourceId = {
+			15: {
+				groupedMsgIds: undefined,
+				repostOfMsgId: '1e229205b3f0812540f35726a178e196197c184e302ae2303f940f71db7e14c1',
+				contents: [],
+				repostContents: ['test']
+			},
+			16: {
+				groupedMsgIds: undefined,
+				replyToMsgId: 15,
+				repostOfMsgId: 'd65384cd2d1f14acdb7cba1bb61ac684134e3813f7ce818ea8399c24dcb5eb50',
+				contents: [],
+				repostContents: ['test reply']
+			},
+		}
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+			assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
+		})
+	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const messages = {
+			list: [
+				{
+					"id": 9,
+					"replyTo": null,
+					"fwdFrom": null,
+					"date": 1671714854,
+					"message": "test 1",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				},
+				{
+					"id": 10,
+					"replyTo": null,
+					"fwdFrom": null,
+					"date": 1671714855,
+					"message": "test 2",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				},
+				{
+					"id": 11,
+					"replyTo": {"flags": 2, "replyToMsgId": 8, "replyToPeerId": null, "replyToTopId": 6},
+					"fwdFrom": null,
+					"date": 1671714860,
+					"message": "test 3",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				},
+				{
+					"id": 12,
+					"replyTo": null,
+					"fwdFrom": null,
+					"date": 1671714862,
+					"message": "test 4",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				}
+			],
+		};
+		const advancedSettings = {mergeSeconds: 5};
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0
+		});
+
+		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
+		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+		telegramClient['getMessagesByClient'] = async () => {
+			return {result: {list: [{"id":8,"replyTo":null,"fwdFrom":null,"date":1671713854,"message":"test 0","entities":null,"media":null,"groupedId":null}]}} as any;
+		};
+		await socNetImport.importChannelPosts(tgImportClient);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		assert.equal(groupPosts.length, 4);
+
+		const postDataBySourceId = {
+			8: {groupedMsgIds: undefined, contents: ['test 0']},
+			10: {groupedMsgIds: ["9", "10"], contents: ['test 1', 'test 2']},
+			11: {groupedMsgIds: undefined, contents: ['test 3'], replyToMsgId: 8},
+			12: {groupedMsgIds: undefined, contents: ['test 4']}
+		}
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+		})
+	});
+
+	it('should get reply info from anonymous forward', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const messages = {
+			list: [
+				{
+					"id": 6,
+					"replyTo": null,
+					"fwdFrom": {
+						"flags": 5,
+						"imported": false,
+						"fromId": {"channelId": "1197285959"},
+						"fromName": null,
+						"date": 1665757679,
+						"channelPost": 2520,
+						"postAuthor": null,
+						"savedFromPeer": null,
+						"savedFromMsgId": null,
+						"psaType": null
+					},
+					"date": 1665757707,
+					"message": "Repost from private channel",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				},
+				{
+					"id": 7,
+					"replyTo": {"flags": 0, "replyToMsgId": 6, "replyToPeerId": null, "replyToTopId": null},
+					"fwdFrom": {
+						"flags": 5,
+						"imported": false,
+						"fromId": {"channelId": "1197285959"},
+						"fromName": null,
+						"date": 1665757701,
+						"channelPost": 2521,
+						"postAuthor": null,
+						"savedFromPeer": null,
+						"savedFromMsgId": null,
+						"psaType": null
+					},
+					"date": 1665757707,
+					"message": "Reply from private channel",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				},
+				{
+					"id": 8,
+					"replyTo": {"flags": 2, "replyToMsgId": 7, "replyToPeerId": null, "replyToTopId": 6},
+					"fwdFrom": null,
+					"date": 1665757722,
+					"message": "reply to reply",
+					"entities": null,
+					"media": null,
+					"groupedId": null
+				},
+			],
+			authorById: {"1197285959": {"flags": 24609, "creator": true, "left": false, "broadcast": true, "verified": false, "megagroup": false, "restricted": false, "signatures": false,	"min": false, "scam": false, "hasLink": false, "hasGeo": false, "slowmodeEnabled": false, "callActive": false, "callNotEmpty": false, "fake": false, "gigagroup": false, "noforwards": false, "id": "1197285959", "accessHash": "-3234143468344367843", "title": "Контент Микроволновки", "username": null, "photo": {}, "date": 1619725900, "restrictionReason": null, "adminRights": {"flags": 6847, "changeInfo": true, "postMessages": true, "editMessages": true, "deleteMessages": true, "banUsers": true, "inviteUsers": true, "pinMessages": true, "addAdmins": true, "anonymous": false, "manageCall": true, "other": true}, "bannedRights": null, "defaultBannedRights": null, "participantsCount": null}}
+		};
+		const advancedSettings = {mergeSeconds: 5};
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			groupId: testGroup.id,
+			channelId: 1,
+			title: "1",
+			lastMessageId: 0,
+			postsCounts: 0
+		});
+
+		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
+		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+		telegramClient['getMessagesByClient'] = async (_: any, __: any, [msgId]: any) => {
+			return {result: {list: messages.list.filter(i => i.id.toString() === msgId.toString())}} as any;
+		};
+
+		await socNetImport.importChannelPosts(tgImportClient);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		assert.equal(groupPosts.length, 3);
+
+		const postDataBySourceId = {
+			8: {groupedMsgIds: undefined, replyToMsgId: 7, contents: ['reply to reply'], repostContents: []},
+			6: {
+				groupedMsgIds: undefined,
+				repostOfMsgId: 2520,
+				contents: [],
+				repostContents: ['Repost from private channel']
+			},
+			7: {
+				groupedMsgIds: undefined,
+				replyToMsgId: 6,
+				repostOfMsgId: 2521,
+				contents: [],
+				repostContents: ['Reply from private channel']
+			},
+		}
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+			assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
+		})
+	});
 });
 
-function _base64ToArrayBuffer(base64) {
-	let binary_string = atob(base64);
-	let len = binary_string.length;
-	let bytes = new Uint8Array(len);
-	for (let i = 0; i < len; i++) {
-		bytes[i] = binary_string.charCodeAt(i);
-	}
-	return bytes;
-}
