@@ -56,7 +56,8 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 				authorId = m.in_reply_to_user_id;
 				authorObj = this.authorById[authorId];
 			} else if (type === 'repost') {
-				authorId = ((m.referenced_tweets || []).filter(r => r.type === 'retweeted')[0] || {}).id;
+				console.log('getRemotePostDbChannel', type, m);
+				authorId = m.repost_of_user_id;
 				authorObj = this.authorById[authorId];
 			}
 			if (!authorId) {
@@ -77,10 +78,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 		return {};
 	}
 	async getReplyMessage(dbChannel, m) {
-		if (!m.referenced_tweets) {
-			return null;
-		}
-		const refReply = m.referenced_tweets.filter(t => t.type === 'replied_to')[0];
+		const refReply = (m.referenced_tweets || []).filter(t => t.type === 'replied_to')[0];
 		if (!refReply) {
 			return null;
 		}
@@ -88,23 +86,16 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return this.messages.tweetsById[refReply.id];
 		}
 		return null;
-		// if (m.replyTo) {
-		// 	const {replyToMsgId} = m.replyTo;
-		// 	const {result: messages} = await this.telegramClient.getMessagesByClient(this.connectClient, dbChannel.channelId, [replyToMsgId]);
-		// 	return messages.list[0];
-		// } else {
-		// 	return null;
-		// }
 	}
 	async getRepostMessage(dbChannel, m) {
+		const retweetRef = (m.referenced_tweets || []).filter(t => t.type === 'retweeted')[0];
+		if (!retweetRef) {
+			return null;
+		}
+		if (this.messages.tweetsById[retweetRef.id]) {
+			return this.messages.tweetsById[retweetRef.id];
+		}
 		return null;
-		// if (!m.fwdFrom) {
-		// 	return null;
-		// }
-		// m = clone(m);
-		// m.id = m.fwdFrom.channelPost ? m.fwdFrom.channelPost : helpers.keccak(JSON.stringify(m));
-		// delete m.fwdFrom;
-		// return m;
 	}
 	async messageToContents(userId, dbChannel, m, type?) {
 		const contentMessageData = {userId, msgId: m.id, dbChannelId: dbChannel.id};

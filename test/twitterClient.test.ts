@@ -350,7 +350,6 @@ describe("twitterClient", function () {
 		await socNetImport.importChannelPosts(twImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
-		console.log('groupPosts', groupPosts);
 
 		assert.equal(groupPosts.length, 1);
 		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
@@ -370,7 +369,7 @@ describe("twitterClient", function () {
 		assert.equal(imageC.manifestId, 'bafyreiagvoan5sb3zjorhvzw3qiq4o23hn5oi3dnryequknxsafjzjcb6y');
 	});
 
-	it.only('webpage message should import properly', async () => {
+	it('webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const message = {
@@ -403,20 +402,22 @@ describe("twitterClient", function () {
 		await socNetImport.importChannelPosts(twImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
-		console.log('groupPosts', groupPosts);
+		assert.equal(groupPosts.length, 1);
 
+		const postDataBySourceId = {
+			'1395871923561803781': {groupedMsgIds: undefined, replyToMsgId: '1395662836840288261', contents: ['Can you please share the link of this page?'], repostContents: []},
+		};
 		await pIteration.mapSeries(groupPosts, async (gp) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
-			console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
-			// assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
-			// assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
-			// assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
-			// assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
-			// assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+			assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
 		})
 
-		assert.equal(groupPosts.length, 1);
 		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
 		assert.equal(postContents.length, 1);
 		const [messageC] = postContents;
@@ -424,34 +425,28 @@ describe("twitterClient", function () {
 		assert.equal(messageC.text, "Can you please share the link of this page?");
 		assert.equal(messageC.manifestId, 'bafyreiazgkzyg2skgvj7cuympxptjjqhjyth25wfpzftylj7wflxcgg6qe');
 
-		// let tweetsToFetch = [];
-		// let repliesToImport = [];
-		//
-		// twitterHelpers.makeRepliesList(m, tweetsById, repliesToImport, tweetsToFetch);
-		// assert.equal(tweetsToFetch.length, 2);
-		// assert.equal(tweetsToFetch[0], '1395662646951641090');
-		// assert.equal(tweetsToFetch[1], '1395662836840288261');
-		// assert.equal(repliesToImport.length, 1);
-		// assert.equal(repliesToImport[0].id, '1395662836840288261');
-		// assert.equal(repliesToImport[0].text, '2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share. https://t.co/NY6CGB7WtB');
-		// assert.equal(repliesToImport[0].medias.length, 1);
-		//
-		// const replyContents = await twitterClient.messageToContents(testUser.id, channel, repliesToImport[0]);
-		// const testReplyPost = await app.ms.group.createPost(testUser.id, {
-		// 	contents: replyContents,
-		// 	groupId: testGroup.id,
-		// 	status: PostStatus.Published
-		// });
-		// const replyPostContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testReplyPost);
-		// const [replyMessageC] = replyPostContents;
-		// assert.equal(replyMessageC.text, "2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.");
+		const replyToChannel = await socNetImport.getDbChannel(testUser.id, {accountId: message.in_reply_to_user_id});
 
+		const {list: replyPosts} = await app.ms.group.getGroupPosts(replyToChannel.groupId, {}, {});
+		assert.equal(replyPosts.length, 1);
+
+		const replyDataBySourceId = {
+			'1395662836840288261': {groupedMsgIds: undefined, replyToMsgId: undefined, contents: ['2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.', 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly'], repostContents: []},
+		};
+		await pIteration.mapSeries(replyPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, replyDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, replyDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, replyDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text || rc.url), replyDataBySourceId[gp.sourcePostId].contents);
+			assert.deepEqual(repostContents.map(rc => rc.text || rc.url), replyDataBySourceId[gp.sourcePostId].repostContents);
+		});
 	});
 
-	//TODO: rework tweets import
-	it.skip('local webpage message should import properly', async () => {
+	it('local webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const message = {
 			"author_id": "3142378517",
@@ -469,30 +464,36 @@ describe("twitterClient", function () {
 			"text": "RT @galtproject: Hey everyone! 🎊 Amazing news! Galt•Project is live on Ethereum mainnet. More details here: https://t.co/1y7g8B7tMN.  DApp…",
 			"id": "1217407431157960704"
 		};
-		const {list: [m]} = twitterHelpers.parseTweetsList([message], includes);
 
-		const channel = await socNetImport.createDbChannel({
-			userId: testUser.id,
-			groupId: testGroup.id,
-			channelId: 1,
-			title: "1",
-			lastMessageId: 0,
-			postsCounts: 0,
+		const channel = await twitterClient.storeChannelToDb(testUser.id, includes.users.filter(u => u.id === message.author_id)[0]);
+
+		const messages = twitterHelpers.parseTweetsData({_realData: {
+			includes,
+			data: [message],
+			meta: {}
+		}});
+
+		const advancedSettings = {mergeSeconds: 5};
+		const twImportClient = new TwitterImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
+		twImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
+
+		await socNetImport.importChannelPosts(twImportClient);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
+		assert.equal(groupPosts.length, 1);
+
+		const replyDataBySourceId = {
+			'1217407431157960704': {groupedMsgIds: undefined, repostOfMsgId: "1217406911303372800", contents: [], repostContents: ['Hey everyone! 🎊 Amazing news! Galt•Project is live on Ethereum mainnet. More details here: https://t.co/1y7g8B7tMN.  DApp is here: https://t.co/Ey9CKYSBph Put your land, house or apartment on Ethereum! Create community and Vote! #ethereum #dao #web3 #DApps #ETH #PropTech']},
+		};
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
+			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, replyDataBySourceId[gp.sourcePostId].replyToMsgId);
+			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, replyDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, replyDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			assert.deepEqual(postContents.map(rc => rc.text || rc.url), replyDataBySourceId[gp.sourcePostId].contents);
+			assert.deepEqual(repostContents.map(rc => rc.text || rc.url), replyDataBySourceId[gp.sourcePostId].repostContents);
 		});
-
-		const contents = await twitterClient.messageToContents(testUser.id, channel, m);
-		assert.equal(contents.length, 2);
-		const [textContent, linkContent] = contents;
-		assert.equal(linkContent.view, ContentView.Link);
-		assert.equal(linkContent.mimeType, 'application/json');
-		assert.equal(await app.ms.storage.getFileDataText(linkContent.storageId), JSON.stringify({
-			"url": "https://t.me/inside_microwave/161",
-			"displayUrl": "t.me/inside_microwave/161",
-			"siteName": "Telegram",
-			"title": "Внутри Микроволновки",
-			"description": "Для всех новоприбывших: если вы увидели тут какие-то сложные посты про #блокчейн - то настоятельно рекомендую прочитать тред про него с начала.\n\nВот первый пост:\nhttps://t.me/inside_microwave/33\nЯ там сделал цепочку из ссылок на следующие посты, так что читать должно быть удобно\n\nЕщё написал FAQ с описанием терминов, которые юзаю в треде:\ntelegra.ph/Blockchain-FAQ-06-22\n\nФишка в том что я стараюсь объяснить блокчейн и экосистему вокруг него так, чтобы он был понятен простому человеку, ну и заодно то, что блокчейн не равно биткоин, всё гораздо сложнее и интереснее. Рассказываю также про смарт контракты и децентрализованные финансы то что знаю, и надеюсь что получается донести почему я считаю эту технологию перспективной и крутой.\n\nА вообще я очень рад что сюда подключается много интересных и, что самое главное, адекватных людей, я давно хочу сформировать островок адекватности на котором люди с разными точками зрения будут учиться…",
-			"type": "url"
-		}));
-		assert.equal(textContent.view, ContentView.Contents);
 	});
 });

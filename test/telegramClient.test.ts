@@ -1012,6 +1012,8 @@ describe("telegramClient", function () {
 		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		assert.equal(groupPosts.length, 2);
+
 		const postDataBySourceId = {
 			15: {
 				groupedMsgIds: undefined,
@@ -1027,7 +1029,6 @@ describe("telegramClient", function () {
 				repostContents: ['test reply']
 			},
 		}
-		assert.equal(groupPosts.length, 2);
 		await pIteration.mapSeries(groupPosts, async (gp) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
@@ -1106,6 +1107,7 @@ describe("telegramClient", function () {
 		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		assert.equal(groupPosts.length, 4);
 
 		const postDataBySourceId = {
 			8: {groupedMsgIds: undefined, contents: ['test 0']},
@@ -1113,7 +1115,6 @@ describe("telegramClient", function () {
 			11: {groupedMsgIds: undefined, contents: ['test 3'], replyToMsgId: 8},
 			12: {groupedMsgIds: undefined, contents: ['test 4']}
 		}
-		assert.equal(groupPosts.length, 4);
 		await pIteration.mapSeries(groupPosts, async (gp) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text));
@@ -1203,6 +1204,7 @@ describe("telegramClient", function () {
 		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
+		assert.equal(groupPosts.length, 3);
 
 		const postDataBySourceId = {
 			8: {groupedMsgIds: undefined, replyToMsgId: 7, contents: ['reply to reply'], repostContents: []},
@@ -1220,7 +1222,6 @@ describe("telegramClient", function () {
 				repostContents: ['Reply from private channel']
 			},
 		}
-		assert.equal(groupPosts.length, 3);
 		await pIteration.mapSeries(groupPosts, async (gp) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];

@@ -357,7 +357,7 @@ function getModule(app: IGeesomeApp, models) {
 				const mc = find(messageContents, {dbContentId: c.id});
 				return mc.msgId * mc.updatedAt.getTime();
 			}], ['asc']);
-			_postData.properties.groupedMsgIds = orderBy(messageContents, [(mc) => mc.msgId * mc.updatedAt.getTime()], ['asc']).map(mc => mc.msgId);
+			_postData.properties.groupedMsgIds = uniq(orderBy(messageContents, [(mc) => mc.msgId * mc.updatedAt.getTime()], ['asc']).map(mc => mc.msgId));
 			if (_postData.properties.groupedMsgIds.length <= 1) {
 				delete _postData.properties.groupedMsgIds;
 			}

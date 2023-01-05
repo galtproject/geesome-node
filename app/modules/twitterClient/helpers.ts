@@ -77,9 +77,20 @@ const helpers = {
 		});
 		list.forEach(item => {
 			setRelations(item);
-			if (startsWith(item.text, 'RT ') && helpers.getRetweetId(item)) {
-				item.text = '';
+			if (!startsWith(item.text, 'RT ') || !helpers.getRetweetId(item)) {
+				return;
 			}
+			const match = (/^(RT \@\w+)/.exec(item.text) || [])[0];
+			console.log('match', match);
+			if (!match || !match.length) {
+				return;
+			}
+			const username = match.split(' @')[1];
+			const repostMention = item.entities.mentions.filter(m => m.username === username)[0];
+			if (repostMention) {
+				item.repost_of_user_id = repostMention.id;
+			}
+			item.text = '';
 		})
 
 		function setRelations(item) {
