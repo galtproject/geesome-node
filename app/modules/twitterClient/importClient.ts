@@ -13,7 +13,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 	userId: number;
 	dbChannel: ISocNetDbChannel;
 	advancedSettings: {fromMessage, toMessage, mergeSeconds, force};
-	messages: {list, authorById};
+	messages: {list, authorById, mediasByKey, tweetsById, usersById};
 
 	connectClient;
 	twitterClient: IGeesomeTwitterClient;
@@ -49,11 +49,25 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 	getRemotePostRepostOfMsgId(m) {
 		return getRetweetId(m)
 	}
-	async getRemotePostDbChannel (m) {
+	async getRemotePostDbChannel (m, type) {
+		let authorId = m.author_id, authorObj = m.author;
 		if (!this.channelByAuthorId[m.author_id]) {
-			this.channelByAuthorId[m.author_id] = await this.twitterClient.storeChannelToDb(this.userId, m.author, this.dbChannel.accountId !== m.author_id);
+			if (type === 'reply') {
+				authorId = m.in_reply_to_user_id;
+				authorObj = this.authorById[authorId];
+			} else if (type === 'repost') {
+				authorId = ((m.referenced_tweets || []).filter(r => r.type === 'retweeted')[0] || {}).id;
+				authorObj = this.authorById[authorId];
+			}
+			if (!authorId) {
+				return null;
+			}
+			if (!authorObj) {
+				authorObj = await this.twitterClient.getChannelInfoByClient(this.connectClient, authorId);
+			}
+			this.channelByAuthorId[authorId] = await this.twitterClient.storeChannelToDb(this.userId, authorObj, this.dbChannel.accountId !== authorId);
 		}
-		return this.channelByAuthorId[m.author_id];
+		return this.channelByAuthorId[authorId];
 	}
 	async getRemotePostContents (dbChannel, m, type) {
 		return this.messageToContents(this.userId, dbChannel, m, type);
@@ -63,6 +77,16 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 		return {};
 	}
 	async getReplyMessage(dbChannel, m) {
+		if (!m.referenced_tweets) {
+			return null;
+		}
+		const refReply = m.referenced_tweets.filter(t => t.type === 'replied_to')[0];
+		if (!refReply) {
+			return null;
+		}
+		if (this.messages.tweetsById[refReply.id]) {
+			return this.messages.tweetsById[refReply.id];
+		}
 		return null;
 		// if (m.replyTo) {
 		// 	const {replyToMsgId} = m.replyTo;

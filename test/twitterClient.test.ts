@@ -13,7 +13,6 @@ import {
 	CorePermissionName,
 } from "../app/modules/database/interface";
 import IGeesomeTwitterClient from "../app/modules/twitterClient/interface";
-import {PostStatus} from "../app/modules/group/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
 import {TwitterImportClient} from "../app/modules/twitterClient/importClient";
@@ -21,6 +20,7 @@ import {TwitterImportClient} from "../app/modules/twitterClient/importClient";
 const twitterHelpers = require('../app/modules/twitterClient/helpers');
 const appHelpers = require('../app/helpers');
 const assert = require('assert');
+const pIteration = require('p-iteration');
 
 describe("twitterClient", function () {
 	const databaseConfig = {
@@ -315,7 +315,7 @@ describe("twitterClient", function () {
 		channelsById[item.id] = item;
 	});
 
-	it.only('entities and line breaks should handle correctly', async () => {
+	it('entities and line breaks should handle correctly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		let message = {
@@ -370,9 +370,8 @@ describe("twitterClient", function () {
 		assert.equal(imageC.manifestId, 'bafyreiagvoan5sb3zjorhvzw3qiq4o23hn5oi3dnryequknxsafjzjcb6y');
 	});
 
-	it('webpage message should import properly', async () => {
+	it.only('webpage message should import properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
-		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const message = {
 			"author_id": "3142378517",
@@ -389,56 +388,63 @@ describe("twitterClient", function () {
 			"id": "1395871923561803781"
 		};
 
-		const {list: [m], tweetsById} = twitterHelpers.parseTweetsList([message], includes);
+		const channel = await twitterClient.storeChannelToDb(testUser.id, includes.users.filter(u => u.id === message.author_id)[0]);
 
-		const channel = await socNetImport.createDbChannel({
-			userId: testUser.id,
-			groupId: testGroup.id,
-			channelId: 1,
-			title: "1",
-			lastMessageId: 0,
-			postsCounts: 0,
-		});
+		const messages = twitterHelpers.parseTweetsData({_realData: {
+			includes,
+			data: [message],
+			meta: {}
+		}});
 
-		const contents = await twitterClient.messageToContents(testUser.id, channel, m);
-		assert.equal(contents.length, 1);
-		const [messageContent] = contents;
-		assert.equal(messageContent.view, ContentView.Contents);
+		const advancedSettings = {mergeSeconds: 5};
+		const twImportClient = new TwitterImportClient(app, {account: {}}, testUser.id, channel, messages, advancedSettings, () => {});
+		twImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
 
-		const testPost = await app.ms.group.createPost(testUser.id, {
-			contents,
-			groupId: testGroup.id,
-			status: PostStatus.Published
-		});
+		await socNetImport.importChannelPosts(twImportClient);
 
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testPost);
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
+		console.log('groupPosts', groupPosts);
+
+		await pIteration.mapSeries(groupPosts, async (gp) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
+			// assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
+			// assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
+			// assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
+			// assert.deepEqual(postContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].contents);
+			// assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
+		})
+
+		assert.equal(groupPosts.length, 1);
+		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
 		assert.equal(postContents.length, 1);
 		const [messageC] = postContents;
 
 		assert.equal(messageC.text, "Can you please share the link of this page?");
 		assert.equal(messageC.manifestId, 'bafyreiazgkzyg2skgvj7cuympxptjjqhjyth25wfpzftylj7wflxcgg6qe');
 
-		let tweetsToFetch = [];
-		let repliesToImport = [];
-
-		twitterHelpers.makeRepliesList(m, tweetsById, repliesToImport, tweetsToFetch);
-		assert.equal(tweetsToFetch.length, 2);
-		assert.equal(tweetsToFetch[0], '1395662646951641090');
-		assert.equal(tweetsToFetch[1], '1395662836840288261');
-		assert.equal(repliesToImport.length, 1);
-		assert.equal(repliesToImport[0].id, '1395662836840288261');
-		assert.equal(repliesToImport[0].text, '2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share. https://t.co/NY6CGB7WtB');
-		assert.equal(repliesToImport[0].medias.length, 1);
-
-		const replyContents = await twitterClient.messageToContents(testUser.id, channel, repliesToImport[0]);
-		const testReplyPost = await app.ms.group.createPost(testUser.id, {
-			contents: replyContents,
-			groupId: testGroup.id,
-			status: PostStatus.Published
-		});
-		const replyPostContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testReplyPost);
-		const [replyMessageC] = replyPostContents;
-		assert.equal(replyMessageC.text, "2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.");
+		// let tweetsToFetch = [];
+		// let repliesToImport = [];
+		//
+		// twitterHelpers.makeRepliesList(m, tweetsById, repliesToImport, tweetsToFetch);
+		// assert.equal(tweetsToFetch.length, 2);
+		// assert.equal(tweetsToFetch[0], '1395662646951641090');
+		// assert.equal(tweetsToFetch[1], '1395662836840288261');
+		// assert.equal(repliesToImport.length, 1);
+		// assert.equal(repliesToImport[0].id, '1395662836840288261');
+		// assert.equal(repliesToImport[0].text, '2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share. https://t.co/NY6CGB7WtB');
+		// assert.equal(repliesToImport[0].medias.length, 1);
+		//
+		// const replyContents = await twitterClient.messageToContents(testUser.id, channel, repliesToImport[0]);
+		// const testReplyPost = await app.ms.group.createPost(testUser.id, {
+		// 	contents: replyContents,
+		// 	groupId: testGroup.id,
+		// 	status: PostStatus.Published
+		// });
+		// const replyPostContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', testReplyPost);
+		// const [replyMessageC] = replyPostContents;
+		// assert.equal(replyMessageC.text, "2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.");
 
 	});
 

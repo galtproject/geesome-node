@@ -17,6 +17,8 @@ export default interface IGeesomeTwitterClient {
 
 	getChannelInfoByUserId(userId, accData, channelId): Promise<any>;
 
+	getChannelInfoByClient(client, channelId): Promise<any>;
+
 	createOrUpdateAccount(accData): Promise <any>;
 
 	getMeByUserId(userId, accData): Promise<any>;

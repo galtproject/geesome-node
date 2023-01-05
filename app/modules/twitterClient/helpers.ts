@@ -58,15 +58,15 @@ const helpers = {
 			return remaining;
 		}
 	},
-	parseTweetsData(response, mediasByKey = {}, tweetsById = {}): {list, mediasByKey, tweetsById, usersById, nextToken} {
+	parseTweetsData(response, mediasByKey = {}, tweetsById = {}): {list, mediasByKey, tweetsById, authorById, nextToken} {
 		const {data: list, meta, includes} = response['_realData'];
 		const result = helpers.parseTweetsList(list, includes, mediasByKey, tweetsById);
 		result['nextToken'] = meta.next_token;
 		return result as any;
 	},
-	parseTweetsList(list, includes, mediasByKey = {}, tweetsById = {}, usersById = {}) {
+	parseTweetsList(list, includes, mediasByKey = {}, tweetsById = {}, authorById = {}) {
 		includes.users.forEach(item => {
-			usersById[item.id] = item;
+			authorById[item.id] = item;
 		});
 		includes.media.forEach(item => {
 			mediasByKey[item.media_key] = item;
@@ -84,11 +84,11 @@ const helpers = {
 
 		function setRelations(item) {
 			item.medias = item.attachments && item.attachments.media_keys ? item.attachments.media_keys.map(mediaKey => mediasByKey[mediaKey]) : [];
-			item.users = item.entities && item.entities.mentions ? item.entities.mentions.map(mention => usersById[mention.id]) : [];
-			item.author = usersById[item.author_id];
+			item.users = item.entities && item.entities.mentions ? item.entities.mentions.map(mention => authorById[mention.id]) : [];
+			item.author = authorById[item.author_id];
 			item.date = new Date(item.created_at).getTime() / 1000;
 		}
-		return {list, mediasByKey, tweetsById, usersById};
+		return {list, mediasByKey, tweetsById, authorById};
 	},
 	makeRepliesList(m, messagesById, repliesToImport = [], tweetsToFetch = []) {
 		if (!m.referenced_tweets) {

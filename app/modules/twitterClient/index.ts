@@ -80,6 +80,10 @@ function getModule(app: IGeesomeApp) {
 
 		async getChannelInfoByUserId(userId, accData, channelId) {
 			const {client} = await this.getClient(userId, accData);
+			return this.getChannelInfoByClient(client, channelId);
+		}
+
+		async getChannelInfoByClient(client, channelId) {
 			return client.readOnly.v2.user(channelId, { "user.fields": ['profile_image_url'] }).then(r => r.data);
 		}
 
@@ -177,7 +181,7 @@ function getModule(app: IGeesomeApp) {
 				list: [],
 				mediasByKey: {},
 				tweetsById: {},
-				usersById: {}
+				authorById: {}
 			};
 			makeRepliesList(m, messagesById, messagesToImport.list, tweetsToFetch);
 
@@ -186,7 +190,7 @@ function getModule(app: IGeesomeApp) {
 				limitItems = await handleTwitterLimits(tweets);
 
 				const messages = parseTweetsData(tweets);
-				['mediasByKey', 'tweetsById', 'usersById', 'list'].forEach(name => {
+				['mediasByKey', 'tweetsById', 'authorById', 'list'].forEach(name => {
 					messagesToImport[name] = name === 'list' ? concat(messagesToImport[name], messages[name]) : merge(messagesToImport[name], messages[name]);
 				});
 
