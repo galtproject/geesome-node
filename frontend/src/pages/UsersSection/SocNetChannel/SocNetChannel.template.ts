@@ -53,7 +53,7 @@ module.exports = `
 			
 			<div v-if="curOperation">
 				<md-progress-bar v-if="percent === -1" class="md-accent"  md-mode="indeterminate"></md-progress-bar>
-				<md-progress-bar v-else class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+				<md-progress-bar v-else-if="curOperation" class="md-accent" md-mode="determinate" :md-value="percent"></md-progress-bar>
 			</div>
 
 			<div style="display: flex; justify-content: space-between;">

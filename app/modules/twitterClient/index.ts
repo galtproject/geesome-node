@@ -13,9 +13,9 @@ import IGeesomeSocNetImport from "../socNetImport/interface";
 import IGeesomeSocNetAccount from "../socNetAccount/interface";
 import {ContentView} from "../database/interface";
 import {TwitterImportClient} from "./importClient";
+import {IMessagesState} from "./interface";
 
-const merge = require('lodash/merge');
-const concat = require('lodash/concat');
+const uniq = require('lodash/uniq');
 const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
@@ -97,14 +97,15 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.asyncOperation.waitForImportAsyncOperation(asyncOperation);
 		}
 
-		async storeChannelToDb(userId, channel, isCollateral = false) {
+		async storeChannelToDb(userId, accountId, channel, updateData = {}, isCollateral = false) {
 			let avatarContent;
 			if (channel.profile_image_url) {
 				avatarContent = await app.ms.content.saveDataByUrl(userId, channel.profile_image_url, {userId});
 			}
-			return socNetImport.importChannelMetadata(userId, socNet, channel.id, channel, {
+			return socNetImport.importChannelMetadata(userId, socNet, accountId, channel, {
 				avatarImageId: avatarContent ? avatarContent.id : null,
-				isCollateral
+				isCollateral,
+				...updateData
 			});
 		}
 
@@ -113,11 +114,11 @@ function getModule(app: IGeesomeApp) {
 			if (apiKey.userId !== userId) {
 				throw new Error("not_permitted");
 			}
-			const {client} = await this.getClient(userId, accData);
+			const {client, account} = await this.getClient(userId, accData);
 			const {v2} = client.readOnly;
 			const {data: channel} = await v2.user(username, { "user.fields": ['profile_image_url'] });
 
-			const dbChannel = await this.storeChannelToDb(userId, channel);
+			const dbChannel = await this.storeChannelToDb(userId, account.id, channel, {name: advancedSettings['name']});
 			const {startMessageId} = await socNetImport.prepareChannelQuery(dbChannel, null, advancedSettings);
 			let asyncOperation = await socNetImport.openImportAsyncOperation(userId, userApiKeyId, dbChannel);
 
@@ -125,32 +126,44 @@ function getModule(app: IGeesomeApp) {
 			let limitItems = FETCH_LIMIT;
 
 			(async () => {
-				let pagination_token;
+				let pagination_token = undefined;
 
-				while (pagination_token) {
+				do {
 					let timeline;
 					const options = getTweetsParams(limitItems, pagination_token);
 
 					if (startMessageId) {
+						//TODO: start_time
 						options['since_id'] = startMessageId;
 					}
+					console.log('options', options);
 					if (username === 'home') {
 						timeline = await v2.homeTimeline(options);
 					} else {
 						timeline = await v2.userTimeline(username, options);
 					}
+					console.log('timeline._realData.data', timeline._realData.data.map(d => JSON.stringify(d)));
+					console.log('timeline._realData.errors', timeline._realData.errors.map(e => JSON.stringify(e)));
+					console.log('timeline._realData.includes.media', JSON.stringify(timeline._realData.includes.media));
 
-					limitItems = await handleTwitterLimits(timeline);
-					const messages = parseTweetsData(timeline);
-					pagination_token = messages.nextToken;
+					limitItems = await handleTwitterLimits(timeline, limitItems);
+					let messagesState = parseTweetsData(timeline);
+					let timeLineListIds = messagesState.listIds;
+					pagination_token = messagesState.nextToken;
 
-					await this.importMessagesList(userId, client, dbChannel, messages, advancedSettings, async (m, post) => {
+					messagesState = await this.handleTweetIdsToFetch(client, messagesState);
+					messagesState.listIds = timeLineListIds;
+
+					await this.importMessagesList(userId, client, dbChannel, messagesState, advancedSettings, async (m, post, type) => {
+						if (type !== 'post' || !m) {
+							return;
+						}
 						console.log('onMessageProcess', m.id);
-						currentMessageId = parseInt(m.id);
+						currentMessageId = m.id;
 						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
 						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, -1);
 					});
-				}
+				} while (pagination_token)
 			})().then(async () => {
 				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null);
 			}).catch((e) => {
@@ -164,6 +177,16 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 
+		async handleTweetIdsToFetch(client, messagesState) {
+			while (messagesState.tweetIdsToFetch.length) {
+				console.log('messagesState.tweetIdsToFetch.length', messagesState.tweetIdsToFetch.length);
+				const tweets = await client.v2.readOnly.tweets(messagesState.tweetIdsToFetch, getTweetsParams(null));
+				console.log('tweets', tweets);
+				messagesState = parseTweetsData(tweets, messagesState);
+			}
+			return messagesState;
+		}
+
 		async saveMedia(userId, media) {
 			if (!media)
 				return null;
@@ -171,46 +194,41 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.content.saveDataByUrl(userId, url, {description, view: ContentView.Media});
 		}
 
-		async importReplies(userId, accData, dbChannel, m, messagesById, channelsById) {
+		async importReplies(userId, accData, dbChannel, m) {
 			const {client} = await this.getClient(userId, accData);
 
 			let tweetsToFetch = [];
 			let limitItems = FETCH_LIMIT;
 
-			const messagesToImport = {
-				list: [],
-				mediasByKey: {},
-				tweetsById: {},
-				authorById: {}
-			};
-			makeRepliesList(m, messagesById, messagesToImport.list, tweetsToFetch);
+			let messagesState: IMessagesState = {
+				listIds: []
+			} as any;
+			const messagesById = {};
+			makeRepliesList(m, messagesById, tweetsToFetch, messagesState);
 
 			while (tweetsToFetch.length > 0) {
 				const tweets = await client.v2.readOnly.tweets(tweetsToFetch, getTweetsParams(limitItems));
-				limitItems = await handleTwitterLimits(tweets);
-
-				const messages = parseTweetsData(tweets);
-				['mediasByKey', 'tweetsById', 'authorById', 'list'].forEach(name => {
-					messagesToImport[name] = name === 'list' ? concat(messagesToImport[name], messages[name]) : merge(messagesToImport[name], messages[name]);
-				});
+				limitItems = await handleTwitterLimits(tweets, limitItems);
+				messagesState = parseTweetsData(tweets, messagesState);
 
 				tweetsToFetch = [];
-				messages.list.forEach(item => {
-					makeRepliesList(item, messagesById, messagesToImport.list, tweetsToFetch);
+				messagesState.listIds.forEach(item => {
+					makeRepliesList(item, messagesById, tweetsToFetch, messagesState);
 				});
 			}
 
-			if (!messagesToImport.list.length) {
+			if (!messagesState.listIds.length) {
 				return;
 			}
 
-			await this.importMessagesList(userId, client, dbChannel, messagesToImport, {});
+			await this.importMessagesList(userId, client, dbChannel, messagesState, {});
 		}
 
 		async importMessagesList(userId, client, dbChannel, messages, advancedSettings, onRemotePostProcess?) {
 			messages.channelByAuthorId = {
 				[dbChannel.accountId]: dbChannel
 			};
+			messages.list = uniq(messages.listIds).map(id => messages.tweetsById[id]);
 			const twImportClient = new TwitterImportClient(app, client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
 			return socNetImport.importChannelPosts(twImportClient);
 		}

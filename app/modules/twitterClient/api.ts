@@ -22,6 +22,6 @@ module.exports = (app: IGeesomeApp, twitterClientModule: IGeesomeTwitterClient, 
 		return res.send(await twitterClientModule.getChannelInfoByUserId(req.user.id, req.body.accountData, req.body.channelId), 200);
 	});
 	api.onAuthorizedPost('run-channel-import', async (req, res) => {
-		return res.send(await twitterClientModule.runChannelImport(req.user.id, req.apiKey, req.body.accountData, req.body.channelId, req.body.advancedSettings), 200);
+		return res.send(await twitterClientModule.runChannelImport(req.user.id, req.apiKey.id, req.body.accountData, req.body.channelId, req.body.advancedSettings).then(r => r.result), 200);
 	});
 }

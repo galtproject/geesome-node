@@ -36,7 +36,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
 				throw new Error("incorrect_name");
 			}
-			const existUserWithName = await this.getGroupByParams({name: groupData['name']});
+			const existUserWithName = await this.getGroupByParams({name: groupData['name'], isCollateral: false});
 			if (existUserWithName) {
 				throw new Error("name_already_exists");
 			}
