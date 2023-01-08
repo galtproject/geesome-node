@@ -66,7 +66,10 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			if (!authorObj) {
 				authorObj = await this.twitterClient.getChannelInfoByClient(this.connectClient, authorId);
 			}
-			this.channelByAuthorId[authorId] = await this.twitterClient.storeChannelToDb(this.userId, authorObj, this.dbChannel.accountId !== authorId);
+			if (!authorObj) {
+				return null;
+			}
+			this.channelByAuthorId[authorId] = await this.twitterClient.storeChannelToDb(this.userId, this.dbChannel.accountId, authorObj, {}, this.dbChannel.channelId !== authorId);
 		}
 		return this.channelByAuthorId[authorId];
 	}
@@ -83,6 +86,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		if (this.messages.tweetsById[refReply.id]) {
+			console.log('getReplyMessage', JSON.stringify(this.messages.tweetsById[refReply.id]));
 			return this.messages.tweetsById[refReply.id];
 		}
 		return null;
@@ -93,6 +97,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		if (this.messages.tweetsById[retweetRef.id]) {
+			console.log('getRepostMessage', JSON.stringify(this.messages.tweetsById[retweetRef.id]));
 			return this.messages.tweetsById[retweetRef.id];
 		}
 		return null;
@@ -113,6 +118,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 		}
 		return pIteration
 			.map(m.medias, async (media) => {
+				console.log('media', media);
 				const content = await this.twitterClient.saveMedia(userId, media);
 				await this.socNetImport.storeContentMessage(contentMessageData, content);
 				return content;

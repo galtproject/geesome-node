@@ -335,7 +335,7 @@ describe("twitterClient", function () {
 			"id": "1289679914124247040"
 		};
 
-		const channel = await twitterClient.storeChannelToDb(testUser.id, includes.users.filter(u => u.id === message.author_id)[0]);
+		const channel = await twitterClient.storeChannelToDb(testUser.id, null, includes.users.filter(u => u.id === message.author_id)[0]);
 
 		const messages = twitterHelpers.parseTweetsData({_realData: {
 			includes,
@@ -387,7 +387,7 @@ describe("twitterClient", function () {
 			"id": "1395871923561803781"
 		};
 
-		const channel = await twitterClient.storeChannelToDb(testUser.id, includes.users.filter(u => u.id === message.author_id)[0]);
+		const channel = await twitterClient.storeChannelToDb(testUser.id, null, includes.users.filter(u => u.id === message.author_id)[0]);
 
 		const messages = twitterHelpers.parseTweetsData({_realData: {
 			includes,
@@ -465,7 +465,7 @@ describe("twitterClient", function () {
 			"id": "1217407431157960704"
 		};
 
-		const channel = await twitterClient.storeChannelToDb(testUser.id, includes.users.filter(u => u.id === message.author_id)[0]);
+		const channel = await twitterClient.storeChannelToDb(testUser.id, null, includes.users.filter(u => u.id === message.author_id)[0]);
 
 		const messages = twitterHelpers.parseTweetsData({_realData: {
 			includes,

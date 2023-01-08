@@ -119,7 +119,7 @@ module.exports = async function (sequelize, models) {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
-      { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false} },
+      { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false, isCollateral: false} },
       { fields: ['manifestStorageId'] },
       { fields: ['manifestStaticStorageId'] }
     ]

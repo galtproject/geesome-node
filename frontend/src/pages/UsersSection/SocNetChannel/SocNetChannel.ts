@@ -87,7 +87,7 @@ export default {
 					return;
 				}
 				console.log('op', op)
-				if (op.percent > this.curOperation.percent || !op.inProcess) {
+				if (new Date(op.updatedAt) > new Date(this.curOperation.updatedAt)) {
 					this.getGroup();
 				}
 				this.curOperation = op;

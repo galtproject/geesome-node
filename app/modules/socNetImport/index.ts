@@ -120,7 +120,9 @@ function getModule(app: IGeesomeApp, models) {
 
 		async prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings) {
 			const lastMessage = await this.getDbChannelLastMessage(dbChannel.id);
+			console.log('lastMessage', lastMessage);
 			let startMessageId = lastMessage ? lastMessage.msgId || 0 : 0;
+			console.log('startMessageId', startMessageId);
 			let lastMessageId = remotePostsCount;
 			if (advancedSettings['fromMessage']) {
 				startMessageId = advancedSettings['fromMessage'];
@@ -153,11 +155,18 @@ function getModule(app: IGeesomeApp, models) {
 			await pIteration.forEachSeries(client.messages.list, (m) => {
 				return this.publishPostAndRelated(client, m, importState).catch(e => {
 					console.error('publishPostAndRelated error', e);
+					if (e.message.includes("import_canceled")) {
+						throw e;
+					}
+					//TODO: remove line after debug
+					throw e;
 				});
 			});
 		}
 
 		async publishPostAndRelated(_client: IGeesomeSocNetImportClient, _m, _importState: any = {}) {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
 			const {userId, socNet} = _client;
 			console.log('\n\npublishPostAndRelated m', JSON.stringify(_m));
 			const dbChannels = {
@@ -380,7 +389,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		storeContentMessage(contentMessageData, content) {
-			console.log('storeContentMessage', contentMessageData, 'content.id', content.id);
+			console.log('storeContentMessage', contentMessageData, 'content.id', content ? content.id : null);
 			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch((e) => {
 				console.error('models.ContentMessage.create', JSON.stringify(e.errors));
 			});

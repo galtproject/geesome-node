@@ -3,7 +3,7 @@ import {IPost} from "../group/interface";
 import {IUserAsyncOperation} from "../asyncOperation/interface";
 
 export default interface IGeesomeTwitterClient {
-	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{asyncOperation: IUserAsyncOperation}>;
+	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{result: {asyncOperation: IUserAsyncOperation}}>;
 
 	getChannelInfoByUserId(userId, accData, channelId): Promise<{
 		//TODO: add fields from ...chats[0],
@@ -31,11 +31,22 @@ export default interface IGeesomeTwitterClient {
 
 	createDbChannel(channelData): Promise<any>;
 
-	storeChannelToDb(userId, channel, isCollateral = false): Promise<any>;
+	storeChannelToDb(userId, accountId, channel, updateData?, isCollateral?): Promise<any>;
 
 	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
 
 	saveMedia(userId, media: {url, alt_text}): Promise<IContent>;
+}
+
+export interface IMessagesState {
+	mediasByKey: {};
+	tweetsById: {};
+	authorById: {};
+	listIds: string[];
+}
+
+export interface ITimelineMessagesState extends IMessagesState {
+	nextToken;
 }
