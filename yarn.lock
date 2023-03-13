@@ -8526,9 +8526,10 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#73abf44":
+"geesome-libs@https://github.com/galtproject/geesome-libs#84f2e82":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#73abf443254c89f5ab4efc9e97578978bd9a76cf"
+  uid "84f2e82dfe5375ac4760f08d63bd3ad14d3d44b9"
+  resolved "https://github.com/galtproject/geesome-libs#84f2e82dfe5375ac4760f08d63bd3ad14d3d44b9"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
@@ -18177,9 +18178,9 @@ sprintf-js@~1.0.2:
   integrity sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
 
 sqlite3@^5.0.2:
-  version "5.0.3"
-  resolved "https://registry.yarnpkg.com/sqlite3/-/sqlite3-5.0.3.tgz#0c8303bcb8fbd6198a9f9645e7f363c191091483"
-  integrity sha512-/cDwes7XtTOtKH5zYeJSuiavuaJ6jXxPjebw9lDFxBAwR/DvP0tnJ5MPZQ3zpnNzJBa1G6mPTpB+5O1T+AoSdQ==
+  version "5.1.5"
+  resolved "https://registry.yarnpkg.com/sqlite3/-/sqlite3-5.1.5.tgz#cf5a753c98914f3aa44b7bd057702fdca6abceb6"
+  integrity sha512-7sP16i4wI+yKnGOO2q2ijze7EjQ9US+Vw7DYYwxfFtqNZDGgBcEw0oeDaDvUTq66uJOzVd/z6MkIg+c9erSJKg==
   dependencies:
     "@mapbox/node-pre-gyp" "^1.0.0"
     node-addon-api "^4.2.0"
