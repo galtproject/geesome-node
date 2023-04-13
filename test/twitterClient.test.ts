@@ -496,4 +496,47 @@ describe("twitterClient", function () {
 			assert.deepEqual(repostContents.map(rc => rc.text || rc.url), replyDataBySourceId[gp.sourcePostId].repostContents);
 		});
 	});
+
+	it.only('test localIds', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const authorId = "3142378517";
+		const channel = await twitterClient.storeChannelToDb(testUser.id, null, includes.users.filter(u => u.id === authorId)[0]);
+
+		function getMessages(offset, length) {
+			return Array.from({length}, (_, i) => ({
+				"author_id": authorId,
+				"created_at": "2020-01-15T11:" + (20 + offset - i) + ":24.000Z",
+				"possibly_sensitive": false,
+				"lang": "en",
+				"source": "Twitter for Android",
+				"reply_settings": "everyone",
+				"text": (offset + length - i).toString(),
+				"id": "1217407431157960704" + i
+			}));
+		}
+		const advancedSettings = {mergeSeconds: 5, isReversedList: true};
+		const length = 10;
+		const messagesList = getMessages(0, length);
+		const texts = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+		for(let i = 0; i < messagesList.length; i++) {
+			assert.equal(messagesList[i].text, texts[i].toString());
+		}
+		const messages = twitterHelpers.parseTweetsData({_realData: { includes, data: messagesList, meta: {}}});
+
+		await twitterClient.importMessagesList(testUser.id, {account: {}}, channel, messages, advancedSettings);
+		await socNetImport.reversePostsLocalIds(testUser.id, channel.id);
+
+		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {sortBy: 'publishedAt', sortDir: 'asc'});
+		assert.equal(groupPosts.length, 10);
+
+		await pIteration.mapSeries(groupPosts, async (gp, i) => {
+			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			assert.equal(postContents.length, 1);
+			assert.equal(postContents[0].text, (i + 1).toString());
+			assert.equal(gp.localId, i + 1);
+		});
+
+		const lastMessageToReverse = await socNetImport.getDbChannelStartReverseMessage(channel.id);
+		assert.equal(lastMessageToReverse, null);
+	});
 });

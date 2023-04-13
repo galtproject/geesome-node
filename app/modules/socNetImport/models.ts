@@ -63,10 +63,14 @@ module.exports = async function () {
 		timestamp: {
 			type: Sequelize.INTEGER
 		},
+		isNeedToReverse: {
+			type: Sequelize.BOOLEAN
+		},
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
 			{ fields: ['userId', 'dbChannelId', 'msgId'], unique: true },
+			{ fields: ['dbChannelId', 'isNeedToReverse'] },
 		]
 	} as any);
 
