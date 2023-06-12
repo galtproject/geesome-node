@@ -665,7 +665,7 @@ function getModule(app: IGeesomeApp) {
 								resultFile.emitFinish = uploadResult['emitFinish'];
 							}
 							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
-							// log('getFileStat', resultFile, 'resultFile');
+							log('getFileStat resultFile', resultFile);
 							const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
 							// log('storageContentStat', storageContentStat);
 							resultFile.size = storageContentStat.size;
