@@ -424,7 +424,7 @@ function getModule(app: IGeesomeApp) {
 				onProgress: options.onProgress,
 				waitForPin: options.waitForPin
 			}).catch(e => {
-				dataToSave.emit('end');
+				dataToSave.emit && dataToSave.emit('end');
 				dataToSave.destroy && dataToSave.destroy();
 				throw e;
 			});
