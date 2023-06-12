@@ -22,8 +22,10 @@ export class FileUploadDriver extends AbstractDriver {
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
     let size;
 
+    console.log('processByStream', path);
     try {
       if (inputStream.pipe) {
+        console.log('inputStream.pipe');
         await new Promise((res) =>
             inputStream
                 .pipe(fs.createWriteStream(path))
