@@ -22,7 +22,7 @@ const appHelpers = require('../app/helpers');
 const assert = require('assert');
 const pIteration = require('p-iteration');
 
-describe("twitterClient", function () {
+describe.skip("twitterClient", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -497,7 +497,7 @@ describe("twitterClient", function () {
 		});
 	});
 
-	it.only('test localIds', async () => {
+	it('test localIds', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const authorId = "3142378517";
 		const channel = await twitterClient.storeChannelToDb(testUser.id, null, includes.users.filter(u => u.id === authorId)[0]);

@@ -94,6 +94,7 @@ function getModule(app: IGeesomeApp, models) {
 				if (updateData['isCollateral']) {
 					name = this.getTimestampName(name || socNet + '-' + channelMetadata.id.toString())
 				}
+				name = name.replace(/[^a-zA-Z0-9\-_]/g, '');
 				group = await app.ms.group.createGroup(userId, {
 					name,
 					title: channelMetadata.title,
