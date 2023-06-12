@@ -24,19 +24,19 @@ export class FileUploadDriver extends AbstractDriver {
 
     console.log('processByStream', path);
     try {
-      // if (inputStream.pipe) {
-      //   console.log('inputStream.pipe');
-      //   await new Promise((resolve, reject) =>
-      //       inputStream
-      //           .pipe(fs.createWriteStream(path))
-      //           .on("close", resolve)
-      //           .on("finish", resolve)
-      //           .on("error", reject)
-      //   );
-      // } else {
+      if (inputStream.pipe) {
+        console.log('inputStream.pipe');
+        await new Promise((resolve, reject) =>
+            inputStream
+                .pipe(fs.createWriteStream(path))
+                .on("close", resolve)
+                .on("finish", resolve)
+                .on("error", reject)
+        );
+      } else {
         console.log('writeFileSync', path);
         fs.writeFileSync(path, inputStream);
-      // }
+      }
       console.log('getFileSize');
       size = getFileSize(path);
       console.log('getFileSize', size);
