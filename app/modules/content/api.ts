@@ -138,6 +138,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     app.ms.api.onUnversionGet('/ipfs/*', async (req, res) => {
+        console.log('req.route', req.route);
         const ipfsPath = req.route.replace('/ipfs/', '');
         contentModule.getFileStreamForApiRequest(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
     });
