@@ -396,25 +396,29 @@ function getModule(app: IGeesomeApp) {
 				dataToSave = dataToSave._bufs[0];
 			}
 
-			if(dataToSave.type === "Buffer") {
-				dataToSave = Buffer.from(dataToSave.data)
+			if (dataToSave.type === "Buffer") {
+				log('dataToSave = Buffer.from(dataToSave.data)');
+				dataToSave = Buffer.from(dataToSave.data);
 			}
 
-			if(_.isArray(dataToSave) || _.isTypedArray(dataToSave)) {
-				dataToSave = Buffer.from(dataToSave)
+			if (_.isArray(dataToSave) || _.isTypedArray(dataToSave)) {
+				log('dataToSave = Buffer.from(dataToSave)');
+				dataToSave = Buffer.from(dataToSave);
 			}
 
-			if(_.isNumber(dataToSave)) {
+			if (_.isNumber(dataToSave)) {
 				dataToSave = dataToSave.toString(10);
 			}
 
 			let fileStream;
-			if(_.isString(dataToSave) || _.isBuffer(dataToSave)) {
+			if (_.isString(dataToSave) || _.isBuffer(dataToSave)) {
+				log('fileStream = new Readable()');
 				fileStream = new Readable();
 				fileStream._read = () => {};
 				fileStream.push(dataToSave);
 				fileStream.push(null);
 			} else {
+				log('fileStream = dataToSave');
 				fileStream = dataToSave;
 			}
 
