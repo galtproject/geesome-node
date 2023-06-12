@@ -26,6 +26,13 @@ export class FileUploadDriver extends AbstractDriver {
     try {
       if (inputStream.pipe) {
         console.log('inputStream.pipe');
+        try {
+          console.log('try');
+          fs.writeFileSync(path, inputStream);
+        } catch (e) {
+          console.error('catch', e);
+        }
+
         await new Promise((resolve, reject) =>
             inputStream
                 .pipe(fs.createWriteStream(path))
