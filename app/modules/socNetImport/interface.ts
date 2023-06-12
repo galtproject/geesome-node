@@ -24,6 +24,10 @@ export default interface IGeesomeSocNetImport {
 
 	publishPost(_importState, _existsChannelMessage, _postData, _msgData): Promise<IPost>;
 
+	reversePostsLocalIds(userId, dbChannelId): Promise<any>;
+
+	getDbChannelStartReverseMessage(dbChannelId): Promise<ISocNetDbMessage>;
+
 	flushDatabase(): Promise<any>;
 }
 
@@ -38,7 +42,7 @@ export interface IGeesomeSocNetImportClient {
 	getRemotePostDbChannel (m, type: string): Promise<ISocNetDbChannel>;
 	getReplyMessage(dbChannel, m): Promise<any>;
 	getRepostMessage(dbChannel, m): Promise<any>;
-	onRemotePostProcess(m, post: IPost, type);
+	onRemotePostProcess(m, dbChannel, post: IPost, type);
 	getRemotePostProperties(dbChannel, m, type): Promise<any>;
 	getRemotePostContents(dbChannel, m, type): Promise<IContent[]>;
 }
@@ -51,4 +55,15 @@ export interface ISocNetDbChannel {
 	groupId;
 	accountId;
 	channelId;
+}
+
+export interface ISocNetDbMessage {
+	userId;
+	groupedId;
+	msgId;
+	replyToMsgId;
+	repostOfMsgId;
+	postId;
+	timestamp;
+	isNeedToReverse;
 }

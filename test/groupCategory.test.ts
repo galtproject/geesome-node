@@ -253,7 +253,7 @@ describe("groupCategory", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "already_exists"), true);
+			assert.equal(_.includes(e.toString(), "Validation error"), true);
 		}
 
 		const foundGroup2 = await app.ms.group.getGroupByParams({

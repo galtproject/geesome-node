@@ -41,6 +41,7 @@ const helpers = {
 		const result = {
 			max_results,
 			pagination_token,
+			// sort_order: 'recency',
 			"expansions": ['attachments.media_keys', 'referenced_tweets.id.author_id', 'referenced_tweets.id', 'author_id', 'in_reply_to_user_id'],
 			"media.fields": ['url', 'alt_text', 'type', 'preview_image_url', 'duration_ms', 'variants'],
 			// "place.fields": ['contained_within', 'country', 'country_code', 'full_name', 'geo', 'id', 'name', 'place_type'],
@@ -99,20 +100,26 @@ const helpers = {
 			setRelations(item);
 			tweetsById[item.id] = item;
 			messagesState.listIds.push(item.id);
-			if (!startsWith(item.text, 'RT ') || !helpers.getRetweetId(item)) {
-				return;
-			}
+			console.log('parseTweetsList item', JSON.stringify(item));
 			const match = (/^(RT \@\w+)/.exec(item.text) || [])[0];
 			console.log('match', match);
 			if (!match || !match.length) {
 				return;
 			}
-			const username = match.split(' @')[1];
-			const repostMention = item.entities.mentions.filter(m => m.username === username)[0];
-			if (repostMention) {
-				item.repost_of_user_id = repostMention.id;
+			const retweetId = helpers.getRetweetId(item);
+			console.log('retweetId', retweetId, 'tweetsById[retweetId]', tweetsById[retweetId]);
+			if (retweetId && tweetsById[retweetId]) {
+				item.repost_of_user_id = tweetsById[retweetId].author_id;
+			} else {
+				const username = match.split(' @')[1];
+				const repostMention = item.entities.mentions.filter(m => m.username === username)[0];
+				if (repostMention) {
+					item.repost_of_user_id = repostMention.id;
+				}
 			}
-			item.text = '';
+			if (startsWith(item.text, 'RT ')) {
+				item.text = '';
+			}
 		})
 
 		function setRelations(item) {

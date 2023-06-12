@@ -62,19 +62,25 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({where: {msgId, dbChannelId}}).then(m => m ? m.postId : null);
 		}
 
+		getTimestampName(name) {
+			return (name + '-' + Math.round(new Date().getTime() / 1000) + '-' + commonHelper.random().slice(0, 5));
+		}
+
 		async importChannelMetadata(userId, socNet, accountId, channelMetadata, updateData: any = {}) {
 			const channelId = isString(channelMetadata.id) ? channelMetadata.id : channelMetadata.id.toString();
 			let dbChannel = await this.getDbChannel(userId, {channelId});
 			let group;
 
-			// console.log('channel', channel);
+			console.log('importChannelMetadata', channelMetadata, updateData, JSON.stringify(dbChannel));
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
+			console.log('group', JSON.stringify(group));
 			if (group && !group.isDeleted) {
 				if (!group.isCollateral) {
 					delete updateData['isCollateral'];
 				}
 				const data = {
-					name: updateData['name'] || channelMetadata.username,
+					// TODO: make a separate request to update metadata
+					// name: updateData['name'] || channelMetadata.username,
 					title: channelMetadata.title,
 					description: channelMetadata.about,
 					avatarImageId: updateData.avatarImageId,
@@ -84,8 +90,13 @@ function getModule(app: IGeesomeApp, models) {
 					await app.ms.group.updateGroup(userId, dbChannel.groupId, data);
 				}
 			} else {
+				let name = updateData['name'] || channelMetadata.username;
+				if (updateData['isCollateral']) {
+					name = this.getTimestampName(name || socNet + '-' + channelMetadata.id.toString())
+				}
+				name = name.replace(/[^a-zA-Z0-9\-_]/g, '');
 				group = await app.ms.group.createGroup(userId, {
-					name: updateData['name'] || channelMetadata.username || (socNet + '-' + channelMetadata.id.toString() + '-' + Math.round(new Date().getTime() / 1000)),
+					name,
 					title: channelMetadata.title,
 					description: channelMetadata.about,
 					isPublic: true,
@@ -96,7 +107,7 @@ function getModule(app: IGeesomeApp, models) {
 						lang: channelMetadata.lang || 'en',
 						source: socNet,
 						sourceId: channelMetadata.id.toString(),
-						sourceUsername: channelMetadata.username,
+						sourceUsername: channelMetadata.username || updateData['name'],
 					})
 				});
 				const channelData = {
@@ -120,6 +131,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async prepareChannelQuery(dbChannel, remotePostsCount, advancedSettings) {
 			const lastMessage = await this.getDbChannelLastMessage(dbChannel.id);
+			const fromTimestamp = lastMessage ? lastMessage.timestamp : null;
 			console.log('lastMessage', lastMessage);
 			let startMessageId = lastMessage ? lastMessage.msgId || 0 : 0;
 			console.log('startMessageId', startMessageId);
@@ -136,7 +148,7 @@ function getModule(app: IGeesomeApp, models) {
 					throw new Error('already_done');
 				}
 			}
-			return {startMessageId, lastMessageId}
+			return {startMessageId, lastMessageId, fromTimestamp}
 		}
 
 		async openImportAsyncOperation(userId, userApiKeyId, dbChannel) {
@@ -150,7 +162,8 @@ function getModule(app: IGeesomeApp, models) {
 		async importChannelPosts(client: IGeesomeSocNetImportClient) {
 			const mergeSeconds = parseInt(client.advancedSettings['mergeSeconds']);
 			const force = !!client.advancedSettings['force'];
-			const importState = { mergeSeconds, force };
+			const isNeedToReverse = !!client.advancedSettings['isReversedList'];
+			const importState = { mergeSeconds, force, isNeedToReverse };
 			console.log('client.messages.list.length', client.messages.list.length);
 			await pIteration.forEachSeries(client.messages.list, (m) => {
 				return this.publishPostAndRelated(client, m, importState).catch(e => {
@@ -185,7 +198,7 @@ function getModule(app: IGeesomeApp, models) {
 				const m = type === 'post' ? _m : relMessages[type];
 				console.log('\n\n', m ? m.id : null, 'type:', type, 'dbChannel:', JSON.stringify(dbChannel))
 				if (!dbChannel || !m) {
-					return _client.onRemotePostProcess ? await _client.onRemotePostProcess(m, null, type) : null;
+					return _client.onRemotePostProcess ? await _client.onRemotePostProcess(m, dbChannel, null, type) : null;
 				}
 				_importState.dbChannelId = dbChannel.id;
 				_importState.repostOfDbChannelId = dbChannels['repost'] ? dbChannels['repost'].id : null;
@@ -218,7 +231,7 @@ function getModule(app: IGeesomeApp, models) {
 					repostOf = post;
 				}
 				console.log('❗️message', type, m.id, '=> post', post ? post.id : null);
-				return _client.onRemotePostProcess ? await _client.onRemotePostProcess(m, post, type) : null;
+				return _client.onRemotePostProcess ? await _client.onRemotePostProcess(m, dbChannel, post, type) : null;
 			});
 		}
 
@@ -251,6 +264,7 @@ function getModule(app: IGeesomeApp, models) {
 				timestamp: m.date,
 				replyToMsgId: postData.properties.replyToMsgId,
 				repostOfMsgId: postData.properties.repostOfMsgId,
+				isNeedToReverse: importState.isNeedToReverse,
 			});
 		}
 
@@ -399,6 +413,35 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Message.findOne({
 				where: {dbChannelId},
 				order: [['postId', 'DESC']]
+			});
+		}
+
+		async getDbChannelStartReverseMessage(dbChannelId) {
+			return models.Message.findOne({
+				where: {dbChannelId, isNeedToReverse: true},
+				order: [['timestamp', 'DESC']]
+			}) as any;
+		}
+
+		async reversePostsLocalIds(userId, dbChannelId) {
+			console.log('dbChannelsToReverse', dbChannelId);
+			const dbChannel = await this.getDbChannel(userId, {id: dbChannelId});
+			const startReverseMessage = await this.getDbChannelStartReverseMessage(dbChannelId);
+			console.log('startReverseMessage', startReverseMessage ? JSON.stringify(startReverseMessage) : null);
+			if (!startReverseMessage) {
+				return;
+			}
+			const {list: postsToReverse} = await app.ms.group.getGroupPosts(dbChannel.groupId, {idGte: startReverseMessage.postId});
+			console.log('postsToReverse.length', postsToReverse.length);
+			if (postsToReverse.length < 2) {
+				return;
+			}
+			const startPost = postsToReverse[0];
+			const lastPost = last(postsToReverse);
+			await pIteration.forEach(reverse(postsToReverse), (p, i) => p.update({localId: startPost.localId + i}));
+			console.log('startPost.id', startPost.id, 'last(postsToReverse).id', last(postsToReverse).id);
+			return models.Message.update({isNeedToReverse: false}, {
+				where: {dbChannelId, isNeedToReverse: true, postId: {[Op.gte]: startPost.id, [Op.lte]: lastPost.id}},
 			});
 		}
 

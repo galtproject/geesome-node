@@ -16,6 +16,8 @@ import {TwitterImportClient} from "./importClient";
 import {IMessagesState} from "./interface";
 
 const uniq = require('lodash/uniq');
+const map = require('lodash/map');
+const pIteration = require('p-iteration');
 const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
@@ -98,6 +100,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async storeChannelToDb(userId, accountId, channel, updateData = {}, isCollateral = false) {
+			console.log('storeChannelToDb', channel, 'isCollateral', isCollateral);
 			let avatarContent;
 			if (channel.profile_image_url) {
 				avatarContent = await app.ms.content.saveDataByUrl(userId, channel.profile_image_url, {userId});
@@ -118,23 +121,25 @@ function getModule(app: IGeesomeApp) {
 			const {v2} = client.readOnly;
 			const {data: channel} = await v2.user(username, { "user.fields": ['profile_image_url'] });
 
+			advancedSettings['isNeedToReverse'] = true;
+
 			const dbChannel = await this.storeChannelToDb(userId, account.id, channel, {name: advancedSettings['name']});
-			const {startMessageId} = await socNetImport.prepareChannelQuery(dbChannel, null, advancedSettings);
+			const {fromTimestamp} = await socNetImport.prepareChannelQuery(dbChannel, null, advancedSettings);
 			let asyncOperation = await socNetImport.openImportAsyncOperation(userId, userApiKeyId, dbChannel);
 
-			let currentMessageId = startMessageId;
+			let currentMessageId = null;
 			let limitItems = FETCH_LIMIT;
 
 			(async () => {
 				let pagination_token = undefined;
 
+				const dbChannelsToReverse = {}
 				do {
 					let timeline;
 					const options = getTweetsParams(limitItems, pagination_token);
 
-					if (startMessageId) {
-						//TODO: start_time
-						options['since_id'] = startMessageId;
+					if (fromTimestamp) {
+						options['end_time'] = new Date(fromTimestamp * 1000).toISOString();
 					}
 					console.log('options', options);
 					if (username === 'home') {
@@ -142,7 +147,7 @@ function getModule(app: IGeesomeApp) {
 					} else {
 						timeline = await v2.userTimeline(username, options);
 					}
-					console.log('timeline._realData.data', timeline._realData.data.map(d => JSON.stringify(d)));
+					// console.log('timeline._realData.data', timeline._realData.data.map(d => JSON.stringify(d)));
 					console.log('timeline._realData.errors', timeline._realData.errors.map(e => JSON.stringify(e)));
 					console.log('timeline._realData.includes.media', JSON.stringify(timeline._realData.includes.media));
 
@@ -154,16 +159,23 @@ function getModule(app: IGeesomeApp) {
 					messagesState = await this.handleTweetIdsToFetch(client, messagesState);
 					messagesState.listIds = timeLineListIds;
 
-					await this.importMessagesList(userId, client, dbChannel, messagesState, advancedSettings, async (m, post, type) => {
+					await this.importMessagesList(userId, client, dbChannel, messagesState, advancedSettings, async (m, dbChannel, post, type) => {
 						if (type !== 'post' || !m) {
 							return;
 						}
 						console.log('onMessageProcess', m.id);
 						currentMessageId = m.id;
 						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
-						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, -1);
+						await app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, -1);
+						if (!dbChannel) {
+							return;
+						}
+						dbChannelsToReverse[dbChannel.id] = true;
 					});
-				} while (pagination_token)
+				} while (pagination_token);
+
+				console.log('dbChannelsToReverse', dbChannelsToReverse);
+				await pIteration.forEachSeries(map(dbChannelsToReverse, (_, id) => id), dbChannelId => socNetImport.reversePostsLocalIds(userId, dbChannelId));
 			})().then(async () => {
 				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null);
 			}).catch((e) => {
@@ -230,7 +242,7 @@ function getModule(app: IGeesomeApp) {
 			};
 			messages.list = uniq(messages.listIds).map(id => messages.tweetsById[id]);
 			const twImportClient = new TwitterImportClient(app, client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
-			return socNetImport.importChannelPosts(twImportClient);
+			await socNetImport.importChannelPosts(twImportClient);
 		}
 	}
 

@@ -38,6 +38,8 @@ export default interface IGeesomeTwitterClient {
 	findExistsChannelMessage(msgId, dbChannelId, userId): Promise<any>;
 
 	saveMedia(userId, media: {url, alt_text}): Promise<IContent>;
+
+	importMessagesList(userId, client, dbChannel, messages, advancedSettings, onRemotePostProcess?);
 }
 
 export interface IMessagesState {

@@ -1,10 +1,13 @@
 const {createBuildApp} = require('@vuepress/core');
 const { path } = require('@vuepress/utils');
 const plugin = require('./plugin');
+const fs = require('fs');
+const pathLib = require('path');
 const {apiRequest} = require('./helpers');
 
 module.exports = async (config) => {
     async function storeFolder(dirPath) {
+        fs.writeFileSync(pathLib.join(dirPath, 'childProcessData.json'), JSON.stringify(config), {encoding: 'utf8'});
         return apiRequest(config.port, 'user/save-directory', config.token, {path: dirPath, groupId: config.groupId}).then(c => c.storageId);
     }
 
