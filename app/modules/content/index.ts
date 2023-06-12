@@ -765,7 +765,6 @@ function getModule(app: IGeesomeApp) {
 			console.log('getContentByStorageId', dataPath);
 			const content = await this.getContentByStorageId(dataPath);
 			console.log('content.mimeType', dataPath, content.mimeType);
-
 			if (content.mimeType === ContentMimeType.Directory) {
 				dataPath += '/index.html';
 			}
@@ -777,7 +776,18 @@ function getModule(app: IGeesomeApp) {
 			const stat = await app.ms.storage.getFileStat(dataPath);
 			dataSize = stat.size;
 			// }
-
+			if (_.startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory) {
+				res.writeHead(200, {
+					// 'Cache-Control': 'no-cache, no-store, must-revalidate',
+					// 'Pragma': 'no-cache',
+					// 'Expires': 0,
+					'Accept-Ranges': 'bytes',
+					'Cross-Origin-Resource-Policy': 'cross-origin',
+					'Content-Type': content.mimeType,
+					'Content-Length': dataSize
+				});
+				return res.send(this.getFileStream(dataPath));
+			}
 			console.log('dataSize', dataSize);
 
 			let chunkSize = 1024 * 1024;
