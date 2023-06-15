@@ -456,7 +456,7 @@ function getModule(app: IGeesomeApp) {
 					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
 					console.log('messages.authorById', JSON.stringify(messages.authorById), 'messages.list', JSON.stringify(messages.list));
 
-					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, post, type) => {
+					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, dbChannel, post, type) => {
 						if (type !== 'post' || !m) {
 							return;
 						}

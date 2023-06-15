@@ -31,6 +31,7 @@ function getModule(app: IGeesomeApp, models) {
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
+			console.log('groupData', groupData);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 
 			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
@@ -42,17 +43,12 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			groupData.creatorId = userId;
-			if (!groupData.isRemote) {
-				groupData.isRemote = false;
-			}
-
 			groupData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(userId, groupData['name']);
 			if (groupData.type !== GroupType.PersonalChat) {
 				groupData.staticStorageId = groupData.manifestStaticStorageId;
 			}
 
 			const group = await this.addGroup(groupData);
-
 			await app.ms.staticId.setStaticAccountGroupId(userId, groupData['name'], group.id);
 
 			// await app.callHook('hookAfterGroupSaving', [userId, group.id, groupData])
@@ -855,7 +851,7 @@ function getModule(app: IGeesomeApp, models) {
 					where[name] = {[Op.ne]: filters[name + 'Ne']};
 				}
 			});
-			['publishedAt'].forEach(field => {
+			['publishedAt', 'id'].forEach(field => {
 				['Gt', 'Gte', 'Lt', 'Lte'].forEach((postfix) => {
 					if (filters[field + postfix]) {
 						if(!where[field]) {
@@ -903,7 +899,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupByParams(params) {
-			params = _.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
+			params = _.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId', 'isCollateral']);
 
 			params.isDeleted = false;
 			return models.Group.findOne({

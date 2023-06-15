@@ -1,8 +1,8 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeContentModule from "./interface";
 import {UserLimitName} from "../database/interface";
+const asyncBusboy = require("./asyncBusboy");
 const _ = require('lodash');
-const Busboy = require('busboy');
 
 module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
@@ -19,29 +19,19 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      */
     app.ms.api.onAuthorizedPost('user/save-file', async (req, res) => {
-        const busboy = new Busboy({
+        const {files, fields: body} = await asyncBusboy(req.stream, {
             headers: req.headers,
             limits: {
                 fileSize: await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize)
             }
         });
-
-        const body = {};
-        busboy.on('field', function (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
-            body[fieldname] = val;
-        });
-        busboy.on('file', async function (fieldname, file, filename) {
-            const options = {
-                userId: req.user.id,
-                userApiKeyId: req.apiKey.id,
-                ..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
-            };
-
-            const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, file, filename, options], options);
-            res.send(asyncOperationRes);
-        });
-
-        req.stream.pipe(busboy);
+        const options = {
+            userId: req.user.id,
+            userApiKeyId: req.apiKey.id,
+            ..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
+        };
+        const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, files[0], files[0].filename, options], options);
+        res.send(asyncOperationRes);
     });
 
     /**
@@ -138,6 +128,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     app.ms.api.onUnversionGet('/ipfs/*', async (req, res) => {
+        console.log('req.route', req.route);
         const ipfsPath = req.route.replace('/ipfs/', '');
         contentModule.getFileStreamForApiRequest(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
     });

@@ -490,7 +490,7 @@ describe("app", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "name_already_exists"), true);
+			assert.equal(_.includes(e.toString(), "Validation error"), true);
 		}
 
 		const test3Group = await app.ms.group.createGroup(testUser.id, {

@@ -13,7 +13,6 @@ import AbstractDriver from "../abstractDriver";
 const fs = require('fs');
 const uuidv4 = require('uuid/v4');
 const rimraf = require("rimraf");
-const isString = require("lodash/isString");
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -23,17 +22,36 @@ export class FileUploadDriver extends AbstractDriver {
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
     let size;
 
+    console.log('processByStream', path);
     try {
-      if (isString(inputStream)) {
-        fs.writeFileSync(path, inputStream);
+      if (inputStream.pipe) {
+        await new Promise((resolve, reject) => {
+          console.log('fs.createWriteStream');
+          if(inputStream.isPaused()) {
+            inputStream.resume();
+          }
+          const writableStream = fs.createWriteStream(path);
+          console.log('inputStream.pipe', inputStream);
+          inputStream
+              .pipe(writableStream)
+              .on("close", resolve)
+              .on("finish", resolve)
+              .on("error", reject);
+
+          writableStream
+              .on("error", reject)
+              .on('close', () => {
+                console.log('writableStream.on close');
+                resolve();
+              });
+        })
       } else {
-        await new Promise((res) =>
-            inputStream
-                .pipe(fs.createWriteStream(path))
-                .on("close", res)
-        );
+        console.log('writeFileSync', path);
+        fs.writeFileSync(path, inputStream);
       }
+      console.log('getFileSize');
       size = getFileSize(path);
+      console.log('getFileSize', size);
     } catch (e) {
       if (options.onError) {
         options.onError(e);
