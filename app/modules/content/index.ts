@@ -376,11 +376,14 @@ function getModule(app: IGeesomeApp) {
 
 		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {
 			log('saveData');
+
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
+
 			log('checkUserCan');
 			if (options.path) {
 				fileName = commonHelper.getFilenameFromPath(options.path);
 			}
+			//TODO: use for streams https://github.com/mscdex/busboy/issues/212
 			const extensionFromName = commonHelper.getExtensionFromName(fileName);
 
 			if (options.apiKey && !options.userApiKeyId) {
@@ -397,12 +400,10 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			if (dataToSave.type === "Buffer") {
-				log('dataToSave = Buffer.from(dataToSave.data)');
 				dataToSave = Buffer.from(dataToSave.data);
 			}
 
 			if (_.isArray(dataToSave) || _.isTypedArray(dataToSave)) {
-				log('dataToSave = Buffer.from(dataToSave)');
 				dataToSave = Buffer.from(dataToSave);
 			}
 
@@ -412,13 +413,11 @@ function getModule(app: IGeesomeApp) {
 
 			let fileStream;
 			if (_.isString(dataToSave) || _.isBuffer(dataToSave)) {
-				log('fileStream = new Readable()');
 				fileStream = new Readable();
 				fileStream._read = () => {};
 				fileStream.push(dataToSave);
 				fileStream.push(null);
 			} else {
-				log('fileStream = dataToSave');
 				fileStream = dataToSave;
 			}
 
@@ -726,9 +725,17 @@ function getModule(app: IGeesomeApp) {
 			return this.addContent(userId, contentObject, options);
 		}
 
-		async getFileStreamForApiRequest(req, res, dataPath) {
-			app.ms.api.setStorageHeaders(res);
+		async getFileSize(dataPath, content) {
+			let dataSize = content ? content.size : null;
+			// if (!dataSize) {
+			//   console.log('dataSize is null', dataPath, dataSize);
+			//TODO: check if some size not correct
+			const stat = await app.ms.storage.getFileStat(dataPath);
+			dataSize = stat.size;
+			return dataSize;
+		}
 
+		async getDataPath(dataPath) {
 			dataPath = _.trim(dataPath, '/')
 			console.log('dataPath', dataPath);
 
@@ -743,6 +750,13 @@ function getModule(app: IGeesomeApp) {
 			if (ipfsHelper.isAccountCidHash(cid)) {
 				dataPath = dataPath.replace(cid, await app.ms.staticId.resolveStaticId(cid));
 			}
+			return dataPath;
+		}
+
+		async getFileStreamForApiRequest(req, res, dataPath) {
+			app.ms.api.setStorageHeaders(res);
+
+			dataPath = await this.getDataPath(dataPath);
 
 			let range = req.headers['range'];
 			if (!range) {
@@ -772,24 +786,10 @@ function getModule(app: IGeesomeApp) {
 			if (content.mimeType === ContentMimeType.Directory) {
 				dataPath += '/index.html';
 			}
-
-			let dataSize = content ? content.size : null;
-			// if (!dataSize) {
-			//   console.log('dataSize is null', dataPath, dataSize);
-			//TODO: check if some size not correct
-			const stat = await app.ms.storage.getFileStat(dataPath);
-			dataSize = stat.size;
 			// }
+			const dataSize = await this.getFileSize(dataPath, content);
 			if (_.startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory) {
-				res.writeHead(200, {
-					// 'Cache-Control': 'no-cache, no-store, must-revalidate',
-					// 'Pragma': 'no-cache',
-					// 'Expires': 0,
-					'Accept-Ranges': 'bytes',
-					'Cross-Origin-Resource-Policy': 'cross-origin',
-					'Content-Type': content.mimeType,
-					'Content-Length': dataSize
-				});
+				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, dataSize, false));
 				return res.send(this.getFileStream(dataPath));
 			}
 			console.log('dataSize', dataSize);
@@ -849,14 +849,38 @@ function getModule(app: IGeesomeApp) {
 
 		async getContentHead(req, res, hash) {
 			app.ms.api.setDefaultHeaders(res);
-			const content = await app.ms.database.getContentByStorageId(hash, true);
+			const dataPath = await this.getDataPath(hash);
+			const content = await app.ms.database.getContentByStorageId(dataPath, true);
 			if (content) {
-				res.setHeader('Content-Type', content.storageId === hash ? content.mimeType : content.previewMimeType);
-				res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+				const headersObj = await this.getIpfsHashHeadersObj(content, dataPath, null, true);
+				Object.keys(headersObj).map(key => {
+					res.setHeader(key, headersObj[key]);
+				})
 			}
 			res.send(200);
 		}
 
+		async getIpfsHashHeadersObj(content, dataPath, dataSize?, preview?) {
+			if (!dataSize) {
+				dataSize = await this.getFileSize(dataPath, content);
+			}
+			return {
+				'Accept-Ranges': 'bytes',
+				'Cross-Origin-Resource-Policy': 'cross-origin',
+				'Content-Type': content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType,
+				'Content-Length': dataSize,
+				'cache-control': 'public, max-age=29030400, immutable',
+				'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+				'x-ipfs-path': dataPath,
+				'x-ipfs-roots': _.last(dataPath.split('/')),
+				'x-ipfs-gateway-host': 'ipfs-bank12-am6', // TODO: get this values from ipfs node
+				'x-ipfs-pop': 'ipfs-bank12-am6',
+				'x-ipfs-lb-pop': 'gateway-bank2-am6',
+				'x-proxy-cache': 'MISS',
+				'x-ipfs-datasize': dataSize,
+				'timing-allow-origin': '*'
+			}
+		}
 		prepareListParams(listParams?: IListParams): IListParams {
 			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
