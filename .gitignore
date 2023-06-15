@@ -13,3 +13,4 @@ docs
 .docker-data
 frontend/.parcel-cache
 *.zip
+.env
