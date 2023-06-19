@@ -36,9 +36,11 @@ module.exports = async (app) => {
     console.log('Webhook successfully set');
   });
 
-    app.ms.api.onPost("tg-content-bot/webhook/:tgToken", async (req, res) => {
-      console.log(req.body)
-      return res.send("ok", 200);
+    app.ms.api.onPost('tg-content-bot/add', async (req, res) => {
+      const botId = req.body.tgToken.split(":")[0];
+      const encryptedToken = await app.encryptTextWithAppPass(req.body.tgToken);
+      await models.TgContentBots.create({encryptedToken: encryptedToken, botId: botId, userId: req.user.id});
+      res.send("ok", 200);
     });
 
   bot.setMyCommands([

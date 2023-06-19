@@ -24,7 +24,8 @@ module.exports = async function () {
 
 	const Description = sequelize.define('description', {
 		tgId: {
-			type: Sequelize.STRING(100)
+			type: Sequelize.STRING,
+			allowNull: true
 		},
 		contentId: {
 			type: Sequelize.STRING,
@@ -44,8 +45,28 @@ module.exports = async function () {
 		}
 	}, {});
 
+	const TgContentBots = sequelize.define('tgcontentbot', {
+		encryptedToken: {
+			type: Sequelize.TEXT,
+			allowNull: true
+		},
+		botId: {
+			type: Sequelize.STRING,
+			allowNull: true
+		},
+		userId: {
+			type: Sequelize.STRING,
+			allowNull: true
+		},
+		tokenHash: {
+			type: Sequelize.STRING,
+			allowNull: true
+		}
+	}, {});
+
 	return {
 		User: await User.sync({}),
 		Description: await Description.sync({}),
+		TgContentBots: await TgContentBots.sync({})
 	};
 };
