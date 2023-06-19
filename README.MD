@@ -136,7 +136,7 @@ yarn add git://github.com/galtproject/geesome-libs.git
 const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 
 const geesomeClient = new GeesomeClient({
-    server: 'https://your-site.com:2053', // or 'http://localhost:2052',
+    server: 'https://your-site.com/api', // or 'http://localhost:2052',
     // apiKey: '4J1VYKW-ZP34Y0W-PREH1Q2-DYN9Q8E' // if you paste your apiKey here, so no need to authorization by loginPassword function
 });
 

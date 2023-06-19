@@ -2227,6 +2227,11 @@
   resolved "https://registry.yarnpkg.com/@fluencelabs/fluence-network-environment/-/fluence-network-environment-1.0.13.tgz#696a59a877faf90f678a1544f498159c41c8a339"
   integrity sha512-2pci3T0sUHE08jwEs1r/vHKVT4XUh/A3j/QJ0eIhddsxyIjEksjdn05X7DF6STD14CF8GgBVOJEPgav8qaUMpA==
 
+"@fluencelabs/fluence-network-environment@1.0.14":
+  version "1.0.14"
+  resolved "https://registry.yarnpkg.com/@fluencelabs/fluence-network-environment/-/fluence-network-environment-1.0.14.tgz#361ec650afc7c83c5086f31aa61e752ab44f645c"
+  integrity sha512-lMiH+7obmJW2Q+PMUR/vNAuX6TcVqlKmsWAHvnBogH7s8IeMT+UGN8qrweILWmE57G7MfauB302dIFQowR9tug==
+
 "@fluencelabs/fluence@0.21.5":
   version "0.21.5"
   resolved "https://registry.yarnpkg.com/@fluencelabs/fluence/-/fluence-0.21.5.tgz#6220408ca801b530644e6cbf61647bb3ad19d5c9"
@@ -7504,15 +7509,15 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#a4f4a7b":
+"geesome-libs@https://github.com/galtproject/geesome-libs#13947c5":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#a4f4a7bd9e02127fd7bf78787b0b125806a232ed"
+  resolved "https://github.com/galtproject/geesome-libs#13947c59c4e2f2b16fbbac5f8ae39d7e806edbf0"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
     "@fluencelabs/aqua-lib" "0.4.3"
     "@fluencelabs/fluence" "0.21.6"
-    "@fluencelabs/fluence-network-environment" "1.0.13"
+    "@fluencelabs/fluence-network-environment" "1.0.14"
     "@ipld/dag-cbor" "^6.0.10"
     axios "^0.21.1"
     base64url "^3.0.1"

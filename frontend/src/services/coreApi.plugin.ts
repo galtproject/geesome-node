@@ -9,7 +9,7 @@
 
 const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
 const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
-const isUndefined = require('lodash/isUndefined');
+const commonHelpers = require("geesome-libs/src/common");
 
 export default {
   install(Vue, options: any = {}) {
@@ -30,20 +30,11 @@ export default {
         let server = process.env.SERVER || localStorage.getItem('geesome-server');
         let apiKey = localStorage.getItem('geesome-api-key');
 
-        function undefinedValue(v) {
-          return !v || v === 'null' || v === 'undefined' || isUndefined(v)
-        }
-
         geesomeClient = new GeesomeClient({
           server,
-          apiKey: undefinedValue(apiKey) ? null : apiKey,
+          apiKey: commonHelpers.isUndefined(apiKey) ? null : apiKey,
           clientStorage: new BrowserLocalClientStorage()
         });
-
-        if (undefinedValue(server)) {
-          geesomeClient.setServerByDocumentLocation();
-        }
-
         appStore.commit('serverAddress', geesomeClient.server);
         localStorage.setItem('geesome-server', geesomeClient.server);
 
