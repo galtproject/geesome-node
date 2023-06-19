@@ -13,7 +13,7 @@ module.exports = (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereu
 	 *
 	 * @apiInterface (../../app/interface.ts) {IUserAuthMessageResponse} apiSuccess
 	 */
-	app.ms.api.onPost('/v1/generate-auth-message', async (req, res) => {
+	app.ms.api.onPost('generate-auth-message', async (req, res) => {
 		res.send(await ethereumAuthorizationModule.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
 	});
 
@@ -30,7 +30,7 @@ module.exports = (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereu
 	 *
 	 * @apiInterface (../../app/interface.ts) {IUserAuthResponse} apiSuccess
 	 */
-	app.ms.api.onPost('/v1/login/auth-message', async (req, res) => {
+	app.ms.api.onPost('login/auth-message', async (req, res) => {
 		ethereumAuthorizationModule.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)
 			.then(user => app.ms.api.handleAuthResult(res, user))
 			.catch((err) => {
