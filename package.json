@@ -7,7 +7,7 @@
     "node": ">=16"
   },
   "scripts": {
-    "start": "yarn && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
+    "start": "yarn --no-optional && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
     "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run ssg-migrate-database;  npm run sci-migrate-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
