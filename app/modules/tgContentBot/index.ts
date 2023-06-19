@@ -11,12 +11,13 @@ const { Op } = require('sequelize');
 const axios = require('axios');
 const { createWorker } = require('tesseract.js');
 
+
 require('dotenv').config();
 
 process.env.NTBA_FIX_319 = '1';
 process.env.NTBA_FIX_350 = '1';
 const apiKey = process.env.GEESOME_KEY;
-const geesomeClient = new GeesomeClient({ server: 'https://geesome.microwavedev.io:2053', apiKey });
+const geesomeClient = new GeesomeClient({ server: 'https://geesome.microwavedev.io', apiKey });
 const TG_TOKEN = process.env.TG_TOKEN;
 
 const tgToken = process.env.TG_TOKEN;
@@ -31,22 +32,13 @@ module.exports = async (app) => {
     return id.toString().split('.')[0];
   }
 
-  bot.setWebHook('https://vlad.microwavedev.io/').then(() => {
+  bot.setWebHook('https://vlad.microwavedev.io/api/v1/tg-content-bot/webhook/' + tgToken).then(() => {
     console.log('Webhook successfully set');
   });
 
-    const dapp = express();
-    dapp.use(bodyParser.json({}));
-    dapp.post(`/api/v1/tg-content-bot/webhook/:botToken`, (req, res) => {
-        console.log('\n\nreq.body',req.body);
-        bot.processUpdate(req.body);
-        res.sendStatus(200);
-    });
-
-    const port = 2053;
-
-    app.listen(port, () => {
-        console.log(`Express server is listening on ${port}`);
+    app.ms.api.onPost("tg-content-bot/webhook/:tgToken", async (req, res) => {
+      console.log(req.body)
+      return res.send("ok", 200);
     });
 
   bot.setMyCommands([
