@@ -1,0 +1,18 @@
+curl 'http://localhost:2052/v1/user/save-data' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Accept-Language: ru-RU,ru' \
+  -H 'Authorization: Bearer KB8S86B-3334XYW-P4V5BZF-5ACVWMT' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: http://localhost:1234' \
+  -H 'Referer: http://localhost:1234/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'Sec-GPC: 1' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36' \
+  -H 'sec-ch-ua: "Not.A/Brand";v="8", "Chromium";v="114", "Brave";v="114"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  --data-raw $'{"content":"<p>hi there\u0021</p>","fileName":"hi there\u0021.html","folderId":null}' \
+  --compressed
