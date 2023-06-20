@@ -45,8 +45,6 @@ module.exports = async (app) => {
       return res.send("ok", 200);
     });
 
-    
-
 
   // bot.setMyCommands([
   //   { command: '/start', description: 'Initial greeting' },
