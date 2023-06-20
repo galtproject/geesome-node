@@ -71,7 +71,7 @@ export interface IGeesomeApp {
 
   getUserApyKeyById(userId, apiKeyId): Promise<IUserApiKey>;
 
-  getUserByApiToken(apiKey): Promise<{user: IUser, apiKey: IUserApiKey}>;
+  getUserByApiToken(apiKey): Promise<{user: IUser | null, apiKey: IUserApiKey | null}>;
 
   getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
 

@@ -130,9 +130,9 @@ function getModule(config, appPass) {
       });
 
       //TODO: do in asyncOperation
-      await this.setupModules();
-      await this.ms.staticId.bindToStaticId(adminUser.id, adminUser.manifestStorageId, adminUser.manifestStaticStorageId);
-
+      this.setupModules().then(r => {
+        return this.ms.staticId.bindToStaticId(adminUser.id, adminUser.manifestStorageId, adminUser.manifestStaticStorageId);
+      })
       return {user: adminUser, apiKey: await this.generateUserApiKey(adminUser.id, {type: "password_auth"})};
     }
 
@@ -324,12 +324,12 @@ function getModule(config, appPass) {
 
     async getUserByApiToken(token) {
       if (!token || token === 'null') {
-        return null;
+        return {user: null, apiKey: null};
       }
       const valueHash = uuidAPIKey.toUUID(token);
       const keyObj = await this.ms.database.getApiKeyByHash(valueHash);
       if (!keyObj) {
-        return null;
+        return {user: null, apiKey: null};
       }
       return {
         user: await this.ms.database.getUser(keyObj.userId),
