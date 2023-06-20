@@ -25,9 +25,9 @@ const tgToken = process.env.TG_TOKEN;
 module.exports = async (app) => {
   const models = await require("./models")();
 
-  function idToString(id) {
-    return id.toString().split('.')[0];
-  }
+  // function idToString(id) {
+  //   return id.toString().split('.')[0];
+  // }
 
     app.ms.api.onAuthorizedPost('tg-content-bot/add', async (req, res) => {
       const botId = req.body.tgToken.split(":")[0];
@@ -38,6 +38,11 @@ module.exports = async (app) => {
         console.log('Webhook successfully set');
       });
       res.send("ok", 200);
+    });
+
+    app.ms.api.onPost("tg-content-bot/webhook/:tgToken", async (req, res) => {
+      console.log(req.body)
+      return res.send("ok", 200);
     });
 
     
