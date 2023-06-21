@@ -764,9 +764,7 @@ function getModule(app: IGeesomeApp) {
 				if (!content && dataPath.split('/').length > 1) {
 					content = await app.ms.database.getContentByStorageId(dataPath.split('/')[0], false);
 				}
-				console.log('content', content);
 				if (content) {
-					console.log('content.mimeType', dataPath, content.mimeType);
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
 					if (contentType) {
 						res.setHeader('Content-Type', contentType);
@@ -775,7 +773,6 @@ function getModule(app: IGeesomeApp) {
 						dataPath += '/index.html';
 					}
 				}
-				console.log('getFileStream', dataPath);
 				return this.getFileStream(dataPath).then((stream) => {
 					stream.pipe(res.stream);
 				});
