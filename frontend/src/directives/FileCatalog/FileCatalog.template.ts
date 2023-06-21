@@ -94,7 +94,7 @@ module.exports = `
               </div>
               <div class="md-elevation-3 file-manifest-container">
                 <span>Manifest:</span>
-                <pretty-hex :hex="file.content.manifestStorageId"></pretty-hex>
+                <pretty-hex :hex="file.content.manifestStorageId" :to="{name: 'content-page', params: {manifestId: file.content.manifestStorageId}}"></pretty-hex>
               </div>
             </div>
 

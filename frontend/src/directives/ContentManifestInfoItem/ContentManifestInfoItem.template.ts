@@ -28,7 +28,7 @@ module.exports = `
         <a class="icon-link" :href="srcLink" @click.prevent="download">
           <md-icon class="fas fa-file-download"></md-icon>
         </a>
-        <router-link class="icon-link" :to="{name: 'content-page', params: {contentId: manifestObj.id}}">
+        <router-link class="icon-link" :to="{name: 'content-page', params: {manifestId: manifestObj.id}}">
           <md-icon class="fas fa-share"></md-icon>
         </router-link>
       </div>

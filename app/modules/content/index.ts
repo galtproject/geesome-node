@@ -231,7 +231,7 @@ function getModule(app: IGeesomeApp) {
 		async getContentPreviewStorageFile(storageFile: IStorageFile, previewDriver, options): Promise<any> {
 			return new Promise(async (resolve, reject) => {
 				if (app.ms.storage.isStreamAddSupport()) {
-					const inputStream = await app.ms.storage.getFileStream(storageFile.id);
+					const inputStream = await this.getFileStream(storageFile.id);
 					options.onError = (err) => {
 						reject(err);
 					};
@@ -243,7 +243,7 @@ function getModule(app: IGeesomeApp) {
 
 					let properties;
 					if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
-						const propertiesStream = await app.ms.storage.getFileStream(previewFile.id);
+						const propertiesStream = await this.getFileStream(previewFile.id);
 						console.log('getContentPreviewStorageFile stream propertiesStream');
 						properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
 					}
@@ -764,6 +764,7 @@ function getModule(app: IGeesomeApp) {
 				if (!content && dataPath.split('/').length > 1) {
 					content = await app.ms.database.getContentByStorageId(dataPath.split('/')[0], false);
 				}
+				console.log('content', content);
 				if (content) {
 					console.log('content.mimeType', dataPath, content.mimeType);
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
