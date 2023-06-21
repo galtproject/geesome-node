@@ -19,6 +19,7 @@ export default {
   components: {ContentManifestInfoItem, Pagination, MoveFileCatalogItemInput},//UploadContent,
   props: ['selectMode', 'selectedIds', 'hideMethods'],
   async created() {
+    console.log('getItems');
     this.getItems();
     this.getBreadcrumbs();
     this.localSelectedIds = this.selectedIds || [];

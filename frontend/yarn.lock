@@ -7555,9 +7555,9 @@ gc-stats@^1.4.0:
     uuid "^3.3.2"
     web3-utils "^1.3.1"
 
-"geesome-vue-components@https://github.com/galtproject/geesome-vue-components#6bd9215":
+"geesome-vue-components@https://github.com/galtproject/geesome-vue-components#2b33c79":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-vue-components#6bd9215f14cfb3038be4ced6316095b711aadc8f"
+  resolved "https://github.com/galtproject/geesome-vue-components#2b33c79ce530b8b3a177d31ac427afec31702adc"
   dependencies:
     axios "^0.21.2"
     bs58 "^4.0.1"
