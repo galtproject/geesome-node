@@ -22,33 +22,23 @@ class MultiTelegramBot {
     const botId = tgToken.split(':')[0];
     const tokenHash = commonHelpers.hash(tgToken);
     const tgcontentbot = await this.models['TgContentBots'].findOne({ where: { botId: botId , tokenHash: tokenHash} });
+    let entity;
     this.events.forEach(event => {
       if (body.message && event.text && event.text.test(body.message.text)){
-        body.message.host = host;
-        body.message.userId = tgcontentbot.userId;
-        body.message.bot = new TelegramBot(tgToken, {polling: false});
-        event.callback(body.message, body.message.text.match(event.text));
+        entity = body.message;
       } else if (body.inline_query && event.type == "inline_query") {
-        body.inline_query.host = host;
-        body.inline_query.userId = tgcontentbot.userId;
-        body.inline_query.bot = new TelegramBot(tgToken, {polling: false});
-        event.callback(body.inline_query);
+        entity = body.inline_query;
       } else if (body.callback_query && event.type == "callback_query"){
-        body.callback_query.host = host;
-        body.callback_query.userId = tgcontentbot.userId;
-        body.callback_query.bot = new TelegramBot(tgToken, {polling: false});
-        event.callback(body.callback_query);
+        entity = body.callback_query;
       } else if (body.message && body.message.photo && event.type == "photo") {
-        body.message.host = host;
-        body.message.userId = tgcontentbot.userId;
-        body.message.bot = new TelegramBot(tgToken, {polling: false});
-        event.callback(body.message);
+        entity = body.message
       } else if (body.message && body.message.text && event.type == "start") {
-        body.message.host = host;
-        body.message.userId = tgcontentbot.userId;
-        body.message.bot = new TelegramBot(tgToken, {polling: false});
-        event.callback(body.message);
+        entity = body.message
       }
+      entity.host = host;
+      entity.userId = tgcontentbot.userId;
+      entity.bot = new TelegramBot(tgToken, {polling: false});
+      event.callback(entity, entity.text && event.text.test ? entity.text.match(event.text) : undefined);
     });
   };
   onText(text, callback) {
@@ -84,6 +74,10 @@ module.exports = async (app) => {
       bot.setWebHook('https://vlad.microwavedev.io/api/v1/tg-content-bot/webhook/' + req.body.tgToken).then(() => {
         console.log('Webhook successfully set');
       });
+      bot.setMyCommands([
+        { command: '/start', description: 'Initial greeting' },
+        { command: '/photo', description: 'Save photo to ipfs' }
+      ]);
       res.send("ok", 200);
     });
 
@@ -92,12 +86,7 @@ module.exports = async (app) => {
       multitelegrambot.triger(req.body, tgToken, req.headers.host);
       return res.send("ok", 200);
     });
-
-  //   bot.setMyCommands([
-  //   { command: '/start', description: 'Initial greeting' },
-  //   { command: '/photo', description: 'Save photo to ipfs' }
-  // ]);
-
+  
   multitelegrambot.onText(/^\/start()?$/i, async (msg) => {
     let user = await models.User.findOne({ where: { tgId: idToString(msg.from.id) } });
     if (!user) {
@@ -202,7 +191,6 @@ module.exports = async (app) => {
       await query.bot.sendMessage(chatId, "Enter a description:");
       waitForCommand[chatId] = `add_description:${description.id}`; 
 
-      query.bot.removeTextListener(/.*/); 
     }
   });
 
