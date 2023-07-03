@@ -34,7 +34,10 @@ class MultiTelegramBot {
         entity = body.message
       } else if (body.message && body.message.text && event.type == "start") {
         entity = body.message
-      }
+      };
+      if (!entity){
+        return
+      };
       entity.host = host;
       entity.userId = tgcontentbot.userId;
       entity.bot = new TelegramBot(tgToken, {polling: false});
@@ -66,9 +69,10 @@ module.exports = async (app) => {
   }
 
     app.ms.api.onAuthorizedPost('tg-content-bot/add', async (req, res) => {
+      console.log("!!!!!!!!!!!!!!!!!!!!!", req);
       const botId = req.body.tgToken.split(":")[0];
       const encryptedToken = await app.encryptTextWithAppPass(req.body.tgToken);
-      const tokenHash = await app.commonHelpers.hash(req.body.tgToken);
+      const tokenHash = await commonHelpers.hash(req.body.tgToken);
       await models.TgContentBots.create({encryptedToken: encryptedToken, botId: botId, userId: req.user.id, tokenHash: tokenHash});
       const bot = new TelegramBot(req.body.tgToken, { polling: false });
       bot.setWebHook('https://vlad.microwavedev.io/api/v1/tg-content-bot/webhook/' + req.body.tgToken).then(() => {
