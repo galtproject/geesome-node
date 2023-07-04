@@ -70,7 +70,7 @@ export default {
           'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
           'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId',
           'staticSiteBind', 'getStaticSiteInfo', 'getServerStorageUri', 'updateStaticSiteInfo',
-          'addSerialAutoActions', 'getAutoActions', 'updateAutoAction', 'buildAutoActions'
+          'addSerialAutoActions', 'getAutoActions', 'updateAutoAction', 'buildAutoActions', 'contentBotList', 'contentBotAdd'
         ].forEach(methodName => {
           if(!geesomeClient[methodName]) {
             console.error('geesomeClient.' + methodName + ' method not found');

@@ -10,10 +10,11 @@
 import SetLimitModal from "../modals/SetLimitModal/SetLimitModal";
 import SocialNetworkClients from "./SocialNetworkClients/SocialNetworkClients";
 import ApiKeys from "./ApiKeys/ApiKeys";
+import ContentBots from "./ContentBots/ContentBots";
 
 export default {
   template: require('./UserProfile.template'),
-  components: {SocialNetworkClients, ApiKeys},
+  components: {SocialNetworkClients, ApiKeys, ContentBots},
   props: ['user'],
   async created() {
     this.getUserPermissions();

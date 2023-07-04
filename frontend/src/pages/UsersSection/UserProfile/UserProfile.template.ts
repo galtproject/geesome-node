@@ -47,6 +47,8 @@ module.exports = `
             
             <social-network-clients></social-network-clients>
             
+			<content-bots></content-bots>
+
             <api-keys></api-keys>
           </div>
         </div>

@@ -18,7 +18,7 @@ export default {
   },
   methods: {
     async getSocNetsAccounts() {
-      this.socNetAccounts = await this.$coreApi.socNetDbAccountList('telegram');
+      this.socNetAccounts = await this.$coreApi.socNetDbAccountList();
     },
     // async updateSocNetAccount(acc) {
     //   await this.$coreApi.socNetUpdateUser('telegram', acc);
