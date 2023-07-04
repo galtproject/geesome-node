@@ -1,12 +1,5 @@
-const Sequelize = require('sequelize');
 const TelegramBot = require('node-telegram-bot-api');
-const express = require('express');
-const bodyParser = require('body-parser');
-const { IGeesomeApp } = require("../../interface");
-const includes = require('lodash/includes');
-const pIteration = require("p-iteration");
 const lodash_underscore: any = require("lodash");
-const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
 const { Op } = require('sequelize');
 const axios = require('axios');
 const { createWorker } = require('tesseract.js');
@@ -21,7 +14,10 @@ class MultiTelegramBot {
   async triger(body, tgToken, host) {
     const botId = tgToken.split(':')[0];
     const tokenHash = commonHelpers.hash(tgToken);
-    const tgcontentbot = await this.models['TgContentBots'].findOne({ where: { botId: botId , tokenHash: tokenHash} });
+    const tgcontentbot = await this.models['ContentBots'].findOne({ where: { botId, tokenHash } });
+    if (!tgcontentbot) {
+      return;
+    }
     let entity;
     this.events.forEach(event => {
       if (body.message && event.text && event.text.test(body.message.text)){
@@ -34,10 +30,10 @@ class MultiTelegramBot {
         entity = body.message
       } else if (body.message && body.message.text && event.type == "start") {
         entity = body.message
-      };
+      }
       if (!entity){
         return
-      };
+      }
       entity.host = host;
       entity.userId = tgcontentbot.userId;
       entity.bot = new TelegramBot(tgToken, {polling: false});
@@ -52,13 +48,8 @@ class MultiTelegramBot {
   };
 }
 
-require('dotenv').config();
-
 process.env.NTBA_FIX_319 = '1';
 process.env.NTBA_FIX_350 = '1';
-const apiKey = process.env.GEESOME_KEY;
-const geesomeClient = new GeesomeClient({ server: 'https://geesome.microwavedev.io', apiKey });
-
 
 module.exports = async (app) => {
   const models = await require("./models")();
@@ -68,14 +59,14 @@ module.exports = async (app) => {
     return id.toString().split('.')[0];
   }
 
-    app.ms.api.onAuthorizedPost('tg-content-bot/add', async (req, res) => {
-      console.log("!!!!!!!!!!!!!!!!!!!!!", req);
+    app.ms.api.onAuthorizedPost('content-bot/add', async (req, res) => {
       const botId = req.body.tgToken.split(":")[0];
       const encryptedToken = await app.encryptTextWithAppPass(req.body.tgToken);
       const tokenHash = await commonHelpers.hash(req.body.tgToken);
-      await models.TgContentBots.create({encryptedToken: encryptedToken, botId: botId, userId: req.user.id, tokenHash: tokenHash});
       const bot = new TelegramBot(req.body.tgToken, { polling: false });
-      bot.setWebHook('https://vlad.microwavedev.io/api/v1/tg-content-bot/webhook/' + req.body.tgToken).then(() => {
+      const botInfo = await bot.getMe();
+      await models.ContentBots.create({encryptedToken, botId, socNet: req.body.socNet, botUsername: botInfo.username, userId: req.user.id, tokenHash});
+      bot.setWebHook(`https://${req.headers.host}/api/v1/content-bot/tg-webhook/${req.body.tgToken}`).then(() => {
         console.log('Webhook successfully set');
       });
       bot.setMyCommands([
@@ -85,7 +76,11 @@ module.exports = async (app) => {
       res.send("ok", 200);
     });
 
-    app.ms.api.onPost("tg-content-bot/webhook/:tgToken", async (req, res) => {
+  app.ms.api.onAuthorizedPost('content-bot/list', async (req, res) => {
+    res.send(await models.ContentBots.findAll({where: {userId: req.user.id}}), 200);
+  });
+
+    app.ms.api.onPost("content-bot/tg-webhook/:tgToken", async (req, res) => {
       const tgToken = req.params.tgToken;
       multitelegrambot.triger(req.body, tgToken, req.headers.host);
       return res.send("ok", 200);
@@ -94,7 +89,7 @@ module.exports = async (app) => {
   multitelegrambot.onText(/^\/start()?$/i, async (msg) => {
     let user = await models.User.findOne({ where: { tgId: idToString(msg.from.id) } });
     if (!user) {
-      user = await models.User.create({ tgId: idToString(msg.from.id), title: msg.from.first_name });
+      user = await models.User.create({ tgId: idToString(msg.from.id), title: msg.from.first_name, contentLimit: 100 });
     }
 
     await msg.bot.sendSticker(msg.chat.id, 'https://tlgrm.ru/_/stickers/8d1/e91/8d1e9143-b58d-4f92-a501-4c946e3728fa/10.webp');
@@ -120,7 +115,7 @@ module.exports = async (app) => {
 
     const inlineResults = [];
     if (searchResult) {
-      const linky = `https://${query.host}/ipfs/${searchResult.ipfsContent}`;
+      const linky = getLink(query.host, searchResult.ipfsContent);
       const inlineResult = {
         type: 'article',
         id: searchResult.contentId,
@@ -153,23 +148,22 @@ module.exports = async (app) => {
 
     const fileSize = file_info.file_size / 1048576;
 
-    if (user.photoSize + fileSize > user.contentLimit) {
+    if (user.savedSize + fileSize > user.contentLimit) {
       return await msg.bot.sendMessage(msg.chat.id, `Update your limit`);
     }
-    await user.update({ photoSize: user.photoSize + fileSize });
+    await user.update({ savedSize: user.savedSize + fileSize });
     const file_name = file_id + ".jpg";
     const response = await axios.get(download_url, { responseType: 'arraybuffer' });
     const buffer = Buffer.from(response.data, 'binary');
-    const contentObj = await app.ms.content.saveData(msg.userId , buffer, file_name ,{
+    const contentObj = await app.ms.content.saveData(msg.userId , buffer, file_name, {
       mimeType: mime_type
     });
     console.log('content ipfs', contentObj.storageId);
-    const linky = `https://${msg.host}/ipfs/${contentObj.storageId}`;
-    const cave = await models.Description.create({ tgId: idToString(msg.from.id), contentId: contentObj.id, ipfsContent: contentObj.storageId });
-    const messageText = `Here is a link to your content ipfs ${linky}`;
-    console.log('content manifest ipld', contentObj.manifestStorageId);
+    const linky = getLink(msg.host, contentObj.storageId);
+    models.Description.create({ tgId: idToString(msg.from.id), contentId: contentObj.id, ipfsContent: contentObj.storageId, aitext: await aiRecognition(linky, contentObj)}).then(description => {
+      console.log('description saved with aitext:', description.aitext);
+    });
 
-   
     const keyboard = {
       inline_keyboard: [
         [
@@ -178,7 +172,7 @@ module.exports = async (app) => {
       ]
     };
 
-    await msg.bot.sendMessage(msg.chat.id, messageText, { reply_markup: keyboard });
+    await msg.bot.sendMessage(msg.chat.id, `Here is a link to your content ipfs ${linky}`, { reply_markup: keyboard });
   });
 
   const waitForCommand = {};
@@ -199,9 +193,9 @@ module.exports = async (app) => {
   });
 
   multitelegrambot.onText(/.*/, async (msg, match) => {
-    if (!match){
-      return
-    };
+    if (!match) {
+      return;
+    }
     const chatId = msg.chat.id;
     const text = match[0];
 
@@ -214,7 +208,7 @@ module.exports = async (app) => {
     delete waitForCommand[chatId];
   });
 
-  async function aiRecognition(linky, contentObj, models) {
+  async function aiRecognition(linky, contentObj) {
     const worker = await createWorker();
     
     await worker.loadLanguage('eng');
@@ -223,6 +217,11 @@ module.exports = async (app) => {
     const description = await models.Description.findOne({ where: { contentId: contentObj.id } });
     await description.update({ aitext: text });
     await worker.terminate();
+    return text;
+  }
+
+  function getLink(host, ipfsHash) {
+    return `https://${host}/ipfs/${ipfsHash}`;
   }
   
   return module;

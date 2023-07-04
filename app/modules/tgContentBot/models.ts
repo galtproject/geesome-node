@@ -3,7 +3,7 @@ export {};
 const Sequelize: any = require('sequelize');
 
 module.exports = async function () {
-	let sequelize = new Sequelize('geesome-soc-net-import', 'geesome', 'geesome', require('./config').options);
+	let sequelize = new Sequelize('geesome-content-bots', 'geesome', 'geesome', require('./config').options);
 
 	const User = sequelize.define('user', {
 		title: {
@@ -12,13 +12,13 @@ module.exports = async function () {
 		tgId: {
 			type: Sequelize.STRING
 		},
-		photoSize: {
+		savedSize: {
 			type: Sequelize.FLOAT,
 			defaultValue: 0
 		},
 		contentLimit: {
 			type: Sequelize.FLOAT,
-			defaultValue: 100
+			defaultValue: 0
 		},
 	}, {});
 
@@ -45,12 +45,20 @@ module.exports = async function () {
 		}
 	}, {});
 
-	const TgContentBots = sequelize.define('tgcontentbot', {
+	const ContentBots = sequelize.define('contentBot', {
 		encryptedToken: {
 			type: Sequelize.TEXT,
 			allowNull: true
 		},
 		botId: {
+			type: Sequelize.STRING,
+			allowNull: true
+		},
+		botUsername: {
+			type: Sequelize.STRING,
+			allowNull: true
+		},
+		socNet: {
 			type: Sequelize.STRING,
 			allowNull: true
 		},
@@ -67,6 +75,6 @@ module.exports = async function () {
 	return {
 		User: await User.sync({}),
 		Description: await Description.sync({}),
-		TgContentBots: await TgContentBots.sync({})
+		ContentBots: await ContentBots.sync({})
 	};
 };
