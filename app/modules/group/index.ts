@@ -261,13 +261,14 @@ function getModule(app: IGeesomeApp, models) {
 			const post = await this.getPostPure(postId);
 			log('getPost');
 			const manifestStorageId = await app.generateAndSaveManifest('post', post);
-			log('getPosgenerateAndSaveManifest');
-
-			await models.Post.update({ manifestStorageId }, {where: {id: postId}});
-			log('updatePost');
-
+			log('generateAndSaveManifest');
+			await post.update({ manifestStorageId });
 			await this.updateGroupManifest(userId, post.groupId);
-			post.manifestStorageId = manifestStorageId;
+			const directoryStorageId = await this.makePostDirectoryWithContents(postId);
+			await post.update({ directoryStorageId });
+			await post.group.update({
+				directoryStorageId: await app.ms.storage.getDirectoryId(`/${post.group.staticStorageId}/`)
+			})
 			return post;
 		}
 
@@ -851,7 +852,7 @@ function getModule(app: IGeesomeApp, models) {
 					where[name] = {[Op.ne]: filters[name + 'Ne']};
 				}
 			});
-			['publishedAt', 'id'].forEach(field => {
+			['publishedAt', 'updatedAt', 'id'].forEach(field => {
 				['Gt', 'Gte', 'Lt', 'Lte'].forEach((postfix) => {
 					if (filters[field + postfix]) {
 						if(!where[field]) {
@@ -870,6 +871,31 @@ function getModule(app: IGeesomeApp, models) {
 				groupId,
 				...this.getPostsWhere(filters)
 			};
+		}
+
+		public async makePostStorageDir(group: IGroup, post: IPost) {
+			const path = `/${group.staticStorageId}/${post.localId}/`;
+			log('makePostStorageDir', path);
+			await app.ms.storage.makeDir(path);
+			return path;
+		}
+
+		public async makePostDirectoryWithContents(postId) {
+			log('makePostDirectoryWithContents');
+			const post = await this.getPostPure(postId);
+			const postManifest = await app.ms.storage.getObject(post.manifestStorageId);
+			postManifest.contentsById = {};
+			const path = await this.makePostStorageDir(post.group, post);
+			await pIteration.forEach(post.contents, async (c: IContent, index) => {
+				const [contentManifest] = await Promise.all([
+					app.ms.storage.getObject(c.manifestStorageId),
+					app.ms.storage.copyFileFromId(c.storageId, path + index),
+				]);
+				postManifest.contentsById[c.manifestStorageId] = contentManifest;
+			});
+			const postManifestStorageId = await app.ms.storage.saveFileByData(JSON.stringify(postManifest)).then(c => c.id);
+			await app.ms.storage.copyFileFromId(postManifestStorageId, path + 'manifest.json');
+			return app.ms.storage.getDirectoryId(path);
 		}
 
 		async getGroupPostsCount(groupId, filters = {}) {

@@ -50,6 +50,7 @@ function getModule(app: IGeesomeApp, models) {
 		async bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem> {
 			log('bindToStaticId', dynamicId, staticId);
 			const userIdOfAccount = await app.ms.accountStorage.getUserIdOfLocalStaticIdAccount(staticId);
+			console.log('userIdOfAccount', userIdOfAccount, 'userId', userId);
 			if (userIdOfAccount !== userId) {
 				throw new Error("userId_dont_match");
 			}
