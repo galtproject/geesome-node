@@ -339,8 +339,27 @@ function getModule(app: IGeesomeApp) {
 
 		async getUserChannelsByUserId(userId, accData) {
 			const client = await this.getClient(userId, accData);
-			const channels = await client.invoke(new Api.messages.GetAllChats({exceptIds: []}) as any);
-			return {result: channels.chats.filter(c => c.className === 'Channel' && !c.megagroup), client}
+			const limit = 100;
+			const offsetId = 0;
+			const offsetPeer = new Api['InputPeerEmpty']();
+
+			let resultCount = limit;
+			let offsetDate = 0;
+			let chats = [];
+
+			while (resultCount >= limit) {
+				const result = await client.invoke(new Api.messages.GetDialogs({ offsetId, offsetPeer, offsetDate, limit }) as any);
+				resultCount = result.dialogs.length;
+				if (result.chats && result.chats.length > 0) {
+					chats = [...chats, ...result.chats];
+				}
+				if (result.messages.length > 0) {
+					offsetDate = result.messages[result.messages.length - 1].date;
+				} else {
+					break;
+				}
+			}
+			return {result: chats.filter(c => c.className === 'Channel' && !c.megagroup), client}
 		}
 
 		isAutoActionAllowed(userId, funcName, funcArgs) {
