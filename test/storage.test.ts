@@ -74,7 +74,7 @@ describe("storage", function () {
 			foo: 'bar',
 			fooArray: ['bar1', 'bar2']
 		};
-		const objectId = await storage.saveObject(obj);
+		const objectId = await storage.saveObject(obj, {waitForPin: true});
 
 		assert.deepEqual(await storage.getObject(objectId), obj);
 
@@ -99,7 +99,7 @@ describe("storage", function () {
 	//TODO: solve fluence service issues
 	it.skip("should allow to bind id to static", async () => {
 		const array = ['bar1', 'bar2'];
-		const arrayId = await storage.saveObject(array);
+		const arrayId = await storage.saveObject(array, {waitForPin: true});
 
 		const staticId = await communicator.bindToStaticId(arrayId, 'self');
 

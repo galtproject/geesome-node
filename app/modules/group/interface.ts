@@ -52,6 +52,8 @@ export default interface IGeesomeGroupModule {
 
 	getPostListByIds(userId, groupId, postIds);
 
+	getGroupPostPath(postId);
+
 	createPost(userId, postData);
 
 	updatePost(userId, postId, postData);

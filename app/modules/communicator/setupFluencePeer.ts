@@ -12,7 +12,7 @@ module.exports = async (app: IGeesomeApp) => {
 			try {
 				if (peerId) {
 					peer = new FluencePeer();
-					await peer.start({ connectTo: testNet[1], KeyPair: new KeyPair(peerId) });
+					await peer.start({ connectTo: testNet[0], KeyPair: new KeyPair(peerId) });
 				}
 				return peer;
 			} catch (e) {

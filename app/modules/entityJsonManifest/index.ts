@@ -30,50 +30,54 @@ function getModule(app: IGeesomeApp) {
 
     }
 
+    async generateGroupManifest(groupData: IGroup) {
+      //TODO: size => postsSize
+      const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
+
+      groupManifest.posts = {};
+
+      const filters = {status: PostStatus.Published};
+      if (groupData.manifestStorageId) {
+        const lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
+        filters['updatedAtGte'] = new Date(lastGroupManifest.updatedAt);
+        groupManifest.posts = lastGroupManifest.posts;
+      }
+
+      if (groupData.isEncrypted) {
+        groupManifest.isEncrypted = true;
+      }
+      groupManifest.postsCount = groupData.publishedPostsCount;
+      //TODO: add previous ID
+      groupManifest.staticId = groupData.manifestStaticStorageId;
+      groupManifest.publicKey = await app.ms.accountStorage.getStaticIdPublicKeyByOr(groupManifest.staticId);
+
+      if (groupData.avatarImage) {
+        groupManifest.avatarImage = this.getStorageRef(groupData.avatarImage.manifestStorageId);
+      }
+      if (groupData.coverImage) {
+        groupManifest.coverImage = this.getStorageRef(groupData.coverImage.manifestStorageId);
+      }
+
+      // TODO: is this need for protocol?
+      // currently used for getting companion info in chats list
+      if(groupData.type === GroupType.PersonalChat) {
+        const creator = await app.ms.database.getUser(groupData.creatorId);
+        groupManifest.members = [groupData.staticStorageId, creator.manifestStaticStorageId];
+      }
+
+      const newGroupPosts = await app.ms.group.getGroupPosts(groupData.id, filters, {limit: 9999999}).then(r => r.list);
+      // console.log('newGroupPosts', group.id, newGroupPosts);
+      //TODO: remove deprecated
+      newGroupPosts.forEach((post: IPost) => {
+        treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
+      });
+      this.setManifestMeta(groupManifest, 'group');
+      return groupManifest;
+    }
+
     async generateManifest(name, data, options?) {
       if (name === 'group') {
-        //TODO: size => postsSize
-        const group: IGroup = data;
-        const groupManifest = ipfsHelper.pickObjectFields(group, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
-
-        if(data.isEncrypted) {
-          groupManifest.isEncrypted = true;
-        }
-        groupManifest.postsCount = group.publishedPostsCount;
-        //TODO: add previous ID
-        groupManifest.staticId = group.manifestStaticStorageId;
-        groupManifest.publicKey = await app.ms.accountStorage.getStaticIdPublicKeyByOr(groupManifest.staticId);
-
-        if (group.avatarImage) {
-          groupManifest.avatarImage = this.getStorageRef(group.avatarImage.manifestStorageId);
-        }
-        if (group.coverImage) {
-          groupManifest.coverImage = this.getStorageRef(group.coverImage.manifestStorageId);
-        }
-
-        // TODO: is this need for protocol?
-        // currently used for getting companion info in chats list
-        if(group.type === GroupType.PersonalChat) {
-          const creator = await app.ms.database.getUser(group.creatorId);
-          groupManifest.members = [group.staticStorageId, creator.manifestStaticStorageId];
-        }
-
-        groupManifest.posts = {};
-
-        // TODO: write all posts
-        const groupPosts = await app.ms.group.getGroupPosts(group.id, {status: PostStatus.Published}, {limit: 1000, offset: 0}).then(r => r.list);
-        // console.log('groupPosts', group.id, groupPosts);
-        groupPosts.forEach((post: IPost) => {
-          if(post.isEncrypted) {
-            treeLib.setNode(groupManifest.posts, post.localId, post.encryptedManifestStorageId);
-          } else if (post.manifestStorageId) {
-            treeLib.setNode(groupManifest.posts, post.localId, this.getStorageRef(post.manifestStorageId));
-          }
-        });
-
-        this.setManifestMeta(groupManifest, name);
-
-        return groupManifest;
+        return this.generateGroupManifest(data as IGroup);
       } else if (name === 'category') {
         const category: IGroupCategory = data;
         const categoryManifest = ipfsHelper.pickObjectFields(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
@@ -85,7 +89,7 @@ function getModule(app: IGeesomeApp) {
         const post: IPost = data;
         //TODO: fix size, view and type
         //TODO: add groupNumber
-        const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'sourceDate']);
+        const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'directoryStorageId', 'sourceDate']);
 
         if(post.propertiesJson) {
           postManifest.properties = JSON.parse(post.propertiesJson);

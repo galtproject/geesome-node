@@ -75,6 +75,9 @@ module.exports = async function (sequelize, models) {
     storageId: {
       type: Sequelize.STRING(200)
     },
+    directoryStorageId: {
+      type: Sequelize.STRING(200)
+    },
     staticStorageId: {
       type: Sequelize.STRING(200)
     },

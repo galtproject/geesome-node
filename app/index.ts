@@ -9,7 +9,6 @@
 
 import {
   CorePermissionName,
-  IContent,
   IGeesomeDatabaseModule,
   IListParams,
   IUser,
@@ -43,6 +42,7 @@ const _ = require('lodash');
 const fs = require('fs');
 const pIteration = require('p-iteration');
 const uuidAPIKey = require('uuid-apikey');
+const pick = require('lodash/pick');
 const log = require('debug')('geesome:app');
 
 module.exports = async (extendConfig) => {
@@ -466,12 +466,9 @@ function getModule(config, appPass) {
     async saveDataStructure(data, options: any = {}) {
       const storageId = await ipfsHelper.getIpldHashFromObject(data);
 
-      await this.ms.database.addObject({
-        data: JSON.stringify(data),
-        storageId
-      }).catch(() => {/* already saved */});
+      await this.ms.database.addObject({ data: JSON.stringify(data), storageId }).catch(() => {/* already saved */});
 
-      const storagePromise = this.ms.storage.saveObject(data);
+      const storagePromise = this.ms.storage.saveObject(data, pick(options, ['waitForPin']));
       if(options.waitForStorage) {
         await storagePromise;
       }

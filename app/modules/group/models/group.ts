@@ -27,15 +27,6 @@ module.exports = async function (sequelize, models) {
     coverImageId: {
       type: Sequelize.INTEGER
     },
-    isPublic: {
-      type: Sequelize.BOOLEAN
-    },
-    isOpen: {
-      type: Sequelize.BOOLEAN
-    },
-    isCollateral: {
-      type: Sequelize.BOOLEAN
-    },
     type: {
       type: Sequelize.STRING(200)
     },
@@ -50,6 +41,15 @@ module.exports = async function (sequelize, models) {
     },
     size: {
       type: Sequelize.INTEGER
+    },
+    isPublic: {
+      type: Sequelize.BOOLEAN
+    },
+    isOpen: {
+      type: Sequelize.BOOLEAN
+    },
+    isCollateral: {
+      type: Sequelize.BOOLEAN
     },
     isRemote: {
       type: Sequelize.BOOLEAN,
@@ -81,6 +81,9 @@ module.exports = async function (sequelize, models) {
       type: Sequelize.INTEGER
     },
     storageId: {
+      type: Sequelize.STRING(200)
+    },
+    directoryStorageId: {
       type: Sequelize.STRING(200)
     },
     staticStorageId: {
