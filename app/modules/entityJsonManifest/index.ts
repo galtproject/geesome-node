@@ -32,7 +32,7 @@ function getModule(app: IGeesomeApp) {
 
     async generateGroupManifest(groupData: IGroup) {
       //TODO: size => postsSize
-      const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'createdAt', 'updatedAt']);
+      const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
 
       groupManifest.posts = {};
 
@@ -67,13 +67,9 @@ function getModule(app: IGeesomeApp) {
 
       const newGroupPosts = await app.ms.group.getGroupPosts(groupData.id, filters, {limit: 9999999}).then(r => r.list);
       // console.log('newGroupPosts', group.id, newGroupPosts);
-      const changedTree = {};
+      //TODO: remove deprecated
       newGroupPosts.forEach((post: IPost) => {
-        const path = treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
-        const curChangedTreeNode = {};
-        path.slice(0, -1).forEach(item => [
-
-        ])
+        treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
       });
       this.setManifestMeta(groupManifest, 'group');
       return groupManifest;
@@ -93,7 +89,7 @@ function getModule(app: IGeesomeApp) {
         const post: IPost = data;
         //TODO: fix size, view and type
         //TODO: add groupNumber
-        const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'sourceDate']);
+        const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'directoryStorageId', 'sourceDate']);
 
         if(post.propertiesJson) {
           postManifest.properties = JSON.parse(post.propertiesJson);

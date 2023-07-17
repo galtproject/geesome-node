@@ -264,6 +264,8 @@ describe("group", function () {
 			readAt: post.publishedAt
 		});
 
+		// app.ms.storage.getFileData(post.group.directoryStorageId + '/')
+
 		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
 
 		await app.ms.group.createPost(testUser.id, postData);
@@ -280,5 +282,15 @@ describe("group", function () {
 		});
 
 		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
+	});
+
+	it('getGroupPostPath', async () => {
+		assert.equal(app.ms.group.getGroupPostPath(1), '0/0/1');
+		assert.equal(app.ms.group.getGroupPostPath(12), '0/0/12');
+		assert.equal(app.ms.group.getGroupPostPath(123), '0/1/123');
+		assert.equal(app.ms.group.getGroupPostPath(1234), '0/12/1234');
+		assert.equal(app.ms.group.getGroupPostPath(12345), '1/23/12345');
+		assert.equal(app.ms.group.getGroupPostPath(123456), '12/34/123456');
+		assert.equal(app.ms.group.getGroupPostPath(1234567), '123/45/1234567');
 	});
 });

@@ -263,12 +263,12 @@ function getModule(app: IGeesomeApp, models) {
 			const manifestStorageId = await app.generateAndSaveManifest('post', post);
 			log('generateAndSaveManifest');
 			await post.update({ manifestStorageId });
-			await this.updateGroupManifest(userId, post.groupId);
 			const directoryStorageId = await this.makePostDirectoryWithContents(postId);
 			await post.update({ directoryStorageId });
 			await post.group.update({
 				directoryStorageId: await app.ms.storage.getDirectoryId(`/${post.group.staticStorageId}/`)
-			})
+			});
+			await this.updateGroupManifest(userId, post.groupId);
 			return post;
 		}
 
@@ -873,8 +873,17 @@ function getModule(app: IGeesomeApp, models) {
 			};
 		}
 
+		public getGroupPostPath(posId) {
+			const rootDiv = 10000, subDiv = 100;
+			return `${Math.floor(posId / rootDiv)}/${Math.floor((posId % rootDiv) / subDiv)}/${posId}`;
+		}
+
+		public getFullGroupPostPath(staticStorageGroupId, postId) {
+			return `/${staticStorageGroupId}/${this.getGroupPostPath(postId)}/`;
+		}
+
 		public async makePostStorageDir(group: IGroup, post: IPost) {
-			const path = `/${group.staticStorageId}/${post.localId}/`;
+			const path = this.getFullGroupPostPath(group.staticStorageId, post.localId);
 			log('makePostStorageDir', path);
 			await app.ms.storage.makeDir(path);
 			return path;
