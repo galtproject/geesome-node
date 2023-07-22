@@ -1,5 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const lodash_underscore: any = require("lodash");
+import * as _ from 'lodash';
 const { Op } = require('sequelize');
 const axios = require('axios');
 const { createWorker } = require('tesseract.js');
@@ -80,6 +81,12 @@ module.exports = async (app) => {
     res.send(await models.ContentBots.findAll({where: {userId: req.user.id}}), 200);
   });
 
+  app.ms.api.onAuthorizedPost('content-bot/addUser', async (req, res) => {
+    const pickedObject = _.pick(req.body, ['userTgId', 'contentLimit', 'isAdmin', 'contentBotId']);
+    await models.User.create(pickedObject);
+    res.send("ok", 200);
+  });
+
     app.ms.api.onPost("content-bot/tg-webhook/:tgToken", async (req, res) => {
       const tgToken = req.params.tgToken;
       multitelegrambot.triger(req.body, tgToken, req.headers.host);
@@ -87,12 +94,14 @@ module.exports = async (app) => {
     });
   
   multitelegrambot.onText(/^\/start()?$/i, async (msg) => {
-    let user = await models.User.findOne({ where: { tgId: idToString(msg.from.id) } });
+    let user = await models.User.findOne({ where: { userTgId: idToString(msg.from.id) } });
     if (!user) {
-      user = await models.User.create({ tgId: idToString(msg.from.id), title: msg.from.first_name, contentLimit: 100 });
+      await msg.bot.sendMessage(msg.chat.id, 'https://cdn.tlgrm.app/stickers/23d/b98/23db986c-16e1-4b34-a0ec-ba248d9362d1/192/8.webp');
+      await msg.bot.sendMessage(msg.chat.id, `You can't use the bot because you don't have permission from the admin, this is your telegram id ${msg.from.id}`);
+      return
     }
-
-    await msg.bot.sendSticker(msg.chat.id, 'https://tlgrm.ru/_/stickers/8d1/e91/8d1e9143-b58d-4f92-a501-4c946e3728fa/10.webp');
+    await user.update({ title: msg.from.first_name });
+    await msg.bot.sendSticker(msg.chat.id, 'https://cdn.tlgrm.app/stickers/23d/b98/23db986c-16e1-4b34-a0ec-ba248d9362d1/192/5.webp');
     await msg.bot.sendMessage(msg.chat.id, `Hello, good to see you ${msg.from.first_name}!`);
   });
 
@@ -133,7 +142,7 @@ module.exports = async (app) => {
 
   multitelegrambot.on('photo', async (msg) => {
     const sizes = msg.photo;
-    const bestSize = lodash_underscore.orderBy(sizes, ['file_size'], ['desc'])[0];
+    const bestSize = _.orderBy(sizes, ['file_size'], ['desc'])[0];
     const file_id = bestSize.file_id;
     const file_info = await msg.bot.getFile(file_id);
     const download_url = `https://api.telegram.org/file/bot${msg.bot.token}/${file_info.file_path}`;
@@ -222,6 +231,10 @@ module.exports = async (app) => {
 
   function getLink(host, ipfsHash) {
     return `https://${host}/ipfs/${ipfsHash}`;
+  }
+
+  function getCarLink(host, ipfsHash) {
+    return `https://${host}/download-car/${ipfsHash}.car`;
   }
   
   return module;

@@ -8687,9 +8687,9 @@ geesome-apidoc-template@1.0.0:
   resolved "https://registry.yarnpkg.com/geesome-apidoc-template/-/geesome-apidoc-template-1.0.0.tgz#27098447c8ec0ffe813867cb0f3a2945e5c9bdc5"
   integrity sha512-bKes0SnNvxm/9TJGq2zAUq78j8+V4r4y43mgcGf3Fv6cgDoO0uTnbszrNcgF4zliDpdkT4H2kLme8l9vjQkv5w==
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#79506d6":
+"geesome-libs@https://github.com/galtproject/geesome-libs#6d4e99b":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#79506d66aea0c2f810b445de3db0963717154aae"
+  resolved "https://github.com/galtproject/geesome-libs#6d4e99b17b978a1e4b8d87a5b68ce930b7951ec9"
   dependencies:
     "@fluencelabs/aqua" "0.7.1-288"
     "@fluencelabs/aqua-dht" "0.2.5"
