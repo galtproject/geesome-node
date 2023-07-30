@@ -8,6 +8,7 @@
  */
 
 import AddContentBotModal from "../../modals/AddContentBotModal/AddContentBotModal";
+import AddUserBotModal from "../../modals/AddUserModal/AddUserToBotModal";
 
 export default {
   template: require('./ContentBots.template'),
@@ -28,6 +29,16 @@ export default {
           this.getContentBots();
         }
       });
+    },
+    addUser(bot) {
+      this.$root.$asyncModal.open({
+        id: 'add-user-modal',
+        component: AddUserBotModal,
+        props : {botData: bot},
+        onClose: async (resultApiKey) => {
+        } 
+      });
+      
     },
   },
   watch: {},

@@ -5,23 +5,6 @@ const Sequelize: any = require('sequelize');
 module.exports = async function () {
 	let sequelize = new Sequelize('geesome-content-bots', 'geesome', 'geesome', require('./config').options);
 
-	const User = sequelize.define('user', {
-		title: {
-			type: Sequelize.STRING
-		},
-		tgId: {
-			type: Sequelize.STRING
-		},
-		savedSize: {
-			type: Sequelize.FLOAT,
-			defaultValue: 0
-		},
-		contentLimit: {
-			type: Sequelize.FLOAT,
-			defaultValue: 0
-		},
-	}, {});
-
 	const Description = sequelize.define('description', {
 		tgId: {
 			type: Sequelize.STRING,
@@ -41,6 +24,10 @@ module.exports = async function () {
 		},
 		aitext: {
 			type: Sequelize.TEXT,
+			allowNull: true
+		},
+		botId: {
+			type: Sequelize.STRING,
 			allowNull: true
 		}
 	}, {});
@@ -72,9 +59,33 @@ module.exports = async function () {
 		}
 	}, {});
 
+	await ContentBots.sync({})
+
+	const User = sequelize.define('user', {
+		title: {
+			type: Sequelize.STRING
+		},
+		userTgId: {
+			type: Sequelize.STRING
+		},
+		savedSize: {
+			type: Sequelize.FLOAT,
+			defaultValue: 0
+		},
+		contentLimit: {
+			type: Sequelize.FLOAT,
+		},
+		isAdmin: {
+			type: Sequelize.BOOLEAN,
+		},
+	}, {});
+
+	User.belongsTo(ContentBots, {as: 'сontentBot', foreignKey: 'contentBotId'});
+	ContentBots.hasMany(User, {as: 'users', foreignKey: 'contentBotId'});
+
 	return {
 		User: await User.sync({}),
 		Description: await Description.sync({}),
-		ContentBots: await ContentBots.sync({})
+		ContentBots
 	};
 };
