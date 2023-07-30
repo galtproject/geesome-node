@@ -25,6 +25,10 @@ module.exports = async function () {
 		aitext: {
 			type: Sequelize.TEXT,
 			allowNull: true
+		},
+		botId: {
+			type: Sequelize.STRING,
+			allowNull: true
 		}
 	}, {});
 

@@ -59,6 +59,7 @@
     "express-mysql-session": "^2.1.0",
     "express-session": "^1.16.1",
     "express-session-sequelize": "^2.0.0",
+    "filecoin.js": "^0.0.5-alpha",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
     "geesome-libs": "https://github.com/galtproject/geesome-libs#6d4e99b",

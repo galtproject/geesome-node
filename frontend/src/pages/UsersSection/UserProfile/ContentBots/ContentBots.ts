@@ -13,7 +13,7 @@ import AddUserBotModal from "../../modals/AddUserModal/AddUserToBotModal";
 export default {
   template: require('./ContentBots.template'),
   components: {},
-  props: ['botData'],
+  props: [],
   async created() {
     this.getContentBots();
   },

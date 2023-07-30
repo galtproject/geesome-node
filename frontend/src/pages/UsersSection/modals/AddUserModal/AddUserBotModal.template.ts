@@ -18,11 +18,11 @@ module.exports = `
   <div class="modal-body" slot="body">
 	<md-field>
 		  <label>Content Limits, (mb)</label>
-		  <md-input v-model="contentBot.contentLimit" type="number" :disabled="creation"></md-input>
+		  <md-input v-model="contentBot.contentLimit" type="number"></md-input>
 		</md-field>
   </div>
   <div class="modal-body" slot="body">
-		<md-checkbox v-model="contentBot.isAdmin" :disabled="creation">Admin user</md-checkbox>
+		<md-checkbox v-model="contentBot.isAdmin"">Admin user</md-checkbox>
 	</div>
       
 
