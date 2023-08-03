@@ -74,7 +74,7 @@
     "dotenv": "^6.0.0",
     "http-server": "^0.10.0",
     "mocha": "^5.2.0",
-    "node-sass": "7.0.0",
+    "node-sass": "9.0.0",
     "parcel": "^2.0.0-rc.0",
     "postcss": "^8.1.0",
     "stream-browserify": "^3.0.0",

@@ -3,6 +3,6 @@ module.exports = {
 	options: {
 		// 'logging': (d) => {log(d)},
 		'dialect': 'sqlite',
-		'storage': 'data/pin.sqlite'
+		'storage': `${process.env.DATA_DIR || 'data'}/pin.sqlite`
 	}
 }

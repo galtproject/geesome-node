@@ -147,7 +147,7 @@ export default {
 				return;
 			}
 			if (this.siteInfo) {
-				this.siteLink = await this.$coreApi.getContentLink(this.siteInfo.staticId || this.siteInfo.storageId);
+				this.siteLink = (await this.$coreApi.getContentLink(this.siteInfo.staticId || this.siteInfo.storageId)) + '/';
 			}
 		}
 	},

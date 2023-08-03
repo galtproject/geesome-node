@@ -12,13 +12,15 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 		site: { title, username, description, avatarUrl, postsCount, base }
 	}>;
 
-	addRenderToQueueAndProcess(userId, apiKey, type, id, options): Promise<IUserOperationQueue>;
+	addRenderToQueueAndProcess(userId, apiKeyId, type, id, options): Promise<IUserOperationQueue>;
 
 	bindSiteToStaticId(userId, staticSiteId): Promise<any>;
 
 	getStaticSiteInfo(userId, type, entityId): Promise<IStaticSite>;
 
 	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
+
+	generate(userId, entityType, entityId, options: any = {}): Promise<string>;
 }
 
 export interface IStaticSite {

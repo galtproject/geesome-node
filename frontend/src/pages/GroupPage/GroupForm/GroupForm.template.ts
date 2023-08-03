@@ -22,6 +22,7 @@ module.exports = `
     <label>View</label>
     <md-select v-model="group.view">
       <md-option value="tumblr-like">Like in Tumblr</md-option>
+      <md-option value="youtube-like">Like in Youtube</md-option>
       <md-option value="instagram-like">Like in Instagram</md-option>
       <md-option value="evernote-like">Like in Evernote</md-option>
     </md-select>

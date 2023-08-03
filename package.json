@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "description": "",
   "main": "index.ts",
+  "private": true,
   "engines": {
     "node": ">=16"
   },
@@ -23,7 +24,7 @@
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; ts-node check/geesomePerfomance.ts --trace_gc",
     "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/ts-node -P tsconfig.json check/geesomeClientPerfomance.ts",
     "generate-docs": "./node_modules/.bin/apidoc -i app/modules/api -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
-    "test": "rm -rf database-test.sqlite; rm -rf data/*.sqlite; rm -rf ./.jsipfs-test; GATEWAY_PORT=2083 SSG_RUNTIME=1 DEBUG=geesome* ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts' -t 10000",
+    "test": "rm -rf database-test.sqlite; rm -rf test-data/*.sqlite; rm -rf ./.jsipfs-test; GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data ./node_modules/.bin/mocha --exit -r ts-node/register 'test/**/*.test.ts' -t 10000",
     "testCoverage": "./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha -r ts-node/register test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker-compose up",
     "docker-build": "bash/docker-build.sh",
@@ -31,16 +32,13 @@
   },
   "author": "",
   "license": "ISC",
+  "workspaces": [
+    "./app/modules/staticSiteGenerator/site"
+  ],
   "dependencies": {
-    "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.19",
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",
     "@revoinc/async-busboy": "^2.0.3",
     "@types/es6-promise": "^3.3.0",
-    "@vuepress/bundler-vite": "2.0.0-beta.35",
-    "@vuepress/bundler-webpack": "2.0.0-beta.35",
-    "@vuepress/client": "2.0.0-beta.35",
-    "@vuepress/core": "2.0.0-beta.35",
-    "@vuepress/utils": "2.0.0-beta.35",
     "axios": "^0.21.1",
     "bcrypt": "^5.0.0",
     "bl": "^5.0.0",
@@ -51,7 +49,6 @@
     "cookie-parser": "^1.4.4",
     "cross-blob": "^2.0.0",
     "crypto-js": "^4.1.1",
-    "dayjs": "^1.10.7",
     "debug": "^4.1.0",
     "dotenv": "^16.1.4",
     "ethers": "^4.0.25",
@@ -92,12 +89,16 @@
     "sqlite3": "^5.0.2",
     "telegram": "2.17.10",
     "tesseract.js": "^4.1.0",
+    "ts-node": "^10.9.1",
     "twitter-api-v2": "^1.12.3",
     "typedarray-to-buffer": "^3.1.5",
+    "typescript": "^5.0.4",
     "unzip-stream": "^0.3.0",
     "uuid-apikey": "^1.4.3",
     "vue-feather-icons": "^5.1.0",
-    "xml": "^1.0.1"
+    "xml": "^1.0.1",
+    "vue": "^3.2.47",
+    "vue-router": "4.0.16"
   },
   "devDependencies": {
     "@ctx-core/object": "^22.1.3",
@@ -111,7 +112,6 @@
     "http-server": "^0.12.0",
     "lerna": "^3.22.1",
     "mocha": "^5.2.0",
-    "ts-node": "8.10.2",
     "typings": "^2.1.1"
   },
   "size": "",

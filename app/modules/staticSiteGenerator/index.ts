@@ -1,31 +1,22 @@
 import {IGeesomeApp} from "../../interface";
-import {IContent} from "../database/interface";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite} from "./interface";
-
-const { path } = require('@vuepress/utils');
 
 const base = '/';
 const pIteration = require('p-iteration');
 const _ = require('lodash');
-const {rmDir} = require('./helpers');
 const commonHelper = require('geesome-libs/src/common');
-const childProcess = require("child_process");
-const fs = require("fs");
 let helpers = require('../../helpers');
+const {getPostTitleAndDescription, getOgHeaders} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
+    const {default: {prepareRender}} = await import('static-site-pkg');
     app.checkModules(['asyncOperation', 'group', 'content']);
-    const module = getModule(app, await require('./models')());
+    const module = getModule(app, await require('./models')(), prepareRender);
     require('./api')(app, module);
     return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
-    // temp storage of tokens to pass to child process
-    let apiKeyIdToTokenTemp = {
-
-    };
-
+function getModule(app: IGeesomeApp, models, prepareRender) {
     let finishCallbacks = {
 
     };
@@ -33,7 +24,7 @@ function getModule(app: IGeesomeApp, models) {
     class StaticSiteGenerator implements IGeesomeStaticSiteGeneratorModule {
         moduleName = 'static-site-generator';
 
-        async addRenderToQueueAndProcess(userId, token, entityType, entityId, options) {
+        async addRenderToQueueAndProcess(userId, userApiKeyId, entityType, entityId, options) {
             if (entityType === 'group') {
                 const isAdmin = await app.ms.group.isAdminInGroup(userId, entityId);
                 if (!isAdmin) {
@@ -46,8 +37,6 @@ function getModule(app: IGeesomeApp, models) {
                 throw new Error("incorrect_name");
             }
 
-            const userApiKeyId = await app.getApyKeyId(token);
-            apiKeyIdToTokenTemp[userApiKeyId] = token;
             const operationQueue = await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
                 entityType,
                 entityId,
@@ -57,8 +46,8 @@ function getModule(app: IGeesomeApp, models) {
             return operationQueue;
         }
 
-        async runRenderAndWaitForFinish(userId, token, entityType, entityId, options) {
-            const operationQueue = await this.addRenderToQueueAndProcess(userId, token, entityType, entityId, options);
+        async runRenderAndWaitForFinish(userId, apiKeyId, entityType, entityId, options) {
+            const operationQueue = await this.addRenderToQueueAndProcess(userId, apiKeyId, entityType, entityId, options);
             const finishedOperation = await new Promise((resolve) => {
                 finishCallbacks[operationQueue.id] = resolve;
             });
@@ -70,10 +59,8 @@ function getModule(app: IGeesomeApp, models) {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
             // console.log('waitingQueue', waitingQueue);
             if (!waitingQueue) {
-                apiKeyIdToTokenTemp = {};
                 return;
             }
-
             // console.log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
             if (waitingQueue.asyncOperation) {
                 if (waitingQueue.asyncOperation.inProcess) {
@@ -100,11 +87,10 @@ function getModule(app: IGeesomeApp, models) {
             // run in background
             this.generate(userId, entityType, entityId, {
                 ...options,
-                userApiKeyId,
                 asyncOperationId: asyncOperation.id
-            }).then(async (content: IContent) => {
+            }).then(async (storageId) => {
                 await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-                await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
+                await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
                 if (finishCallbacks[waitingQueue.id]) {
                     finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                 }
@@ -164,19 +150,13 @@ function getModule(app: IGeesomeApp, models) {
             return merged;
         }
 
-        async generate(userId, entityType, entityId, options: any = {}): Promise<IContent> {
-            // console.log('generate', userId, entityType, entityId);
-            const distPath = path.resolve(__dirname, './.vuepress/dist');
-            rmDir(distPath);
-
-            const {userApiKeyId, baseStorageUri} = options;
+        async generate(userId, entityType, entityId, options: any = {}): Promise<string> {
+            const {baseStorageUri} = options;
             const group = await app.ms.group.getLocalGroup(userId, entityId);
-            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
-            // console.log('staticSite', staticSite);
-            // if (staticSite && group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
-            //     console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
-            //     return app.ms.content.getContentByStorageId(staticSite.storageId);
-            // }
+            let staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+            if (!staticSite) {
+                staticSite = await this.createDbStaticSite({userId, entityType, entityId, title: options.title, options: JSON.stringify(options)});
+            }
             options = await this.getResultOptions(group, options);
 
             const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
@@ -191,64 +171,70 @@ function getModule(app: IGeesomeApp, models) {
                 if (options.asyncOperationId && i % 10 === 0) {
                     await app.ms.asyncOperation.updateAsyncOperation(userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
                 }
-                console.log('postToObj', await postToObj(gp));
-                return postToObj(gp);
+                return this.postToObj(options, baseStorageUri, gp);
             });
-            async function postToObj(gp) {
-                if (!gp) {
-                    return null;
-                }
-                const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
-                return {
-                    id: gp.localId,
-                    lang: options.lang,
-                    contents: contents,
-                    group: gp.group ? _.pick(gp.group, ['name', 'title', 'manifestStorageId', 'manifestStaticStorageId', 'propertiesJson']) : null,
-                    replyTo: await postToObj(gp.replyTo),
-                    repostOf: await postToObj(gp.repostOf),
-                    texts: contents.filter(c => c.type === 'text'),
-                    images: contents.filter(c => c.type === 'image'),
-                    videos: contents.filter(c => c.type === 'video'),
-                    date: gp.publishedAt.getTime()
-                }
+
+            const storageDir = `/${staticSite.staticId}-site`;
+            await app.ms.storage.makeDir(storageDir).catch(() => {/*already made*/});
+
+            const postsPerPage = options.postList.postsPerPage;
+            const pagesCount = Math.ceil(posts.length / postsPerPage);
+
+            const indexById = {};
+            posts.forEach((p, i) => {
+                indexById[p.id] = i;
+            })
+
+            const {renderPage, css} = await prepareRender({posts, pagesCount, postsPerPage, options, indexById});
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
+            await app.ms.storage.copyFileFromId(cssStorageId, `${storageDir}/style.css`);
+
+            await this.renderAndSave(renderPage, options, storageDir, ``, 'main');
+            for (let i = 1; i <= pagesCount - 1; i++) {
+               await this.renderAndSave(renderPage, options, storageDir, `/page/${i}`, 'page');
             }
+            await pIteration.forEachSeries(posts, (p) => this.renderAndSave(renderPage, options, storageDir, `/post/${p.id}`, 'post', p));
 
-            const childProcessData = {
-                token: apiKeyIdToTokenTemp[userApiKeyId],
-                port: app.ms.api.port,
-                base,
-                posts,
-                options,
-                bundlerConfig: { baseStorageUri },
-                groupId: group.id
-            };
+            const storageId = await app.ms.storage.getDirectoryId(storageDir);
+            const baseData = {storageId, lastEntityManifestStorageId: group.manifestStorageId};
+            await this.updateDbStaticSite(staticSite.id, baseData);
+            return storageId;
+        }
 
-            if (process.env.SSG_RUNTIME) {
-                await require('./build')(childProcessData);
-            } else {
-                fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
-
-                await new Promise((resolve, reject) => {
-                    childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
-                });
+        async postToObj(options, baseStorageUri, gp) {
+            if (!gp) {
+                return null;
             }
-
-            // if (options.asyncOperationId) {
-            //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
-            // }
-
-            const content = await app.ms.content.saveDirectoryToStorage(userId, distPath, {
-                groupId: group.id,
-                userApiKeyId: options.userApiKeyId
-            });
-            const baseData = {storageId: content.storageId, lastEntityManifestStorageId: group.manifestStorageId};
-            // console.log('baseData', baseData);
-            if (staticSite) {
-                await this.updateDbStaticSite(staticSite.id, baseData);
-            } else {
-                await this.createDbStaticSite({...baseData, userId, entityType, entityId, title: options.title, options: JSON.stringify(options)});
+            const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
+            return {
+                id: gp.localId,
+                lang: options.lang,
+                contents: contents,
+                group: gp.group ? _.pick(gp.group, ['name', 'title', 'manifestStorageId', 'manifestStaticStorageId', 'propertiesJson']) : null,
+                replyTo: await this.postToObj(options, baseStorageUri, gp.replyTo),
+                repostOf: await this.postToObj(options, baseStorageUri, gp.repostOf),
+                date: gp.publishedAt.getTime(),
+                ...getPostTitleAndDescription(gp, contents, options.post)
             }
-            return content;
+        }
+
+        async renderAndSave(renderPage, options, storageDir, path, type, p = null) {
+            let pageTitle = '';
+            if (type === 'main') {
+                pageTitle = `${options.site.title} - Main page`;
+            } else if (type === 'page') {
+                pageTitle = `${options.site.title} - Page #${_.last(path.split('/'))}`;
+            } else if (type === 'post') {
+                pageTitle = `${options.site.title} - ${p && p.pageTitle ? p.pageTitle : 'Post #' + p.id}`;
+            }
+            const pageDescription = type === 'post' && p && p.pageDescription ? p.pageDescription : options.site.description;
+            const postImages = type === 'post' && p ? p.contents.filter(c => c.type === 'image') : [];
+            const imageUrl = postImages.length ? postImages[0].url : options.site.avatarUrl;
+
+            const headers = getOgHeaders(options.site.title, options.lang, pageTitle, pageDescription, imageUrl);
+            const htmlContent = await renderPage(path || '/', headers);
+            const {id: storageId} = await app.ms.storage.saveFileByData(htmlContent);
+            return app.ms.storage.copyFileFromId(storageId, `${storageDir}${path + '/'}index.html`);
         }
 
         async updateDbStaticSite(id, data) {
