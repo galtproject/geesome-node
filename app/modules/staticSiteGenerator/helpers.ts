@@ -14,7 +14,7 @@ const {
     statSync,
 } = require('fs');
 const { join } = require('path');
-const fetch = require('node-fetch');
+// const fetch = require('node-fetch');
 
 const includes = require('lodash/includes');
 const trim = require('lodash/trim');
@@ -113,6 +113,7 @@ function splitBySeparatorsAndFill(text, output, maxOutputLength, firstSeparator 
 }
 function getTitleAndDescription(texts, postSettings, plainText = false) {
     let contents = texts.filter((t) => t.view === 'contents');
+    console.log('getTitleAndDescription contents', contents);
     if (!contents[0]) {
         contents = [texts[0]];
     }
@@ -158,16 +159,18 @@ function getTitleAndDescription(texts, postSettings, plainText = false) {
     return {title: removeHtml(title), description: fixHtml(description)};
 }
 
-function getPostTitleAndDescription(post, postSettings) {
-    const {title: postTitle, description: postDescription} = getTitleAndDescription(post.texts, postSettings);
+function getPostTitleAndDescription(post, contents, postSettings) {
+    const texts = contents.filter(c => c.type === 'text');
+    console.log('texts', texts);
+    const {title: itemTitle, description: itemDescription} = getTitleAndDescription(texts, postSettings);
 
-    let pageTitle = postTitle;
-    if(!pageTitle) {
-        const result = getTitleAndDescription(post.texts, {titleLength: 100});
+    let pageTitle = itemTitle;
+    if (!pageTitle) {
+        const result = getTitleAndDescription(texts, {titleLength: 100});
         pageTitle = result.title;
     }
     pageTitle = removeHtml(pageTitle);
-    return { postTitle, postDescription, pageTitle, pageDescription: removeHtml(postDescription) };
+    return { itemTitle, itemDescription, pageTitle, pageDescription: removeHtml(itemDescription) };
 }
 
 function getOgHeaders(siteName, lang, title, description, imageUrl) {
@@ -210,16 +213,16 @@ function fixHtml(html) {
     return trim(html, " ");
 }
 
-async function apiRequest(port, method, token, body) {
-    return fetch(`http://localhost:${port}/v1/${method}`, {
-        "headers": {
-            "accept": "application/json, text/plain, */*",
-            "authorization": "Bearer " + token,
-            "content-type": "application/json",
-        },
-        "body": JSON.stringify(body),
-        "method": "POST"
-    }).then(r => r.json());
-}
+// async function apiRequest(port, method, token, body) {
+//     return fetch(`http://localhost:${port}/v1/${method}`, {
+//         "headers": {
+//             "accept": "application/json, text/plain, */*",
+//             "authorization": "Bearer " + token,
+//             "content-type": "application/json",
+//         },
+//         "body": JSON.stringify(body),
+//         "method": "POST"
+//     }).then(r => r.json());
+// }
 
-module.exports = { rmDir, getTitleAndDescription, getPostTitleAndDescription, getMainMediaContent, apiRequest, getOgHeaders, removeHtml };
+module.exports = { rmDir, getTitleAndDescription, getPostTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml };

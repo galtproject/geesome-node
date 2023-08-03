@@ -2,6 +2,7 @@ import {IGeesomeApp} from "../../interface";
 import {IContent} from "../database/interface";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite} from "./interface";
 
+
 const { path } = require('@vuepress/utils');
 
 const base = '/';
@@ -9,18 +10,18 @@ const pIteration = require('p-iteration');
 const _ = require('lodash');
 const {rmDir} = require('./helpers');
 const commonHelper = require('geesome-libs/src/common');
-const childProcess = require("child_process");
-const fs = require("fs");
 let helpers = require('../../helpers');
+const {getPostTitleAndDescription} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
+    const {default: {prepareRender}} = await import('static-site-pkg');
     app.checkModules(['asyncOperation', 'group', 'content']);
-    const module = getModule(app, await require('./models')());
+    const module = getModule(app, await require('./models')(), prepareRender);
     require('./api')(app, module);
     return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+function getModule(app: IGeesomeApp, models, prepareRender) {
     // temp storage of tokens to pass to child process
     let apiKeyIdToTokenTemp = {
 
@@ -102,9 +103,9 @@ function getModule(app: IGeesomeApp, models) {
                 ...options,
                 userApiKeyId,
                 asyncOperationId: asyncOperation.id
-            }).then(async (content: IContent) => {
+            }).then(async (storageId) => {
                 await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-                await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, content.id);
+                await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
                 if (finishCallbacks[waitingQueue.id]) {
                     finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                 }
@@ -164,14 +165,17 @@ function getModule(app: IGeesomeApp, models) {
             return merged;
         }
 
-        async generate(userId, entityType, entityId, options: any = {}): Promise<IContent> {
+        async generate(userId, entityType, entityId, options: any = {}): Promise<string> {
             // console.log('generate', userId, entityType, entityId);
-            const distPath = path.resolve(__dirname, './.vuepress/dist');
-            rmDir(distPath);
+            // const distPath = path.resolve(__dirname, './.vuepress/dist');
+            // rmDir(distPath);
 
             const {userApiKeyId, baseStorageUri} = options;
             const group = await app.ms.group.getLocalGroup(userId, entityId);
-            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+            let staticSite = await models.StaticSite.findOne({where: {entityType, entityId}});
+            if (!staticSite) {
+                staticSite = await this.createDbStaticSite({userId, entityType, entityId, title: options.title, options: JSON.stringify(options)});
+            }
             // console.log('staticSite', staticSite);
             // if (staticSite && group.manifestStorageId === staticSite.lastEntityManifestStorageId) {
             //     console.log('Static site already generated with manifest', group.manifestStorageId, 'and storage id', staticSite.storageId);
@@ -206,49 +210,69 @@ function getModule(app: IGeesomeApp, models) {
                     group: gp.group ? _.pick(gp.group, ['name', 'title', 'manifestStorageId', 'manifestStaticStorageId', 'propertiesJson']) : null,
                     replyTo: await postToObj(gp.replyTo),
                     repostOf: await postToObj(gp.repostOf),
-                    texts: contents.filter(c => c.type === 'text'),
-                    images: contents.filter(c => c.type === 'image'),
-                    videos: contents.filter(c => c.type === 'video'),
-                    date: gp.publishedAt.getTime()
+                    date: gp.publishedAt.getTime(),
+                    ...getPostTitleAndDescription(gp, contents, options.post)
                 }
             }
 
-            const childProcessData = {
-                token: apiKeyIdToTokenTemp[userApiKeyId],
-                port: app.ms.api.port,
-                base,
-                posts,
-                options,
-                bundlerConfig: { baseStorageUri },
-                groupId: group.id
-            };
+            // const childProcessData = {
+            //     token: apiKeyIdToTokenTemp[userApiKeyId],
+            //     port: app.ms.api.port,
+            //     base,
+            //     posts,
+            //     options,
+            //     bundlerConfig: { baseStorageUri },
+            //     groupId: group.id
+            // };
 
-            if (process.env.SSG_RUNTIME) {
-                await require('./build')(childProcessData);
-            } else {
-                fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
 
-                await new Promise((resolve, reject) => {
-                    childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
-                });
+            const storageDir = `/${staticSite.staticId}-site`;
+            await app.ms.storage.makeDir(storageDir);
+
+            const postsPerPage = 10;
+            const pagesCount = Math.ceil(posts.length / postsPerPage);
+
+            const indexById = {};
+            posts.forEach((p, i) => {
+                indexById[p.id] = i;
+            })
+
+            const renderPage = await prepareRender({posts, pagesCount, postsPerPage, options, indexById});
+
+            await renderAndSave(``);
+
+            for (let i = 2; i <= pagesCount; i++) {
+               await renderAndSave(`/pages/${i}`);
             }
+            await pIteration.forEach(posts, (p) => renderAndSave(`/posts/${p.id}`));
+
+            async function renderAndSave(path) {
+                const {id: storageId} = await app.ms.storage.saveFileByData(await renderPage(path || '/'));
+                return app.ms.storage.copyFileFromId(storageId, `${storageDir}${path + '/'}index.html`);
+            }
+            // if (process.env.SSG_RUNTIME) {
+            //     await require('./build')(childProcessData);
+            // } else {
+            //     fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
+            //
+            //     await new Promise((resolve, reject) => {
+            //         childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
+            //     });
+            // }
 
             // if (options.asyncOperationId) {
             //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
             // }
 
-            const content = await app.ms.content.saveDirectoryToStorage(userId, distPath, {
-                groupId: group.id,
-                userApiKeyId: options.userApiKeyId
-            });
-            const baseData = {storageId: content.storageId, lastEntityManifestStorageId: group.manifestStorageId};
+            // const content = await app.ms.content.saveDirectoryToStorage(userId, distPath, {
+            //     groupId: group.id,
+            //     userApiKeyId: options.userApiKeyId
+            // });
+            const storageId = await app.ms.storage.getDirectoryId(storageDir);
+            const baseData = {storageId, lastEntityManifestStorageId: group.manifestStorageId};
             // console.log('baseData', baseData);
-            if (staticSite) {
-                await this.updateDbStaticSite(staticSite.id, baseData);
-            } else {
-                await this.createDbStaticSite({...baseData, userId, entityType, entityId, title: options.title, options: JSON.stringify(options)});
-            }
-            return content;
+            await this.updateDbStaticSite(staticSite.id, baseData);
+            return storageId;
         }
 
         async updateDbStaticSite(id, data) {

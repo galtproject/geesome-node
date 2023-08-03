@@ -19,6 +19,8 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 	getStaticSiteInfo(userId, type, entityId): Promise<IStaticSite>;
 
 	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
+
+	generate(userId, entityType, entityId, options: any = {}): Promise<string>;
 }
 
 export interface IStaticSite {

@@ -7,7 +7,13 @@ module.exports = async (app: IGeesomeApp) => {
     const fluenceService = new FluenceService(app.ms.accountStorage, peer, {logLevel: null /*'debug'*/});
     fluenceService.setup = async () => {
         fluenceService.setPeer(await require('./setupFluencePeer')(app));
-        fluenceService.registerEvents();
+        try {
+            fluenceService.registerEvents();
+        } catch (e) {
+        }
+    }
+    fluenceService.stop = async () => {
+
     }
     return fluenceService;
 }

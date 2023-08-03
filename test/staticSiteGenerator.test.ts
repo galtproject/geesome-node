@@ -9,9 +9,11 @@
 
 import {IGeesomeApp} from "../app/interface";
 import {
-	CorePermissionName,
+	ContentView,
+	CorePermissionName, IUser,
 } from "../app/modules/database/interface";
 import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface";
+import {IGroup, PostStatus} from "../app/modules/group/interface";
 
 const {getTitleAndDescription} = require('../app/modules/staticSiteGenerator/helpers');
 
@@ -27,7 +29,7 @@ describe("staticSiteGenerator", function () {
 
 	this.timeout(60000);
 
-	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule;
+	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule, testUser: IUser, testGroup: IGroup;
 
 	beforeEach(async () => {
 		const appConfig = require('../app/config');
@@ -49,13 +51,13 @@ describe("staticSiteGenerator", function () {
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
-			const testUser = await app.registerUser({
+			testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
 				password: 'user',
 				permissions: [CorePermissionName.UserAll]
 			});
-			await app.ms.group.createGroup(testUser.id, {
+			testGroup = await app.ms.group.createGroup(testUser.id, {
 				name: 'test',
 				title: 'Test'
 			});
@@ -88,5 +90,43 @@ describe("staticSiteGenerator", function () {
 		})
 		assert.equal(title, '');
 		assert.equal(description, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><i>Language<br/>concepts[6], with terse syntax.[7]...</i>');
+	});
+
+	it.only('should generate site correctly', async () => {
+		const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world', null, {
+			mimeType: 'text/markdown'
+		});
+		const postData = {
+			contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		};
+		let post = await app.ms.group.createPost(testUser.id, postData);
+
+		const directoryStorageId = await staticSiteGenerator.generate(testUser.id, 'group', testGroup.id, {
+			lang: 'en',
+			dateFormat: 'DD.MM.YYYY hh:mm:ss',
+			post: {
+				titleLength: 0,
+				descriptionLength: 400,
+			},
+			postList: {
+				postsPerPage: 10,
+			},
+			site: {
+				title: 'MySite',
+				name: 'my_site',
+				description: 'My About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
+		assert.match(indexHtmlContent, /post-intro.+Hello world/);
+		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/posts/${post.id}/index.html`).then(b => b.toString('utf8'));
+		assert.match(postHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
+		assert.match(postHtmlContent, /post-page-content.+Hello world/);
 	});
 });

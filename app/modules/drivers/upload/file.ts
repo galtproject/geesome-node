@@ -42,7 +42,7 @@ export class FileUploadDriver extends AbstractDriver {
               .on("error", reject)
               .on('close', () => {
                 console.log('writableStream.on close');
-                resolve();
+                resolve(null);
               });
         })
       } else {

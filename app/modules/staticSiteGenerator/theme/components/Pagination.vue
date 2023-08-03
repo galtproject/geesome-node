@@ -1,7 +1,7 @@
 <template>
   <div class="pagination">
     <span v-for="page in pagesButtons">
-      <a :href="baseHref + page.number" :class="{'current': page.number === currentPage}">
+      <a :href="baseHref + page.number" :class="{'current': page.number === curPage}">
         <span v-if="page.type === 'dots'">...</span>
         <span v-if="page.type === 'regular'">{{ page.number }}</span>
         <span v-if="page.type === 'prev'">Prev</span>
@@ -33,16 +33,16 @@
         const pages = [];
 
         if (this.prevNext) {
-          if (this.currentPage !== 1) {
+          if (this.curPage !== 1) {
             pages.push({
               type: 'prev',
-              number: this.currentPage - 1
+              number: this.curPage - 1
             })
           }
-          if (this.currentPage !== this.pagesCount) {
+          if (this.curPage !== this.pagesCount) {
             pages.push({
               type: 'next',
-              number: this.currentPage + 1
+              number: this.curPage + 1
             })
           }
           return pages;
@@ -61,7 +61,7 @@
         let groupSizeAfter = this._displayPagesAfter;
 
         let groupSizeMiddle = 0;
-        if (this.currentPage >= groupSizeBefore && this.currentPage <= this.pagesCount - groupSizeAfter) {
+        if (this.curPage >= groupSizeBefore && this.curPage <= this.pagesCount - groupSizeAfter) {
           groupSizeBefore = Math.floor(groupSizeBefore / 2);
           groupSizeAfter = groupSizeBefore;
           groupSizeMiddle = this.displayPages - groupSizeBefore - groupSizeAfter;
@@ -76,7 +76,7 @@
 
         const groupAfterStartPosition = () => {
           let position = this.pagesCount - groupSizeAfter + 1;
-          // if (position === this.currentPage) {
+          // if (position === this.curPage) {
           //   position--;
           // }
           return position;
@@ -84,7 +84,7 @@
 
         if (groupSizeMiddle) {
           const curPagePosition = Math.floor(groupSizeMiddle / 2);
-          let middleGroupStartNumber = this.currentPage - curPagePosition;
+          let middleGroupStartNumber = this.curPage - curPagePosition;
           if (middleGroupStartNumber <= groupSizeBefore) {
             middleGroupStartNumber = groupSizeBefore + 2;
           }
@@ -120,15 +120,12 @@
           pages.push({
             number: this.pagesCount,
             type: 'last',
-            disabled: this.currentPage == this.pagesCount
+            disabled: this.curPage == this.pagesCount
           });
         }
 
         return pages;
       },
-      currentPage() {
-        return _.includes(this.currentHref, 'page') ? parseInt(_.last(_.trim(this.currentHref, '/').split('/'))) : 1;
-      }
     },
   }
 </script>
