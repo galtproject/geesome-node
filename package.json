@@ -36,15 +36,9 @@
     "./app/modules/staticSiteGenerator/site"
   ],
   "dependencies": {
-    "@galtproject/vuepress-bundler-vite": "2.0.0-beta.35.19",
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",
     "@revoinc/async-busboy": "^2.0.3",
     "@types/es6-promise": "^3.3.0",
-    "@vuepress/bundler-vite": "2.0.0-beta.35",
-    "@vuepress/bundler-webpack": "2.0.0-beta.35",
-    "@vuepress/client": "2.0.0-beta.35",
-    "@vuepress/core": "2.0.0-beta.35",
-    "@vuepress/utils": "2.0.0-beta.35",
     "axios": "^0.21.1",
     "bcrypt": "^5.0.0",
     "bl": "^5.0.0",
@@ -55,7 +49,6 @@
     "cookie-parser": "^1.4.4",
     "cross-blob": "^2.0.0",
     "crypto-js": "^4.1.1",
-    "dayjs": "^1.10.7",
     "debug": "^4.1.0",
     "dotenv": "^16.1.4",
     "ethers": "^4.0.25",
@@ -102,7 +95,9 @@
     "unzip-stream": "^0.3.0",
     "uuid-apikey": "^1.4.3",
     "vue-feather-icons": "^5.1.0",
-    "xml": "^1.0.1"
+    "xml": "^1.0.1",
+    "vue": "^3.2.47",
+    "vue-router": "4.0.16"
   },
   "devDependencies": {
     "@ctx-core/object": "^22.1.3",
