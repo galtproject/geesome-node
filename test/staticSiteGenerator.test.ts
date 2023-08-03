@@ -92,7 +92,7 @@ describe("staticSiteGenerator", function () {
 		assert.equal(description, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><i>Language<br/>concepts[6], with terse syntax.[7]...</i>');
 	});
 
-	it.only('should generate site correctly', async () => {
+	it('should generate site correctly', async () => {
 		const posts = [];
 		for(let i = 0; i < 30; i++) {
 			const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world' + i, null, { mimeType: 'text/markdown' });
@@ -130,11 +130,13 @@ describe("staticSiteGenerator", function () {
 		assert.match(indexHtmlContent, /My About/);
 		assert.match(indexHtmlContent, /Posts: 30/);
 		assert.equal(indexHtmlContent.includes('<link rel="stylesheet" href="./style.css">'), true);
-		console.log('indexHtmlContent', indexHtmlContent);
+		assert.equal(indexHtmlContent.includes('<a href="./post/26/"'), true);
 		const page3HtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/page/5/index.html`).then(b => b.toString('utf8'));
 		assert.match(page3HtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.match(page3HtmlContent, /post-intro.+Hello world24/);
 		assert.equal(page3HtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
+		assert.equal(page3HtmlContent.includes('<a href="../../page/5/"'), true);
+		assert.equal(page3HtmlContent.includes('<a href="../../post/24/"'), true);
 		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/post/${posts[0].id}/index.html`).then(b => b.toString('utf8'));
 		assert.match(postHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
