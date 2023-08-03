@@ -1,14 +1,9 @@
 import {IGeesomeApp} from "../../interface";
-import {IContent} from "../database/interface";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite} from "./interface";
-
-
-const { path } = require('@vuepress/utils');
 
 const base = '/';
 const pIteration = require('p-iteration');
 const _ = require('lodash');
-const {rmDir} = require('./helpers');
 const commonHelper = require('geesome-libs/src/common');
 let helpers = require('../../helpers');
 const {getPostTitleAndDescription} = require('./helpers');
@@ -195,14 +190,16 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                 if (options.asyncOperationId && i % 10 === 0) {
                     await app.ms.asyncOperation.updateAsyncOperation(userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
                 }
-                console.log('postToObj', await postToObj(gp));
+                console.log('postToObj res', await postToObj(gp).catch(e => console.error('postToObj e', e)));
                 return postToObj(gp);
             });
+            console.log('posts.length', posts.length);
             async function postToObj(gp) {
                 if (!gp) {
                     return null;
                 }
                 const contents = await app.ms.group.getPostContentWithUrl(baseStorageUri, gp);
+                console.log('postToObj contents',contents.length);
                 return {
                     id: gp.localId,
                     lang: options.lang,
@@ -215,59 +212,40 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                 }
             }
 
-            // const childProcessData = {
-            //     token: apiKeyIdToTokenTemp[userApiKeyId],
-            //     port: app.ms.api.port,
-            //     base,
-            //     posts,
-            //     options,
-            //     bundlerConfig: { baseStorageUri },
-            //     groupId: group.id
-            // };
-
-
+            console.log('staticSite', staticSite);
             const storageDir = `/${staticSite.staticId}-site`;
-            await app.ms.storage.makeDir(storageDir);
+            console.log('storageDir', storageDir);
+            await app.ms.storage.makeDir(storageDir).catch(() => {/*already made*/});
 
-            const postsPerPage = 10;
+            const postsPerPage = options.postList.postsPerPage;
+            console.log('postsPerPage', postsPerPage);
             const pagesCount = Math.ceil(posts.length / postsPerPage);
 
+            console.log('posts', posts.map(p => p.id).join(','));
             const indexById = {};
             posts.forEach((p, i) => {
                 indexById[p.id] = i;
             })
 
-            const renderPage = await prepareRender({posts, pagesCount, postsPerPage, options, indexById});
+            console.log('prepareRender');
+            const {renderPage, css} = await prepareRender({posts, pagesCount, postsPerPage, options, indexById});
+
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
+            console.log('cssStorageId', cssStorageId);
+            await app.ms.storage.copyFileFromId(cssStorageId, `${storageDir}/style.css`);
 
             await renderAndSave(``);
 
-            for (let i = 2; i <= pagesCount; i++) {
-               await renderAndSave(`/pages/${i}`);
+            for (let i = 1; i <= pagesCount - 1; i++) {
+               await renderAndSave(`/page/${i}`);
             }
-            await pIteration.forEach(posts, (p) => renderAndSave(`/posts/${p.id}`));
+            await pIteration.forEachSeries(posts, (p) => renderAndSave(`/post/${p.id}`));
 
             async function renderAndSave(path) {
+                console.log('renderAndSave', path);
                 const {id: storageId} = await app.ms.storage.saveFileByData(await renderPage(path || '/'));
                 return app.ms.storage.copyFileFromId(storageId, `${storageDir}${path + '/'}index.html`);
             }
-            // if (process.env.SSG_RUNTIME) {
-            //     await require('./build')(childProcessData);
-            // } else {
-            //     fs.writeFileSync(path.resolve(__dirname, 'childProcessData.json'), JSON.stringify(childProcessData), {encoding: 'utf8'});
-            //
-            //     await new Promise((resolve, reject) => {
-            //         childProcess.exec("node " + path.resolve(__dirname, 'childProcess.js'), (e, output) => e ? reject(e) : resolve(output));
-            //     });
-            // }
-
-            // if (options.asyncOperationId) {
-            //     await app.ms.asyncOperation.updateAsyncOperation(options.userId, options.asyncOperationId, 60);
-            // }
-
-            // const content = await app.ms.content.saveDirectoryToStorage(userId, distPath, {
-            //     groupId: group.id,
-            //     userApiKeyId: options.userApiKeyId
-            // });
             const storageId = await app.ms.storage.getDirectoryId(storageDir);
             const baseData = {storageId, lastEntityManifestStorageId: group.manifestStorageId};
             // console.log('baseData', baseData);

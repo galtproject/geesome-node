@@ -3,6 +3,6 @@ module.exports = {
 	options: {
 		// 'logging': (d) => {log(d)},
 		'dialect': 'sqlite',
-		'storage': 'data/static-site-generator.sqlite'
+		'storage': `${process.env.DATA_DIR || 'data'}/static-site-generator.sqlite`
 	}
 }

@@ -8,6 +8,9 @@ export default {
         // Newsletter: () => import('@theme/components/Newsletter.vue'),
     },
     inject: ['store'],
+    created() {
+      // console.log('post page', this.$route.params.postId);
+    },
     computed: {
         post() {
             return this.store.posts[this.store.indexById[this.$route.params.postId]];

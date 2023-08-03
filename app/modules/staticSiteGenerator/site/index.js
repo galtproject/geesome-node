@@ -11,24 +11,31 @@ export default {
         loadAssets(data);
         const [{app, router}, {css}] = await Promise.all([
             createApp(data),
-            sass['default'].compileAsync(getFilePath('styles.scss'))
+            sass['default'].compileAsync(getFilePath('styles/index.scss'))
         ]);
-        return (url) => {
-            return renderApp(app, router, css, url, 'en');
+        const rootContent = getFileContent('index.html');
+        return {
+            css,
+            renderPage: (url) => {
+                return renderApp(app, router, rootContent, url, 'en');
+            }
         };
     },
 };
 
-async function renderApp(app, router, css, url, lang) {
+async function renderApp(app, router, rootContent, url, lang) {
     // console.log('app', app);
+    const slashSplit = url.split('/');
+    const relativeRoot = slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './';
     await router.push(url);
     // app.use(Notifications);
     // installFakeComponent(app, '$notify', 'Notifications');
     const content = await renderToString(app);
 
-    return getFileContent('index.html')
+    return rootContent
+        .replace('{{relativeRoot}}', relativeRoot)
         .replace('{{lang}}', lang)
-        .replace('{{style}}', `<style>${css}</style>`)
+        // .replace('{{style}}', `<style>${css}</style>`)
         // .replace('{{clientDataName}}', 'page')
         // .replace('{{urlQuery}}', urlQuery || '')
         .replace('{{content}}', content);

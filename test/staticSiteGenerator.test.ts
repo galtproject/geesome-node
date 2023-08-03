@@ -93,15 +93,16 @@ describe("staticSiteGenerator", function () {
 	});
 
 	it.only('should generate site correctly', async () => {
-		const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world', null, {
-			mimeType: 'text/markdown'
-		});
-		const postData = {
-			contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
-			groupId: testGroup.id,
-			status: PostStatus.Published
-		};
-		let post = await app.ms.group.createPost(testUser.id, postData);
+		const posts = [];
+		for(let i = 0; i < 30; i++) {
+			const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world' + i, null, { mimeType: 'text/markdown' });
+			const postData = {
+				contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
+				groupId: testGroup.id,
+				status: PostStatus.Published
+			};
+			posts.push(await app.ms.group.createPost(testUser.id, postData));
+		}
 
 		const directoryStorageId = await staticSiteGenerator.generate(testUser.id, 'group', testGroup.id, {
 			lang: 'en',
@@ -111,7 +112,7 @@ describe("staticSiteGenerator", function () {
 				descriptionLength: 400,
 			},
 			postList: {
-				postsPerPage: 10,
+				postsPerPage: 5,
 			},
 			site: {
 				title: 'MySite',
@@ -124,9 +125,19 @@ describe("staticSiteGenerator", function () {
 
 		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
 		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
-		assert.match(indexHtmlContent, /post-intro.+Hello world/);
-		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/posts/${post.id}/index.html`).then(b => b.toString('utf8'));
+		assert.match(indexHtmlContent, /post-intro.+Hello world25/);
+		assert.match(indexHtmlContent, /MySite/);
+		assert.match(indexHtmlContent, /My About/);
+		assert.match(indexHtmlContent, /Posts: 30/);
+		assert.equal(indexHtmlContent.includes('<link rel="stylesheet" href="./style.css">'), true);
+		console.log('indexHtmlContent', indexHtmlContent);
+		const page3HtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/page/5/index.html`).then(b => b.toString('utf8'));
+		assert.match(page3HtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
+		assert.match(page3HtmlContent, /post-intro.+Hello world24/);
+		assert.equal(page3HtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
+		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/post/${posts[0].id}/index.html`).then(b => b.toString('utf8'));
 		assert.match(postHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
-		assert.match(postHtmlContent, /post-page-content.+Hello world/);
+		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
+		assert.equal(postHtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
 	});
 });

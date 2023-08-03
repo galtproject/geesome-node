@@ -1,11 +1,19 @@
+import {getRelativeRoot} from "../../helpers.js";
+
 export default {
     name: 'pagination',
-    props: ['onlyRegular', 'prevNext', 'baseHref', 'pagesCount', 'currentHref', 'displayPages', 'displayPagesBefore', 'displayPagesAfter', 'showEdges'],
+    props: ['onlyRegular', 'prevNext', 'pagesCount', 'currentHref', 'displayPages', 'displayPagesBefore', 'displayPagesAfter', 'showEdges', 'reverse'],
     created() {
     },
     watch: {},
     methods: {},
     computed: {
+        baseHref() {
+            return getRelativeRoot(this.$route.path);
+        },
+        basePageHref() {
+            return this.baseHref + 'page/';
+        },
         curPage() {
             return parseInt(this.$route.params.page || this.pagesCount);
         },
@@ -16,7 +24,7 @@ export default {
             return this.displayPagesAfter || Math.round(this.displayPages / 2);
         },
         pagesButtons() {
-            const pages = [];
+            let pages = [];
 
             if (this.prevNext) {
                 if (this.curPage !== 1) {
@@ -35,12 +43,13 @@ export default {
             }
 
             if (this.onlyRegular || this.displayPages >= this.pagesCount) {
-                return Array.from(Array(this.pagesCount).keys()).map(i => {
+                pages = Array.from(Array(this.pagesCount).keys()).map(i => {
                     return {
                         number: i + 1,
                         type: 'regular'
                     }
                 });
+                return this.reverse ? pages.reverse() : pages;
             }
 
             let groupSizeBefore = this._displayPagesBefore;
@@ -110,13 +119,13 @@ export default {
                 });
             }
 
-            return pages;
+            return this.reverse ? pages.reverse() : pages;
         },
     },
     template: `
       <div class="pagination">
           <span v-for="page in pagesButtons">
-          <a :href="baseHref + page.number" :class="{'current': page.number === curPage}">
+          <a :href="page.number === pagesCount ? baseHref : basePageHref + page.number + '/'" :class="{'current': page.number === curPage}">
             <span v-if="page.type === 'dots'">...</span>
             <span v-if="page.type === 'regular'">{{ page.number }}</span>
             <span v-if="page.type === 'prev'">Prev</span>

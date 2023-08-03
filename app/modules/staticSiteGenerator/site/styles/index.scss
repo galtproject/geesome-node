@@ -184,13 +184,13 @@ th, td {
   }
 }
 
-@import "wrapper";
+//@import "wrapper";
+@import "header";
 @import "baseList";
 @import "post";
-@import "sw-popup";
-@import "blockTags";
-@import "feed";
-@import "header";
+//@import "sw-popup";
+//@import "blockTags";
+//@import "feed";
 //@import "toc";
 
 @import "adaptive";

@@ -17,6 +17,6 @@ module.exports = {
     'host': 'localhost',
     // 'dialect': 'postgres',
     'dialect': 'sqlite',
-    'storage': 'data/core.sqlite'
+    'storage': `${process.env.DATA_DIR || 'data'}/core.sqlite`
   }
 };

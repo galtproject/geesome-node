@@ -11,6 +11,10 @@ export default {
     }
   },
 
+  created() {
+    // console.log('baseList page', this.$route.params.page);
+  },
+
   computed: {
     curPage() {
       return parseInt(this.$route.params.page || this.pagesCount);
@@ -18,11 +22,9 @@ export default {
     postsPerPage() {
       return this.store.postsPerPage;
     },
-    baseHref() {
-      return this.store.baseHref;
-    },
     postsList() {
-      const startIndex = (this.curPage - 1) * this.postsPerPage;
+      const curPageIndex = this.pagesCount - this.curPage;
+      const startIndex = curPageIndex * this.postsPerPage;
       return this.store.posts.slice(startIndex, startIndex + this.postsPerPage);
     },
     pagesCount() {
@@ -44,7 +46,7 @@ export default {
               <post-list-item v-for="post in postsList" :post="post"></post-list-item>
             </div>
             <div v-if="pagesCount">
-              <pagination :pages-count="pagesCount" :cur-page="curPage" :display-pages="10" :base-href="baseHref"></pagination>
+              <pagination :pages-count="pagesCount" :cur-page="curPage" :display-pages="10" :reverse="1"></pagination>
             </div>
           </div>
         </template>

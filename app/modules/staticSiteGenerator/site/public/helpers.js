@@ -72,4 +72,9 @@ function getTgUser() {
     return isBrowser() && window.Telegram && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
 }
 
-export default {postData, debounce, isArray, isNull, isUndefined, clone, copyToClipboard, getTgUser, isMobile, isBrowser};
+function getRelativeRoot(url) {
+    const slashSplit = url.split('/');
+    return slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './';
+}
+
+export {postData, debounce, isArray, isNull, isUndefined, clone, copyToClipboard, getTgUser, isMobile, isBrowser, getRelativeRoot};
