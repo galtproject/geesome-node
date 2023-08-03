@@ -12,7 +12,7 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 		site: { title, username, description, avatarUrl, postsCount, base }
 	}>;
 
-	addRenderToQueueAndProcess(userId, apiKey, type, id, options): Promise<IUserOperationQueue>;
+	addRenderToQueueAndProcess(userId, apiKeyId, type, id, options): Promise<IUserOperationQueue>;
 
 	bindSiteToStaticId(userId, staticSiteId): Promise<any>;
 

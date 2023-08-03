@@ -16,14 +16,14 @@ export default {
         const rootContent = getFileContent('index.html');
         return {
             css,
-            renderPage: (url) => {
-                return renderApp(app, router, rootContent, url, 'en');
+            renderPage: (url, headers) => {
+                return renderApp(app, router, rootContent, url, headers, 'en');
             }
         };
     },
 };
 
-async function renderApp(app, router, rootContent, url, lang) {
+async function renderApp(app, router, rootContent, url, headers, lang) {
     // console.log('app', app);
     const slashSplit = url.split('/');
     const relativeRoot = slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './';
@@ -32,12 +32,12 @@ async function renderApp(app, router, rootContent, url, lang) {
     // installFakeComponent(app, '$notify', 'Notifications');
     const content = await renderToString(app);
 
+    const title = headers.filter(h => h[1].name === 'og:title')[0][1].content;
+
     return rootContent
         .replace('{{relativeRoot}}', relativeRoot)
         .replace('{{lang}}', lang)
-        // .replace('{{style}}', `<style>${css}</style>`)
-        // .replace('{{clientDataName}}', 'page')
-        // .replace('{{urlQuery}}', urlQuery || '')
+        .replace('{{headers}}', `<title>${title}</title>\n` + headers.map(([tag, attr]) => `<${tag} name="${attr['name']}" content="${attr['content']}"/>`).join('\n'))
         .replace('{{content}}', content);
 }
 

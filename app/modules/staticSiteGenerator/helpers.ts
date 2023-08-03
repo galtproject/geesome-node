@@ -191,9 +191,9 @@ function getOgHeaders(siteName, lang, title, description, imageUrl) {
 
     if (description) {
         headers = headers.concat([
+            ['meta', { name: 'description', content: description }],
             ['meta', { name: 'og:description', content: description }],
             ['meta', { name: 'twitter:description', content: description }],
-
         ]);
     }
 
