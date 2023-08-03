@@ -1,5 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
-const lodash_underscore: any = require("lodash");
+import * as _ from 'lodash';
 const { Op } = require('sequelize');
 const axios = require('axios');
 const { createWorker } = require('tesseract.js');
@@ -18,8 +18,8 @@ class MultiTelegramBot {
     if (!tgcontentbot) {
       return;
     }
-    let entity;
     this.events.forEach(event => {
+      let entity;
       if (body.message && event.text && event.text.test(body.message.text)){
         entity = body.message;
       } else if (body.inline_query && event.type == "inline_query") {
@@ -27,9 +27,7 @@ class MultiTelegramBot {
       } else if (body.callback_query && event.type == "callback_query"){
         entity = body.callback_query;
       } else if (body.message && body.message.photo && event.type == "photo") {
-        entity = body.message
-      } else if (body.message && body.message.text && event.type == "start") {
-        entity = body.message
+        entity = body.message;
       }
       if (!entity){
         return
@@ -37,7 +35,7 @@ class MultiTelegramBot {
       entity.host = host;
       entity.userId = tgcontentbot.userId;
       entity.bot = new TelegramBot(tgToken, {polling: false});
-      event.callback(entity, entity.text && event.text.test ? entity.text.match(event.text) : undefined);
+      event.callback(entity, entity.text && event.text && event.text.test ? entity.text.match(event.text) : undefined);
     });
   };
   onText(text, callback) {
@@ -47,9 +45,6 @@ class MultiTelegramBot {
     this.events.push({type, callback});
   };
 }
-
-process.env.NTBA_FIX_319 = '1';
-process.env.NTBA_FIX_350 = '1';
 
 module.exports = async (app) => {
   const models = await require("./models")();
@@ -71,14 +66,20 @@ module.exports = async (app) => {
       });
       bot.setMyCommands([
         { command: '/start', description: 'Initial greeting' },
-        { command: '/photo', description: 'Save photo to ipfs' }
+        { command: '/savePhoto', description: 'Save photo to ipfs' }
       ]);
       res.send("ok", 200);
     });
 
-  app.ms.api.onAuthorizedPost('content-bot/list', async (req, res) => {
-    res.send(await models.ContentBots.findAll({where: {userId: req.user.id}}), 200);
-  });
+    app.ms.api.onAuthorizedPost('content-bot/list', async (req, res) => {
+      res.send(await models.ContentBots.findAll({where: {userId: req.user.id}}), 200);
+    });
+
+    app.ms.api.onAuthorizedPost('content-bot/addUser', async (req, res) => {
+      const pickedObject = _.pick(req.body, ['userTgId', 'contentLimit', 'isAdmin', 'contentBotId']);
+      await models.User.create(pickedObject);
+      res.send("ok", 200);
+    });
 
     app.ms.api.onPost("content-bot/tg-webhook/:tgToken", async (req, res) => {
       const tgToken = req.params.tgToken;
@@ -86,28 +87,33 @@ module.exports = async (app) => {
       return res.send("ok", 200);
     });
   
-  multitelegrambot.onText(/^\/start()?$/i, async (msg) => {
-    let user = await models.User.findOne({ where: { tgId: idToString(msg.from.id) } });
+  multitelegrambot.onText(/^\/start$/i, async (msg) => {
+    const botId = msg.bot.token.split(":")[0];
+    const tgcontentbot = await models.ContentBots.findOne({ where: { botId } });
+    let user = await models.User.findOne({ where: { userTgId: idToString(msg.from.id)}, contentBotId: tgcontentbot.id });
     if (!user) {
-      user = await models.User.create({ tgId: idToString(msg.from.id), title: msg.from.first_name, contentLimit: 100 });
+      await msg.bot.sendMessage(msg.chat.id, 'https://tlgrm.eu/_/stickers/8d6/f82/8d6f8279-7c1c-3184-aa35-6a5edb3919d3/192/12.webp');
+      await msg.bot.sendMessage(msg.chat.id, `You can't use the bot because you don't have permission from the admin, this is your telegram id ${msg.from.id}`);
+      return
     }
-
-    await msg.bot.sendSticker(msg.chat.id, 'https://tlgrm.ru/_/stickers/8d1/e91/8d1e9143-b58d-4f92-a501-4c946e3728fa/10.webp');
+    await user.update({ title: msg.from.first_name });
+    await msg.bot.sendSticker(msg.chat.id, 'https://tlgrm.eu/_/stickers/8d6/f82/8d6f8279-7c1c-3184-aa35-6a5edb3919d3/192/4.webp');
     await msg.bot.sendMessage(msg.chat.id, `Hello, good to see you ${msg.from.first_name}!`);
   });
 
-  multitelegrambot.onText(/^\/photo()?$/i, async (msg) => {
+  multitelegrambot.onText(/^\/savePhoto$/i, async (msg) => {
     await msg.bot.sendMessage(msg.chat.id, `${msg.from.first_name}, send here the photo you want to keep`);
   });
 
   multitelegrambot.on('inline_query', async (query) => {
+    console.log("!!!!!!!", query);
     const searchTerm = query.query;
-
+    const botId = query.bot.token.split(":")[0]; 
     const searchResult = await models.Description.findOne({
-      where: {
+      where: { botId,
         [Op.or]: [
           { text: { [Op.like]: `%${searchTerm}%` } },
-          { aitext: { [Op.like]: `%${searchTerm}%` } },
+          { aitext: { [Op.like]: `%${searchTerm}%` } }
         ],
       },
       attributes: ['id', 'tgId', 'contentId', 'ipfsContent', 'text'],
@@ -133,18 +139,18 @@ module.exports = async (app) => {
 
   multitelegrambot.on('photo', async (msg) => {
     const sizes = msg.photo;
-    const bestSize = lodash_underscore.orderBy(sizes, ['file_size'], ['desc'])[0];
+    const bestSize = _.orderBy(sizes, ['file_size'], ['desc'])[0];
     const file_id = bestSize.file_id;
     const file_info = await msg.bot.getFile(file_id);
     const download_url = `https://api.telegram.org/file/bot${msg.bot.token}/${file_info.file_path}`;
     let file_extension = '';
-
+    
     const mime_type = file_info.mime_type;
     if (mime_type && mime_type.includes('/')) {
       file_extension = '.' + mime_type.split('/')[1];
     }
 
-    const user = await models.User.findOne({ where: { tgId: idToString(msg.from.id) } });
+    const user = await models.User.findOne({ where: { userTgId: idToString(msg.from.id) } });
 
     const fileSize = file_info.file_size / 1048576;
 
@@ -158,9 +164,10 @@ module.exports = async (app) => {
     const contentObj = await app.ms.content.saveData(msg.userId , buffer, file_name, {
       mimeType: mime_type
     });
+    const botId = msg.bot.token.split(":")[0]; 
     console.log('content ipfs', contentObj.storageId);
     const linky = getLink(msg.host, contentObj.storageId);
-    models.Description.create({ tgId: idToString(msg.from.id), contentId: contentObj.id, ipfsContent: contentObj.storageId, aitext: await aiRecognition(linky, contentObj)}).then(description => {
+    models.Description.create({ tgId: idToString(msg.from.id), contentId: contentObj.id, ipfsContent: contentObj.storageId, botId, aitext: await aiRecognition(linky)}).then(description => {
       console.log('description saved with aitext:', description.aitext);
     });
 
@@ -178,13 +185,13 @@ module.exports = async (app) => {
   const waitForCommand = {};
 
   multitelegrambot.on("callback_query", async (query) => {
-    console.log(query)
     const chatId = query.message.chat.id;
     const storageId = query.data.split(':')[0];
     const command = query.data.split(':')[1];
+    const botId = query.bot.token.split(":")[0]; 
 
     if (command === "add_description") {
-      const description = await models.Description.findOne({ where: { contentId: storageId , tgId: idToString(query.from.id)} });
+      const description = await models.Description.findOne({ where: { contentId: storageId , botId , tgId: idToString(query.from.id)} });
 
       await query.bot.sendMessage(chatId, "Enter a description:");
       waitForCommand[chatId] = `add_description:${description.id}`; 
@@ -208,20 +215,21 @@ module.exports = async (app) => {
     delete waitForCommand[chatId];
   });
 
-  async function aiRecognition(linky, contentObj) {
+  async function aiRecognition(linky) {
     const worker = await createWorker();
-    
     await worker.loadLanguage('eng');
     await worker.initialize('eng');
     const { data: { text } } = await worker.recognize(linky);
-    const description = await models.Description.findOne({ where: { contentId: contentObj.id } });
-    await description.update({ aitext: text });
     await worker.terminate();
     return text;
   }
 
   function getLink(host, ipfsHash) {
     return `https://${host}/ipfs/${ipfsHash}`;
+  }
+
+  function getCarLink(host, ipfsHash) {
+    return `https://${host}/download-car/${ipfsHash}.car`;
   }
   
   return module;
