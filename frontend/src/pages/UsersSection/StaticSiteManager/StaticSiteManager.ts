@@ -14,11 +14,10 @@ export default {
 	components: {},
 	async created() {
 		this.getData();
-		this.getPendingOperations();
 	},
 	methods: {
 		async getPendingOperations(startedAt = null) {
-			this.pendingOperations = await this.$geesome.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`, null);
+			this.pendingOperations = await this.$geesome.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroup.id};%`, null);
 			console.log('this.pendingOperations', this.pendingOperations);
 			if (this.pendingOperations.length) {
 				if (this.pendingOperations[0].inProcess || (startedAt && this.pendingOperations[0].createdAt > startedAt)) {
@@ -30,15 +29,16 @@ export default {
 		},
 		async getGroup() {
 			[this.dbGroup] = await Promise.all([
-				this.$geesome.getDbGroup(this.dbGroupId),
+				this.$geesome.getDbGroup(this.groupId),
 			]);
 		},
 		async getData() {
-			[this.dbGroup, this.defaultOptions, this.siteInfo] = await Promise.all([
-				this.$geesome.getDbGroup(this.dbGroupId),
-				this.$geesome.staticSiteGetDefaultOptions(this.type, this.dbGroupId),
-				this.$geesome.getStaticSiteInfo(this.type, this.dbGroupId)
+			await this.getGroup();
+			[this.defaultOptions, this.siteInfo] = await Promise.all([
+				this.$geesome.staticSiteGetDefaultOptions(this.type, this.dbGroup.id),
+				this.$geesome.getStaticSiteInfo(this.type, this.dbGroup.id)
 			]);
+			this.getPendingOperations();
 			this.checkSocNetChannel();
 			this.setDefaultOptions();
 		},
@@ -47,6 +47,7 @@ export default {
 				return;
 			}
 			this.options = {
+				view: this.dbGroup.view,
 				...this.defaultOptions,
 				baseStorageUri: this.defaultOptions.baseStorageUri || this.$geesome.getServerStorageUri(),
 			}
@@ -55,7 +56,7 @@ export default {
 			this.loading = true;
 			this.done = false;
 			const startedAt = new Date();
-			const res = await this.$geesome.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
+			const res = await this.$geesome.staticSiteRunGenerate(this.type, this.dbGroup.id, this.options);
 			this.getGroup();
 			if (res && res.asyncOperation) {
 				this.waitForOperation(res.asyncOperation);
@@ -115,7 +116,8 @@ export default {
 		async checkSocNetChannel() {
 			console.log('checkSocNetChannel');
 			//TODO: use more unified way to run autoimport
-			this.socNetChannel = await this.$geesome.socNetDbChannel('telegram', {groupId: this.dbGroupId});
+			//TODO: check groupId in socNetDb
+			this.socNetChannel = await this.$geesome.socNetDbChannel('telegram', {groupId: this.groupId});
 			console.log('socNetChannel', this.socNetChannel);
 		},
 		setAutoGenerate() {
@@ -158,7 +160,7 @@ export default {
 		type() {
 			return this.$route.params.type;
 		},
-		dbGroupId() {
+		groupId() {
 			return this.$route.params.id;
 		},
 		percent() {

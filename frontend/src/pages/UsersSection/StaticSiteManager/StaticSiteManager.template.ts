@@ -24,52 +24,62 @@ module.exports = `
 			  <h3>Generate Static Site</h3>
 			</div>
 			
-			<md-field>
-                <label>Site title</label>
-                <md-input v-model="options.site.title"></md-input>
-            </md-field>
-			
-			<md-field>
-                <label>Site description</label>
-                <md-textarea v-model="options.site.description"></md-textarea>
-            </md-field>
-            
-			<md-field>
-                <label>Post title preview length</label>
-                <md-input v-model="options.post.titleLength" type="number"></md-input>
-            </md-field>
-            
-			<md-field>
-                <label>Post description preview length</label>
-                <md-input v-model="options.post.descriptionLength" type="number"></md-input>
-            </md-field>
-            
-			<md-field>
-                <label>Posts per page</label>
-                <md-input v-model="options.postList.postsPerPage" type="number"></md-input>
-            </md-field>
-            
-            <div class="margin-bottom">
-				<a href @click.stop.prevent="toggleAdvanced()">Advanced settings</a>
-			</div>
-			
-			<div v-if="showAdvanced">
+			<div v-if="options">
 				<md-field>
-					<label>Site name (IPNS)</label>
-					<md-input v-model="options.site.name"></md-input>
+					<label>Site title</label>
+					<md-input v-model="options.site.title"></md-input>
 				</md-field>
 				
 				<md-field>
-					<label>Assets base URL</label>
-					<md-input v-model="options.baseStorageUri"></md-input>
+					<label>Site description</label>
+					<md-textarea v-model="options.site.description"></md-textarea>
 				</md-field>
-			</div>
-		
-			<md-button :disabled="loading || !!curOperation" @click="runGenerate" class="md-raised md-accent"><span v-locale="localeKey + '.generate'"></span></md-button>
-
-			<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+				
+				  <md-field>
+					<label>View</label>
+					<md-select v-model="options.view">
+					  <md-option value="tumblr-like">Like in Tumblr</md-option>
+					  <md-option value="youtube-like">Like in Youtube</md-option>
+					</md-select>
+				  </md-field>
+	  
+				<md-field>
+					<label>Post title preview length</label>
+					<md-input v-model="options.post.titleLength" type="number"></md-input>
+				</md-field>
+				
+				<md-field>
+					<label>Post description preview length</label>
+					<md-input v-model="options.post.descriptionLength" type="number"></md-input>
+				</md-field>
+				
+				<md-field>
+					<label>Posts per page</label>
+					<md-input v-model="options.postList.postsPerPage" type="number"></md-input>
+				</md-field>
+				
+				<div class="margin-bottom">
+					<a href @click.stop.prevent="toggleAdvanced()">Advanced settings</a>
+				</div>
+				
+				<div v-if="showAdvanced">
+					<md-field>
+						<label>Site name (IPNS)</label>
+						<md-input v-model="options.site.name"></md-input>
+					</md-field>
+					
+					<md-field>
+						<label>Assets base URL</label>
+						<md-input v-model="options.baseStorageUri"></md-input>
+					</md-field>
+				</div>
 			
-	  		<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site above.</div>
+				<md-button :disabled="loading || !!curOperation" @click="runGenerate" class="md-raised md-accent"><span v-locale="localeKey + '.generate'"></span></md-button>
+	
+				<md-progress-bar class="md-accent" v-if="curOperation" md-mode="determinate" :md-value="percent"></md-progress-bar>
+				
+				<div style="margin-top: 20px" class="md-success" v-if="done">Static site successfully generated! Use link to site above.</div>
+			</div>
         </div>
       </div>
     </md-card-content>

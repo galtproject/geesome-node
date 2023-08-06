@@ -15,7 +15,65 @@ body {
   color: $textColor;
   background-color: $bgColor;
 }
-.content__default {
+
+.content-wrapper {
+  position: relative;
+  padding: 10px 15px 80px;
+  min-height: calc(100vh - 80px - 60px - 160px);
+  max-width: $contentWidth;
+  margin: 0 auto;
+  .content-info {
+    position: absolute;
+    top: 100px;
+    left: -280px;;
+    width: 250px;
+  }
+}
+
+.content-info {
+  .site-info {
+    .avatar-row {
+      display: flex;
+      align-content: center;
+
+      .avatar {
+        margin-right: 10px;
+
+        img {
+          width: 80px;
+          height: 80px;
+          border-radius: 100%;
+          display: block;
+        }
+      }
+
+      .title {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+
+        .sub-title {
+          opacity: 0.5;
+          margin-top: 5px;
+        }
+      }
+    }
+    .description-row {
+      margin-top: 10px;
+      white-space: pre-line;
+    }
+  }
+
+  .powered {
+    opacity: 0.4;
+    margin-top: 30px;
+    *, a {
+      color: black;
+    }
+  }
+}
+
+.content {
   &.custom {
     padding: 0;
     margin: 0;
@@ -97,17 +155,6 @@ h2 {
 h3 {
   font-size: 1.35rem;
 }
-a.header-anchor {
-  font-size: 0.85em;
-  float: left;
-  margin-left: -0.87em;
-  padding-right: 0.23em;
-  margin-top: 0.125em;
-  opacity: 0;
-}
-a.header-anchor:hover {
-  text-decoration: none;
-}
 code, kbd, .line-number {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
@@ -133,16 +180,6 @@ tr:nth-child(2n) {
 th, td {
   border: 1px solid #dfe2e5;
   padding: 0.6em 1em;
-}
-
-#vuepress-theme-blog__global-layout {
-  word-wrap: break-word;
-}
-.content-wrapper {
-  padding: 10px 15px 80px;
-  min-height: calc(100vh - 80px - 60px - 160px);
-  max-width: $contentWidth;
-  margin: 0 auto;
 }
 @media (max-width: $MQMobile) {
   .content-wrapper {
@@ -176,16 +213,7 @@ th, td {
   }
 }
 
-.powered {
-  opacity: 0.4;
-  margin-top: 30px;
-  *, a {
-    color: black;
-  }
-}
-
 //@import "wrapper";
-@import "header";
 @import "baseList";
 @import "post";
 //@import "sw-popup";
@@ -194,3 +222,5 @@ th, td {
 //@import "toc";
 
 @import "adaptive";
+
+@import "youtubeLike";

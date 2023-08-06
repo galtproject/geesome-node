@@ -93,6 +93,9 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getAsyncOperation(userId, operationId) {
 			const asyncOperation = await this.getUserAsyncOperation(operationId);
+			if (!asyncOperation) {
+				return null;
+			}
 			if (asyncOperation.userId != userId) {
 				throw new Error("not_permitted");
 			}

@@ -1,0 +1,22 @@
+.content-wrapper.youtube-like {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  .content-info {
+    position: static;
+    width: 20vw;
+  }
+  .content-data {
+    width: 80vw;
+  }
+  .ui-posts {
+    display: flex;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding-bottom: 20px;
+    & > .ui-post {
+      width: 25%;
+      padding: 0 10px;
+      border-bottom: none;
+    }
+  }
+}
