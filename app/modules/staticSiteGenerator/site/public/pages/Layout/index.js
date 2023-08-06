@@ -6,12 +6,14 @@ export default {
         $site() {
             return this.store.options.site;
         },
+        view() {
+            return this.store.options.view;
+        },
     },
     mounted() {
     },
     template: `
-      <div id="vuepress-theme-blog__global-layout">
-      <div class="content-wrapper">
+      <div :class="['content-wrapper', view]">
         <div class="content-info">
           <div class="site-info">
             <div class="avatar-row">
@@ -34,6 +36,5 @@ export default {
         </div>
       </div>
       <!--    <Footer />-->
-      </div>
     `
 }

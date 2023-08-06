@@ -29,6 +29,9 @@ export default {
     },
     pagesCount() {
       return this.store.pagesCount;
+    },
+    view() {
+      return this.store.options.view;
     }
   },
 
@@ -42,7 +45,7 @@ export default {
       <layout>
         <template #page>
           <div id="base-list-layout">
-            <div class="ui-posts" itemscope itemtype="http://schema.org/Blog">
+            <div :class="['ui-posts']" itemscope itemtype="http://schema.org/Blog">
               <post-list-item v-for="post in postsList" :post="post"></post-list-item>
             </div>
             <div v-if="pagesCount">

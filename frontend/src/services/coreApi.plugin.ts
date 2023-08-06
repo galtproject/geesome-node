@@ -8,8 +8,9 @@
  */
 
 const { GeesomeClient, BrowserLocalClientStorage } = require('geesome-libs/src/GeesomeClient');
-const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
+// const SimpleAccountStorage = require('geesome-libs/src/SimpleAccountStorage');
 const commonHelpers = require("geesome-libs/src/common");
+const includes = require('lodash/includes');
 
 export default {
   install(Vue, options: any = {}) {
@@ -53,8 +54,7 @@ export default {
         Object.getOwnPropertyNames(Object.getPrototypeOf(geesomeClient))
             .filter(item => typeof geesomeClient[item] === 'function' && item !== 'constructor')
             .forEach(methodName => {
-              if(!geesomeClient[methodName]) {
-                console.error('geesomeClient.' + methodName + ' method not found');
+              if (includes(['setup', 'getApiToken', 'loginPassword', 'loginAuthMessage', 'loginApiKey', 'logout', 'saveFile', 'saveContentData', 'saveDataByUrl', 'onProcess', 'onError'], methodName)) {
                 return;
               }
               this[methodName] = geesomeClient[methodName].bind ? geesomeClient[methodName].bind(geesomeClient) : geesomeClient[methodName];

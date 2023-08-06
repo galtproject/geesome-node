@@ -106,12 +106,10 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
 
         async getDefaultOptions(group) {
             const staticSite = await models.StaticSite.findOne({where: {entityType: 'group', entityId: group.id}});
-
             let staticSiteOptions = {};
             try {
                 staticSiteOptions = JSON.parse(staticSite.options)
             } catch (e) {}
-
             return {
                 lang: 'en',
                 dateFormat: 'DD.MM.YYYY hh:mm:ss',
@@ -135,6 +133,7 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
 
         async getResultOptions(group, options) {
             options = _.clone(options) || {};
+            options.view = options.view || group.view;
             const defaultOptions = await this.getDefaultOptions(group);
             const merged = _.merge(defaultOptions, options, {
                 site: {
@@ -203,7 +202,7 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             await pIteration.forEachSeries(posts, (p) => this.renderAndSave(renderPage, options, siteStorageDir, `/post/${p.id}`, 'post', p));
 
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            const baseData = {storageId, lastEntityManifestStorageId: group.manifestStorageId};
+            const baseData = {storageId, lastEntityManifestStorageId: group.manifestStorageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return storageId;
         }
