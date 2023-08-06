@@ -4,7 +4,7 @@
   "scripts": {
     "start": "yarn --no-optional && npm run dev",
     "dev": "./node_modules/.bin/parcel ./index.html",
-    "build": "yarn && rm -rf ./dist && node --max-old-space-size=8192 ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist --reporter @parcel/reporter-bundle-analyzer && node ./run-terser.js && cp package.json ./dist/",
+    "build": "PYTHON=python yarn --no-optional && rm -rf ./dist && node --max-old-space-size=8192 ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist --reporter @parcel/reporter-bundle-analyzer && node ./run-terser.js && cp package.json ./dist/",
     "build-new-ver": "touch dist/package.json > /dev/null 2>&1; DIST_VERSION=$(node -p -e \"require('./dist/package.json').version\"); CUR_VERSION=$(node -p -e \"require('./package.json').version\"); if [ \"$DIST_VERSION\" != \"$CUR_VERSION\" ]; then npm run build; fi",
     "serve": "./node_modules/.bin/http-server ./dist"
   },
