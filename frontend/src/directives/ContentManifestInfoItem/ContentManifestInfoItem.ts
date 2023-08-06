@@ -36,9 +36,9 @@ export default {
     },
     async setContentByDbId() {
       this.loading = true;
-      const dbContent = await this.$coreApi.getDbContent(this.dbId);
+      const dbContent = await this.$geesome.getDbContent(this.dbId);
       this.manifestId = dbContent.manifestStorageId;
-      const manifestObj = await this.$coreApi.getObject(dbContent.manifestStorageId);
+      const manifestObj = await this.$geesome.getObject(dbContent.manifestStorageId);
       this.setContentByManifest(manifestObj);
     },
     async setContentByManifest(manifestObj) {
@@ -48,7 +48,7 @@ export default {
         this.manifestObj = manifestObj;
       } else if (ipfsHelper.isObjectCidHash(this.manifest)) {
         this.manifestId = this.manifest;
-        this.manifestObj = await this.$coreApi.getObject(this.manifest);
+        this.manifestObj = await this.$geesome.getObject(this.manifest);
       } else if (this.manifest) {
         this.manifestObj = this.manifest;
       }
@@ -56,17 +56,17 @@ export default {
         return;
       }
 
-      this.srcLink = await this.$coreApi.getContentLink(this.manifestObj.storageId);
+      this.srcLink = await this.$geesome.getContentLink(this.manifestObj.storageId);
 
       if (this.type == 'text') {
-        this.content = await this.$coreApi.getContentData(this.manifestObj.storageId);
+        this.content = await this.$geesome.getContentData(this.manifestObj.storageId);
       }
       if (this.type == 'image' || this.type == 'file') {
         this.content = this.srcLink;
       }
       
       //TODO: fix error "Path is not pinned"
-      // this.pins = await this.$coreApi.getStorageIdPins('/ipfs/' + this.manifestObj.storageId);
+      // this.pins = await this.$geesome.getStorageIdPins('/ipfs/' + this.manifestObj.storageId);
       
       this.loading = false;
     },

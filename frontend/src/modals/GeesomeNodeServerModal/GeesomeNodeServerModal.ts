@@ -20,7 +20,7 @@ export default {
   },
   methods: {
     async ok() {
-      this.$coreApi.changeServer(this.serverAddress);
+      this.$geesome.changeServer(this.serverAddress);
       this.$root.$asyncModal.close('geesome-node-server-modal');
     },
     async cancel() {

@@ -18,11 +18,11 @@ export default {
 
     let geesomeClient;
 
-    Vue.prototype.$coreApi = {
+    Vue.prototype.$geesome = {
       async init($vueInstance) {
-        const FluenceService = require('geesome-libs/src/fluenceService');
-        const { krasnodar } = require('@fluencelabs/fluence-network-environment');
-        const { FluencePeer } = require("@fluencelabs/fluence");
+        // const FluenceService = require('geesome-libs/src/fluenceService');
+        // const { krasnodar } = require('@fluencelabs/fluence-network-environment');
+        // const { FluencePeer } = require("@fluencelabs/fluence");
 
         appStore = $vueInstance.$store;
         notify = $vueInstance.$notify;
@@ -41,47 +41,28 @@ export default {
         await geesomeClient.init();
         await geesomeClient.initBrowserIpfsNode();
 
-        const storage = new SimpleAccountStorage();
-        const peer = new FluencePeer();
-        peer.start({
-          connectTo: krasnodar[1],
-        }).then(() => {
-          return geesomeClient.setCommunicator(new FluenceService(storage, peer));
-        });
+        // const storage = new SimpleAccountStorage();
+        // const peer = new FluencePeer();
+        // peer.start({
+        //   connectTo: krasnodar[1],
+        // }).then(() => {
+        //   return geesomeClient.setCommunicator(new FluenceService(storage, peer));
+        // });
 
         // TODO: solve extending class problem: https://stackoverflow.com/q/51860043
-        [
-          'getCurrentUser', 'createGroup', 'updateGroup', 'joinGroup', 'leaveGroup', 'isMemberOfGroup',
-          'saveObject', 'createPost', 'getContentData', 'getDbContent',
-          'getMemberInGroups', 'getMemberInChannels', 'getMemberInChats', 'getAdminInGroups', 'getAdminInChannels', 'getAdminInChats',
-          'getDbGroup', 'getGroup', 'fetchIpldFields', 'getContentLink',
-          'getObject', 'getGroupPostsAsync', 'getGroupPost', 'getCanCreatePost', 'getCanEditGroup', 'resolveIpns',
-          'getFileCatalogItems', 'getFileCatalogBreadcrumbs', 'createFolder', 'addContentIdToFolderId',
-          'updateFileCatalogItem', 'getContentsIdsByFileCatalogIds', 'getUserApiKeys', 'getAllItems', 'adminCreateUser',
-          'adminSetUserLimit', 'adminIsHaveCorePermission', 'adminAddCorePermission', 'adminRemoveCorePermission',
-          'adminAddUserApiKey', 'adminGetBootNodes', 'adminAddBootNode', 'adminRemoveBootNode', 'getNodeAddressList',
-          'getGroupPeers', 'updateCurrentUser', 'userGetFriends', 'addFriend', 'removeFriend', 'getPersonalChatGroups',
-          'getUser', 'getContentData', 'subscribeToGroupUpdates', 'subscribeToPersonalChatUpdates', 'getPost', 'ipfsService',
-          'ipfsNode', 'exportPrivateKey', 'decryptText', 'regenerateUserPreviews', 'setUserAccount', 'generateAuthMessage',
-          'addUserApiKey', 'updateUserApiKey', 'getPeers', 'getStaticIdPeers', 'getStorageIdStat', 'getStorageIdPins',
-          'deleteFileCatalogItem', 'getDbContentByStorageId', 'getUserByApiToken', 'getCurrentUserApiKey', 'adminGetCorePermissionList', 'adminGetUserLimit',
-          'getSocNetSessionKey', 'socNetNamesList', 'socNetLogin', 'setKeysToSocNetAccountData', 'socNetDbAccountList', 'socNetUserInfo', 'socNetDbAccount', 'socNetUpdateAccount',
-          'socNetGetChannels', 'isSocNetSessionKeyCorrect', 'socNetGetChannelInfo', 'socNetRunChannelImport', 'socNetUpdateDbChannel', 'socNetDbChannel',
-          'waitForAsyncOperation', 'findAsyncOperations', 'staticSiteGetDefaultOptions', 'staticSiteRunGenerate', 'cancelAsyncOperation',
-          'adminCreateInvite', 'adminUpdateInvite', 'adminInvitesList', 'joinByInvite', 'getSelfAccountId',
-          'staticSiteBind', 'getStaticSiteInfo', 'getServerStorageUri', 'updateStaticSiteInfo',
-          'addSerialAutoActions', 'getAutoActions', 'updateAutoAction', 'buildAutoActions', 'contentBotList', 'contentBotAdd', 'addUserTg'
-        ].forEach(methodName => {
-          if(!geesomeClient[methodName]) {
-            console.error('geesomeClient.' + methodName + ' method not found');
-            return;
-          }
-          this[methodName] = geesomeClient[methodName].bind ? geesomeClient[methodName].bind(geesomeClient) : geesomeClient[methodName];
-        });
+        Object.getOwnPropertyNames(Object.getPrototypeOf(geesomeClient))
+            .filter(item => typeof geesomeClient[item] === 'function' && item !== 'constructor')
+            .forEach(methodName => {
+              if(!geesomeClient[methodName]) {
+                console.error('geesomeClient.' + methodName + ' method not found');
+                return;
+              }
+              this[methodName] = geesomeClient[methodName].bind ? geesomeClient[methodName].bind(geesomeClient) : geesomeClient[methodName];
+            });
 
-        await geesomeClient.ipfsService.subscribeToEvent('geesome-test', (data) => {
-          console.log('geesome-test', data);
-        })
+        // await geesomeClient.ipfsService.subscribeToEvent('geesome-test', (data) => {
+        //   console.log('geesome-test', data);
+        // })
       },
 
       async setup(setupData) {
@@ -172,6 +153,6 @@ export default {
       }
     };
 
-    Vue.prototype.$geesome = Vue.prototype.$coreApi;
+    Vue.prototype.$geesome = Vue.prototype.$geesome;
   }
 }

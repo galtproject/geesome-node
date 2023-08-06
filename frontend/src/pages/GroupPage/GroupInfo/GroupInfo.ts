@@ -14,9 +14,9 @@ export default {
   props: ['group'],
   async created() {
     this.fetchData();
-    this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id || this.group.staticId);
+    this.isCanEditGroup = await this.$geesome.getCanEditGroup(this.group.id || this.group.staticId);
     if (!this.isCanEditGroup) {
-      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id || this.group.staticId);
+      this.isJoined = await this.$geesome.isMemberOfGroup(this.group.id || this.group.staticId);
     }
   },
 
@@ -26,19 +26,19 @@ export default {
 
   methods: {
     async fetchData() {
-      // this.avatarImageSrc = await this.$coreApi.getContentLink(this.group.avatarImage);
-      this.peers = await this.$coreApi.getGroupPeers(this.group.staticId);
-      this.dynamicId = await this.$coreApi.resolveIpns(this.group.staticId);
+      // this.avatarImageSrc = await this.$geesome.getContentLink(this.group.avatarImage);
+      this.peers = await this.$geesome.getGroupPeers(this.group.staticId);
+      this.dynamicId = await this.$geesome.resolveIpns(this.group.staticId);
     },
     async updateIsJoined() {
-      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+      this.isJoined = await this.$geesome.isMemberOfGroup(this.group.id);
       EventBus.$emit(UPDATE_MEMBER_GROUPS);
     },
     joinGroup() {
-      this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())
+      this.$geesome.joinGroup(this.group.id).then(() => this.updateIsJoined())
     },
     leaveGroup() {
-      this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
+      this.$geesome.leaveGroup(this.group.id).then(() => this.updateIsJoined())
     }
   },
 

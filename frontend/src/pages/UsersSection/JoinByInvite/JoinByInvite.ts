@@ -33,12 +33,12 @@ export default {
       }
       this.creation = true;
       this.error = null;
-      this.$coreApi.joinByInvite(this.$route.params.code, this.user).then(async ({user, apiKey}) => {
+      this.$geesome.joinByInvite(this.$route.params.code, this.user).then(async ({user, apiKey}) => {
         this.resultApiKey = apiKey;
         this.user.id = user.id;
         this.created = true;
 
-        this.$coreApi.loginApiKey(this.$store.state.serverAddress, apiKey).then(({user}) => {
+        this.$geesome.loginApiKey(this.$store.state.serverAddress, apiKey).then(({user}) => {
           this.$store.commit('user', user);
           this.$router.push({name: 'main-page'});
         });
@@ -52,7 +52,7 @@ export default {
         Web3Manager.onAccountAddressChangeCallbacks = [];
 
         this.user.ethereumSignature = await Web3Manager.signMessage(
-            geesomeMessages.acceptInvite(await this.$coreApi.getSelfAccountId(), this.$route.params.code),
+            geesomeMessages.acceptInvite(await this.$geesome.getSelfAccountId(), this.$route.params.code),
             address,
             'message'
         );

@@ -22,7 +22,7 @@ export default {
   },
   methods: {
     async ok() {
-      this.contentsIds = await this.$coreApi.getContentsIdsByFileCatalogIds(this.fileCatalogItemsIds);
+      this.contentsIds = await this.$geesome.getContentsIdsByFileCatalogIds(this.fileCatalogItemsIds);
       this.$root.$asyncModal.close('choose-contents-ids-modal', this.contentsIds);
     },
     cancel() {

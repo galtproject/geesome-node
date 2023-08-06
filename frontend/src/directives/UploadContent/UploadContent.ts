@@ -32,7 +32,7 @@ export default {
     saveText() {
       this.saving = true;
       const fileName = this.localValue.replace(/(<([^>]+)>)/ig, "").slice(0, 50) + '.html';
-      this.$coreApi.saveContentData(this.localValue, {
+      this.$geesome.saveContentData(this.localValue, {
         groupId: this.groupId,
         fileName,
         folderId: this.folderId
@@ -44,7 +44,7 @@ export default {
       const mode = this.mode;
       await pIteration.forEachSeries(files, (file) => {
         this.saving = true;
-        return this.$coreApi.saveFile(file, {
+        return this.$geesome.saveFile(file, {
           groupId: this.groupId, 
           folderId: this.folderId,
           async: true,
@@ -57,7 +57,7 @@ export default {
     },
     saveLink() {
       this.saving = true;
-      this.$coreApi.saveDataByUrl(this.localValue, {
+      this.$geesome.saveDataByUrl(this.localValue, {
         groupId: this.groupId,
         driver: this.driver,
         folderId: this.folderId,

@@ -34,14 +34,14 @@ export default {
         }
       }
 
-      this.$coreApi.adminCreateUser(this.user).then(async (createdUser) => {
+      this.$geesome.adminCreateUser(this.user).then(async (createdUser) => {
         if (!this.passwordAuth) {
-          this.resultApiKey = await this.$coreApi.adminAddUserApiKey(createdUser.id, {type: 'admin_manual'});
+          this.resultApiKey = await this.$geesome.adminAddUserApiKey(createdUser.id, {type: 'admin_manual'});
         }
         this.user.id = createdUser.id;
 
         if (this.userLimit.isActive) {
-          await this.$coreApi.adminSetUserLimit({
+          await this.$geesome.adminSetUserLimit({
             userId: createdUser.id,
             value: parseFloat(this.userLimit.valueMb) * 1024 * 1024,
             ...pick(this.userLimit, ['name', 'isActive', 'periodTimestamp'])

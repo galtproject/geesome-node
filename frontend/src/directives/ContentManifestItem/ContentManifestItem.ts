@@ -35,8 +35,8 @@ export default {
     },
     async setContentByDbId() {
       this.loading = true;
-      const dbContent = await this.$coreApi.getDbContent(this.dbId);
-      const manifestObj = await this.$coreApi.getObject(dbContent.manifestStorageId);
+      const dbContent = await this.$geesome.getDbContent(this.dbId);
+      const manifestObj = await this.$geesome.getObject(dbContent.manifestStorageId);
       this.setContentByManifest(manifestObj);
     },
     async setContentByManifest(manifestObj) {
@@ -49,9 +49,9 @@ export default {
       if (manifestObj) {
         this.manifestObj = manifestObj;
       } else if (ipfsHelper.isObjectCidHash(this.manifest)) {
-        this.manifestObj = await this.$coreApi.getObject(this.manifest);
+        this.manifestObj = await this.$geesome.getObject(this.manifest);
       } else if (this.manifest && this.manifest['/']) {
-        this.manifestObj = await this.$coreApi.getObject(this.manifest['/']);
+        this.manifestObj = await this.$geesome.getObject(this.manifest['/']);
       } else {
         this.manifestObj = this.manifest;
       }
@@ -64,11 +64,11 @@ export default {
 
       let previewStorageId = this.manifestPreviewContentId || contentId;
 
-      this.srcLink = await this.$coreApi.getContentLink(contentId);
-      this.previewSrcLink = await this.$coreApi.getContentLink(previewStorageId);
+      this.srcLink = await this.$geesome.getContentLink(contentId);
+      this.previewSrcLink = await this.$geesome.getContentLink(previewStorageId);
 
       if (this.resultType == 'text') {
-        this.content = await this.$coreApi.getContentData(contentId);
+        this.content = await this.$geesome.getContentData(contentId);
       }
       if (this.resultType == 'image' || this.resultType == 'video' || this.resultType == 'audio' || this.resultType == 'file') {
         this.content = this.srcLink + (this.resultExtension ? '.' + this.resultExtension : '');

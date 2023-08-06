@@ -18,7 +18,10 @@ export default {
     },
     postPath() {
       return getRelativeRoot(this.$route.path) + 'post/' + this.post.id + '/';
-    }
+    },
+    contentRoot() {
+      return getRelativeRoot(this.$route.path) + 'content/';
+    },
   },
   template: `
     <article
@@ -39,11 +42,11 @@ export default {
       <div v-if="postImages.length || postVideos.length">
         <!-- eslint-disable vue/no-v-html -->
         <div v-if="postImages.length">
-          <img :src="postImages[0].url" class="post-image">
+          <img :src="contentRoot + postImages[0].storageId" class="post-image">
         </div>
         <div v-else-if="postVideos.length">
           <video controls>
-            <source :src="postVideos[0].url + '.mp4'" type="video/mp4">
+            <source :src="contentRoot + postVideos[0].storageId + '.mp4'" type="video/mp4">
             Your browser does not support the video tag.
           </video>
         </div>

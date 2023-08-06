@@ -36,6 +36,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
         .on('close', () => resolve({path}))
     );
 
+    //TODO: get videoinfo in separated process
     let videoInfo = await mediainfo(path);
     let resultStream = fs.createReadStream(path);
     resultStream.on("close", () => {

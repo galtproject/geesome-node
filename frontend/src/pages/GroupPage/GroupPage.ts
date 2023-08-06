@@ -24,7 +24,7 @@ export default {
     async getPosts() {
       this.posts = [];
       this.loading = true;
-      await this.$coreApi.getGroupPostsAsync(this.groupId, {
+      await this.$geesome.getGroupPostsAsync(this.groupId, {
         limit: this.perPage,
         offset: (this.currentPage - 1) * this.perPage
       }, (posts) => {
@@ -34,7 +34,7 @@ export default {
         this.loading = false;
       });
 
-      this.$coreApi.subscribeToGroupUpdates(this.groupId, (update) => {
+      this.$geesome.subscribeToGroupUpdates(this.groupId, (update) => {
         console.log('update', update);
       })
     }

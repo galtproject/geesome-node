@@ -20,7 +20,7 @@ export default {
     PeriodInput
   },
   async created() {
-    const userLimit = await this.$coreApi.adminGetUserLimit(this.userId, 'save_content:size');
+    const userLimit = await this.$geesome.adminGetUserLimit(this.userId, 'save_content:size');
     if(userLimit) {
       userLimit.valueMb = userLimit.value / (1024 * 1024);
       this.userLimit = userLimit;
@@ -30,7 +30,7 @@ export default {
     async ok() {
       this.saving = true;
       try {
-        await this.$coreApi.adminSetUserLimit({
+        await this.$geesome.adminSetUserLimit({
           userId: this.userId,
           value: parseFloat(this.userLimit.valueMb) * 1024 * 1024,
           ...pick(this.userLimit, ['name', 'isActive', 'periodTimestamp'])

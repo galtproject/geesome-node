@@ -28,7 +28,7 @@ export default {
       this.$root.$asyncModal.close('choose-file-contents-ids-modal', [data.id]);
     },
     async ok() {
-      this.contentsIds = await this.$coreApi.getContentsIdsByFileCatalogIds(this.fileCatalogItemsIds);
+      this.contentsIds = await this.$geesome.getContentsIdsByFileCatalogIds(this.fileCatalogItemsIds);
       this.$root.$asyncModal.close('choose-file-contents-ids-modal', this.contentsIds);
     },
     cancel() {

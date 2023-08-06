@@ -1,16 +1,21 @@
 import {IGeesomeApp} from "../../interface";
-const { FluencePeer, KeyPair } = require("@fluencelabs/fluence");
+import { Fluence } from '@fluencelabs/js-client.api';
 const { testNet } = require('@fluencelabs/fluence-network-environment');
 
 module.exports = async (app: IGeesomeApp) => {
 	let peer;
 	console.log('getAccountPeerId');
-	const peerId = await app.ms.accountStorage.getAccountPeerId('self');
 	console.log('getAccountPeerId done');
 	(async () => {
 		while (true) {
 			try {
 				if (peerId) {
+					await Fluence.connect(relay, {
+						keyPair: {
+							type: 'Ed25519',
+							source: Uint8Array.from(skBytes),
+						},
+					});
 					peer = new FluencePeer();
 					await peer.start({ connectTo: testNet[0], KeyPair: new KeyPair(peerId) });
 				}

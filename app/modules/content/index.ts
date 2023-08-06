@@ -785,13 +785,12 @@ function getModule(app: IGeesomeApp) {
 
 			console.log('getContentByStorageId', dataPath);
 			const content = await this.getContentByStorageId(dataPath);
-			console.log('content.mimeType', dataPath, content.mimeType);
-			if (content.mimeType === ContentMimeType.Directory) {
+			if (content && content.mimeType === ContentMimeType.Directory) {
+				// console.log('content.mimeType', dataPath, content.mimeType);
 				dataPath += '/index.html';
 			}
-			// }
 			const dataSize = await this.getFileSize(dataPath, content);
-			if (_.startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory) {
+			if (content && (_.startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory)) {
 				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, dataSize, false));
 				return res.send(this.getFileStream(dataPath));
 			}

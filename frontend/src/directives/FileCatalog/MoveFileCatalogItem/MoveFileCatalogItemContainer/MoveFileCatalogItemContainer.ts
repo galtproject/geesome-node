@@ -68,7 +68,7 @@ export default {
   },
   methods: {
     async getItems() {
-      const fileCatalog = await this.$coreApi.getFileCatalogItems(undefined, 'folder', {search: this.search ? '%' + this.search + '%' : ''});
+      const fileCatalog = await this.$geesome.getFileCatalogItems(undefined, 'folder', {search: this.search ? '%' + this.search + '%' : ''});
       this.items = fileCatalog.list;
       if(!this.search || _.includes(this.search.toLowerCase(), 'home')) {
         this.items.splice(0, 0, {'name': "Home", id: null});
@@ -93,7 +93,7 @@ export default {
       EventBus.$emit(EVENT_PREVENT_CLOSE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
     },
     async selectItem(folder) {
-      await this.$coreApi.updateFileCatalogItem(this.itemToMove.id, {parentItemId: folder.id});
+      await this.$geesome.updateFileCatalogItem(this.itemToMove.id, {parentItemId: folder.id});
       EventBus.$emit(EVENT_HIDE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
       EventBus.$emit(EVENT_COMPLETE_MOVE_FILE_CONTAINER, {uniqId: this.uniqId});
       this.$notify({

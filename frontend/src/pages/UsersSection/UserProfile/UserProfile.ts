@@ -21,10 +21,10 @@ export default {
   },
   methods: {
     async getUserPermissions() {
-      this.permissions = await this.$coreApi.adminGetCorePermissionList(this.user.id).catch(() => []);
-      this.saveContentLimit = await this.$coreApi.adminGetUserLimit(this.user.id, 'save_content:size').catch(() => null);
+      this.permissions = await this.$geesome.adminGetCorePermissionList(this.user.id).catch(() => []);
+      this.saveContentLimit = await this.$geesome.adminGetUserLimit(this.user.id, 'save_content:size').catch(() => null);
 
-      this.currentUserCanSetLimits = await this.$coreApi.adminIsHaveCorePermission('admin:set_user_limit');
+      this.currentUserCanSetLimits = await this.$geesome.adminIsHaveCorePermission('admin:set_user_limit');
     },
     setUserLimit() {
       this.$root.$asyncModal.open({

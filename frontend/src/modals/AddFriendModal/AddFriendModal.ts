@@ -20,7 +20,7 @@ export default {
   },
   methods: {
     async ok() {
-      await this.$coreApi.addFriend(this.friendId);
+      await this.$geesome.addFriend(this.friendId);
       this.$root.$asyncModal.close('add-friend-modal');
     },
     async cancel() {

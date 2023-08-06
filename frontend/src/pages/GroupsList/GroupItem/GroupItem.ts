@@ -14,15 +14,15 @@ export default {
   props: ['group'],
   async created() {
     try {
-      this.isCanEditGroup = await this.$coreApi.getCanEditGroup(this.group.id);
+      this.isCanEditGroup = await this.$geesome.getCanEditGroup(this.group.id);
     } catch (e) {
       // do nothing
     }
     if (!this.isCanEditGroup) {
-      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+      this.isJoined = await this.$geesome.isMemberOfGroup(this.group.id);
     }
 
-    this.resolvedIpld = await this.$coreApi.resolveIpns(this.group.staticId);
+    this.resolvedIpld = await this.$geesome.resolveIpns(this.group.staticId);
   },
 
   async mounted() {
@@ -31,15 +31,15 @@ export default {
 
   methods: {
     async updateIsJoined() {
-      this.isJoined = await this.$coreApi.isMemberOfGroup(this.group.id);
+      this.isJoined = await this.$geesome.isMemberOfGroup(this.group.id);
       this.$emit('change');
       EventBus.$emit(UPDATE_MEMBER_GROUPS);
     },
     joinGroup() {
-      this.$coreApi.joinGroup(this.group.id).then(() => this.updateIsJoined())
+      this.$geesome.joinGroup(this.group.id).then(() => this.updateIsJoined())
     },
     leaveGroup() {
-      this.$coreApi.leaveGroup(this.group.id).then(() => this.updateIsJoined())
+      this.$geesome.leaveGroup(this.group.id).then(() => this.updateIsJoined())
     },
     openGroup() {
       this.$router.push({name: 'group-page', params: {groupId: this.idForRoute}})

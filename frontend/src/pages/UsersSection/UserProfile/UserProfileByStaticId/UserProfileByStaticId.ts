@@ -17,7 +17,7 @@ export default {
     
   },
   async mounted() {
-    const itemsData = await this.$coreApi.getAllItems('users', this.$route.params.staticId);
+    const itemsData = await this.$geesome.getAllItems('users', this.$route.params.staticId);
     this.user = itemsData.list[0];
   },
   methods: {

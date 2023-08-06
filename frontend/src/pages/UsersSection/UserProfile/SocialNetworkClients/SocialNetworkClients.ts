@@ -18,10 +18,10 @@ export default {
   },
   methods: {
     async getSocNetsAccounts() {
-      this.socNetAccounts = await this.$coreApi.socNetDbAccountList();
+      this.socNetAccounts = await this.$geesome.socNetDbAccountList();
     },
     // async updateSocNetAccount(acc) {
-    //   await this.$coreApi.socNetUpdateUser('telegram', acc);
+    //   await this.$geesome.socNetUpdateUser('telegram', acc);
     //   this.getSocNetsAccounts();
     // },
     addSocNetClient() {

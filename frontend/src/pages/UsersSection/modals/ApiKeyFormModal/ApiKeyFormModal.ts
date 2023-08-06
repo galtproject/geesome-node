@@ -23,10 +23,10 @@ export default {
   methods: {
     async ok() {
       if(this.apiKey.id) {
-        await this.$coreApi.updateUserApiKey(this.apiKey.id, this.apiKey);
+        await this.$geesome.updateUserApiKey(this.apiKey.id, this.apiKey);
         this.$root.$asyncModal.close('api-key-form-modal', this.apiKey);
       } else {
-        this.resultApiKey = await this.$coreApi.addUserApiKey(this.apiKey);
+        this.resultApiKey = await this.$geesome.addUserApiKey(this.apiKey);
       }
     },
     async cancel() {

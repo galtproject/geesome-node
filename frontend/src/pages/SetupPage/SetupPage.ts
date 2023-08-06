@@ -15,7 +15,7 @@ export default {
   methods: {
     setup() {
       this.sending = true;
-      this.$coreApi.setup(this.setupData).then(() => {
+      this.$geesome.setup(this.setupData).then(() => {
         this.sending = false;
         // EventBus.$emit(UPDATE_ADMIN_GROUPS);
         EventBus.$emit(UPDATE_CURRENT_USER);

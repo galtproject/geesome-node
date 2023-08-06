@@ -28,17 +28,17 @@ export default {
       this.items = [];
       this.loading = true;
 
-      const itemsData = await this.$coreApi.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
+      const itemsData = await this.$geesome.getAllItems(this.activeTab, this.search, 'createdAt', 'desc');
       this.items = itemsData.list;
 
       if(!itemsData.total && this.activeTab === 'users' && this.search) {
         if(this.search.split('-').length === 4) {
-          const user = await this.$coreApi.getUserByApiToken(this.search).then(r => r.user);
+          const user = await this.$geesome.getUserByApiToken(this.search).then(r => r.user);
           this.items = [user];
           itemsData.total = 1;
         }
         if(Ethereum.isAddressValid(this.search)) {
-          const {user} = await this.$coreApi.adminGetUserAccount('ethereum', this.search);
+          const {user} = await this.$geesome.adminGetUserAccount('ethereum', this.search);
           this.items = [user];
           itemsData.total = 1;
         }

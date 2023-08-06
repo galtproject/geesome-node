@@ -19,7 +19,7 @@ export default {
   },
   methods: {
     async getContentBots() {
-      this.contentBots = await this.$coreApi.contentBotList();
+      this.contentBots = await this.$geesome.contentBotList();
     },
     addContentBot() {
       this.$root.$asyncModal.open({
