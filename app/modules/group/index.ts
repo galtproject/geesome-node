@@ -575,6 +575,8 @@ function getModule(app: IGeesomeApp, models) {
 			// console.log('post.repostOf', post.repostOf);
 			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async (c: IContent) => {
 				const baseData = {
+					storageId: c.storageId,
+					previewStorageId: c.mediumPreviewStorageId,
 					extension: c.extension,
 					mimeType: c.mimeType,
 					view: c.view || ContentView.Contents,
@@ -589,14 +591,11 @@ function getModule(app: IGeesomeApp, models) {
 				} else if (_.includes(c.mimeType, 'image')) {
 					return {
 						type: 'image',
-						storageId: c.storageId,
 						...baseData
 					};
 				} else if (_.includes(c.mimeType, 'video')) {
 					return {
 						type: 'video',
-						previewStorageId: c.mediumPreviewStorageId,
-						storageId: c.storageId,
 						...baseData
 					};
 				} else if (_.includes(c.mimeType, 'json')) {

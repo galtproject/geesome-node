@@ -4,12 +4,12 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 	moduleName: string;
 
 	getDefaultOptionsByGroupId(userId, groupId?): Promise<{
-		baseStorageUri,
+		baseStorageUri?,
 		lang,
 		dateFormat,
 		post: { titleLength, descriptionLength },
 		postList: { postsPerPage },
-		site: { title, username, description, avatarUrl, postsCount, base }
+		site: { title, name, username, description, avatarUrl?, postsCount?, base }
 	}>;
 
 	addRenderToQueueAndProcess(userId, apiKeyId, type, id, options): Promise<IUserOperationQueue>;

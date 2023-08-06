@@ -18,6 +18,8 @@ import {IGroup, PostStatus} from "../app/modules/group/interface";
 const {getTitleAndDescription} = require('../app/modules/staticSiteGenerator/helpers');
 
 const assert = require('assert');
+const resourcesHelper = require('./helpers/resources');
+const fs = require('fs');
 
 describe("staticSiteGenerator", function () {
 	const databaseConfig = {
@@ -96,8 +98,14 @@ describe("staticSiteGenerator", function () {
 		const posts = [];
 		for(let i = 0; i < 30; i++) {
 			const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world' + i, null, { mimeType: 'text/markdown' });
+
+			const pngImagePath = await resourcesHelper.prepare('input-image.png');
+			const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
+				groupId: testGroup.id,
+				waitForPin: true
+			});
 			const postData = {
-				contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Attachment}],
+				contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Contents},{manifestStorageId: imageContent.manifestStorageId, view: ContentView.Media}],
 				groupId: testGroup.id,
 				status: PostStatus.Published
 			};
@@ -107,6 +115,7 @@ describe("staticSiteGenerator", function () {
 		const directoryStorageId = await staticSiteGenerator.generate(testUser.id, 'group', testGroup.id, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
+			baseStorageUri: 'http://localhost:2052/ipfs/',
 			post: {
 				titleLength: 0,
 				descriptionLength: 400,
@@ -141,5 +150,6 @@ describe("staticSiteGenerator", function () {
 		assert.match(postHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
 		assert.equal(postHtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
+		console.log('postHtmlContent', postHtmlContent);
 	});
 });
