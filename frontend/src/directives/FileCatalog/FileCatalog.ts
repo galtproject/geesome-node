@@ -40,7 +40,7 @@ export default {
     },
     async getFolders() {
       this.loading = true;
-      this.folders = await this.$coreApi.getFileCatalogItems(this.parentItemId || 'null', 'folder', {
+      this.folders = await this.$geesome.getFileCatalogItems(this.parentItemId || 'null', 'folder', {
         limit: this.foldersPerPage,
         offset: (this.foldersCurrentPage - 1) * this.foldersPerPage
       });
@@ -48,7 +48,7 @@ export default {
     },
     async getFiles() {
       this.loading = true;
-      this.files = await this.$coreApi.getFileCatalogItems(this.parentItemId || 'null', 'file', {
+      this.files = await this.$geesome.getFileCatalogItems(this.parentItemId || 'null', 'file', {
         limit: this.filesPerPage,
         offset: (this.filesCurrentPage - 1) * this.foldersPerPage
       });
@@ -59,7 +59,7 @@ export default {
         this.breadcrumbs = [];
         return;
       }
-      this.breadcrumbs = await this.$coreApi.getFileCatalogBreadcrumbs(this.parentItemId);
+      this.breadcrumbs = await this.$geesome.getFileCatalogBreadcrumbs(this.parentItemId);
     },
     openFolder(item) {
       this.$router.push({query: {parent: item.id}});
@@ -73,7 +73,7 @@ export default {
       this.showNewFolder = !this.showNewFolder;
     },
     saveFolder() {
-      this.$coreApi.createFolder(this.parentItemId, this.newFolder.name).then(() => {
+      this.$geesome.createFolder(this.parentItemId, this.newFolder.name).then(() => {
         this.newFolder.name = '';
         this.getItems();
         this.$notify({
@@ -94,7 +94,7 @@ export default {
     },
     fileUploaded(data) {
       if (data.method === 'choose-uploaded') {
-        this.$coreApi.addContentIdToFolderId(data.id, this.parentItemId).then(() => {
+        this.$geesome.addContentIdToFolderId(data.id, this.parentItemId).then(() => {
           this.getItems();
         })
       } else {
@@ -107,7 +107,7 @@ export default {
       if(!confirm("Are you sure you want to delete file with content?")) {
         return;
       }
-      this.$coreApi.deleteFileCatalogItem(fileItem.id, {deleteContent: true}).then(() => {
+      this.$geesome.deleteFileCatalogItem(fileItem.id, {deleteContent: true}).then(() => {
         this.getItems();
       })
     },

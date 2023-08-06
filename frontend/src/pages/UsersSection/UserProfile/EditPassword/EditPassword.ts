@@ -18,7 +18,7 @@ export default {
   methods: {
     update() {
       this.sending = true;
-      this.$coreApi.updateCurrentUser(this.user).then(async () => {
+      this.$geesome.updateCurrentUser(this.user).then(async () => {
         this.sending = false;
         EventBus.$emit(UPDATE_CURRENT_USER);
         this.$router.push({ name: 'current-user-profile' })

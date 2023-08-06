@@ -20,13 +20,13 @@ export default {
 	},
 	methods: {
 		async getAccount() {
-			this.account = await this.$coreApi.socNetDbAccount(this.$route.params.socNet, {id: this.$route.params.accId});
+			this.account = await this.$geesome.socNetDbAccount(this.$route.params.socNet, {id: this.$route.params.accId});
 			console.log('this.account', this.account);
-			this.incorrectSessionKey = !this.$coreApi.isSocNetSessionKeyCorrect(this.account);
+			this.incorrectSessionKey = !this.$geesome.isSocNetSessionKeyCorrect(this.account);
 			console.log('this.incorrectSessionKey', this.incorrectSessionKey);
 		},
 		async getChannels() {
-			this.channels = await this.$coreApi.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.accId}).catch(e => {
+			this.channels = await this.$geesome.socNetGetChannels(this.$route.params.socNet, {id: this.$route.params.accId}).catch(e => {
 				if (includes(e.message, "Not a valid string") || includes(e.message, "AUTH_KEY") || includes(e.message, "401")) {
 					this.incorrectSessionKey = true;
 				}

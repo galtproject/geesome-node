@@ -17,7 +17,7 @@ export default {
   template: require('./EditProfile.template'),
   components: {ContentManifestItem, ProfileForm},
   async created() {
-    this.user = await this.$coreApi.getCurrentUser();
+    this.user = await this.$geesome.getCurrentUser();
     const ethereumAccount = _.find(this.user.foreignAccounts, {provider: 'ethereum'});
     
     if(ethereumAccount) {
@@ -35,8 +35,8 @@ export default {
   },
   methods: {
     update() {
-      this.$coreApi.updateCurrentUser(this.user).then(async (updatedUser) => {
-        await this.$coreApi.setUserAccount(this.user.foreignAccounts.ethereum);
+      this.$geesome.updateCurrentUser(this.user).then(async (updatedUser) => {
+        await this.$geesome.setUserAccount(this.user.foreignAccounts.ethereum);
         EventBus.$emit(UPDATE_CURRENT_USER);
         this.$router.push({name: 'current-user-profile'})
       }).catch(() => {

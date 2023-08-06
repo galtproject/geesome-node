@@ -96,7 +96,7 @@ export default {
     }
 
     this.$identities.init(this);
-    await this.$coreApi.init(this);
+    await this.$geesome.init(this);
     
     this.getCurrentUser();
     
@@ -114,12 +114,12 @@ export default {
 
   methods: {
     async logout() {
-      await this.$coreApi.logout();
+      await this.$geesome.logout();
       this.$router.push({name: 'main-page'})
       location.reload();
     },
     getCurrentUser() {
-      this.$coreApi.getCurrentUser().then(async (user) => {
+      this.$geesome.getCurrentUser().then(async (user) => {
         this.$store.commit('user', user);
         this.getPermissions();
         this.loading = false;
@@ -130,7 +130,7 @@ export default {
       });
     },
     async getPermissions() {
-      this.$store.commit('haveAdminReadPermission', await this.$coreApi.adminIsHaveCorePermission('admin:read'));
+      this.$store.commit('haveAdminReadPermission', await this.$geesome.adminIsHaveCorePermission('admin:read'));
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);

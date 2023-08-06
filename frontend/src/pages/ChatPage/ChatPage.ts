@@ -25,32 +25,32 @@ export default {
   async mounted() {
     this.getGroups();
     if(this.selectedGroupId) {
-      await this.$coreApi.exportPrivateKey();
+      await this.$geesome.exportPrivateKey();
       this.getGroupPosts(0);
     }
   },
   methods: {
     async getGroups() {
-      this.groups = await this.$coreApi.getMemberInChats();
+      this.groups = await this.$geesome.getMemberInChats();
 
       this.groups.forEach((group) => {
         if (group.type === 'personal_chat') {
-          this.$coreApi.subscribeToPersonalChatUpdates(group.members, 'default', (event) => this.fetchGroupUpdate(group, event));
+          this.$geesome.subscribeToPersonalChatUpdates(group.members, 'default', (event) => this.fetchGroupUpdate(group, event));
         } else {
-          this.$coreApi.subscribeToGroupUpdates(group.staticId, 'default', (event) => this.fetchGroupUpdate(group, event));
+          this.$geesome.subscribeToGroupUpdates(group.staticId, 'default', (event) => this.fetchGroupUpdate(group, event));
         }
       });
     },
     async fetchGroupUpdate(group, event) {
       console.log('fetchGroupUpdate', group, event);
-      const post = await this.$coreApi.getGroupPost(group.id, event.dataJson.postId);
+      const post = await this.$geesome.getGroupPost(group.id, event.dataJson.postId);
       if(group.staticId === this.selectedGroupId) {
         this.messages.unshift(post);
       }
       
       this.$identities.loading('lastPost', group.id);
       this.$identities.set('lastPost', group.id, post);
-      this.$identities.set('lastPostText', group.id, await this.$coreApi.getContentData(post.contents[0]));
+      this.$identities.set('lastPostText', group.id, await this.$geesome.getContentData(post.contents[0]));
     },
     getGroupPosts(offset) {
       this.messagesLoading = true;
@@ -58,7 +58,7 @@ export default {
       if(offset === 0) {
         this.messages = [];
       }
-      return this.$coreApi.getGroupPostsAsync(this.selectedGroupId, {
+      return this.$geesome.getGroupPostsAsync(this.selectedGroupId, {
         limit: this.messagesPagination.perPage,
         offset
         // offset: (this.messagesPagination.currentPage - 1) * this.messagesPagination.perPage
@@ -79,7 +79,7 @@ export default {
           return;
         }
         this.$identities.loading('usersInfo', message.authorStaticId);
-        this.$identities.set('usersInfo', message.authorStaticId, await this.$coreApi.getUser(message.authorStaticId));
+        this.$identities.set('usersInfo', message.authorStaticId, await this.$geesome.getUser(message.authorStaticId));
       });
     },
     addFriend() {
@@ -105,7 +105,7 @@ export default {
       
       this.newMessage.text = '';
       
-      const textContent = await this.$coreApi.saveContentData(text, {
+      const textContent = await this.$geesome.saveContentData(text, {
         groupId: this.selectedGroupId,
         mimeType: 'text/markdown'
       });
@@ -116,7 +116,7 @@ export default {
 
       this.newMessage.contentsDbIds = [];
       
-      await this.$coreApi.createPost({contents: contentsIds.map(id => ({id})), groupId: this.selectedGroupId, status: 'published'}).then(() => {
+      await this.$geesome.createPost({contents: contentsIds.map(id => ({id})), groupId: this.selectedGroupId, status: 'published'}).then(() => {
         this.saving = false;
         this.$emit('new-post');
         EventBus.$emit(UPDATE_GROUP, this.selectedGroupId);

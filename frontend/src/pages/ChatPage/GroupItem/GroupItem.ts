@@ -30,10 +30,10 @@ export default {
       }
       this.$identities.loading('lastPost', this.group.id);
       if(this.group.postsCount) {
-        this.$identities.set('lastPost', this.group.id, await this.$coreApi.getGroupPost(this.group.id, this.group.postsCount));
+        this.$identities.set('lastPost', this.group.id, await this.$geesome.getGroupPost(this.group.id, this.group.postsCount));
       }
       if(this.lastMessage) {
-        this.$identities.set('lastPostText', this.group.id, await this.$coreApi.getContentData(this.lastMessage.contents[0]));
+        this.$identities.set('lastPostText', this.group.id, await this.$geesome.getContentData(this.lastMessage.contents[0]));
       }
     },
     async getPersonalChatUser() {
@@ -44,7 +44,7 @@ export default {
         return;
       }
       this.$identities.loading('usersInfo', this.personalChatIpns);
-      this.$identities.set('usersInfo', this.personalChatIpns, await this.$coreApi.getUser(this.personalChatIpns));
+      this.$identities.set('usersInfo', this.personalChatIpns, await this.$geesome.getUser(this.personalChatIpns));
     }
   },
   watch: {

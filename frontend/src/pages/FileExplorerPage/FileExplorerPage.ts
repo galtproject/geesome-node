@@ -18,7 +18,7 @@ export default {
   },
   methods: {
     regeneratePreviews() {
-      this.$coreApi.regenerateUserPreviews();
+      this.$geesome.regenerateUserPreviews();
     }
   },
   watch: {},

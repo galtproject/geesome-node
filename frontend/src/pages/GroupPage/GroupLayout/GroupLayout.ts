@@ -26,7 +26,7 @@ export default {
   methods: {
     async getGroup() {
       this.group = null;
-      this.group = await this.$coreApi.getGroup(this.groupId);
+      this.group = await this.$geesome.getGroup(this.groupId);
     }
   },
   watch: {

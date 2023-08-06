@@ -23,7 +23,7 @@ export default {
     if (this.account) {
       this.socNet = this.account.socNet;
       const account = clone(this.account);
-      await this.$coreApi.setKeysToSocNetAccountData(this.socNet, account);
+      await this.$geesome.setKeysToSocNetAccountData(this.socNet, account);
       this.inputs = account;
       ['isEncrypted'].forEach(boolField => {
         this.$set(this.inputs, boolField, !!this.account[boolField]);
@@ -36,7 +36,7 @@ export default {
       console.log('loading', this.loading);
       try {
         console.log('this.inputs', this.inputs);
-        const result = await this.$coreApi.socNetLogin(this.socNet, this.inputs);
+        const result = await this.$geesome.socNetLogin(this.socNet, this.inputs);
         if (result.error) {
           throw new Error(result.error);
         }
@@ -67,7 +67,7 @@ export default {
     },
     async getQrCode() {
       this.loading = true;
-      const result = await this.$coreApi.socNetLogin(this.socNet, this.inputs);
+      const result = await this.$geesome.socNetLogin(this.socNet, this.inputs);
       console.log('result', result);
       this.$refs.qrimage.src = await QRCode.toDataURL(result.response.url);
       this.$set(this.inputs, 'stage', 2);

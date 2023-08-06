@@ -25,11 +25,11 @@ export default {
         this.ipldHash = null;
         this.ipldData = this.ipld;
       } else if (ipfsHelper.isAccountCidHash(this.ipld)) {
-        this.ipldHash = await this.$coreApi.resolveIpns(this.ipld);
-        this.ipldData = await this.$coreApi.getDbContentByStorageId(this.ipldHash);
+        this.ipldHash = await this.$geesome.resolveIpns(this.ipld);
+        this.ipldData = await this.$geesome.getDbContentByStorageId(this.ipldHash);
       } else {
         this.ipldHash = this.ipld;
-        this.ipldData = await this.$coreApi.getDbContentByStorageId(this.ipldHash);
+        this.ipldData = await this.$geesome.getDbContentByStorageId(this.ipldHash);
       }
       this.ipldKeys = [];
       this.isIpldHashByKey = {};

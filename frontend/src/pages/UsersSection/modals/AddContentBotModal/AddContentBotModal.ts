@@ -19,7 +19,7 @@ export default {
   },
   methods: {
     async ok() {
-      this.resultContentBot = await this.$coreApi.contentBotAdd(this.contentBot);
+      this.resultContentBot = await this.$geesome.contentBotAdd(this.contentBot);
       this.close(this.resultContentBot);
     },
     async close(data) {

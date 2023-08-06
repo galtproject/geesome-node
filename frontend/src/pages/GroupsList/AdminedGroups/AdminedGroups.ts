@@ -20,7 +20,7 @@ export default {
   },
   methods: {
     async getGroups() {
-      this.adminInGroups = await this.$coreApi.getAdminInChannels();
+      this.adminInGroups = await this.$geesome.getAdminInChannels();
     }
   },
   watch: {},

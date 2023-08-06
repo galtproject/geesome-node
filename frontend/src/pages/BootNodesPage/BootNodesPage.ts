@@ -18,8 +18,8 @@ export default {
   },
   methods: {
     async getBootNodes() {
-      this.bootNodes = await this.$coreApi.adminGetBootNodes();
-      this.currentNodeAddressList = await this.$coreApi.getNodeAddressList();
+      this.bootNodes = await this.$geesome.adminGetBootNodes();
+      this.currentNodeAddressList = await this.$geesome.getNodeAddressList();
     },
     addBootNode() {
       this.$root.$asyncModal.open({
@@ -34,7 +34,7 @@ export default {
       if (!confirm("Are you sure want to remove " + address + "  boot node?")) {
         return;
       }
-      await this.$coreApi.adminRemoveBootNode(address);
+      await this.$geesome.adminRemoveBootNode(address);
       this.getBootNodes();
     }
   },

@@ -19,7 +19,7 @@ export default {
   methods: {
     async getPost() {
       this.loading = true;
-      this.post = await this.$coreApi.getGroupPost(this.groupId, this.postId);
+      this.post = await this.$geesome.getGroupPost(this.groupId, this.postId);
       this.loading = false;
     }
   },

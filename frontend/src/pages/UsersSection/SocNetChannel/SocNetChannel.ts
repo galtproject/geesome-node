@@ -18,17 +18,17 @@ export default {
 	},
 	methods: {
 		async getChannelInfo() {
-			this.info = await this.$coreApi.socNetGetChannelInfo(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
+			this.info = await this.$geesome.socNetGetChannelInfo(this.$route.params.socNet, {id: this.$route.params.accId}, this.$route.params.channelId);
 			this.advancedSettings.toMessage = this.info.messagesCount;
 			await this.getGroup();
 			if (!this.advancedSettings.name) {
 				this.advancedSettings.name = this.info.username || 'tg_' + this.info.id;
 			}
 			console.log('this.info', this.info);
-			console.log('socNetUserInfo', await this.$coreApi.socNetUserInfo(this.$route.params.socNet, {id: this.$route.params.accId}));
+			console.log('socNetUserInfo', await this.$geesome.socNetUserInfo(this.$route.params.socNet, {id: this.$route.params.accId}));
 		},
 		async getDbChannel() {
-			this.dbChannel = await this.$coreApi.socNetDbChannel(this.$route.params.socNet, {channelId: this.$route.params.channelId});
+			this.dbChannel = await this.$geesome.socNetDbChannel(this.$route.params.socNet, {channelId: this.$route.params.channelId});
 			console.log('dbChannel', this.dbChannel);
 		},
 		async getPendingOperations() {
@@ -38,7 +38,7 @@ export default {
 				return;
 			}
 			this.getGroup();
-			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-soc-net-channel-import', 'id:' + this.dbChannel.id + ';%');
+			this.pendingOperations = await this.$geesome.findAsyncOperations('run-soc-net-channel-import', 'id:' + this.dbChannel.id + ';%');
 			console.log('this.pendingOperations', this.pendingOperations);
 			if (this.pendingOperations.length) {
 				this.waitForOperation(this.pendingOperations[0]);
@@ -49,7 +49,7 @@ export default {
 				this.dbGroup = null;
 				return;
 			}
-			this.dbGroup = await this.$coreApi.getDbGroup(this.dbChannel.groupId).then(g => g && g.isDeleted ? null : g);
+			this.dbGroup = await this.$geesome.getDbGroup(this.dbChannel.groupId).then(g => g && g.isDeleted ? null : g);
 			if (this.dbGroup && !this.advancedSettings.name) {
 				this.advancedSettings.name = this.dbGroup.name;
 			}
@@ -57,7 +57,7 @@ export default {
 		async runImport() {
 			this.loading = true;
 			try {
-				const {asyncOperation} = await this.$coreApi.socNetRunChannelImport(
+				const {asyncOperation} = await this.$geesome.socNetRunChannelImport(
 					this.$route.params.socNet,
 					{id: this.$route.params.accId},
 					this.$route.params.channelId,
@@ -77,11 +77,11 @@ export default {
 			this.loading = false;
 		},
 		async stopImport() {
-			await this.$coreApi.cancelAsyncOperation(this.curOperation.id);
+			await this.$geesome.cancelAsyncOperation(this.curOperation.id);
 		},
 		waitForOperation(operation) {
 			this.curOperation = operation;
-			this.$coreApi.waitForAsyncOperation(operation.id, (op) => {
+			this.$geesome.waitForAsyncOperation(operation.id, (op) => {
 				//TODO: cancel wait on new operation
 				if (op.id < this.curOperation.id) {
 					return;

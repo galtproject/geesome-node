@@ -20,7 +20,7 @@ export default {
   },
   methods: {
     async ok() {
-      await this.$coreApi.adminAddBootNode(this.nodeAddress);
+      await this.$geesome.adminAddBootNode(this.nodeAddress);
       this.$root.$asyncModal.close('add-boot-node-modal');
     },
     async cancel() {

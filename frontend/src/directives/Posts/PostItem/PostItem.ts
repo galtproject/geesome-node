@@ -34,7 +34,7 @@ export default {
         this.localGroup = null;
         return;
       }
-      this.localGroup = await this.$coreApi.getGroup(this.value.groupId);
+      this.localGroup = await this.$geesome.getGroup(this.value.groupId);
     },
     link() {
       this.$root.$asyncModal.open({

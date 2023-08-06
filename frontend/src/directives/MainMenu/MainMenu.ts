@@ -26,8 +26,8 @@ export default {
 
   methods: {
     async getData() {
-      this.memberInGroups = await this.$coreApi.getMemberInChannels();
-      this.adminInGroups = await this.$coreApi.getAdminInChannels();
+      this.memberInGroups = await this.$geesome.getMemberInChannels();
+      this.adminInGroups = await this.$geesome.getAdminInChannels();
     },
     getLocale(key, options?) {
       return this.$locale.get(this.localeKey + "." + key, options);

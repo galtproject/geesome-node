@@ -41,24 +41,24 @@ export default {
       this.subManifests = [];
       try {
         if (ipfsHelper.isAccountCidHash(manifestId)) {
-          manifestId = await this.$coreApi.resolveIpns(manifestId);
+          manifestId = await this.$geesome.resolveIpns(manifestId);
         }
 
         if (!manifestId) {
-          const objectDb = await this.$coreApi.getDbContentByStorageId(this.manifestId);
+          const objectDb = await this.$geesome.getDbContentByStorageId(this.manifestId);
           manifestId = objectDb.manifestStorageId;
         }
 
         if (manifestId) {
-          this.manifest = await this.$coreApi.getObject(manifestId);
+          this.manifest = await this.$geesome.getObject(manifestId);
         }
         console.log('this.manifest', this.manifest);
 
         if (this.manifest && this.manifest._entityName) {
           this.type = this.manifest._entityName;
           if (this.type === 'group') {
-            await this.$coreApi.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
-            await this.$coreApi.getGroupPostsAsync(manifestId, (posts) => {
+            await this.$geesome.fetchIpldFields(this.manifest, ['avatarImage', 'coverImage']);
+            await this.$geesome.getGroupPostsAsync(manifestId, (posts) => {
               this.subManifests = clone(posts);
             }, (posts) => {
               this.subManifests = clone(posts);
@@ -67,7 +67,7 @@ export default {
             })
           }
           if (this.type === 'post') {
-            this.manifest.group = await this.$coreApi.getGroup(this.manifest.groupStaticId);
+            this.manifest.group = await this.$geesome.getGroup(this.manifest.groupStaticId);
           }
         } else {
           this.type = 'unknown';

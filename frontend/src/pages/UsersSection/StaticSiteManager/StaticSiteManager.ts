@@ -18,7 +18,7 @@ export default {
 	},
 	methods: {
 		async getPendingOperations(startedAt = null) {
-			this.pendingOperations = await this.$coreApi.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`, null);
+			this.pendingOperations = await this.$geesome.findAsyncOperations('run-static-site-generator', `type:${this.type};id:${this.dbGroupId};%`, null);
 			console.log('this.pendingOperations', this.pendingOperations);
 			if (this.pendingOperations.length) {
 				if (this.pendingOperations[0].inProcess || (startedAt && this.pendingOperations[0].createdAt > startedAt)) {
@@ -30,14 +30,14 @@ export default {
 		},
 		async getGroup() {
 			[this.dbGroup] = await Promise.all([
-				this.$coreApi.getDbGroup(this.dbGroupId),
+				this.$geesome.getDbGroup(this.dbGroupId),
 			]);
 		},
 		async getData() {
 			[this.dbGroup, this.defaultOptions, this.siteInfo] = await Promise.all([
-				this.$coreApi.getDbGroup(this.dbGroupId),
-				this.$coreApi.staticSiteGetDefaultOptions(this.type, this.dbGroupId),
-				this.$coreApi.getStaticSiteInfo(this.type, this.dbGroupId)
+				this.$geesome.getDbGroup(this.dbGroupId),
+				this.$geesome.staticSiteGetDefaultOptions(this.type, this.dbGroupId),
+				this.$geesome.getStaticSiteInfo(this.type, this.dbGroupId)
 			]);
 			this.checkSocNetChannel();
 			this.setDefaultOptions();
@@ -48,14 +48,14 @@ export default {
 			}
 			this.options = {
 				...this.defaultOptions,
-				baseStorageUri: this.defaultOptions.baseStorageUri || this.$coreApi.getServerStorageUri(),
+				baseStorageUri: this.defaultOptions.baseStorageUri || this.$geesome.getServerStorageUri(),
 			}
 		},
 		async runGenerate() {
 			this.loading = true;
 			this.done = false;
 			const startedAt = new Date();
-			const res = await this.$coreApi.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
+			const res = await this.$geesome.staticSiteRunGenerate(this.type, this.dbGroupId, this.options);
 			this.getGroup();
 			if (res && res.asyncOperation) {
 				this.waitForOperation(res.asyncOperation);
@@ -74,16 +74,16 @@ export default {
 			}
 		},
 		async bindToStaticAndSaveOptions() {
-			await this.$coreApi.updateStaticSiteInfo(this.siteInfo.id, {
+			await this.$geesome.updateStaticSiteInfo(this.siteInfo.id, {
 				name: this.options.site.name,
 				title: this.options.site.title,
 				options: JSON.stringify(this.options)
 			});
-			await this.$coreApi.staticSiteBind(this.siteInfo.id);
+			await this.$geesome.staticSiteBind(this.siteInfo.id);
 		},
 		waitForOperation(operation) {
 			this.curOperation = operation;
-			this.$coreApi.waitForAsyncOperation(operation.id, async (op) => {
+			this.$geesome.waitForAsyncOperation(operation.id, async (op) => {
 				//TODO: cancel wait on new operation
 				if (op.id < this.curOperation.id) {
 					return;
@@ -115,7 +115,7 @@ export default {
 		async checkSocNetChannel() {
 			console.log('checkSocNetChannel');
 			//TODO: use more unified way to run autoimport
-			this.socNetChannel = await this.$coreApi.socNetDbChannel('telegram', {groupId: this.dbGroupId});
+			this.socNetChannel = await this.$geesome.socNetDbChannel('telegram', {groupId: this.dbGroupId});
 			console.log('socNetChannel', this.socNetChannel);
 		},
 		setAutoGenerate() {
@@ -147,7 +147,7 @@ export default {
 				return;
 			}
 			if (this.siteInfo) {
-				this.siteLink = (await this.$coreApi.getContentLink(this.siteInfo.staticId || this.siteInfo.storageId)) + '/';
+				this.siteLink = (await this.$geesome.getContentLink(this.siteInfo.staticId || this.siteInfo.storageId)) + '/';
 			}
 		}
 	},

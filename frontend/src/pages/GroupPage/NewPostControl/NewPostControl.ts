@@ -28,7 +28,7 @@ export default {
         this.canCreatePosts = false;
         return;
       }
-      this.canCreatePosts = await this.$coreApi.getCanCreatePost(this.group.staticId);
+      this.canCreatePosts = await this.$geesome.getCanCreatePost(this.group.staticId);
     },
     handleUpload(data) {
       this.postContentsDbIds.push(data.id);
@@ -40,7 +40,7 @@ export default {
       const postContentsDbIds = this.postContentsDbIds;
       this.postContentsDbIds = [];
       this.saving = true;
-      this.$coreApi.createPost({contents: postContentsDbIds.map(id => ({id})), groupId: this.group.staticId, status: 'published'}).then(() => {
+      this.$geesome.createPost({contents: postContentsDbIds.map(id => ({id})), groupId: this.group.staticId, status: 'published'}).then(() => {
         this.saving = false;
         this.$emit('new-post');
         EventBus.$emit(UPDATE_GROUP, this.group.id);

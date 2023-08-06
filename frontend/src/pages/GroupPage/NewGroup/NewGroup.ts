@@ -18,9 +18,9 @@ export default {
   methods: {
     create() {
       this.sending = true;
-      this.$coreApi.createGroup(this.group).then(async (createdGroup) => {
+      this.$geesome.createGroup(this.group).then(async (createdGroup) => {
         EventBus.$emit(UPDATE_ADMIN_GROUPS);
-        await this.$coreApi.updateGroup({
+        await this.$geesome.updateGroup({
           id: createdGroup.id,
           homePage: common.getGroupHomePage(this.$router, createdGroup.manifestStaticStorageId)
         });

@@ -20,7 +20,7 @@ export default {
   methods: {
     async add() {
       this.contentBot.contentBotId = this.botData.id;
-      this.resultContentBot = await this.$coreApi.addUserTg(this.contentBot);
+      this.resultContentBot = await this.$geesome.addUserTg(this.contentBot);
       this.close(this.resultContentBot);
     },
     async close(data) {

@@ -17,12 +17,12 @@ export default {
   template: require('./EditGroup.template'),
   components: {ContentManifestItem, GroupForm},
   async created() {
-    this.group = await this.$coreApi.getDbGroup(this.$route.params.groupId);
+    this.group = await this.$geesome.getDbGroup(this.$route.params.groupId);
   },
   methods: {
     update() {
       console.log('common.getGroupHomePage(this.$router, this.group.manifestStaticStorageId)', common.getGroupHomePage(this.$router, this.group.manifestStaticStorageId));
-      this.$coreApi.updateGroup({
+      this.$geesome.updateGroup({
         ...this.group,
         homePage: common.getGroupHomePage(this.$router, this.group.manifestStaticStorageId)
       }).then((updatedGroup) => {
@@ -40,7 +40,7 @@ export default {
       if (!confirm("Are you sure want to delete this group?")) {
         return;
       }
-      this.$coreApi.updateGroup({
+      this.$geesome.updateGroup({
         ...this.group,
         name: this.group.name + '_deleted_' + commonHelpers.makeCode(16),
         isDeleted: true

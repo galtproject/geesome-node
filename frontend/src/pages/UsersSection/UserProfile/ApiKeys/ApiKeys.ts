@@ -20,7 +20,7 @@ export default {
   },
   methods: {
     async getApiKeys() {
-      const apiKeys = await this.$coreApi.getUserApiKeys();
+      const apiKeys = await this.$geesome.getUserApiKeys();
       this.apiKeys = apiKeys.list;
     },
     addApiKey() {

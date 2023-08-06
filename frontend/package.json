@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "scripts": {
     "start": "yarn --no-optional && npm run dev",
-    "dev": "copy-avm-public dist && ./node_modules/.bin/parcel ./index.html",
-    "build": "yarn && rm -rf ./dist && copy-avm-public dist && node --max-old-space-size=8192 ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist --reporter @parcel/reporter-bundle-analyzer && node ./run-terser.js && cp package.json ./dist/",
+    "dev": "./node_modules/.bin/parcel ./index.html",
+    "build": "yarn && rm -rf ./dist && node --max-old-space-size=8192 ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist --reporter @parcel/reporter-bundle-analyzer && node ./run-terser.js && cp package.json ./dist/",
     "build-new-ver": "touch dist/package.json > /dev/null 2>&1; DIST_VERSION=$(node -p -e \"require('./dist/package.json').version\"); CUR_VERSION=$(node -p -e \"require('./package.json').version\"); if [ \"$DIST_VERSION\" != \"$CUR_VERSION\" ]; then npm run build; fi",
-    "serve": "./node_modules/.bin/http-server ./dist",
-    "postinstall": "copy-avm-public dist"
+    "serve": "./node_modules/.bin/http-server ./dist"
   },
   "engines": {
     "node": ">= 4.0.0",
@@ -27,7 +26,7 @@
     "ethers": "^3.0.27",
     "file-saver": "^2.0.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#6d4e99b",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#03e9ec4",
     "geesome-vue-components": "https://github.com/galtproject/geesome-vue-components#588a58c",
     "is-ipfs": "^0.4.7",
     "javascript-obfuscator": "^0.18.1",

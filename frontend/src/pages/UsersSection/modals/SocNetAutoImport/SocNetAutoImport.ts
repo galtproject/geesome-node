@@ -18,9 +18,9 @@ export default {
     PeriodInput,
   },
   async created() {
-    this.apiToken = this.$coreApi.getApiToken();
+    this.apiToken = this.$geesome.getApiToken();
 
-    const existAutoActions = await this.$coreApi.getAutoActions({
+    const existAutoActions = await this.$geesome.getAutoActions({
       moduleName: 'telegramClient',
       funcName: 'runChannelImportAndWaitForFinish'
     }).then(d => d.list);
@@ -38,25 +38,25 @@ export default {
     async ok() {
       this.saving = true;
       if (this.existAction) {
-        await this.$coreApi.updateAutoAction(this.existAction.id, this.$coreApi.buildAutoActions([
+        await this.$geesome.updateAutoAction(this.existAction.id, this.$geesome.buildAutoActions([
             await this.runChannelImportData(),
         ], this.runPeriod)[0]);
 
-        const generateSiteAction = await this.$coreApi.getAutoActions({
+        const generateSiteAction = await this.$geesome.getAutoActions({
           id: this.existAction.nextActions[0].id
         }).then(d => d.list[0]);
 
-        await this.$coreApi.updateAutoAction(generateSiteAction.id, this.$coreApi.buildAutoActions([
+        await this.$geesome.updateAutoAction(generateSiteAction.id, this.$geesome.buildAutoActions([
           this.generateSiteData()
         ], 0)[0]);
 
         const bindStaticIdAction = generateSiteAction.nextActions[0];
 
-        await this.$coreApi.updateAutoAction(bindStaticIdAction.id, this.$coreApi.buildAutoActions([
+        await this.$geesome.updateAutoAction(bindStaticIdAction.id, this.$geesome.buildAutoActions([
           this.bindStaticIdData()
         ], 0)[0]);
       } else {
-        await this.$coreApi.addSerialAutoActions(this.$coreApi.buildAutoActions([
+        await this.$geesome.addSerialAutoActions(this.$geesome.buildAutoActions([
           await this.runChannelImportData(),
           this.generateSiteData(),
           this.bindStaticIdData()
@@ -66,9 +66,9 @@ export default {
       this.close(true);
     },
     async runChannelImportData() {
-      const apiKey = await this.$coreApi.getCurrentUserApiKey();
+      const apiKey = await this.$geesome.getCurrentUserApiKey();
       const socNetAccData: any = {id: this.dbChannel.accountId};
-      socNetAccData.sessionKey = await this.$coreApi.getSocNetSessionKey('telegram', socNetAccData);
+      socNetAccData.sessionKey = await this.$geesome.getSocNetSessionKey('telegram', socNetAccData);
       return {
         moduleName: 'telegramClient',
         funcName: 'runChannelImportAndWaitForFinish',

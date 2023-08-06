@@ -42,7 +42,7 @@ export default {
         }]);
       }
 
-      this.$coreApi.adminCreateInvite(this.invite).then(async (invite) => {
+      this.$geesome.adminCreateInvite(this.invite).then(async (invite) => {
         this.invite.id = invite.id;
         this.invite.code = invite.code;
         this.inviteUrl = common.getInvitePage(this.$router, invite.code);

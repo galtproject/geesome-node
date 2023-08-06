@@ -17,9 +17,9 @@ export default {
   methods: {
     login(method) {
       if(method === 'password') {
-        this.handleLoginPromise(this.$coreApi.loginPassword(this.server, this.username, this.password))
+        this.handleLoginPromise(this.$geesome.loginPassword(this.server, this.username, this.password))
       } else if(method === 'api-key') {
-        this.handleLoginPromise(this.$coreApi.loginApiKey(this.server, this.apiKey));
+        this.handleLoginPromise(this.$geesome.loginApiKey(this.server, this.apiKey));
       }
     },
     ethereumLogin() {
@@ -27,10 +27,10 @@ export default {
         const fieldName = 'message';
         Web3Manager.onAccountAddressChangeCallbacks = [];
 
-        const authMessage = await this.$coreApi.generateAuthMessage('ethereum', address);
+        const authMessage = await this.$geesome.generateAuthMessage('ethereum', address);
         const signature = await Web3Manager.signMessage(authMessage.message, address, fieldName);
 
-        this.handleLoginPromise(this.$coreApi.loginAuthMessage(this.server, authMessage.id, address, signature, { fieldName }));
+        this.handleLoginPromise(this.$geesome.loginAuthMessage(this.server, authMessage.id, address, signature, { fieldName }));
       });
       Web3Manager.initClientWeb3();
     },
