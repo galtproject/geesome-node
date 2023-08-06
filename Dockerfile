@@ -26,7 +26,7 @@ RUN apt install yarn
 
 RUN git clone https://github.com/galtproject/geesome-node.git
 WORKDIR "/geesome-node"
-RUN yarn -W
+RUN yarn -W --no-optional
 RUN npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
 RUN cd frontend && npm run build
