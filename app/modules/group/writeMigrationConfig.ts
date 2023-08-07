@@ -9,7 +9,7 @@
 
 export {};
 
-let config = require('./config');
+let config = require('../database/config');
 const fs = require('fs');
 
 if (!fs.existsSync(`${__dirname}/config/`)) {
