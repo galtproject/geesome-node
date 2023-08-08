@@ -14,9 +14,13 @@ const itFirst = require('it-first');
   const {CID, URL} = process.env;
   const client = create({url: URL || 'http://127.0.0.1:5001'});
 
-  await client.dag.put({test: 1}, {storeCodec: 'dag-cbor', inputCodec: 'dag-cbor', format: 'dag-cbor', hashAlg: 'sha2-256'})
-      .then(r => console.log('put r', r))
-      .catch(err => console.log('put err', err));
+  await client.id()
+      .then(r => console.log('id r', r))
+      .catch(err => console.log('id err', err));
+
+  // await client.dag.put({test: 1}, {storeCodec: 'dag-cbor', inputCodec: 'dag-cbor', format: 'dag-cbor', hashAlg: 'sha2-256'})
+  //     .then(r => console.log('put r', r))
+  //     .catch(err => console.log('put err', err));
   //
   // await itFirst(client.ls(CID))
   //     .then(r => console.log('ls r', r))
