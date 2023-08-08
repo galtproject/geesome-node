@@ -8491,9 +8491,9 @@ gc-stats@^1.4.0:
     nan "^2.13.2"
     node-pre-gyp "^0.13.0"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#03e9ec4":
+"geesome-libs@https://github.com/galtproject/geesome-libs#bd48910":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#03e9ec42732d74abfd06d46c7099ae01a27e3b87"
+  resolved "https://github.com/galtproject/geesome-libs#bd48910d69759ac1546d4190e09b15d71cb47456"
   dependencies:
     "@ethersproject/hash" "^5.7.0"
     "@fluencelabs/cli" "^0.4.20"
