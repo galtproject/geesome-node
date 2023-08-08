@@ -19,7 +19,7 @@ services:
       - SSG_RUNTIME
   ipfs:
     container_name: go_ipfs
-    image: "ipfs/go-ipfs:v0.9.1"
+    image: "ipfs/kubo:v0.21.0"
     restart: always
     environment:
       - IPFS_PROFILE

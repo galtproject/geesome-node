@@ -11,9 +11,9 @@ import {IGeesomeApp} from "../../interface";
 
 const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNode");
 
-const { create } = require('ipfs-http-client');
-
 module.exports = async (app: IGeesomeApp) => {
+  const { create } = await import('ipfs-http-client');
+  console.log('ipfs-http-client create', app.config.storageConfig.goNode);
   const node = create(app.config.storageConfig.goNode);
   console.log('🎁 IPFS node have connected, profile:', process.env.IPFS_PROFILE);
   const service = new JsIpfsServiceNode(node);

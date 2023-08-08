@@ -25,12 +25,7 @@ module.exports = {
       pass: '',
       // repo: '~/.jsipfs',
     },
-    goNode: {
-      // host: 'ipfs.infura.io', port: '5001', protocol: 'https'
-      host: process.env.STORAGE_HOST || 'localhost',
-      port: process.env.STORAGE_PORT || '5001',
-      protocol: process.env.STORAGE_PORT || 'http'
-    }
+    goNode: {url: process.env.STORAGE_URL || 'http://127.0.0.1:5001'}
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };

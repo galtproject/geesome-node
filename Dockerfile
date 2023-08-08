@@ -31,11 +31,11 @@ RUN npm i -g yarn
 
 RUN git clone https://github.com/galtproject/geesome-node.git
 WORKDIR "/geesome-node"
+RUN git checkout improve
 RUN yarn -W --no-optional
 RUN npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
 RUN cd frontend && npm run build
 
-ENV STORAGE_REPO=/root/.jsipfs
-ENV STORAGE_HOST=go_ipfs
 ENV STORAGE_MODULE=ipfs-http-client
+ENV STORAGE_URL=http://go_ipfs:5001

@@ -9147,9 +9147,9 @@ geesome-apidoc-template@1.0.0:
   resolved "https://registry.yarnpkg.com/geesome-apidoc-template/-/geesome-apidoc-template-1.0.0.tgz#27098447c8ec0ffe813867cb0f3a2945e5c9bdc5"
   integrity sha512-bKes0SnNvxm/9TJGq2zAUq78j8+V4r4y43mgcGf3Fv6cgDoO0uTnbszrNcgF4zliDpdkT4H2kLme8l9vjQkv5w==
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#03e9ec4":
+"geesome-libs@https://github.com/galtproject/geesome-libs#bd48910":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#03e9ec42732d74abfd06d46c7099ae01a27e3b87"
+  resolved "https://github.com/galtproject/geesome-libs#bd48910d69759ac1546d4190e09b15d71cb47456"
   dependencies:
     "@ethersproject/hash" "^5.7.0"
     "@fluencelabs/cli" "^0.4.20"

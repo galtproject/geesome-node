@@ -95,6 +95,11 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                     finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                 }
                 this.processQueue();
+            }).catch(async e => {
+                await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
+                if (finishCallbacks[waitingQueue.id]) {
+                    finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
+                }
             });
 
             return waitingQueue;
@@ -213,6 +218,11 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             }
             const contents = await app.ms.group.getPostContentWithUrl('', gp);
             await pIteration.forEach(contents, async c => {
+                await app.ms.storage.fileLs('/ipfs/' + c.storageId).then(r => {
+                    console.log('res fileLs', c.storageId, r);
+                }).catch(e => {
+                    console.error('err fileLs', c.storageId, e);
+                });
                 await app.ms.storage.copyFileFromId(c.storageId, `${siteStorageDir}/content/${c.storageId}${c.type === 'video' ? '.mp4' : ''}`);
                 await app.ms.storage.copyFileFromId(c.previewStorageId, `${siteStorageDir}/content/${c.previewStorageId}`);
             });
