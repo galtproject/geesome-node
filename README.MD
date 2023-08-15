@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://github.com/galtproject/geesome-node/raw/master/frontend/assets/logos-long.png"
+  <img src="https://github.com/galtproject/geesome-node/assets/4842007/6ecd86d3-fdfb-4055-9b55-ab2eecb9f957"
   alt="geesome" width="470"></a>
 </h1>
 
@@ -30,7 +30,7 @@ make you own public or private group with posts and content.
 It's a Node on top of IPFS for define and manage data structure of files, users and groups.
 Node provides an UI and API for storing and accessing your saved data or remote data of other nodes: files, posts, groups.
 
-![GeeSome Main Page](./frontend/assets/screenshots/main-page.png)
+![GeeSome Main Page](https://github.com/galtproject/geesome-node/assets/4842007/6779b4a3-cca5-4da6-815f-c5c14d9be0b9)
 
 ## About GeeSome Project
 GeeSome protocol created to provide communication tool between communities of property owners in Galt Project. 
@@ -69,10 +69,10 @@ Currently its storing in GeeSome node, but need to improve it.
 ## UI Screenshots
 
 ### File explorer
-![GeeSome File explorer](./frontend/assets/screenshots/file-explorer.png)
+![GeeSome File explorer](https://github.com/galtproject/geesome-node/assets/4842007/8e569504-9e94-469f-b645-8c912f8f42d4)
 
 ### Test group
-![GeeSome Test Group](./frontend/assets/screenshots/test-group.png)
+![GeeSome Test Group](https://github.com/galtproject/geesome-node/assets/4842007/e90053f3-e5f4-4fd4-bb98-3e334086fdc9)
 
 ### Encrypted personal chat
 ![GeeSome Personal Chat](https://user-images.githubusercontent.com/4842007/68895796-b97da580-0732-11ea-9fad-cddfafe2c146.jpg)
