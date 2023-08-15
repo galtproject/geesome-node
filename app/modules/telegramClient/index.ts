@@ -350,6 +350,7 @@ function getModule(app: IGeesomeApp) {
 			while (resultCount >= limit) {
 				const result = await client.invoke(new Api.messages.GetDialogs({ offsetId, offsetPeer, offsetDate, limit }) as any);
 				resultCount = result.dialogs.length;
+				console.log('result.chats', JSON.stringify((result.chats || []).map(c => c.title), null, ' '));
 				if (result.chats && result.chats.length > 0) {
 					chats = [...chats, ...result.chats];
 				}
