@@ -9,6 +9,7 @@ let helpers = require('../../helpers');
 const {getPostTitleAndDescription, getOgHeaders} = require('./helpers');
 
 module.exports = async (app: IGeesomeApp) => {
+    // VueSSR: import JS [type: module] (by workspaces in package.json)
     const {default: {prepareRender}} = await import('static-site-pkg');
     app.checkModules(['asyncOperation', 'group', 'content']);
     const module = getModule(app, await require('./models')(), prepareRender);
@@ -196,12 +197,21 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                 indexById[p.id] = i;
             })
 
+            // VueSSR: initialize app
             const {renderPage, css} = await prepareRender({posts, pagesCount, postsPerPage, options, indexById});
             const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
+            // VueSSR: render main page
             await this.renderAndSave(renderPage, options, siteStorageDir, ``, 'main');
+            /*  Example for file write:
+                async renderAndWrite(renderPage, routePath) {
+                    const htmlContent = await renderPage(routePath);
+                    fs.writeFileSync(routePath + '/index.html', htmlContent);
+                }
+             */
             for (let i = 1; i <= pagesCount - 1; i++) {
+               // VueSSR: render other pages by url
                await this.renderAndSave(renderPage, options, siteStorageDir, `/page/${i}`, 'page');
             }
             await pIteration.forEachSeries(posts, (p) => this.renderAndSave(renderPage, options, siteStorageDir, `/post/${p.id}`, 'post', p));

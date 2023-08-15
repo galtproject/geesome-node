@@ -6,16 +6,18 @@ import * as fs from 'fs';
 const {getFileContent, getFilePath} = helpers;
 
 export default {
-    async prepareRender(data) {
-        // const data = {path: url.split('?')[0], urlQuery, ...additionalData};
-        loadAssets(data);
+    // VueSSR: call prepareRender one time
+    async prepareRender(store) {
+        // const store = {path: url.split('?')[0], urlQuery, ...additionalData};
+        loadAssets(store);
         const [{app, router}, {css}] = await Promise.all([
-            createApp(data),
+            createApp(store),// VueSSR: init simple Vue app with components, pages and routes
             sass['default'].compileAsync(getFilePath('styles/index.scss'))
         ]);
         const rootContent = getFileContent('index.html');
         return {
             css,
+            // VueSSR: call for each page and save to fs
             renderPage: (url, headers) => {
                 return renderApp(app, router, rootContent, url, headers, 'en');
             }
@@ -30,10 +32,13 @@ async function renderApp(app, router, rootContent, url, headers, lang) {
     await router.push(url);
     // app.use(Notifications);
     // installFakeComponent(app, '$notify', 'Notifications');
+
+    // VueSSR: generated html string of page
     const content = await renderToString(app);
 
     const title = headers.filter(h => h[1].name === 'og:title')[0][1].content;
 
+    // VueSSR: replace index.html variable with result values
     return rootContent
         .replace('{{relativeRoot}}', relativeRoot)
         .replace('{{lang}}', lang)
