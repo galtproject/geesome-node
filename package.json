@@ -5,11 +5,11 @@
   "main": "index.ts",
   "private": true,
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "scripts": {
     "start": "yarn --no-optional -W && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
-    "in-docker-start": "cd /geesome-node/frontend && npm run build-new-ver && cp -R /geesome-node/frontend/dist /geesome-node/frontend/docker-dist && cd /geesome-node && npm run migrate-database; npm run ssg-migrate-database; npm run sci-migrate-database; npm run group-migrate-database; npm run start",
+    "in-docker-start": "cd /geesome-node && yarn --no-optional -W && cp -R /geesome-node/node_modules/@geesome/ui/* /geesome-node/frontend/docker-dist/ && npm run migrate-database; npm run ssg-migrate-database; npm run sci-migrate-database; npm run group-migrate-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
     "migrate-database": "( cd app/modules/database && ../../../node_modules/.bin/ts-node ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
@@ -60,6 +60,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
     "geesome-libs": "https://github.com/galtproject/geesome-libs#bd48910",
+    "@geesome/ui": "0.1.0",
     "ipfs-http-client": "52.0.3",
     "http-proxy-agent": "^2.1.0",
     "ipfs": "0.58.4",

@@ -69,7 +69,7 @@ module.exports = async (extendConfig) => {
     }
   });
 
-  const frontendPath = __dirname + '/../frontend/dist';
+  const frontendPath = __dirname + '/../node_modules/@geesome/ui';
   if (fs.existsSync(frontendPath)) {
     const directory = await app.ms.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;

@@ -14,7 +14,6 @@ sudo apt-get update -y
 sudo apt-get install certbot python3-certbot-nginx  -y
 
 DOMAIN_FRONTEND_DIR="/var/www/geesome-frontend"
-FRONTEND_DIST_DIR="$DOMAIN_FRONTEND_DIR/dist"
 GATEWAY_DOMAIN="gateway.$DOMAIN"
 
 WWW_DOMAIN="/var/www/$DOMAIN/"
@@ -28,11 +27,11 @@ sudo mkdir -p $DOMAIN_FRONTEND_DIR || :
 sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
 sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
 
-sudo chmod -R 755 $FRONTEND_DIST_DIR
-sudo chown -R www-data:www-data $FRONTEND_DIST_DIR
+sudo chmod -R 755 $DOMAIN_FRONTEND_DIR
+sudo chown -R www-data:www-data $DOMAIN_FRONTEND_DIR
 
 sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-sudo sed -i -e "s~\%app_dir\%~$FRONTEND_DIST_DIR~g" /etc/nginx/sites-enabled/default
+sudo sed -i -e "s~\%app_dir\%~$DOMAIN_FRONTEND_DIR~g" /etc/nginx/sites-enabled/default
 
 sudo service nginx restart
 
@@ -58,7 +57,7 @@ then
     fi
 
     sudo sed -i -e "s~\%app_domain\%~$DOMAIN~g" /etc/nginx/sites-enabled/default
-    sudo sed -i -e "s~\%app_dir\%~$FRONTEND_DIST_DIR~g" /etc/nginx/sites-enabled/default
+    sudo sed -i -e "s~\%app_dir\%~$DOMAIN_FRONTEND_DIR~g" /etc/nginx/sites-enabled/default
     
     (sudo crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --pre-hook 'service nginx stop' --post-hook 'service nginx start'") | sudo crontab -
     
