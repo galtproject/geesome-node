@@ -1,1 +1,0 @@
-module.exports = `<span>{{prettyName}}</span>`;
