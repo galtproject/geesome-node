@@ -74,7 +74,7 @@
     "node-mediainfo": "^1.0.3",
     "node-telegram-bot-api": "^0.61.0",
     "p-iteration": "^1.1.8",
-    "passport": "^0.4.0",
+    "passport": "^0.6.0",
     "passport-local": "^1.0.0",
     "pg": "^7.0.0",
     "pg-hstore": "^2.3.3",
