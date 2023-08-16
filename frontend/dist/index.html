@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale = 1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>Geesome UI</title>
+  <script>"use strict";
+// if(window.location.protocol != 'https:' && location.href.indexOf('http://localhost') !== 0 && location.href.indexOf('http://127.0.0.1') !== 0) {
+//     location.href = location.href.replace("http://", "https://");
+//   }
+// if(window.location.protocol != 'http:' && location.href.indexOf('http://localhost') !== 0 && location.href.indexOf('http://127.0.0.1') !== 0) {
+//     location.href = location.href.replace("https://", "http://");
+// }
+var scriptLoaded = false;
+function checkScriptLoaded() {
+    if (!scriptLoaded) location.reload();
+}
+
+</script>
+  <link rel="shortcut icon" href="/favicon.eee7a1e8.ico">
+
+  <!--<meta name="theme-color" content="#41246F">-->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>html, body {
+  background: #19161c;
+}
+
+.sk-cube-grid {
+  width: 40px;
+  height: 40px;
+  margin: 100px auto;
+}
+
+.sk-cube-grid .sk-cube {
+  float: left;
+  background-color: #5132b1;
+  width: 33%;
+  height: 33%;
+  animation: 1.3s ease-in-out infinite sk-cubeGridScaleDelay;
+}
+
+.sk-cube-grid .sk-cube1 {
+  animation-delay: .2s;
+}
+
+.sk-cube-grid .sk-cube2 {
+  animation-delay: .3s;
+}
+
+.sk-cube-grid .sk-cube3 {
+  animation-delay: .4s;
+}
+
+.sk-cube-grid .sk-cube4 {
+  animation-delay: .1s;
+}
+
+.sk-cube-grid .sk-cube5 {
+  animation-delay: .2s;
+}
+
+.sk-cube-grid .sk-cube6 {
+  animation-delay: .3s;
+}
+
+.sk-cube-grid .sk-cube7 {
+  animation-delay: 0s;
+}
+
+.sk-cube-grid .sk-cube8 {
+  animation-delay: .1s;
+}
+
+.sk-cube-grid .sk-cube9 {
+  animation-delay: .2s;
+}
+
+@keyframes sk-cubeGridScaleDelay {
+  0%, 70%, 100% {
+    transform: scale3d(1, 1, 1);
+  }
+
+  35% {
+    transform: scale3d(0, 0, 1);
+  }
+}
+
+</style>
+  <link rel="stylesheet" href="/index.971c2ea4.css">
+</head>
+
+<body onload="checkScriptLoaded()">
+  <div id="app">
+    <div class="sk-cube-grid" v-if="false">
+      <div class="sk-cube sk-cube1"></div>
+      <div class="sk-cube sk-cube2"></div>
+      <div class="sk-cube sk-cube3"></div>
+      <div class="sk-cube sk-cube4"></div>
+      <div class="sk-cube sk-cube5"></div>
+      <div class="sk-cube sk-cube6"></div>
+      <div class="sk-cube sk-cube7"></div>
+      <div class="sk-cube sk-cube8"></div>
+      <div class="sk-cube sk-cube9"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ipfs@0.54.4/dist/index.min.js"></script>
+  <script src="/index.b7a05eb9.js" onload="scriptLoaded=true;" defer=""></script>
+  <!-- built files will be auto injected -->
+</body>
+
+</html>

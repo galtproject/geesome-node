@@ -33,7 +33,8 @@
   "author": "",
   "license": "ISC",
   "workspaces": [
-    "./app/modules/staticSiteGenerator/site"
+    "./app/modules/staticSiteGenerator/site",
+    "./app/modules/filecoinStore/store"
   ],
   "dependencies": {
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",

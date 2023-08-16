@@ -1,0 +1,24 @@
+{
+  "name": "ifps-tocar",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async-iterator-to-stream": "^1.2.0",
+    "blockstore-core": "^4.3.0",
+    "fs": "^0.0.1-security",
+    "ipfs-car": "^1.0.0",
+    "ipfs-http-client": "^60.0.1",
+    "it-all": "^3.0.2",
+    "it-concat": "^3.0.1",
+    "multiformats": "^11.0.0",
+    "stream": "^0.0.2",
+    "@ipld/car": "^5.2.0"
+  }
+}
