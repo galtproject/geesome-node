@@ -46,7 +46,7 @@ A new open protocol for unstopable social networking and communication on IPFS.
 It defines the structure of social network data to describe familiar to the modern user entities: content, posts, tags, groups.
 
 ## GeeSome UI
-GeeSome UI - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient library in your project to build you own UI with some important features special for you.
+[GeeSome UI](https://github.com/galtproject/geesome-ui) - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient library in your project to build you own UI with some important features special for you.
 
 ## Summary
 With the help of GeeSome Node, anyone can create an instance of a decentralized social network, with groups like in YouTube, Instagram or Telegram but with content preservation and no locks or censorship thanks to the concept of personal GeeSome Node using IPFS Node to store content, access data and receive updates by libp2p.
