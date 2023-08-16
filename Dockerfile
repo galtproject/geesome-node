@@ -30,9 +30,9 @@ ENV PATH $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 RUN npm i -g yarn
 
 RUN git clone https://github.com/galtproject/geesome-node.git
-RUN git checkout filecoin
+
 WORKDIR "/geesome-node"
-#RUN git checkout improve
+RUN git checkout filecoin
 RUN yarn -W --no-optional
 RUN npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
