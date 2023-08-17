@@ -17,13 +17,15 @@ import { filesFromPaths } from 'files-from-path'
 
 export default {
   async createDeal (ipfsHash) {
-    await getLinks(ipfsHash, ipfsHash);
+    console.log("Start save file");
+    await getLinks(ipfsHash);
     await getCAr(`${ipfsHash}.car`);
     return "IPFS TO CAR DONE!!"
   }
 };
 
-async function getLinks(ipfsPath, localPath) {
+async function getLinks(ipfsPath, localPath = ipfsHash) {
+  console.log("Start make dir");
   if (!fs.existsSync(ipfsHash)) {
     fs.mkdirSync(ipfsHash, { recursive: true });
   }  
