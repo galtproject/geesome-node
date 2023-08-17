@@ -26,8 +26,8 @@ export default {
 
 async function getLinks(ipfsPath, localPath) {
   console.log("Start make dir");
-  if (!fs.existsSync(ipfsHash)) {
-    fs.mkdirSync(ipfsHash, { recursive: true });
+  if (!fs.existsSync(localPath)) {
+    fs.mkdirSync(localPath, { recursive: true });
   }  
   for await (const link of client.ls(ipfsPath)) {
     const newPath = path.join(localPath, link.name);
