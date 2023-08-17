@@ -18,18 +18,18 @@ const client = create({ url: "http://go_ipfs:5001"});
 export default {
   async createDeal (ipfsHash) {
     console.log("Start save file");
-    await getLinks(ipfsHash, ipfsHash);
+    await getLinks(ipfsHash);
     await getCAr(`${ipfsHash}.car`);
     return "IPFS TO CAR DONE!!"
   }
 };
 
-async function getLinks(ipfsHash, localPath = ipfsHash) {
+async function getLinks(ipfsHash, localPath = ipfsPath) {
   console.log("Start make dir");
   if (!fs.existsSync(ipfsHash)) {
     fs.mkdirSync(ipfsHash, { recursive: true });
   }  
-  for await (const link of client.ls(ipfsHash)) {
+  for await (const link of client.ls(ipfsPath)) {
     const newPath = path.join(localPath, link.name);
     const links = [];
     if (link.type === "file") {
