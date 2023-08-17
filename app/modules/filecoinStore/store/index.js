@@ -23,7 +23,7 @@ export default {
   }
 };
 
-async function getLinks(ipfsPath, localPath = ipfsHash) {
+async function getLinks(ipfsPath, localPath) {
   if (!fs.existsSync(ipfsHash)) {
     fs.mkdirSync(ipfsHash, { recursive: true });
   }  
