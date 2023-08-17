@@ -19,7 +19,7 @@ export default {
   async createDeal (ipfsHash) {
     console.log("Start save file");
     await getLinks(ipfsHash);
-    await getCAr(`${ipfsHash}.car`);
+    await getCAr([ipfsHash]);
     return "IPFS TO CAR DONE!!"
   }
 };
