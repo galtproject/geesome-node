@@ -29,7 +29,7 @@ async function getLinks(ipfsHash, localPath = ipfsHash) {
   if (!fs.existsSync(ipfsHash)) {
     fs.mkdirSync(ipfsHash, { recursive: true });
   }  
-  for await (const link of client.ls(ipfsPath)) {
+  for await (const link of client.ls(ipfsHash)) {
     const newPath = path.join(localPath, link.name);
     const links = [];
     if (link.type === "file") {
