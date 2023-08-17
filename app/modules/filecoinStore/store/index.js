@@ -17,7 +17,7 @@ import { filesFromPaths } from 'files-from-path'
 
 export default {
   async createDeal (ipfsHash) {
-    await getLinks(ipfsHash);
+    await getLinks(ipfsHash, ipfsHash);
     await getCAr(`${ipfsHash}.car`);
     return "IPFS TO CAR DONE!!"
   }
