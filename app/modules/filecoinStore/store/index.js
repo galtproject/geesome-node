@@ -18,7 +18,7 @@ const client = create({ url: "http://go_ipfs:5001"});
 export default {
   async createDeal (ipfsHash) {
     console.log("Start save file");
-    await getLinks(ipfsHash);
+    await getLinks(ipfsHash, ipfsHash);
     await getCAr([ipfsHash]);
     return "IPFS TO CAR DONE!!"
   }
