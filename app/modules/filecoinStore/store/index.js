@@ -13,7 +13,7 @@ import { filesFromPaths } from 'files-from-path'
 // const lotusClient = new LotusClient(httpConnector);
 // const lotusWallet = new LotusWalletProvider(lotusClient);
 
-const client = create({ url: "http://127.0.0.1:5001"});
+const client = create({ url: "http://go_ipfs:5001"});
 
 export default {
   async createDeal (ipfsHash) {
