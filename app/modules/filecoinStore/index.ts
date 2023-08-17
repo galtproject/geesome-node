@@ -4,7 +4,6 @@ import {IGeesomeApp} from "../../interface";
 module.exports = async (app: IGeesomeApp) => {
     const {default: {createDeal}} = await import('ifps-tocar');
     const module = startDeal(app, createDeal);
-    require('./api')(app, module);
     return module;
 }
 
