@@ -24,7 +24,7 @@ export default {
   }
 };
 
-async function getLinks(ipfsPath, ipfsHash) {
+async function getLinks(ipfsPath, localPath) {
   console.log("Start make dir");
   if (!fs.existsSync(ipfsHash)) {
     fs.mkdirSync(ipfsHash, { recursive: true });
