@@ -11,4 +11,5 @@ module.exports = async (app: IGeesomeApp) => {
 
 function startDeal(app: IGeesomeApp, createDeal) {
     createDeal("bafybeiceaoai4afxqqtb7dyh6duwrcg5fkqqdu7xcmbwulvydlluae3xni")
+    console.log("DONE");
 }
