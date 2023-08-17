@@ -15,51 +15,51 @@ import { filesFromPaths } from 'files-from-path'
 
 
 
-module.exports = async (app) => {
-  const models = await require("./models")();
+export default {
+  async createDeal (ipfsHash) {
+    await getLinks(ipfsHash);
+    await getCAr(`${ipfsHash}.car`);
+    return "IPFS TO CAR DONE!!"
+  }
+};
 
-
-  const client = create({ url: "http://127.0.0.1:5001" });
-  const ipfsHash = 'bafybeiceaoai4afxqqtb7dyh6duwrcg5fkqqdu7xcmbwulvydlluae3xni'; 
-
-  async function getLinks(ipfsPath, localPath = ipfsHash) {
-    if (!fs.existsSync(ipfsHash)) {
-      fs.mkdirSync(ipfsHash, { recursive: true });
-    }  
-    for await (const link of client.ls(ipfsPath)) {
-      const newPath = path.join(localPath, link.name);
-      const links = [];
-      if (link.type === "file") {
-        retrieve(link.path, newPath);
-        links.push(link.path)
-      } else {
-        if (!fs.existsSync(newPath)) {
-          fs.mkdirSync(newPath, { recursive: true });
-        }
-        getLinks(link.cid, newPath);
+async function getLinks(ipfsPath, localPath = ipfsHash) {
+  if (!fs.existsSync(ipfsHash)) {
+    fs.mkdirSync(ipfsHash, { recursive: true });
+  }  
+  for await (const link of client.ls(ipfsPath)) {
+    const newPath = path.join(localPath, link.name);
+    const links = [];
+    if (link.type === "file") {
+      retrieve(link.path, newPath);
+      links.push(link.path)
+    } else {
+      if (!fs.existsSync(newPath)) {
+        fs.mkdirSync(newPath, { recursive: true });
       }
+      getLinks(link.cid, newPath);
     }
   }
+};
 
 
-  async function getCAr(files) {
-    console.log(files);
-      const filesSlpit = await filesFromPaths(files)
-      await createDirectoryEncoderStream(filesSlpit)
-      .pipeThrough(new CAREncoderStream())
-      .pipeTo(Writable.toWeb(fs.createWriteStream(`${files[0]}.car`)))
-      console.log("Transfer to car file was successful!");
-    }
+async function getCAr(files) {
+  const filesSlpit = await filesFromPaths(files)
+  await createDirectoryEncoderStream(filesSlpit)
+  .pipeThrough(new CAREncoderStream())
+  .pipeTo(Writable.toWeb(fs.createWriteStream(`${files[0]}.car`)))
+  console.log("Transfer to car file was successful!");
+};
 
-  async function retrieve(cid, filePath) {
-    const writeStream = fs.createWriteStream(filePath);
+async function retrieve(cid, filePath) {
+  const writeStream = fs.createWriteStream(filePath);
 
-    for await (const buf of client.get(cid)) {
-      writeStream.write(buf);
-    }
-
-    writeStream.end();
+  for await (const buf of client.get(cid)) {
+    writeStream.write(buf);
   }
+
+  writeStream.end();
+};
 
   // async function storeFile(){
   //   try {
@@ -93,11 +93,3 @@ module.exports = async (app) => {
   //     console.log(error);
   //   }
   // }
-
-  getLinks(ipfsHash).then(() => {
-    getCAr([ipfsHash]);
-  });
-
-
-  return module;
-};
