@@ -10,6 +10,7 @@ Environment=GEESOME_DATA=/root/geesome-node/.docker-data/geesome-data
 Environment=GEESOME_FRONTEND_DIST=/var/www/geesome-frontend
 Environment=IPFS_PROFILE=server
 Environment=DEBUG=geesome*
+Environment=LOTUS_DATA=/root/geesome-node/.docker-data/lotus
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/root/geesome-node
