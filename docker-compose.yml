@@ -42,6 +42,10 @@ services:
     container_name: lotus
     image: "filecoin/lotus:v1.23.3"
     restart: always
+    entrypoint: 
+      - /etc/lotus/docker/run
+      - "master"
+      - "lotus"
     ports:
       - "127.0.0.1:1234:1234"
       - "127.0.0.1:2345:2345"
@@ -49,3 +53,4 @@ services:
       - "127.0.0.1:1777:1777"
     volumes:
       - "${LOTUS_DATA}:/home/lotus_user"
+    
