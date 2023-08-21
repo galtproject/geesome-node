@@ -54,5 +54,3 @@ services:
       - "127.0.0.1:1777:1777"
     volumes:
       - "${LOTUS_DATA}:/home/lotus_user"
-    command:
-      - run
