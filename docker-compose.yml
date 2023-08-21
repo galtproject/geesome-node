@@ -38,7 +38,6 @@ services:
     volumes:
       - "${STORAGE_STAGING}:/export"
       - "${STORAGE_DATA}:/data/ipfs"
-
   lotus:
     container_name: lotus
     image: "filecoin/lotus:v1.23.3"
@@ -55,3 +54,5 @@ services:
       - "127.0.0.1:1777:1777"
     volumes:
       - "${LOTUS_DATA}:/home/lotus_user"
+    command:
+      - run
