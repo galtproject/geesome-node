@@ -40,8 +40,9 @@ services:
       - "${STORAGE_DATA}:/data/ipfs"
   lotus:
     container_name: lotus
-    env_file:
-      - .env
+    environment:
+      - INFRA_LOTUS_LITE=true
+      - FULLNODE_API_INFO=wss://wss.node.glif.io/apigw/lotus
     image: "glif/lotus:v1.23.3-mainnet-amd64"
     restart: always
     ports:
