@@ -40,6 +40,8 @@ services:
       - "${STORAGE_DATA}:/data/ipfs"
   lotus:
     container_name: lotus
+    env_file:
+      - .env
     image: "glif/lotus:v1.23.3-mainnet-amd64"
     restart: always
     ports:
