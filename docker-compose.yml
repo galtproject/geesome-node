@@ -42,6 +42,7 @@ services:
     container_name: lotus
     environment:
       - INFRA_LOTUS_LITE=true
+      - INFRA_LOTUS_HOME=/home/lotus_user
       - FULLNODE_API_INFO=wss://wss.node.glif.io/apigw/lotus
     image: "glif/lotus:v1.23.3-mainnet-amd64"
     restart: always
