@@ -7,7 +7,7 @@ import { filesFromPaths } from 'files-from-path'
 import { HttpJsonRpcConnector, LotusWalletProvider, LotusClient} from "filecoin.js";
 
 
-const localNodeUrl = "http://127.0.0.1:1234/rpc/v0";
+const localNodeUrl = "http://127.0.0.1:2345:2345";
 const signAuthToken ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.ro6hN4mxR_Xsv47vmkM59_5H84VmYwYY3GM9gjLW4zk"
 const httpConnector = new HttpJsonRpcConnector({ url: localNodeUrl, token: signAuthToken });
 const lotusClient = new LotusClient(httpConnector);
