@@ -8,7 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "yarn --no-optional -W && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
+    "start": "yarn -W && DEBUG=geesome* ./node_modules/.bin/ts-node ./index.ts",
     "in-docker-start": "cd /geesome-node && yarn --no-optional -W && cp -R /geesome-node/node_modules/@geesome/ui/* /geesome-node/frontend/docker-dist/ && npm run migrate-database; npm run ssg-migrate-database; npm run sci-migrate-database; npm run group-migrate-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
