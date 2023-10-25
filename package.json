@@ -48,7 +48,7 @@
     "cids": "^0.7.0",
     "cookie-parser": "^1.4.4",
     "cross-blob": "^2.0.0",
-    "crypto-js": "^4.1.1",
+    "crypto-js": "^4.2.0",
     "debug": "^4.1.0",
     "dotenv": "^16.1.4",
     "ethers": "^4.0.25",
