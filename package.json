@@ -86,7 +86,7 @@
     "sequelize": "^6.32.0",
     "sequelize-cli": "6.2.0",
     "serve-static": "^1.14.1",
-    "sharp": "^0.32.4",
+    "sharp": "^0.32.6",
     "sqlite3": "^5.0.2",
     "telegram": "2.17.10",
     "tesseract.js": "^4.1.0",
