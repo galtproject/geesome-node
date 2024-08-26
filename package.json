@@ -94,7 +94,7 @@
     "twitter-api-v2": "^1.12.3",
     "typedarray-to-buffer": "^3.1.5",
     "typescript": "^5.0.4",
-    "unzip-stream": "^0.3.0",
+    "unzip-stream": "^0.3.2",
     "uuid-apikey": "^1.4.3",
     "vue": "^3.2.47",
     "vue-feather-icons": "^5.1.0",
