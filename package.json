@@ -39,7 +39,7 @@
     "@microlink/youtube-dl": "https://github.com/przemyslawpluta/node-youtube-dl#05ecd7f",
     "@revoinc/async-busboy": "^2.0.3",
     "@types/es6-promise": "^3.3.0",
-    "axios": "^1.6.0",
+    "axios": "^1.7.4",
     "bcrypt": "^5.0.0",
     "bl": "^5.0.0",
     "body-parser": "^1.19.0",
