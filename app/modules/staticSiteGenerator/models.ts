@@ -31,7 +31,7 @@ module.exports = async function () {
 			type: Sequelize.STRING(100)
 		},
 		entityId: {
-			type: Sequelize.INTEGER
+			type: Sequelize.STRING(100)
 		},
 		lastEntityManifestStorageId: {
 			type: Sequelize.STRING(100)

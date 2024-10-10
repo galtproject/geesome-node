@@ -109,7 +109,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     app.ms.api.onGet('content-by-storage-id/:contentStorageId', async (req, res) => {
-        res.send(await contentModule.getContentByStorageId(req.params.contentStorageId));
+        res.send(await contentModule.getContentByStorageAndUserId(req.params.contentStorageId, req.user.id));
     });
 
     app.ms.api.onGet('content-stats/*', async (req, res) => {

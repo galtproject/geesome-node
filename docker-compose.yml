@@ -17,6 +17,22 @@ services:
       - IPFS_PROFILE
       - DEBUG
       - SSG_RUNTIME
+      - DATABASE_PASSWORD=geesome
+      - DATABASE_USER=geesome
+      - DATABASE_DB=geesome_node
+      - DATABASE_HOST=geesome_db:5432
+
+  postgres:
+    container_name: geesome_db
+    image: postgres:14-alpine
+    ports:
+      - 5432:5432
+    volumes:
+      - ~/apps/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=geesome
+      - POSTGRES_USER=geesome
+      - POSTGRES_DB=geesome_node
 
   client:
     image: nginx

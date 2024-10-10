@@ -9,14 +9,14 @@
 const log = require('debug')('geesome:database');
 
 module.exports = {
-  'name': 'geesome_node',
-  'user': 'geesome',
-  'password': 'geesome',
+  'name': process.env.DATABASE_PASSWORD || 'geesome_node',
+  'user': process.env.DATABASE_USER || 'geesome',
+  'password': process.env.DATABASE_DB || 'geesome',
   'options': {
     'logging': (d) => {/*log(d)*/},
-    'host': 'localhost',
-    // 'dialect': 'postgres',
-    'dialect': 'sqlite',
-    'storage': `${process.env.DATA_DIR || 'data'}/core.sqlite`
+    'host': process.env.DATABASE_HOST || 'localhost',
+    'dialect': 'postgres',
+    // 'dialect': 'sqlite',
+    // 'storage': `${process.env.DATA_DIR || 'data'}/core.sqlite`
   }
 };

@@ -15,11 +15,12 @@ const commonHelpers = require("geesome-libs/src/common");
 const assert = require('assert');
 const _ = require('lodash');
 
-describe("group", function () {
+describe.only("group", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
+			logging: () => {},
+			dialect: 'sqlite',
+			storage: 'database-test.sqlite'
 		}
 	};
 

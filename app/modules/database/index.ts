@@ -335,6 +335,10 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return where;
   }
 
+  getUserContentListByIds(userId, contentIds) {
+    return this.models.Content.findAll({where: {userId, id: {[Op.in]: contentIds}}});
+  }
+
   async getAllContentList(searchString, listParams: IListParams = {}) {
     this.setDefaultListParamsValues(listParams);
     const {sortBy, sortDir, limit, offset} = listParams;

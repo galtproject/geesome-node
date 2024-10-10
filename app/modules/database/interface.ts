@@ -38,6 +38,8 @@ export interface IGeesomeDatabaseModule {
 
   getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
 
+  getUserContentListByIds(userId, contentIds): Promise<IContent[]>;
+
   getContent(id): Promise<IContent>;
 
   getContentByStorageId(storageId, findByPreviews?): Promise<IContent>;
@@ -169,6 +171,7 @@ export interface IContent {
 
   encryptedManifestStorageId?: string;
   propertiesJson?: string;
+  toJSON?(): string;
 }
 
 export interface IObject {
