@@ -25,7 +25,7 @@ describe("staticSiteGenerator", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
-			}, storage: 'database-test.sqlite'
+			}, dialect: 'sqlite', storage: 'database-test.sqlite'
 		}
 	};
 
@@ -112,7 +112,7 @@ describe("staticSiteGenerator", function () {
 			posts.push(await app.ms.group.createPost(testUser.id, postData));
 		}
 
-		const directoryStorageId = await staticSiteGenerator.generate(testUser.id, 'group', testGroup.id, {
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, 'group', testGroup.id, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
 			baseStorageUri: 'http://localhost:2052/ipfs/',

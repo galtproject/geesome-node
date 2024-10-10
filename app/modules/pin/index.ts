@@ -72,7 +72,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async pinByPinata(storageId: string, account: IPinAccount, options?) {
-			const content = await app.ms.content.getContentByStorageId(storageId);
+			const content = await app.ms.content.getContentByStorageAndUserId(storageId, account.userId);
 			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
 			console.log('hostNodes', hostNodes);
 			return axios

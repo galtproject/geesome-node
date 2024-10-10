@@ -125,7 +125,6 @@ function getModule(app: IGeesomeApp, models) {
 				type = undefined;
 			}
 			console.log('userId', userId, 'parentItemId', parentItemId, 'type', type, 'search', search);
-
 			return {
 				list: await this.getFileCatalogItemsList(userId, parentItemId, type, search, listParams),
 				total: await this.getFileCatalogItemsCount(userId, parentItemId, type, search)
@@ -337,15 +336,12 @@ function getModule(app: IGeesomeApp, models) {
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where: any = {userId, type, isDeleted: false};
-
 			if (!_.isUndefined(parentItemId)) {
 				where.parentItemId = parentItemId;
 			}
-
 			if (search) {
 				where['name'] = {[Op.like]: search};
 			}
-
 			return models.FileCatalogItem.findAll({
 				where,
 				order: [[sortBy, sortDir.toUpperCase()]],
@@ -353,6 +349,17 @@ function getModule(app: IGeesomeApp, models) {
 				limit,
 				offset
 			});
+		}
+
+		async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
+			const where: any = {userId, type, isDeleted: false};
+			if (!_.isUndefined(parentItemId)) {
+				where.parentItemId = parentItemId;
+			}
+			if (search) {
+				where['name'] = {[Op.like]: search};
+			}
+			return models.FileCatalogItem.count({where});
 		}
 
 		async getFileCatalogItemsByContent(userId, contentId, type = null, listParams: IListParams = {}) {
@@ -365,20 +372,6 @@ function getModule(app: IGeesomeApp, models) {
 				limit,
 				offset
 			});
-		}
-
-		async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
-			const where: any = {userId, type, isDeleted: false};
-
-			if (!_.isUndefined(parentItemId)) {
-				where.parentItemId = parentItemId;
-			}
-
-			if (search) {
-				where['name'] = {[Op.like]: search};
-			}
-
-			return models.FileCatalogItem.count({where});
 		}
 
 		async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {

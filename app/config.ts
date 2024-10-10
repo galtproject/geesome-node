@@ -17,7 +17,9 @@ const modulePacks = {
 //TODO: refactor modules config
 module.exports = {
   databaseModule: 'sql',
-  databaseConfig: {},
+  databaseConfig: {
+
+  },
   storageConfig: {
     implementation: process.env.STORAGE_MODULE || 'js-ipfs',
     jsNode: {

@@ -57,6 +57,10 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getContentByStorageId(storageId);
 		}
 
+		getContentByStorageAndUserId(storageId, userId) {
+			return app.ms.database.getContentByStorageAndUserId(storageId, userId);
+		}
+
 		getContentByManifestId(storageId) {
 			return app.ms.database.getContentByManifestId(storageId);
 		}
@@ -87,7 +91,7 @@ function getModule(app: IGeesomeApp) {
 					let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
 					await app.ms.database.updateContent(content.id, previewData);
 					const updatedContent = await this.updateContentManifest({
-						...content['toJSON'](),
+						...content.toJSON() as any,
 						...previewData
 					});
 
@@ -309,7 +313,7 @@ function getModule(app: IGeesomeApp) {
 				if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
 					await app.ms.database.updateContent(content.id, _.pick(options, propsToUpdate));
 					await this.updateContentManifest({
-						...content['toJSON'](),
+						...content.toJSON() as any,
 						..._.pick(options, propsToUpdate),
 					});
 				}
@@ -324,7 +328,7 @@ function getModule(app: IGeesomeApp) {
 			}
 			await app.ms.database.updateContent(content.id, updateData);
 			return this.updateContentManifest({
-				...content['toJSON'](),
+				...content.toJSON() as any,
 				...updateData,
 			});
 		}
@@ -718,7 +722,7 @@ function getModule(app: IGeesomeApp) {
 
 		async createContentByObject(userId, contentObject, options?: { userApiKeyId? }) {
 			const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-			const dbContent = await app.ms.database.getContentByStorageId(storageId);
+			const dbContent = await app.ms.database.getContentByStorageAndUserId(storageId, userId);
 			if (dbContent) {
 				return dbContent;
 			}

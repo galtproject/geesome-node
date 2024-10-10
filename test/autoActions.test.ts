@@ -23,7 +23,7 @@ describe("autoActions", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
-			}, storage: 'database-test.sqlite'
+			}, dialect: 'sqlite', storage: 'database-test.sqlite'
 		}
 	};
 
