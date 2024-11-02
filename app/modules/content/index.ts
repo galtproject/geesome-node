@@ -664,8 +664,8 @@ module.exports = async (app: IGeesomeApp) => {
 										onProgress: options.onProgress,
 										onError: reject
 									});
-									log('saveDirectory(uploadResult.tempPath)');
-									resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+									log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
+									resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
 									resultFile.tempPath = uploadResult['tempPath'];
 									resultFile.emitFinish = uploadResult['emitFinish'];
 								}

@@ -19,7 +19,6 @@ module.exports = async (app: IGeesomeApp, options: any = {}) => {
 				const publicBase64 = peerIdHelper.peerIdToPublicBase64(peerId);
 				const cid = peerIdHelper.peerIdToCid(peerId);
 				const encryptedPrivateKey = await peerIdHelper.encryptPrivateBase64WithPass(privateBase64, pass);
-				console.log('encryptedPrivateKey', encryptedPrivateKey);
 				return models.Account.create({userId, groupId, staticId: cid, publicKey: publicBase64, name, encryptedPrivateKey, isRemote: !encryptedPrivateKey});
 			}
 

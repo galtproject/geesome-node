@@ -14,7 +14,7 @@ import {PostStatus} from "../app/modules/group/interface";
 const assert = require('assert');
 const _ = require('lodash');
 
-describe.only("group", function () {
+describe("group", function () {
 	let commonHelpers;
 	const databaseConfig = {
 		name: 'geesome_test', options: {

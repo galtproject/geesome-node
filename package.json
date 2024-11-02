@@ -62,7 +62,7 @@
     "filecoin.js": "^0.0.5-alpha",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#8e9fe8f",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#4646fa7",
     "keccak": "^3.0.3",
     "kubo-rpc-client": "^5.0.2",
     "lodash": "^4.17.13",
