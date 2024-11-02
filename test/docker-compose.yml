@@ -1,8 +1,8 @@
 services:
   web:
     container_name: geesome
-    build: .
-    command: npm run in-docker-start
+    build: ../
+    command: npm run test
     restart: always
     ports:
       - "2052:2052"
@@ -11,8 +11,8 @@ services:
       - ipfs
       - postgres
     volumes:
-      - "${GEESOME_DATA}:/geesome-node/data"
-      - "${GEESOME_FRONTEND_DIST}:/geesome-node/frontend/docker-dist"
+      - "${GEESOME_DATA:-./.geesome-data}:/geesome-node/data"
+      - "${GEESOME_FRONTEND_DIST:-./.geesome-frontend}:/geesome-node/frontend/docker-dist"
     environment:
       - IPFS_PROFILE
       - DEBUG
@@ -20,13 +20,13 @@ services:
       - DATABASE_PASSWORD=geesome
       - DATABASE_USER=geesome
       - DATABASE_DB=geesome_node
-      - DATABASE_HOST=geesome_db:5432
+      - DATABASE_HOST=geesome_db:5433
 
   postgres:
     container_name: geesome_db
     image: postgres:14-alpine
     ports:
-      - 5432:5432
+      - 5433:5433
     volumes:
       - ~/apps/postgres:/var/lib/postgresql/data
     environment:
@@ -34,16 +34,9 @@ services:
       - POSTGRES_USER=geesome
       - POSTGRES_DB=geesome_node
 
-  client:
-    image: nginx
-    ports:
-      - "127.0.0.1:2042:80"
-    volumes:
-      - "${GEESOME_FRONTEND_DIST}:/usr/share/nginx/html"
-
   ipfs:
     container_name: go_ipfs
-    image: "ipfs/kubo:v0.21.0"
+    image: "ipfs/kubo:v0.31.0"
     restart: always
     environment:
       - IPFS_PROFILE
@@ -52,5 +45,5 @@ services:
       - "8080:8080"
       - "127.0.0.1:5001:5001"
     volumes:
-      - "${STORAGE_STAGING}:/export"
-      - "${STORAGE_DATA}:/data/ipfs"
+      - "${STORAGE_STAGING:-./.ipfs}:/export"
+      - "${STORAGE_DATA:-./.ipfs-data}:/data/ipfs"

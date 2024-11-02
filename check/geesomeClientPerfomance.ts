@@ -9,8 +9,6 @@
 
 export {};
 
-const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
-
 const log = require('../app/helpers').log;
 const http = require('http');
 const { generateRandomData } = require('./helpers');
@@ -22,6 +20,7 @@ const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));
 const port = isHttps ? 7722 : 7711;
 
 (async () => {
+  const GeesomeClient = (await import("geesome-libs/src/GeesomeClient.js")).default;
   const geesomeClient = new GeesomeClient({ server: (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port });
 
   await geesomeClient.init();

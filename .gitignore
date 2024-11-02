@@ -14,3 +14,7 @@ docs
 frontend/.parcel-cache
 *.zip
 .env
+test/.geesome-data
+test/.geesome-frontend
+test/.ipfs
+test/.ipfs-data

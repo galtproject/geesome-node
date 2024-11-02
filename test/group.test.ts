@@ -11,11 +11,11 @@ import {IGeesomeApp} from "../app/interface";
 import {ContentView, CorePermissionName} from "../app/modules/database/interface";
 import {PostStatus} from "../app/modules/group/interface";
 
-const commonHelpers = require("geesome-libs/src/common");
 const assert = require('assert');
 const _ = require('lodash');
 
 describe.only("group", function () {
+	let commonHelpers;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {},
@@ -28,19 +28,9 @@ describe.only("group", function () {
 
 	let admin, app: IGeesomeApp;
 	beforeEach(async () => {
+		commonHelpers = (await import("geesome-libs/src/common.js")).default;
 		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
 			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});

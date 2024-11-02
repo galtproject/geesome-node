@@ -17,9 +17,9 @@ import {PostStatus} from "../app/modules/group/interface";
 import CronService from "../app/modules/autoActions/cronService";
 
 const assert = require('assert');
-const commonHelpers = require('geesome-libs/src/common');
 
 describe("autoActions", function () {
+	let commonHelpers;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -32,6 +32,7 @@ describe("autoActions", function () {
 	let admin, app: IGeesomeApp, autoActions: IGeesomeAutoActionsModule;
 
 	beforeEach(async () => {
+		commonHelpers = (await import("geesome-libs/src/common.js")).default;
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
 		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';

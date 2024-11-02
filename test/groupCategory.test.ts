@@ -16,11 +16,11 @@ import {
 import IGeesomeGroupCategoryModule from "../app/modules/groupCategory/interface";
 import {PostStatus} from "../app/modules/group/interface";
 
-const trieHelper = require("geesome-libs/src/base36Trie");
 const assert = require('assert');
 const _ = require('lodash');
 
 describe("groupCategory", function () {
+	let trieHelper;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -33,6 +33,7 @@ describe("groupCategory", function () {
 	let admin, app: IGeesomeApp, groupCategory: IGeesomeGroupCategoryModule;
 
 	beforeEach(async () => {
+		trieHelper = (await import("geesome-libs/src/base36Trie.js")).default;
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
 		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';

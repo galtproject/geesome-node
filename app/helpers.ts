@@ -4,7 +4,6 @@ const _ = require('lodash');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const saltRounds = 10;
-const commonHelper = require('geesome-libs/src/common');
 const cryptoJS = require("crypto-js");
 const createKeccakHash = require('keccak');
 
@@ -50,6 +49,7 @@ module.exports = {
 	},
 
 	async getSecretKey(keyName, mode) {
+		const commonHelper = (await import("geesome-libs/src/common.js")).default;
 		const keyDir = `${__dirname}/../data`;
 		if (!fs.existsSync(keyDir)) {
 			fs.mkdirSync(keyDir);

@@ -9,9 +9,9 @@
 
 const log = require('../app/helpers').log;
 const { generateRandomData } = require('./helpers');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
 
 (async () => {
+  const ipfsHelper = (await import("geesome-libs/src/ipfsHelper.js")).default;
   const hat = require('hat');
   const {createFactory} = require('ipfsd-ctl');
 

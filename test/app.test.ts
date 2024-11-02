@@ -10,7 +10,6 @@
 import {IGeesomeApp} from "../app/interface";
 import {CorePermissionName, UserLimitName} from "../app/modules/database/interface";
 
-const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
@@ -18,6 +17,7 @@ const resourcesHelper = require('./helpers/resources');
 const log = require('../app/helpers').log;
 
 describe("app", function () {
+	let ipfsHelper;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -29,6 +29,7 @@ describe("app", function () {
 
 	let admin, app: IGeesomeApp;
 	beforeEach(async () => {
+		ipfsHelper = (await import("geesome-libs/src/ipfsHelper.js")).default;
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
 		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';

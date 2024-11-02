@@ -16,11 +16,11 @@ import IGeesomeForeignAccountsModule from "../app/modules/foreignAccounts/interf
 
 const assert = require('assert');
 const _ = require('lodash');
-const commonHelper = require('geesome-libs/src/common');
 const sigUtil = require('eth-sig-util');
 const aesjs = require('aes-js');
 
 describe("app", function () {
+	let commonHelper;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -32,6 +32,7 @@ describe("app", function () {
 
 	let admin, app: IGeesomeApp, foreignAccounts: IGeesomeForeignAccountsModule;
 	beforeEach(async () => {
+		commonHelper = (await import("geesome-libs/src/common.js")).default;
 		const appConfig = require('../app/config');
 		appConfig.storageConfig.implementation = 'js-ipfs';
 		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
