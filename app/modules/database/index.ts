@@ -31,10 +31,10 @@ module.exports = async function (app: IGeesomeApp) {
     fs.mkdirSync('./data');
   }
   config = _.merge(config, app.config.databaseConfig || {});
-  let sequelize = new Sequelize(config.name, config.user, config.password, config.options);
 
-  let models;
+  let models, sequelize;
   try {
+    sequelize = new Sequelize(config);
     models = await require('./models')(sequelize);
   } catch (e) {
     return console.error('Error', e);

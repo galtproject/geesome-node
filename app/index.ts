@@ -50,9 +50,13 @@ module.exports = async (extendConfig) => {
   // console.log('config', config);
   const app = getModule(config, await helpers.getSecretKey('app-pass', 'words'));
 
-  app.config.storageConfig.jsNode.pass = await helpers.getSecretKey('accounts-pass', 'words');
-  app.config.storageConfig.jsNode.salt = await helpers.getSecretKey('accounts-salt', 'hash');
-  
+  if (!app.config.storageConfig.jsNode.pass) {
+    app.config.storageConfig.jsNode.pass = await helpers.getSecretKey('accounts-pass', 'words');
+  }
+  if (!app.config.storageConfig.jsNode.salt) {
+    app.config.storageConfig.jsNode.salt = await helpers.getSecretKey('accounts-salt', 'hash');
+  }
+
   app.events = appEvents(app);
 
   // await appCron(app);

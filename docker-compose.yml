@@ -5,8 +5,8 @@ services:
     command: npm run in-docker-start
     restart: always
     ports:
-      - "2052:2052"
-      - "2082:2082"
+      - 2052
+      - 2082
     depends_on:
       - ipfs
       - postgres
@@ -17,18 +17,20 @@ services:
       - IPFS_PROFILE
       - DEBUG
       - SSG_RUNTIME
-      - DATABASE_PASSWORD=geesome
       - DATABASE_USER=geesome
-      - DATABASE_DB=geesome_node
-      - DATABASE_HOST=geesome_db:5432
+      - DATABASE_PASSWORD=geesome
+      - DATABASE_NAME=geesome_node
+      - DATABASE_HOST=geesome_db
+      - DATABASE_PORT=5432
 
   postgres:
     container_name: geesome_db
     image: postgres:14-alpine
-    ports:
-      - 5432:5432
+    restart: always
+    expose:
+      - 5432
     volumes:
-      - ~/apps/postgres:/var/lib/postgresql/data
+      - "${POSTGRES_DATA}:/var/lib/postgresql/data"
     environment:
       - POSTGRES_PASSWORD=geesome
       - POSTGRES_USER=geesome
@@ -47,10 +49,11 @@ services:
     restart: always
     environment:
       - IPFS_PROFILE
+    expose:
+      - 5001
     ports:
-      - "4001:4001"
-      - "8080:8080"
-      - "127.0.0.1:5001:5001"
+      - 4001
+      - 8080
     volumes:
       - "${STORAGE_STAGING}:/export"
       - "${STORAGE_DATA}:/data/ipfs"

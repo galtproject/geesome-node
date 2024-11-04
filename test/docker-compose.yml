@@ -5,8 +5,8 @@ services:
     command: npm run test
     restart: always
     ports:
-      - "2052:2052"
-      - "2082:2082"
+      - 2052
+      - 2082
     depends_on:
       - ipfs
       - postgres
@@ -17,18 +17,20 @@ services:
       - IPFS_PROFILE
       - DEBUG
       - SSG_RUNTIME
-      - DATABASE_PASSWORD=geesome
       - DATABASE_USER=geesome
-      - DATABASE_DB=geesome_node
-      - DATABASE_HOST=geesome_db:5433
+      - DATABASE_PASSWORD=geesome
+      - DATABASE_NAME=geesome_node
+      - DATABASE_HOST=geesome_db
+      - DATABASE_PORT=5432
 
   postgres:
     container_name: geesome_db
     image: postgres:14-alpine
+    restart: always
     ports:
-      - 5433:5433
+      - 5432
     volumes:
-      - ~/apps/postgres:/var/lib/postgresql/data
+      - "${POSTGRES_DATA:-./.postgres-data}:/var/lib/postgresql/data"
     environment:
       - POSTGRES_PASSWORD=geesome
       - POSTGRES_USER=geesome
@@ -43,7 +45,8 @@ services:
     ports:
       - "4001:4001"
       - "8080:8080"
-      - "127.0.0.1:5001:5001"
+    expose:
+      - "5001:5001"
     volumes:
       - "${STORAGE_STAGING:-./.ipfs}:/export"
       - "${STORAGE_DATA:-./.ipfs-data}:/data/ipfs"

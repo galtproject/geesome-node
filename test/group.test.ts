@@ -14,15 +14,8 @@ import {PostStatus} from "../app/modules/group/interface";
 const assert = require('assert');
 const _ = require('lodash');
 
-describe("group", function () {
+describe.only("group", function () {
 	let commonHelpers;
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {},
-			dialect: 'sqlite',
-			storage: 'database-test.sqlite'
-		}
-	};
 
 	this.timeout(60000);
 
@@ -33,7 +26,7 @@ describe("group", function () {
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await require('../app')({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);

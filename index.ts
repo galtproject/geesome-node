@@ -7,6 +7,12 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+declare global {
+  module 'protons-runtime' {
+    export const MaxLengthError: any;
+  }
+}
+
 import {IGeesomeApp} from "./app/interface";
 (async () => {
   const databaseConfig: any = {};
