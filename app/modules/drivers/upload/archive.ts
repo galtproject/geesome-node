@@ -15,7 +15,7 @@ import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 import helpers from "../helpers.js";
 const {getDirSize} = helpers;
-const {v4: uuidv4} = uuid;
+const {v4: uuidv4} = uuid['default'];
 
 export class ArchiveUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

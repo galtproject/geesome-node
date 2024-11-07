@@ -13,7 +13,7 @@ import {ContentView, CorePermissionName} from "../app/modules/database/interface
 import {PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
-describe.only("group", function () {
+describe("group", function () {
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp;

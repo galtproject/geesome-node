@@ -13,7 +13,7 @@ import sharp from "sharp";
 import * as uuid from 'uuid';
 import fs from "fs";
 import { exec } from "child_process";
-const {v4: uuidv4} = uuid;
+const {v4: uuidv4} = uuid['default'];
 
 export class GifPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream, DriverInput.Path];

@@ -35,7 +35,7 @@ export default async function (app: IGeesomeApp) {
   let models, sequelize;
   try {
     sequelize = new Sequelize(resConfig);
-    models = await (await import('./models.js')).default(sequelize);
+    models = await (await import('./models/index.js')).default(sequelize);
   } catch (e) {
     throw e;
   }

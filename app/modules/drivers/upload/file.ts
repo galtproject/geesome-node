@@ -12,13 +12,15 @@ import rimraf from "rimraf";
 import * as uuid from 'uuid';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
-const {v4: uuidv4} = uuid;
+const {v4: uuidv4} = uuid['default'];
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(inputStream, options: any = {}) {
+    console.log('uuid', uuid);
+    console.log('uuidv4', uuidv4);
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
     let size;
 

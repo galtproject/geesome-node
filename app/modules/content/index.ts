@@ -665,15 +665,19 @@ function getModule(app: IGeesomeApp) {
 							if (app.ms.storage.isStreamAddSupport()) {
 								resultFile = await app.ms.storage.saveFileByData(stream, storageOptions);
 							} else {
-								const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
-									extension,
-									onProgress: options.onProgress,
-									onError: reject
-								});
-								log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
-								resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
-								resultFile.tempPath = uploadResult['tempPath'];
-								resultFile.emitFinish = uploadResult['emitFinish'];
+								try {
+									const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
+										extension,
+										onProgress: options.onProgress,
+										onError: reject
+									});
+									log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
+									resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
+									resultFile.tempPath = uploadResult['tempPath'];
+									resultFile.emitFinish = uploadResult['emitFinish'];
+								} catch (e) {
+									console.error(e);
+								}
 							}
 							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
 							log('getFileStat resultFile', resultFile);

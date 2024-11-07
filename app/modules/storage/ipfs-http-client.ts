@@ -20,7 +20,10 @@ export default async (app: IGeesomeApp) => {
   let error;
   do {
     try {
-      await service.getBootNodeList();
+      await service.getCurrentAccountId();
+      if (process.env.IPFS_PROFILE) {
+        await service.node.config.profiles.apply(process.env.IPFS_PROFILE);
+      }
       error = null;
     } catch (e) {
       error = e;
@@ -32,23 +35,6 @@ export default async (app: IGeesomeApp) => {
   service.isStreamAddSupport = () => {
     return false;
   };
-
-  //TODO: remove config setting after migration to new ipfs http client
-  await service.node.config.set('Addresses.Swarm', await service.node.config.get('Addresses.Swarm').then(list => list.filter(s => !s.includes('quic'))));
-  await service.node.config.set('Bootstrap', await service.node.config.get('Bootstrap').then(list => list.filter(s => !s.includes('quic'))));
-  if (process.env.IPFS_PROFILE) {
-    await service.node.config.profiles.apply(process.env.IPFS_PROFILE);
-  }
-
-  while (true) {
-    try {
-      await service.getBootNodeList();
-      break;
-    } catch (e) {
-      console.warn('getBootNodeList error, trying to reconnect...', e.message);
-      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
-    }
-  }
 
   return service;
 };

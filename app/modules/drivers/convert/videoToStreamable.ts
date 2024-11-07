@@ -14,7 +14,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import mediainfo from 'node-mediainfo';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
-const {v4: uuidv4} = uuid;
+const {v4: uuidv4} = uuid['default'];
 
 export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

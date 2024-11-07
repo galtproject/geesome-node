@@ -18,7 +18,7 @@ import appHelpers from '../app/helpers.js';
 const {log} = appHelpers;
 const {startsWith} = _;
 
-describe("app", function () {
+describe.only("app", function () {
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -169,7 +169,7 @@ describe("app", function () {
 		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserGroupManagement).length, 1);
 	});
 
-	it('should correctly save data with only save permission', async () => {
+	it.only('should correctly save data with only save permission', async () => {
 		try {
 			await app.registerUser({
 				email: 'user-save-data@user.com',
