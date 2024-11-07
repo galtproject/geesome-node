@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
-import IGeesomeAutoActionsModule, {IAutoAction} from "./interface";
-import {IGeesomeApp} from "../../interface";
+import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {some, uniqBy, isArray, isString} = _;
 
 export default class CronService {

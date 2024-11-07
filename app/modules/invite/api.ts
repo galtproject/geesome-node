@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeInviteModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeInviteModule from "./interface.js";
 
 export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
 

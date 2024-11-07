@@ -1,18 +1,18 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
-import commonHelper from "geesome-libs/src/common";
-import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface";
-import {CorePermissionName, IListParams} from "../database/interface";
-import {GroupType} from "../group/interface";
-import {IGeesomeApp} from "../../interface";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface.js";
+import {CorePermissionName, IListParams} from "../database/interface.js";
+import {GroupType} from "../group/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {isUndefined, pick} = _;
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'staticId', 'group']);
 
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await (await import('./models')).default(sequelize, models));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models/index.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

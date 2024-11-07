@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeRemoteGroupModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeRemoteGroupModule from "./interface.js";
 
 export default (app: IGeesomeApp, remoteGroupModule: IGeesomeRemoteGroupModule) => {
 

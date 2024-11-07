@@ -10,15 +10,15 @@ import {Sequelize} from 'sequelize';
 
 export default async function (sequelize: Sequelize, appModels) {
 
-  appModels.Group = await (await import('./group')).default(sequelize, appModels);
-  appModels.GroupPermission = await (await import('./groupPermission')).default(sequelize, appModels);
-  appModels.GroupRead = await (await import('./groupRead')).default(sequelize, appModels);
-  appModels.Post = await (await import('./post')).default(sequelize, appModels);
+  appModels.Group = await (await import('./group.js')).default(sequelize, appModels);
+  appModels.GroupPermission = await (await import('./groupPermission.js')).default(sequelize, appModels);
+  appModels.GroupRead = await (await import('./groupRead.js')).default(sequelize, appModels);
+  appModels.Post = await (await import('./post.js')).default(sequelize, appModels);
 
-  appModels.Mention = await (await import('./mention')).default(sequelize, appModels);
+  appModels.Mention = await (await import('./mention.js')).default(sequelize, appModels);
 
-  appModels.Tag = await (await import('./tag')).default(sequelize, appModels);
-  appModels.AutoTag = await (await import('./autoTag')).default(sequelize, appModels);
+  appModels.Tag = await (await import('./tag.js')).default(sequelize, appModels);
+  appModels.AutoTag = await (await import('./autoTag.js')).default(sequelize, appModels);
 
   return appModels;
 };

@@ -7,13 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-declare global {
-  module 'protons-runtime' {
-    export const MaxLengthError: any;
-  }
-}
-
 import {IGeesomeApp} from "./app/interface";
+import GeesomeApp from './app/index.js';
+
 (async () => {
   const databaseConfig: any = {};
   if (process.env.DATABASE_NAME) {
@@ -25,12 +21,12 @@ import {IGeesomeApp} from "./app/interface";
     storageConfig.repo = process.env.STORAGE_REPO;
   }
 
-  const app: IGeesomeApp = await (await import('./app')).default({
+  const app: IGeesomeApp = await GeesomeApp({
     databaseConfig,
     storageConfig: {jsNode: storageConfig, goNode: storageConfig}
   });
 
-  await (await import('./publish-docs')).default(app);
+  await (await import('./publish-docs.js')).default(app);
 })();
 
 process.on('uncaughtException', (err) => {

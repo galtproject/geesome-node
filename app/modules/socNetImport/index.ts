@@ -10,17 +10,17 @@
 import _ from 'lodash';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
-import commonHelper from "geesome-libs/src/common";
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface";
-import {IContent} from "../database/interface";
-import {GroupType} from "../group/interface";
-import {IGeesomeApp} from "../../interface";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface.js";
+import {IContent} from "../database/interface.js";
+import {GroupType} from "../group/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {pick, uniq, uniqBy, orderBy, find, some, isString, reverse, last} = _;
 
 export default async (app: IGeesomeApp) => {
-	const models = await (await import("./models")).default(app.ms.database.sequelize);
+	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
-	await (await import('./api')).default(app, module);
+	await (await import('./api.js')).default(app, module);
 	return module;
 }
 

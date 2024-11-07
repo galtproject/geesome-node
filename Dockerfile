@@ -22,7 +22,7 @@ RUN apt install python build-essential pkg-config libglib2.0-dev libexpat1-dev l
 RUN mkdir /usr/local/nvm
 ENV NVM_DIR /usr/local/nvm
 # https://github.com/nodejs/node/issues/46221
-ENV NODE_VERSION 18.12.1
+ENV NODE_VERSION 18.20.4
 
 RUN curl --silent -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash
 RUN \. $NVM_DIR/nvm.sh

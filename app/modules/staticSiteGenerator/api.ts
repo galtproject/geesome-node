@@ -1,6 +1,6 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeStaticSiteGeneratorModule from "./interface";
 import _ from 'lodash';
+import IGeesomeStaticSiteGeneratorModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {pick} = _;
 
 export default (_app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule) => {

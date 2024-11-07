@@ -1,4 +1,4 @@
-import {IUser, IUserApiKey} from "../database/interface";
+import {IUser, IUserApiKey} from "../database/interface.js";
 import {Stream} from "stream";
 
 export default interface IGeesomeApiModule {

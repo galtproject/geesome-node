@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import {IMessagesState, ITimelineMessagesState} from "./interface";
+import {IMessagesState, ITimelineMessagesState} from "./interface.js";
 const {orderBy, startsWith, maxBy} = _;
 const FETCH_LIMIT = 100;
 

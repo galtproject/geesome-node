@@ -7,12 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import IGeesomeStorageModule from "../app/modules/storage/interface";
-import {CorePermissionName, IGeesomeDatabaseModule} from "../app/modules/database/interface";
-import IGeesomeCommunicatorModule from "../app/modules/communicator/interface";
-import {IGeesomeApp} from "../app/interface";
-
 import assert from "assert";
+import IGeesomeCommunicatorModule from "../app/modules/communicator/interface.js";
+import {CorePermissionName} from "../app/modules/database/interface.js";
+import IGeesomeStorageModule from "../app/modules/storage/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("storage", function () {
 	this.timeout(30000);
@@ -28,11 +27,11 @@ describe("storage", function () {
 	let app: IGeesomeApp;
 
 	before(async () => {
-		const appConfig = (await import('../app/config')).default;
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});

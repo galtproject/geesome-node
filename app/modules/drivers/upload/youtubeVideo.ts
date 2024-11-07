@@ -8,8 +8,8 @@
  */
 
 import _ from 'lodash';
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
 import helpers from "../../../helpers.js";
 const {orderBy} = _;
 let youtubedl;

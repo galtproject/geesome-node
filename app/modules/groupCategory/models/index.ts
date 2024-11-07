@@ -10,8 +10,8 @@ import {Sequelize} from 'sequelize';
 
 export default async function (sequelize: Sequelize, appModels) {
 
-  appModels.GroupCategory = await (await import('./groupCategory')).default(sequelize, appModels);
-  appModels.GroupSection = await (await import('./groupSection')).default(sequelize, appModels);
+  appModels.GroupCategory = await (await import('./groupCategory.js')).default(sequelize, appModels);
+  appModels.GroupSection = await (await import('./groupSection.js')).default(sequelize, appModels);
 
   return appModels;
 };

@@ -7,15 +7,15 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../../interface";
-import pIteration from 'p-iteration';
 import {Op} from "sequelize";
+import pIteration from 'p-iteration';
+import {IGeesomeApp} from "../../interface.js";
 
 export default async (app: IGeesomeApp) => {
-	const models = await (await import("./models")).default(app.ms.database.sequelize);
+	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
 
-	await (await import('./api')).default(app, module);
+	await (await import('./api.js')).default(app, module);
 
 	return module;
 }

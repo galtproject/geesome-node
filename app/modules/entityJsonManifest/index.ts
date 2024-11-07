@@ -9,13 +9,13 @@
 
 import debug from 'debug';
 import pIteration from 'p-iteration';
-import treeLib from "geesome-libs/src/base36Trie";
-import ipfsHelper from "geesome-libs/src/ipfsHelper";
-import {GroupType, IGroup, IPost, PostStatus} from "../group/interface";
-import IGeesomeEntityJsonManifestModule from "./interface";
-import {IGroupCategory} from "../groupCategory/interface";
-import {IContent, IUser} from "../database/interface";
-import {IGeesomeApp} from "../../interface";
+import treeLib from "geesome-libs/src/base36Trie.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import {GroupType, IGroup, IPost, PostStatus} from "../group/interface.js";
+import IGeesomeEntityJsonManifestModule from "./interface.js";
+import {IGroupCategory} from "../groupCategory/interface.js";
+import {IContent, IUser} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const log = debug('geesome:app');
 
 export default async (app: IGeesomeApp) => {

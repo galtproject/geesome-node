@@ -10,8 +10,8 @@
 import _ from 'lodash';
 import sharp from "sharp";
 import {Stream} from "stream";
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
 const {extend} = _;
 
 export class ImagePreviewDriver extends AbstractDriver {

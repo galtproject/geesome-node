@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import FluenceService from "geesome-libs/src/fluenceService/index";
+import {IGeesomeApp} from "../../interface.js";
+import FluenceService from "geesome-libs/src/fluenceService/index.js";
 
 export default async (app: IGeesomeApp) => {
     // let neighbours = await dhtApi.getNeighbours(client, nodeId, 'topic')

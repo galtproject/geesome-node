@@ -8,7 +8,7 @@
  */
 
 import pIteration from 'p-iteration';
-import {IGroup} from "./interface";
+import {IGroup} from "./interface.js";
 
 export default (geesomeApp) => {
 

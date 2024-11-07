@@ -7,12 +7,12 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
 import sharp from "sharp";
-import uuid from 'uuid';
+import * as uuid from 'uuid';
 import fs from "fs";
-import { exec } from"child_process";
+import { exec } from "child_process";
 const {v4: uuidv4} = uuid;
 
 export class GifPreviewDriver extends AbstractDriver {

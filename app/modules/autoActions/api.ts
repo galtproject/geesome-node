@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAutoActionsModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeAutoActionsModule from "./interface.js";
 
 export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) => {
 

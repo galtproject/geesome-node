@@ -7,10 +7,10 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
-import ffmpeg from 'fluent-ffmpeg';
 import stream from 'stream';
+import ffmpeg from 'fluent-ffmpeg';
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
 
 export class VideoThumbnail extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

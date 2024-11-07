@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeEthereumAuthorizationModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeEthereumAuthorizationModule from "./interface.js";
 
 export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumAuthorizationModule) => {
 	/**

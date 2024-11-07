@@ -7,13 +7,13 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
-import stream from 'stream';
-import ffmpeg from 'fluent-ffmpeg';
 import fs from "fs";
-import uuid from 'uuid';
+import stream from 'stream';
+import * as uuid from 'uuid';
+import ffmpeg from 'fluent-ffmpeg';
 import mediainfo from 'node-mediainfo';
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
 const {v4: uuidv4} = uuid;
 
 export class VideoToStreambleDriver extends AbstractDriver {

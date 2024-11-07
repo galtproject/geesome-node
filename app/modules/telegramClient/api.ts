@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeTelegramClient from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeTelegramClient from "./interface.js";
 
 export default (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient) => {
 	const api = app.ms.api.prefix('soc-net/telegram/');

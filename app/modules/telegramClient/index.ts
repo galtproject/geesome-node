@@ -12,18 +12,18 @@ import bigInt from 'big-integer';
 import {Api, TelegramClient} from "telegram";
 import {computeCheck} from "telegram/Password";
 import {StringSession} from "telegram/sessions";
-import commonHelper from "geesome-libs/src/common";
-import IGeesomeSocNetAccount from "../socNetAccount/interface";
-import IGeesomeSocNetImport from "../socNetImport/interface";
-import {TelegramImportClient} from "./importClient";
-import IGeesomeTelegramClient from "./interface";
-import {IGeesomeApp} from "../../interface";
-import telegramHelpers from './helpers';
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeSocNetAccount from "../socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../socNetImport/interface.js";
+import {TelegramImportClient} from "./importClient.js";
+import IGeesomeTelegramClient from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import telegramHelpers from './helpers.js';
 const {pick} = _;
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

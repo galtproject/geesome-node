@@ -1,12 +1,12 @@
-import {IGeesomeApp} from "../../interface";
-import {IGroup, IPost, PostStatus} from "../group/interface";
-import IGeesomeRemoteGroupModule from "./interface";
-import ipfsHelper from "geesome-libs/src/ipfsHelper";
-import commonHelper from "geesome-libs/src/common";
+import commonHelper from "geesome-libs/src/common.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import {IGroup, IPost, PostStatus} from "../group/interface.js";
+import IGeesomeRemoteGroupModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

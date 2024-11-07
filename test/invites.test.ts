@@ -10,13 +10,10 @@
 import aesjs from 'aes-js';
 import assert from 'assert';
 import sigUtil from 'eth-sig-util';
-import commonHelper from "geesome-libs/src/common";
-import IGeesomeForeignAccountsModule from "../app/modules/foreignAccounts/interface";
-import {IGeesomeApp} from "../app/interface";
-import {
-	CorePermissionName,
-	UserLimitName
-} from "../app/modules/database/interface";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeForeignAccountsModule from "../app/modules/foreignAccounts/interface.js";
+import {CorePermissionName, UserLimitName} from "../app/modules/database/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("app", function () {
 	const databaseConfig = {
@@ -30,11 +27,11 @@ describe("app", function () {
 
 	let admin, app: IGeesomeApp, foreignAccounts: IGeesomeForeignAccountsModule;
 	beforeEach(async () => {
-		const appConfig: any = (await import('../app/config')).default;
+		const appConfig: any = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);

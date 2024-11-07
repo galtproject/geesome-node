@@ -63,7 +63,7 @@ export default async (extendConfig) => {
   await pIteration.forEachSeries(resConfig.modules, async (moduleName: string) => {
     log(`Start ${moduleName} module...`);
     try {
-      app.ms[moduleName] = await (await import(`./modules/${moduleName}`)).default(app);
+      app.ms[moduleName] = await (await import(`./modules/${moduleName}/index.js`)).default(app);
     } catch (e) {
       console.error(moduleName + ' module initialization error', e);
     }
@@ -414,7 +414,7 @@ function getModule(config, appPass) {
         if (moduleName === callFromModule) {
           return;
         }
-        if (this.ms[moduleName][name]) {
+        if (this.ms[moduleName] && this.ms[moduleName][name]) {
           log(`Call hook ${name} on ${moduleName} module...`);
           return this.ms[moduleName][name].apply(this.ms[moduleName], args);
         }
@@ -562,19 +562,21 @@ function getModule(config, appPass) {
     }
 
     async stop() {
-      await pIteration.forEachSeries(this.config.modules, (moduleName: string) => {
-        if (this.ms[moduleName].stop) {
+      await pIteration.forEachSeries(this.config.modules, async (moduleName: string) => {
+        if (this.ms[moduleName] && this.ms[moduleName].stop) {
           log(`Stop ${moduleName} module...`);
-          return this.ms[moduleName].stop().catch(e => {
+          try {
+            await this.ms[moduleName].stop();
+          } catch (e) {
             console.warn("Warning! Module didnt stop:", e);
-          });
+          }
         }
       });
     }
 
     async flushDatabase() {
       await pIteration.forEachSeries(reverse(clone(this.config.modules)), (moduleName: string) => {
-        if (this.ms[moduleName].flushDatabase) {
+        if (this.ms[moduleName] && this.ms[moduleName].flushDatabase) {
           log(`Flush Database ${moduleName} module...`);
           return this.ms[moduleName].flushDatabase();
         }
@@ -583,7 +585,7 @@ function getModule(config, appPass) {
 
     async setupModules() {
       await pIteration.forEachSeries(this.config.modules, (moduleName: string) => {
-        if (this.ms[moduleName].setup) {
+        if (this.ms[moduleName] && this.ms[moduleName].setup) {
           log(`Setup ${moduleName} module...`);
           return this.ms[moduleName].setup();
         }

@@ -5,7 +5,7 @@ import {dirname} from 'path';
 import cryptoJS from "crypto-js";
 import {fileURLToPath} from 'url';
 import createKeccakHash from "keccak";
-import commonHelper from "geesome-libs/src/common";
+import commonHelper from "geesome-libs/src/common.js";
 const {map} = _;
 
 const saltRounds = 10;

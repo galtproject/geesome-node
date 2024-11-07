@@ -1,12 +1,12 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeStaticIdModule, {IStaticIdHistoryItem} from "./interface";
 import debug from 'debug';
-const log = debug('geesome:app');
 import pIteration from 'p-iteration';
+import IGeesomeStaticIdModule, {IStaticIdHistoryItem} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const log = debug('geesome:app');
 
 export default async (app: IGeesomeApp) => {
-	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

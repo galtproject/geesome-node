@@ -1,16 +1,16 @@
 import _ from 'lodash';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
-import commonHelper from "geesome-libs/src/common";
-import IGeesomeAutoActionsModule, {IAutoAction} from "./interface";
-import {IGeesomeApp} from "../../interface";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {some, orderBy, reverse} = _;
 
 export default async (app: IGeesomeApp) => {
-	const models = await (await import("./models")).default(app.ms.database.sequelize);
+	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = await getModule(app, models);
-	(await import('./api')).default(app, module);
-	(await import('./cron')).default(app, module);
+	(await import('./api.js')).default(app, module);
+	(await import('./cron.js')).default(app, module);
 	return module;
 }
 

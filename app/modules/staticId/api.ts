@@ -1,6 +1,6 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeStaticIdModule from "./interface";
 import _ from 'lodash';
+import IGeesomeStaticIdModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {trim} = _;
 
 export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {

@@ -1,5 +1,5 @@
-import {IInvite, IListParams, IUser, IUserApiKey} from "../database/interface";
-import {IInvitesListResponse, IUserInput} from "../../interface";
+import {IInvite, IListParams, IUser, IUserApiKey} from "../database/interface.js";
+import {IInvitesListResponse, IUserInput} from "../../interface.js";
 
 export default interface IGeesomeInviteModule {
 	registerUserByInviteCode(inviteCode: string, userData: IUserInput): Promise<{user: IUser, apiKey: IUserApiKey}>;

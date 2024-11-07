@@ -1,9 +1,7 @@
-'use strict'
-
-const busboy = require('busboy')
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import busboy from 'busboy';
 
 const getDescriptor = Object.getOwnPropertyDescriptor
 
@@ -54,7 +52,7 @@ function onFile (filePromises, file, stream, info) {
         stream.pipe(writeStream)
           .on('error', reject)
           .on('finish', () => {
-            const readStream = fs.createReadStream(saveTo)
+            const readStream: any = fs.createReadStream(saveTo)
 
             readStream.fieldname = file
             readStream.filename = filename
@@ -137,7 +135,7 @@ const reconcile = (obj, target) => {
   return (target[key] = val)
 }
 
-module.exports = function (request, options) {
+export default function (request, options): Promise<any> {
   options = options || {}
   options.headers = options.headers || request.headers
   const customOnFile = typeof options.onFile === 'function' ? options.onFile : false
@@ -151,28 +149,28 @@ module.exports = function (request, options) {
     request.on('close', cleanup)
 
     bb.on('field', onField.bind(null, fields))
-      .on('file', customOnFile || onFile.bind(null, filePromises))
-      .on('error', onError)
-      .on('end', onEnd)
-      .on('close', onEnd)
-      .on('partsLimit', function () {
-        const err = new Error('Reach parts limit')
-        err.code = 'Request_parts_limit'
-        err.status = 413
-        onError(err)
-      })
-      .on('filesLimit', () => {
-        const err = new Error('Reach files limit')
-        err.code = 'Request_files_limit'
-        err.status = 413
-        onError(err)
-      })
-      .on('fieldsLimit', () => {
-        const err = new Error('Reach fields limit')
-        err.code = 'Request_fields_limit'
-        err.status = 413
-        onError(err)
-      })
+        .on('file', customOnFile || onFile.bind(null, filePromises))
+        .on('error', onError)
+        .on('end', onEnd)
+        .on('close', onEnd)
+        .on('partsLimit', function () {
+          const err: any = new Error('Reach parts limit')
+          err.code = 'Request_parts_limit'
+          err.status = 413
+          onError(err)
+        })
+        .on('filesLimit', () => {
+          const err: any = new Error('Reach files limit')
+          err.code = 'Request_files_limit'
+          err.status = 413
+          onError(err)
+        })
+        .on('fieldsLimit', () => {
+          const err: any = new Error('Reach fields limit')
+          err.code = 'Request_fields_limit'
+          err.status = 413
+          onError(err)
+        })
 
     request.pipe(bb)
 
@@ -191,11 +189,11 @@ module.exports = function (request, options) {
         resolve({ fields })
       } else {
         Promise.all(filePromises)
-          .then((files) => {
-            cleanup()
-            resolve({ fields, files })
-          })
-          .catch(reject)
+            .then((files) => {
+              cleanup()
+              resolve({ fields, files })
+            })
+            .catch(reject)
       }
     }
 

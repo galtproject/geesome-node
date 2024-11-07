@@ -7,23 +7,22 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-  CorePermissionName,
-} from "../app/modules/database/interface";
-import appHelpers from '../app/helpers';
-import helpers from './helpers';
+import GeesomeApp from '../app/index.js';
+import appConfig from '../app/config.js';
+import helpers from './helpers/index.js';
+import appHelpers from '../app/helpers.js';
+import {IGeesomeApp} from "../app/interface.js";
+import {CorePermissionName} from "../app/modules/database/interface.js";
+const {generateRandomData} = helpers;
 const {log} = appHelpers;
-const { generateRandomData } = helpers;
 
 (async () => {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
-  const appConfig = (await import('../app/config')).default;
   appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
   let app: IGeesomeApp;
 
   try {
-    app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+    app = await GeesomeApp({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
     await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
     const testUser = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});

@@ -7,13 +7,13 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
-import unzip from 'unzip-stream';
 import fs from "fs";
-import uuid from 'uuid';
 import rimraf from "rimraf";
-import helpers from "../helpers";
+import * as uuid from 'uuid';
+import unzip from 'unzip-stream';
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
+import helpers from "../helpers.js";
 const {getDirSize} = helpers;
 const {v4: uuidv4} = uuid;
 

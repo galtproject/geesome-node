@@ -1,13 +1,13 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeForeignAccountsModule, {IAuthMessage, IForeignAccount} from "./interface";
-import {CorePermissionName} from "../database/interface";
 import pIteration from 'p-iteration';
+import IGeesomeForeignAccountsModule, {IAuthMessage, IForeignAccount} from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules([]);
 
-	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

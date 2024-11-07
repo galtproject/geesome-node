@@ -1,4 +1,4 @@
-import {IUserAuthMessageResponse} from "../../interface";
+import {IUserAuthMessageResponse} from "../../interface.js";
 
 export default interface IGeesomeEthereumAuthorizationModule {
 	generateUserAccountAuthMessage(accountProvider, accountAddress): Promise<IUserAuthMessageResponse>;

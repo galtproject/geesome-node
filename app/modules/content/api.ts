@@ -1,8 +1,8 @@
 import _ from 'lodash';
-import {UserLimitName} from "../database/interface";
-import IGeesomeContentModule from "./interface";
-import {IGeesomeApp} from "../../interface";
-import asyncBusboy from "./asyncBusboy";
+import {UserLimitName} from "../database/interface.js";
+import IGeesomeContentModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import asyncBusboy from "./asyncBusboy.js";
 const {pick} = _;
 
 export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {

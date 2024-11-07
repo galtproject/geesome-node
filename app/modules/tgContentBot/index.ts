@@ -2,93 +2,18 @@ import _ from 'lodash';
 import axios from "axios";
 import { Op } from 'sequelize';
 import { createWorker } from 'tesseract.js';
-import TelegramBot from "node-telegram-bot-api";
-import commonHelper from "geesome-libs/src/common";
-import {IGeesomeApp} from "../../interface";
-const {pick, orderBy} = _;
+import {IGeesomeApp} from "../../interface.js";
+import MultiTelegramBot from "./multiTelegramBot.js";
+const {orderBy} = _;
+const waitForCommand = {};
 
 export default async (app: IGeesomeApp) => {
-  const models: any = await (await import("./models")).default(app.ms.database.sequelize);
-  class MultiTelegramBot {
-    constructor(models){
-      this.models = models;
-    }
-    events = [];
-    models = {};
-    async triger(body, tgToken, host) {
-      const botId = tgToken.split(':')[0];
-      const tokenHash = commonHelper.hash(tgToken);
-      const tgcontentbot = await this.models['ContentBots'].findOne({ where: { botId, tokenHash } });
-      if (!tgcontentbot) {
-        return;
-      }
-      this.events.forEach(event => {
-        let entity;
-        if (body.message && event.text && event.text.test(body.message.text)){
-          entity = body.message;
-        } else if (body.inline_query && event.type == "inline_query") {
-          entity = body.inline_query;
-        } else if (body.callback_query && event.type == "callback_query"){
-          entity = body.callback_query;
-        } else if (body.message && body.message.photo && event.type == "photo") {
-          entity = body.message;
-        }
-        if (!entity){
-          return
-        }
-        entity.host = host;
-        entity.userId = tgcontentbot.userId;
-        entity.bot = new TelegramBot(tgToken, {polling: false});
-        event.callback(entity, entity.text && event.text && event.text.test ? entity.text.match(event.text) : undefined);
-      });
-    };
-    onText(text, callback) {
-      this.events.push({text, callback});
-    };
-    on(type, callback){
-      this.events.push({type, callback});
-    };
-  }
+  const models: any = await (await import("./models.js")).default(app.ms.database.sequelize);
 
   const multitelegrambot = new MultiTelegramBot(models);
 
-  function idToString(id) {
-    return id.toString().split('.')[0];
-  }
+  (await import('./api.js')).default(app, models, multitelegrambot);
 
-    app.ms.api.onAuthorizedPost('content-bot/add', async (req, res) => {
-      const botId = req.body.tgToken.split(":")[0];
-      const encryptedToken = await app.encryptTextWithAppPass(req.body.tgToken);
-      const tokenHash = await commonHelper.hash(req.body.tgToken);
-      const bot = new TelegramBot(req.body.tgToken, { polling: false });
-      const botInfo = await bot.getMe();
-      await models.ContentBots.create({encryptedToken, botId, socNet: req.body.socNet, botUsername: botInfo.username, userId: req.user.id, tokenHash});
-      bot.setWebHook(`https://${req.headers.host}/api/v1/content-bot/tg-webhook/${req.body.tgToken}`).then(() => {
-        console.log('Webhook successfully set');
-      });
-      bot.setMyCommands([
-        { command: '/start', description: 'Initial greeting' },
-        { command: '/savePhoto', description: 'Save photo to ipfs' }
-      ]);
-      res.send("ok", 200);
-    });
-
-    app.ms.api.onAuthorizedPost('content-bot/list', async (req, res) => {
-      res.send(await models.ContentBots.findAll({where: {userId: req.user.id}}), 200);
-    });
-
-    app.ms.api.onAuthorizedPost('content-bot/addUser', async (req, res) => {
-      const pickedObject = pick(req.body, ['userTgId', 'contentLimit', 'isAdmin', 'contentBotId']);
-      await models.User.create(pickedObject);
-      res.send("ok", 200);
-    });
-
-    app.ms.api.onPost("content-bot/tg-webhook/:tgToken", async (req, res) => {
-      const tgToken = req.params.tgToken;
-      multitelegrambot.triger(req.body, tgToken, req.headers.host);
-      return res.send("ok", 200);
-    });
-  
   multitelegrambot.onText(/^\/start$/i, async (msg) => {
     const botId = msg.bot.token.split(":")[0];
     const tgcontentbot = await models.ContentBots.findOne({ where: { botId } });
@@ -184,8 +109,6 @@ export default async (app: IGeesomeApp) => {
     await msg.bot.sendMessage(msg.chat.id, `Here is a link to your content ipfs ${linky}`, { reply_markup: keyboard });
   });
 
-  const waitForCommand = {};
-
   multitelegrambot.on("callback_query", async (query) => {
     const chatId = query.message.chat.id;
     const storageId = query.data.split(':')[0];
@@ -217,22 +140,26 @@ export default async (app: IGeesomeApp) => {
     delete waitForCommand[chatId];
   });
 
-  async function aiRecognition(linky) {
-    const worker = await createWorker();
-    await worker.loadLanguage('eng');
-    await worker.initialize('eng');
-    const { data: { text } } = await worker.recognize(linky);
-    await worker.terminate();
-    return text;
-  }
-
-  function getLink(host, ipfsHash) {
-    return `https://${host}/ipfs/${ipfsHash}`;
-  }
-
-  function getCarLink(host, ipfsHash) {
-    return `https://${host}/download-car/${ipfsHash}.car`;
-  }
-
-  return module;
+  return {};
 };
+
+function idToString(id) {
+  return id.toString().split('.')[0];
+}
+
+async function aiRecognition(linky) {
+  const worker = await createWorker();
+  await worker.loadLanguage('eng');
+  await worker.initialize('eng');
+  const { data: { text } } = await worker.recognize(linky);
+  await worker.terminate();
+  return text;
+}
+
+function getLink(host, ipfsHash) {
+  return `https://${host}/ipfs/${ipfsHash}`;
+}
+
+function getCarLink(host, ipfsHash) {
+  return `https://${host}/download-car/${ipfsHash}.car`;
+}

@@ -1,6 +1,6 @@
 import _ from 'lodash';
-import IGeesomeApiModule from "./interface";
-import {IGeesomeApp} from "../../interface";
+import IGeesomeApiModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {trim} = _;
 
 export default (app: IGeesomeApp, module: IGeesomeApiModule) => {

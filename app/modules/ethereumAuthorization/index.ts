@@ -1,10 +1,10 @@
-import commonHelper from "geesome-libs/src/common";
-import geesomeMessages from "geesome-libs/src/messages";
-import ethereumAuthorization from "geesome-libs/src/ethereum";
-import IGeesomeForeignAccountsModule from "../foreignAccounts/interface";
-import IGeesomeEthereumAuthorizationModule from "./interface";
-import {CorePermissionName} from "../database/interface";
-import {IGeesomeApp} from "../../interface";
+import commonHelper from "geesome-libs/src/common.js";
+import geesomeMessages from "geesome-libs/src/messages.js";
+import ethereumAuthorization from "geesome-libs/src/ethereum.js";
+import IGeesomeForeignAccountsModule from "../foreignAccounts/interface.js";
+import IGeesomeEthereumAuthorizationModule from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);

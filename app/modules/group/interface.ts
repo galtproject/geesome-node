@@ -3,8 +3,8 @@ import {
 	ICorePermission,
 	IListParams,
 	IUser
-} from "../database/interface";
-import {IUserListResponse} from "../../interface";
+} from "../database/interface.js";
+import {IUserListResponse} from "../../interface.js";
 
 export default interface IGeesomeGroupModule {
 

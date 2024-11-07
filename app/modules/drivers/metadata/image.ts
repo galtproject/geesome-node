@@ -9,8 +9,8 @@
 
 import _ from 'lodash';
 import sharp from "sharp";
-import AbstractDriver from "../abstractDriver";
-import {DriverInput} from "../interface";
+import AbstractDriver from "../abstractDriver.js";
+import {DriverInput} from "../interface.js";
 const {pick} = _;
 
 export class ImageMetadataDriver extends AbstractDriver {

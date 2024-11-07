@@ -1,5 +1,5 @@
-import {IGroup, IGroupListResponse, IPostListResponse} from "../group/interface";
-import {IContent, IListParams, IUser} from "../database/interface";
+import {IGroup, IGroupListResponse, IPostListResponse} from "../group/interface.js";
+import {IContent, IListParams, IUser} from "../database/interface.js";
 
 export default interface IGeesomeGroupCategoryModule {
 	getCategoryByParams(params): Promise<IGroupCategory>;

@@ -1,11 +1,11 @@
 import _ from 'lodash';
-import appHelpers from '../../helpers';
-import telegramHelpers from './helpers';
-import {IPost} from "../group/interface";
-import IGeesomeTelegramClient from "./interface";
-import {ContentView} from "../database/interface";
-import IGeesomeContentModule from "../content/interface";
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface.js";
+import IGeesomeContentModule from "../content/interface.js";
+import {ContentView} from "../database/interface.js";
+import IGeesomeTelegramClient from "./interface.js";
+import {IPost} from "../group/interface.js";
+import telegramHelpers from './helpers.js';
+import appHelpers from '../../helpers.js';
 const {clone} = _;
 
 export class TelegramImportClient implements IGeesomeSocNetImportClient {

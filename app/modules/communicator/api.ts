@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeCommunicatorModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeCommunicatorModule from "./interface.js";
 
 export default (app: IGeesomeApp, communicatorModule: IGeesomeCommunicatorModule) => {
 	if (!app.ms.api) {

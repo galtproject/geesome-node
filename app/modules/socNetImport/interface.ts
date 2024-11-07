@@ -1,5 +1,5 @@
-import {IContent} from "../database/interface";
-import {IPost} from "../group/interface";
+import {IContent} from "../database/interface.js";
+import {IPost} from "../group/interface.js";
 
 export default interface IGeesomeSocNetImport {
 	getDbChannel(userId, where);

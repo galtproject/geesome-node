@@ -3,18 +3,18 @@ import morgan from 'morgan';
 import express from 'express';
 import bodyParser from 'body-parser';
 import bearerToken from 'express-bearer-token';
-import {IGeesomeApp} from "../../interface";
-import {IUser} from "../database/interface";
+import {IGeesomeApp} from "../../interface.js";
+import {IUser} from "../database/interface.js";
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
 	IApiModuleGetInput,
 	IApiModulePotInput
-} from "./interface";
+} from "./interface.js";
 const {trimStart} = _;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	const module = await getModule(app, 'v1', process.env.PORT || app.config.port || 2052);
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

@@ -3,17 +3,17 @@ import path from 'path';
 import debug from 'debug';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
-import IGeesomeFileCatalogModule, {FileCatalogItemType, IFileCatalogItem} from "./interface";
-import {CorePermissionName, IContent, IListParams} from "../database/interface";
-import {IGeesomeApp, ManifestToSave} from "../../interface";
+import IGeesomeFileCatalogModule, {FileCatalogItemType, IFileCatalogItem} from "./interface.js";
+import {CorePermissionName, IContent, IListParams} from "../database/interface.js";
+import {IGeesomeApp, ManifestToSave} from "../../interface.js";
 const {first, isUndefined, upperFirst, trim, reverse, difference, pick} = _;
 const log = debug('geesome:app');
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await (await import('./models')).default(sequelize, models));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

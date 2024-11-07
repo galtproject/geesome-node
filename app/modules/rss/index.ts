@@ -1,13 +1,13 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
-import {IGeesomeApp} from "../../interface";
-import {IPost} from "../group/interface";
+import {IGeesomeApp} from "../../interface.js";
+import {IPost} from "../group/interface.js";
 const {chunk, find, filter, flatten} = _;
 
 export default async (app: IGeesomeApp) => {
     const xml = await import('xml');
     const module = getModule(app, xml);
-    (await import('./api')).default(app, module);
+    (await import('./api.js')).default(app, module);
     return module;
 }
 

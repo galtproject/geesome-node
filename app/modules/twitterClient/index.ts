@@ -10,20 +10,20 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
 import {TwitterApi} from 'twitter-api-v2';
-import IGeesomeTwitterClient, {IMessagesState} from "./interface";
-import IGeesomeSocNetAccount from "../socNetAccount/interface";
-import IGeesomeSocNetImport from "../socNetImport/interface";
-import {TwitterImportClient} from "./importClient";
-import {ContentView} from "../database/interface";
-import {IGeesomeApp} from "../../interface";
-import twitterHelpers from './helpers';
+import IGeesomeTwitterClient, {IMessagesState} from "./interface.js";
+import IGeesomeSocNetAccount from "../socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../socNetImport/interface.js";
+import {TwitterImportClient} from "./importClient.js";
+import {ContentView} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import twitterHelpers from './helpers.js';
 const {uniq, map} = _;
 const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = twitterHelpers;
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 
 	return module;
 }

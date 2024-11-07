@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAsyncOperationModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeAsyncOperationModule from "./interface.js";
 
 export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
     /**

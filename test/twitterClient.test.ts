@@ -7,19 +7,17 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeTwitterClient from "../app/modules/twitterClient/interface";
-import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
-import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
-import {TwitterImportClient} from "../app/modules/twitterClient/importClient";
-import twitterHelpers from '../app/modules/twitterClient/helpers';
-import appHelpers from '../app/helpers';
 import assert from "assert";
 import pIteration from 'p-iteration';
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {TwitterImportClient} from "../app/modules/twitterClient/importClient.js";
+import IGeesomeTwitterClient from "../app/modules/twitterClient/interface.js";
+import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../app/modules/socNetImport/interface.js";
+import twitterHelpers from '../app/modules/twitterClient/helpers.js';
+import {IPost} from "../app/modules/group/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
+import appHelpers from '../app/helpers.js';
 
 describe.skip("twitterClient", function () {
 	const databaseConfig = {
@@ -35,11 +33,11 @@ describe.skip("twitterClient", function () {
 		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
-		const appConfig = (await import('../app/config')).default;
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -395,7 +393,7 @@ describe.skip("twitterClient", function () {
 		const postDataBySourceId = {
 			'1395871923561803781': {groupedMsgIds: undefined, replyToMsgId: '1395662836840288261', contents: ['Can you please share the link of this page?'], repostContents: []},
 		};
-		await pIteration.mapSeries(groupPosts, async (gp) => {
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
@@ -421,7 +419,7 @@ describe.skip("twitterClient", function () {
 		const replyDataBySourceId = {
 			'1395662836840288261': {groupedMsgIds: undefined, replyToMsgId: undefined, contents: ['2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.', 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly'], repostContents: []},
 		};
-		await pIteration.mapSeries(replyPosts, async (gp) => {
+		await pIteration.mapSeries(replyPosts, async (gp: IPost) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
@@ -473,7 +471,7 @@ describe.skip("twitterClient", function () {
 		const replyDataBySourceId = {
 			'1217407431157960704': {groupedMsgIds: undefined, repostOfMsgId: "1217406911303372800", contents: [], repostContents: ['Hey everyone! 🎊 Amazing news! Galt•Project is live on Ethereum mainnet. More details here: https://t.co/1y7g8B7tMN.  DApp is here: https://t.co/Ey9CKYSBph Put your land, house or apartment on Ethereum! Create community and Vote! #ethereum #dao #web3 #DApps #ETH #PropTech']},
 		};
-		await pIteration.mapSeries(groupPosts, async (gp) => {
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
@@ -517,7 +515,7 @@ describe.skip("twitterClient", function () {
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {sortBy: 'publishedAt', sortDir: 'asc'});
 		assert.equal(groupPosts.length, 10);
 
-		await pIteration.mapSeries(groupPosts, async (gp, i) => {
+		await pIteration.mapSeries(groupPosts, async (gp: IPost, i) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			assert.equal(postContents.length, 1);
 			assert.equal(postContents[0].text, (i + 1).toString());

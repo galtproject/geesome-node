@@ -7,10 +7,10 @@ import pIteration from 'p-iteration';
 import uuidAPIKey from "uuid-apikey";
 import { BufferListStream } from 'bl';
 import {Transform, Readable} from 'stream';
-import commonHelper from "geesome-libs/src/common";
-import ipfsHelper from "geesome-libs/src/ipfsHelper";
-import detecterHelper from "geesome-libs/src/detecter";
-import {IGeesomeApp} from "../../interface";
+import commonHelper from "geesome-libs/src/common.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import detecterHelper from "geesome-libs/src/detecter.js";
+import {IGeesomeApp} from "../../interface.js";
 import {
 	ContentMimeType,
 	ContentStorageType,
@@ -20,18 +20,18 @@ import {
 	IListParams,
 	UserContentActionName,
 	UserLimitName
-} from "../database/interface";
-import driverHelpers from '../drivers/helpers';
-import IGeesomeContentModule from "./interface";
-import AbstractDriver from "../drivers/abstractDriver";
-import {DriverInput, OutputSize} from "../drivers/interface";
+} from "../database/interface.js";
+import driverHelpers from '../drivers/helpers.js';
+import IGeesomeContentModule from "./interface.js";
+import AbstractDriver from "../drivers/abstractDriver.js";
+import {DriverInput, OutputSize} from "../drivers/interface.js";
 const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

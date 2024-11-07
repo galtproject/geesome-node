@@ -1,5 +1,5 @@
-import {IContent} from "../database/interface";
-import {IUserAsyncOperation} from "../asyncOperation/interface";
+import {IContent} from "../database/interface.js";
+import {IUserAsyncOperation} from "../asyncOperation/interface.js";
 
 export default interface IGeesomeTwitterClient {
 	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{result: {asyncOperation: IUserAsyncOperation}}>;

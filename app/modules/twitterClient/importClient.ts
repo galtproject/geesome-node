@@ -1,10 +1,10 @@
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
-import IGeesomeTwitterClient from "./interface";
-import {IPost} from "../group/interface";
-import {ContentView} from "../database/interface";
-import IGeesomeContentModule from "../content/interface";
 import pIteration from 'p-iteration';
-import helpers from './helpers';
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface.js";
+import IGeesomeContentModule from "../content/interface.js";
+import {ContentView} from "../database/interface.js";
+import IGeesomeTwitterClient from "./interface.js";
+import {IPost} from "../group/interface.js";
+import helpers from './helpers.js';
 const {getReplyToId, getRetweetId, clearMessageFromMediaMessages} = helpers;
 
 export class TwitterImportClient implements IGeesomeSocNetImportClient {

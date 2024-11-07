@@ -1,16 +1,16 @@
 import _ from 'lodash';
 import {Op} from "sequelize";
-import commonHelper from "geesome-libs/src/common";
-import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface";
-import {CorePermissionName} from "../database/interface";
-import {IGeesomeApp} from "../../interface";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 const {isObject, last} = _;
 
 export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
-	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize));
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	await module.closeAllAsyncOperation();
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

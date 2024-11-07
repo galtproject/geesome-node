@@ -21,7 +21,7 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.INTEGER
 		},
 		staticId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		publicKey: {
 			type: DataTypes.STRING(400)

@@ -1,6 +1,6 @@
 import _ from 'lodash';
-import {IGeesomeApp} from "../../interface";
-import IGeesomeRssModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeRssModule from "./interface.js";
 const {last} = _;
 
 export default (_app: IGeesomeApp, rssModule: IGeesomeRssModule) => {

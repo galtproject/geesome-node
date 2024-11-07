@@ -1,5 +1,5 @@
-import {IUserAsyncOperation} from "../asyncOperation/interface";
-import {IAccount} from "../socNetAccount/interface";
+import {IUserAsyncOperation} from "../asyncOperation/interface.js";
+import {IAccount} from "../socNetAccount/interface.js";
 
 export default interface IGeesomeTelegramClient {
 	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;

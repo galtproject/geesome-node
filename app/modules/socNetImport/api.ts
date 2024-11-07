@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeSocNetImport from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeSocNetImport from "./interface.js";
 
 export default (app: IGeesomeApp, socNetImport: IGeesomeSocNetImport) => {
 	const api = app.ms.api.prefix('soc-net-import/');

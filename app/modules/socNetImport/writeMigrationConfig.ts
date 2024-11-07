@@ -8,8 +8,8 @@
  */
 
 import fs from "fs";
-import helpers from "../../helpers";
-import config from './config';
+import helpers from "../../helpers.js";
+import config from './config.js';
 
 if (!fs.existsSync(`${helpers.getCurDir()}/config/`)) {
   fs.mkdirSync(`${helpers.getCurDir()}/config/`);

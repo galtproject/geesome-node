@@ -1,18 +1,18 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
-import commonHelper from "geesome-libs/src/common";
-import geesomeMessages from "geesome-libs/src/messages";
-import {CorePermissionName, IInvite, IListParams} from "../database/interface";
-import {IGeesomeApp, IUserInput} from "../../interface";
-import IGeesomeInviteModule from "./interface";
+import commonHelper from "geesome-libs/src/common.js";
+import geesomeMessages from "geesome-libs/src/messages.js";
+import {CorePermissionName, IInvite, IListParams} from "../database/interface.js";
+import {IGeesomeApp, IUserInput} from "../../interface.js";
+import IGeesomeInviteModule from "./interface.js";
 const {isUndefined, pick} = _;
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group']);
 
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await (await import('./models')).default(sequelize, models));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

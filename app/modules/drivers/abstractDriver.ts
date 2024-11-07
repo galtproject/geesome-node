@@ -8,8 +8,8 @@
  */
 
 import fs from "fs";
-import uuid from 'uuid';
-import {DriverInput, IDriver, OutputSize} from "./interface";
+import * as uuid from 'uuid';
+import {DriverInput, IDriver, OutputSize} from "./interface.js";
 const {v4: uuidv4} = uuid;
 
 export default class AbstractDriver implements IDriver {

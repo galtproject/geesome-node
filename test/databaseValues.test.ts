@@ -7,9 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeDatabaseModule} from "../app/modules/database/interface";
-
 import assert from "assert";
+import {IGeesomeDatabaseModule} from "../app/modules/database/interface.js";
 
 describe("databaseValues", function () {
 	const databaseConfig = {name: 'geesome_test', options: {logging: true, dialect: 'sqlite', storage: 'database-test.sqlite'}};
@@ -17,7 +16,7 @@ describe("databaseValues", function () {
 	let database: IGeesomeDatabaseModule;
 
 	before(async () => {
-		database = await (await import('../app/modules/database')).default({config: {databaseConfig}} as any);
+		database = await (await import('../app/modules/database/index.js')).default({config: {databaseConfig}} as any);
 		await database.flushDatabase();
 	});
 

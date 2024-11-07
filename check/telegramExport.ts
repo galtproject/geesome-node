@@ -7,10 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-  CorePermissionName,
-} from "../app/modules/database/interface";
+import appConfig from '../app/config.js';
+import GeesomeApp from "../app/index.js";
+import {IGeesomeApp} from "../app/interface.js";
+import {CorePermissionName,} from "../app/modules/database/interface.js";
+import TelegramClient from "../app/modules/telegramClient/index.js";
 
 // const ipfsHelper = require("geesome-libs/src/ipfsHelper");
 // import assert from "assert";
@@ -19,13 +20,12 @@ import {
 
 (async () => {
   const databaseConfig = {name: 'geesome_test', options: {logging: () => {}}};
-  const appConfig = (await import('../app/config')).default;
   appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
   let app: IGeesomeApp;
   let group, user;
 
   try {
-    app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+    app = await GeesomeApp({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 
     await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
     user = await app.registerUser({email: 'user@user.com', name: 'user', password: 'user', permissions: [CorePermissionName.UserAll]});
@@ -41,7 +41,7 @@ import {
     // })
   }
 
-  const telegram = await (await import('../app/modules/telegramClient')).default(app);
+  const telegram = await TelegramClient(app);
 
   // const {client, result: channelInfo} = await telegram.getChannelInfoByUserId(2, 'inside_microwave'); //1,2,3,4,5,
   // const {result: file} = await telegram.downloadMediaByClient(client, { photo: channelInfo.fullChat.chatPhoto });
@@ -147,7 +147,7 @@ import {
   //   }
   // });
 
-  const ssg = await (await import('../app/modules/staticSiteGenerator')).default(app);
+  const ssg = await (await import('../app/modules/staticSiteGenerator/index.js')).default(app);
   await ssg.generateGroupSite(1, 'group', 2);
 
   // await app.database.flushDatabase();

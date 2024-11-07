@@ -1,6 +1,6 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeForeignAccountsModule from "./interface";
-import {CorePermissionName} from "../database/interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeForeignAccountsModule from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
 
 export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccountsModule) => {
 	app.ms.api.onAuthorizedPost('user/set-account', async (req, res) => {

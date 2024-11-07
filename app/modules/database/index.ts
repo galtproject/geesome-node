@@ -13,8 +13,8 @@ import pIteration from 'p-iteration';
 import {Sequelize, Op} from "sequelize";
 import expressSession from 'express-session';
 import expressSessionSequelize from 'express-session-sequelize';
-import {IGeesomeApp} from "../../interface";
-import config from './config';
+import {IGeesomeApp} from "../../interface.js";
+import config from './config.js';
 import {
   IContent,
   IGeesomeDatabaseModule,
@@ -23,7 +23,7 @@ import {
   IUser,
   IUserApiKey,
   IUserLimit
-} from "./interface";
+} from "./interface.js";
 const {merge, isUndefined} = _;
 const SessionStore = expressSessionSequelize(expressSession.Store);
 
@@ -35,7 +35,7 @@ export default async function (app: IGeesomeApp) {
   let models, sequelize;
   try {
     sequelize = new Sequelize(resConfig);
-    models = await (await import('./models')).default(sequelize);
+    models = await (await import('./models.js')).default(sequelize);
   } catch (e) {
     throw e;
   }

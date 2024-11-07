@@ -1,15 +1,15 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeGatewayModule from "./interface";
-import helpers from "./helpers";
+import morgan from 'morgan';
 import express from 'express';
 import bodyParser from 'body-parser';
 import bearerToken from 'express-bearer-token';
-import morgan from 'morgan';
+import IGeesomeGatewayModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import helpers from "./helpers.js";
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['api']);
 	const module = await getModule(app, process.env.GATEWAY_PORT || 2082);
-	(await import('./api')).default(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

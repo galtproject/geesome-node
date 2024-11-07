@@ -10,18 +10,18 @@
 export default async function (sequelize) {
   const models: any = {};
 
-  models.User = await (await import('./user')).default(sequelize, models);
-  models.UserApiKey = await (await import('./userApiKey')).default(sequelize, models);
+  models.User = await (await import('./user.js')).default(sequelize, models);
+  models.UserApiKey = await (await import('./userApiKey.js')).default(sequelize, models);
 
-  models.CorePermission = await (await import('./corePermission')).default(sequelize, models);
+  models.CorePermission = await (await import('./corePermission.js')).default(sequelize, models);
 
-  models.Content = await (await import('./content')).default(sequelize, models);
-  models.Object = await (await import('./object')).default(sequelize, models);
+  models.Content = await (await import('./content.js')).default(sequelize, models);
+  models.Object = await (await import('./object.js')).default(sequelize, models);
 
-  models.UserContentAction = await (await import('./userContentAction')).default(sequelize, models);
-  models.UserLimit = await (await import('./userLimit')).default(sequelize, models);
+  models.UserContentAction = await (await import('./userContentAction.js')).default(sequelize, models);
+  models.UserLimit = await (await import('./userLimit.js')).default(sequelize, models);
 
-  models.Value = await (await import('./value')).default(sequelize, models);
+  models.Value = await (await import('./value.js')).default(sequelize, models);
 
   return models;
 };

@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeGroupCategoryModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeGroupCategoryModule from "./interface.js";
 
 export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModule) => {
 

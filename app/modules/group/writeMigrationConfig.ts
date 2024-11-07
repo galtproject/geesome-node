@@ -8,8 +8,8 @@
  */
 
 import fs from "fs";
-import config from '../database/config';
-import helpers from "../../helpers";
+import config from '../database/config.js';
+import helpers from "../../helpers.js";
 
 if (!fs.existsSync(`${helpers.getCurDir()}/config/`)) {
   fs.mkdirSync(`${helpers.getCurDir()}/config/`);

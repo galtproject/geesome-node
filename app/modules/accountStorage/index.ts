@@ -1,11 +1,11 @@
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
-import peerIdHelper from "geesome-libs/src/peerIdHelper";
-import IGeesomeAccountStorageModule, {IStaticIdAccount} from "./interface";
-import {IGeesomeApp} from "../../interface";
+import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
+import IGeesomeAccountStorageModule, {IStaticIdAccount} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
 export default async (app: IGeesomeApp, options: any = {}) => {
-	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize), options.pass || app.config.storageConfig.jsNode.pass);
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize), options.pass || app.config.storageConfig.jsNode.pass);
 	// (await import('./api')).default(app, module);
 	return module;
 }

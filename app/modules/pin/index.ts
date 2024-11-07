@@ -1,13 +1,13 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomePinModule, {IPinAccount} from "./interface";
-import pIteration from 'p-iteration';
 import axios from "axios";
+import pIteration from 'p-iteration';
+import IGeesomePinModule, {IPinAccount} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['group', 'content', 'storage']);
 
-	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

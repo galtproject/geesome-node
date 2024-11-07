@@ -1,4 +1,4 @@
-import {IGeesomeApp} from "../../interface";
+import {IGeesomeApp} from "../../interface.js";
 // import { Fluence } from '@fluencelabs/js-client.api';
 // const { testNet } = require('@fluencelabs/fluence-network-environment');
 

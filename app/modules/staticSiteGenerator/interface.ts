@@ -1,4 +1,4 @@
-import {IUserOperationQueue} from "../asyncOperation/interface";
+import {IUserOperationQueue} from "../asyncOperation/interface.js";
 
 export default interface IGeesomeStaticSiteGeneratorModule {
 	moduleName: string;
@@ -20,7 +20,7 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
 
-	generateGroupSite(userId, entityType, entityId, options: any = {}): Promise<string>;
+	generateGroupSite(userId, entityType, entityId, options?: any): Promise<string>;
 }
 
 export interface IStaticSite {

@@ -7,8 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../../interface";
-import JsIpfsServiceNodePass from "geesome-libs/src/JsIpfsServiceNodePass";
+import {IGeesomeApp} from "../../interface.js";
+import JsIpfsServiceNodePass from "geesome-libs/src/JsIpfsServiceNodePass.js";
 
 export default async (app: IGeesomeApp) => {
   const { createHelia } = (await import("helia")).default;

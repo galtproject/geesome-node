@@ -1,23 +1,23 @@
+import _ from 'lodash';
 import debug from 'debug';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
-import commonHelper from "geesome-libs/src/common";
-import pgpHelper from "geesome-libs/src/pgpHelper";
-import ipfsHelper from "geesome-libs/src/ipfsHelper";
-import peerIdHelper from "geesome-libs/src/peerIdHelper";
-import _ from 'lodash';
-import {ContentView, CorePermissionName, GroupPermissionName, IContent, IListParams} from "../database/interface";
-import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface";
-import {IGeesomeApp} from "../../interface";
-import helpers from '../../helpers';
+import commonHelper from "geesome-libs/src/common.js";
+import pgpHelper from "geesome-libs/src/pgpHelper.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
+import {ContentView, CorePermissionName, GroupPermissionName, IContent, IListParams} from "../database/interface.js";
+import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import helpers from '../../helpers.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await (await import('./models')).default(sequelize, models));
-	(await import('./api')).default(app, module);
+	const module = getModule(app, await (await import('./models/index.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 

@@ -1,5 +1,5 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomePinModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomePinModule from "./interface.js";
 
 export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
     app.ms.api.onAuthorizedPost('user/pin/create-account', async (req, res) => {

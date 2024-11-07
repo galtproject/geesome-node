@@ -7,8 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
 let youtubedl;
 
 export class YoutubeThumbnailPreviewDriver extends AbstractDriver {
