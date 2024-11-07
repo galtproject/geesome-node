@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeTelegramClient from "./interface";
 
-module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient) => {
+export default (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient) => {
 	const api = app.ms.api.prefix('soc-net/telegram/');
 
 	api.onAuthorizedPost('login', async (req, res) => {
@@ -18,7 +18,7 @@ module.exports = (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient
 		const user = await wrapApiResult(telegramClientModule.getMeByUserId(req.user.id, req.body.accountData));
 		const username = user['username'];
 		const fullName = res.user['firstName'] + ' ' + res.user['lastName'];
-		return res.send(await telegramClientModule.createOrUpdateAccount({...req.body.accountData, userId: req.user.id, username, fullName}), 200);
+		return res.send(await telegramClientModule.createOrUpdateAccount(req.user.id, {...req.body.accountData, userId: req.user.id, username, fullName}), 200);
 	});
 	api.onAuthorizedPost('channels', async (req, res) => {
 		return res.send(await wrapApiResult(telegramClientModule.getUserChannelsByUserId(req.user.id, req.body.accountData)), 200);

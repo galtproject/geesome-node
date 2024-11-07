@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeCommunicatorModule from "./interface";
 
-module.exports = (app: IGeesomeApp, communicatorModule: IGeesomeCommunicatorModule) => {
+export default (app: IGeesomeApp, communicatorModule: IGeesomeCommunicatorModule) => {
 	if (!app.ms.api) {
 		return;
 	}

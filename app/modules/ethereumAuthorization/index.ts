@@ -1,107 +1,108 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeEthereumAuthorizationModule from "./interface";
+import commonHelper from "geesome-libs/src/common";
+import geesomeMessages from "geesome-libs/src/messages";
+import ethereumAuthorization from "geesome-libs/src/ethereum";
 import IGeesomeForeignAccountsModule from "../foreignAccounts/interface";
+import IGeesomeEthereumAuthorizationModule from "./interface";
 import {CorePermissionName} from "../database/interface";
+import {IGeesomeApp} from "../../interface";
 
-module.exports = async (app: IGeesomeApp) => {
-	const ethereumAuthorization = (await import("geesome-libs/src/ethereum.js")).default;
-	const commonHelper = (await import("geesome-libs/src/common.js")).default;
-	const geesomeMessages = (await import("geesome-libs/src/messages.js")).default;
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	require('./api')(app, module);
+	(await import('./api')).default(app, module);
 	return module;
-	function getModule(app: IGeesomeApp) {
-		app.checkModules(['database', 'foreignAccounts']);
+}
 
-		const foreignAccounts = app.ms['foreignAccounts'] as IGeesomeForeignAccountsModule;
+function getModule(app: IGeesomeApp) {
+	app.checkModules(['database', 'foreignAccounts']);
 
-		class EthereumAuthorizationModule implements IGeesomeEthereumAuthorizationModule {
+	const foreignAccounts = app.ms['foreignAccounts'] as IGeesomeForeignAccountsModule;
 
-			async generateUserAccountAuthMessage(accountProvider, accountAddress) {
-				const userAccount = await foreignAccounts.getUserAccountByAddress(accountProvider, accountAddress);
-				if (!userAccount) {
-					throw new Error("not_found");
-				}
-				const authMessage = await foreignAccounts.createAuthMessage({
-					provider: accountProvider,
-					address: accountAddress,
-					userAccountId: userAccount.id,
-					message: await this.getAuthorizationMessage(commonHelper.makeCode(16))
-				});
+	class EthereumAuthorizationModule implements IGeesomeEthereumAuthorizationModule {
 
-				delete authMessage.userAccountId;
-
-				return authMessage;
+		async generateUserAccountAuthMessage(accountProvider, accountAddress) {
+			const userAccount = await foreignAccounts.getUserAccountByAddress(accountProvider, accountAddress);
+			if (!userAccount) {
+				throw new Error("not_found");
 			}
+			const authMessage = await foreignAccounts.createAuthMessage({
+				provider: accountProvider,
+				address: accountAddress,
+				userAccountId: userAccount.id,
+				message: await this.getAuthorizationMessage(commonHelper.makeCode(16))
+			});
 
-			async loginAuthMessage(authMessageId, address, signature, params: any = {}) {
-				if (!address) {
-					throw new Error("not_valid");
-				}
+			delete authMessage.userAccountId;
 
-				const authMessage = await foreignAccounts.getAuthMessage(authMessageId);
-				if (!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
-					throw new Error("not_valid");
-				}
-
-				const userAccount = await foreignAccounts.getUserAccount(authMessage.userAccountId);
-				if (!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
-					throw new Error("not_valid");
-				}
-
-				const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
-				if (!isValid) {
-					throw new Error("not_valid");
-				}
-
-				return await app.ms.database.getUser(userAccount.userId);
-			}
-
-			async getAuthorizationMessage(code) {
-				const selfIpnsId = await app.ms.staticId.getSelfStaticAccountId();
-				return geesomeMessages.login(selfIpnsId, code);
-			}
-
-			getForeignAccountAuthorizationProvider() {
-				return 'ethereum';
-			}
-
-			async beforeUserRegistering(userId: number, userData: any, metaData: any) {
-				if (userId && await app.isAdminCan(userId, CorePermissionName.AdminAddUser)) {
-					return; // skip signature check
-				}
-
-				if (!userData.foreignAccounts) {
-					return;
-				}
-				userData.foreignAccounts.forEach(acc => {
-					if (acc.provider !== this.getForeignAccountAuthorizationProvider()) {
-						return;
-					}
-					if (!acc.signature) {
-						throw new Error("signature_required");
-					}
-					if (metaData.checkMessage) {
-						const isValid = ethereumAuthorization.isSignatureValid(
-							acc.address,
-							acc.signature,
-							metaData.checkMessage,
-							'message'
-						);
-						if (!isValid) {
-							this.throwError('account_signature_not_valid');
-						}
-					} else {
-						this.throwError('unknown_metadata');
-					}
-				});
-			}
-
-			throwError(message) {
-				throw Error('ethereumAuthorization:' + message);
-			}
+			return authMessage;
 		}
 
-		return new EthereumAuthorizationModule();
+		async loginAuthMessage(authMessageId, address, signature, params: any = {}) {
+			if (!address) {
+				throw new Error("not_valid");
+			}
+
+			const authMessage = await foreignAccounts.getAuthMessage(authMessageId);
+			if (!authMessage || authMessage.address.toLowerCase() != address.toLowerCase()) {
+				throw new Error("not_valid");
+			}
+
+			const userAccount = await foreignAccounts.getUserAccount(authMessage.userAccountId);
+			if (!userAccount || userAccount.address.toLowerCase() != address.toLowerCase()) {
+				throw new Error("not_valid");
+			}
+
+			const isValid = ethereumAuthorization.isSignatureValid(address, signature, authMessage.message, params.fieldName);
+			if (!isValid) {
+				throw new Error("not_valid");
+			}
+
+			return await app.ms.database.getUser(userAccount.userId);
+		}
+
+		async getAuthorizationMessage(code) {
+			const selfIpnsId = await app.ms.staticId.getSelfStaticAccountId();
+			return geesomeMessages.login(selfIpnsId, code);
+		}
+
+		getForeignAccountAuthorizationProvider() {
+			return 'ethereum';
+		}
+
+		async beforeUserRegistering(userId: number, userData: any, metaData: any) {
+			if (userId && await app.isAdminCan(userId, CorePermissionName.AdminAddUser)) {
+				return; // skip signature check
+			}
+
+			if (!userData.foreignAccounts) {
+				return;
+			}
+			userData.foreignAccounts.forEach(acc => {
+				if (acc.provider !== this.getForeignAccountAuthorizationProvider()) {
+					return;
+				}
+				if (!acc.signature) {
+					throw new Error("signature_required");
+				}
+				if (metaData.checkMessage) {
+					const isValid = ethereumAuthorization.isSignatureValid(
+						acc.address,
+						acc.signature,
+						metaData.checkMessage,
+						'message'
+					);
+					if (!isValid) {
+						this.throwError('account_signature_not_valid');
+					}
+				} else {
+					this.throwError('unknown_metadata');
+				}
+			});
+		}
+
+		throwError(message) {
+			throw Error('ethereumAuthorization:' + message);
+		}
 	}
+
+	return new EthereumAuthorizationModule();
 }

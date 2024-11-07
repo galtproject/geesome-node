@@ -7,19 +7,15 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeAutoActionsModule, {IAutoAction} from "../app/modules/autoActions/interface";
-import {PostStatus} from "../app/modules/group/interface";
-import CronService from "../app/modules/autoActions/cronService";
-
-const assert = require('assert');
+import assert from 'assert';
+import IGeesomeAutoActionsModule, {IAutoAction} from "../app/modules/autoActions/interface.js";
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import CronService from "../app/modules/autoActions/cronService.js";
+import {PostStatus} from "../app/modules/group/interface.js";
+import commonHelper from "geesome-libs/src/common.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("autoActions", function () {
-	let commonHelpers;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -32,23 +28,11 @@ describe("autoActions", function () {
 	let admin, app: IGeesomeApp, autoActions: IGeesomeAutoActionsModule;
 
 	beforeEach(async () => {
-		commonHelpers = (await import("geesome-libs/src/common.js")).default;
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -103,7 +87,7 @@ describe("autoActions", function () {
 				position: 1,
 				totalExecuteAttempts: 3,
 				currentExecuteAttempts: 3,
-				executeOn: runPeriod ? commonHelpers.moveDate(runPeriod, 'second') : null
+				executeOn: runPeriod ? commonHelper.moveDate(runPeriod, 'second') : null
 			} as IAutoAction;
 		}
 

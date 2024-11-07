@@ -15,7 +15,7 @@ const modulePacks = {
 };
 
 //TODO: refactor modules config
-module.exports = {
+export default {
   databaseModule: 'sql',
   databaseConfig: {
 

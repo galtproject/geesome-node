@@ -6,35 +6,31 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-foreign-accounts', 'geesome', 'geesome', require('./config').options);
-
+export default async function (sequelize: Sequelize) {
 	const ForeignAccount = sequelize.define('foreignAccount', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		title: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		},
 		provider: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		type: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		address: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		description: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		},
 		signature: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		}
 	} as any, {
 		indexes: [
@@ -50,13 +46,13 @@ module.exports = async function () {
 	const AuthMessage = sequelize.define('authMessage', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		provider: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		address: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		message: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		}
 	} as any, {
 		indexes: [

@@ -14,12 +14,11 @@ import {
 } from "../app/modules/database/interface";
 import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface";
 import {IGroup, PostStatus} from "../app/modules/group/interface";
-
-const {getTitleAndDescription} = require('../app/modules/staticSiteGenerator/helpers');
-
-const assert = require('assert');
-const resourcesHelper = require('./helpers/resources');
-const fs = require('fs');
+import assert from "assert";
+import resourcesHelper from './helpers/resources';
+import fs from "fs";
+import ssgHelpers from '../app/modules/staticSiteGenerator/helpers';
+const {getTitleAndDescription} = ssgHelpers;
 
 describe("staticSiteGenerator", function () {
 	const databaseConfig = {
@@ -34,22 +33,11 @@ describe("staticSiteGenerator", function () {
 	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule, testUser: IUser, testGroup: IGroup;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});

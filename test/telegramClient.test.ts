@@ -7,23 +7,19 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
-import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
-import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
-import {TelegramImportClient} from "../app/modules/telegramClient/importClient";
-
-const pIteration = require('p-iteration');
-const clone = require('lodash/clone');
-
-const telegramHelpers = require('../app/modules/telegramClient/helpers');
-
-const assert = require('assert');
-const helpers = require('../app/helpers');
+import _ from 'lodash';
+import assert from "assert";
+import pIteration from 'p-iteration';
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {TelegramImportClient} from "../app/modules/telegramClient/importClient.js";
+import IGeesomeTelegramClient from "../app/modules/telegramClient/interface.js";
+import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../app/modules/socNetImport/interface.js";
+import telegramHelpers from '../app/modules/telegramClient/helpers.js';
+import {IGeesomeApp} from "../app/interface.js";
+import helpers from '../app/helpers.js';
+import {IPost} from "../app/modules/group/interface.js";
+const {clone} = _;
 
 describe("telegramClient", function () {
 	const databaseConfig = {
@@ -39,22 +35,11 @@ describe("telegramClient", function () {
 		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -898,7 +883,7 @@ describe("telegramClient", function () {
 				repostContents: ['test reply']
 			},
 		}
-		await pIteration.mapSeries(groupPosts, async (gp) => {
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
@@ -984,7 +969,7 @@ describe("telegramClient", function () {
 			11: {groupedMsgIds: undefined, contents: ['test 3'], replyToMsgId: 8},
 			12: {groupedMsgIds: undefined, contents: ['test 4']}
 		}
-		await pIteration.mapSeries(groupPosts, async (gp) => {
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
@@ -1091,7 +1076,7 @@ describe("telegramClient", function () {
 				repostContents: ['Reply from private channel']
 			},
 		}
-		await pIteration.mapSeries(groupPosts, async (gp) => {
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
 			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
 			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));

@@ -1,8 +1,9 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeStaticIdModule from "./interface";
-const _ = require('lodash');
+import _ from 'lodash';
+const {trim} = _;
 
-module.exports = (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
+export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
 
     app.ms.api.onGet('self-account-id', async (req, res) => {
         res.send({ result: await staticIdModule.getSelfStaticAccountId() }, 200);
@@ -10,14 +11,14 @@ module.exports = (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
 
     app.ms.api.onUnversionGet('/ipns/*', async (req, res) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
-        const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
+        const ipnsId = trim(ipnsPath, '/').split('/').slice(0, 1)[0];
         const ipfsId = await staticIdModule.resolveStaticId(ipnsId);
         app.ms.content.getFileStreamForApiRequest(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
     });
 
     app.ms.api.onUnversionHead('/ipns/*', async (req, res) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
-        const ipnsId = _.trim(ipnsPath, '/').split('/').slice(0, 1)[0];
+        const ipnsId = trim(ipnsPath, '/').split('/').slice(0, 1)[0];
         const ipfsId = await staticIdModule.resolveStaticId(ipnsId);
         app.ms.content.getContentHead(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
     });

@@ -1,45 +1,38 @@
+import _ from 'lodash';
+import morgan from 'morgan';
+import express from 'express';
+import bodyParser from 'body-parser';
+import bearerToken from 'express-bearer-token';
 import {IGeesomeApp} from "../../interface";
+import {IUser} from "../database/interface";
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
 	IApiModuleGetInput,
 	IApiModulePotInput
 } from "./interface";
-import {IUser} from "../database/interface";
+const {trimStart} = _;
 
-const _ = require('lodash');
-
-module.exports = async (app: IGeesomeApp, options: any = {}) => {
+export default async (app: IGeesomeApp, options: any = {}) => {
 	const module = await getModule(app, 'v1', process.env.PORT || app.config.port || 2052);
-	require('./api')(app, module);
+	(await import('./api')).default(app, module);
 	return module;
 }
 
 async function getModule(app: IGeesomeApp, version, port) {
-	const bodyParser = require('body-parser');
-	const bearerToken = require('express-bearer-token');
-
-	const service = require('restana')({
-		ignoreTrailingSlash: true,
-		maxParamLength: 2000,
-		errorHandler(err, req, res) {
-			console.log(`Something was wrong: ${err.message || err}`, err)
-			res.send(err)
-		}
-	});
+	const service = express();
 
 	const maxBodySizeMb = 2000;
-
+	service.use(express.static('frontend/dist'));
 	service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
 	service.use(bodyParser.urlencoded({extended: true}));
 	service.use(bearerToken());
-
-	service.use(require('morgan')('combined'));
+	service.use(morgan('combined'));
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);
 
 		req.query = {};
-		if (_.includes(req.url, '?')) {
+		if (req.url.includes('?')) {
 			const searchParams: any = new URLSearchParams(req.url.split('?')[1]);
 			const keys = searchParams.keys();
 			for (let key = keys.next(); key.done !== true; key = keys.next()) {
@@ -48,9 +41,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 		}
 		res.redirect = (url) => {
 			//https://github.com/jkyberneees/ana/issues/16
-			res.send('', 301, {
-				Location: encodeURI(url)
-			});
+			res.status(301).location(encodeURI(url)).send('');
 		};
 
 		next();
@@ -65,7 +56,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 		res.send(200);
 	});
 
-	await service.start(port);
+	const server = await service.listen(port);
 
 	function setHeaders(res) {
 		res.setHeader('Strict-Transport-Security', 'max-age=0');
@@ -95,27 +86,27 @@ async function getModule(app: IGeesomeApp, version, port) {
 		}
 
 		onGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
-			routeName = _.trimStart(routeName, '/');
+			routeName = trimStart(routeName, '/');
 			service.get(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onUnversionGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
-			routeName = _.trimStart(routeName, '/');
+			routeName = trimStart(routeName, '/');
 			service.get(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
-			routeName = _.trimStart(routeName, '/');
+			routeName = trimStart(routeName, '/');
 			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
-			routeName = _.trimStart(routeName, '/');
+			routeName = trimStart(routeName, '/');
 			service.head(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onUnversionHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
-			routeName = _.trimStart(routeName, '/');
+			routeName = trimStart(routeName, '/');
 			service.head(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
@@ -188,11 +179,13 @@ async function getModule(app: IGeesomeApp, version, port) {
 		}
 
 		stop(): any {
-			return service.close().catch(e => {
-				if (!_.includes(e.message, 'Server is not running')) {
+			try {
+				server.close();
+			} catch (e) {
+				if (!e.message.includes('Server is not running')) {
 					throw e;
 				}
-			});
+			}
 		}
 
 		reqToModuleInput(req) {

@@ -8,11 +8,10 @@
  */
 
 import {IGeesomeApp} from "../../interface";
+import JsIpfsServiceNode from "geesome-libs/src/JsIpfsServiceNode";
+import { create } from 'kubo-rpc-client';
 
-
-module.exports = async (app: IGeesomeApp) => {
-  const JsIpfsServiceNode = (await import("geesome-libs/src/JsIpfsServiceNode.js")).default;
-  const { create } = (await import('kubo-rpc-client'));
+export default async (app: IGeesomeApp) => {
   console.log('ipfs-http-client create', app.config.storageConfig.goNode);
   const node = create(app.config.storageConfig.goNode);
   console.log('🎁 IPFS node have connected, profile:', process.env.IPFS_PROFILE);

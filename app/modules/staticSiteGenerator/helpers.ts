@@ -7,18 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const {
-    readdirSync,
-    rmdirSync,
-    unlinkSync,
-    statSync,
-} = require('fs');
-const { join } = require('path');
-// const fetch = require('node-fetch');
-
-const includes = require('lodash/includes');
-const trim = require('lodash/trim');
-const cheerio = require('cheerio');
+import _ from 'lodash';
+import { join } from 'path';
+import {load as cheerioLoad} from 'cheerio';
+import {readdirSync, rmdirSync, unlinkSync, statSync} from 'fs';
+const {trim} = _;
 
 const isDir = path => {
     try {
@@ -42,7 +35,7 @@ const rmDir = path => {
     try {
         getDirectories(path).map(dir => rmDir(dir));
     } catch (e) {
-        if (includes(e.message, 'ENOENT')) {
+        if (e.message.includes('ENOENT')) {
             return;
         } else {
             throw e;
@@ -209,7 +202,7 @@ function getOgHeaders(siteName, lang, title, description, imageUrl) {
 
 function fixHtml(html) {
     html = trim(html, " ").replace(/<\/?br\/?>/g, '<br/>').replace(/^(<\/?br\/?>)+|(<\/?br\/?>)+$/g, '');
-    html = cheerio.load(html, { xmlMode: true, decodeEntities: false }).html();
+    html = cheerioLoad(html, { xmlMode: true, decodeEntities: false }).html();
     return trim(html, " ");
 }
 
@@ -225,4 +218,4 @@ function fixHtml(html) {
 //     }).then(r => r.json());
 // }
 
-module.exports = { rmDir, getTitleAndDescription, getPostTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml };
+export default { rmDir, getTitleAndDescription, getPostTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml };

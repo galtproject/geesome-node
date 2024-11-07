@@ -8,10 +8,10 @@
  */
 
 import {IGeesomeApp} from "../../interface";
+import JsIpfsServiceNodePass from "geesome-libs/src/JsIpfsServiceNodePass";
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
   const { createHelia } = (await import("helia")).default;
-  const JsIpfsServiceNodePass = (await import("geesome-libs/src/JsIpfsServiceNodePass.js")).default;
   while (true) {
     try {
       const helia = await createHelia({});

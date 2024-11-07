@@ -8,12 +8,9 @@
  */
 
 import {DriverInput, OutputSize} from "../interface";
-
 import AbstractDriver from "../abstractDriver";
-
-const ffmpeg = require('fluent-ffmpeg');
-const _ = require('lodash');
-const stream = require('stream');
+import ffmpeg from 'fluent-ffmpeg';
+import stream from 'stream';
 
 export class VideoThumbnail extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

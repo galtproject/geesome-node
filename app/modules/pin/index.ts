@@ -1,14 +1,13 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomePinModule, {IPinAccount} from "./interface";
-const pIteration = require("p-iteration");
-const axios = require('axios');
-const _ = require('lodash');
+import pIteration from 'p-iteration';
+import axios from "axios";
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['group', 'content', 'storage']);
 
-	const module = getModule(app, await require('./models')());
-	require('./api')(app, module);
+	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize));
+	(await import('./api')).default(app, module);
 	return module;
 }
 
@@ -113,7 +112,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async isAutoActionAllowed(userId, funcName, funcArgs) {
-			return _.includes(['pinByUserAccount', 'pinByGroupAccount'], funcName);
+			return ['pinByUserAccount', 'pinByGroupAccount'].includes(funcName);
 		}
 	}
 

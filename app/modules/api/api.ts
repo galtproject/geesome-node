@@ -1,10 +1,11 @@
 import IGeesomeApiModule from "./interface";
 import {CorePermissionName} from "../database/interface";
 import {IGeesomeApp} from "../../interface";
-const request = require('request');
-const _ = require('lodash');
+import request from 'request';
+import _ from 'lodash';
+const {isNumber} = _;
 
-module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
+export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	//TODO: move to core module
 
 	// v1 route
@@ -192,7 +193,7 @@ module.exports = (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		module.setStorageHeaders(res);
 		const ipldPath = req.route.replace('/ipld/', '');
 		app.getDataStructure(ipldPath, req.query.isResolve).then(result => {
-			res.send(_.isNumber(result) ? result.toString() : result);
+			res.send(isNumber(result) ? result.toString() : result);
 		}).catch(() => {
 			res.send(null, 200)
 		});

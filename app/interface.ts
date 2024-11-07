@@ -101,7 +101,7 @@ export interface IGeesomeApp {
 
   // getPreviewContentData()
 
-  callHook(callFromModule, name, args): Promise<void>;
+  callHook(callFromModule, name, args): Promise<any>;
 
   //TODO: define interface
   getPeers(topic): Promise<any>;

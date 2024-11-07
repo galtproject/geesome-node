@@ -296,6 +296,7 @@ export interface IPost {
 
 	createdAt;
 	updatedAt;
+	update?(data: any);
 }
 
 export enum PostStatus {

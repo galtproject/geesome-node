@@ -6,11 +6,12 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+import {Sequelize} from 'sequelize';
 
-module.exports = async function (sequelize, appModels) {
+export default async function (sequelize: Sequelize, appModels) {
 
-  appModels.GroupCategory = await require('./groupCategory')(sequelize, appModels);
-  appModels.GroupSection = await require('./groupSection')(sequelize, appModels);
+  appModels.GroupCategory = await (await import('./groupCategory')).default(sequelize, appModels);
+  appModels.GroupSection = await (await import('./groupSection')).default(sequelize, appModels);
 
   return appModels;
 };

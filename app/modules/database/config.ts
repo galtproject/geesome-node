@@ -6,9 +6,10 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-const log = require('debug')('geesome:database');
+import debug from 'debug';
+const log = debug('geesome:database');
 
-module.exports = {
+export default {
   'dialect': 'postgres',
   'database': process.env.DATABASE_NAME || 'geesome_node',
   'username': process.env.DATABASE_USER || 'geesome',

@@ -9,13 +9,12 @@
 
 import {DriverInput, OutputSize} from "../interface";
 import AbstractDriver from "../abstractDriver";
-
-const stream = require('stream');
-
-const ffmpeg = require('fluent-ffmpeg');
-const fs = require('fs');
-const uuidv4 = require('uuid/v4');
-const mediainfo = require('node-mediainfo');
+import stream from 'stream';
+import ffmpeg from 'fluent-ffmpeg';
+import fs from "fs";
+import uuid from 'uuid';
+import mediainfo from 'node-mediainfo';
+const {v4: uuidv4} = uuid;
 
 export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -62,7 +61,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
       done();
     };
 
-    new ffmpeg(path)
+    (new (ffmpeg as any)(path))
       .inputFormat(options.extension)
       .outputOptions("-movflags faststart+frag_keyframe+empty_moov")
       .output(transformStream)

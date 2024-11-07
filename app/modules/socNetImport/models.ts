@@ -6,32 +6,29 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-soc-net-import', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const Channel = sequelize.define('socNetImport_channel', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		accountId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		socNet: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		groupId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		channelId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		title: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 	} as any, {
 		indexes: [
@@ -43,28 +40,28 @@ module.exports = async function () {
 	const Message = sequelize.define('socNetImport_message', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		groupedId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		msgId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		replyToMsgId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		repostOfMsgId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		postId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		timestamp: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		isNeedToReverse: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 	} as any, {
 		indexes: [
@@ -77,16 +74,16 @@ module.exports = async function () {
 	const ContentMessage = sequelize.define('socNetImport_contentMessage', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		groupedId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		msgId: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		dbContentId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 	} as any, {
 		indexes: [

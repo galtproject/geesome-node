@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeEthereumAuthorizationModule from "./interface";
 
-module.exports = (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumAuthorizationModule) => {
+export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumAuthorizationModule) => {
 	/**
 	 * @api {post} /v1/generate-auth-message Generate auth message
 	 * @apiDescription Auth messages is used to sign by account address (Ethereum for example). You have to use private key of account address to sign the message and send result to /v1/login/auth-message.

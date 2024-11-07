@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeInviteModule from "./interface";
 
-module.exports = (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
+export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
 
     app.ms.api.onPost('invite/join/:code', async (req, res) => {
         res.send(await inviteModule.registerUserByInviteCode(req.params.code, req.body));

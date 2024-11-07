@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeGroupCategoryModule from "./interface";
 
-module.exports = (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModule) => {
+export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModule) => {
 
     app.ms.api.onPost('category/get', async (req, res) => {
         res.send(await groupCategoryModule.getCategoryByParams(req.body), 200);

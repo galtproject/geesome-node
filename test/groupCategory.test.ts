@@ -7,20 +7,14 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-	GroupPermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeGroupCategoryModule from "../app/modules/groupCategory/interface";
-import {PostStatus} from "../app/modules/group/interface";
-
-const assert = require('assert');
-const _ = require('lodash');
+import assert from 'assert';
+import trieHelper from "geesome-libs/src/base36Trie.js";
+import {ContentView, CorePermissionName, GroupPermissionName,} from "../app/modules/database/interface.js";
+import IGeesomeGroupCategoryModule from "../app/modules/groupCategory/interface.js";
+import {PostStatus} from "../app/modules/group/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("groupCategory", function () {
-	let trieHelper;
 	const databaseConfig = {
 		name: 'geesome_test', options: {
 			logging: () => {
@@ -33,23 +27,11 @@ describe("groupCategory", function () {
 	let admin, app: IGeesomeApp, groupCategory: IGeesomeGroupCategoryModule;
 
 	beforeEach(async () => {
-		trieHelper = (await import("geesome-libs/src/base36Trie.js")).default;
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -119,25 +101,25 @@ describe("groupCategory", function () {
 			});
 			assert(false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 		try {
 			await app.ms.group.addMemberToGroup(newUser.id, testGroup.id, newUser.id);
 			assert(false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 		try {
 			await groupCategory.addMemberToCategory(newUser.id, category.id, newUser.id);
 			assert(false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 		try {
 			await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title'});
 			assert(false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		assert.equal(await app.ms.group.isMemberInGroup(newUser.id, testGroup.id), false);
@@ -203,7 +185,7 @@ describe("groupCategory", function () {
 			await app.ms.group.addMemberToGroup(newUser.id, testGroup.id, newUser2.id);
 			assert(false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title', name: 'newGroupName'});
@@ -218,7 +200,7 @@ describe("groupCategory", function () {
 			await app.ms.group.updateGroup(newUser2.id, testGroup.id, {title: 'new title 2'});
 			assert(false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		group = await app.ms.group.getLocalGroup(newUser.id, testGroup.id);
@@ -244,7 +226,7 @@ describe("groupCategory", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		try {
@@ -254,7 +236,7 @@ describe("groupCategory", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "Validation error"), true);
+			assert.equal(e.toString().includes("Validation error"), true);
 		}
 
 		const foundGroup2 = await app.ms.group.getGroupByParams({
@@ -315,7 +297,7 @@ describe("groupCategory", function () {
 			await app.ms.group.updateGroup(newUser.id, testGroup.id, {title: 'new title 2'});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 	});
 
@@ -348,7 +330,7 @@ describe("groupCategory", function () {
 			await groupCategory.updateGroupSection(newUser.id, groupSection1.id, {title: 'Test2 changed 2'});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		console.log('app.ms.group.updateGroupSection(testUser.id, groupSection1.id');
@@ -362,7 +344,7 @@ describe("groupCategory", function () {
 			await groupCategory.updateGroupSection(newUser.id, groupSection1.id, {title: 'Test2 changed 2'});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		console.log('app.addAdminToCategory(testUser.id, category.id, newUser.id)');
@@ -413,7 +395,7 @@ describe("groupCategory", function () {
 			await app.ms.group.createPost(newMember.id, postData);
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		await groupCategory.addMemberToCategory(testUser.id, category.id, newMember.id);
@@ -422,7 +404,7 @@ describe("groupCategory", function () {
 			await app.ms.group.createPost(newMember.id, postData);
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		await groupCategory.addGroupToCategoryMembership(testUser.id, testGroup.id, category.id);

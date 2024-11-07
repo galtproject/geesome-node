@@ -6,17 +6,17 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+import {Sequelize, DataTypes} from 'sequelize';
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
+export default async function (sequelize: Sequelize, models) {
 
   const AutoTag = sequelize.define('autoTag', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     isGlobal: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     requiredTagsCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     }
   } as any, {
     indexes: [

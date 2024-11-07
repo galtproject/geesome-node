@@ -1,12 +1,12 @@
-import IGeesomeTelegramClient from "./interface";
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
+import _ from 'lodash';
+import appHelpers from '../../helpers';
+import telegramHelpers from './helpers';
 import {IPost} from "../group/interface";
+import IGeesomeTelegramClient from "./interface";
 import {ContentView} from "../database/interface";
 import IGeesomeContentModule from "../content/interface";
-
-const clone = require('lodash/clone');
-const appHelpers = require('../../helpers');
-const telegramHelpers = require('./helpers');
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
+const {clone} = _;
 
 export class TelegramImportClient implements IGeesomeSocNetImportClient {
 	socNet = 'telegram';

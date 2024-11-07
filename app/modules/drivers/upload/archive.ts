@@ -9,12 +9,13 @@
 
 import {DriverInput, OutputSize} from "../interface";
 import AbstractDriver from "../abstractDriver";
-
-const unzip = require('unzip-stream');
-const fs = require('fs');
-const uuidv4 = require('uuid/v4');
-const rimraf = require("rimraf");
-const {getDirSize} = require("../helpers");
+import unzip from 'unzip-stream';
+import fs from "fs";
+import uuid from 'uuid';
+import rimraf from "rimraf";
+import helpers from "../helpers";
+const {getDirSize} = helpers;
+const {v4: uuidv4} = uuid;
 
 export class ArchiveUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

@@ -1,17 +1,17 @@
+import _ from 'lodash';
+import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface";
 import {IPost} from "../group/interface";
+const {chunk, find, filter, flatten} = _;
 
-const xml = require('xml');
-const pIteration = require('p-iteration');
-const _ = require('lodash');
-
-module.exports = (app: IGeesomeApp) => {
-    const module = getModule(app);
-    require('./api')(app, module);
+export default async (app: IGeesomeApp) => {
+    const xml = await import('xml');
+    const module = getModule(app, xml);
+    (await import('./api')).default(app, module);
     return module;
 }
 
-function getModule(app: IGeesomeApp) {
+function getModule(app: IGeesomeApp, xml) {
     app.checkModules(['group']);
 
     class RssGenerator {
@@ -68,15 +68,15 @@ function getModule(app: IGeesomeApp) {
             host,
             posts: IPost[]
         ) {
-            return pIteration.mapSeries(_.chunk(posts, 10), (postsChunk) => {
+            return pIteration.mapSeries(chunk(posts, 10), (postsChunk) => {
                 return pIteration.map(postsChunk, post => {
                     return app.ms.group.getPostContentWithUrl(host + '/ipfs/', post).then((contents) => {
                         console.log('contents', contents);
-                        let text = (_.find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text;
+                        let text = (find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text;
                         if (!text) {
-                            text = (_.find(contents, (c) => c.type === 'text') || {}).text;;
+                            text = (find(contents, (c) => c.type === 'text') || {}).text;;
                         }
-                        const images = _.filter(contents, (c) => c.type === 'image');
+                        const images = filter(contents, (c) => c.type === 'image');
                         return {
                             item: [
                                 {title: text.slice(0, 50) + (text.length > 50 ? '...' : '')},
@@ -87,7 +87,7 @@ function getModule(app: IGeesomeApp) {
                         }
                     });
                 })
-            }).then(chunks => _.flatten(chunks));
+            }).then(chunks => flatten(chunks));
         }
     }
     return new RssGenerator();

@@ -19,7 +19,7 @@ import {FileUploadDriver} from "./upload/file";
 import {GifPreviewDriver} from "./preview/gif";
 import IGeesomeDriversModule from "./interface";
 
-module.exports = (app) => ({
+export default () => ({
   preview: {
     image: new ImagePreviewDriver(),
     gif: new GifPreviewDriver(),

@@ -9,7 +9,7 @@
 
 import {IGeesomeDatabaseModule} from "../app/modules/database/interface";
 
-const assert = require('assert');
+import assert from "assert";
 
 describe("databaseValues", function () {
 	const databaseConfig = {name: 'geesome_test', options: {logging: true, dialect: 'sqlite', storage: 'database-test.sqlite'}};
@@ -17,7 +17,7 @@ describe("databaseValues", function () {
 	let database: IGeesomeDatabaseModule;
 
 	before(async () => {
-		database = await require('../app/modules/database')({config: {databaseConfig}});
+		database = await (await import('../app/modules/database')).default({config: {databaseConfig}} as any);
 		await database.flushDatabase();
 	});
 

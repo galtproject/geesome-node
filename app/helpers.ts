@@ -1,13 +1,23 @@
-export {};
+import fs from 'fs';
+import _ from 'lodash';
+import bcrypt from 'bcrypt';
+import {dirname} from 'path';
+import cryptoJS from "crypto-js";
+import {fileURLToPath} from 'url';
+import createKeccakHash from "keccak";
+import commonHelper from "geesome-libs/src/common";
+const {map} = _;
 
-const _ = require('lodash');
-const bcrypt = require('bcrypt');
-const fs = require('fs');
 const saltRounds = 10;
-const cryptoJS = require("crypto-js");
-const createKeccakHash = require('keccak');
 
-module.exports = {
+function getCurDir() {
+	const __filename = fileURLToPath(import.meta.url);
+	return dirname(__filename);
+}
+
+export default {
+	getCurDir,
+
 	validateEmail(email) {
 		return /^\w+([\+\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
 	},
@@ -49,8 +59,7 @@ module.exports = {
 	},
 
 	async getSecretKey(keyName, mode) {
-		const commonHelper = (await import("geesome-libs/src/common.js")).default;
-		const keyDir = `${__dirname}/../data`;
+		const keyDir = `${getCurDir()}/../data`;
 		if (!fs.existsSync(keyDir)) {
 			fs.mkdirSync(keyDir);
 		}
@@ -75,8 +84,8 @@ module.exports = {
 		return cryptoJS.AES.decrypt(text, pass).toString(cryptoJS.enc.Utf8);
 	},
 
-	log(){
-		const logArgs = _.map(arguments, (arg) => arg);
+	log(...args){
+		const logArgs = map(arguments, (arg) => arg);
 
 		const dateTimeStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 		logArgs.splice(0, 0, dateTimeStr);

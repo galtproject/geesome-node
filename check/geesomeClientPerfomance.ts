@@ -7,11 +7,12 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export {};
-
-const log = require('../app/helpers').log;
-const http = require('http');
-const { generateRandomData } = require('./helpers');
+import http from 'http';
+import GeesomeClient from "geesome-libs/src/GeesomeClient";
+import appHelpers from '../app/helpers';
+import helpers from './helpers';
+const {log} = appHelpers;
+const { generateRandomData } = helpers;
 
 const randomSize = parseFloat(process.env.RANDOM_SIZE) || 100;
 const hostname = process.env.HOST || 'localhost';
@@ -20,7 +21,6 @@ const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));
 const port = isHttps ? 7722 : 7711;
 
 (async () => {
-  const GeesomeClient = (await import("geesome-libs/src/GeesomeClient.js")).default;
   const geesomeClient = new GeesomeClient({ server: (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port });
 
   await geesomeClient.init();

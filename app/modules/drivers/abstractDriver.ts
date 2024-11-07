@@ -7,22 +7,21 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, IDriver, IDriverResponse, OutputSize} from "./interface";
-
-const _ = require('lodash');
-const uuidv4 = require('uuid/v4');
-const fs = require('fs');
+import fs from "fs";
+import uuid from 'uuid';
+import {DriverInput, IDriver, OutputSize} from "./interface";
+const {v4: uuidv4} = uuid;
 
 export default class AbstractDriver implements IDriver {
   supportedInputs = [];
   supportedOutputSizes = [];
   
   isInputSupported(input: DriverInput) {
-    return _.includes(this.supportedInputs, input);
+    return this.supportedInputs.includes(input);
   }
   
   isOutputSizeSupported(outputSize: OutputSize) {
-    return _.includes(this.supportedOutputSizes, outputSize);
+    return this.supportedOutputSizes.includes(outputSize);
   }
 
   async isInputExtensionSupported(inputExtension: string) {

@@ -2,7 +2,7 @@ import {IGeesomeApp} from "../../interface";
 import IGeesomeForeignAccountsModule from "./interface";
 import {CorePermissionName} from "../database/interface";
 
-module.exports = (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccountsModule) => {
+export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccountsModule) => {
 	app.ms.api.onAuthorizedPost('user/set-account', async (req, res) => {
 		res.send(await foreignAccountsModule.setUserAccounts(req.user.id, [req.body]));
 	});

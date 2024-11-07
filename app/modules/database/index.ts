@@ -7,6 +7,14 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import fs from "fs";
+import _ from 'lodash';
+import pIteration from 'p-iteration';
+import {Sequelize, Op} from "sequelize";
+import expressSession from 'express-session';
+import expressSessionSequelize from 'express-session-sequelize';
+import {IGeesomeApp} from "../../interface";
+import config from './config';
 import {
   IContent,
   IGeesomeDatabaseModule,
@@ -16,31 +24,23 @@ import {
   IUserApiKey,
   IUserLimit
 } from "./interface";
-import {IGeesomeApp} from "../../interface";
+const {merge, isUndefined} = _;
+const SessionStore = expressSessionSequelize(expressSession.Store);
 
-const _ = require("lodash");
-const fs = require("fs");
-const {Sequelize} = require("sequelize");
-const Op = require("sequelize").Op;
-const pIteration = require("p-iteration");
-
-let config = require('./config');
-
-module.exports = async function (app: IGeesomeApp) {
+export default async function (app: IGeesomeApp) {
   if (!fs.existsSync('./data')) {
     fs.mkdirSync('./data');
   }
-  config = _.merge(config, app.config.databaseConfig || {});
-
+  const resConfig = merge(config, app.config.databaseConfig || {});
   let models, sequelize;
   try {
-    sequelize = new Sequelize(config);
-    models = await require('./models')(sequelize);
+    sequelize = new Sequelize(resConfig);
+    models = await (await import('./models')).default(sequelize);
   } catch (e) {
-    return console.error('Error', e);
+    throw e;
   }
 
-  return new MysqlDatabase(sequelize, models, config);
+  return new MysqlDatabase(sequelize, models, config) as IGeesomeDatabaseModule;
 };
 
 class MysqlDatabase implements IGeesomeDatabaseModule {
@@ -88,7 +88,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     if (search) {
       where['title'] = {[Op.like]: search};
     }
-    if (!_.isUndefined(isDisabled)) {
+    if (!isUndefined(isDisabled)) {
       where['isDisabled'] = isDisabled;
     }
 
@@ -106,7 +106,7 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     if (search) {
       where['title'] = {[Op.like]: search};
     }
-    if (!_.isUndefined(isDisabled)) {
+    if (!isUndefined(isDisabled)) {
       where['isDisabled'] = isDisabled;
     }
 
@@ -118,8 +118,6 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   getSessionStore() {
-    const expressSession = require('express-session');
-    const SessionStore = require('express-session-sequelize')(expressSession.Store);
     return new SessionStore({
       db: this.sequelize,
     });
@@ -282,12 +280,12 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     const existPermissions = {};
     const permissionsToDestroy = allUserPermissions.filter(p => {
       existPermissions[p.name] = true;
-      return !_.includes(permissionNameList, p.name);
+      return !permissionNameList.includes(p.name);
     });
 
-    await pIteration.forEach(permissionsToDestroy, (p) => p.destroy());
+    await pIteration.forEach(permissionsToDestroy, (p: any) => p.destroy());
 
-    return pIteration.forEach(permissionNameList, name => {
+    return pIteration.forEach(permissionNameList, (name: string) => {
       if (!existPermissions[name]) {
         return this.addCorePermission(userId, name);
       }

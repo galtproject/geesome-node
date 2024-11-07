@@ -7,12 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-
+import _ from 'lodash';
+import sharp from "sharp";
 import AbstractDriver from "../abstractDriver";
-
-const sharp = require('sharp');
-const _ = require('lodash');
+import {DriverInput} from "../interface";
+const {pick} = _;
 
 export class ImageMetadataDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -27,6 +26,6 @@ export class ImageMetadataDriver extends AbstractDriver {
     });
 
     const metadata = await sharp(buffer).metadata();
-    return _.pick(metadata, ['format', 'width', 'height', 'space', 'channels', 'depth', 'density', 'chromaSubsampling', 'isProgressive', 'hasProfile', 'hasAlpha', 'orientation']);
+    return pick(metadata, ['format', 'width', 'height', 'space', 'channels', 'depth', 'density', 'chromaSubsampling', 'isProgressive', 'hasProfile', 'hasAlpha', 'orientation']);
   }
 }

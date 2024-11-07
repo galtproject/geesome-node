@@ -1,10 +1,10 @@
 import IGeesomeCommunicatorModule from "./interface";
 import {IGeesomeApp} from "../../interface";
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['accountStorage']);
 
-	const module: IGeesomeCommunicatorModule = await require('./fluence')(app);
-	require('./api')(app, module);
+	const module: IGeesomeCommunicatorModule = await (await import('./fluence')).default(app);
+	(await import('./api')).default(app, module);
 	return module;
 };

@@ -1,12 +1,14 @@
-const TelegramBot = require('node-telegram-bot-api');
-import * as _ from 'lodash';
-const { Op } = require('sequelize');
-const axios = require('axios');
-const { createWorker } = require('tesseract.js');
+import _ from 'lodash';
+import axios from "axios";
+import { Op } from 'sequelize';
+import { createWorker } from 'tesseract.js';
+import TelegramBot from "node-telegram-bot-api";
+import commonHelper from "geesome-libs/src/common";
+import {IGeesomeApp} from "../../interface";
+const {pick, orderBy} = _;
 
-module.exports = async (app) => {
-  const commonHelpers = (await import("geesome-libs/src/common.js")).default;
-  const models = await require("./models")();
+export default async (app: IGeesomeApp) => {
+  const models: any = await (await import("./models")).default(app.ms.database.sequelize);
   class MultiTelegramBot {
     constructor(models){
       this.models = models;
@@ -15,7 +17,7 @@ module.exports = async (app) => {
     models = {};
     async triger(body, tgToken, host) {
       const botId = tgToken.split(':')[0];
-      const tokenHash = commonHelpers.hash(tgToken);
+      const tokenHash = commonHelper.hash(tgToken);
       const tgcontentbot = await this.models['ContentBots'].findOne({ where: { botId, tokenHash } });
       if (!tgcontentbot) {
         return;
@@ -57,7 +59,7 @@ module.exports = async (app) => {
     app.ms.api.onAuthorizedPost('content-bot/add', async (req, res) => {
       const botId = req.body.tgToken.split(":")[0];
       const encryptedToken = await app.encryptTextWithAppPass(req.body.tgToken);
-      const tokenHash = await commonHelpers.hash(req.body.tgToken);
+      const tokenHash = await commonHelper.hash(req.body.tgToken);
       const bot = new TelegramBot(req.body.tgToken, { polling: false });
       const botInfo = await bot.getMe();
       await models.ContentBots.create({encryptedToken, botId, socNet: req.body.socNet, botUsername: botInfo.username, userId: req.user.id, tokenHash});
@@ -76,7 +78,7 @@ module.exports = async (app) => {
     });
 
     app.ms.api.onAuthorizedPost('content-bot/addUser', async (req, res) => {
-      const pickedObject = _.pick(req.body, ['userTgId', 'contentLimit', 'isAdmin', 'contentBotId']);
+      const pickedObject = pick(req.body, ['userTgId', 'contentLimit', 'isAdmin', 'contentBotId']);
       await models.User.create(pickedObject);
       res.send("ok", 200);
     });
@@ -139,7 +141,7 @@ module.exports = async (app) => {
 
   multitelegrambot.on('photo', async (msg) => {
     const sizes = msg.photo;
-    const bestSize = _.orderBy(sizes, ['file_size'], ['desc'])[0];
+    const bestSize = orderBy(sizes, ['file_size'], ['desc'])[0];
     const file_id = bestSize.file_id;
     const file_info = await msg.bot.getFile(file_id);
     const download_url = `https://api.telegram.org/file/bot${msg.bot.token}/${file_info.file_path}`;

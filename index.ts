@@ -25,12 +25,12 @@ import {IGeesomeApp} from "./app/interface";
     storageConfig.repo = process.env.STORAGE_REPO;
   }
 
-  const app: IGeesomeApp = await require('./app')({
+  const app: IGeesomeApp = await (await import('./app')).default({
     databaseConfig,
     storageConfig: {jsNode: storageConfig, goNode: storageConfig}
   });
 
-  require('./publish-docs')(app);
+  await (await import('./publish-docs')).default(app);
 })();
 
 process.on('uncaughtException', (err) => {

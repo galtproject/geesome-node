@@ -16,11 +16,10 @@ import IGeesomeTwitterClient from "../app/modules/twitterClient/interface";
 import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
 import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
 import {TwitterImportClient} from "../app/modules/twitterClient/importClient";
-
-const twitterHelpers = require('../app/modules/twitterClient/helpers');
-const appHelpers = require('../app/helpers');
-const assert = require('assert');
-const pIteration = require('p-iteration');
+import twitterHelpers from '../app/modules/twitterClient/helpers';
+import appHelpers from '../app/helpers';
+import assert from "assert";
+import pIteration from 'p-iteration';
 
 describe.skip("twitterClient", function () {
 	const databaseConfig = {
@@ -36,22 +35,11 @@ describe.skip("twitterClient", function () {
 		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);

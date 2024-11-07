@@ -8,14 +8,14 @@
  */
 
 import {IGeesomeApp} from "../../interface";
-const pIteration = require('p-iteration');
-const Op = require("sequelize").Op;
+import pIteration from 'p-iteration';
+import {Op} from "sequelize";
 
-module.exports = async (app: IGeesomeApp) => {
-	const models = await require("./models")();
+export default async (app: IGeesomeApp) => {
+	const models = await (await import("./models")).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
 
-	require('./api')(app, module, models);
+	await (await import('./api')).default(app, module);
 
 	return module;
 }

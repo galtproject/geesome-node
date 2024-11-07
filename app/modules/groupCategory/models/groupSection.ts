@@ -6,75 +6,75 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+import {Sequelize, DataTypes} from 'sequelize';
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
+export default async function (sequelize: Sequelize, models) {
 
   const GroupSection = sequelize.define('groupSection', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     name: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     title: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     description: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     isPublic: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isOpen: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     type: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     size: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     isRemote: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isEncrypted: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isFullyPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     peersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     fullyPeersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     storageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     staticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     storageAccountId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStaticStorageId: {
-      type: Sequelize.STRING(200),
+      type: DataTypes.STRING(200),
       unique: true
     },
     encryptedManifestStorageId: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
     storageUpdatedAt: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
     staticStorageUpdatedAt: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
   } as any, {
     indexes: [
@@ -90,12 +90,12 @@ module.exports = async function (sequelize, models) {
 
   models.GroupSectionsPivot = sequelize.define('groupSectionsPivot',{
     sectionId: {
-      type: Sequelize.INTEGER,
+      type: DataTypes.INTEGER,
       allowNull: false,
       primaryKey: true
     },
     groupId: {
-      type: Sequelize.INTEGER,
+      type: DataTypes.INTEGER,
       allowNull: false,
       primaryKey: true,
       unique: true // group can be in one section

@@ -1,5 +1,5 @@
-import {IContent} from "../database/interface";
 import {IUserAsyncOperation} from "../asyncOperation/interface";
+import {IAccount} from "../socNetAccount/interface";
 
 export default interface IGeesomeTelegramClient {
 	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;
@@ -17,7 +17,7 @@ export default interface IGeesomeTelegramClient {
 
 	getUserChannelsByUserId(userId, accData): Promise <{ result, client }>;
 
-	createOrUpdateAccount(accData): Promise <any>;
+	createOrUpdateAccount(userId, accData): Promise <IAccount>;
 
 	getMeByUserId(userId, accData): Promise<{ result, client }>;
 
@@ -33,7 +33,7 @@ export default interface IGeesomeTelegramClient {
 
 	storeObjToChannelDbByType(client, userId, type, storeObj, isCollateral?): Promise<{dbChannel}>
 
-	getMessage(dbChannel, m): Promise<any>
+	// getMessage(dbChannel, m): Promise<any>
 
 	downloadMediaByClient(client, media): Promise<{client, result}>;
 }

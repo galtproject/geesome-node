@@ -15,7 +15,7 @@
 //
 // export {};
 //
-// module.exports = async (geesomeApp: IGeesomeApp) => {
+// export default async (geesomeApp: IGeesomeApp) => {
 //
 //   const peersToTopic = {};
 //

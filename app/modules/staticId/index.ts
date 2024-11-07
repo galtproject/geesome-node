@@ -1,12 +1,12 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeStaticIdModule, {IStaticIdHistoryItem} from "./interface";
-const _ = require('lodash');
-const log = require('debug')('geesome:app');
-const pIteration = require('p-iteration');
+import debug from 'debug';
+const log = debug('geesome:app');
+import pIteration from 'p-iteration';
 
-module.exports = async (app: IGeesomeApp) => {
-	const module = getModule(app, await require('./models')());
-	require('./api')(app, module);
+export default async (app: IGeesomeApp) => {
+	const module = getModule(app, await (await import('./models')).default(app.ms.database.sequelize));
+	(await import('./api')).default(app, module);
 	return module;
 }
 
@@ -203,7 +203,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async isAutoActionAllowed(userId, funcName, funcArgs) {
-			return _.includes(['bindToStaticIdByGroupAndCreateIfNotExists'], funcName);
+			return ['bindToStaticIdByGroupAndCreateIfNotExists'].includes(funcName);
 		}
 	}
 

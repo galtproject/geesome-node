@@ -8,7 +8,7 @@
  */
 
 export default interface IGeesomeCommunicatorModule {
-  node: any;
+  node?: any;
 
   isReady(): Promise<boolean>;
 

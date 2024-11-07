@@ -1,8 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeTwitterClient from "./interface";
-const _ = require('lodash');
 
-module.exports = (app: IGeesomeApp, twitterClientModule: IGeesomeTwitterClient, models) => {
+export default (app: IGeesomeApp, twitterClientModule: IGeesomeTwitterClient) => {
 	const api = app.ms.api.prefix('soc-net/twitter/');
 
 	api.onAuthorizedPost('login', async (req, res) => {

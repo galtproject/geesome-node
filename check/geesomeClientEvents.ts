@@ -7,16 +7,14 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export {};
-
-const http = require('http');
+import GeesomeClient from "geesome-libs/src/GeesomeClient";
+import http from 'http';
 
 const hostname = process.env.HOST || 'localhost';
 const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));
 const port = isHttps ? 7722 : 7711;
 
 (async () => {
-  const GeesomeClient = (await import("geesome-libs/src/GeesomeClient.js")).default;
   const geesomeClient = new GeesomeClient({ server: (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port, apiKey: process.env.API_KEY });
 
   await geesomeClient.init();

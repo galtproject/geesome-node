@@ -6,41 +6,38 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-static-site-generator', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const StaticSite = sequelize.define('staticSite', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		name: {
-			type: Sequelize.STRING(100)
+			type: DataTypes.STRING(100)
 		},
 		title: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		options: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		entityType: {
-			type: Sequelize.STRING(100)
+			type: DataTypes.STRING(100)
 		},
 		entityId: {
-			type: Sequelize.STRING(100)
+			type: DataTypes.STRING(100)
 		},
 		lastEntityManifestStorageId: {
-			type: Sequelize.STRING(100)
+			type: DataTypes.STRING(100)
 		},
 		storageId: {
-			type: Sequelize.STRING(100)
+			type: DataTypes.STRING(100)
 		},
 		staticId: {
-			type: Sequelize.STRING(100)
+			type: DataTypes.STRING(100)
 		},
 	} as any, {
 		indexes: [

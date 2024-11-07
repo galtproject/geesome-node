@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetAccount from "./interface";
 
-module.exports = (app: IGeesomeApp, socNetAccount: IGeesomeSocNetAccount) => {
+export default (app: IGeesomeApp, socNetAccount: IGeesomeSocNetAccount) => {
 	const api = app.ms.api.prefix('soc-net-account/');
 
 	api.onAuthorizedPost('get', async (req, res) => {

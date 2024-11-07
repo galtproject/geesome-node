@@ -1,7 +1,7 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeSocNetImport from "./interface";
 
-module.exports = (app: IGeesomeApp, socNetImport: IGeesomeSocNetImport) => {
+export default (app: IGeesomeApp, socNetImport: IGeesomeSocNetImport) => {
 	const api = app.ms.api.prefix('soc-net-import/');
 
 	api.onAuthorizedPost('get-channel', async (req, res) => {

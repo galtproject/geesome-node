@@ -9,10 +9,10 @@
 
 import {DriverInput, OutputSize} from "../interface";
 import AbstractDriver from "../abstractDriver";
-
-const fs = require('fs');
-const uuidv4 = require('uuid/v4');
-const rimraf = require("rimraf");
+import fs from "fs";
+import uuid from 'uuid';
+import rimraf from "rimraf";
+const {v4: uuidv4} = uuid;
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

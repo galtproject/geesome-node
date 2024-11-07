@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const EventEmitter = require('events');
+import EventEmitter from 'events';
 
 export class GeesomeEmitter extends EventEmitter.EventEmitter {
   constructor() {
@@ -18,7 +18,7 @@ export class GeesomeEmitter extends EventEmitter.EventEmitter {
   NewPersonalGroup = 'NewPersonalGroup';
 }
 
-module.exports = function (geesomeApp) {
+export default function (geesomeApp) {
 
   return new GeesomeEmitter();
 };

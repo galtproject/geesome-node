@@ -7,14 +7,15 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const assert = require('assert');
-const fs = require('fs');
-
-const drivers = require('../app/modules/drivers')();
-const mediainfo = require('node-mediainfo');
-const resourcesHelper = require('./helpers/resources');
+import fs from "fs";
+import assert from "assert";
+import mediainfo from 'node-mediainfo';
+import driversModule from '../app/modules/drivers/index.js';
+import resourcesHelper from './helpers/resources.js';
+import appHelpers from '../app/helpers.js';
 
 describe("drivers", function () {
+  const drivers = driversModule();
   this.timeout(100000);
 
   describe('image', () => {
@@ -23,7 +24,7 @@ describe("drivers", function () {
 
       const result = await drivers['preview']['image'].processByStream(fs.createReadStream(imagePath));
 
-      const ouputStreamablePath = __dirname + '/resources/output-image.jpg';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-image.jpg';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -47,7 +48,7 @@ describe("drivers", function () {
   describe.skip('youtube video', () => {
 
     it("should successfully getting video from youtube", async () => {
-      const ouputStreamablePath = __dirname + '/resources/output-youtube-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-youtube-video.mp4';
       
       async function downloadVideo() {
         const result = await drivers['upload']['youtubeVideo'].processBySource('https://www.youtube.com/watch?v=DXUAyRRkI6k');
@@ -90,7 +91,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, true);
 
-      const ouputStreamablePath = __dirname + '/resources/output-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -121,7 +122,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, true);
 
-      const ouputStreamablePath = __dirname + '/resources/output-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -157,7 +158,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, false);
 
-      const ouputStreamablePath = __dirname + '/resources/output-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -189,7 +190,7 @@ describe("drivers", function () {
           }
         });
         
-        const strm = fs.createWriteStream(__dirname + '/resources/output-screenshot.png');
+        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/resources/output-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', resolve);
@@ -208,7 +209,7 @@ describe("drivers", function () {
           }
         });
 
-        const strm = fs.createWriteStream(__dirname + '/resources/output-screenshot.png');
+        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/resources/output-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', resolve);
@@ -229,7 +230,7 @@ describe("drivers", function () {
           }
         });
 
-        const strm = fs.createWriteStream(__dirname + '/resources/output-gif-screenshot.png');
+        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/resources/output-gif-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', () => result.emitFinish(resolve));

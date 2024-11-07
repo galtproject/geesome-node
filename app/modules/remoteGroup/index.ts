@@ -1,79 +1,80 @@
-import {IGeesomeApp, IUserInput} from "../../interface";
+import {IGeesomeApp} from "../../interface";
 import {IGroup, IPost, PostStatus} from "../group/interface";
 import IGeesomeRemoteGroupModule from "./interface";
+import ipfsHelper from "geesome-libs/src/ipfsHelper";
+import commonHelper from "geesome-libs/src/common";
 
-module.exports = async (app: IGeesomeApp) => {
-	const geesomeLibsCommonHelper = (await import("geesome-libs/src/common.js")).default;
-	const ipfsHelper = (await import("geesome-libs/src/ipfsHelper.js")).default;
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	require('./api')(app, module);
+	(await import('./api')).default(app, module);
 	return module;
-	function getModule(app: IGeesomeApp) {
-		app.checkModules(['entityJsonManifest', 'group']);
+}
 
-		class RemoteGroupModule implements IGeesomeRemoteGroupModule {
-			async getLocalOrRemoteGroup(userId, groupId) {
-				if (!userId) {
-					throw new Error("userId_required");
-				}
-				groupId = await this.checkGroupIdAndCreateIfNotExits(userId, groupId);
-				return app.ms.group.getGroup(groupId);
+function getModule(app: IGeesomeApp) {
+	app.checkModules(['entityJsonManifest', 'group']);
+
+	class RemoteGroupModule implements IGeesomeRemoteGroupModule {
+		async getLocalOrRemoteGroup(userId, groupId) {
+			if (!userId) {
+				throw new Error("userId_required");
 			}
-
-			async checkGroupIdAndCreateIfNotExits(userId, groupId) {
-				const existsGroupId = await app.ms.group.checkGroupId(groupId);
-				if (existsGroupId) {
-					return existsGroupId;
-				}
-				if (!geesomeLibsCommonHelper.isNumber(groupId)) {
-					return this.createGroupByRemoteStorageId(userId, groupId).then(g => g.id);
-				}
-				return null;
-			}
-
-			async createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
-				const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post', {
-					isEncrypted,
-					groupId,
-					publishedAt
-				});
-				postObject.isRemote = true;
-				postObject.status = PostStatus.Published;
-				postObject.localId = await app.ms.group.getPostLocalId(postObject);
-
-				const {contents} = postObject;
-				delete postObject.contents;
-
-				let post = await app.ms.group.addPost(postObject);
-
-				if (!isEncrypted) {
-					// console.log('postObject', postObject);
-					await app.ms.group.setPostContents(post.id, contents.map(c => c.id));
-				}
-
-				await app.ms.group.updateGroupManifest(userId, post.groupId);
-
-				return app.ms.group.getPostPure(post.id);
-			}
-
-			async createGroupByRemoteStorageId(userId, manifestStorageId) {
-				let staticStorageId;
-				if (ipfsHelper.isAccountCidHash(manifestStorageId)) {
-					staticStorageId = manifestStorageId;
-					manifestStorageId = await app.ms.staticId.resolveStaticId(staticStorageId);
-				}
-
-				let dbGroup = await app.ms.group.getGroupByManifestId(manifestStorageId, staticStorageId);
-				if (dbGroup) {
-					//TODO: update group if necessary
-					return dbGroup;
-				}
-				const groupObject: IGroup = await app.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId, 'group');
-				groupObject.isRemote = true;
-				return app.ms.group.createGroupByObject(userId, groupObject);
-			}
+			groupId = await this.checkGroupIdAndCreateIfNotExits(userId, groupId);
+			return app.ms.group.getGroup(groupId);
 		}
-		return new RemoteGroupModule();
+
+		async checkGroupIdAndCreateIfNotExits(userId, groupId) {
+			const existsGroupId = await app.ms.group.checkGroupId(groupId);
+			if (existsGroupId) {
+				return existsGroupId;
+			}
+			if (!commonHelper.isNumber(groupId)) {
+				return this.createGroupByRemoteStorageId(userId, groupId).then(g => g.id);
+			}
+			return null;
+		}
+
+		async createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
+			const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post', {
+				isEncrypted,
+				groupId,
+				publishedAt
+			});
+			postObject.isRemote = true;
+			postObject.status = PostStatus.Published;
+			postObject.localId = await app.ms.group.getPostLocalId(postObject);
+
+			const {contents} = postObject;
+			delete postObject.contents;
+
+			let post = await app.ms.group.addPost(postObject);
+
+			if (!isEncrypted) {
+				// console.log('postObject', postObject);
+				await app.ms.group.setPostContents(post.id, contents.map(c => c.id));
+			}
+
+			await app.ms.group.updateGroupManifest(userId, post.groupId);
+
+			return app.ms.group.getPostPure(post.id);
+		}
+
+		async createGroupByRemoteStorageId(userId, manifestStorageId) {
+			let staticStorageId;
+			if (ipfsHelper.isAccountCidHash(manifestStorageId)) {
+				staticStorageId = manifestStorageId;
+				manifestStorageId = await app.ms.staticId.resolveStaticId(staticStorageId);
+			}
+
+			let dbGroup = await app.ms.group.getGroupByManifestId(manifestStorageId, staticStorageId);
+			if (dbGroup) {
+				//TODO: update group if necessary
+				return dbGroup;
+			}
+			const groupObject: IGroup = await app.ms.entityJsonManifest.manifestIdToDbObject(staticStorageId || manifestStorageId, 'group');
+			groupObject.isRemote = true;
+			return app.ms.group.createGroupByObject(userId, groupObject);
+		}
 	}
+	return new RemoteGroupModule();
 }
 

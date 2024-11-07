@@ -9,14 +9,16 @@
 
 import {DriverInput, OutputSize} from "../interface";
 import AbstractDriver from "../abstractDriver";
-
-const youtubedl = require('@microlink/youtube-dl');
+let youtubedl;
 
 export class YoutubeThumbnailPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Source];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processBySource(url, options: any = {}) {
+    if(!youtubedl) {
+      youtubedl = (await import('@microlink/youtube-dl')).default;
+    }
     return new Promise((resolve, reject) => {
       youtubedl.getThumbs(url, {
         // Downloads available thumbnail.

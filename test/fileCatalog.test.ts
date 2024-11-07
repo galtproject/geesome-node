@@ -13,7 +13,7 @@ import {
 } from "../app/modules/database/interface";
 import IGeesomeFileCatalogModule, {FileCatalogItemType} from "../app/modules/fileCatalog/interface";
 
-const assert = require('assert');
+import assert from "assert";
 
 describe("app", function () {
 	const databaseConfig = {
@@ -28,22 +28,11 @@ describe("app", function () {
 	let app: IGeesomeApp, fileCatalog: IGeesomeFileCatalogModule;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
