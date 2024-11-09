@@ -942,7 +942,10 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Post.findOne({
 				where: params,
 				include: [{association: 'contents'}, {association: 'group'}],
-			}) as IPost;
+			}).then((post: IPost) => {
+				post.contents = orderBy(post.contents, [c => c.postsContents.position], ['asc']);
+				return post;
+			});
 		}
 
 		getGroupsWhere(filters) {

@@ -65,7 +65,7 @@ describe("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
 	});
 
-	it.only("should file catalog working properly", async () => {
+	it("should file catalog working properly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const indexHtml = '<h1>Hello world</h1>';

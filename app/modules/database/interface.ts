@@ -168,6 +168,7 @@ export interface IContent {
   staticStorageId?: string;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+  postsContents?: {position?, view?};
 
   encryptedManifestStorageId?: string;
   propertiesJson?: string;

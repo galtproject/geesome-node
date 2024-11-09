@@ -49,7 +49,7 @@ describe("groupCategory", function () {
 		await app.stop();
 	});
 
-	it('categories should work properly', async () => {
+	it.only('categories should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test')).list[0];
 		const categoryName = 'my-category';
@@ -258,8 +258,10 @@ describe("groupCategory", function () {
 
 		assert.equal(post2.contents.length, 2);
 		assert.equal(await app.ms.storage.getFileData(post2.contents[0].storageId), 'Hello world2');
+		console.log('post2.contents[0].postsContents', post2.contents[0].postsContents);
 		assert.equal(post2.contents[0].postsContents.view, ContentView.Contents);
 		assert.equal(await app.ms.storage.getFileData(post2.contents[1].storageId), 'Hello world3');
+		console.log('post2.contents[1].postsContents', post2.contents[1].postsContents);
 		assert.equal(post2.contents[1].postsContents.view, ContentView.Attachment);
 
 		post = await app.ms.group.getPost(testUser.id, post.id);
