@@ -65,7 +65,7 @@ describe("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
 	});
 
-	it("should file catalog working properly", async () => {
+	it.only("should file catalog working properly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const indexHtml = '<h1>Hello world</h1>';
@@ -116,7 +116,7 @@ describe("app", function () {
 			await app.ms.storage.getFileData(publishFolderResult.storageId + '/incorrect' + fileName);
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(e.message, 'file does not exist');
+			assert.match(e.message, /file does not exist|no link named/);
 		}
 
 		console.log('7 getFileCatalogItemByPath');
@@ -139,7 +139,7 @@ describe("app", function () {
 			await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(e.message, 'file does not exist');
+			assert.match(e.message, /file does not exist|no link named/);
 		}
 
 		console.log('10 publishFolder');

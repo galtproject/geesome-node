@@ -49,7 +49,7 @@ describe("groupCategory", function () {
 		await app.stop();
 	});
 
-	it.only('categories should work properly', async () => {
+	it('categories should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test')).list[0];
 		const categoryName = 'my-category';
