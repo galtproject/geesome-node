@@ -18,14 +18,7 @@ import appHelpers from '../app/helpers.js';
 const {log} = appHelpers;
 const {startsWith} = _;
 
-describe.only("app", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, dialect: 'sqlite', storage: 'database-test.sqlite'
-		}
-	};
-
+describe("app", function () {
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp;
@@ -34,7 +27,7 @@ describe.only("app", function () {
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -169,7 +162,7 @@ describe.only("app", function () {
 		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserGroupManagement).length, 1);
 	});
 
-	it.only('should correctly save data with only save permission', async () => {
+	it('should correctly save data with only save permission', async () => {
 		try {
 			await app.registerUser({
 				email: 'user-save-data@user.com',
@@ -287,15 +280,19 @@ describe.only("app", function () {
 	});
 
 	it('should correctly save mov video', async () => {
+		console.log('should correctly save mov video:1')
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const inputVideoPath = await resourcesHelper.prepare('input-video.mov');
+		console.log('should correctly save mov video:2')
 		const videoContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(inputVideoPath), 'input-video.mov', {
 			groupId: testGroup.id
 		});
+		console.log('should correctly save mov video:3')
 
 		const contentObj = await app.ms.storage.getObject(videoContent.manifestStorageId);
+		console.log('should correctly save mov video:4')
 
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
 		assert.equal(contentObj.mimeType, 'video/mp4');
@@ -318,6 +315,8 @@ describe.only("app", function () {
 		assert.equal(contentObj.extension, 'none');
 		assert.equal(contentObj.size > 0, true);
 
+		console.log('archiveContent', archiveContent);
+		console.log('fileLs', await app.ms.storage.fileLs(archiveContent.storageId));
 		let gotTextContent = await app.ms.storage.getFileDataText(archiveContent.storageId + '/test.txt');
 		assert.equal(gotTextContent, 'Test\n');
 	});

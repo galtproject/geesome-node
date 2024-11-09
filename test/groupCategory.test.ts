@@ -15,13 +15,6 @@ import {PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
 describe("groupCategory", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, dialect: 'sqlite', storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp, groupCategory: IGeesomeGroupCategoryModule;
@@ -31,7 +24,7 @@ describe("groupCategory", function () {
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);

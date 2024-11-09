@@ -18,13 +18,6 @@ import {IGeesomeApp} from "../app/interface.js";
 const {getTitleAndDescription} = ssgHelpers;
 
 describe("staticSiteGenerator", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, dialect: 'sqlite', storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule, testUser: IUser, testGroup: IGroup;
@@ -34,7 +27,7 @@ describe("staticSiteGenerator", function () {
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});

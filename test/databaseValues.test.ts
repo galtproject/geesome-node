@@ -11,12 +11,10 @@ import assert from "assert";
 import {IGeesomeDatabaseModule} from "../app/modules/database/interface.js";
 
 describe("databaseValues", function () {
-	const databaseConfig = {name: 'geesome_test', options: {logging: true, dialect: 'sqlite', storage: 'database-test.sqlite'}};
-
 	let database: IGeesomeDatabaseModule;
 
 	before(async () => {
-		database = await (await import('../app/modules/database/index.js')).default({config: {databaseConfig}} as any);
+		database = await (await import('../app/modules/database/index.js')).default({config: {}} as any);
 		await database.flushDatabase();
 	});
 

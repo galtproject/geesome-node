@@ -15,13 +15,6 @@ import {IGeesomeApp} from "../app/interface.js";
 
 describe("storage", function () {
 	this.timeout(30000);
-
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, dialect: 'sqlite', storage: 'database-test.sqlite'
-		}
-	};
 	let storage: IGeesomeStorageModule;
 	let communicator: IGeesomeCommunicatorModule;
 	let app: IGeesomeApp;
@@ -31,7 +24,7 @@ describe("storage", function () {
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 
 		try {
-			app = await (await import('../app/index.js')).default({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});

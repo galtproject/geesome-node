@@ -274,6 +274,7 @@ function getModule(app: IGeesomeApp) {
 					console.log('getContentPreviewStorageFile: path', options);
 					const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
 
+					console.log('previewPath', previewPath);
 					const previewFile = await app.ms.storage.saveFileByPath(previewPath);
 					console.log('getContentPreviewStorageFile path storageFile', previewFile);
 
@@ -652,7 +653,8 @@ function getModule(app: IGeesomeApp) {
 							if (!uploadResult) {
 								return; // onError handled
 							}
-							resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+							console.log('saveDirectory', uploadResult['tempPath'] + '/');
+							resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
 							if (uploadResult['emitFinish']) {
 								uploadResult['emitFinish']();
 							}
@@ -665,19 +667,15 @@ function getModule(app: IGeesomeApp) {
 							if (app.ms.storage.isStreamAddSupport()) {
 								resultFile = await app.ms.storage.saveFileByData(stream, storageOptions);
 							} else {
-								try {
-									const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
-										extension,
-										onProgress: options.onProgress,
-										onError: reject
-									});
-									log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
-									resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
-									resultFile.tempPath = uploadResult['tempPath'];
-									resultFile.emitFinish = uploadResult['emitFinish'];
-								} catch (e) {
-									console.error(e);
-								}
+								const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
+									extension,
+									onProgress: options.onProgress,
+									onError: reject
+								});
+								log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
+								resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
+								resultFile.tempPath = uploadResult['tempPath'];
+								resultFile.emitFinish = uploadResult['emitFinish'];
 							}
 							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
 							log('getFileStat resultFile', resultFile);
@@ -686,7 +684,7 @@ function getModule(app: IGeesomeApp) {
 							resultFile.size = storageContentStat.size;
 							log('resultFile.size', resultFile.size);
 						}
-					})(),
+					})().catch(e => console.error('resultFile', e)),
 
 					(async () => {
 						console.log('mimeType', mimeType);

@@ -88,7 +88,7 @@ export default async function (sequelize: Sequelize) {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['userId', 'dbChannelId', 'msgId', 'dbContentId'], unique: true },
+			{ fields: ['userId', 'dbChannelId', 'msgId', 'dbContentId'], name: 'sci_content_messages_user_id_db_channel_id_msg_id_db_content_id', unique: true },
 			{ fields: ['dbContentId'] },
 		]
 	} as any);

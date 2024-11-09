@@ -34,6 +34,7 @@ export class ImagePreviewDriver extends AbstractDriver {
         .resize(extend(size, {withoutEnlargement: true}))
         .withMetadata()
         .toFormat(extension);
+    console.log('ImagePreviewDriver.resizerStream');
 
     const resultStream = inputStream.pipe(resizerStream) as Stream;
 
