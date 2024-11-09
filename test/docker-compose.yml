@@ -27,7 +27,7 @@ services:
     container_name: geesome_db
     image: postgres:14-alpine
     restart: always
-    ports:
+    expose:
       - 5432
     volumes:
       - "${POSTGRES_DATA:-./.postgres-data}:/var/lib/postgresql/data"
@@ -42,10 +42,11 @@ services:
     restart: always
     environment:
       - IPFS_PROFILE
+    expose:
+      - 5001
     ports:
-      - "4001:4001"
-      - "8080:8080"
-      - "5001:5001"
+      - 4001
+      - 8080
     volumes:
       - "${STORAGE_STAGING:-./.ipfs}:/export"
       - "${STORAGE_DATA:-./.ipfs-data}:/data/ipfs"

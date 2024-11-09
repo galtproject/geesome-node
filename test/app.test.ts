@@ -302,7 +302,7 @@ describe("app", function () {
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
 	});
 
-	it.only("should upload archive and unzip correctly", async () => {
+	it("should upload archive and unzip correctly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const archivePath = await resourcesHelper.prepare('test-archive.zip');
