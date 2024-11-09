@@ -51,7 +51,7 @@ describe("autoActions", function () {
 		await app.flushDatabase();
 	});
 
-	it('autoActions should be executed successfully', async () => {
+	it.only('autoActions should be executed successfully', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		await addTextPostToGroup(testGroup, 'Test 1 post');

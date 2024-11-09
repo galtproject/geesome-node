@@ -325,7 +325,7 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
 
         async copyContentsToSite(siteStorageDir, contents) {
             await pIteration.forEach(contents, async (c: IContent) => {
-                await app.ms.storage.fileLs(c.storageId).then(r => {
+                await app.ms.storage.nodeLs(c.storageId).then(r => {
                     console.log('res fileLs', c.storageId, r);
                 }).catch(e => {
                     console.error('err fileLs', c.storageId, e);

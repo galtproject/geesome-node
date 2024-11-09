@@ -302,7 +302,7 @@ describe("app", function () {
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
 	});
 
-	it("should upload archive and unzip correctly", async () => {
+	it.only("should upload archive and unzip correctly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
 		const archivePath = await resourcesHelper.prepare('test-archive.zip');
@@ -316,7 +316,7 @@ describe("app", function () {
 		assert.equal(contentObj.size > 0, true);
 
 		console.log('archiveContent', archiveContent);
-		console.log('fileLs', await app.ms.storage.fileLs(archiveContent.storageId));
+		console.log('fileLs', await app.ms.storage.nodeLs(archiveContent.storageId));
 		let gotTextContent = await app.ms.storage.getFileDataText(archiveContent.storageId + '/test.txt');
 		assert.equal(gotTextContent, 'Test\n');
 	});

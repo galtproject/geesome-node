@@ -42,6 +42,8 @@ export default interface IGeesomeStorageModule {
 
   copyFileFromId(storageId, path): Promise<void>;
 
+  nodeLs(path): Promise<any>;
+
   fileLs(path): Promise<any>;
 
   getDirectoryId(path): Promise<string>;
