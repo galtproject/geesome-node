@@ -17,7 +17,7 @@ import resourcesHelper from './helpers/resources.js';
 import {IGeesomeApp} from "../app/interface.js";
 const {getTitleAndDescription} = ssgHelpers;
 
-describe("staticSiteGenerator", function () {
+describe.only("staticSiteGenerator", function () {
 	this.timeout(60000);
 
 	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule, testUser: IUser, testGroup: IGroup;
@@ -72,24 +72,28 @@ describe("staticSiteGenerator", function () {
 		assert.equal(description, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><i>Language<br/>concepts[6], with terse syntax.[7]...</i>');
 	});
 
-	it('should generate site correctly', async () => {
+	it.only('should generate site correctly', async () => {
 		const posts = [];
 		for(let i = 0; i < 30; i++) {
 			const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world' + i, null, { mimeType: 'text/markdown' });
 
 			const pngImagePath = await resourcesHelper.prepare('input-image.png');
+			console.log('imageContent', i);
 			const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
 				groupId: testGroup.id,
 				waitForPin: true
 			});
+			console.log('postData', i);
 			const postData = {
 				contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Contents},{manifestStorageId: imageContent.manifestStorageId, view: ContentView.Media}],
 				groupId: testGroup.id,
 				status: PostStatus.Published
 			};
+			console.log('createPost', i);
 			posts.push(await app.ms.group.createPost(testUser.id, postData));
 		}
 
+		console.log('generateGroupSite 1');
 		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, 'group', testGroup.id, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
@@ -109,6 +113,7 @@ describe("staticSiteGenerator", function () {
 				base: '/'
 			}
 		});
+		console.log('generateGroupSite 2');
 
 		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
 		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);

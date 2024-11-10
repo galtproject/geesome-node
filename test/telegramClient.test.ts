@@ -21,7 +21,7 @@ import {IGeesomeApp} from "../app/interface.js";
 import helpers from '../app/helpers.js';
 const {clone, orderBy} = _;
 
-describe.only("telegramClient", function () {
+describe("telegramClient", function () {
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount,
