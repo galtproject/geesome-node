@@ -5,8 +5,7 @@ import helpers from "../../app/helpers.js";
 
 export default {
     async prepare(name): Promise<any> {
-        console.log("prepare getCurDir", helpers.getCurDir());
-        const dir = helpers.getCurDir() + '/../resources/';
+        const dir = helpers.getCurDir() + '/../test/resources/';
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir);
         }

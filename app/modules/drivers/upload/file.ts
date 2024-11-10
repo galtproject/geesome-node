@@ -33,7 +33,7 @@ export class FileUploadDriver extends AbstractDriver {
             inputStream.resume();
           }
           const writableStream = fs.createWriteStream(path);
-          console.log('inputStream.pipe', inputStream);
+          // console.log('inputStream.pipe', inputStream);
           inputStream
               .pipe(writableStream)
               .on("close", resolve)

@@ -6,10 +6,17 @@ import commonHelper from "geesome-libs/src/common.js";
 import pgpHelper from "geesome-libs/src/pgpHelper.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
-import {ContentView, CorePermissionName, GroupPermissionName, IContent, IListParams} from "../database/interface.js";
 import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
+import {
+	ContentView,
+	CorePermissionName,
+	GroupPermissionName,
+	IContent,
+	IContentData,
+	IListParams
+} from "../database/interface.js";
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 
@@ -566,45 +573,63 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
-		async getPostContent(post: IPost): Promise<{type, mimeType, extension, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
-			// console.log('post.repostOf', post.repostOf);
-			return pIteration.map(orderBy(post.contents, [(c: any) => c.postsContents.position], ['asc']), async (c: IContent) => {
-				const baseData = {
-					storageId: c.storageId,
-					previewStorageId: c.mediumPreviewStorageId,
-					extension: c.extension,
-					mimeType: c.mimeType,
-					view: c.view || ContentView.Contents,
-					manifestId: c.manifestStorageId,
+		async prepareContentData(c: IContent): Promise<IContentData> {
+			const baseData = {
+				id: c.id,
+				storageId: c.storageId,
+				previewStorageId: c.mediumPreviewStorageId,
+				extension: c.extension,
+				mimeType: c.mimeType,
+				view: c.view || ContentView.Contents,
+				manifestId: c.manifestStorageId,
+			}
+			if (c.mimeType.startsWith('text/')) {
+				return {
+					type: 'text',
+					text: await app.ms.storage.getFileDataText(c.storageId),
+					...baseData
 				}
-				if (c.mimeType.startsWith('text/')) {
-					return {
-						type: 'text',
-						text: await app.ms.storage.getFileDataText(c.storageId),
-						...baseData
-					}
-				} else if (c.mimeType.includes('image')) {
-					return {
-						type: 'image',
-						...baseData
-					};
-				} else if (c.mimeType.includes('video')) {
-					return {
-						type: 'video',
-						...baseData
-					};
-				} else if (c.mimeType.includes('json')) {
-					return {
-						type: 'json',
-						json: JSON.parse(await app.ms.storage.getFileDataText(c.storageId)),
-						...baseData
-					};
-				}
-			}).then(contents => contents.filter(c => c));
+			} else if (c.mimeType.includes('image')) {
+				return {
+					type: 'image',
+					...baseData
+				};
+			} else if (c.mimeType.includes('video')) {
+				return {
+					type: 'video',
+					...baseData
+				};
+			} else if (c.mimeType.includes('json')) {
+				return {
+					type: 'json',
+					json: JSON.parse(await app.ms.storage.getFileDataText(c.storageId)),
+					...baseData
+				};
+			}
+			return null;
 		}
 
-		async getPostContentWithUrl(baseStorageUri, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?, url?, previewUrl?}[]> {
-			return this.getPostContent(post).then(contents => contents.map(c => {
+		async prepareContentDataWithUrl(c: IContent, baseStorageUri: string): Promise<IContentData> {
+			return this.prepareContentData(c).then(contentData => {
+				if (contentData.storageId) {
+					contentData['url'] = baseStorageUri + contentData.storageId;
+				}
+				if (contentData.previewStorageId) {
+					contentData['previewUrl'] = baseStorageUri + contentData.previewStorageId;
+				}
+				return contentData;
+			});
+		}
+
+		async getPostContentData(post: IPost, baseStorageUri: string): Promise<IContentData[]> {
+			return pIteration.map(
+				orderBy(post.contents, [(c: any) => c.postsContents.position], ['asc']),
+				c => this.prepareContentDataWithUrl(c, baseStorageUri),
+			).then((contents: any[]) => contents.filter(c => !!c));
+		}
+
+		async getPostContentDataWithUrl(post: IPost, baseStorageUri: string): Promise<IContentData[]> {
+			return this.getPostContentData(post, baseStorageUri).then(contents => contents.map(c => {
 				if (c.storageId) {
 					c['url'] = baseStorageUri + c.storageId;
 				}

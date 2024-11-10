@@ -24,7 +24,7 @@ describe("drivers", function () {
 
       const result = await drivers['preview']['image'].processByStream(fs.createReadStream(imagePath));
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-image.jpg';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-image.jpg';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -48,7 +48,7 @@ describe("drivers", function () {
   describe.skip('youtube video', () => {
 
     it("should successfully getting video from youtube", async () => {
-      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-youtube-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-youtube-video.mp4';
       
       async function downloadVideo() {
         const result = await drivers['upload']['youtubeVideo'].processBySource('https://www.youtube.com/watch?v=DXUAyRRkI6k');
@@ -91,7 +91,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, true);
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -122,7 +122,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, true);
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -158,7 +158,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, false);
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/resources/output-video.mp4';
+      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -190,7 +190,7 @@ describe("drivers", function () {
           }
         });
         
-        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/resources/output-screenshot.png');
+        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/test/resources/output-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', resolve);
@@ -209,7 +209,7 @@ describe("drivers", function () {
           }
         });
 
-        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/resources/output-screenshot.png');
+        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/test/resources/output-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', resolve);
@@ -230,7 +230,7 @@ describe("drivers", function () {
           }
         });
 
-        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/resources/output-gif-screenshot.png');
+        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/test/resources/output-gif-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', () => result.emitFinish(resolve));

@@ -1,9 +1,9 @@
-import Layout from "../Layout/index.js";
+import EmptyLayout from "../EmptyLayout/index.js";
 import {getRelativeRoot} from "../../helpers.js";
 
 export default {
     components: {
-        Layout,
+        EmptyLayout,
     },
     inject: ['store'],
     created() {
@@ -18,7 +18,7 @@ export default {
         },
     },
     template: `
-      <layout>
+      <empty-layout>
       <template #page>
         <div class="content-list">
           <div v-for="c in contents" class="content-item">
@@ -31,6 +31,6 @@ export default {
           </div>
         </div>
       </template>
-      </layout>
+      </empty-layout>
     `
 }

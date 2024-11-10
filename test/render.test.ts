@@ -54,6 +54,7 @@ describe("renders", function () {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
+		const apiKeyId = await app.getApyKeyId(apiKey);
 		const staticSiteGenerator = await (await import('../app/modules/staticSiteGenerator/index.js')).default(app);
 
 		await addTextPostToGroup(testGroup, 'Test 1 post');
@@ -86,8 +87,8 @@ describe("renders", function () {
 		async function generateStaticSiteAndGetContent(group, title, description) {
 			const defaultOptions = await staticSiteGenerator.getDefaultOptionsByGroupId(testUser.id, group.id);
 
-			let userOperationQueue: IUserOperationQueue = await staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, apiKey, {entityType: 'group', entityId: group.id}, {
-				site: {title, description},
+			let userOperationQueue: IUserOperationQueue = await staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, apiKeyId, {entityType: 'group', entityId: group.id}, {
+				site: {title, description, name: group.name + '_site'},
 				post: defaultOptions.post,
 				postList: defaultOptions.postList,
 			});

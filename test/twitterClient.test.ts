@@ -331,7 +331,7 @@ describe.skip("twitterClient", function () {
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
 
 		assert.equal(groupPosts.length, 1);
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		const postContents = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], 'https://my.site/ipfs/');
 		assert.equal(postContents.length, 2);
 		const [messageC, imageC] = postContents;
 
@@ -387,8 +387,8 @@ describe.skip("twitterClient", function () {
 			'1395871923561803781': {groupedMsgIds: undefined, replyToMsgId: '1395662836840288261', contents: ['Can you please share the link of this page?'], repostContents: []},
 		};
 		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -397,7 +397,7 @@ describe.skip("twitterClient", function () {
 			assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
 		})
 
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		const postContents = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], 'https://my.site/ipfs/');
 		assert.equal(postContents.length, 1);
 		const [messageC] = postContents;
 
@@ -413,8 +413,8 @@ describe.skip("twitterClient", function () {
 			'1395662836840288261': {groupedMsgIds: undefined, replyToMsgId: undefined, contents: ['2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.', 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly'], repostContents: []},
 		};
 		await pIteration.mapSeries(replyPosts, async (gp: IPost) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, replyDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, replyDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -465,8 +465,8 @@ describe.skip("twitterClient", function () {
 			'1217407431157960704': {groupedMsgIds: undefined, repostOfMsgId: "1217406911303372800", contents: [], repostContents: ['Hey everyone! 🎊 Amazing news! Galt•Project is live on Ethereum mainnet. More details here: https://t.co/1y7g8B7tMN.  DApp is here: https://t.co/Ey9CKYSBph Put your land, house or apartment on Ethereum! Create community and Vote! #ethereum #dao #web3 #DApps #ETH #PropTech']},
 		};
 		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, replyDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, replyDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -509,7 +509,7 @@ describe.skip("twitterClient", function () {
 		assert.equal(groupPosts.length, 10);
 
 		await pIteration.mapSeries(groupPosts, async (gp: IPost, i) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
 			assert.equal(postContents.length, 1);
 			assert.equal(postContents[0].text, (i + 1).toString());
 			assert.equal(gp.localId, i + 1);

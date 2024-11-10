@@ -2,12 +2,12 @@ import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite} from "./interface.js";
-import {IContent} from "../database/interface.js";
+import {IContentData} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
 import site from './site/index.js';
-const {clone, merge, set, get, pick, last} = _;
+const {clone, uniq, merge, set, get, pick, last} = _;
 const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
@@ -15,12 +15,12 @@ const base = '/';
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
     app.checkModules(['asyncOperation', 'group', 'content']);
-    const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize), prepareRender);
+    const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
     (await import('./api.js')).default(app, module);
     return module;
 }
 
-function getModule(app: IGeesomeApp, models, prepareRender) {
+function getModule(app: IGeesomeApp, models) {
     let finishCallbacks = {
 
     };
@@ -66,11 +66,11 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
 
         async processQueue() {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
-            // console.log('waitingQueue', waitingQueue);
+            console.log('waitingQueue', waitingQueue);
             if (!waitingQueue) {
                 return;
             }
-            // console.log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
+            console.log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
             if (waitingQueue.asyncOperation) {
                 if (waitingQueue.asyncOperation.inProcess) {
                     console.log('return');
@@ -94,7 +94,6 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                 name: 'run-' + this.moduleName,
                 channel: operationPrefix + ';op:' + await commonHelper.random()
             });
-            // console.log('asyncOperation', asyncOperation);
 
             await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
@@ -182,9 +181,13 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             const entityId = helpers.keccak(JSON.stringify(entityIds));
 
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options.title, options.site.name, options);
-            const contents = await app.ms.database
-                .getUserContentListByIds(userId, entityIds)
-                .then(list => list.map(c => c.toJSON()));
+
+            let contents = await app.ms.database
+                .getUserContentListByIds(userId, uniq(entityIds))
+                .then(list => Promise.all(list.map(c => app.ms.group.prepareContentDataWithUrl(c, ''))));
+            const contentById = {};
+            contents.forEach(c => contentById[c.id] = c);
+            contents = entityIds.map(entityId => contentById[entityId]);
             const siteStorageDir = `/${staticSite.staticId}-site`;
 
             await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
@@ -192,7 +195,13 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             return {
                 staticSite,
                 siteStorageDir,
-                renderData: { contents, options: {lang: 'en'} }
+                renderData: {
+                    contents,
+                    options: {
+                        lang: 'en',
+                        site: options
+                    }
+                }
             }
         }
 
@@ -207,7 +216,6 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                 limit: 9999,
                 offset: 0
             });
-            console.log('groupPosts.length', groupPosts.length);
 
             const siteStorageDir = `/${staticSite.staticId}-site`;
 
@@ -253,6 +261,7 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
         }
 
         async generateGroupSite(userId, entityType, entityId, options: any = {}): Promise<string> {
+            // console.log('generateGroupSite', {userId, entityType, entityId, options});
             const {
                 staticSite,
                 siteStorageDir,
@@ -277,7 +286,9 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
                 // VueSSR: render other pages by url
                 await this.renderAndSave(renderPage, options, siteStorageDir, `/page/${i}`, 'page');
             }
-            await pIteration.forEachSeries(renderData.posts, (p) => this.renderAndSave(renderPage, options, siteStorageDir, `/post/${p.id}`, 'post', p));
+            await pIteration.forEachSeries(renderData.posts, (p) => {
+                return this.renderAndSave(renderPage, options, siteStorageDir, `/post/${p.id}`, 'post', p);
+            });
 
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
             const baseData = {storageId, lastEntityManifestStorageId: manifestStorageId, options: JSON.stringify(options)};
@@ -298,7 +309,7 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
 
             await this.copyContentsToSite(siteStorageDir, renderData.contents);
 
-            await this.renderAndSave(renderPage, options, siteStorageDir, ``, 'main');
+            await this.renderAndSave(renderPage, options, siteStorageDir, `/content-list`, 'simple');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
@@ -309,7 +320,7 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             if (!gp) {
                 return null;
             }
-            const contents = await app.ms.group.getPostContentWithUrl('', gp);
+            const contents = await app.ms.group.getPostContentDataWithUrl(gp, '');
             await this.copyContentsToSite(siteStorageDir, contents);
             return {
                 id: gp.localId,
@@ -323,21 +334,29 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             }
         }
 
-        async copyContentsToSite(siteStorageDir, contents) {
-            await pIteration.forEach(contents, async (c: IContent) => {
+        async copyContentsToSite(siteStorageDir, contents: IContentData[]) {
+            const copied = {};
+            await pIteration.forEach(contents, async (c: IContentData) => {
+                if (copied[c.storageId]) {
+                    return;
+                }
                 await app.ms.storage.nodeLs(c.storageId).then(r => {
                     console.log('res fileLs', c.storageId, r);
                 }).catch(e => {
                     console.error('err fileLs', c.storageId, e);
                 });
-                await app.ms.storage.copyFileFromId(c.storageId, `${siteStorageDir}/content/${c.storageId}${c.mimeType.includes('video') ? '.mp4' : ''}`);
-                await app.ms.storage.copyFileFromId(c.mediumPreviewStorageId, `${siteStorageDir}/content/${c.mediumPreviewStorageId}`);
+                const contentPath = `${siteStorageDir}/content`;
+                await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${c.storageId}${c.mimeType.includes('video') ? '.mp4' : ''}`).catch(e => console.warn('copyContentsToSite', e.message));
+                await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${c.previewStorageId}`).catch(e => console.warn('copyContentsToSite', e.message));
+                copied[c.storageId] = true;
             });
         }
 
         async renderAndSave(renderPage, options, storageDir, path, type, p = null) {
             let pageTitle = '';
-            if (type === 'main') {
+            if (type === 'simple') {
+                pageTitle = `${options.site.title}`;
+            } else if (type === 'main') {
                 pageTitle = `${options.site.title} - Main page`;
             } else if (type === 'page') {
                 pageTitle = `${options.site.title} - Page #${last(path.split('/'))}`;
@@ -351,7 +370,10 @@ function getModule(app: IGeesomeApp, models, prepareRender) {
             const headers = getOgHeaders(options.site.title, options.lang, pageTitle, pageDescription, imageUrl);
             const htmlContent = await renderPage(path || '/', headers);
             const {id: storageId} = await app.ms.storage.saveFileByData(htmlContent);
-            return app.ms.storage.copyFileFromId(storageId, `${storageDir}${path + '/'}index.html`);
+            if (type !== 'simple') {
+                storageDir += path;
+            }
+            return app.ms.storage.copyFileFromId(storageId, `${storageDir}/index.html`);
         }
 
         async updateDbStaticSite(id, data) {

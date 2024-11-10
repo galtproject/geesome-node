@@ -6,7 +6,7 @@ const {chunk, find, filter, flatten} = _;
 
 export default async (app: IGeesomeApp) => {
     const xml = await import('xml');
-    const module = getModule(app, xml);
+    const module = getModule(app, xml.default);
     (await import('./api.js')).default(app, module);
     return module;
 }
@@ -70,7 +70,7 @@ function getModule(app: IGeesomeApp, xml) {
         ) {
             return pIteration.mapSeries(chunk(posts, 10), (postsChunk) => {
                 return pIteration.map(postsChunk, post => {
-                    return app.ms.group.getPostContentWithUrl(host + '/ipfs/', post).then((contents) => {
+                    return app.ms.group.getPostContentDataWithUrl(post, host + '/ipfs/', ).then((contents) => {
                         console.log('contents', contents);
                         let text = (find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text;
                         if (!text) {

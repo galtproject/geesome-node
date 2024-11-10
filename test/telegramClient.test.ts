@@ -188,7 +188,7 @@ describe("telegramClient", function () {
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		assert.equal(groupPosts.length, 1);
 
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		const postContents = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], 'https://my.site/ipfs/');
 		assert.equal(postContents.length, 3);
 		const [messageC, imageC, linkC] = postContents;
 
@@ -563,7 +563,7 @@ describe("telegramClient", function () {
 		assert.equal(spotifyPremium.contents[1].mimeType, 'image/jpg');
 		assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg');
 
-		const postContents = await app.ms.group.getPostContent(horribleEdgeCases);
+		const postContents = await app.ms.group.getPostContentData(horribleEdgeCases);
 		assert.equal(postContents[0].text, '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>');
 		assert.equal(postContents[0].type, 'text');
 		assert.equal(postContents[0].mimeType, 'text/html');
@@ -879,8 +879,8 @@ describe("telegramClient", function () {
 			},
 		}
 		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -965,7 +965,7 @@ describe("telegramClient", function () {
 			12: {groupedMsgIds: undefined, contents: ['test 4']}
 		}
 		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
@@ -1072,8 +1072,8 @@ describe("telegramClient", function () {
 			},
 		}
 		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);

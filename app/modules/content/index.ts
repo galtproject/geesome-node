@@ -237,59 +237,60 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getContentPreviewStorageFile(storageFile: IStorageFile, previewDriver, options): Promise<any> {
-			return new Promise(async (resolve, reject) => {
-				if (app.ms.storage.isStreamAddSupport()) {
-					const inputStream = await this.getFileStream(storageFile.id);
-					options.onError = (err) => {
-						reject(err);
-					};
-					console.log('getContentPreviewStorageFile stream', options);
-					const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
+			if (app.ms.storage.isStreamAddSupport()) {
+				const inputStream = await this.getFileStream(storageFile.id);
+				options.onError = (err) => {
+					throw err;
+				};
+				console.log('getContentPreviewStorageFile stream', options);
+				const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
-					const previewFile = await app.ms.storage.saveFileByData(resultStream);
-					console.log('getContentPreviewStorageFile stream storageFile', previewFile);
+				const previewFile = await app.ms.storage.saveFileByData(resultStream);
+				console.log('getContentPreviewStorageFile stream storageFile', previewFile);
 
-					let properties;
-					if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
-						const propertiesStream = await this.getFileStream(previewFile.id);
-						console.log('getContentPreviewStorageFile stream propertiesStream');
-						properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
-					}
-					console.log('getContentPreviewStorageFile stream properties', properties);
-
-					return resolve({storageFile: previewFile, type, extension, properties});
-				} else {
-					if (!storageFile.tempPath) {
-						storageFile.tempPath = `/tmp/` + (await commonHelper.random()) + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
-						const data: any = new BufferListStream(await app.ms.storage.getFileData(storageFile.id));
-						//TODO: find more efficient way to store content from IPFS to fs
-						await new Promise((resolve, reject) => {
-							data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve(true)).on('error', reject);
-						})
-						storageFile.emitFinish = () => {
-							fs.unlinkSync(storageFile.tempPath);
-						};
-					}
-					console.log('fs.existsSync(storageFile.tempPath)', fs.existsSync(storageFile.tempPath));
-					console.log('getContentPreviewStorageFile: path', options);
-					const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
-
-					console.log('previewPath', previewPath);
-					const previewFile = await app.ms.storage.saveFileByPath(previewPath);
-					console.log('getContentPreviewStorageFile path storageFile', previewFile);
-
-					let properties;
-					if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
-						console.log('getContentPreviewStorageFile path propertiesStream');
-						properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
-					}
-					console.log('getContentPreviewStorageFile path properties', properties);
-
-					fs.unlinkSync(previewPath);
-
-					return resolve({storageFile: previewFile, type, extension, properties});
+				let properties;
+				if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
+					const propertiesStream = await this.getFileStream(previewFile.id);
+					console.log('getContentPreviewStorageFile stream propertiesStream');
+					properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
 				}
-			});
+				console.log('getContentPreviewStorageFile stream properties', properties);
+
+				return {storageFile: previewFile, type, extension, properties};
+			} else {
+				if (!storageFile.tempPath) {
+					storageFile.tempPath = `/tmp/` + (await commonHelper.random()) + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
+					const data: any = new BufferListStream(await app.ms.storage.getFileData(storageFile.id));
+					//TODO: find more efficient way to store content from IPFS to fs
+					await new Promise((resolve, reject) => {
+						data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve(true)).on('error', reject);
+					})
+					storageFile.emitFinish = () => {
+						fs.unlinkSync(storageFile.tempPath);
+					};
+				}
+				console.log('fs.existsSync(storageFile.tempPath)', fs.existsSync(storageFile.tempPath));
+				console.log('getContentPreviewStorageFile: path', options);
+				const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
+
+				console.log('previewPath', previewPath);
+				const previewFile = await app.ms.storage.saveFileByPath(previewPath);
+				const storageContentStat = await app.ms.storage.getFileStat(previewFile.id);
+				previewFile.size = storageContentStat.size;
+				log('previewFile.size', previewFile.size);
+				console.log('getContentPreviewStorageFile path storageFile', previewFile);
+
+				let properties;
+				if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
+					console.log('getContentPreviewStorageFile path propertiesStream');
+					properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
+				}
+				console.log('getContentPreviewStorageFile path properties', properties);
+
+				fs.unlinkSync(previewPath);
+
+				return {storageFile: previewFile, type, extension, properties};
+			}
 		}
 
 		async prepareStorageFileAndGetPreview(storageFile: IStorageFile, extension, fullType) {
@@ -678,11 +679,7 @@ function getModule(app: IGeesomeApp) {
 								resultFile.emitFinish = uploadResult['emitFinish'];
 							}
 							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
-							log('getFileStat resultFile', resultFile);
-							const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
-							// log('storageContentStat', storageContentStat);
-							resultFile.size = storageContentStat.size;
-							log('resultFile.size', resultFile.size);
+							delete resultFile.size;
 						}
 					})().catch(e => console.error('resultFile', e)),
 
@@ -694,6 +691,13 @@ function getModule(app: IGeesomeApp) {
 						}
 					})()
 				]);
+
+				if (!resultFile.size) {
+					const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
+					log('getFileStat storageContentStat', storageContentStat);
+					resultFile.size = storageContentStat.size;
+					log('resultFile.size', resultFile.size);
+				}
 
 				resolve({
 					resultFile: resultFile,

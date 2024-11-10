@@ -175,6 +175,21 @@ export interface IContent {
   toJSON?(): string;
 }
 
+export interface IContentData {
+  id;
+  type;
+  text?;
+  json?;
+  storageId;
+  previewStorageId;
+  extension;
+  mimeType;
+  view;
+  manifestId;
+  url?;
+  previewUrl?;
+}
+
 export interface IObject {
   id?: number;
 

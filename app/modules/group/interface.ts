@@ -1,5 +1,5 @@
 import {
-	IContent,
+	IContent, IContentData,
 	ICorePermission,
 	IListParams,
 	IUser
@@ -76,9 +76,11 @@ export default interface IGeesomeGroupModule {
 
 	getPostByParams(params): Promise<IPost>;
 
-	getPostContent(post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?}[]>;
+	getPostContentData(post: IPost, baseStorageUri: string): Promise<IContentData[]>;
 
-	getPostContentWithUrl(baseStorageUri: string, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?, url?, previewUrl?}[]>;
+	prepareContentDataWithUrl(c: IContent, baseStorageUri: string): Promise<IContentData>;
+
+	getPostContentDataWithUrl(post: IPost, baseStorageUri: string): Promise<IContentData[]>;
 
 	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 

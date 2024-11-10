@@ -21,6 +21,8 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
 
 	generateGroupSite(userId, entityType, entityId, options?: any): Promise<string>;
+
+	generateContentListSite(userId, entityType, entityIds, options?: any): Promise<string>;
 }
 
 export interface IStaticSite {

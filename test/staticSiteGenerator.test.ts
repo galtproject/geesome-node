@@ -17,7 +17,7 @@ import resourcesHelper from './helpers/resources.js';
 import {IGeesomeApp} from "../app/interface.js";
 const {getTitleAndDescription} = ssgHelpers;
 
-describe.only("staticSiteGenerator", function () {
+describe("staticSiteGenerator", function () {
 	this.timeout(60000);
 
 	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule, testUser: IUser, testGroup: IGroup;
@@ -72,17 +72,19 @@ describe.only("staticSiteGenerator", function () {
 		assert.equal(description, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><i>Language<br/>concepts[6], with terse syntax.[7]...</i>');
 	});
 
-	it.only('should generate site correctly', async () => {
+	it('should generate site correctly from group', async () => {
 		const posts = [];
 		for(let i = 0; i < 30; i++) {
 			const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world' + i, null, { mimeType: 'text/markdown' });
 
+			console.log('post1Content ls', await app.ms.storage.nodeLs(post1Content.storageId));
 			const pngImagePath = await resourcesHelper.prepare('input-image.png');
 			console.log('imageContent', i);
 			const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
 				groupId: testGroup.id,
 				waitForPin: true
 			});
+			console.log('imageContent ls', await app.ms.storage.nodeLs(imageContent.storageId));
 			console.log('postData', i);
 			const postData = {
 				contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Contents},{manifestStorageId: imageContent.manifestStorageId, view: ContentView.Media}],
@@ -134,5 +136,48 @@ describe.only("staticSiteGenerator", function () {
 		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
 		assert.equal(postHtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
 		console.log('postHtmlContent', postHtmlContent);
+	});
+
+	it('should generate site correctly from content list', async () => {
+		const contentIds = [];
+		for (let i = 0; i < 30; i++) {
+			const pngImagePath = await resourcesHelper.prepare('input-image.png');
+			const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
+				groupId: testGroup.id,
+				waitForPin: true
+			});
+			contentIds.push(imageContent.id);
+		}
+
+		console.log('generateContentsSite 1');
+		const directoryStorageId = await staticSiteGenerator.generateContentListSite(testUser.id, 'content-list', contentIds, {
+			lang: 'en',
+			dateFormat: 'DD.MM.YYYY hh:mm:ss',
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			post: {
+				titleLength: 0,
+				descriptionLength: 400,
+			},
+			postList: {
+				postsPerPage: 5,
+			},
+			site: {
+				title: 'MySite',
+				name: 'my_site',
+				description: 'My About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+		console.log('generateContentsSite 2', directoryStorageId);
+		console.log('ls', await app.ms.storage.nodeLs(directoryStorageId));
+		console.log('ls content', await app.ms.storage.nodeLs(directoryStorageId + '/content'));
+
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
+		assert.equal(indexHtmlContent.includes('class="content-item'), true);
+		assert.equal(indexHtmlContent.includes('<link rel="stylesheet" href="./style.css">'), true);
+		assert.equal(indexHtmlContent.includes('<img src="./content/bafk'), true);
+		console.log('indexHtmlContent', indexHtmlContent);
 	});
 });
