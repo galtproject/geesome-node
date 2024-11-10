@@ -25,7 +25,7 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.INTEGER
 		},
 		channelId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		title: {
 			type: DataTypes.STRING(200)
@@ -43,16 +43,16 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.INTEGER
 		},
 		groupedId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		msgId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		replyToMsgId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		repostOfMsgId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		postId: {
 			type: DataTypes.INTEGER
@@ -77,10 +77,10 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.INTEGER
 		},
 		groupedId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		msgId: {
-			type: DataTypes.STRING(50)
+			type: DataTypes.STRING(100)
 		},
 		dbContentId: {
 			type: DataTypes.INTEGER

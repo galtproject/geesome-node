@@ -1,6 +1,6 @@
 #!/bin/bash
 
 docker run --rm -v /var/lib/docker:/var/lib/docker alpine truncate -s 0 $(docker inspect --format='{{.LogPath}}' geesome)
-rm -rf test/.geesome-data test/.geesome-frontend test/.ipfs test/.ipfs-data
+rm -rf test/.geesome-data test/.geesome-frontend test/.ipfs test/.ipfs-data test/.postgres-data
 docker cp app/. geesome:/geesome-node/app/ && docker cp test/. geesome:/geesome-node/test/ && docker cp package.json geesome:/geesome-node/ # && docker cp node_modules/. geesome:/geesome-node/node_modules/
-docker restart go_ipfs && docker restart geesome && docker logs geesome -f
+docker compose -f ./test/docker-compose.yml restart && docker logs geesome -f

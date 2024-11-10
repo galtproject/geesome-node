@@ -42,6 +42,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async findExistsChannelMessage(msgId, dbChannelId, userId) {
+			msgId = msgId.toString();
+			console.log('Message', {msgId, dbChannelId, userId});
 			return models.Message.findOne({where: {msgId, dbChannelId, userId}});
 		}
 
@@ -360,6 +362,8 @@ function getModule(app: IGeesomeApp, models) {
 		async setContentsByMessagesContents(_postData, _dbChannelId) {
 			let {contents} = _postData;
 			contents = uniqBy(contents, (c: IContent) => c.manifestStorageId);
+			console.log('where', {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}});
+			console.log('ContentMessage', await models.ContentMessage.findAll({}).then(list => list.map(cm => cm.toJSON())));
 			const messageContents = await models.ContentMessage.findAll({
 				where: {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}}
 			});
@@ -397,7 +401,7 @@ function getModule(app: IGeesomeApp, models) {
 		storeContentMessage(contentMessageData, content) {
 			console.log('storeContentMessage', contentMessageData, 'content.id', content ? content.id : null);
 			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch((e) => {
-				console.error('models.ContentMessage.create', JSON.stringify(e.errors));
+				console.error('models.ContentMessage.create error', e);
 			});
 		}
 
