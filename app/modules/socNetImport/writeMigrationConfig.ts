@@ -9,20 +9,18 @@
 
 import fs from "fs";
 import helpers from "../../helpers.js";
-import config from './config.js';
+import config from '../database/config.js';
 
-if (!fs.existsSync(`${helpers.getCurDir()}/config/`)) {
-  fs.mkdirSync(`${helpers.getCurDir()}/config/`);
+const modulePath = `${helpers.getCurDir()}/modules/socNetImport/config/`;
+if (!fs.existsSync(modulePath)) {
+  fs.mkdirSync(modulePath);
 }
-
-const storage = config.options.storage ? helpers.getCurDir().replace('app/modules/socNetImport', '') + config.options.storage : undefined;
-
-fs.writeFileSync(`${helpers.getCurDir()}/config/config.json`, JSON.stringify({
-  production: { dialect: config.options.dialect, storage}
-}));
-
-if (storage) {
-  if (!fs.existsSync(storage)) {
-    process.exit(1);
+fs.writeFileSync(`${modulePath}config.json`, JSON.stringify({
+  production: {
+    database: config.database,
+    username: config.username,
+    password: config.password,
+    host: config.host,
+    dialect: config.dialect
   }
-}
+}));
