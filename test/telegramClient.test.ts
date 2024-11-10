@@ -196,7 +196,7 @@ describe("telegramClient", function () {
 		assert.equal(imageC.mimeType, 'image/jpg');
 		assert.equal(imageC.view, 'media');
 		assert.equal(imageC.url, 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly');
-		assert.equal(imageC.manifestId, 'bafyreientdwdzsekjtbqgs4kzgtajeugttphtavkgciimy6eyeasyl56py');
+		assert.equal(imageC.manifestId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
 
 		assert.equal(linkC.type, 'json');
 		assert.equal(linkC.mimeType, 'application/json');
@@ -293,7 +293,7 @@ describe("telegramClient", function () {
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		assert.equal(groupPosts.length, 1);
-		const {contents} = groupPosts[0];
+		const contents = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
 
 		assert.equal(contents.length, 2);
 		const [textContent, linkContent] = contents;
@@ -393,7 +393,7 @@ describe("telegramClient", function () {
 		// }
 		assert.equal(contents[0].manifestStorageId, 'bafyreic4hvcncqyg7s52yc2vhl7nqygx2iyw5act57zc3yt72xtc4wemga');
 		assert.equal(contents[1].manifestStorageId, 'bafyreibwojxmlwwj24ghvva4exkhrj6jg3gbvsznz66wzw2vsojyz2nr3y');
-		assert.equal(contents[2].manifestStorageId, 'bafyreientdwdzsekjtbqgs4kzgtajeugttphtavkgciimy6eyeasyl56py');
+		assert.equal(contents[2].manifestStorageId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
 	});
 
 	it('should merge two group of posts by timestamp', async () => {
@@ -563,7 +563,7 @@ describe("telegramClient", function () {
 		assert.equal(spotifyPremium.contents[1].mimeType, 'image/jpg');
 		assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg');
 
-		const postContents = await app.ms.group.getPostContentData(horribleEdgeCases);
+		const postContents = await app.ms.group.getPostContentData(horribleEdgeCases, '');
 		assert.equal(postContents[0].text, '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>');
 		assert.equal(postContents[0].type, 'text');
 		assert.equal(postContents[0].mimeType, 'text/html');
@@ -692,8 +692,8 @@ describe("telegramClient", function () {
 		const contents1 = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
 		assert.equal(contents1.length, 3);
 		assert.equal(contents1[0].manifestStorageId, 'bafyreihrydk7t5w3vxixxzyqmkeyz6bw3kvqvhux2llfigu5js4nzg5rmm');
-		assert.equal(contents1[1].manifestStorageId, 'bafyreientdwdzsekjtbqgs4kzgtajeugttphtavkgciimy6eyeasyl56py');
-		assert.equal(contents1[2].manifestStorageId, 'bafyreiegxulo5exylrxgrr2h2tpuhivnv66exzzyxarax5npr5wseh7rfu');
+		assert.equal(contents1[1].manifestStorageId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
+		assert.equal(contents1[2].manifestStorageId, 'bafyreibeecyyl2gnqpn32rd5y2peg5xuutnpoivafhoaeoqdoalvbslfgi');
 	});
 
 	it.skip('should get reply info from anonymous forward', async () => {

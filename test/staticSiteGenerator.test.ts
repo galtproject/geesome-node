@@ -163,7 +163,7 @@ describe("staticSiteGenerator", function () {
 			},
 			site: {
 				title: 'MySite',
-				name: 'my_site',
+				name: 'my_content_site',
 				description: 'My About',
 				username: 'myusername',
 				base: '/'

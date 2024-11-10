@@ -16,7 +16,16 @@ export default {
   'password': process.env.DATABASE_PASSWORD || 'geesome',
   'host': process.env.DATABASE_HOST || 'localhost',
   'port': parseInt(process.env.DATABASE_PORT || '5432'),
-  'logging': (d) => {log(d)},
+  'logging': (d) => {
+    if (
+        d.includes('SELECT "post"."id", "post"."status", "post"."name", "post"."publishedAt"') ||
+        d.includes('SELECT "group"."id", "group"."name", "group"."title", "group"."description"') ||
+        d.includes('SELECT "user"."id", "user"."name", "user"."email", "user"."keyStoreMethod"')
+    ) {
+      return;
+    }
+    log(d)
+  },
   // 'dialect': 'sqlite',
   // 'storage': `${process.env.DATA_DIR || 'data'}/core.sqlite`
 };

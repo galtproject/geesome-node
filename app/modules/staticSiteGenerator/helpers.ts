@@ -106,7 +106,7 @@ function splitBySeparatorsAndFill(text, output, maxOutputLength, firstSeparator 
 }
 function getTitleAndDescription(texts, postSettings, plainText = false) {
     let contents = texts.filter((t) => t.view === 'contents');
-    console.log('getTitleAndDescription contents', contents);
+    // console.log('getTitleAndDescription contents', contents);
     if (!contents[0]) {
         contents = [texts[0]];
     }
@@ -154,7 +154,7 @@ function getTitleAndDescription(texts, postSettings, plainText = false) {
 
 function getPostTitleAndDescription(post, contents, postSettings) {
     const texts = contents.filter(c => c.type === 'text');
-    console.log('texts', texts);
+    // console.log('texts', texts);
     const {title: itemTitle, description: itemDescription} = getTitleAndDescription(texts, postSettings);
 
     let pageTitle = itemTitle;

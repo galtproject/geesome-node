@@ -341,7 +341,7 @@ function getModule(app: IGeesomeApp, models) {
                     return;
                 }
                 await app.ms.storage.nodeLs(c.storageId).then(r => {
-                    console.log('res fileLs', c.storageId, r);
+                    // console.log('res fileLs', c.storageId, r);
                 }).catch(e => {
                     console.error('err fileLs', c.storageId, e);
                 });
@@ -440,6 +440,12 @@ function getModule(app: IGeesomeApp, models) {
                 }
             }
             return this.updateDbStaticSite(staticSiteInfo.id, updateData);
+        }
+
+        async flushDatabase() {
+            await pIteration.forEachSeries(['StaticSite'], (modelName) => {
+                return models[modelName].destroy({where: {}});
+            });
         }
     }
 
