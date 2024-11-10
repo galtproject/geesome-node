@@ -8,28 +8,19 @@
  */
 
 import fs from "fs";
-import config from '../database/config.js';
 import helpers from "../../helpers.js";
+import config from '../database/config.js';
 
-if (!fs.existsSync(`${helpers.getCurDir()}/config/`)) {
-  fs.mkdirSync(`${helpers.getCurDir()}/config/`);
+const modulePath = `${helpers.getCurDir()}/modules/group/config/`;
+if (!fs.existsSync(modulePath)) {
+  fs.mkdirSync(modulePath);
 }
-
-const storage = config['storage'] ? helpers.getCurDir().replace('app/modules/group', '') + config['storage'] : undefined;
-
-fs.writeFileSync(`${helpers.getCurDir()}/config/config.json`, JSON.stringify({
+fs.writeFileSync(`${modulePath}config.json`, JSON.stringify({
   production: {
     database: config.database,
     username: config.username,
     password: config.password,
     host: config.host,
-    dialect: config.dialect,
-    storage
+    dialect: config.dialect
   }
 }));
-
-if (storage) {
-  if (!fs.existsSync(storage)) {
-    process.exit(1);
-  }
-}
