@@ -7,42 +7,22 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {ContentView, CorePermissionName} from "../app/modules/database/interface";
-import {PostStatus} from "../app/modules/group/interface";
-
-const commonHelpers = require("geesome-libs/src/common");
-const assert = require('assert');
-const _ = require('lodash');
+import assert from 'assert';
+import commonHelper from "geesome-libs/src/common.js";
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {PostStatus} from "../app/modules/group/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("group", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp;
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig: any = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -91,13 +71,13 @@ describe("group", function () {
 			await app.ms.group.createGroup(newUser.id, {name: '', title: 'Test2'});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "incorrect_name"), true);
+			assert.equal(e.toString().includes("incorrect_name"), true);
 		}
 		try {
 			await app.ms.group.createGroup(newUser.id, {title: 'Test2'});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "incorrect_name"), true);
+			assert.equal(e.toString().includes("incorrect_name"), true);
 		}
 		const group2 = await app.ms.group.createGroup(newUser.id, {name: 'test2', title: 'Test2'});
 
@@ -119,7 +99,7 @@ describe("group", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		await app.ms.group.updatePost(testUser.id, testPost.id, {isReplyForbidden: false});
@@ -151,7 +131,7 @@ describe("group", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 	});
 
@@ -191,16 +171,16 @@ describe("group", function () {
 
 		try {
 			await app.ms.group.updateGroup(testUser.id, testGroup.id, {
-				name: testGroup.name + '_deleted_' + commonHelpers.makeCode(16),
+				name: testGroup.name + '_deleted_' + commonHelper.makeCode(16),
 				isDeleted: true
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "not_permitted"), true);
+			assert.equal(e.toString().includes("not_permitted"), true);
 		}
 
 		await app.ms.group.updateGroup(newUser.id, testGroup.id, {
-			name: testGroup.name + '_deleted_' + commonHelpers.makeCode(16),
+			name: testGroup.name + '_deleted_' + commonHelper.makeCode(16),
 			isDeleted: true
 		});
 
@@ -223,7 +203,7 @@ describe("group", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "Validation error"), true);
+			assert.equal(e.toString().includes("Validation error"), true);
 		}
 
 		const test3Group = await app.ms.group.createGroup(testUser.id, {
@@ -237,7 +217,7 @@ describe("group", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "SequelizeUniqueConstraintError"), true);
+			assert.equal(e.toString().includes("SequelizeUniqueConstraintError"), true);
 		}
 		const test3GroupAfterUpdate = await app.ms.group.getGroup(test3Group.id);
 		assert.equal(test3GroupAfterUpdate.name, testGroup.name + '1');

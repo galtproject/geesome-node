@@ -6,117 +6,116 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+import {Sequelize, DataTypes} from 'sequelize';
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
-
+export default async function (sequelize: Sequelize, models) {
   const Group = sequelize.define('group', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     name: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     title: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     description: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     avatarImageId: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     coverImageId: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     type: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     view: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     theme: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     homePage: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     size: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     isPublic: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isOpen: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isCollateral: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isRemote: {
-      type: Sequelize.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       defaultValue: false
     },
     isPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isEncrypted: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isFullyPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isShowAuthors: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isReplyForbidden: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isDeleted: {
-      type: Sequelize.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       defaultValue: false
     },
     peersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     fullyPeersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     storageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     directoryStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     staticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     storageAccountId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStaticStorageId: {
-      type: Sequelize.STRING(200),
+      type: DataTypes.STRING(200),
       unique: true
     },
     encryptedManifestStorageId: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
     propertiesJson: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
     storageUpdatedAt: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
     staticStorageUpdatedAt: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
     publishedPostsCount: {
-      type: Sequelize.INTEGER,
+      type: DataTypes.INTEGER,
       defaultValue: 0
     },
     availablePostsCount: {
-      type: Sequelize.INTEGER,
+      type: DataTypes.INTEGER,
       defaultValue: 0
     },
   } as any, {

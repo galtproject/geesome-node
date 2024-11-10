@@ -7,13 +7,12 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-
+import _ from 'lodash';
+import sharp from "sharp";
 import {Stream} from "stream";
-import AbstractDriver from "../abstractDriver";
-
-const sharp = require('sharp');
-const _ = require('lodash');
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
+const {extend} = _;
 
 export class ImagePreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -32,9 +31,10 @@ export class ImagePreviewDriver extends AbstractDriver {
       size = {width: 2048};
     }
     const resizerStream = sharp()
-        .resize(_.extend(size, {withoutEnlargement: true}))
+        .resize(extend(size, {withoutEnlargement: true}))
         .withMetadata()
         .toFormat(extension);
+    console.log('ImagePreviewDriver.resizerStream');
 
     const resultStream = inputStream.pipe(resizerStream) as Stream;
 

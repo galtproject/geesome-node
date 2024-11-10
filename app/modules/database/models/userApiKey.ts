@@ -7,28 +7,29 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
+import {Sequelize, DataTypes} from "sequelize";
+
+export default async function (sequelize, models) {
 
   const UserApiKey = sequelize.define('userApiKey', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     title: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     valueHash: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     type: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     permissions: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     expiredOn: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
     isDisabled: {
-      type: Sequelize.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       defaultValue: false
     },
   } as any, {

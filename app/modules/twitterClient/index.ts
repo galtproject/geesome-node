@@ -7,35 +7,35 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import _ from 'lodash';
+import pIteration from 'p-iteration';
 import {TwitterApi} from 'twitter-api-v2';
-import {IGeesomeApp} from "../../interface";
-import IGeesomeSocNetImport from "../socNetImport/interface";
-import IGeesomeSocNetAccount from "../socNetAccount/interface";
-import {ContentView} from "../database/interface";
-import {TwitterImportClient} from "./importClient";
-import {IMessagesState} from "./interface";
+import IGeesomeTwitterClient, {IMessagesState} from "./interface.js";
+import IGeesomeSocNetAccount from "../socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../socNetImport/interface.js";
+import {TwitterImportClient} from "./importClient.js";
+import {ContentView} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import twitterHelpers from './helpers.js';
+const {uniq, map} = _;
+const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = twitterHelpers;
 
-const uniq = require('lodash/uniq');
-const map = require('lodash/map');
-const pIteration = require('p-iteration');
-const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = require('./helpers');
-
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 
-	require('./api')(app, module);
+	(await import('./api.js')).default(app, module);
 
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
+function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 	app.checkModules(['asyncOperation', 'group', 'content', 'socNetImport']);
 
 	const socNet = 'twitter';
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
-	class TwitterClientModule {
+	class TwitterClientModule implements IGeesomeTwitterClient {
 		async login(userId, loginData) {
 			let {id: accountId, apiId, apiKey, accessToken, sessionKey, encryptedSessionKey, encryptedApiKey, isEncrypted} = loginData;
 
@@ -92,6 +92,11 @@ function getModule(app: IGeesomeApp) {
 		async getMeByUserId(userId, accData) {
 			const {client} = await this.getClient(userId, accData);
 			return client.readOnly.v2.me().then(r => r.data);
+		}
+
+		async getUserInfoByUserId(userId, accData, username) {
+			const {client} = await this.getClient(userId, accData);
+			return client.readOnly.v2.user(username).then(r => r.data);
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
@@ -240,7 +245,7 @@ function getModule(app: IGeesomeApp) {
 			messages.channelByAuthorId = {
 				[dbChannel.accountId]: dbChannel
 			};
-			messages.list = uniq(messages.listIds).map(id => messages.tweetsById[id]);
+			messages.list = uniq(messages.listIds).map((id: any) => messages.tweetsById[id]);
 			const twImportClient = new TwitterImportClient(app, client, userId, dbChannel, messages, advancedSettings, onRemotePostProcess);
 			await socNetImport.importChannelPosts(twImportClient);
 		}

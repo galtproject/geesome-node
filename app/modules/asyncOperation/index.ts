@@ -1,17 +1,16 @@
-import {IGeesomeApp} from "../../interface";
-import {
-	CorePermissionName
-} from "../database/interface";
-import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface";
-const _ = require('lodash');
-const commonHelper = require('geesome-libs/src/common');
-const Op = require("sequelize").Op;
+import _ from 'lodash';
+import {Op} from "sequelize";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const {isObject, last} = _;
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
-	const module = getModule(app, await require('./models')());
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	await module.closeAllAsyncOperation();
-	require('./api')(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -37,8 +36,8 @@ function getModule(app: IGeesomeApp, models) {
 			});
 
 			// TODO: fix hotfix
-			if (_.isObject(_.last(args))) {
-				_.last(args).onProgress = (progress) => {
+			if (isObject(last(args))) {
+				(last(args) as any).onProgress = (progress) => {
 					console.log('onProgress', progress);
 					this.updateUserAsyncOperation(asyncOperation.id, {
 						percent: progress.percent

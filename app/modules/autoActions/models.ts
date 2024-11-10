@@ -6,52 +6,49 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-auto-actions', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const AutoAction = sequelize.define('autoAction', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		moduleName: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		funcName: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		funcArgs: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		isEncrypted: {
-			type: Sequelize.BOOLEAN,
+			type: DataTypes.BOOLEAN,
 			defaultValue: false
 		},
 		funcArgsEncrypted: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		isActive: {
-			type: Sequelize.BOOLEAN,
+			type: DataTypes.BOOLEAN,
 			defaultValue: false
 		},
 		executePeriod: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			defaultValue: 0
 		},
 		totalExecuteAttempts: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			defaultValue: 0
 		},
 		currentExecuteAttempts: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			defaultValue: 0
 		},
 		executeOn: {
-			type: Sequelize.DATE
+			type: DataTypes.DATE
 		},
 	} as any, {
 		indexes: [
@@ -64,17 +61,17 @@ module.exports = async function () {
 
 	const NextActionsPivot = sequelize.define('nextActionsPivot',{
 		baseActionId: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			allowNull: false,
 			primaryKey: true
 		},
 		nextActionId: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			allowNull: false,
 			primaryKey: true
 		},
 		position: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			defaultValue: 0,
 		}
 	} as any);
@@ -87,17 +84,17 @@ module.exports = async function () {
 	const AutoActionLog = sequelize.define('autoActionLog', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		isFailed: {
-			type: Sequelize.BOOLEAN,
+			type: DataTypes.BOOLEAN,
 			defaultValue: false
 		},
 		error: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		},
 		response: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		},
 	} as any, {
 		indexes: [

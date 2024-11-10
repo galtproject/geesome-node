@@ -1,9 +1,8 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAutoActionsModule from "./interface";
-import CronService from "./cronService";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeAutoActionsModule from "./interface.js";
+import CronService from "./cronService.js";
 
-
-module.exports = (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule, models) => {
+export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) => {
 	const cronService = new CronService(app, autoActionsModule);
 
 	setInterval(async () => {

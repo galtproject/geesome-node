@@ -1,27 +1,24 @@
-import {IGeesomeApp} from "../../interface";
-import {
-	CorePermissionName,
-	IListParams
-} from "../database/interface";
-import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface";
-import {GroupType} from "../group/interface";
-const commonHelper = require('geesome-libs/src/common');
-const _ = require('lodash');
-const pIteration = require('p-iteration');
+import _ from 'lodash';
+import pIteration from 'p-iteration';
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface.js";
+import {CorePermissionName, IListParams} from "../database/interface.js";
+import {GroupType} from "../group/interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const {isUndefined, pick} = _;
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'staticId', 'group']);
 
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await require('./models')(sequelize, models));
-	require('./api')(app, module);
+	const module = getModule(app, await (await import('./models/index.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
 function getModule(app: IGeesomeApp, models) {
-	
 	class GroupCategoryModule implements IGeesomeGroupCategoryModule {
-		
+
 		async canAddGroupToCategory(userId, categoryId) {
 			if (!categoryId) {
 				return false;
@@ -42,7 +39,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (categoryId == 'null' || categoryId == 'undefined') {
 				return null;
 			}
-			if (!categoryId || _.isUndefined(categoryId)) {
+			if (!categoryId || isUndefined(categoryId)) {
 				return null;
 			}
 			if (!commonHelper.isNumber(categoryId)) {
@@ -280,7 +277,7 @@ function getModule(app: IGeesomeApp, models) {
 		getGroupSectionsWhere(filters) {
 			const where = {};
 			['name', 'categoryId'].forEach((name) => {
-				if(!_.isUndefined(filters[name])) {
+				if(!isUndefined(filters[name])) {
 					where[name] = filters[name];
 				}
 			});
@@ -318,7 +315,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getCategoryByParams(params) {
-			params = _.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
+			params = pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
 			return models.GroupCategory.findOne({ where: params }) as IGroupCategory;
 		}
 
@@ -353,7 +350,7 @@ function getModule(app: IGeesomeApp, models) {
 		getSectionsWhere(filters) {
 			const where = {};
 			['name', 'parentSectionId'].forEach((name) => {
-				if(!_.isUndefined(filters[name])) {
+				if(!isUndefined(filters[name])) {
 					where[name] = filters[name];
 				}
 			});
@@ -387,7 +384,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		prepareListParams(listParams?: IListParams): IListParams {
-			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 
 		async flushDatabase() {
@@ -401,3 +398,4 @@ function getModule(app: IGeesomeApp, models) {
 	}
 	return new GroupCategoryModule();
 }
+

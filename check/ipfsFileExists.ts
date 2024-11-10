@@ -7,8 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-const {create} = require('ipfs-http-client');
-const itFirst = require('it-first');
+import { create } from 'kubo-rpc-client';
 
 (async () => {
   const {CID, URL} = process.env;

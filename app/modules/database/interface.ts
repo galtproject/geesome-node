@@ -38,6 +38,8 @@ export interface IGeesomeDatabaseModule {
 
   getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
 
+  getUserContentListByIds(userId, contentIds): Promise<IContent[]>;
+
   getContent(id): Promise<IContent>;
 
   getContentByStorageId(storageId, findByPreviews?): Promise<IContent>;
@@ -166,9 +168,26 @@ export interface IContent {
   staticStorageId?: string;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
+  postsContents?: {position?, view?};
 
   encryptedManifestStorageId?: string;
   propertiesJson?: string;
+  toJSON?(): string;
+}
+
+export interface IContentData {
+  id;
+  type;
+  text?;
+  json?;
+  storageId;
+  previewStorageId;
+  extension;
+  mimeType;
+  view;
+  manifestId;
+  url?;
+  previewUrl?;
 }
 
 export interface IObject {

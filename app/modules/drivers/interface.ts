@@ -34,6 +34,8 @@ export interface IDriver {
   supportedInputs: string[];
   supportedOutputSizes: string[];
 
+  processByPath?(path, options?): Promise<any>;
+
   processByStream?(inputSteam: Stream, options?): Promise<IDriverResponse>;
 
   processByContent?(inputContent: any, options?): Promise<IDriverResponse>;
@@ -62,4 +64,8 @@ export interface IDriverResponse {
   path?: string;
   type?: string;
   extension?: string;
+  tempPath?: string;
+  processed?: boolean;
+  width?: number;
+  emitFinish?(callback?: () => void): void;
 }

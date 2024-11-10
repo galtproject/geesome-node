@@ -1,6 +1,6 @@
 export {};
 
-module.exports = {
+export default {
     generateRandomData(size) {
         const chars = 'abcdefghijklmnopqrstuvwxyz'.split('');
         const len = chars.length;

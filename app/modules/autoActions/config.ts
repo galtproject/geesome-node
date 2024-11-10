@@ -1,5 +1,4 @@
-
-module.exports = {
+export default {
 	options: {
 		// 'logging': (d) => {log(d)},
 		'dialect': 'sqlite',

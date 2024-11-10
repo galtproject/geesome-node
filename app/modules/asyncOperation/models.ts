@@ -6,50 +6,47 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-async-operations', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const UserAsyncOperation = sequelize.define('userAsyncOperation', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		name: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		channel: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		size: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		percent: {
-			type: Sequelize.DOUBLE
+			type: DataTypes.DOUBLE
 		},
 		finishedAt: {
-			type: Sequelize.DATE
+			type: DataTypes.DATE
 		},
 		errorType: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		errorMessage: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		inProcess: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 		cancel: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		userApiKeyId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		contentId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 	} as any, {
 		indexes: [
@@ -65,25 +62,25 @@ module.exports = async function () {
 	const UserOperationQueue = sequelize.define('userOperationQueue', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		module: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		inputHash: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		startedAt: {
-			type: Sequelize.DATE
+			type: DataTypes.DATE
 		},
 		inputJson: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		isWaiting: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		userApiKeyId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 	} as any, {
 		indexes: [

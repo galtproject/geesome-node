@@ -1,15 +1,14 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeEthereumAuthorizationModule from "./interface";
-import IGeesomeForeignAccountsModule from "../foreignAccounts/interface";
-import {CorePermissionName} from "../database/interface";
+import commonHelper from "geesome-libs/src/common.js";
+import geesomeMessages from "geesome-libs/src/messages.js";
+import ethereumAuthorization from "geesome-libs/src/ethereum.js";
+import IGeesomeForeignAccountsModule from "../foreignAccounts/interface.js";
+import IGeesomeEthereumAuthorizationModule from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
-const ethereumAuthorization = require('geesome-libs/src/ethereum');
-const commonHelper = require('geesome-libs/src/common');
-const geesomeMessages = require("geesome-libs/src/messages");
-
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	require('./api')(app, module);
+	(await import('./api')).default(app, module);
 	return module;
 }
 

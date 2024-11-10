@@ -1,28 +1,30 @@
-import {IGeesomeApp} from "../../interface";
+import _ from 'lodash';
+import debug from 'debug';
+import {Op} from "sequelize";
+import pIteration from 'p-iteration';
+import commonHelper from "geesome-libs/src/common.js";
+import pgpHelper from "geesome-libs/src/pgpHelper.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
+import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import helpers from '../../helpers.js';
 import {
 	ContentView,
 	CorePermissionName,
-	GroupPermissionName, IContent,
-	IListParams,
-} from "../database/interface";
-import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface";
+	GroupPermissionName,
+	IContent,
+	IContentData,
+	IListParams
+} from "../database/interface.js";
+const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
+const log = debug('geesome:app:group');
 
-let helpers = require('../../helpers');
-const geesomeLibsCommonHelper = require('geesome-libs/src/common');
-const _ = require('lodash');
-const pIteration = require('p-iteration');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
-const log = require('debug')('geesome:app:group');
-const pgpHelper = require('geesome-libs/src/pgpHelper');
-const peerIdHelper = require('geesome-libs/src/peerIdHelper');
-const commonHelpers = require('geesome-libs/src/common');
-const Op = require("sequelize").Op;
-
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await require('./models')(sequelize, models));
-	require('./api')(app, module);
+	const module = getModule(app, await (await import('./models/index.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -72,7 +74,7 @@ function getModule(app: IGeesomeApp, models) {
 				dbCover = await app.ms.content.createContentByObject(userId, groupObject.coverImage);
 			}
 			const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
-			const dbGroup = await this.addGroup(_.extend(_.pick(groupObject, groupFields), {
+			const dbGroup = await this.addGroup(extend(pick(groupObject, groupFields), {
 				avatarImageId: dbAvatar ? dbAvatar.id : null,
 				coverImageId: dbCover ? dbCover.id : null
 			}));
@@ -347,7 +349,7 @@ function getModule(app: IGeesomeApp, models) {
 		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = this.prepareListParams(listParams);
-			if (_.isUndefined(filters['isDeleted'])) {
+			if (isUndefined(filters['isDeleted'])) {
 				filters['isDeleted'] = false;
 			}
 
@@ -369,10 +371,10 @@ function getModule(app: IGeesomeApp, models) {
 			if (groupId == 'null' || groupId == 'undefined') {
 				return null;
 			}
-			if (!groupId || _.isUndefined(groupId)) {
+			if (!groupId || isUndefined(groupId)) {
 				return null;
 			}
-			if (!geesomeLibsCommonHelper.isNumber(groupId)) {
+			if (!commonHelper.isNumber(groupId)) {
 				let group = await this.getGroupByManifestId(groupId, groupId);
 				if (group) {
 					return group.id;
@@ -396,7 +398,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			const responses = await app.callHook('group', 'canCreatePostInGroup', [userId, groupId]);
-			return _.some(responses);
+			return some(responses);
 		}
 
 		async canReplyToPost(userId, replyToPostId) {
@@ -430,10 +432,10 @@ function getModule(app: IGeesomeApp, models) {
 				return canEdit;
 			}
 			const responses = await app.callHook('group', 'canCreatePostInGroup', [userId, groupId]);
-			return _.some(responses) && post.userId === userId;
+			return some(responses) && post.userId === userId;
 		}
 
-		async getContentsForPost(contents) {
+		async getContentsForPost(contents: IContent[]) {
 			if(!contents) {
 				return null;
 			}
@@ -443,11 +445,11 @@ function getModule(app: IGeesomeApp, models) {
 				id: await app.ms.content.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
 				...c
 			}));
-			return _.uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');
+			return uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');
 		}
 
 		async createPost(userId, postData) {
-			postData = _.clone(postData);
+			postData = clone(postData);
 			log('createPost', postData);
 			const [, canCreate, canReply] = await Promise.all([
 				app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
@@ -571,45 +573,63 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
-		async getPostContent(post: IPost): Promise<{type, mimeType, extension, view, manifestId, text?, json?, storageId?, previewStorageId?}[]> {
-			// console.log('post.repostOf', post.repostOf);
-			return pIteration.map(_.orderBy(post.contents, [c => c.postsContents.position], ['asc']), async (c: IContent) => {
-				const baseData = {
-					storageId: c.storageId,
-					previewStorageId: c.mediumPreviewStorageId,
-					extension: c.extension,
-					mimeType: c.mimeType,
-					view: c.view || ContentView.Contents,
-					manifestId: c.manifestStorageId,
+		async prepareContentData(c: IContent): Promise<IContentData> {
+			const baseData = {
+				id: c.id,
+				storageId: c.storageId,
+				previewStorageId: c.mediumPreviewStorageId,
+				extension: c.extension,
+				mimeType: c.mimeType,
+				view: c.view || ContentView.Contents,
+				manifestId: c.manifestStorageId,
+			}
+			if (c.mimeType.startsWith('text/')) {
+				return {
+					type: 'text',
+					text: await app.ms.storage.getFileDataText(c.storageId),
+					...baseData
 				}
-				if (c.mimeType.startsWith('text/')) {
-					return {
-						type: 'text',
-						text: await app.ms.storage.getFileDataText(c.storageId),
-						...baseData
-					}
-				} else if (_.includes(c.mimeType, 'image')) {
-					return {
-						type: 'image',
-						...baseData
-					};
-				} else if (_.includes(c.mimeType, 'video')) {
-					return {
-						type: 'video',
-						...baseData
-					};
-				} else if (_.includes(c.mimeType, 'json')) {
-					return {
-						type: 'json',
-						json: JSON.parse(await app.ms.storage.getFileDataText(c.storageId)),
-						...baseData
-					};
-				}
-			}).then(contents => contents.filter(c => c));
+			} else if (c.mimeType.includes('image')) {
+				return {
+					type: 'image',
+					...baseData
+				};
+			} else if (c.mimeType.includes('video')) {
+				return {
+					type: 'video',
+					...baseData
+				};
+			} else if (c.mimeType.includes('json')) {
+				return {
+					type: 'json',
+					json: JSON.parse(await app.ms.storage.getFileDataText(c.storageId)),
+					...baseData
+				};
+			}
+			return null;
 		}
 
-		async getPostContentWithUrl(baseStorageUri, post: IPost): Promise<{type, mimeType, view, manifestId, text?, json?, storageId?, previewStorageId?, url?, previewUrl?}[]> {
-			return this.getPostContent(post).then(contents => contents.map(c => {
+		async prepareContentDataWithUrl(c: IContent, baseStorageUri: string): Promise<IContentData> {
+			return this.prepareContentData(c).then(contentData => {
+				if (contentData.storageId) {
+					contentData['url'] = baseStorageUri + contentData.storageId;
+				}
+				if (contentData.previewStorageId) {
+					contentData['previewUrl'] = baseStorageUri + contentData.previewStorageId;
+				}
+				return contentData;
+			});
+		}
+
+		async getPostContentData(post: IPost, baseStorageUri: string): Promise<IContentData[]> {
+			return pIteration.map(
+				orderBy(post.contents, [(c: any) => c.postsContents.position], ['asc']),
+				c => this.prepareContentDataWithUrl(c, baseStorageUri),
+			).then((contents: any[]) => contents.filter(c => !!c));
+		}
+
+		async getPostContentDataWithUrl(post: IPost, baseStorageUri: string): Promise<IContentData[]> {
+			return this.getPostContentData(post, baseStorageUri).then(contents => contents.map(c => {
 				if (c.storageId) {
 					c['url'] = baseStorageUri + c.storageId;
 				}
@@ -759,7 +779,7 @@ function getModule(app: IGeesomeApp, models) {
 		async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
 			listParams = this.prepareListParams(listParams);
 			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
-			
+
 			app.ms.database.setDefaultListParamsValues(listParams);
 			const {sortBy, sortDir, limit, offset} = listParams;
 			return {
@@ -784,7 +804,7 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Group.findAll({
 				where: {
 					staticStorageUpdatedAt: {
-						[Op.lt]: commonHelpers.moveDate(-parseFloat(outdatedForSeconds), 'second')
+						[Op.lt]: commonHelper.moveDate(-parseFloat(outdatedForSeconds), 'second')
 					},
 					isDeleted: false
 				}
@@ -794,7 +814,7 @@ function getModule(app: IGeesomeApp, models) {
 		async getRemoteGroups() {
 			return models.Group.findAll({ where: { isRemote: true, isDeleted: false } });
 		}
-		
+
 		async addGroup(group) {
 			return models.Group.create(group);
 		}
@@ -844,10 +864,10 @@ function getModule(app: IGeesomeApp, models) {
 				if(filters[name + 'Ne'] === 'null') {
 					filters[name + 'Ne'] = null;
 				}
-				if(!_.isUndefined(filters[name])) {
+				if(!isUndefined(filters[name])) {
 					where[name] = filters[name];
 				}
-				if(!_.isUndefined(filters[name + 'Ne'])) {
+				if(!isUndefined(filters[name + 'Ne'])) {
 					where[name] = {[Op.ne]: filters[name + 'Ne']};
 				}
 			});
@@ -933,7 +953,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupByParams(params) {
-			params = _.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId', 'isCollateral']);
+			params = pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId', 'isCollateral']);
 
 			params.isDeleted = false;
 			return models.Group.findOne({
@@ -943,17 +963,20 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getPostByParams(params) {
-			params = _.pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
+			params = pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
 			return models.Post.findOne({
 				where: params,
 				include: [{association: 'contents'}, {association: 'group'}],
-			}) as IPost;
+			}).then((post: IPost) => {
+				post.contents = orderBy(post.contents, [c => c.postsContents.position], ['asc']);
+				return post;
+			});
 		}
 
 		getGroupsWhere(filters) {
 			const where = {};
 			['name'].forEach((name) => {
-				if(!_.isUndefined(filters[name])) {
+				if(!isUndefined(filters[name])) {
 					where[name] = filters[name];
 				}
 			});
@@ -967,7 +990,7 @@ function getModule(app: IGeesomeApp, models) {
 				include: [{association: 'contents'}, {association: 'group'}],
 			});
 
-			post.contents = _.orderBy(post.contents, [(content) => {
+			post.contents = orderBy(post.contents, [(content) => {
 				return content.postsContents.position;
 			}], ['asc']);
 
@@ -985,7 +1008,7 @@ function getModule(app: IGeesomeApp, models) {
 			});
 
 			posts.forEach(post => {
-				post.contents = _.orderBy(post.contents, [(content) => {
+				post.contents = orderBy(post.contents, [(content) => {
 					return content.postsContents.position;
 				}], ['asc']);
 			})
@@ -999,7 +1022,7 @@ function getModule(app: IGeesomeApp, models) {
 				include: [{association: 'contents'}]
 			});
 
-			post.contents = _.orderBy(post.contents, [(content) => {
+			post.contents = orderBy(post.contents, [(content) => {
 				return content.postsContents.position;
 			}], ['asc']);
 
@@ -1018,7 +1041,7 @@ function getModule(app: IGeesomeApp, models) {
 				include: [{association: 'contents'}]
 			});
 
-			post.contents = _.orderBy(post.contents, [(content) => {
+			post.contents = orderBy(post.contents, [(content) => {
 				return content.postsContents.position;
 			}], ['asc']);
 
@@ -1034,7 +1057,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async setPostContents(postId, contents) {
-			contents = await pIteration.map(contents, async (content, position) => {
+			contents = await pIteration.map(contents, async (content: IContent, position) => {
 				const contentObj: any = await app.ms.database.getContent(content.id);
 				contentObj.postsContents = {position, view: content.view};
 				return contentObj;
@@ -1044,7 +1067,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getPostSizeSum(id) {
 			const post = await this.getPostPure(id);
-			return _.sumBy(post.contents, 'size');
+			return sumBy(post.contents, 'size');
 		}
 
 		async addGroupPermission(userId, groupId, permissionName) {
@@ -1102,7 +1125,7 @@ function getModule(app: IGeesomeApp, models) {
 		// }
 
 		prepareListParams(listParams?: IListParams): IListParams {
-			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 
 		async flushDatabase() {
@@ -1117,3 +1140,4 @@ function getModule(app: IGeesomeApp, models) {
 
 	return new GroupModule();
 }
+

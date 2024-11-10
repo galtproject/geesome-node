@@ -1,11 +1,11 @@
-export {};
 
-const fs = require('fs');
-const axios = require('axios');
+import fs from "fs";
+import axios from "axios";
+import helpers from "../../app/helpers.js";
 
-module.exports = {
-    async prepare(name) {
-        const dir = __dirname + '/../resources/';
+export default {
+    async prepare(name): Promise<any> {
+        const dir = helpers.getCurDir() + '/../test/resources/';
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir);
         }

@@ -7,54 +7,32 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeTelegramClient from "../app/modules/telegramClient/interface";
-import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
-import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
-import {TelegramImportClient} from "../app/modules/telegramClient/importClient";
-
-const pIteration = require('p-iteration');
-const clone = require('lodash/clone');
-
-const telegramHelpers = require('../app/modules/telegramClient/helpers');
-
-const assert = require('assert');
-const helpers = require('../app/helpers');
+import _ from 'lodash';
+import assert from "assert";
+import pIteration from 'p-iteration';
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {TelegramImportClient} from "../app/modules/telegramClient/importClient.js";
+import IGeesomeTelegramClient from "../app/modules/telegramClient/interface.js";
+import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../app/modules/socNetImport/interface.js";
+import telegramHelpers from '../app/modules/telegramClient/helpers.js';
+import {IPost} from "../app/modules/group/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
+import helpers from '../app/helpers.js';
+const {clone, orderBy} = _;
 
 describe("telegramClient", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp, telegramClient: IGeesomeTelegramClient, socNetAccount: IGeesomeSocNetAccount,
 		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -210,7 +188,7 @@ describe("telegramClient", function () {
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		assert.equal(groupPosts.length, 1);
 
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		const postContents = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], 'https://my.site/ipfs/');
 		assert.equal(postContents.length, 3);
 		const [messageC, imageC, linkC] = postContents;
 
@@ -218,7 +196,7 @@ describe("telegramClient", function () {
 		assert.equal(imageC.mimeType, 'image/jpg');
 		assert.equal(imageC.view, 'media');
 		assert.equal(imageC.url, 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly');
-		assert.equal(imageC.manifestId, 'bafyreiarrzvojk2eqsvgmmkc77fong6cnef57r25wvdvums44vgiy5ptre');
+		assert.equal(imageC.manifestId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
 
 		assert.equal(linkC.type, 'json');
 		assert.equal(linkC.mimeType, 'application/json');
@@ -237,7 +215,7 @@ describe("telegramClient", function () {
 		assert.equal(messageC.mimeType, 'text/html');
 		assert.equal(messageC.view, 'contents');
 		assert.equal(messageC.text, 'btw, а это тут было: <a href="https://vas3k.ru/blog/machine_learning/">https://vas3k.ru/blog/machine_learning/</a>?');
-		assert.equal(messageC.manifestId, 'bafyreifbyileppejprgcv4yvmvgotsp7xzckneaiz3hgmkfjot3zss4g34');
+		assert.equal(messageC.manifestId, 'bafyreifddwqzforu6u2wvzwd2ql62hamruwvso5o7fydymqtlptqysh7h4');
 	});
 
 	it('local webpage message should import properly', async () => {
@@ -315,7 +293,7 @@ describe("telegramClient", function () {
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		assert.equal(groupPosts.length, 1);
-		const {contents} = groupPosts[0];
+		const contents = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
 
 		assert.equal(contents.length, 2);
 		const [textContent, linkContent] = contents;
@@ -409,13 +387,13 @@ describe("telegramClient", function () {
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		// assert.equal(groupPosts.length, 1);
-		const {contents} = groupPosts[0];
+		const contents = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
 		// for (let i = 0; i < contents.length; i++) {
 		// 	console.log(i, await app.ms.storage.getFileDataText(contents[i].storageId));
 		// }
 		assert.equal(contents[0].manifestStorageId, 'bafyreic4hvcncqyg7s52yc2vhl7nqygx2iyw5act57zc3yt72xtc4wemga');
-		assert.equal(contents[1].manifestStorageId, 'bafyreihjglmtrd6tqyyqqqwwg67ljpy3z4hfenvakuylj5vyn7hbrfqei4');
-		assert.equal(contents[2].manifestStorageId, 'bafyreiarrzvojk2eqsvgmmkc77fong6cnef57r25wvdvums44vgiy5ptre');
+		assert.equal(contents[1].manifestStorageId, 'bafyreibwojxmlwwj24ghvva4exkhrj6jg3gbvsznz66wzw2vsojyz2nr3y');
+		assert.equal(contents[2].manifestStorageId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
 	});
 
 	it('should merge two group of posts by timestamp', async () => {
@@ -558,7 +536,6 @@ describe("telegramClient", function () {
 			postsCounts: 0,
 		});
 
-
 		const advancedSettings = {mergeSeconds: 5};
 		const tgImportClient = new TelegramImportClient(app, {account: {}}, testUser.id, channel, {list: messages}, advancedSettings, () => {});
 		tgImportClient['getRemotePostLink'] = async (_dbChannel, _msgId) => 'link/' + _msgId;
@@ -579,12 +556,14 @@ describe("telegramClient", function () {
 		assert.equal(spotifyPremium.contents.length, 3);
 		assert.equal(horribleEdgeCases.contents.length, 3);
 
+		link.contents = orderBy(link.contents, [(c: any) => c.postsContents.position], ['asc'])
+		spotifyPremium.contents = orderBy(spotifyPremium.contents, [(c: any) => c.postsContents.position], ['asc'])
 		assert.equal(await app.ms.storage.getFileDataText(link.contents[0].storageId), '<a href="https://t.me/ctodailychat/263223">jump to message 👇</a>');
 		assert.equal(await app.ms.storage.getFileDataText(spotifyPremium.contents[0].storageId), 'держи)');
 		assert.equal(spotifyPremium.contents[1].mimeType, 'image/jpg');
 		assert.equal(spotifyPremium.contents[2].mimeType, 'image/jpg');
 
-		const postContents = await app.ms.group.getPostContent(horribleEdgeCases);
+		const postContents = await app.ms.group.getPostContentData(horribleEdgeCases, '');
 		assert.equal(postContents[0].text, '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>');
 		assert.equal(postContents[0].type, 'text');
 		assert.equal(postContents[0].mimeType, 'text/html');
@@ -607,6 +586,7 @@ describe("telegramClient", function () {
 		assert.equal(postContents[2].mimeType, 'application/json');
 		assert.equal(postContents[2].view, 'link');
 
+		horribleEdgeCases.contents = orderBy(horribleEdgeCases.contents, [(c: any) => c.postsContents.position], ['asc'])
 		assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[0].storageId), '<a href="https://t.me/ctodailychat/263251">jump to message 👇</a>');
 		assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[1].storageId), '<a href="https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html">https://dustri.org/b/horrible-edge-cases-to-consider-when-dealing-with-music.html</a>');
 		assert.equal(await app.ms.storage.getFileDataText(horribleEdgeCases.contents[2].storageId), JSON.stringify({
@@ -709,11 +689,11 @@ describe("telegramClient", function () {
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		assert.equal(groupPosts.length, 1);
-		const contents1 = groupPosts[0].contents;
+		const contents1 = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
 		assert.equal(contents1.length, 3);
 		assert.equal(contents1[0].manifestStorageId, 'bafyreihrydk7t5w3vxixxzyqmkeyz6bw3kvqvhux2llfigu5js4nzg5rmm');
-		assert.equal(contents1[1].manifestStorageId, 'bafyreiarrzvojk2eqsvgmmkc77fong6cnef57r25wvdvums44vgiy5ptre');
-		assert.equal(contents1[2].manifestStorageId, 'bafyreifoksuhwlkn73jgzcbluzwvf3g62cpbuki6igalddkmgoexwcy3pm');
+		assert.equal(contents1[1].manifestStorageId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
+		assert.equal(contents1[2].manifestStorageId, 'bafyreibeecyyl2gnqpn32rd5y2peg5xuutnpoivafhoaeoqdoalvbslfgi');
 	});
 
 	it.skip('should get reply info from anonymous forward', async () => {
@@ -898,9 +878,9 @@ describe("telegramClient", function () {
 				repostContents: ['test reply']
 			},
 		}
-		await pIteration.mapSeries(groupPosts, async (gp) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -984,8 +964,8 @@ describe("telegramClient", function () {
 			11: {groupedMsgIds: undefined, contents: ['test 3'], replyToMsgId: 8},
 			12: {groupedMsgIds: undefined, contents: ['test 4']}
 		}
-		await pIteration.mapSeries(groupPosts, async (gp) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.deepEqual(JSON.parse(gp.propertiesJson).groupedMsgIds, postDataBySourceId[gp.sourcePostId].groupedMsgIds);
@@ -1091,9 +1071,9 @@ describe("telegramClient", function () {
 				repostContents: ['Reply from private channel']
 			},
 		}
-		await pIteration.mapSeries(groupPosts, async (gp) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text), 'repostContents', repostContents.map(rc => rc.text));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);

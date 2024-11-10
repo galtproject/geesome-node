@@ -7,33 +7,32 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-
-import {Stream} from "stream";
-import AbstractDriver from "../abstractDriver";
-
-const _ = require('lodash');
-
+import _ from 'lodash';
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
+import helpers from "../../../helpers.js";
+const {orderBy} = _;
 let youtubedl;
-try {
-  youtubedl = require('@microlink/youtube-dl');
-} catch (e) {
-  console.warn('Failed youtubedl init', e)
-}
 
 export class YoutubeVideoUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Source];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processBySource(url, options: any = {}) {
-
+    if (!youtubedl) {
+      try {
+        youtubedl = (await import('@microlink/youtube-dl')).default;
+      } catch (e) {
+        return console.warn('Failed youtubedl init', e)
+      }
+    }
     const videoInfo: any = await new Promise((resolve, reject) => {
       youtubedl.getInfo([url], function(err, info) {
         if (err) return reject(err);
         resolve(info);
       });
     });
-    const bestFormat = _.orderBy(videoInfo.formats.filter(f => f.ext === 'mp4'), [(f) => f.filesize], ['desc'])[0];
+    const bestFormat = orderBy(videoInfo.formats.filter(f => f.ext === 'mp4'), [(f) => f.filesize], ['desc'])[0];
     if(!bestFormat) {
       throw new Error('video_not_found');
     }
@@ -41,7 +40,7 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
       // Optional arguments passed to youtube-dl.
       ['--format=' + bestFormat.format_id],
       // Additional options can be given for calling `child_process.execFile()`.
-      {cwd: __dirname});
+      {cwd: helpers.getCurDir()});
     
     return {
       stream,

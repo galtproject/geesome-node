@@ -1,7 +1,7 @@
-import {IGeesomeApp} from "../../interface";
+import {IGeesomeApp} from "../../interface.js";
+import JsIpfsServiceNode from "geesome-libs/src/JsIpfsServiceNodePass.js";
 
-const JsIpfsServiceNode = require("geesome-libs/src/JsIpfsServiceNodePass");
-
-module.exports = async (app: IGeesomeApp) => {
-    return new JsIpfsServiceNode(app.ms.storage.node, app.config.storageConfig.jsNode.pass);
+export default async (app: IGeesomeApp) => {
+    const JsIpfsServiceNodeClass: any = JsIpfsServiceNode(app.ms.storage.node, app.config.storageConfig.jsNode.pass);
+    return new JsIpfsServiceNodeClass();
 }

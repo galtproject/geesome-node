@@ -1,12 +1,12 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAccountStorageModule, {IStaticIdAccount} from "./interface";
-const peerIdHelper = require('geesome-libs/src/peerIdHelper');
-const Op = require("sequelize").Op;
-const pIteration = require("p-iteration");
+import {Op} from "sequelize";
+import pIteration from 'p-iteration';
+import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
+import IGeesomeAccountStorageModule, {IStaticIdAccount} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
-module.exports = async (app: IGeesomeApp, options: any = {}) => {
-	const module = getModule(app, await require('./models')(), options.pass || app.config.storageConfig.jsNode.pass);
-	// require('./api')(app, module);
+export default async (app: IGeesomeApp, options: any = {}) => {
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize), options.pass || app.config.storageConfig.jsNode.pass);
+	// (await import('./api')).default(app, module);
 	return module;
 }
 
@@ -36,8 +36,9 @@ function getModule(app: IGeesomeApp, models, pass) {
 			return models.Account.update({name: newName}, {where: {name, isRemote: false}});
 		}
 
-		async getAccountPublicKey(name) {
-			return this.getStaticIdPublicKeyByOr(name, name).then(publicKey => peerIdHelper.base64ToPublicKey(publicKey));
+		async getAccountPublicKey(name): Promise<any> {
+			return this.getStaticIdPublicKeyByOr(name, name)
+				.then(publicKey => peerIdHelper.base64ToPublicKey(publicKey));
 		}
 
 		async getUserIdOfLocalStaticIdAccount(staticId) {

@@ -1,22 +1,22 @@
-import {IGeesomeApp, IUserInput} from "../../interface";
-import {CorePermissionName, IInvite, IListParams} from "../database/interface";
-import IGeesomeInviteModule from "./interface";
-const pIteration = require('p-iteration');
-const _ = require('lodash');
-const commonHelpers = require("geesome-libs/src/common");
-const geesomeMessages = require("geesome-libs/src/messages");
+import _ from 'lodash';
+import pIteration from 'p-iteration';
+import commonHelper from "geesome-libs/src/common.js";
+import geesomeMessages from "geesome-libs/src/messages.js";
+import {CorePermissionName, IInvite, IListParams} from "../database/interface.js";
+import {IGeesomeApp, IUserInput} from "../../interface.js";
+import IGeesomeInviteModule from "./interface.js";
+const {isUndefined, pick} = _;
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group']);
 
 	const {sequelize, models} = app.ms.database;
-	const module = getModule(app, await require('./models')(sequelize, models));
-	require('./api')(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(sequelize, models));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
 function getModule(app: IGeesomeApp, models) {
-
 	class InviteModule implements IGeesomeInviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
 			const invite = await this.findInviteByCode(inviteCode);
@@ -49,7 +49,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (invite.limits) {
 				await pIteration.forEachSeries(JSON.parse(invite.limits), (limitData) => {
 					return app.setUserLimit(invite.createdById, {
-						...limitData,
+						...limitData as any,
 						userId: user.id,
 					});
 				});
@@ -71,7 +71,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async createInvite(userId, inviteData) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
-			inviteData.code = commonHelpers.makeCode(16);
+			inviteData.code = commonHelper.makeCode(16);
 			inviteData.createdById = userId;
 			return this.addInvite(inviteData);
 		}
@@ -97,8 +97,8 @@ function getModule(app: IGeesomeApp, models) {
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where = { createdById: userId };
-			if (!_.isUndefined(filters['isActive'])) {
-				where['isActive'] = _.isUndefined(filters['isActive']);
+			if (!isUndefined(filters['isActive'])) {
+				where['isActive'] = isUndefined(filters['isActive']);
 			}
 			return {
 				list: await models.Invite.findAll({
@@ -145,8 +145,8 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getUserInvitesCount(createdById, filters = {}) {
 			const where = { createdById };
-			if (!_.isUndefined(filters['isActive'])) {
-				where['isActive'] = _.isUndefined(filters['isActive']);
+			if (!isUndefined(filters['isActive'])) {
+				where['isActive'] = isUndefined(filters['isActive']);
 			}
 			return models.Invite.findAll({ where });
 		}
@@ -156,8 +156,8 @@ function getModule(app: IGeesomeApp, models) {
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where = { };
-			if (!_.isUndefined(filters['isActive'])) {
-				where['isActive'] = _.isUndefined(filters['isActive']);
+			if (!isUndefined(filters['isActive'])) {
+				where['isActive'] = isUndefined(filters['isActive']);
 			}
 			return models.Invite.findAll({
 				where,
@@ -174,7 +174,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		prepareListParams(listParams?: IListParams): IListParams {
-			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 	}
 	return new InviteModule();

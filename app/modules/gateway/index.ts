@@ -1,36 +1,34 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeGatewayModule from "./interface";
+import morgan from 'morgan';
+import express from 'express';
+import bodyParser from 'body-parser';
+import bearerToken from 'express-bearer-token';
+import IGeesomeGatewayModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import helpers from "./helpers.js";
 
-const helpers = require("./helpers");
-const _ = require("lodash");
-
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['api']);
 	const module = await getModule(app, process.env.GATEWAY_PORT || 2082);
-	require('./api')(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
 async function getModule(app: IGeesomeApp, port) {
-	const service = require('restana')({
-		ignoreTrailingSlash: true,
-		maxParamLength: 2000,
-		errorHandler(err, req, res) {
-			console.log(`Something was wrong: ${err.message || err}`, err)
-			res.send(err)
-		}
-	});
+	const service = express();
 
-	service.use(require('morgan')('combined'));
+	const maxBodySizeMb = 2000;
+	service.use(express.static('frontend/dist'));
+	service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
+	service.use(bodyParser.urlencoded({extended: true}));
+	service.use(bearerToken());
+	service.use(morgan('combined'));
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);
 
 		res.redirect = (url) => {
 			//https://github.com/jkyberneees/ana/issues/16
-			res.send('', 301, {
-				Location: encodeURI(url)
-			});
+			res.status(301).location(encodeURI(url)).send('');
 		};
 
 		next();
@@ -45,7 +43,7 @@ async function getModule(app: IGeesomeApp, port) {
 		res.send(200);
 	});
 
-	await service.start(port);
+	const server = await service.listen(port);
 
 	function setHeaders(res) {
 		res.setHeader('Strict-Transport-Security', 'max-age=0');
@@ -71,11 +69,13 @@ async function getModule(app: IGeesomeApp, port) {
 			});
 		}
 		stop(): any {
-			return service.close().catch(e => {
-				if (!_.includes(e.message, 'Server is not running')) {
+			try {
+				server.close();
+			} catch (e) {
+				if (!e.message.includes('Server is not running')) {
 					throw e;
 				}
-			});
+			}
 		}
 	}
 	return new GeesomeGatewayModule(port);

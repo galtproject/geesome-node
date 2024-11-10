@@ -7,36 +7,34 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../../interface";
-import IGeesomeSocNetImport from "../socNetImport/interface";
-import IGeesomeSocNetAccount from "../socNetAccount/interface";
-import {TelegramImportClient} from "./importClient";
+import _ from 'lodash';
+import bigInt from 'big-integer';
+import {Api, TelegramClient} from "telegram";
+import {computeCheck} from "telegram/Password";
+import {StringSession} from "telegram/sessions";
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeSocNetAccount from "../socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../socNetImport/interface.js";
+import {TelegramImportClient} from "./importClient.js";
+import IGeesomeTelegramClient from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import telegramHelpers from './helpers.js';
+const {pick} = _;
 
-const {Api, TelegramClient} = require("telegram");
-const {StringSession} = require("telegram/sessions");
-const {computeCheck} = require("telegram/Password");
-const includes = require('lodash/includes');
-const pick = require('lodash/pick');
-const commonHelper = require('geesome-libs/src/common');
-const bigInt = require('big-integer');
-const telegramHelpers = require('./helpers');
-
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-
-	require('./api')(app, module);
-
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
+function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 	app.checkModules(['asyncOperation', 'group', 'content', 'socNetAccount', 'socNetImport']);
 
 	const socNet = 'telegram';
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
-	class TelegramClientModule {
+	class TelegramClientModule implements IGeesomeTelegramClient {
 		async login(userId, loginData) {
 			let {id: accountId, phoneNumber, apiId, apiKey, password, dcId, qrToken, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS, byQrCode} = loginData;
 			console.log('apiKey', apiKey);
@@ -95,7 +93,7 @@ function getModule(app: IGeesomeApp) {
 				try {
 					return await promise;
 				} catch (error) {
-					if (!includes(error.message, 'SESSION_PASSWORD_NEEDED')) {
+					if (!error.message.includes('SESSION_PASSWORD_NEEDED')) {
 						throw error;
 					}
 					console.error('handlePasswordAuth', error);
@@ -108,7 +106,7 @@ function getModule(app: IGeesomeApp) {
 						}
 						return {client, error: error.message, result: {response, sessionKey: client.session.save(), account: acc}};
 					}
-					const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({}) as any);
+					const passwordSrpResult = await client.invoke(new Api['account'].GetPassword({} as any) as any);
 					const passwordSrpCheck = await computeCheck(passwordSrpResult, password);
 					const result = await client.invoke(new Api.auth.CheckPassword({password: passwordSrpCheck}) as any);
 					return handleAuthorized(result);
@@ -252,13 +250,13 @@ function getModule(app: IGeesomeApp) {
 
 		async getChannelEntity(client, channelId) {
 			return client.getInputEntity(
-				new Api['PeerChannel']({channelId: parseInt(channelId), accessHash: bigInt.zero})
+				new Api['PeerChannel']({channelId: parseInt(channelId), accessHash: bigInt.zero} as any)
 			);
 		}
 
 		async getChannelLastMessageId(client, channel) {
 			const channelHistory = await client.invoke(
-				new Api.messages.GetHistory({peer: channel, offsetId: 0, offsetDate: 2147483647, addOffset: 0, limit: 1, maxId: 0, minId: 0, hash: 0})
+				new Api.messages.GetHistory({peer: channel, offsetId: 0, offsetDate: 2147483647, addOffset: 0, limit: 1, maxId: 0, minId: 0, hash: 0} as any)
 			);
 			return channelHistory.messages[0].id;
 		}
@@ -364,7 +362,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		isAutoActionAllowed(userId, funcName, funcArgs) {
-			return includes(['runChannelImportAndWaitForFinish'], funcName);
+			return ['runChannelImportAndWaitForFinish'].includes(funcName);
 		}
 
 		async runChannelImportAndWaitForFinish(userId, userApiKeyId, accData, channelId, advancedSettings: any = {}) {

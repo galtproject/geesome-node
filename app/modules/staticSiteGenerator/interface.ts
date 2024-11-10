@@ -1,4 +1,4 @@
-import {IUserOperationQueue} from "../asyncOperation/interface";
+import {IUserOperationQueue} from "../asyncOperation/interface.js";
 
 export default interface IGeesomeStaticSiteGeneratorModule {
 	moduleName: string;
@@ -12,7 +12,7 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 		site: { title, name, username, description, avatarUrl?, postsCount?, base }
 	}>;
 
-	addRenderToQueueAndProcess(userId, apiKeyId, type, id, options): Promise<IUserOperationQueue>;
+	addRenderToQueueAndProcess(userId, apiKeyId, renderData: {entityType, entityId?, entityIds?}, options): Promise<IUserOperationQueue>;
 
 	bindSiteToStaticId(userId, staticSiteId): Promise<any>;
 
@@ -20,7 +20,9 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
 
-	generate(userId, entityType, entityId, options: any = {}): Promise<string>;
+	generateGroupSite(userId, entityType, entityId, options?: any): Promise<string>;
+
+	generateContentListSite(userId, entityType, entityIds, options?: any): Promise<string>;
 }
 
 export interface IStaticSite {

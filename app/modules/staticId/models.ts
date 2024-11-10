@@ -6,29 +6,26 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-static-id', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const StaticIdHistory = sequelize.define('staticIdHistory', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		staticId: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		dynamicId: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		periodTimestamp: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		isActive: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 		boundAt: {
-			type: Sequelize.DATE
+			type: DataTypes.DATE
 		}
 	} as any, {
 		indexes: [

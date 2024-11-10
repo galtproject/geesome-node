@@ -1,14 +1,13 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeForeignAccountsModule, {IAuthMessage, IForeignAccount} from "./interface";
-import {CorePermissionName} from "../database/interface";
-const pIteration = require("p-iteration");
-const _ = require('lodash');
+import pIteration from 'p-iteration';
+import IGeesomeForeignAccountsModule, {IAuthMessage, IForeignAccount} from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules([]);
 
-	const module = getModule(app, await require('./models')());
-	require('./api')(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -89,7 +88,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			const supportedProviders = await app.callHook('foreignAccounts', 'getForeignAccountAuthorizationProvider', []);
 			userData.foreignAccounts.forEach(acc => {
-				if (!_.includes(supportedProviders, acc.provider)) {
+				if (!supportedProviders.includes(acc.provider)) {
 					this.throwError('not_supported_provider');
 				}
 			});

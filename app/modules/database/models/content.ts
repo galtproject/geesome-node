@@ -6,96 +6,96 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+import {Sequelize, DataTypes} from "sequelize";
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
+export default async function (sequelize, models) {
 
   const Content = sequelize.define('content', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     name: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     storageType: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     mimeType: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     extension: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     view: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     server: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     description: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     size: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     isPublic: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isRemote: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isEncrypted: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     peersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     storageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     largePreviewStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     largePreviewSize: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     mediumPreviewStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     mediumPreviewSize: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     smallPreviewStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     smallPreviewSize: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     previewMimeType: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     previewExtension: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     staticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     storageAccountId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStaticStorageId: {
-      type: Sequelize.STRING(200),
+      type: DataTypes.STRING(200),
       unique: true
     },
     encryptedManifestStorageId: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
     propertiesJson: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
   } as any, {
     indexes: [

@@ -1,10 +1,6 @@
-import {IMessagesState, ITimelineMessagesState} from "./interface";
-
-export {};
-
-const orderBy = require('lodash/orderBy');
-const startsWith = require('lodash/startsWith');
-const maxBy = require('lodash/maxBy');
+import _ from 'lodash';
+import {IMessagesState, ITimelineMessagesState} from "./interface.js";
+const {orderBy, startsWith, maxBy} = _;
 const FETCH_LIMIT = 100;
 
 const helpers = {
@@ -177,4 +173,4 @@ const helpers = {
 	}
 };
 
-module.exports = helpers;
+export default helpers;

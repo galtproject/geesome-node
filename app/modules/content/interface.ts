@@ -1,5 +1,5 @@
-import {IContent, IListParams} from "../database/interface";
-import {IContentListResponse} from "../../interface";
+import {IContent, IListParams} from "../database/interface.js";
+import {IContentListResponse} from "../../interface.js";
 
 export default interface IGeesomeContentModule {
 	getFileStream(filePath, options?);
@@ -9,6 +9,8 @@ export default interface IGeesomeContentModule {
 	getContent(contentId): Promise<IContent>;
 
 	getContentByStorageId(storageId): Promise<IContent>;
+
+	getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
 	getContentByManifestId(storageId): Promise<IContent>;
 

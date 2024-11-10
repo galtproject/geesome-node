@@ -7,24 +7,23 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export {};
+import fs from "fs";
+import helpers from "../../helpers.js";
+import config from'./config.js';
 
-let config = require('./config');
-const fs = require('fs');
-
-if (!fs.existsSync(`${__dirname}/config/`)) {
-  fs.mkdirSync(`${__dirname}/config/`);
+if (!fs.existsSync(`${helpers.getCurDir()}/config/`)) {
+  fs.mkdirSync(`${helpers.getCurDir()}/config/`);
 }
 
-const storage = config.options.storage ? __dirname.replace('app/modules/database', '') + config.options.storage : undefined;
+const storage = config['storage'] ? helpers.getCurDir().replace('app/modules/database', '') + config['storage'] : undefined;
 
-fs.writeFileSync(`${__dirname}/config/config.json`, JSON.stringify({
+fs.writeFileSync(`${helpers.getCurDir()}/config/config.json`, JSON.stringify({
   production: {
-    database: config.name,
-    username: config.user,
+    database: config.database,
+    username: config.username,
     password: config.password,
-    host: config.options.host,
-    dialect: config.options.dialect,
+    host: config.host,
+    dialect: config.dialect,
     storage
   }
 }));

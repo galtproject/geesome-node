@@ -7,18 +7,18 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../../interface";
-import IGeesomeEntityJsonManifestModule from "./interface";
-import {GroupType, IGroup, IPost, PostStatus} from "../group/interface";
-import {IContent, IUser} from "../database/interface";
-import {IGroupCategory} from "../groupCategory/interface";
+import debug from 'debug';
+import pIteration from 'p-iteration';
+import treeLib from "geesome-libs/src/base36Trie.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import {GroupType, IGroup, IPost, PostStatus} from "../group/interface.js";
+import IGeesomeEntityJsonManifestModule from "./interface.js";
+import {IGroupCategory} from "../groupCategory/interface.js";
+import {IContent, IUser} from "../database/interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const log = debug('geesome:app');
 
-const pIteration = require('p-iteration');
-const treeLib = require('geesome-libs/src/base36Trie');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
-const log = require('debug')('geesome:app');
-
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
   return getModule(app);
 };
 

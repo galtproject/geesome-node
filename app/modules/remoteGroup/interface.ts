@@ -1,4 +1,4 @@
-import {IGroup, IPost} from "../group/interface";
+import {IGroup, IPost} from "../group/interface.js";
 
 export default interface IGeesomeRemoteGroupModule {
 	createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt?, isEncrypted?): Promise<IPost>;

@@ -33,4 +33,5 @@ export interface IAutoAction {
 	nextActions?: IAutoAction[];
 	totalExecuteAttempts?: number;
 	currentExecuteAttempts?: number;
+	executeOn?: Date;
 }

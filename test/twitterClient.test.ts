@@ -7,51 +7,30 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeTwitterClient from "../app/modules/twitterClient/interface";
-import IGeesomeSocNetImport from "../app/modules/socNetImport/interface";
-import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface";
-import {TwitterImportClient} from "../app/modules/twitterClient/importClient";
-
-const twitterHelpers = require('../app/modules/twitterClient/helpers');
-const appHelpers = require('../app/helpers');
-const assert = require('assert');
-const pIteration = require('p-iteration');
+import assert from "assert";
+import pIteration from 'p-iteration';
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {TwitterImportClient} from "../app/modules/twitterClient/importClient.js";
+import IGeesomeTwitterClient from "../app/modules/twitterClient/interface.js";
+import IGeesomeSocNetAccount from "../app/modules/socNetAccount/interface.js";
+import IGeesomeSocNetImport from "../app/modules/socNetImport/interface.js";
+import twitterHelpers from '../app/modules/twitterClient/helpers.js';
+import {IPost} from "../app/modules/group/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
+import appHelpers from '../app/helpers.js';
 
 describe.skip("twitterClient", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp, twitterClient: IGeesomeTwitterClient, socNetAccount: IGeesomeSocNetAccount,
 		socNetImport: IGeesomeSocNetImport;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -352,7 +331,7 @@ describe.skip("twitterClient", function () {
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {});
 
 		assert.equal(groupPosts.length, 1);
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		const postContents = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], 'https://my.site/ipfs/');
 		assert.equal(postContents.length, 2);
 		const [messageC, imageC] = postContents;
 
@@ -407,9 +386,9 @@ describe.skip("twitterClient", function () {
 		const postDataBySourceId = {
 			'1395871923561803781': {groupedMsgIds: undefined, replyToMsgId: '1395662836840288261', contents: ['Can you please share the link of this page?'], repostContents: []},
 		};
-		await pIteration.mapSeries(groupPosts, async (gp) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, postDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, postDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -418,7 +397,7 @@ describe.skip("twitterClient", function () {
 			assert.deepEqual(repostContents.map(rc => rc.text), postDataBySourceId[gp.sourcePostId].repostContents);
 		})
 
-		const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', groupPosts[0]);
+		const postContents = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], 'https://my.site/ipfs/');
 		assert.equal(postContents.length, 1);
 		const [messageC] = postContents;
 
@@ -433,9 +412,9 @@ describe.skip("twitterClient", function () {
 		const replyDataBySourceId = {
 			'1395662836840288261': {groupedMsgIds: undefined, replyToMsgId: undefined, contents: ['2/ ETH1 pow lauched on 2015-07-30. After about 6 years, Top5 mining pools have 64.1% share.', 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly'], repostContents: []},
 		};
-		await pIteration.mapSeries(replyPosts, async (gp) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+		await pIteration.mapSeries(replyPosts, async (gp: IPost) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, replyDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, replyDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -485,9 +464,9 @@ describe.skip("twitterClient", function () {
 		const replyDataBySourceId = {
 			'1217407431157960704': {groupedMsgIds: undefined, repostOfMsgId: "1217406911303372800", contents: [], repostContents: ['Hey everyone! 🎊 Amazing news! Galt•Project is live on Ethereum mainnet. More details here: https://t.co/1y7g8B7tMN.  DApp is here: https://t.co/Ey9CKYSBph Put your land, house or apartment on Ethereum! Create community and Vote! #ethereum #dao #web3 #DApps #ETH #PropTech']},
 		};
-		await pIteration.mapSeries(groupPosts, async (gp) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
-			const repostContents = gp.repostOf ? await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp.repostOf) : [];
+		await pIteration.mapSeries(groupPosts, async (gp: IPost) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
+			const repostContents = gp.repostOf ? await app.ms.group.getPostContentDataWithUrl(gp.repostOf, 'https://my.site/ipfs/') : [];
 			// console.log(gp.localId, 'sourceId', gp.sourcePostId, 'propertiesJson', gp.propertiesJson, 'postContents', postContents.map(rc => rc.text || rc.url), 'repostContents', repostContents.map(rc => rc.text || rc.url));
 			assert.equal(JSON.parse(gp.propertiesJson).replyToMsgId, replyDataBySourceId[gp.sourcePostId].replyToMsgId);
 			assert.equal(JSON.parse(gp.propertiesJson).repostOfMsgId, replyDataBySourceId[gp.sourcePostId].repostOfMsgId);
@@ -529,8 +508,8 @@ describe.skip("twitterClient", function () {
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(channel.groupId, {}, {sortBy: 'publishedAt', sortDir: 'asc'});
 		assert.equal(groupPosts.length, 10);
 
-		await pIteration.mapSeries(groupPosts, async (gp, i) => {
-			const postContents = await app.ms.group.getPostContentWithUrl('https://my.site/ipfs/', gp);
+		await pIteration.mapSeries(groupPosts, async (gp: IPost, i) => {
+			const postContents = await app.ms.group.getPostContentDataWithUrl(gp, 'https://my.site/ipfs/');
 			assert.equal(postContents.length, 1);
 			assert.equal(postContents[0].text, (i + 1).toString());
 			assert.equal(gp.localId, i + 1);

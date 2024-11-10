@@ -1,7 +1,7 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeGroupModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeGroupModule from "./interface.js";
 
-module.exports = (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
+export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     app.ms.api.onPost('group/get', async (req, res) => {
         res.send(await groupModule.getGroupByParams(req.body), 200);

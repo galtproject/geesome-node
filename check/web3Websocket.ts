@@ -10,14 +10,13 @@
 // usage: 
 // RPC_WS_SERVER=ws://localhost:8646 ./node_modules/.bin/ts-node check/web3Websocket.ts
 
+// import Web3 from "web3";
 (async () => {
-    const Web3 = require("web3");
-
-    const web3 = new Web3(new Web3.providers.WebsocketProvider(process.env.RPC_WS_SERVER));
-    console.log('RPC_WS_SERVER', process.env.RPC_WS_SERVER);
-    
-    console.log('\nnetId', await web3.eth.net.getId());
-    console.log('blockNumber', await web3.eth.getBlockNumber());
-    console.log('gasPrice', await web3.eth.getGasPrice());
-    process.exit();
+    // const web3 = new Web3(new Web3.providers.WebsocketProvider(process.env.RPC_WS_SERVER));
+    // console.log('RPC_WS_SERVER', process.env.RPC_WS_SERVER);
+    //
+    // console.log('\nnetId', await web3.eth.net.getId());
+    // console.log('blockNumber', await web3.eth.getBlockNumber());
+    // console.log('gasPrice', await web3.eth.getGasPrice());
+    // process.exit();
 })();

@@ -7,15 +7,14 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
-
-const stream = require('stream');
-
-const ffmpeg = require('fluent-ffmpeg');
-const fs = require('fs');
-const uuidv4 = require('uuid/v4');
-const mediainfo = require('node-mediainfo');
+import fs from "fs";
+import stream from 'stream';
+import * as uuid from 'uuid';
+import ffmpeg from 'fluent-ffmpeg';
+import mediainfo from 'node-mediainfo';
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
+const {v4: uuidv4} = uuid['default'];
 
 export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -62,7 +61,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
       done();
     };
 
-    new ffmpeg(path)
+    (new (ffmpeg as any)(path))
       .inputFormat(options.extension)
       .outputOptions("-movflags faststart+frag_keyframe+empty_moov")
       .output(transformStream)

@@ -6,43 +6,41 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function (sequelize, appModels) {
+export default async function (sequelize: Sequelize, appModels) {
 	const Invite = sequelize.define('invite', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		title: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		code: {
-			type: Sequelize.STRING(200),
+			type: DataTypes.STRING(200),
 			unique: true
 		},
 		limits: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		permissions: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		groupsToJoin: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		maxCount: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		captcha: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		isActive: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 		createdById: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		joinedByInviteId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		}
 	} as any, {
 		indexes: [
@@ -53,17 +51,17 @@ module.exports = async function (sequelize, appModels) {
 
 	appModels.JoinedByPivot = sequelize.define('joinedByPivot',{
 		userId: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			allowNull: false,
 			primaryKey: true,
 			unique: true
 		},
 		joinedByInviteId: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			allowNull: false
 		},
 		joinedByUserId: {
-			type: Sequelize.INTEGER,
+			type: DataTypes.INTEGER,
 			allowNull: false
 		},
 	} as any, {

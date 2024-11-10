@@ -1,7 +1,7 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeRemoteGroupModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeRemoteGroupModule from "./interface.js";
 
-module.exports = (app: IGeesomeApp, remoteGroupModule: IGeesomeRemoteGroupModule) => {
+export default (app: IGeesomeApp, remoteGroupModule: IGeesomeRemoteGroupModule) => {
 
     app.ms.api.onAuthorizedGet('group/:groupId', async (req, res) => {
         res.send(await remoteGroupModule.getLocalOrRemoteGroup(req.user.id, req.params.groupId));

@@ -1,4 +1,4 @@
-import {IContent} from "../database/interface";
+import {IContent} from "../database/interface.js";
 
 export default interface IGeesomeAsyncOperationModule {
 

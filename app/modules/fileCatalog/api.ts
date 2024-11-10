@@ -1,7 +1,7 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeFileCatalogModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeFileCatalogModule from "./interface.js";
 
-module.exports = (app: IGeesomeApp, fileCatalogModule: IGeesomeFileCatalogModule) => {
+export default (app: IGeesomeApp, fileCatalogModule: IGeesomeFileCatalogModule) => {
     const fileCatalogApi = app.ms.api.prefix('user/file-catalog/');
 
     fileCatalogApi.onAuthorizedGet('', async (req, res) => {

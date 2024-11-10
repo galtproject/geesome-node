@@ -1,10 +1,11 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeContentModule from "./interface";
-import {UserLimitName} from "../database/interface";
-const asyncBusboy = require("./asyncBusboy");
-const _ = require('lodash');
+import _ from 'lodash';
+import {UserLimitName} from "../database/interface.js";
+import IGeesomeContentModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+import asyncBusboy from "./asyncBusboy.js";
+const {pick} = _;
 
-module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
+export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} user/save-file Save file
@@ -28,7 +29,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ..._.pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
+            ...pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
         };
         const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, files[0], files[0].filename, options], options);
         res.send(asyncOperationRes);
@@ -50,7 +51,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ..._.pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
+            ...pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
         };
 
         res.send(await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, req.body['content'], req.body['fileName'] || req.body['name'], options], options));
@@ -72,7 +73,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ..._.pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
+            ...pick(req.body, ['groupId', 'driver', 'folderId', 'mimeType', 'path', 'async'])
         };
 
         res.send(await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveDataByUrl', [req.user.id, req.body['url'], options], options));
@@ -94,7 +95,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ..._.pick(req.body, ['groupId', 'async', 'driver'])
+            ...pick(req.body, ['groupId', 'async', 'driver'])
         };
 
         res.send(await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveDirectoryToStorage', [req.user.id, req.body['path'], options], options));
@@ -109,7 +110,7 @@ module.exports = (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     app.ms.api.onGet('content-by-storage-id/:contentStorageId', async (req, res) => {
-        res.send(await contentModule.getContentByStorageId(req.params.contentStorageId));
+        res.send(await contentModule.getContentByStorageAndUserId(req.params.contentStorageId, req.user.id));
     });
 
     app.ms.api.onGet('content-stats/*', async (req, res) => {

@@ -7,13 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {EventBus, UPDATE_GROUP} from "../frontend/src/services/events";
-
-export {};
-
-const { GeesomeClient } = require('geesome-libs/src/GeesomeClient');
-
-const http = require('http');
+import GeesomeClient from "geesome-libs/src/GeesomeClient";
+import http from 'http';
 
 const hostname = process.env.HOST || 'localhost';
 const isHttps = !(hostname === 'localhost' || isIpAddress(hostname));

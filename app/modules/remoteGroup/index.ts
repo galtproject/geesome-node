@@ -1,12 +1,12 @@
-import {IGeesomeApp, IUserInput} from "../../interface";
-import {IGroup, IPost, PostStatus} from "../group/interface";
-import IGeesomeRemoteGroupModule from "./interface";
-const geesomeLibsCommonHelper = require('geesome-libs/src/common');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
+import commonHelper from "geesome-libs/src/common.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import {IGroup, IPost, PostStatus} from "../group/interface.js";
+import IGeesomeRemoteGroupModule from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
-module.exports = (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	require('./api')(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -27,7 +27,7 @@ function getModule(app: IGeesomeApp) {
 			if (existsGroupId) {
 				return existsGroupId;
 			}
-			if (!geesomeLibsCommonHelper.isNumber(groupId)) {
+			if (!commonHelper.isNumber(groupId)) {
 				return this.createGroupByRemoteStorageId(userId, groupId).then(g => g.id);
 			}
 			return null;
@@ -77,3 +77,4 @@ function getModule(app: IGeesomeApp) {
 	}
 	return new RemoteGroupModule();
 }
+

@@ -7,44 +7,27 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {CorePermissionName, UserLimitName} from "../app/modules/database/interface";
-
-const ipfsHelper = require("geesome-libs/src/ipfsHelper");
-const assert = require('assert');
-const fs = require('fs');
-const _ = require('lodash');
-const resourcesHelper = require('./helpers/resources');
-const log = require('../app/helpers').log;
+import fs from 'fs';
+import _ from 'lodash';
+import assert from 'assert';
+import {CorePermissionName, UserLimitName} from "../app/modules/database/interface.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import resourcesHelper from './helpers/resources.js';
+import {IGeesomeApp} from "../app/interface.js";
+import appHelpers from '../app/helpers.js';
+const {log} = appHelpers;
+const {startsWith} = _;
 
 describe("app", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp;
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -93,7 +76,7 @@ describe("app", function () {
 		await app.setUserLimit(adminUser.id, limitData);
 
 		try {
-			await app.ms.content.saveData(testUser.id, fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
+			await app.ms.content.saveData(testUser.id, fs.createReadStream(`${appHelpers.getCurDir()}/../exampleContent/post3.jpg`), 'post3.jpg', {
 				userId: testUser.id,
 				groupId: testGroup.id
 			});
@@ -106,7 +89,7 @@ describe("app", function () {
 
 		await app.setUserLimit(adminUser.id, limitData);
 
-		await app.ms.content.saveData(testUser.id, fs.createReadStream(`${__dirname}/../exampleContent/post3.jpg`), 'post3.jpg', {
+		await app.ms.content.saveData(testUser.id, fs.createReadStream(`${appHelpers.getCurDir()}/../exampleContent/post3.jpg`), 'post3.jpg', {
 			userId: testUser.id,
 			groupId: testGroup.id
 		});
@@ -188,7 +171,7 @@ describe("app", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "forbidden_symbols_in_name"), true);
+			assert.equal(e.toString().includes("forbidden_symbols_in_name"), true);
 		}
 		try {
 			await app.registerUser({
@@ -198,7 +181,7 @@ describe("app", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(_.includes(e.toString(), "email_invalid"), true);
+			assert.equal(e.toString().includes("email_invalid"), true);
 		}
 		const saveDataTestUser = await app.registerUser({
 			email: 'user-save-data@user.com',
@@ -272,7 +255,7 @@ describe("app", function () {
 		assert.equal(contentObj.properties.width > 0, true);
 
 		console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType);
-		assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
+		assert.equal(startsWith(contentObj.preview.medium.mimeType, 'image'), true);
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
 	});
 
@@ -292,26 +275,30 @@ describe("app", function () {
 		assert.equal(contentObj.properties.width > 0, true);
 
 		console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType)
-		assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
+		assert.equal(startsWith(contentObj.preview.medium.mimeType, 'image'), true);
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
 	});
 
 	it('should correctly save mov video', async () => {
+		console.log('should correctly save mov video:1')
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 
 		const inputVideoPath = await resourcesHelper.prepare('input-video.mov');
+		console.log('should correctly save mov video:2')
 		const videoContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(inputVideoPath), 'input-video.mov', {
 			groupId: testGroup.id
 		});
+		console.log('should correctly save mov video:3')
 
 		const contentObj = await app.ms.storage.getObject(videoContent.manifestStorageId);
+		console.log('should correctly save mov video:4')
 
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
 		assert.equal(contentObj.mimeType, 'video/mp4');
 
 		console.log('contentObj.preview.medium.mimeType', contentObj.preview.medium.mimeType)
-		assert.equal(_.startsWith(contentObj.preview.medium.mimeType, 'image'), true);
+		assert.equal(startsWith(contentObj.preview.medium.mimeType, 'image'), true);
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
 	});
 
@@ -328,6 +315,8 @@ describe("app", function () {
 		assert.equal(contentObj.extension, 'none');
 		assert.equal(contentObj.size > 0, true);
 
+		console.log('archiveContent', archiveContent);
+		console.log('fileLs', await app.ms.storage.nodeLs(archiveContent.storageId));
 		let gotTextContent = await app.ms.storage.getFileDataText(archiveContent.storageId + '/test.txt');
 		assert.equal(gotTextContent, 'Test\n');
 	});

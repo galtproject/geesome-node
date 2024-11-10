@@ -7,43 +7,24 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import IGeesomeStorageModule from "../app/modules/storage/interface";
-import {CorePermissionName, IGeesomeDatabaseModule} from "../app/modules/database/interface";
-import IGeesomeCommunicatorModule from "../app/modules/communicator/interface";
-import {IGeesomeApp} from "../app/interface";
-
-const assert = require('assert');
+import assert from "assert";
+import IGeesomeCommunicatorModule from "../app/modules/communicator/interface.js";
+import {CorePermissionName} from "../app/modules/database/interface.js";
+import IGeesomeStorageModule from "../app/modules/storage/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("storage", function () {
 	this.timeout(30000);
-
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
 	let storage: IGeesomeStorageModule;
 	let communicator: IGeesomeCommunicatorModule;
 	let app: IGeesomeApp;
 
 	before(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});

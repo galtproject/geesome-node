@@ -8,6 +8,8 @@
  */
 
 import {IGeesomeApp} from "./app/interface";
+import GeesomeApp from './app/index.js';
+
 (async () => {
   const databaseConfig: any = {};
   if (process.env.DATABASE_NAME) {
@@ -19,12 +21,12 @@ import {IGeesomeApp} from "./app/interface";
     storageConfig.repo = process.env.STORAGE_REPO;
   }
 
-  const app: IGeesomeApp = await require('./app')({
+  const app: IGeesomeApp = await GeesomeApp({
     databaseConfig,
     storageConfig: {jsNode: storageConfig, goNode: storageConfig}
   });
 
-  require('./publish-docs')(app);
+  await (await import('./publish-docs.js')).default(app);
 })();
 
 process.on('uncaughtException', (err) => {

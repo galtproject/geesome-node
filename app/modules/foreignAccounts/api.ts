@@ -1,8 +1,8 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeForeignAccountsModule from "./interface";
-import {CorePermissionName} from "../database/interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeForeignAccountsModule from "./interface.js";
+import {CorePermissionName} from "../database/interface.js";
 
-module.exports = (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccountsModule) => {
+export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccountsModule) => {
 	app.ms.api.onAuthorizedPost('user/set-account', async (req, res) => {
 		res.send(await foreignAccountsModule.setUserAccounts(req.user.id, [req.body]));
 	});

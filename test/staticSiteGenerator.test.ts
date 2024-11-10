@@ -7,49 +7,27 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName, IUser,
-} from "../app/modules/database/interface";
-import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface";
-import {IGroup, PostStatus} from "../app/modules/group/interface";
-
-const {getTitleAndDescription} = require('../app/modules/staticSiteGenerator/helpers');
-
-const assert = require('assert');
-const resourcesHelper = require('./helpers/resources');
-const fs = require('fs');
+import fs from "fs";
+import assert from "assert";
+import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface.js";
+import {ContentView, CorePermissionName, IUser} from "../app/modules/database/interface.js";
+import ssgHelpers from '../app/modules/staticSiteGenerator/helpers.js';
+import {IGroup, PostStatus} from "../app/modules/group/interface.js";
+import resourcesHelper from './helpers/resources.js';
+import {IGeesomeApp} from "../app/interface.js";
+const {getTitleAndDescription} = ssgHelpers;
 
 describe("staticSiteGenerator", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let app: IGeesomeApp, staticSiteGenerator: IGeesomeStaticSiteGeneratorModule, testUser: IUser, testGroup: IGroup;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
@@ -94,25 +72,31 @@ describe("staticSiteGenerator", function () {
 		assert.equal(description, 'Кто плюсист?<br/><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br/><i>Language<br/>concepts[6], with terse syntax.[7]...</i>');
 	});
 
-	it('should generate site correctly', async () => {
+	it('should generate site correctly from group', async () => {
 		const posts = [];
 		for(let i = 0; i < 30; i++) {
 			const post1Content = await app.ms.content.saveData(testUser.id, 'Hello world' + i, null, { mimeType: 'text/markdown' });
 
+			console.log('post1Content ls', await app.ms.storage.nodeLs(post1Content.storageId));
 			const pngImagePath = await resourcesHelper.prepare('input-image.png');
+			console.log('imageContent', i);
 			const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
 				groupId: testGroup.id,
 				waitForPin: true
 			});
+			console.log('imageContent ls', await app.ms.storage.nodeLs(imageContent.storageId));
+			console.log('postData', i);
 			const postData = {
 				contents: [{manifestStorageId: post1Content.manifestStorageId, view: ContentView.Contents},{manifestStorageId: imageContent.manifestStorageId, view: ContentView.Media}],
 				groupId: testGroup.id,
 				status: PostStatus.Published
 			};
+			console.log('createPost', i);
 			posts.push(await app.ms.group.createPost(testUser.id, postData));
 		}
 
-		const directoryStorageId = await staticSiteGenerator.generate(testUser.id, 'group', testGroup.id, {
+		console.log('generateGroupSite 1');
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, 'group', testGroup.id, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
 			baseStorageUri: 'http://localhost:2052/ipfs/',
@@ -131,6 +115,7 @@ describe("staticSiteGenerator", function () {
 				base: '/'
 			}
 		});
+		console.log('generateGroupSite 2');
 
 		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
 		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
@@ -151,5 +136,48 @@ describe("staticSiteGenerator", function () {
 		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
 		assert.equal(postHtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
 		console.log('postHtmlContent', postHtmlContent);
+	});
+
+	it('should generate site correctly from content list', async () => {
+		const contentIds = [];
+		for (let i = 0; i < 30; i++) {
+			const pngImagePath = await resourcesHelper.prepare('input-image.png');
+			const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
+				groupId: testGroup.id,
+				waitForPin: true
+			});
+			contentIds.push(imageContent.id);
+		}
+
+		console.log('generateContentsSite 1');
+		const directoryStorageId = await staticSiteGenerator.generateContentListSite(testUser.id, 'content-list', contentIds, {
+			lang: 'en',
+			dateFormat: 'DD.MM.YYYY hh:mm:ss',
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			post: {
+				titleLength: 0,
+				descriptionLength: 400,
+			},
+			postList: {
+				postsPerPage: 5,
+			},
+			site: {
+				title: 'MySite',
+				name: 'my_content_site',
+				description: 'My About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+		console.log('generateContentsSite 2', directoryStorageId);
+		console.log('ls', await app.ms.storage.nodeLs(directoryStorageId));
+		console.log('ls content', await app.ms.storage.nodeLs(directoryStorageId + '/content'));
+
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
+		assert.equal(indexHtmlContent.includes('class="content-item'), true);
+		assert.equal(indexHtmlContent.includes('<link rel="stylesheet" href="./style.css">'), true);
+		assert.equal(indexHtmlContent.includes('<img src="./content/bafk'), true);
+		console.log('indexHtmlContent', indexHtmlContent);
 	});
 });

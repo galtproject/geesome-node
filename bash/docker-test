@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rm -rf test/.postgres-data && docker compose -f ./test/docker-compose.yml down && docker system prune -f && docker compose -f ./test/docker-compose.yml up -d --build --force-recreate && docker logs geesome -f

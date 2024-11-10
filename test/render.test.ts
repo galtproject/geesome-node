@@ -7,48 +7,25 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	ContentView,
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import {PostStatus} from "../app/modules/group/interface";
-import {IUserOperationQueue} from "../app/modules/asyncOperation/interface";
-
-const assert = require('assert');
-const fs = require('fs');
-const includes = require('lodash/includes');
-const resourcesHelper = require('./helpers/resources');
+import fs from "fs";
+import assert from "assert";
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {IUserOperationQueue} from "../app/modules/asyncOperation/interface.js";
+import {PostStatus} from "../app/modules/group/interface.js";
+import resourcesHelper from './helpers/resources.js';
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("renders", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let admin, app: IGeesomeApp;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
@@ -77,12 +54,13 @@ describe("renders", function () {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const apiKey = await app.generateUserApiKey(testUser.id, {type: "test-static-generator"});
-		const staticSiteGenerator = await require('../app/modules/staticSiteGenerator')(app);
+		const apiKeyId = await app.getApyKeyId(apiKey);
+		const staticSiteGenerator = await (await import('../app/modules/staticSiteGenerator/index.js')).default(app);
 
 		await addTextPostToGroup(testGroup, 'Test 1 post');
 		const staticSiteContent = await generateStaticSiteAndGetContent(testGroup, 'Test 1 group', 'About test group');
-		assert.equal(includes(staticSiteContent, "Test 1 post"), true);
-		assert.equal(includes(staticSiteContent, "Test 1 group"), true);
+		assert.equal(staticSiteContent.includes("Test 1 post"), true);
+		assert.equal(staticSiteContent.includes("Test 1 group"), true);
 
 		const testGroup2 = await app.ms.group.createGroup(testUser.id, {
 			name: 'test-2',
@@ -90,8 +68,8 @@ describe("renders", function () {
 		});
 		await addTextPostToGroup(testGroup2, 'Test 2 post');
 		const staticSiteContent2 = await generateStaticSiteAndGetContent(testGroup2, 'Test 2 group', 'About test 2 group');
-		assert.equal(includes(staticSiteContent2, "Test 2 post"), true);
-		assert.equal(includes(staticSiteContent2, "Test 2 group"), true);
+		assert.equal(staticSiteContent2.includes("Test 2 post"), true);
+		assert.equal(staticSiteContent2.includes("Test 2 group"), true);
 
 		console.log('generateStaticSiteAndGetContent end')
 		async function addTextPostToGroup(group, text) {
@@ -109,8 +87,8 @@ describe("renders", function () {
 		async function generateStaticSiteAndGetContent(group, title, description) {
 			const defaultOptions = await staticSiteGenerator.getDefaultOptionsByGroupId(testUser.id, group.id);
 
-			let userOperationQueue: IUserOperationQueue = await staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, apiKey, 'group', group.id, {
-				site: {title, description},
+			let userOperationQueue: IUserOperationQueue = await staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, apiKeyId, {entityType: 'group', entityId: group.id}, {
+				site: {title, description, name: group.name + '_site'},
 				post: defaultOptions.post,
 				postList: defaultOptions.postList,
 			});
@@ -134,7 +112,7 @@ describe("renders", function () {
 
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		let testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
-		const rssRender = await require('../app/modules/rss')(app);
+		const rssRender = await (await import('../app/modules/rss/index.js')).default(app);
 
 		const test1PostText = 'Test 1 post';
 		const post1Content = await app.ms.content.saveData(testUser.id, test1PostText, null, {
@@ -156,8 +134,8 @@ describe("renders", function () {
 		});
 
 		const resultXml = await rssRender.groupRss(testGroup.id, 'http://localhost:1234');
-		assert.equal(includes(resultXml, "Test 1 group"), true);
-		assert.equal(includes(resultXml, "Test 1 post"), true);
-		assert.equal(includes(resultXml, imageContent.storageId), true);
+		assert.equal(resultXml.includes("Test 1 group"), true);
+		assert.equal(resultXml.includes("Test 1 post"), true);
+		assert.equal(resultXml.includes(imageContent.storageId), true);
 	});
 });

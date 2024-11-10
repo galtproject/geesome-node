@@ -7,15 +7,15 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGroup, IPost} from "../database/interface";
-import {IGeesomeApp} from "../../interface";
+// import {IGroup, IPost} from "../database/interface";
+// import {IGeesomeApp} from "../../interface";
 
 // const {getPersonalChatTopic, getIpnsUpdatesTopic} = require('geesome-libs/src/name');
 // const bs58 = require('bs58');
 //
 // export {};
 //
-// module.exports = async (geesomeApp: IGeesomeApp) => {
+// export default async (geesomeApp: IGeesomeApp) => {
 //
 //   const peersToTopic = {};
 //

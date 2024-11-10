@@ -7,27 +7,26 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface.js";
+import IGeesomeAccountStorageModule from "./modules/accountStorage/interface.js";
+import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface.js";
+import IGeesomeCommunicatorModule from "./modules/communicator/interface.js";
+import IGeesomeStaticIdModule from "./modules/staticId/interface.js";
+import IGeesomeStorageModule from "./modules/storage/interface.js";
+import IGeesomeDriversModule from "./modules/drivers/interface.js";
+import IGeesomeContentModule from "./modules/content/interface.js";
+import IGeesomeInviteModule from "./modules/invite/interface.js";
+import IGeesomeGroupModule from "./modules/group/interface.js";
+import IGeesomeApiModule from "./modules/api/interface.js";
+import {GeesomeEmitter} from "./events.js";
 import {
   CorePermissionName,
   IContent,
   IGeesomeDatabaseModule,
-  IInvite, IListParams,
-  IUser,
-  IUserApiKey,
+  IInvite,IListParams,
+  IUser, IUserApiKey,
   IUserLimit, UserLimitName
-} from "./modules/database/interface";
-import IGeesomeStorageModule from "./modules/storage/interface";
-import {GeesomeEmitter} from "./events";
-import IGeesomeCommunicatorModule from "./modules/communicator/interface";
-import IGeesomeAccountStorageModule from "./modules/accountStorage/interface";
-import IGeesomeApiModule from "./modules/api/interface";
-import IGeesomeDriversModule from "./modules/drivers/interface";
-import IGeesomeStaticIdModule from "./modules/staticId/interface";
-import IGeesomeContentModule from "./modules/content/interface";
-import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface";
-import IGeesomeInviteModule from "./modules/invite/interface";
-import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface";
-import IGeesomeGroupModule from "./modules/group/interface";
+} from "./modules/database/interface.js";
 
 export interface IGeesomeApp {
   config: any;
@@ -101,7 +100,7 @@ export interface IGeesomeApp {
 
   // getPreviewContentData()
 
-  callHook(callFromModule, name, args): Promise<void>;
+  callHook(callFromModule, name, args): Promise<any>;
 
   //TODO: define interface
   getPeers(topic): Promise<any>;

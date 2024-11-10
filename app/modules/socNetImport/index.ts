@@ -7,28 +7,20 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../../interface";
-import {GroupType} from "../group/interface";
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface";
+import _ from 'lodash';
+import {Op} from "sequelize";
+import pIteration from 'p-iteration';
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface.js";
+import {IContent} from "../database/interface.js";
+import {GroupType} from "../group/interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const {pick, uniq, uniqBy, orderBy, find, some, isString, reverse, last} = _;
 
-const pIteration = require('p-iteration');
-const includes = require('lodash/includes');
-const pick = require('lodash/pick');
-const uniq = require('lodash/uniq');
-const uniqBy = require('lodash/uniqBy');
-const orderBy = require('lodash/orderBy');
-const find = require('lodash/find');
-const some = require('lodash/some');
-const isString = require('lodash/isString');
-const reverse = require('lodash/reverse');
-const last = require('lodash/last');
-const Op = require("sequelize").Op;
-const commonHelper = require('geesome-libs/src/common');
-
-module.exports = async (app: IGeesomeApp) => {
-	const models = await require("./models")();
+export default async (app: IGeesomeApp) => {
+	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
-	require('./api')(app, module, models);
+	await (await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -50,6 +42,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async findExistsChannelMessage(msgId, dbChannelId, userId) {
+			msgId = msgId.toString();
+			console.log('Message', {msgId, dbChannelId, userId});
 			return models.Message.findOne({where: {msgId, dbChannelId, userId}});
 		}
 
@@ -284,8 +278,8 @@ function getModule(app: IGeesomeApp, models) {
 				});
 				if (messagesByTimestamp.length) {
 					const messagesToMerge = [];
-					const lastMsg = last(orderBy(messagesByTimestamp.concat(_msgData), ['timestamp'], ['DESC']));
-					orderBy(messagesByTimestamp.concat(_msgData), ['timestamp'], ['DESC']).some((m, i) => {
+					const lastMsg: any = last(orderBy(messagesByTimestamp.concat(_msgData), ['timestamp'], ['desc']));
+					orderBy(messagesByTimestamp.concat(_msgData), ['timestamp'], ['desc']).some((m: any, i) => {
 						const sameReply = m.replyToMsgId == lastMsg.replyToMsgId || messagesToMerge.some(m => m.msgId === lastMsg.replyToMsgId);
 						console.log('sameReply', sameReply, 'm.msgId', m.msgId, 'm.replyToMsgId', m.replyToMsgId, 'lastMsg.replyToMsgId', lastMsg.replyToMsgId, 'messagesToMerge.filter', messagesToMerge.filter(m => m.msgId === lastMsg.replyToMsgId));
 						const sameRepost = m.repostOfMsgId == lastMsg.repostOfMsgId || m.repostOfDbChannelId == lastMsg.repostOfDbChannelId;
@@ -341,7 +335,7 @@ function getModule(app: IGeesomeApp, models) {
 				return _existsPostId;
 			}
 			console.log('mergePostsToOne', _existsPostId, postIds);
-			if (_existsPostId && !includes(postIds, _existsPostId)) {
+			if (_existsPostId && !postIds.includes(_existsPostId)) {
 				postIds.push(_existsPostId);
 			}
 			const {userId, groupId} = _postData;
@@ -367,7 +361,9 @@ function getModule(app: IGeesomeApp, models) {
 
 		async setContentsByMessagesContents(_postData, _dbChannelId) {
 			let {contents} = _postData;
-			contents = uniqBy(contents, c => c.manifestStorageId);
+			contents = uniqBy(contents, (c: IContent) => c.manifestStorageId);
+			console.log('where', {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}});
+			console.log('ContentMessage', await models.ContentMessage.findAll({}).then(list => list.map(cm => cm.toJSON())));
 			const messageContents = await models.ContentMessage.findAll({
 				where: {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}}
 			});
@@ -405,7 +401,7 @@ function getModule(app: IGeesomeApp, models) {
 		storeContentMessage(contentMessageData, content) {
 			console.log('storeContentMessage', contentMessageData, 'content.id', content ? content.id : null);
 			return models.ContentMessage.create({...contentMessageData, dbContentId: content.id}).catch((e) => {
-				console.error('models.ContentMessage.create', JSON.stringify(e.errors));
+				console.error('models.ContentMessage.create error', e);
 			});
 		}
 

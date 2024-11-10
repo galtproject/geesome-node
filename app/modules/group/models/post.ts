@@ -7,112 +7,111 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {assertAwaitExpression} from "@babel/types";
+import {Sequelize, DataTypes} from 'sequelize';
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
+export default async function (sequelize: Sequelize, models) {
 
   const Post = sequelize.define('post', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     status: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     name: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     publishedAt: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
     publishOn: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
     type: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     view: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     localId: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     size: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     isRemote: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isEncrypted: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isFullyPinned: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     isDeleted: {
-      type: Sequelize.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       defaultValue: false
     },
     isReplyForbidden: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
     peersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     repliesCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     repostsCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     fullyPeersCount: {
-      type: Sequelize.INTEGER
+      type: DataTypes.INTEGER
     },
     propertiesJson: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
     storageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     directoryStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     staticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     manifestStaticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     encryptedManifestStorageId: {
-      type: Sequelize.TEXT
+      type: DataTypes.TEXT
     },
     groupStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     groupStaticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     authorStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     authorStaticStorageId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     source: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     sourceChannelId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     sourcePostId: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     sourceDate: {
-      type: Sequelize.DATE
+      type: DataTypes.DATE
     },
   } as any, {
     indexes: [
@@ -130,8 +129,8 @@ module.exports = async function (sequelize, models) {
   } as any);
 
   models.PostsContents = sequelize.define('postsContents', {
-    position: {type: Sequelize.INTEGER},
-    view: {type: Sequelize.STRING(200)},
+    position: {type: DataTypes.INTEGER},
+    view: {type: DataTypes.STRING(200)},
   } as any, {} as any);
 
   models.Content.belongsToMany(Post, {as: 'posts', through: models.PostsContents});

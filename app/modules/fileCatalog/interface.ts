@@ -1,5 +1,5 @@
-import {ManifestToSave} from "../../interface";
-import {IContent, IListParams} from "../database/interface";
+import {ManifestToSave} from "../../interface.js";
+import {IContent, IListParams} from "../database/interface.js";
 
 export default interface IGeesomeFileCatalogModule {
 	getFileCatalogItem(itemId): Promise<IFileCatalogItem>;

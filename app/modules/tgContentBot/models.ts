@@ -1,60 +1,57 @@
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-content-bots', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const Description = sequelize.define('description', {
 		tgId: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		contentId: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		ipfsContent: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		text: {
-			type: Sequelize.TEXT,
+			type: DataTypes.TEXT,
 			allowNull: true
 		},
 		aitext: {
-			type: Sequelize.TEXT,
+			type: DataTypes.TEXT,
 			allowNull: true
 		},
 		botId: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		}
 	}, {});
 
 	const ContentBots = sequelize.define('contentBot', {
 		encryptedToken: {
-			type: Sequelize.TEXT,
+			type: DataTypes.TEXT,
 			allowNull: true
 		},
 		botId: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		botUsername: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		socNet: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		userId: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		},
 		tokenHash: {
-			type: Sequelize.STRING,
+			type: DataTypes.STRING,
 			allowNull: true
 		}
 	}, {});
@@ -63,20 +60,20 @@ module.exports = async function () {
 
 	const User = sequelize.define('user', {
 		title: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		},
 		userTgId: {
-			type: Sequelize.STRING
+			type: DataTypes.STRING
 		},
 		savedSize: {
-			type: Sequelize.FLOAT,
+			type: DataTypes.FLOAT,
 			defaultValue: 0
 		},
 		contentLimit: {
-			type: Sequelize.FLOAT,
+			type: DataTypes.FLOAT,
 		},
 		isAdmin: {
-			type: Sequelize.BOOLEAN,
+			type: DataTypes.BOOLEAN,
 		},
 	}, {});
 

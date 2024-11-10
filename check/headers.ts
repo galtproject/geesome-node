@@ -10,7 +10,7 @@
 // usage:
 // FIRST=https://geesome.microwavedev.io:2053/ipfs/bafkreiaals5cm4hj6sazor5f4lyevjnm4xy6ier23r7aateldvtoyfadzi SECOND=https://ipfs.io/ipfs/bafkreiaals5cm4hj6sazor5f4lyevjnm4xy6ier23r7aateldvtoyfadzi ./node_modules/.bin/ts-node check/headers.ts
 
-const { exec } = require("child_process");
+import { exec } from "child_process";
 
 (async () => {
     const [first, second] = await Promise.all([

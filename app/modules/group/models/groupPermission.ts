@@ -6,20 +6,20 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
+import {Sequelize, DataTypes} from 'sequelize';
 
-module.exports = async function (sequelize, models) {
-  const Sequelize = require('sequelize');
+export default async function (sequelize: Sequelize, models) {
 
   const GroupPermission = sequelize.define('groupPermission', {
     // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
     name: {
-      type: Sequelize.STRING(200)
+      type: DataTypes.STRING(200)
     },
     title: {
-      type: Sequelize.STRING
+      type: DataTypes.STRING
     },
     isActive: {
-      type: Sequelize.BOOLEAN
+      type: DataTypes.BOOLEAN
     },
   } as any, {
     indexes: [

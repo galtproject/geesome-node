@@ -1,33 +1,37 @@
-import {IGeesomeApp} from "../../interface";
+import fs from "fs";
+import _ from 'lodash';
+import mime from 'mime';
+import debug from 'debug';
+import axios from "axios";
+import pIteration from 'p-iteration';
+import uuidAPIKey from "uuid-apikey";
+import { BufferListStream } from 'bl';
+import {Transform, Readable} from 'stream';
+import commonHelper from "geesome-libs/src/common.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import detecterHelper from "geesome-libs/src/detecter.js";
+import {IGeesomeApp} from "../../interface.js";
 import {
 	ContentMimeType,
-	ContentStorageType, ContentView,
+	ContentStorageType,
+	ContentView,
 	CorePermissionName,
 	IContent,
 	IListParams,
-	UserContentActionName, UserLimitName
-} from "../database/interface";
-import IGeesomeContentModule from "./interface";
-import AbstractDriver from "../drivers/abstractDriver";
-import {DriverInput, OutputSize} from "../drivers/interface";
-const _ = require('lodash')
-const pIteration = require('p-iteration')
-const commonHelper = require('geesome-libs/src/common');
-const { BufferListStream } = require('bl');
-const detecterHelper = require('geesome-libs/src/detecter');
-const log = require('debug')('geesome:app');
-const uuidAPIKey = require('uuid-apikey');
-const mime = require('mime');
-const axios = require('axios');
-const Transform = require('stream').Transform;
-const Readable = require('stream').Readable;
-const {getDirSize} = require('../drivers/helpers');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
-const fs = require('fs');
+	UserContentActionName,
+	UserLimitName
+} from "../database/interface.js";
+import driverHelpers from '../drivers/helpers.js';
+import IGeesomeContentModule from "./interface.js";
+import AbstractDriver from "../drivers/abstractDriver.js";
+import {DriverInput, OutputSize} from "../drivers/interface.js";
+const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, merge, last, startsWith, trimStart} = _;
+const log = debug('geesome:app');
+const {getDirSize} = driverHelpers;
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
-	require('./api')(app, module);
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -55,6 +59,10 @@ function getModule(app: IGeesomeApp) {
 
 		getContentByStorageId(storageId) {
 			return app.ms.database.getContentByStorageId(storageId);
+		}
+
+		getContentByStorageAndUserId(storageId, userId) {
+			return app.ms.database.getContentByStorageAndUserId(storageId, userId);
 		}
 
 		getContentByManifestId(storageId) {
@@ -87,7 +95,7 @@ function getModule(app: IGeesomeApp) {
 					let previewData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
 					await app.ms.database.updateContent(content.id, previewData);
 					const updatedContent = await this.updateContentManifest({
-						...content['toJSON'](),
+						...content.toJSON() as any,
 						...previewData
 					});
 
@@ -229,58 +237,60 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getContentPreviewStorageFile(storageFile: IStorageFile, previewDriver, options): Promise<any> {
-			return new Promise(async (resolve, reject) => {
-				if (app.ms.storage.isStreamAddSupport()) {
-					const inputStream = await this.getFileStream(storageFile.id);
-					options.onError = (err) => {
-						reject(err);
-					};
-					console.log('getContentPreviewStorageFile stream', options);
-					const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
+			if (app.ms.storage.isStreamAddSupport()) {
+				const inputStream = await this.getFileStream(storageFile.id);
+				options.onError = (err) => {
+					throw err;
+				};
+				console.log('getContentPreviewStorageFile stream', options);
+				const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
-					const previewFile = await app.ms.storage.saveFileByData(resultStream);
-					console.log('getContentPreviewStorageFile stream storageFile', previewFile);
+				const previewFile = await app.ms.storage.saveFileByData(resultStream);
+				console.log('getContentPreviewStorageFile stream storageFile', previewFile);
 
-					let properties;
-					if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
-						const propertiesStream = await this.getFileStream(previewFile.id);
-						console.log('getContentPreviewStorageFile stream propertiesStream');
-						properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
-					}
-					console.log('getContentPreviewStorageFile stream properties', properties);
-
-					return resolve({storageFile: previewFile, type, extension, properties});
-				} else {
-					if (!storageFile.tempPath) {
-						storageFile.tempPath = `/tmp/` + (await commonHelper.random()) + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
-						const data = new BufferListStream(await app.ms.storage.getFileData(storageFile.id));
-						//TODO: find more efficient way to store content from IPFS to fs
-						await new Promise((resolve, reject) => {
-							data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve(true)).on('error', reject);
-						})
-						storageFile.emitFinish = () => {
-							fs.unlinkSync(storageFile.tempPath);
-						};
-					}
-					console.log('fs.existsSync(storageFile.tempPath)', fs.existsSync(storageFile.tempPath));
-					console.log('getContentPreviewStorageFile: path', options);
-					const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
-
-					const previewFile = await app.ms.storage.saveFileByPath(previewPath);
-					console.log('getContentPreviewStorageFile path storageFile', previewFile);
-
-					let properties;
-					if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
-						console.log('getContentPreviewStorageFile path propertiesStream');
-						properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
-					}
-					console.log('getContentPreviewStorageFile path properties', properties);
-
-					fs.unlinkSync(previewPath);
-
-					return resolve({storageFile: previewFile, type, extension, properties});
+				let properties;
+				if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
+					const propertiesStream = await this.getFileStream(previewFile.id);
+					console.log('getContentPreviewStorageFile stream propertiesStream');
+					properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
 				}
-			});
+				console.log('getContentPreviewStorageFile stream properties', properties);
+
+				return {storageFile: previewFile, type, extension, properties};
+			} else {
+				if (!storageFile.tempPath) {
+					storageFile.tempPath = `/tmp/` + (await commonHelper.random()) + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
+					const data: any = new BufferListStream(await app.ms.storage.getFileData(storageFile.id));
+					//TODO: find more efficient way to store content from IPFS to fs
+					await new Promise((resolve, reject) => {
+						data.pipe(fs.createWriteStream(storageFile.tempPath)).on('close', () => resolve(true)).on('error', reject);
+					})
+					storageFile.emitFinish = () => {
+						fs.unlinkSync(storageFile.tempPath);
+					};
+				}
+				console.log('fs.existsSync(storageFile.tempPath)', fs.existsSync(storageFile.tempPath));
+				console.log('getContentPreviewStorageFile: path', options);
+				const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
+
+				console.log('previewPath', previewPath);
+				const previewFile = await app.ms.storage.saveFileByPath(previewPath);
+				const storageContentStat = await app.ms.storage.getFileStat(previewFile.id);
+				previewFile.size = storageContentStat.size;
+				log('previewFile.size', previewFile.size);
+				console.log('getContentPreviewStorageFile path storageFile', previewFile);
+
+				let properties;
+				if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
+					console.log('getContentPreviewStorageFile path propertiesStream');
+					properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
+				}
+				console.log('getContentPreviewStorageFile path properties', properties);
+
+				fs.unlinkSync(previewPath);
+
+				return {storageFile: previewFile, type, extension, properties};
+			}
 		}
 
 		async prepareStorageFileAndGetPreview(storageFile: IStorageFile, extension, fullType) {
@@ -296,7 +306,7 @@ function getModule(app: IGeesomeApp) {
 					storageFile: imageFile,
 					extension: imageExtension,
 					fullType: imageType,
-					properties: _.pick(properties, ['width', 'height'])
+					properties: pick(properties, ['width', 'height'])
 				}
 			} else {
 				return {storageFile, extension, fullType};
@@ -307,10 +317,10 @@ function getModule(app: IGeesomeApp) {
 			const propsToUpdate = ['view'];
 			if (content.mediumPreviewStorageId && content.previewMimeType) {
 				if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
-					await app.ms.database.updateContent(content.id, _.pick(options, propsToUpdate));
+					await app.ms.database.updateContent(content.id, pick(options, propsToUpdate));
 					await this.updateContentManifest({
-						...content['toJSON'](),
-						..._.pick(options, propsToUpdate),
+						...content.toJSON() as any,
+						...pick(options, propsToUpdate),
 					});
 				}
 				return;
@@ -318,13 +328,13 @@ function getModule(app: IGeesomeApp) {
 			let updateData = await this.getPreview({id: content.storageId, size: content.size}, content.extension, content.mimeType);
 			if (content.userId === userId) {
 				updateData = {
-					..._.pick(options, propsToUpdate),
+					...pick(options, propsToUpdate),
 					...updateData,
 				}
 			}
 			await app.ms.database.updateContent(content.id, updateData);
 			return this.updateContentManifest({
-				...content['toJSON'](),
+				...content.toJSON() as any,
 				...updateData,
 			});
 		}
@@ -367,7 +377,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async isAutoActionAllowed(userId, funcName, funcArgs) {
-			return _.includes(['saveDataAndGetStorageId'], funcName);
+			return ['saveDataAndGetStorageId'].includes(funcName);
 		}
 
 		async saveDataAndGetStorageId(userId: number, dataToSave, fileName?, options = {}) {
@@ -403,16 +413,16 @@ function getModule(app: IGeesomeApp) {
 				dataToSave = Buffer.from(dataToSave.data);
 			}
 
-			if (_.isArray(dataToSave) || _.isTypedArray(dataToSave)) {
+			if (isArray(dataToSave) || isTypedArray(dataToSave)) {
 				dataToSave = Buffer.from(dataToSave);
 			}
 
-			if (_.isNumber(dataToSave)) {
+			if (isNumber(dataToSave)) {
 				dataToSave = dataToSave.toString(10);
 			}
 
 			let fileStream;
-			if (_.isString(dataToSave) || _.isBuffer(dataToSave)) {
+			if (isString(dataToSave) || isBuffer(dataToSave)) {
 				fileStream = new Readable();
 				fileStream._read = () => {};
 				fileStream.push(dataToSave);
@@ -451,7 +461,7 @@ function getModule(app: IGeesomeApp) {
 				storageId: storageFile.id,
 				size: storageFile.size,
 				name: fileName,
-				propertiesJson: JSON.stringify(_.merge(resultProperties || {}, options.properties || {}))
+				propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
 			}, options);
 		}
 
@@ -462,7 +472,7 @@ function getModule(app: IGeesomeApp) {
 				if (options.path) {
 					name = commonHelper.getFilenameFromPath(options.path);
 				} else {
-					name = _.last(url.split('/'))
+					name = last(url.split('/'))
 				}
 			}
 			let extension = commonHelper.getExtensionFromName(options.path || url);
@@ -532,7 +542,7 @@ function getModule(app: IGeesomeApp) {
 			let previewData = {};
 			console.log('options.previews', options.previews);
 			if (options.previews) {
-				await pIteration.forEachSeries(options.previews, async (p) => {
+				await pIteration.forEachSeries(options.previews, async (p: any) => {
 					const result = await this.saveFileByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
 					console.log('result', result);
 					previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
@@ -581,7 +591,7 @@ function getModule(app: IGeesomeApp) {
 
 		private async saveFileByStream(userId: number, stream, mimeType, options: any = {}): Promise<any> {
 			return new Promise(async (resolve, reject) => {
-				let extension = (options.extension || _.last(mimeType.split('/')) || '').toLowerCase();
+				let extension = (options.extension || last(mimeType.split('/')) || '').toLowerCase();
 
 				let properties;
 				if (commonHelper.isVideoType(mimeType)) {
@@ -618,7 +628,7 @@ function getModule(app: IGeesomeApp) {
 								stream.end();
 								sizeCheckStream.end();
 							} else {
-								callback(false, chunk);
+								callback(null, chunk);
 							}
 						}
 					});
@@ -644,7 +654,8 @@ function getModule(app: IGeesomeApp) {
 							if (!uploadResult) {
 								return; // onError handled
 							}
-							resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+							console.log('saveDirectory', uploadResult['tempPath'] + '/');
+							resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
 							if (uploadResult['emitFinish']) {
 								uploadResult['emitFinish']();
 							}
@@ -662,28 +673,31 @@ function getModule(app: IGeesomeApp) {
 									onProgress: options.onProgress,
 									onError: reject
 								});
-								log('saveDirectory(uploadResult.tempPath)');
-								resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'], storageOptions);
+								log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
+								resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
 								resultFile.tempPath = uploadResult['tempPath'];
 								resultFile.emitFinish = uploadResult['emitFinish'];
 							}
 							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
-							log('getFileStat resultFile', resultFile);
-							const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
-							// log('storageContentStat', storageContentStat);
-							resultFile.size = storageContentStat.size;
-							log('resultFile.size', resultFile.size);
+							delete resultFile.size;
 						}
-					})(),
+					})().catch(e => console.error('resultFile', e)),
 
 					(async () => {
 						console.log('mimeType', mimeType);
-						if (_.startsWith(mimeType, 'image')) {
+						if (startsWith(mimeType, 'image')) {
 							properties = await app.ms.drivers.metadata['image'].processByStream(stream);
 							// console.log('metadata processByStream', properties);
 						}
 					})()
 				]);
+
+				if (!resultFile.size) {
+					const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
+					log('getFileStat storageContentStat', storageContentStat);
+					resultFile.size = storageContentStat.size;
+					log('resultFile.size', resultFile.size);
+				}
 
 				resolve({
 					resultFile: resultFile,
@@ -699,7 +713,7 @@ function getModule(app: IGeesomeApp) {
 			if (!uploadDriver) {
 				throw new Error(driver + "_upload_driver_not_found");
 			}
-			if (!_.includes(uploadDriver.supportedInputs, DriverInput.Source)) {
+			if (!uploadDriver.supportedInputs.includes(DriverInput.Source)) {
 				throw new Error(driver + "_upload_driver_input_not_correct");
 			}
 			return uploadDriver.processBySource(sourceLink, {});
@@ -718,7 +732,7 @@ function getModule(app: IGeesomeApp) {
 
 		async createContentByObject(userId, contentObject, options?: { userApiKeyId? }) {
 			const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-			const dbContent = await app.ms.database.getContentByStorageId(storageId);
+			const dbContent = await app.ms.database.getContentByStorageAndUserId(storageId, userId);
 			if (dbContent) {
 				return dbContent;
 			}
@@ -736,7 +750,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getDataPath(dataPath) {
-			dataPath = _.trimStart(dataPath, '/')
+			dataPath = trimStart(dataPath, '/')
 			console.log('dataPath', dataPath);
 
 			let splitPath = dataPath.split('.');
@@ -774,7 +788,7 @@ function getModule(app: IGeesomeApp) {
 					if (contentType) {
 						res.setHeader('Content-Type', contentType);
 					}
-					if (content.mimeType === ContentMimeType.Directory && !_.includes(_.last(dataPath.split('/')), '.')) {
+					if (content.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
 						dataPath += '/index.html';
 					}
 				}
@@ -790,7 +804,7 @@ function getModule(app: IGeesomeApp) {
 				dataPath += '/index.html';
 			}
 			const dataSize = await this.getFileSize(dataPath, content);
-			if (content && (_.startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory)) {
+			if (content && (startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory)) {
 				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, dataSize, false));
 				return res.send(this.getFileStream(dataPath));
 			}
@@ -874,7 +888,7 @@ function getModule(app: IGeesomeApp) {
 				'cache-control': 'public, max-age=29030400, immutable',
 				'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
 				'x-ipfs-path': dataPath,
-				'x-ipfs-roots': _.last(dataPath.split('/')),
+				'x-ipfs-roots': last(dataPath.split('/')),
 				'x-ipfs-gateway-host': 'ipfs-bank12-am6', // TODO: get this values from ipfs node
 				'x-ipfs-pop': 'ipfs-bank12-am6',
 				'x-ipfs-lb-pop': 'gateway-bank2-am6',
@@ -884,7 +898,7 @@ function getModule(app: IGeesomeApp) {
 			}
 		}
 		prepareListParams(listParams?: IListParams): IListParams {
-			return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 	}
 

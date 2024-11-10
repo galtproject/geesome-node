@@ -7,6 +7,26 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import fs from "fs";
+import _ from 'lodash';
+import debug from 'debug';
+import pIteration from 'p-iteration';
+import uuidAPIKey from "uuid-apikey";
+import commonHelper from "geesome-libs/src/common.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface.js";
+import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface.js";
+import IGeesomeAccountStorageModule from "./modules/accountStorage/interface.js";
+import IGeesomeCommunicatorModule from "./modules/communicator/interface.js";
+import IGeesomeStaticIdModule from "./modules/staticId/interface.js";
+import IGeesomeStorageModule from "./modules/storage/interface.js";
+import IGeesomeDriversModule from "./modules/drivers/interface.js";
+import IGeesomeContentModule from "./modules/content/interface.js";
+import IGeesomeInviteModule from "./modules/invite/interface.js";
+import IGeesomeGroupModule from "./modules/group/interface.js";
+import IGeesomeApiModule from "./modules/api/interface.js";
+import {IGeesomeApp, IUserInput} from "./interface.js";
+import {GeesomeEmitter} from "./events.js";
 import {
   CorePermissionName,
   IGeesomeDatabaseModule,
@@ -15,44 +35,24 @@ import {
   IUserLimit,
   UserContentActionName,
   UserLimitName
-} from "./modules/database/interface";
-import {
-  IGeesomeApp,
-  IUserInput,
-} from "./interface";
-import IGeesomeStorageModule from "./modules/storage/interface";
-import IGeesomeDriversModule from "./modules/drivers/interface";
-import {GeesomeEmitter} from "./events";
-import IGeesomeCommunicatorModule from "./modules/communicator/interface";
-import IGeesomeAccountStorageModule from "./modules/accountStorage/interface";
-import IGeesomeApiModule from "./modules/api/interface";
-import IGeesomeStaticIdModule from "./modules/staticId/interface";
-import IGeesomeContentModule from "./modules/content/interface";
-import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface";
-import IGeesomeInviteModule from "./modules/invite/interface";
-import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface";
-import IGeesomeGroupModule from "./modules/group/interface";
+} from "./modules/database/interface.js";
+import appEvents from './events.js';
+import helpers from './helpers.js';
+import config from './config.js';
+const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
+const log = debug('geesome:app');
 
-const commonHelper = require('geesome-libs/src/common');
-const ipfsHelper = require('geesome-libs/src/ipfsHelper');
-let config = require('./config');
-let helpers = require('./helpers');
-const appEvents = require('./events') as Function;
-const _ = require('lodash');
-const fs = require('fs');
-const pIteration = require('p-iteration');
-const uuidAPIKey = require('uuid-apikey');
-const pick = require('lodash/pick');
-const log = require('debug')('geesome:app');
+export default async (extendConfig) => {
+  const resConfig = merge(config, extendConfig || {});
+  const app = getModule(resConfig, await helpers.getSecretKey('app-pass', 'words'));
 
-module.exports = async (extendConfig) => {
-  config = _.merge(config, extendConfig || {});
-  // console.log('config', config);
-  const app = getModule(config, await helpers.getSecretKey('app-pass', 'words'));
+  if (!app.config.storageConfig.jsNode.pass) {
+    app.config.storageConfig.jsNode.pass = await helpers.getSecretKey('accounts-pass', 'words');
+  }
+  if (!app.config.storageConfig.jsNode.salt) {
+    app.config.storageConfig.jsNode.salt = await helpers.getSecretKey('accounts-salt', 'hash');
+  }
 
-  app.config.storageConfig.jsNode.pass = await helpers.getSecretKey('accounts-pass', 'words');
-  app.config.storageConfig.jsNode.salt = await helpers.getSecretKey('accounts-salt', 'hash');
-  
   app.events = appEvents(app);
 
   // await appCron(app);
@@ -60,16 +60,16 @@ module.exports = async (extendConfig) => {
 
   log('Init modules...');
   app.ms = {} as any;
-  await pIteration.forEachSeries(config.modules, async moduleName => {
+  await pIteration.forEachSeries(resConfig.modules, async (moduleName: string) => {
     log(`Start ${moduleName} module...`);
     try {
-      app.ms[moduleName] = await require('./modules/' + moduleName)(app);
+      app.ms[moduleName] = await (await import(`./modules/${moduleName}/index.js`)).default(app);
     } catch (e) {
       console.error(moduleName + ' module initialization error', e);
     }
   });
 
-  const frontendPath = __dirname + '/../node_modules/@geesome/ui';
+  const frontendPath = helpers.getCurDir() + '/../node_modules/@geesome/ui';
   if (fs.existsSync(frontendPath)) {
     const directory = await app.ms.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;
@@ -113,9 +113,9 @@ function getModule(config, appPass) {
     }
 
     /**
-   ===========================================
-   USERS ACTIONS
-   ===========================================
+     ===========================================
+     USERS ACTIONS
+     ===========================================
      **/
 
     async setup(userData) {
@@ -236,14 +236,14 @@ function getModule(config, appPass) {
     }
 
     prepareListParams(listParams?: IListParams): IListParams {
-      return _.pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+      return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
     }
 
     async checkUserId(userId, targetId, createIfNotExist = true) {
       if (targetId == 'null' || targetId == 'undefined') {
         return null;
       }
-      if (!targetId || _.isUndefined(targetId)) {
+      if (!targetId || isUndefined(targetId)) {
         return null;
       }
       if (!commonHelper.isNumber(targetId)) {
@@ -294,9 +294,9 @@ function getModule(config, appPass) {
         dbAvatar = await this.ms.content.createContentByObject(userId, userObject.avatarImage);
       }
       const userFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'email', 'isRemote', 'description'];
-      const dbUser = await this.ms.database.addUser(_.extend(_.pick(userObject, userFields), {
+      const dbUser = await this.ms.database.addUser(extend(pick(userObject, userFields), {
         avatarImageId: dbAvatar ? dbAvatar.id : null
-      }));
+      }) as any);
 
       if (dbUser.isRemote) {
         this.events.emit(this.events.NewRemoteUser, dbUser);
@@ -308,7 +308,7 @@ function getModule(config, appPass) {
       if (!skipPermissionCheck) {
         await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
       }
-      const generated = uuidAPIKey.create();
+      const generated = uuidAPIKey['create']();
 
       data.userId = userId;
       data.valueHash = generated.uuid;
@@ -326,7 +326,7 @@ function getModule(config, appPass) {
       if (!token || token === 'null') {
         return {user: null, apiKey: null};
       }
-      const valueHash = uuidAPIKey.toUUID(token);
+      const valueHash = uuidAPIKey['toUUID'](token);
       const keyObj = await this.ms.database.getApiKeyByHash(valueHash);
       if (!keyObj) {
         return {user: null, apiKey: null};
@@ -381,13 +381,13 @@ function getModule(config, appPass) {
     }
 
     /**
-   ===========================================
-   CONTENT ACTIONS
-   ===========================================
+     ===========================================
+     CONTENT ACTIONS
+     ===========================================
      **/
 
     async getApyKeyId(apiKey) {
-      const apiKeyDb = await this.ms.database.getApiKeyByHash(uuidAPIKey.toUUID(apiKey));
+      const apiKeyDb = await this.ms.database.getApiKeyByHash(uuidAPIKey['toUUID'](apiKey));
       if(!apiKeyDb) {
         throw new Error("not_authorized");
       }
@@ -410,21 +410,21 @@ function getModule(config, appPass) {
     }
 
     async callHook(callFromModule, name, args) {
-      return pIteration.mapSeries(this.config.modules, (moduleName) => {
+      return pIteration.mapSeries(this.config.modules, (moduleName: string) => {
         if (moduleName === callFromModule) {
           return;
         }
-        if (this.ms[moduleName][name]) {
+        if (this.ms[moduleName] && this.ms[moduleName][name]) {
           log(`Call hook ${name} on ${moduleName} module...`);
           return this.ms[moduleName][name].apply(this.ms[moduleName], args);
         }
-      }).then(responses => responses.filter(r => !_.isUndefined(r)));
+      }).then(responses => responses.filter(r => !isUndefined(r)));
     }
 
     /**
-   ===========================================
-   ETC ACTIONS
-   ===========================================
+     ===========================================
+     ETC ACTIONS
+     ===========================================
      **/
 
     async generateAndSaveManifest(entityName, entityObj) {
@@ -453,10 +453,10 @@ function getModule(config, appPass) {
       const dbObject = await this.ms.database.getObjectByStorageId(storageId, resolveProp);
       if (dbObject) {
         const { data } = dbObject;
-        return _.startsWith(data, '{') || _.startsWith(data, '[') ? JSON.parse(data) : data;
+        return startsWith(data, '{') || startsWith(data, '[') ? JSON.parse(data) : data;
       }
       return this.ms.storage.getObject(storageId, resolveProp).then((result) => {
-        this.ms.database.addObject({storageId, data: _.isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
+        this.ms.database.addObject({storageId, data: isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
         return result;
       }).catch(e => {
         console.error('getObject error', e)
@@ -508,7 +508,7 @@ function getModule(config, appPass) {
 
     async checkUserCan(userId, permission) {
       log('checkUserCan start', userId, permission);
-      if (_.startsWith(permission, 'admin:')) {
+      if (startsWith(permission, 'admin:')) {
         if (await this.isAdminCan(userId, permission).then(can => !can)) {
           throw new Error("not_permitted");
         }
@@ -524,10 +524,6 @@ function getModule(config, appPass) {
 
     async decryptTextWithAppPass(text) {
       return helpers.decryptText(text, appPass);
-    }
-
-    runSeeds() {
-      return require('./seeds')(this);
     }
 
     async getPeers(topic) {
@@ -566,19 +562,21 @@ function getModule(config, appPass) {
     }
 
     async stop() {
-      await pIteration.forEachSeries(this.config.modules, (moduleName) => {
-        if (this.ms[moduleName].stop) {
+      await pIteration.forEachSeries(this.config.modules, async (moduleName: string) => {
+        if (this.ms[moduleName] && this.ms[moduleName].stop) {
           log(`Stop ${moduleName} module...`);
-          return this.ms[moduleName].stop().catch(e => {
+          try {
+            await this.ms[moduleName].stop();
+          } catch (e) {
             console.warn("Warning! Module didnt stop:", e);
-          });
+          }
         }
       });
     }
 
     async flushDatabase() {
-      await pIteration.forEachSeries(_.reverse(_.clone(this.config.modules)), (moduleName) => {
-        if (this.ms[moduleName].flushDatabase) {
+      await pIteration.forEachSeries(reverse(clone(this.config.modules)), (moduleName: string) => {
+        if (this.ms[moduleName] && this.ms[moduleName].flushDatabase) {
           log(`Flush Database ${moduleName} module...`);
           return this.ms[moduleName].flushDatabase();
         }
@@ -586,8 +584,8 @@ function getModule(config, appPass) {
     }
 
     async setupModules() {
-      await pIteration.forEachSeries(this.config.modules, (moduleName) => {
-        if (this.ms[moduleName].setup) {
+      await pIteration.forEachSeries(this.config.modules, (moduleName: string) => {
+        if (this.ms[moduleName] && this.ms[moduleName].setup) {
           log(`Setup ${moduleName} module...`);
           return this.ms[moduleName].setup();
         }

@@ -7,12 +7,10 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export {};
+import pIteration from 'p-iteration';
+import {IGroup} from "./interface.js";
 
-const cron = require('node-cron');
-const pIteration = require('p-iteration');
-
-module.exports = (geesomeApp) => {
+export default (geesomeApp) => {
 
   //TODO: get from settings
   const updateOutdatedForSeconds = 60;
@@ -28,7 +26,7 @@ module.exports = (geesomeApp) => {
     console.log('updateStaticIdsOfGroups');
 
     const groupsToUpdateStatic = await geesomeApp.ms.database.getGroupWhereStaticOutdated(updateOutdatedForSeconds);
-    await pIteration.forEach(groupsToUpdateStatic, async (group) => {
+    await pIteration.forEach(groupsToUpdateStatic, async (group: IGroup) => {
       console.log('bindToStaticId group', group.name, group.manifestStorageId, group.manifestStaticStorageId);
       await geesomeApp.storage.bindToStaticId(group.manifestStorageId, group.manifestStaticStorageId, {lifetime: bindStaticForHours + 'h'});
 

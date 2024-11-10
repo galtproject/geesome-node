@@ -1,7 +1,7 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAsyncOperationModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeAsyncOperationModule from "./interface.js";
 
-module.exports = (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
+export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
     /**
      * @api {post} /v1/user/get-async-operation/:id Get async operation
      * @apiDescription Get async operation info: operation type, status, percent, and content when it will be ready.

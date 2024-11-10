@@ -7,18 +7,20 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
-
-const fs = require('fs');
-const uuidv4 = require('uuid/v4');
-const rimraf = require("rimraf");
+import fs from "fs";
+import rimraf from "rimraf";
+import * as uuid from 'uuid';
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
+const {v4: uuidv4} = uuid['default'];
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(inputStream, options: any = {}) {
+    console.log('uuid', uuid);
+    console.log('uuidv4', uuidv4);
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
     let size;
 
@@ -31,7 +33,7 @@ export class FileUploadDriver extends AbstractDriver {
             inputStream.resume();
           }
           const writableStream = fs.createWriteStream(path);
-          console.log('inputStream.pipe', inputStream);
+          // console.log('inputStream.pipe', inputStream);
           inputStream
               .pipe(writableStream)
               .on("close", resolve)

@@ -1,10 +1,7 @@
-const orderBy = require('lodash/orderBy');
-const find = require('lodash/find');
-const pick = require('lodash/pick');
-const maxBy = require('lodash/maxBy');
-const isNumber = require('lodash/isNumber');
+import _ from 'lodash';
+const {orderBy, find, pick, maxBy, isNumber} = _;
 
-module.exports = {
+export default {
 	importFields: ['id', 'replyTo', 'fwdFrom', 'date', 'message', 'entities', 'media', 'action', 'groupedId'],
 	messageWithEntitiesToHtml(message, entities = []) {
 		const splitText = [];
@@ -64,7 +61,7 @@ module.exports = {
 			if (isNumber(ySize.sizes[0])) {
 				fileSize = maxBy(ySize.sizes);
 			} else {
-				const maxSize = maxBy(ySize.sizes.filter(s => s.size), s => s.size);
+				const maxSize: any = maxBy(ySize.sizes.filter(s => s.size), s => s.size);
 				fileSize = maxSize.size
 				thumbSize = maxSize.type;
 			}

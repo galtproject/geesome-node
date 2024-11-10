@@ -7,43 +7,22 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {IGeesomeApp} from "../app/interface";
-import {
-	CorePermissionName,
-} from "../app/modules/database/interface";
-import IGeesomeFileCatalogModule, {FileCatalogItemType} from "../app/modules/fileCatalog/interface";
-
-const assert = require('assert');
+import assert from "assert";
+import IGeesomeFileCatalogModule, {FileCatalogItemType} from "../app/modules/fileCatalog/interface.js";
+import {CorePermissionName} from "../app/modules/database/interface.js";
+import {IGeesomeApp} from "../app/interface.js";
 
 describe("app", function () {
-	const databaseConfig = {
-		name: 'geesome_test', options: {
-			logging: () => {
-			}, storage: 'database-test.sqlite'
-		}
-	};
-
 	this.timeout(60000);
 
 	let app: IGeesomeApp, fileCatalog: IGeesomeFileCatalogModule;
 
 	beforeEach(async () => {
-		const appConfig = require('../app/config');
-		appConfig.storageConfig.implementation = 'js-ipfs';
-		appConfig.storageConfig.jsNode.repo = '.jsipfs-test';
+		const appConfig = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.storageConfig.jsNode.config = {
-			Addresses: {
-				Swarm: [
-					"/ip4/0.0.0.0/tcp/40002",
-					"/ip4/127.0.0.1/tcp/40003/ws",
-					"/dns4/wrtc-star.discovery.libp2p.io/tcp/443/wss/p2p-webrtc-star"
-				]
-			}
-		};
 
 		try {
-			app = await require('../app')({databaseConfig, storageConfig: appConfig.storageConfig, port: 7771});
+			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
 			await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
@@ -137,7 +116,7 @@ describe("app", function () {
 			await app.ms.storage.getFileData(publishFolderResult.storageId + '/incorrect' + fileName);
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(e.message, 'file does not exist');
+			assert.match(e.message, /file does not exist|no link named/);
 		}
 
 		console.log('7 getFileCatalogItemByPath');
@@ -160,7 +139,7 @@ describe("app", function () {
 			await app.ms.storage.getFileData(publishFolderResult.storageId + '/2/3/' + fileName2);
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(e.message, 'file does not exist');
+			assert.match(e.message, /file does not exist|no link named/);
 		}
 
 		console.log('10 publishFolder');

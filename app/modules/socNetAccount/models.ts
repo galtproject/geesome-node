@@ -6,47 +6,44 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
+import {Sequelize, DataTypes} from 'sequelize';
 
-const Sequelize: any = require('sequelize');
-
-module.exports = async function () {
-	let sequelize = new Sequelize('geesome-soc-net-account', 'geesome', 'geesome', require('./config').options);
+export default async function (sequelize: Sequelize) {
 
 	const Account = sequelize.define('socNetAccount', {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
-			type: Sequelize.INTEGER
+			type: DataTypes.INTEGER
 		},
 		socNet: {
-			type: Sequelize.STRING(50)
+			type: DataTypes.STRING(50)
 		},
 		accountId: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		phoneNumber: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		username: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		fullName: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		apiId: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		apiKey: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		accessToken: {
-			type: Sequelize.STRING(200)
+			type: DataTypes.STRING(200)
 		},
 		sessionKey: {
-			type: Sequelize.TEXT
+			type: DataTypes.TEXT
 		},
 		isEncrypted: {
-			type: Sequelize.BOOLEAN
+			type: DataTypes.BOOLEAN
 		},
 	} as any, {
 		indexes: [

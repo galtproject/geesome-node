@@ -1,23 +1,20 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAutoActionsModule, {IAutoAction} from "./interface";
+import _ from 'lodash';
+import {Op} from "sequelize";
+import pIteration from 'p-iteration';
+import commonHelper from "geesome-libs/src/common.js";
+import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const {some, orderBy, reverse} = _;
 
-const Op = require("sequelize").Op;
-const pIteration = require("p-iteration");
-const some = require("lodash/some");
-const commonHelpers = require('geesome-libs/src/common');
-const orderBy = require("lodash/orderBy");
-const reverse = require("lodash/reverse");
-
-module.exports = async (app: IGeesomeApp) => {
-	const models = await require("./models")();
+export default async (app: IGeesomeApp) => {
+	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = await getModule(app, models);
-	require('./api')(app, module);
-	require('./cron')(app, module);
+	(await import('./api.js')).default(app, module);
+	(await import('./cron.js')).default(app, module);
 	return module;
 }
 
 function getModule(app: IGeesomeApp, models) {
-
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
 		async addAutoAction(userId, autoAction) {
 			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions);
@@ -72,8 +69,8 @@ function getModule(app: IGeesomeApp, models) {
 			if (!nextActions) {
 				return null;
 			}
-			return action.setNextActions(await pIteration.map(nextActions, async (action, position) => {
-				action.nextActions = {position};
+			return action.setNextActions(await pIteration.map(nextActions, async (action: IAutoAction, position) => {
+				action.nextActions = {position} as any;
 				return action;
 			}));
 		}
@@ -140,7 +137,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			await existAction.update({
 				...extendData,
-				executeOn: commonHelpers.moveDate(existAction.executePeriod, 'seconds')
+				executeOn: commonHelper.moveDate(existAction.executePeriod, 'seconds')
 			});
 		}
 
@@ -206,3 +203,4 @@ function getModule(app: IGeesomeApp, models) {
 
 	return new AutoActionsModule();
 }
+

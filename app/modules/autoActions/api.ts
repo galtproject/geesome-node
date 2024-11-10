@@ -1,7 +1,7 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomeAutoActionsModule from "./interface";
+import {IGeesomeApp} from "../../interface.js";
+import IGeesomeAutoActionsModule from "./interface.js";
 
-module.exports = (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) => {
+export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) => {
 
     app.ms.api.onAuthorizedPost('user/add-serial-auto-actions', async (req, res) => {
         res.send(await autoActionsModule.addSerialAutoActions(req.user.id, req.body));

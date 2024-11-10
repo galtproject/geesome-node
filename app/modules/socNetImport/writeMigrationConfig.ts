@@ -7,18 +7,17 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-export {};
+import fs from "fs";
+import helpers from "../../helpers.js";
+import config from './config.js';
 
-let config = require('./config');
-const fs = require('fs');
-
-if (!fs.existsSync(`${__dirname}/config/`)) {
-  fs.mkdirSync(`${__dirname}/config/`);
+if (!fs.existsSync(`${helpers.getCurDir()}/config/`)) {
+  fs.mkdirSync(`${helpers.getCurDir()}/config/`);
 }
 
-const storage = config.options.storage ? __dirname.replace('app/modules/socNetImport', '') + config.options.storage : undefined;
+const storage = config.options.storage ? helpers.getCurDir().replace('app/modules/socNetImport', '') + config.options.storage : undefined;
 
-fs.writeFileSync(`${__dirname}/config/config.json`, JSON.stringify({
+fs.writeFileSync(`${helpers.getCurDir()}/config/config.json`, JSON.stringify({
   production: { dialect: config.options.dialect, storage}
 }));
 

@@ -1,14 +1,13 @@
-import {IGeesomeApp} from "../../interface";
-import IGeesomePinModule, {IPinAccount} from "./interface";
-const pIteration = require("p-iteration");
-const axios = require('axios');
-const _ = require('lodash');
+import axios from "axios";
+import pIteration from 'p-iteration';
+import IGeesomePinModule, {IPinAccount} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
 
-module.exports = async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp) => {
 	app.checkModules(['group', 'content', 'storage']);
 
-	const module = getModule(app, await require('./models')());
-	require('./api')(app, module);
+	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+	(await import('./api.js')).default(app, module);
 	return module;
 }
 
@@ -72,7 +71,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async pinByPinata(storageId: string, account: IPinAccount, options?) {
-			const content = await app.ms.content.getContentByStorageId(storageId);
+			const content = await app.ms.content.getContentByStorageAndUserId(storageId, account.userId);
 			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
 			console.log('hostNodes', hostNodes);
 			return axios
@@ -113,7 +112,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async isAutoActionAllowed(userId, funcName, funcArgs) {
-			return _.includes(['pinByUserAccount', 'pinByGroupAccount'], funcName);
+			return ['pinByUserAccount', 'pinByGroupAccount'].includes(funcName);
 		}
 	}
 

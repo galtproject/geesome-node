@@ -7,10 +7,8 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-export {};
-
-const path = require('path');
-const fs = require('fs');
+import path from 'path';
+import fs from "fs";
 
 function getAllFiles(dirPath, arrayOfFiles?) {
 	let files = fs.readdirSync(dirPath);
@@ -40,6 +38,6 @@ function getDirSize(directoryPath) {
 	return totalSize
 }
 
-module.exports = {
+export default {
 	getDirSize
 }

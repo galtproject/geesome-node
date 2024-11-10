@@ -7,16 +7,18 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {DriverInput, OutputSize} from "../interface";
-import AbstractDriver from "../abstractDriver";
-
-const youtubedl = require('@microlink/youtube-dl');
+import {DriverInput, OutputSize} from "../interface.js";
+import AbstractDriver from "../abstractDriver.js";
+let youtubedl;
 
 export class YoutubeThumbnailPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Source];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processBySource(url, options: any = {}) {
+    if(!youtubedl) {
+      youtubedl = (await import('@microlink/youtube-dl')).default;
+    }
     return new Promise((resolve, reject) => {
       youtubedl.getThumbs(url, {
         // Downloads available thumbnail.

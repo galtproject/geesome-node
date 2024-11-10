@@ -1,7 +1,8 @@
-import IGeesomeAutoActionsModule, {IAutoAction} from "./interface";
-import {IGeesomeApp} from "../../interface";
-const pIteration = require('p-iteration');
-const _ = require('lodash');
+import _ from 'lodash';
+import pIteration from 'p-iteration';
+import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
+import {IGeesomeApp} from "../../interface.js";
+const {some, uniqBy, isArray, isString} = _;
 
 export default class CronService {
 	queueByModules = {};
@@ -32,7 +33,7 @@ export default class CronService {
 			if(!this.queueByModules[a.moduleName]) {
 				this.queueByModules[a.moduleName] = []
 			}
-			if (!_.some(this.queueByModules[a.moduleName], _a => _a.id === a.id)) {
+			if (!some(this.queueByModules[a.moduleName], _a => _a.id === a.id)) {
 				this.queueByModules[a.moduleName].push(a);
 				if (rootActionId) {
 					this.actionsIdsByRootId[rootActionId].push(a.id);
@@ -61,7 +62,7 @@ export default class CronService {
 			if (this.queueByModules[moduleName].parallelAutoActionsCount) {
 				parallelCount = this.queueByModules[moduleName].parallelAutoActionsCount();
 			}
-			const actionsToParallelExecute = _.uniqBy(this.queueByModules[moduleName].splice(0, parallelCount), a => a.id);
+			const actionsToParallelExecute = uniqBy(this.queueByModules[moduleName].splice(0, parallelCount), (a: any) => a.id);
 			await pIteration.forEach(actionsToParallelExecute, a => this.executeActionAndAddNextToQueue(a, rootActionId));
 			executedActions = executedActions.concat(actionsToParallelExecute);
 		}
@@ -120,7 +121,7 @@ export default class CronService {
 		let funcArgs;
 		try {
 			funcArgs = JSON.parse(a.funcArgs);
-			if (!_.isArray(funcArgs)) {
+			if (!isArray(funcArgs)) {
 				throw new Error("funcArgs_not_array");
 			}
 		} catch (e) {
@@ -132,7 +133,7 @@ export default class CronService {
 		let result;
 		try {
 			funcArgs = funcArgs.map(arg => {
-				if (rootActionId && _.isString(arg) && this.prevActionsResultByRootId[rootActionId] && this.prevActionsResultByRootId[rootActionId][arg]) {
+				if (rootActionId && isString(arg) && this.prevActionsResultByRootId[rootActionId] && this.prevActionsResultByRootId[rootActionId][arg]) {
 					return this.prevActionsResultByRootId[rootActionId][arg];
 				}
 				return arg;

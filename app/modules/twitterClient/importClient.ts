@@ -1,12 +1,11 @@
-import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface";
-import IGeesomeTwitterClient from "./interface";
-import {IPost} from "../group/interface";
-import {ContentView} from "../database/interface";
-import IGeesomeContentModule from "../content/interface";
-
-const pIteration = require('p-iteration');
-
-const {getReplyToId, getRetweetId, clearMessageFromMediaMessages} = require('./helpers');
+import pIteration from 'p-iteration';
+import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface.js";
+import IGeesomeContentModule from "../content/interface.js";
+import {ContentView} from "../database/interface.js";
+import IGeesomeTwitterClient from "./interface.js";
+import {IPost} from "../group/interface.js";
+import helpers from './helpers.js';
+const {getReplyToId, getRetweetId, clearMessageFromMediaMessages} = helpers;
 
 export class TwitterImportClient implements IGeesomeSocNetImportClient {
 	socNet = 'twitter';
@@ -117,7 +116,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			await this.socNetImport.storeContentMessage(contentMessageData, textContent);
 		}
 		return pIteration
-			.map(m.medias, async (media) => {
+			.map(m.medias, async (media: any) => {
 				console.log('media', media);
 				const content = await this.twitterClient.saveMedia(userId, media);
 				await this.socNetImport.storeContentMessage(contentMessageData, content);
