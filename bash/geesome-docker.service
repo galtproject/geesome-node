@@ -13,8 +13,8 @@ Environment=DEBUG=geesome*
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/root/geesome-node
-ExecStart=/usr/local/bin/docker-compose up -d
-ExecStop=/usr/local/bin/docker-compose down
+ExecStart=/usr/local/bin/docker compose up -d
+ExecStop=/usr/local/bin/docker compose down
 TimeoutStartSec=0
 
 [Install]
