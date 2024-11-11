@@ -11,8 +11,8 @@ services:
       - ipfs
       - postgres
     volumes:
-      - "${GEESOME_DATA}:/geesome-node/data"
-      - "${GEESOME_FRONTEND_DIST}:/geesome-node/frontend/docker-dist"
+      - "${GEESOME_DATA:-./.docker-data/geesome-data}:/geesome-node/data"
+      - "${GEESOME_FRONTEND_DIST:-./.docker-data/geesome-frontend}:/geesome-node/frontend/docker-dist"
     environment:
       - IPFS_PROFILE
       - DEBUG
@@ -30,7 +30,7 @@ services:
     expose:
       - 5432
     volumes:
-      - "${POSTGRES_DATA}:/var/lib/postgresql/data"
+      - "${POSTGRES_DATA:-./.docker-data/postgres-data}:/var/lib/postgresql/data"
     environment:
       - POSTGRES_PASSWORD=geesome
       - POSTGRES_USER=geesome
@@ -41,7 +41,7 @@ services:
     ports:
       - "127.0.0.1:2042:80"
     volumes:
-      - "${GEESOME_FRONTEND_DIST}:/usr/share/nginx/html"
+      - "${GEESOME_FRONTEND_DIST:-./.docker-data/geesome-frontend}:/usr/share/nginx/html"
 
   ipfs:
     container_name: go_ipfs
@@ -55,5 +55,5 @@ services:
       - "4001:4001"
       - "8080:8080"
     volumes:
-      - "${STORAGE_STAGING}:/export"
-      - "${STORAGE_DATA}:/data/ipfs"
+      - "${STORAGE_STAGING:-./.docker-data/ipfs-staging}:/export"
+      - "${STORAGE_DATA:-./.docker-data/ipfs}:/data/ipfs"
