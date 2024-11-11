@@ -14,7 +14,6 @@ import helpers from "./app/helpers";
 
 export default (app: IGeesomeApp) => {
   const apiDocPath = helpers.getCurDir() + '/../node_modules/.bin/apidoc';
-  console.log('apiDocPath', apiDocPath);
   if (!fs.existsSync(apiDocPath)) {
     return console.warn("Script for generating docs not found :(");
   }
