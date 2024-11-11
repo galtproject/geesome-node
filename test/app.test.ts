@@ -51,7 +51,8 @@ describe("app", function () {
 		await app.stop();
 	});
 
-	it("should initialized successfully", async () => {
+	it.only("should initialized successfully", async () => {
+		console.log('remoteNodeAddressList', await app.ms.storage.remoteNodeAddressList([]));
 		assert.equal(await app.ms.database.getUsersCount(), 2);
 
 		await new Promise((resolve, reject) => {
