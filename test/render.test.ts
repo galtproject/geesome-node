@@ -99,7 +99,7 @@ describe("renders", function () {
 			} while (userOperationQueue.isWaiting)
 
 			console.log('staticSiteGenerator.getStaticSiteInfo');
-			const staticSiteInfo = await staticSiteGenerator.getStaticSiteInfo(testUser.id, 'group', group.id);
+			const staticSiteInfo = await staticSiteGenerator.getStaticSiteInfo(testUser.id, {entityType: 'group', entityId: group.id});
 			console.log('staticSiteInfo', staticSiteInfo);
 			return app.ms.storage.getFileDataText(staticSiteInfo.storageId + '/index.html');
 		}
