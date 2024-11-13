@@ -1,28 +1,40 @@
 import {IUserOperationQueue} from "../asyncOperation/interface.js";
+import {IListParams} from "../database/interface.js";
+
+export interface IStaticSiteRenderArgs {
+	entityType: string;
+	entityId?: string | number;
+	entityIds?: any[];
+}
+export interface IStaticSiteOptions {
+	baseStorageUri?;
+	lang;
+	dateFormat;
+	post: { titleLength, descriptionLength };
+	postList: { postsPerPage };
+	site: { title, name, username, description, avatarUrl?, postsCount?, base };
+}
 
 export default interface IGeesomeStaticSiteGeneratorModule {
 	moduleName: string;
 
-	getDefaultOptionsByGroupId(userId, groupId?): Promise<{
-		baseStorageUri?,
-		lang,
-		dateFormat,
-		post: { titleLength, descriptionLength },
-		postList: { postsPerPage },
-		site: { title, name, username, description, avatarUrl?, postsCount?, base }
-	}>;
+	getDefaultOptionsByGroupId(userId: number, groupId: number): Promise<IStaticSiteOptions>;
 
-	addRenderToQueueAndProcess(userId, apiKeyId, renderData: {entityType, entityId?, entityIds?}, options): Promise<IUserOperationQueue>;
+	getDefaultOptionsByRenderArgs(userId: number, renderArgs: IStaticSiteRenderArgs): Promise<IStaticSiteOptions>;
 
-	bindSiteToStaticId(userId, staticSiteId): Promise<any>;
+	addRenderToQueueAndProcess(userId: number, apiKeyId: number, renderArgs: IStaticSiteRenderArgs, options: any): Promise<IUserOperationQueue>;
 
-	getStaticSiteInfo(userId, type, entityId): Promise<IStaticSite>;
+	getStaticSiteInfo(userId: number, renderArgs: IStaticSiteRenderArgs): Promise<IStaticSite>;
 
-	updateStaticSiteInfo(userId, staticSiteId, updateData): Promise<any>;
+	getStaticSiteList(userId: number, entityType?: string, listParams?: IListParams): Promise<IStaticSite[]>;
 
-	generateGroupSite(userId, entityType, entityId, options?: any): Promise<string>;
+	bindSiteToStaticId(userId: number, staticSiteId: number): Promise<any>;
 
-	generateContentListSite(userId, entityType, entityIds, options?: any): Promise<string>;
+	updateStaticSiteInfo(userId: number, staticSiteId: number, updateData: any): Promise<any>;
+
+	generateGroupSite(userId: number, renderArgs: IStaticSiteRenderArgs, options?: any): Promise<string>;
+
+	generateContentListSite(userId: number, renderArgs: IStaticSiteRenderArgs, options?: any): Promise<string>;
 }
 
 export interface IStaticSite {

@@ -1,8 +1,8 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
-import IGeesomeStaticSiteGeneratorModule, {IStaticSite} from "./interface.js";
-import {IContentData} from "../database/interface.js";
+import IGeesomeStaticSiteGeneratorModule, {IStaticSite, IStaticSiteRenderArgs} from "./interface.js";
+import {IContentData, IListParams} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
@@ -28,8 +28,8 @@ function getModule(app: IGeesomeApp, models) {
     class StaticSiteGenerator implements IGeesomeStaticSiteGeneratorModule {
         moduleName = 'static-site-generator';
 
-        async addRenderToQueueAndProcess(userId, userApiKeyId, renderData: {entityType, entityId?, entityIds?}, options) {
-            const {entityType, entityId, entityIds} = renderData;
+        async addRenderToQueueAndProcess(userId: number, userApiKeyId: number, renderArgs: IStaticSiteRenderArgs, options: any) {
+            const {entityType, entityId, entityIds} = renderArgs;
             if (entityType === 'group') {
                 const isAdmin = await app.ms.group.isAdminInGroup(userId, entityId);
                 if (!isAdmin) {
@@ -64,6 +64,10 @@ function getModule(app: IGeesomeApp, models) {
             return finishedOperation;
         }
 
+        entityIdsToKey(entityIds) {
+            return helpers.keccak(JSON.stringify(entityIds));
+        }
+
         async processQueue() {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
             console.log('waitingQueue', waitingQueue);
@@ -82,10 +86,11 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             const {userId, userApiKeyId} = waitingQueue;
-            const {entityType, entityId, entityIds, options} = JSON.parse(waitingQueue.inputJson);
+            const {renderArgs, options} = JSON.parse(waitingQueue.inputJson);
+            const {entityType, entityId, entityIds} = renderArgs;
             let operationPrefix;
             if (entityType === 'content-list') {
-                operationPrefix = 'type:' + entityType + ';id:' + helpers.keccak(JSON.stringify(entityIds));
+                operationPrefix = 'type:' + entityType + ';id:' + this.entityIdsToKey(entityIds);
             } else {
                 operationPrefix = 'type:' + entityType + ';id:' + entityId;
             }
@@ -97,20 +102,9 @@ function getModule(app: IGeesomeApp, models) {
 
             await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
+            options.asyncOperationId = asyncOperation.id;
             // run in background
-            let operationPromise;
-            if (entityType === 'content-list') {
-                operationPromise = this.generateContentListSite(userId, entityType, entityIds, {
-                    ...options,
-                    asyncOperationId: asyncOperation.id
-                });
-            } else {
-                operationPromise = this.generateGroupSite(userId, entityType, entityId, {
-                    ...options,
-                    asyncOperationId: asyncOperation.id
-                });
-            }
-            operationPromise.then(async (storageId) => {
+            this.generateContentListSite(userId, renderArgs, options).then(async (storageId) => {
                 await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                 await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
                 if (finishCallbacks[waitingQueue.id]) {
@@ -127,12 +121,21 @@ function getModule(app: IGeesomeApp, models) {
             return waitingQueue;
         }
 
-        async getDefaultOptionsByGroupId(userId, groupId) {
+        async getDefaultOptionsByGroupId(userId: number, groupId: number) {
             return this.getEntityDefaultOptions('group', await app.ms.group.getLocalGroup(userId, groupId));
         }
 
-        async getEntityDefaultOptions(entityType, group) {
-            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId: group.id.toString()}});
+        async getDefaultOptionsByRenderArgs(userId: number, renderArgs: IStaticSiteRenderArgs) {
+            const {entityType, entityId} = renderArgs;
+            let entity;
+            if (entityType === 'group') {
+                entity = await app.ms.group.getLocalGroup(userId, entityId);
+            }
+            return this.getEntityDefaultOptions(renderArgs.entityType, entity);
+        }
+
+        async getEntityDefaultOptions(entityType, entity) {
+            const staticSite = await models.StaticSite.findOne({where: {entityType, entityId: entity.id.toString()}});
             let staticSiteOptions = {};
             try {
                 staticSiteOptions = JSON.parse(staticSite.options)
@@ -148,10 +151,10 @@ function getModule(app: IGeesomeApp, models) {
                     postsPerPage: 10,
                 },
                 site: {
-                    title: staticSite ? staticSite.title : group.title,
-                    name: staticSite ? staticSite.name : group.name + '_site',
-                    description: staticSite ? staticSite.description : group.description,
-                    username: group.name,
+                    title: staticSite ? staticSite.title : entity.title,
+                    name: staticSite ? staticSite.name : entity.name + '_site',
+                    description: staticSite ? staticSite.description : entity.description,
+                    username: entity.name,
                     base
                 },
                 ...staticSiteOptions
@@ -178,9 +181,7 @@ function getModule(app: IGeesomeApp, models) {
         }
 
         async prepareContentListForRender(userId, entityType, entityIds, options: any = {}) {
-            const entityId = helpers.keccak(JSON.stringify(entityIds));
-
-            let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options.title, options.site.name, options);
+            let staticSite = await this.getOrCreateStaticSite(userId, entityType, this.entityIdsToKey(entityIds), options.site);
 
             let contents = await app.ms.database
                 .getUserContentListByIds(userId, uniq(entityIds))
@@ -207,7 +208,7 @@ function getModule(app: IGeesomeApp, models) {
 
         async prepareGroupPostsForRender(userId, entityType, entityId, options: any = {}) {
             const group = await app.ms.group.getLocalGroup(userId, entityId);
-            let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options.title, options.site.name, options);
+            let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
             options = await this.getGroupResultOptions(group, options);
 
             const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
@@ -250,18 +251,20 @@ function getModule(app: IGeesomeApp, models) {
             }
         }
 
-        async getOrCreateStaticSite(userId, entityType, entityId, title, name, options) {
+        async getOrCreateStaticSite(userId, entityType, entityId, options) {
+            const {site} = options;
             let staticSite = await models.StaticSite.findOne({where: {entityType, entityId: entityId.toString()}});
             if (!staticSite) {
-                staticSite = await this.createDbStaticSite({userId, entityType, entityId, title: options.title, name: options.site.name, options: JSON.stringify(options)});
+                staticSite = await this.createDbStaticSite({userId, entityType, entityId, title: site.title, name: site.name, options: JSON.stringify(options)});
                 await this.bindSiteToStaticId(userId, staticSite.id);
                 staticSite = await models.StaticSite.findOne({where: {id: staticSite.id}});
             }
             return staticSite;
         }
 
-        async generateGroupSite(userId, entityType, entityId, options: any = {}): Promise<string> {
+        async generateGroupSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<string> {
             // console.log('generateGroupSite', {userId, entityType, entityId, options});
+            const {entityType, entityId} = renderArgs;
             const {
                 staticSite,
                 siteStorageDir,
@@ -296,7 +299,8 @@ function getModule(app: IGeesomeApp, models) {
             return storageId;
         }
 
-        async generateContentListSite(userId, entityType, entityIds, options: any = {}): Promise<string> {
+        async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<string> {
+            const {entityType, entityIds} = renderArgs;
             const {
                 staticSite,
                 siteStorageDir,
@@ -406,7 +410,11 @@ function getModule(app: IGeesomeApp, models) {
             return this.updateDbStaticSite(staticSite.id, {staticId, storageId: staticSite.storageId, name});
         }
 
-        async getStaticSiteInfo(userId, entityType, entityId) {
+        async getStaticSiteInfo(userId, renderArgs: IStaticSiteRenderArgs) {
+            let {entityType, entityId, entityIds} = renderArgs;
+            if (entityIds) {
+                entityId = this.entityIdsToKey(entityIds);
+            }
             const where: any = {entityType, entityId: entityId.toString()};
             if (entityType === 'group') {
                 if(!(await app.ms.group.canEditGroup(userId, entityId))) {
@@ -417,6 +425,15 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             return models.StaticSite.findOne({ where }) as IStaticSite;
+        }
+
+        async getStaticSiteList(userId: number, entityType?: string, listParams: IListParams = {}) {
+            const where: any = {userId};
+            if (entityType) {
+                where['entityType'] = entityType;
+            }
+            const {sortBy, sortDir, limit, offset} = listParams;
+            return models.StaticSite.findAll({ where, limit, offset, order: [[sortBy, sortDir.toUpperCase()]]}) as IStaticSite[];
         }
 
         isAutoActionAllowed(userId, funcName, funcArgs) {

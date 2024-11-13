@@ -96,7 +96,14 @@ describe("staticSiteGenerator", function () {
 		}
 
 		console.log('generateGroupSite 1');
-		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, 'group', testGroup.id, {
+		const site = {
+			title: 'MySite',
+			name: 'my_site',
+			description: 'My About',
+			username: 'myusername',
+			base: '/'
+		};
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
 			baseStorageUri: 'http://localhost:2052/ipfs/',
@@ -107,13 +114,7 @@ describe("staticSiteGenerator", function () {
 			postList: {
 				postsPerPage: 5,
 			},
-			site: {
-				title: 'MySite',
-				name: 'my_site',
-				description: 'My About',
-				username: 'myusername',
-				base: '/'
-			}
+			site
 		});
 		console.log('generateGroupSite 2');
 
@@ -136,6 +137,10 @@ describe("staticSiteGenerator", function () {
 		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
 		assert.equal(postHtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
 		console.log('postHtmlContent', postHtmlContent);
+
+		const [gotStaticSiteInfo] = await staticSiteGenerator.getStaticSiteList(testUser.id, 'group', {limit: 10, sortBy: 'createdAt', sortDir: 'DESC'});
+		assert.equal(gotStaticSiteInfo.title, site.title);
+		assert.equal(gotStaticSiteInfo.name, site.name);
 	});
 
 	it('should generate site correctly from content list', async () => {
@@ -150,7 +155,7 @@ describe("staticSiteGenerator", function () {
 		}
 
 		console.log('generateContentsSite 1');
-		const directoryStorageId = await staticSiteGenerator.generateContentListSite(testUser.id, 'content-list', contentIds, {
+		const directoryStorageId = await staticSiteGenerator.generateContentListSite(testUser.id, {entityType: 'content-list', entityIds: contentIds}, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
 			baseStorageUri: 'http://localhost:2052/ipfs/',
