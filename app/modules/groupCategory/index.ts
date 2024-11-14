@@ -5,6 +5,7 @@ import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./inte
 import {CorePermissionName, IListParams} from "../database/interface.js";
 import {GroupType} from "../group/interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers";
 const {isUndefined, pick} = _;
 
 export default async (app: IGeesomeApp) => {
@@ -69,7 +70,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
 			const {limit, offset, sortBy, sortDir} = listParams;
@@ -92,7 +93,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			//TODO: check userId?
+			listParams = helpers.prepareListParams(listParams);
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -254,7 +256,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupSectionItems(filters?, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			return {
 				list: await this.getGroupSections(filters, listParams),
 				total: await this.getGroupSectionsCount(filters)
@@ -381,10 +383,6 @@ function getModule(app: IGeesomeApp, models) {
 			return models.GroupSection.count({
 				where: {...this.getSectionsWhere(filters), categoryId}
 			});
-		}
-
-		prepareListParams(listParams?: IListParams): IListParams {
-			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 
 		async flushDatabase() {

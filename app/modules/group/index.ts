@@ -348,7 +348,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
 			groupId = await this.checkGroupId(groupId);
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			if (isUndefined(filters['isDeleted'])) {
 				filters['isDeleted'] = false;
 			}
@@ -732,7 +732,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserFriends(userId, search?, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			await app.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
 			return {
 				list: await app.ms.database.getUserFriends(userId, search, listParams),
@@ -777,7 +777,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
 
 			app.ms.database.setDefaultListParamsValues(listParams);
@@ -1123,10 +1123,6 @@ function getModule(app: IGeesomeApp, models) {
 		// async beforeContentAdding(userId, contentData, options) {
 		//
 		// }
-
-		prepareListParams(listParams?: IListParams): IListParams {
-			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
-		}
 
 		async flushDatabase() {
 			await pIteration.forEachSeries([

@@ -2,7 +2,7 @@ import _ from 'lodash';
 import {Op} from "sequelize";
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
-import {CorePermissionName} from "../database/interface.js";
+import {CorePermissionName, IListParams} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 const {isObject, last} = _;
 
@@ -233,6 +233,15 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getWaitingOperationQueueByModule(module) {
 			return models.UserOperationQueue.findOne({where: {module, isWaiting: true}, order: [['createdAt', 'ASC']], include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
+		}
+
+		async getWaitingOperationQueueListByModule(userId, module, listParams: IListParams) {
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = {userId, module, isWaiting: true};
+			return {
+				list: await models.UserOperationQueue.findAll({where, order: [[sortBy, sortDir.toUpperCase()]], limit, offset, include: [ {association: 'asyncOperation'} ]}),
+				total: await models.UserOperationQueue.count({where})
+			};
 		}
 
 	}

@@ -6,6 +6,7 @@ import pIteration from 'p-iteration';
 import IGeesomeFileCatalogModule, {FileCatalogItemType, IFileCatalogItem} from "./interface.js";
 import {CorePermissionName, IContent, IListParams} from "../database/interface.js";
 import {IGeesomeApp, ManifestToSave} from "../../interface.js";
+import helpers from "../../helpers";
 const {first, isUndefined, upperFirst, trim, reverse, difference, pick} = _;
 const log = debug('geesome:app');
 
@@ -110,7 +111,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			if (parentItemId == 'null') {
 				parentItemId = null;
@@ -456,10 +457,6 @@ function getModule(app: IGeesomeApp, models) {
 			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
 				await this.addContentToUserFileCatalog(userId, content, options);
 			}
-		}
-
-		prepareListParams(listParams?: IListParams): IListParams {
-			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 
 		async flushDatabase() {

@@ -235,10 +235,6 @@ function getModule(config, appPass) {
       return this.ms.database.getUser(userId);
     }
 
-    prepareListParams(listParams?: IListParams): IListParams {
-      return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
-    }
-
     async checkUserId(userId, targetId, createIfNotExist = true) {
       if (targetId == 'null' || targetId == 'undefined') {
         return null;
@@ -346,7 +342,7 @@ function getModule(config, appPass) {
     }
 
     async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
-      listParams = this.prepareListParams(listParams);
+      listParams = helpers.prepareListParams(listParams);
       await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
       return {
         list: await this.ms.database.getApiKeysByUser(userId, isDisabled, search, listParams),
@@ -477,7 +473,7 @@ function getModule(config, appPass) {
     }
 
     async getAllUserList(adminId, searchString?, listParams?: IListParams) {
-      listParams = this.prepareListParams(listParams);
+      listParams = helpers.prepareListParams(listParams);
       await this.checkUserCan(adminId, CorePermissionName.AdminRead);
       return {
         list: await this.ms.database.getAllUserList(searchString, listParams),

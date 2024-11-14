@@ -6,7 +6,8 @@ import cryptoJS from "crypto-js";
 import {fileURLToPath} from 'url';
 import createKeccakHash from "keccak";
 import commonHelper from "geesome-libs/src/common.js";
-const {map} = _;
+import {IListParams} from "./modules/database/interface.js";
+const {map, pick} = _;
 
 const saltRounds = 10;
 
@@ -92,4 +93,18 @@ export default {
 
 		console.log.apply(console, logArgs);
 	},
+
+	prepareListParams(listParams?: IListParams): IListParams {
+		const res = pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
+		if (res.limit > 1000) {
+			res.limit = 1000;
+		}
+		if (!res.sortBy) {
+			res.sortBy = 'createdAt';
+		}
+		if (!res.sortDir) {
+			res.sortDir = 'DESC';
+		}
+		return res;
+	}
 }

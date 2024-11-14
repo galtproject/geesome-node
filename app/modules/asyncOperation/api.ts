@@ -1,7 +1,17 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeAsyncOperationModule from "./interface.js";
+import helpers from "../../helpers";
 
 export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
+
+    app.ms.api.onAuthorizedPost('user/get-operation-queue/:operationId', async (req, res) => {
+        res.send(await asyncOperationModule.getUserOperationQueue(req.user.id, req.params.operationId));
+    });
+
+    app.ms.api.onAuthorizedPost('user/get-operation-queue-list', async (req, res) => {
+        res.send(await asyncOperationModule.getWaitingOperationQueueListByModule(req.user.id, req.body.module, helpers.prepareListParams(req.body)));
+    });
+
     /**
      * @api {post} /v1/user/get-async-operation/:id Get async operation
      * @apiDescription Get async operation info: operation type, status, percent, and content when it will be ready.
