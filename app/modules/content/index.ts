@@ -25,6 +25,7 @@ import driverHelpers from '../drivers/helpers.js';
 import IGeesomeContentModule from "./interface.js";
 import AbstractDriver from "../drivers/abstractDriver.js";
 import {DriverInput, OutputSize} from "../drivers/interface.js";
+import helpers from "../../helpers";
 const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
@@ -41,7 +42,7 @@ function getModule(app: IGeesomeApp) {
 	class ContentModule implements IGeesomeContentModule {
 
 		async getAllContentList(adminId, searchString?, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
 			return {
 				list: await app.ms.database.getAllContentList(searchString, listParams),
@@ -896,9 +897,6 @@ function getModule(app: IGeesomeApp) {
 				'x-ipfs-datasize': dataSize,
 				'timing-allow-origin': '*'
 			}
-		}
-		prepareListParams(listParams?: IListParams): IListParams {
-			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 	}
 

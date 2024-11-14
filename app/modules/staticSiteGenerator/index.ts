@@ -181,7 +181,7 @@ function getModule(app: IGeesomeApp, models) {
         }
 
         async prepareContentListForRender(userId, entityType, entityIds, options: any = {}) {
-            let staticSite = await this.getOrCreateStaticSite(userId, entityType, this.entityIdsToKey(entityIds), options.site);
+            let staticSite = await this.getOrCreateStaticSite(userId, entityType, this.entityIdsToKey(entityIds), options);
 
             let contents = await app.ms.database
                 .getUserContentListByIds(userId, uniq(entityIds))

@@ -1,4 +1,4 @@
-import {IContent} from "../database/interface.js";
+import {IContent, IListParams} from "../database/interface.js";
 
 export default interface IGeesomeAsyncOperationModule {
 
@@ -29,6 +29,8 @@ export default interface IGeesomeAsyncOperationModule {
 	getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
 
 	getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
+
+	getWaitingOperationQueueListByModule(userId, module, listParams: IListParams): Promise<{list: IUserOperationQueue, total: number}>;
 
 	setAsyncOperationToUserOperationQueue(userOperationQueueId, userAsyncOperationId): Promise<any>;
 

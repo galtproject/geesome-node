@@ -5,6 +5,7 @@ import geesomeMessages from "geesome-libs/src/messages.js";
 import {CorePermissionName, IInvite, IListParams} from "../database/interface.js";
 import {IGeesomeApp, IUserInput} from "../../interface.js";
 import IGeesomeInviteModule from "./interface.js";
+import helpers from "../../helpers";
 const {isUndefined, pick} = _;
 
 export default async (app: IGeesomeApp) => {
@@ -91,7 +92,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserInvites(userId, filters = {}, listParams?: IListParams) {
-			listParams = this.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams);
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
 
@@ -171,10 +172,6 @@ function getModule(app: IGeesomeApp, models) {
 			await pIteration.forEachSeries(['JoinedByPivot', 'Invite'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
-		}
-
-		prepareListParams(listParams?: IListParams): IListParams {
-			return pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
 		}
 	}
 	return new InviteModule();
