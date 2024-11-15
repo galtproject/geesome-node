@@ -114,6 +114,7 @@ function getModule(app: IGeesomeApp, models) {
                     this.processQueue();
                 })
             } catch (e) {
+                console.error('processQueue', e);
                 if (asyncOperation) {
                     await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
                     if (finishCallbacks[waitingQueue.id]) {
