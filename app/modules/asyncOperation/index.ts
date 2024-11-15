@@ -123,9 +123,10 @@ function getModule(app: IGeesomeApp, models) {
 			return this.updateUserAsyncOperation(asyncOperationId, { cancel: true });
 		}
 
-		async finishAsyncOperation(userId, asyncOperationId, contentId = null) {
+		async finishAsyncOperation(userId, asyncOperationId, contentId = null, output = null) {
 			await this.getAsyncOperation(userId, asyncOperationId);
 			return this.updateUserAsyncOperation(asyncOperationId, {
+				output,
 				contentId,
 				percent: 100,
 				inProcess: false,
@@ -139,21 +140,21 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async handleOperationCancel(userId, asyncOperationId) {
-			const asyncOperation = await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperationId);
+			const asyncOperation = await this.getAsyncOperation(userId, asyncOperationId);
 			if (asyncOperation.cancel) {
-				await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, "canceled");
+				await this.errorAsyncOperation(userId, asyncOperation.id, "canceled");
 				throw new Error("import_canceled");
 			}
 		}
 
 		async closeImportAsyncOperation(userId, asyncOperation, error) {
 			if (finishCallbacks[asyncOperation.id]) {
-				finishCallbacks[asyncOperation.id](await app.ms.asyncOperation.getAsyncOperation(userId, asyncOperation.id));
+				finishCallbacks[asyncOperation.id](await this.getAsyncOperation(userId, asyncOperation.id));
 			}
 			if (error) {
-				return app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, error.message);
+				return this.errorAsyncOperation(userId, asyncOperation.id, error.message);
 			} else {
-				return app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+				return this.finishAsyncOperation(userId, asyncOperation.id);
 			}
 		}
 

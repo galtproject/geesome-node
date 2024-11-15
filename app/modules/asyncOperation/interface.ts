@@ -12,7 +12,7 @@ export default interface IGeesomeAsyncOperationModule {
 
 	cancelAsyncOperation(userId, asyncOperationId);
 
-	finishAsyncOperation(userId, asyncOperationId, contentId?);
+	finishAsyncOperation(userId, asyncOperationId, contentId?, output?);
 
 	errorAsyncOperation(userId, asyncOperationId, errorMessage);
 

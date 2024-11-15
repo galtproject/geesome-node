@@ -1,8 +1,0 @@
-
-export default {
-	options: {
-		// 'logging': (d) => {log(d)},
-		'dialect': 'sqlite',
-		'storage': `${process.env.DATA_DIR || 'data'}/soc-net-import-database.sqlite`
-	}
-}

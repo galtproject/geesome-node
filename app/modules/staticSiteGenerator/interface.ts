@@ -34,7 +34,7 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	generateGroupSite(userId: number, renderArgs: IStaticSiteRenderArgs, options?: any): Promise<string>;
 
-	generateContentListSite(userId: number, renderArgs: IStaticSiteRenderArgs, options?: any): Promise<string>;
+	generateContentListSite(userId: number, renderArgs: IStaticSiteRenderArgs, options?: any): Promise<{storageId, staticSiteId}>;
 }
 
 export interface IStaticSite {

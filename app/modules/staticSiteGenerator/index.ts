@@ -97,7 +97,8 @@ function getModule(app: IGeesomeApp, models) {
                 }
                 const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
                     userApiKeyId,
-                    name: 'run-' + this.moduleName,
+                    module: this.moduleName,
+                    name: 'run-' + this.moduleName + '-' + entityType,
                     channel: operationPrefix + ';op:' + await commonHelper.random()
                 });
 
@@ -105,9 +106,9 @@ function getModule(app: IGeesomeApp, models) {
 
                 options.asyncOperationId = asyncOperation.id;
                 // run in background
-                await this.generateContentListSite(userId, renderArgs, options).then(async (storageId) => {
+                await this.generateContentListSite(userId, renderArgs, options).then(async ({storageId, staticSiteId}) => {
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-                    await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+                    await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, null, JSON.stringify({storageId, staticSiteId}));
                     if (finishCallbacks[waitingQueue.id]) {
                         finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                     }
@@ -307,7 +308,7 @@ function getModule(app: IGeesomeApp, models) {
             return storageId;
         }
 
-        async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<string> {
+        async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
             const {entityType, entityIds} = renderArgs;
             const {
                 staticSite,
@@ -325,7 +326,7 @@ function getModule(app: IGeesomeApp, models) {
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
-            return storageId;
+            return {storageId, staticSiteId: staticSite.id};
         }
 
         async postToObj(options, siteStorageDir, gp) {
