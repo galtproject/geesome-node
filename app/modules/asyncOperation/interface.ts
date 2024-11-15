@@ -36,6 +36,8 @@ export default interface IGeesomeAsyncOperationModule {
 
 	closeUserOperationQueueByAsyncOperationId(userAsyncOperationId): Promise<any>;
 
+	closeUserOperationQueue(id): Promise<any>;
+
 	addUserAsyncOperation(userAsyncOperation): Promise<IUserAsyncOperation>;
 
 	updateUserAsyncOperation(id, updateData): Promise<IUserAsyncOperation>;

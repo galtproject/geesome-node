@@ -47,8 +47,7 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             const operationQueue = await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
-                entityType,
-                entityId,
+                renderArgs,
                 options
             });
             this.processQueue();
@@ -86,37 +85,45 @@ function getModule(app: IGeesomeApp, models) {
             }
 
             const {userId, userApiKeyId} = waitingQueue;
-            const {renderArgs, options} = JSON.parse(waitingQueue.inputJson);
-            const {entityType, entityId, entityIds} = renderArgs;
-            let operationPrefix;
-            if (entityType === 'content-list') {
-                operationPrefix = 'type:' + entityType + ';id:' + this.entityIdsToKey(entityIds);
-            } else {
-                operationPrefix = 'type:' + entityType + ';id:' + entityId;
+            let asyncOperation;
+            try {
+                const {renderArgs, options} = JSON.parse(waitingQueue.inputJson);
+                const {entityType, entityId, entityIds} = renderArgs;
+                let operationPrefix;
+                if (entityType === 'content-list') {
+                    operationPrefix = 'type:' + entityType + ';id:' + this.entityIdsToKey(entityIds);
+                } else {
+                    operationPrefix = 'type:' + entityType + ';id:' + entityId;
+                }
+                const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
+                    userApiKeyId,
+                    name: 'run-' + this.moduleName,
+                    channel: operationPrefix + ';op:' + await commonHelper.random()
+                });
+
+                await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+                options.asyncOperationId = asyncOperation.id;
+                // run in background
+                this.generateContentListSite(userId, renderArgs, options).then(async (storageId) => {
+                    await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+                    await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
+                    if (finishCallbacks[waitingQueue.id]) {
+                        finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
+                    }
+                    this.processQueue();
+                })
+            } catch (e) {
+                if (asyncOperation) {
+                    await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
+                    if (finishCallbacks[waitingQueue.id]) {
+                        finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
+                    }
+                } else {
+                    await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+                }
+                delete finishCallbacks[waitingQueue.id];
             }
-            const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
-                userApiKeyId,
-                name: 'run-' + this.moduleName,
-                channel: operationPrefix + ';op:' + await commonHelper.random()
-            });
-
-            await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
-
-            options.asyncOperationId = asyncOperation.id;
-            // run in background
-            this.generateContentListSite(userId, renderArgs, options).then(async (storageId) => {
-                await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-                await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
-                if (finishCallbacks[waitingQueue.id]) {
-                    finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
-                }
-                this.processQueue();
-            }).catch(async e => {
-                await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
-                if (finishCallbacks[waitingQueue.id]) {
-                    finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
-                }
-            });
 
             return waitingQueue;
         }
