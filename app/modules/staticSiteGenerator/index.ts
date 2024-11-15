@@ -105,13 +105,12 @@ function getModule(app: IGeesomeApp, models) {
 
                 options.asyncOperationId = asyncOperation.id;
                 // run in background
-                this.generateContentListSite(userId, renderArgs, options).then(async (storageId) => {
+                await this.generateContentListSite(userId, renderArgs, options).then(async (storageId) => {
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                     await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id);
                     if (finishCallbacks[waitingQueue.id]) {
                         finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                     }
-                    this.processQueue();
                 })
             } catch (e) {
                 console.error('processQueue', e);
@@ -125,6 +124,7 @@ function getModule(app: IGeesomeApp, models) {
                 }
                 delete finishCallbacks[waitingQueue.id];
             }
+            this.processQueue();
 
             return waitingQueue;
         }
