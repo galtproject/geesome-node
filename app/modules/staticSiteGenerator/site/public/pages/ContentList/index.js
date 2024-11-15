@@ -21,7 +21,7 @@ export default {
       <empty-layout>
       <template #page>
         <div class="content-list">
-          <div v-for="c in contents" class="content-item">
+          <div v-for="c in contents" :class="['content-item', c.type]" :style='{"background-image": "url(" + contentRoot + c.storageId + ")"}'>
             <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
             <img v-if="c.type === 'image'" :src="contentRoot + c.storageId">
             <video v-if="c.type === 'video'" controls>

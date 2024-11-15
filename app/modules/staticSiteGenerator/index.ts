@@ -207,10 +207,7 @@ function getModule(app: IGeesomeApp, models) {
                 siteStorageDir,
                 renderData: {
                     contents,
-                    options: {
-                        lang: 'en',
-                        site: options
-                    }
+                    options //TODO: vulnerability?
                 }
             }
         }
@@ -251,7 +248,7 @@ function getModule(app: IGeesomeApp, models) {
                 siteStorageDir,
                 manifestStorageId: group.manifestStorageId,
                 renderData: {
-                    options,
+                    options, //TODO: vulnerability?
                     posts,
                     pagesCount,
                     postsPerPage,
@@ -283,7 +280,7 @@ function getModule(app: IGeesomeApp, models) {
 
             // VueSSR: initialize app
             const {renderPage, css} = await prepareRender(renderData);
-            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
             // VueSSR: render main page
@@ -315,15 +312,16 @@ function getModule(app: IGeesomeApp, models) {
                 siteStorageDir,
                 renderData,
             } = await this.prepareContentListForRender(userId, entityType, entityIds, options);
+            console.log('renderData', renderData);
 
             const {renderPage, css} = await prepareRender(renderData);
-            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
-            await this.copyContentsToSite(siteStorageDir, renderData.contents);
-
             await this.renderAndSave(renderPage, options, siteStorageDir, `/content-list`, 'simple');
+            console.log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
+            console.log('getDirectoryId storageId', storageId);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return {storageId, staticSiteId: staticSite.id};
