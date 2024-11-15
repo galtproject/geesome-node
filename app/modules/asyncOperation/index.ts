@@ -193,7 +193,11 @@ function getModule(app: IGeesomeApp, models) {
 			return this.updateUserOperationQueue(userOperationQueueId, { asyncOperationId });
 		}
 
-		closeUserOperationQueueByAsyncOperationId(userAsyncOperationId) {
+		closeUserOperationQueue(id: number) {
+			return models.UserOperationQueue.update({ isWaiting: false }, {where: {id}});
+		}
+
+		closeUserOperationQueueByAsyncOperationId(userAsyncOperationId: number) {
 			return models.UserOperationQueue.update({ isWaiting: false }, {where: {asyncOperationId: userAsyncOperationId}});
 		}
 
