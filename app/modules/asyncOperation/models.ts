@@ -18,6 +18,12 @@ export default async function (sequelize: Sequelize) {
 		channel: {
 			type: DataTypes.STRING(200)
 		},
+		module: {
+			type: DataTypes.STRING(200)
+		},
+		output: {
+			type: DataTypes.STRING(200)
+		},
 		size: {
 			type: DataTypes.INTEGER
 		},
