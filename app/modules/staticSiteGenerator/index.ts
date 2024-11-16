@@ -1,3 +1,4 @@
+import fs from 'fs';
 import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
@@ -11,6 +12,7 @@ const {clone, uniq, merge, set, get, pick, last} = _;
 const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
+let publicDirStorageId, faviconStorageId;
 
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
@@ -312,13 +314,35 @@ function getModule(app: IGeesomeApp, models) {
                 siteStorageDir,
                 renderData,
             } = await this.prepareContentListForRender(userId, entityType, entityIds, options);
-            console.log('renderData', renderData);
 
             const {renderPage, css} = await prepareRender(renderData);
             const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
-            await this.renderAndSave(renderPage, options, siteStorageDir, `/content-list`, 'simple');
+            if (!publicDirStorageId) {
+                ({id: publicDirStorageId} = await app.ms.storage.saveDirectory(`${helpers.getCurDir()}/modules/staticSiteGenerator/site/public`));
+            }
+            if (!faviconStorageId) {
+                let faviconPath = `${helpers.getCurDir()}/../node_modules/@geesome/ui`;
+                try {
+                    fs.readdirSync(faviconPath).some(name => {
+                        if (name.startsWith('favicon.')) {
+                            faviconPath += '/' + name;
+                            return true;
+                        }
+                    });
+                    ({id: faviconStorageId} = await app.ms.storage.saveFileByPath(faviconPath));
+                } catch (e) {console.warn('ssg favicon', e)}
+            }
+            await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
+            await app.ms.storage.copyFileFromId(faviconStorageId, `${siteStorageDir}/favicon.ico`);
+
+            renderData.defaultRoute = 'content-list';
+
+            const {id: clientDataStorageId} = await app.ms.storage.saveFileByData('export default ' + JSON.stringify(renderData));
+            await app.ms.storage.copyFileFromId(clientDataStorageId, `${siteStorageDir}/clientData.js`);
+
+            await this.renderAndSave(renderPage, options, siteStorageDir, `/${renderData.defaultRoute}`, 'simple');
             console.log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
             console.log('getDirectoryId storageId', storageId);

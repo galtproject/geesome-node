@@ -3,9 +3,10 @@
   flex-wrap: wrap;
   padding: 20px;
   .content-item {
-    width: calc(20% - 10px);
+    width: calc(20% - 40px/5);
     background: no-repeat center/cover;
     position: relative;
+    margin-bottom: 10px;
     img {
       position: absolute;
       top: 0;
@@ -13,12 +14,11 @@
       width: 100%;
       height: 100%;
     }
-    &:not(:last-child) {
+    &:not(:last-child):not(:nth-child(5n)) {
       margin-right: 10px;
-      margin-bottom: 10px;
     }
     &.image {
-      padding-bottom: calc(20% - 10px);
+      padding-bottom: calc(20% - 40px/5);
     }
     img {
       max-width: 100%;

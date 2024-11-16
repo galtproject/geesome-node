@@ -40,7 +40,7 @@ async function renderApp(app, router, rootContent, url, headers, lang) {
 
     // VueSSR: replace index.html variable with result values
     return rootContent
-        .replace('{{relativeRoot}}', relativeRoot)
+        .replace(/\{\{relativeRoot}}/g, relativeRoot)
         .replace('{{lang}}', lang)
         .replace('{{headers}}', `<title>${title}</title>\n` + headers.map(([tag, attr]) => `<${tag} name="${attr['name']}" content="${attr['content']}"/>`).join('\n'))
         .replace('{{content}}', content);
