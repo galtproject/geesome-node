@@ -792,6 +792,8 @@ function getModule(app: IGeesomeApp) {
 					if (content.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
 						dataPath += '/index.html';
 					}
+				} else if (dataPath.endsWith('.js')) {
+					res.setHeader('Content-Type', 'text/javascript');
 				}
 				return this.getFileStream(dataPath).then((stream) => {
 					stream.pipe(res.stream);

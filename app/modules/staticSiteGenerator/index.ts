@@ -1,3 +1,4 @@
+import fs from 'fs';
 import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
@@ -11,6 +12,7 @@ const {clone, uniq, merge, set, get, pick, last} = _;
 const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
+let publicDirStorageId, faviconStorageId;
 
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
@@ -201,16 +203,14 @@ function getModule(app: IGeesomeApp, models) {
             const siteStorageDir = `/${staticSite.staticId}-site`;
 
             await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
+            await this.copyContentsToSite(siteStorageDir, contents);
 
             return {
                 staticSite,
                 siteStorageDir,
                 renderData: {
                     contents,
-                    options: {
-                        lang: 'en',
-                        site: options
-                    }
+                    options //TODO: vulnerability?
                 }
             }
         }
@@ -251,7 +251,7 @@ function getModule(app: IGeesomeApp, models) {
                 siteStorageDir,
                 manifestStorageId: group.manifestStorageId,
                 renderData: {
-                    options,
+                    options, //TODO: vulnerability?
                     posts,
                     pagesCount,
                     postsPerPage,
@@ -283,7 +283,7 @@ function getModule(app: IGeesomeApp, models) {
 
             // VueSSR: initialize app
             const {renderPage, css} = await prepareRender(renderData);
-            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
             // VueSSR: render main page
@@ -317,13 +317,36 @@ function getModule(app: IGeesomeApp, models) {
             } = await this.prepareContentListForRender(userId, entityType, entityIds, options);
 
             const {renderPage, css} = await prepareRender(renderData);
-            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css);
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
-            await this.copyContentsToSite(siteStorageDir, renderData.contents);
+            if (!publicDirStorageId) {
+                ({id: publicDirStorageId} = await app.ms.storage.saveDirectory(`${helpers.getCurDir()}/modules/staticSiteGenerator/site/public`));
+            }
+            if (!faviconStorageId) {
+                let faviconPath = `${helpers.getCurDir()}/../node_modules/@geesome/ui`;
+                try {
+                    fs.readdirSync(faviconPath).some(name => {
+                        if (name.startsWith('favicon.')) {
+                            faviconPath += '/' + name;
+                            return true;
+                        }
+                    });
+                    ({id: faviconStorageId} = await app.ms.storage.saveFileByPath(faviconPath));
+                } catch (e) {console.warn('ssg favicon', e)}
+            }
+            await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
+            await app.ms.storage.copyFileFromId(faviconStorageId, `${siteStorageDir}/favicon.ico`);
 
-            await this.renderAndSave(renderPage, options, siteStorageDir, `/content-list`, 'simple');
+            renderData.defaultRoute = 'content-list';
+
+            const {id: clientDataStorageId} = await app.ms.storage.saveFileByData('export default ' + JSON.stringify(renderData));
+            await app.ms.storage.copyFileFromId(clientDataStorageId, `${siteStorageDir}/clientData.js`);
+
+            await this.renderAndSave(renderPage, options, siteStorageDir, `/${renderData.defaultRoute}`, 'simple');
+            console.log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
+            console.log('getDirectoryId storageId', storageId);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return {storageId, staticSiteId: staticSite.id};
@@ -354,13 +377,15 @@ function getModule(app: IGeesomeApp, models) {
                     return;
                 }
                 await app.ms.storage.nodeLs(c.storageId).then(r => {
-                    // console.log('res fileLs', c.storageId, r);
+                    // console.log('res fileLs', c.name, c.storageId, r);
                 }).catch(e => {
                     console.error('err fileLs', c.storageId, e);
                 });
                 const contentPath = `${siteStorageDir}/content`;
-                await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${c.storageId}${c.mimeType.includes('video') ? '.mp4' : ''}`).catch(e => console.warn('copyContentsToSite', e.message));
-                await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${c.previewStorageId}`).catch(e => console.warn('copyContentsToSite', e.message));
+                if(c.type !== 'text') {
+                    await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${c.storageId}.${c.extension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                    await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${c.previewStorageId}.${c.previewExtension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                }
                 copied[c.storageId] = true;
             });
         }

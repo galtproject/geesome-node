@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker cp app/. geesome:/geesome-node/app/ && docker cp test/. geesome:/geesome-node/test/ && docker cp package.json geesome:/geesome-node/ # && docker cp node_modules/. geesome:/geesome-node/node_modules/

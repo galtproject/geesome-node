@@ -7,11 +7,11 @@ const {getFileContent, getFilePath} = helpers;
 
 export default {
     // VueSSR: call prepareRender one time
-    async prepareRender(store) {
-        // const store = {path: url.split('?')[0], urlQuery, ...additionalData};
-        loadAssets(store);
+    async prepareRender(storageData) {
+        // const storageData = {path: url.split('?')[0], urlQuery, ...additionalData};
+        loadAssets(storageData);
         const [{app, router}, {css}] = await Promise.all([
-            createApp(store),// VueSSR: init simple Vue app with components, pages and routes
+            createApp(storageData),// VueSSR: init simple Vue app with components, pages and routes
             sass['default'].compileAsync(getFilePath('styles/index.scss'))
         ]);
         const rootContent = getFileContent('index.html');
@@ -40,7 +40,7 @@ async function renderApp(app, router, rootContent, url, headers, lang) {
 
     // VueSSR: replace index.html variable with result values
     return rootContent
-        .replace('{{relativeRoot}}', relativeRoot)
+        .replace(/\{\{relativeRoot}}/g, relativeRoot)
         .replace('{{lang}}', lang)
         .replace('{{headers}}', `<title>${title}</title>\n` + headers.map(([tag, attr]) => `<${tag} name="${attr['name']}" content="${attr['content']}"/>`).join('\n'))
         .replace('{{content}}', content);

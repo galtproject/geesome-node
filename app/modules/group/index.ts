@@ -576,12 +576,14 @@ function getModule(app: IGeesomeApp, models) {
 		async prepareContentData(c: IContent): Promise<IContentData> {
 			const baseData = {
 				id: c.id,
+				name: c.name,
 				storageId: c.storageId,
 				previewStorageId: c.mediumPreviewStorageId,
-				extension: c.extension,
-				mimeType: c.mimeType,
 				view: c.view || ContentView.Contents,
 				manifestId: c.manifestStorageId,
+				extension: c.extension,
+				previewExtension: c.previewExtension,
+				mimeType: c.mimeType,
 			}
 			if (c.mimeType.startsWith('text/')) {
 				return {

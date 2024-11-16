@@ -7855,9 +7855,9 @@ geesome-apidoc-template@1.0.0:
   resolved "https://registry.yarnpkg.com/geesome-apidoc-template/-/geesome-apidoc-template-1.0.0.tgz#27098447c8ec0ffe813867cb0f3a2945e5c9bdc5"
   integrity sha512-bKes0SnNvxm/9TJGq2zAUq78j8+V4r4y43mgcGf3Fv6cgDoO0uTnbszrNcgF4zliDpdkT4H2kLme8l9vjQkv5w==
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#74dca38":
+"geesome-libs@https://github.com/galtproject/geesome-libs#31dc82d":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#74dca38481a1818e4e8126d27667bbfb80c6f172"
+  resolved "https://github.com/galtproject/geesome-libs#31dc82d944cae36d0f48e4e1558a80f5bc5d242a"
   dependencies:
     "@ethersproject/hash" "^5.7.0"
     "@helia/dag-cbor" "^4.0.0"

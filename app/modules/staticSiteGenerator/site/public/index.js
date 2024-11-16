@@ -1,30 +1,31 @@
 import { createSSRApp } from 'vue';
 
 import createRouter from './router.js';
+import asyncModal from "./components/AsyncModal/index.js";
 
 export async function createApp(store) {
-    const app = createSSRApp({ template: '<router-view></router-view>' });
-    const router = createRouter();
+    const app = createSSRApp({
+        template: `
+            <div>
+                <router-view></router-view>
+                <async-modal ref="modal"></async-modal>
+            </div>
+        `,
+        mounted() {
+            this.$root.$modal = this.$refs.modal;
+            console.log('this.$root.$modal', this.$root.$modal);
+        },
+    }).use(asyncModal);
 
     const isServer = typeof window === 'undefined';
+    const router = createRouter(isServer ? null : store.defaultRoute);
     if (isServer) {
         await router.push((store.path || '/') + '?' + store.urlQuery);
     } else {
-        let query = window.location.search;
-        query
-            .replace('?', '')
-            .split('&')
-            .some(queryItem => {
-                if (queryItem.indexOf('tgWebAppStartParam') === 0) {
-                    const tgParam = queryItem.split('=')[1] || '';
-                    query += '&' + tgParam.split('-')[0] + '=' + tgParam.split('-')[1];
-                    return true;
-                }
-            });
-
-        await router.push(window.location.pathname + query);
+        await router.push('/');
     }
+    // await router.isReady();
     app.use(router);
     app.provide('store', store);
-    return {app, router};
+    return {app, router, store};
 }

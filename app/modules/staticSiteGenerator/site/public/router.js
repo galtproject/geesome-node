@@ -1,14 +1,14 @@
 import {
     createRouter,
     createMemoryHistory,
-    createWebHistory,
+    createWebHashHistory,
 } from 'vue-router';
 
 const isServer = typeof window === 'undefined';
 
-let history = isServer ? createMemoryHistory() : createWebHistory();
+let history = isServer ? createMemoryHistory() : createWebHashHistory();
 
-const routes = [
+let routes = [
     {
         path: '',
         component: () => import('./pages/BaseList/index.js'),
@@ -18,6 +18,10 @@ const routes = [
     { path: '/content-list', name: 'content-list', component: () => import('./pages/ContentList/index.js'), props: true },
 ];
 
-export default function () {
+export default function (defaultRoute = null) {
+    if (defaultRoute) {
+        routes = routes.filter((r) => r.name === defaultRoute);
+        routes[0].path = '';
+    }
     return createRouter({ routes, history });
 }

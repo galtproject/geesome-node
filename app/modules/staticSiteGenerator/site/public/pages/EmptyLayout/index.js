@@ -15,14 +15,14 @@ export default {
     template: `
       <div>
         <div class="page-header">
-          <template v-if="headerHtml" v-html="headerHtml"></template>
+          <div class="page-header-content" v-if="headerHtml" v-html="headerHtml"></div>
+          <div class="powered"><span>Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></span></div>
         </div>
-        <div class="page-content">
+        <div class="page-body">
           <slot name="page"/>
         </div>
         <div class="page-footer">
-          <template v-if="footerHtml" v-html="footerHtml"></template>
-          <div class="powered">Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></div>
+          <div class="page-footer-content" v-if="footerHtml" v-html="footerHtml"></div>
         </div>
       </div>
       <!--    <Footer />-->
