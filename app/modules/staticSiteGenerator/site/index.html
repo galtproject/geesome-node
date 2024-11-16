@@ -10,13 +10,13 @@
 <body>
     <div id="app">{{content}}</div>
 
-    <script async src="https://unpkg.com/es-module-shims@1.10.1/dist/es-module-shims.js"></script>
+    <script async src="{{relativeRoot}}vendor/es-module-shims.js"></script>
     <script type="importmap">
         {
           "imports": {
-            "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
-            "vue-router": "https://unpkg.com/vue-router@4.0.16/dist/vue-router.esm-browser.js",
-            "@vue/devtools-api": "https://unpkg.com/@vue/devtools-api@6.5.0/lib/esm/index.js",
+            "vue": "{{relativeRoot}}vendor/vue.js",
+            "vue-router": "{{relativeRoot}}vendor/vue-router.js",
+            "@vue/devtools-api": "{{relativeRoot}}vendor/vue-devtools-api/index.js",
             "clientData": "{{relativeRoot}}clientData.js"
           }
         }

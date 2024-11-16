@@ -8,11 +8,12 @@ import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
 import site from './site/index.js';
+import vendorAssets from './site/vendorAssets.js';
 const {clone, uniq, merge, set, get, pick, last} = _;
 const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
-let publicDirStorageId, faviconStorageId;
+let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
 
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
@@ -308,18 +309,7 @@ function getModule(app: IGeesomeApp, models) {
             return storageId;
         }
 
-        async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
-            const {entityType, entityIds} = renderArgs;
-            const {
-                staticSite,
-                siteStorageDir,
-                renderData,
-            } = await this.prepareContentListForRender(userId, entityType, entityIds, options);
-
-            const {renderPage, css} = await prepareRender(renderData);
-            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
-            await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
-
+        async saveSiteAssets() {
             if (!publicDirStorageId) {
                 ({id: publicDirStorageId} = await app.ms.storage.saveDirectory(`${helpers.getCurDir()}/modules/staticSiteGenerator/site/public`));
             }
@@ -335,7 +325,40 @@ function getModule(app: IGeesomeApp, models) {
                     ({id: faviconStorageId} = await app.ms.storage.saveFileByPath(faviconPath));
                 } catch (e) {console.warn('ssg favicon', e)}
             }
+            if (!vendorAssetsStorageId) {
+                const vendorAssetsDirectory = '/ssgVendorAssets'
+                await app.ms.storage.makeDir(vendorAssetsDirectory).catch(() => {/*already made*/});
+
+                const vendorAssetsLit = Object.keys(vendorAssets);
+                await pIteration.forEachSeries(vendorAssetsLit, async (a) => {
+                    const assetPath = vendorAssets[a];
+                    let assetStorageId;
+                    if (assetPath.endsWith('/')) {
+                        ({id: assetStorageId} = await app.ms.storage.saveDirectory(assetPath));
+                    } else {
+                        ({id: assetStorageId} = await app.ms.storage.saveFileByPath(assetPath));
+                    }
+                    await app.ms.storage.copyFileFromId(assetStorageId, `${vendorAssetsDirectory}/${a}`);
+                });
+                vendorAssetsStorageId = await app.ms.storage.getDirectoryId(vendorAssetsDirectory);
+            }
+        }
+
+        async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
+            const {entityType, entityIds} = renderArgs;
+            const {
+                staticSite,
+                siteStorageDir,
+                renderData,
+            } = await this.prepareContentListForRender(userId, entityType, entityIds, options);
+
+            const {renderPage, css} = await prepareRender(renderData);
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
+            await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
+
+            await this.saveSiteAssets();
             await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
+            await app.ms.storage.copyFileFromId(vendorAssetsStorageId, `${siteStorageDir}/vendor`);
             await app.ms.storage.copyFileFromId(faviconStorageId, `${siteStorageDir}/favicon.ico`);
 
             renderData.defaultRoute = 'content-list';

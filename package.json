@@ -52,6 +52,7 @@
     "@types/rimraf": "3",
     "@types/unzip-stream": "^0.3.4",
     "@types/uuid": "^10.0.0",
+    "@vue/devtools-api": "^6.6.4",
     "axios": "^1.7.4",
     "bcrypt": "^5.1.1",
     "bl": "^5.0.0",
@@ -64,6 +65,7 @@
     "crypto-js": "^4.2.0",
     "debug": "^4.1.0",
     "dotenv": "^16.1.4",
+    "es-module-shims": "^1.10.1",
     "ethers": "^4.0.25",
     "express": "^4.21.1",
     "express-bearer-token": "^2.4.0",
@@ -106,7 +108,7 @@
     "uuid-apikey": "^1.4.3",
     "vue": "3.5.13",
     "vue-feather-icons": "^5.1.0",
-    "vue-router": "4.4.5",
+    "vue-router": "^4.4.5",
     "xml": "^1.0.1"
   },
   "devDependencies": {
