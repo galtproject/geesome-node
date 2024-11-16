@@ -35,6 +35,8 @@
     -webkit-overflow-scrolling: touch;
     outline: 0;
     color: white;
+    display: flex;
+    align-items: center;
     a {
         color: #1abc9c;
     }

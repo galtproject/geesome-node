@@ -94,6 +94,11 @@ const port = isHttps ? 2053 : 2052;
         opacity: 0.5;
         margin-top: 5px;
       }
+      @media (max-width: 419px) {
+        .page-header {
+          flex-direction: column;
+        }
+      }
     `,
     headerHtml: `
         <img src="https://pbs.twimg.com/profile_images/1822945229080555520/copOugBN_400x400.jpg">
