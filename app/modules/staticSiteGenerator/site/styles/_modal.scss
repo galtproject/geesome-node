@@ -172,3 +172,9 @@
         width: 900px;
     }
 }
+
+@media (max-width: $MQMobileNarrow) {
+    .modal-body [slot=header] .md-icon-button {
+        right: 0;
+    }
+}
