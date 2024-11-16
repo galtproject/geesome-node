@@ -27,7 +27,7 @@ export default {
               component: markRaw(ImageModal),
               closeOnBackdrop: true,
               props: {
-                  imageList: this.contents.map(c => this.contentRoot + c.storageId),
+                  imageList: this.contents.map(c => this.contentRoot + c.storageId + '.' + c.extension),
                   imageIndex,
               }
           });
@@ -40,13 +40,13 @@ export default {
           <div 
               v-for="(c, index) in contents" 
               :class="['content-item', c.type]" 
-              :style='{"background-image": "url(" + contentRoot + c.storageId + ")"}'
+              :style='{"background-image": "url(" + contentRoot + c.previewStorageId + "." + c.extension + ")"}'
               @click="openMedia(index)"
           >
             <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
-            <img v-if="c.type === 'image'" :src="contentRoot + c.storageId">
+            <img :alt="c.name" v-if="c.type === 'image'" :src="contentRoot + c.storageId + '.' + c.extension">
             <video v-if="c.type === 'video'" controls>
-              <source :src="contentRoot + c.storageId + '.mp4'" type="video/mp4">
+              <source :src="contentRoot + c.storageId + '.' + c.extension" type="video/mp4">
               Your browser does not support the video tag.
             </video>
           </div>

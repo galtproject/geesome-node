@@ -382,8 +382,10 @@ function getModule(app: IGeesomeApp, models) {
                     console.error('err fileLs', c.storageId, e);
                 });
                 const contentPath = `${siteStorageDir}/content`;
-                await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${c.storageId}${c.mimeType.includes('video') ? '.mp4' : ''}`).catch(e => console.warn('copyContentsToSite', e.message));
-                await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${c.previewStorageId}`).catch(e => console.warn('copyContentsToSite', e.message));
+                if(c.type !== 'text') {
+                    await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${c.storageId}.${c.extension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                    await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${c.previewStorageId}.${c.previewExtension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                }
                 copied[c.storageId] = true;
             });
         }

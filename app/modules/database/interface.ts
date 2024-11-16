@@ -182,6 +182,7 @@ export interface IContentData {
   json?;
   storageId;
   previewStorageId;
+  previewExtension;
   extension;
   mimeType;
   view;
