@@ -26,3 +26,19 @@
     }
   }
 }
+
+@media (max-width: $MQMobileNarrow) {
+  .content-list {
+    padding: 10px;
+
+    .content-item {
+      width: calc(100%);
+      &:not(:last-child):not(:nth-child(5n)) {
+        margin-right: 0;
+      }
+      &.image {
+        padding-bottom: calc(100%);
+      }
+    }
+  }
+}
