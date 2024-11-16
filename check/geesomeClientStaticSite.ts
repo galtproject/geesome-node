@@ -33,7 +33,7 @@ const port = isHttps ? 2053 : 2052;
 
   const promises = fs.readdirSync(process.env.DIR_PATH).map(fileName => {
     console.log('fileName', fileName);
-    return geesomeClient.saveContentData(fs.readFileSync(`${process.env.DIR_PATH}/${fileName}`), {fileName: 'image.jpg'});
+    return geesomeClient.saveContentData(fs.readFileSync(`${process.env.DIR_PATH}/${fileName}`), {fileName});
   })
 
   const contentList = await Promise.all(promises);

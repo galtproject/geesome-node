@@ -4,7 +4,7 @@ export default {
     template: `
       <modal-item class="large-modal">
         <template slot="header">
-          <button class="md-icon-button close" @click="close">x</button>
+          <button class="md-icon-button close" @click="close">✖</button>
         </template>
 
         <div class="modal-body" slot="body">

@@ -87,11 +87,11 @@ export default {
             return promise
         },
         open(modal) {
-            modal.id = modal.id || Date.now()
+            modal.id = modal.id || Date.now();
             return isPromise(modal.component) ? modal.component.then(component => this.resolve(Object.assign(modal, {component}))) : this.resolve(modal)
         },
         resolve(modal) {
-            const {id, component, props, options} = modal
+            const {id, component, props, options, closeOnBackdrop} = modal
 
             const m = this.getModal(id)
 
@@ -102,9 +102,12 @@ export default {
                 return Promise.reject(new ReferenceError('no component passed on initialization'))
             }
 
-            modal.props = {...props}
-
+            modal.props = {...props};
             const opts = {...DEFAULT_OPTIONS, ...options}
+
+            if (closeOnBackdrop) {
+                opts.closeOnBackdrop = true;
+            }
 
             if (!opts.show) {
                 modal.options = opts
@@ -144,8 +147,8 @@ export default {
             this.resetCurrModal(modalId)
         },
         handleBackdrop(e, id, backdrop) {
-            if (e.target !== e.currentTarget || backdrop === 'static')
-                return;
+            // if (e.target !== e.currentTarget || backdrop === 'static')
+            //     return;
 
             const modal = this.getModal(id);
             if(!modal.options.closeOnBackdrop)

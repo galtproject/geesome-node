@@ -203,6 +203,7 @@ function getModule(app: IGeesomeApp, models) {
             const siteStorageDir = `/${staticSite.staticId}-site`;
 
             await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
+            await this.copyContentsToSite(siteStorageDir, contents);
 
             return {
                 staticSite,
@@ -376,7 +377,7 @@ function getModule(app: IGeesomeApp, models) {
                     return;
                 }
                 await app.ms.storage.nodeLs(c.storageId).then(r => {
-                    // console.log('res fileLs', c.storageId, r);
+                    // console.log('res fileLs', c.name, c.storageId, r);
                 }).catch(e => {
                     console.error('err fileLs', c.storageId, e);
                 });

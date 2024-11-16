@@ -19,7 +19,7 @@
     left: 0;
     z-index: 1040;
     background-color: #000;
-    opacity: 0.5;
+    opacity: 0.8;
     filter: alpha(opacity=50);
 }
 
@@ -53,9 +53,9 @@
 
 .modal-content {
     position: relative;
-    background: #424242;
-    border: 1px solid #999;
-    border: 1px solid rgba(0,0,0,0.2);
+    background: transparent;
+    //border: 1px solid #999;
+    //border: 1px solid rgba(0,0,0,0.2);
     border-radius: 6px;
     box-shadow: 0 3px 9px rgba(0,0,0,0.5);
     background-clip: padding-box;
@@ -91,9 +91,23 @@
 
 .modal-body {
     position: relative;
-    padding: 15px;
+    max-height: calc(100vh - 60px);
+    //padding: 15px;
     img {
         max-width: 100%;
+        max-height: inherit;
+    }
+    [slot="header"] {
+        position: relative;
+        .md-icon-button {
+            position: absolute;
+            top: -30px;
+            right: -30px;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 25px;
+        }
     }
 }
 
@@ -136,8 +150,10 @@
 
 @media (min-width: 768px) {
     .modal-dialog {
-        width: 700px;
+        //width: 700px;
         margin: 30px auto;
+        display: flex;
+        justify-content: center;
     }
 
     .modal-content {
