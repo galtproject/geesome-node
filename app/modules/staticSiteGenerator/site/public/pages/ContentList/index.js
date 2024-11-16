@@ -1,6 +1,7 @@
 import EmptyLayout from "../EmptyLayout/index.js";
 import {getRelativeRoot} from "../../helpers.js";
 import ImageModal from "../../components/ImageModal/ImageModal.js";
+import { markRaw } from "vue";
 
 export default {
     components: {
@@ -23,7 +24,7 @@ export default {
           console.log('openMedia', imageIndex);
           this.$root.$modal.open({
               id: 'image-modal',
-              component: ImageModal,
+              component: markRaw(ImageModal),
               closeOnBackdrop: true,
               props: {
                   imageList: this.contents.map(c => this.contentRoot + c.storageId),

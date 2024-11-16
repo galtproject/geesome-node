@@ -23,7 +23,7 @@ export default {
               </div>
               <!-- body-->
               <slot v-if="$slots.body" name="body"></slot>
-              <div class="modal-body" v-else="v-else">
+              <div class="modal-body" v-else>
                 <slot></slot>
               </div>
               <!-- footer-->

@@ -92,6 +92,9 @@
 .modal-body {
     position: relative;
     padding: 15px;
+    img {
+        max-width: 100%;
+    }
 }
 
 .modal-footer {
