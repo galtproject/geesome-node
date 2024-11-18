@@ -100,7 +100,7 @@ RUN      buildDeps="autoconf \
         apt-get -yqq update && \
         apt-get install -yq --no-install-recommends ${buildDeps}
 ## libvmaf https://github.com/Netflix/vmaf
-RUN apt install gcc-multilib
+RUN apt install gcc-multilib -y
 RUN \
         if which meson || false; then \
         echo "Building VMAF." && \
