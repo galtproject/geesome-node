@@ -110,7 +110,6 @@ RUN \
         tar -xz --strip-components=1 -f v${LIBVMAF_VERSION}.tar.gz && \
         cd /tmp/vmaf/libvmaf && \
         meson build --buildtype release --prefix=${PREFIX} && \
-        CFLAGS=-msse && \
         ninja -vC build && \
         ninja -vC build install && \
         mkdir -p ${PREFIX}/share/model/ && \
