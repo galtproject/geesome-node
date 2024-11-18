@@ -318,7 +318,7 @@ RUN  \
         cd ${DIR} && \
         curl -sLO https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.bz2 && \
         tar -jx --strip-components=1 -f fontconfig-${FONTCONFIG_VERSION}.tar.bz2 && \
-        ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
+        ./configure --prefix="${PREFIX}" --enable-shared --enable-static --sysconfdir=/etc --localstatedir=/var && \
         make && \
         make install && \
         rm -rf ${DIR}
