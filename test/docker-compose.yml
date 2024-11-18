@@ -13,6 +13,7 @@ services:
     volumes:
       - "${GEESOME_DATA:-./.geesome-data}:/geesome-node/data"
       - "${GEESOME_FRONTEND_DIST:-./.geesome-frontend}:/geesome-node/frontend/docker-dist"
+      - "${GEESOME_TEST_OUTPUT:-./.geesome-test-output}:/geesome-node/test/output"
     environment:
       - IPFS_PROFILE
       - DEBUG

@@ -608,6 +608,11 @@ function getModule(app: IGeesomeApp) {
 					properties =  {duration: convertResult['duration'] };
 				}
 
+				if (options.watermark) {
+					const watermarkResult = await app.ms.drivers.convert['imageWatermark'].processByStream(stream, options.watermark);
+					stream = watermarkResult.stream;
+				}
+
 				const sizeRemained = await app.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
 				if (sizeRemained !== null) {

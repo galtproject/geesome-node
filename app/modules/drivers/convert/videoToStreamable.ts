@@ -9,31 +9,18 @@
 
 import fs from "fs";
 import stream from 'stream';
-import * as uuid from 'uuid';
 import ffmpeg from 'fluent-ffmpeg';
 import mediainfo from 'node-mediainfo';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
-const {v4: uuidv4} = uuid['default'];
+import helpers from "../helpers.js";
 
 export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
   supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(inputStream, options: any = {}) {
-    const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.' + options.extension;
-
-    await new Promise((resolve, reject) =>
-      inputStream
-        .on('error', error => {
-          if (inputStream.truncated)
-          // delete the truncated file
-            fs.unlinkSync(path);
-          reject(error);
-        })
-        .pipe(fs.createWriteStream(path))
-        .on('close', () => resolve({path}))
-    );
+    const path = helpers.writeStreamToRandomPath(inputStream, options.extension);
 
     //TODO: get videoinfo in separated process
     let videoInfo = await mediainfo(path);

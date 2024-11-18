@@ -16,6 +16,8 @@ export default interface IGeesomeStorageModule {
 
   saveFileByPath(path, options?): Promise<IResultFile>;
 
+  saveFile(content, options?): Promise<IResultFile>;
+
   saveFileByData(content, options?): Promise<IResultFile>;
 
   saveFileByUrl(url): Promise<IResultFile>;
