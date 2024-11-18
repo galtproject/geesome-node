@@ -100,7 +100,7 @@ RUN      buildDeps="autoconf \
         apt-get -yqq update && \
         apt-get install -yq --no-install-recommends ${buildDeps}
 ## libvmaf https://github.com/Netflix/vmaf
-RUN apt install python3 python3-pip
+RUN apt install python3 python3-pip -y
 RUN pip3 install --upgrade meson
 RUN \
         if which meson || false; then \
