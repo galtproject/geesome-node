@@ -100,6 +100,8 @@ RUN      buildDeps="autoconf \
         apt-get -yqq update && \
         apt-get install -yq --no-install-recommends ${buildDeps}
 ## libvmaf https://github.com/Netflix/vmaf
+#RUN apt install python3 python3-pip -y
+#RUN pip3 install --upgrade meson
 RUN \
         if which meson || false; then \
         echo "Building VMAF." && \
@@ -318,7 +320,7 @@ RUN  \
         cd ${DIR} && \
         curl -sLO https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.bz2 && \
         tar -jx --strip-components=1 -f fontconfig-${FONTCONFIG_VERSION}.tar.bz2 && \
-        ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
+        ./configure --prefix="${PREFIX}" --enable-shared --enable-static --sysconfdir=/etc --localstatedir=/var && \
         make && \
         make install && \
         rm -rf ${DIR}
@@ -600,3 +602,48 @@ RUN cd /tmp && wget https://imagemagick.org/archive/ImageMagick.tar.gz && \
     tar xvzf ImageMagick.tar.gz && cd ImageMagick* && \
     ./configure && make && make install && \
     ldconfig /usr/local/lib
+
+# https://askubuntu.com/a/1349937
+RUN apt install ttf-mscorefonts-installer fonts-dejavu-core -y && fc-cache -fv && dpkg-reconfigure ttf-mscorefonts-installer
+RUN mkdir -p /etc/fonts
+RUN echo '<?xml version="1.0"?> \
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd"> \
+          <fontconfig> \
+              <!-- Define font directories --> \
+              <dir>/usr/share/fonts</dir> \
+              <dir>/usr/share/fonts/X11</dir> \
+              <dir>/usr/share/fonts/X11/encodings</dir> \
+              <dir>/usr/share/fonts/X11/util</dir> \
+              <dir>/usr/share/fonts/truetype</dir> \
+              <dir>/usr/share/fonts/truetype/dejavu</dir> \
+              <dir>/usr/share/fonts/truetype/liberation</dir> \
+              <dir>/usr/share/fonts/truetype/msttcorefonts</dir> \
+              <cachedir>/var/cache/fontconfig</cachedir> \
+              <!-- Fallback settings --> \
+              <config> \
+                  <rescan>5</rescan> \
+              </config> \
+              <!-- Font aliasing (if required, based on font usage) --> \
+              <alias> \
+                  <family>sans-serif</family> \
+                  <prefer> \
+                      <family>DejaVu Sans</family> \
+                      <family>Liberation Sans</family> \
+                  </prefer> \
+              </alias> \
+              <alias> \
+                  <family>serif</family> \
+                  <prefer> \
+                      <family>DejaVu Serif</family> \
+                      <family>Liberation Serif</family> \
+                  </prefer> \
+              </alias> \
+              <alias> \
+                  <family>monospace</family> \
+                  <prefer> \
+                      <family>DejaVu Sans Mono</family> \
+                      <family>Liberation Mono</family> \
+                  </prefer> \
+              </alias> \
+          </fontconfig> \
+' > /etc/fonts/fonts.conf

@@ -2,8 +2,16 @@
 import fs from "fs";
 import axios from "axios";
 import helpers from "../../app/helpers.js";
+import appHelpers from "../../app/helpers.js";
 
 export default {
+    getOutputDir() {
+        const outputDir = appHelpers.getCurDir() + '/../test/output';
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir);
+        }
+        return outputDir;
+    },
     async prepare(name): Promise<any> {
         const dir = helpers.getCurDir() + '/../test/resources/';
         if (!fs.existsSync(dir)) {

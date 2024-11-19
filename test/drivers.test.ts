@@ -24,7 +24,7 @@ describe("drivers", function () {
 
       const result = await drivers['preview']['image'].processByStream(fs.createReadStream(imagePath));
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-image.jpg';
+      const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-image.jpg';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -40,16 +40,43 @@ describe("drivers", function () {
       const imagePath = await resourcesHelper.prepare('input-image.jpg');
 
       const result = await drivers['metadata']['image'].processByStream(fs.createReadStream(imagePath));
+      console.log('result', result);
 
       assert.equal(result.width > 0, true);
+    });
+
+    it("should successfully put watermark to jpg image", async () => {
+      const imagePath = await resourcesHelper.prepare('input-image.jpg');
+
+      const result = await drivers['convert']['imageWatermark'].processByStream(fs.createReadStream(imagePath), {
+        text: 'test.com',
+        color: 'black',
+        background: '#ffffff80',
+        font: 'monospace',
+        spacing: 50,
+        sizeRatio: 1/50,
+        extension: 'jpg'
+      });
+      // console.log('result', result);
+
+      const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-image.jpg';
+      await new Promise(async (resolve, reject) => {
+        const strm = fs.createWriteStream(ouputStreamablePath);
+        result.stream.pipe(strm);
+
+        strm.on('finish', resolve);
+        strm.on('error', reject);
+      });
+
+      assert.equal(fs.existsSync(ouputStreamablePath), true);
     });
   });
 
   describe.skip('youtube video', () => {
 
     it("should successfully getting video from youtube", async () => {
-      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-youtube-video.mp4';
-      
+      const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-youtube-video.mp4';
+
       async function downloadVideo() {
         const result = await drivers['upload']['youtubeVideo'].processBySource('https://www.youtube.com/watch?v=DXUAyRRkI6k');
 
@@ -61,7 +88,7 @@ describe("drivers", function () {
           strm.on('error', reject);
         });
       }
-      
+
       try {
         await downloadVideo();
       } catch (e) {
@@ -74,7 +101,7 @@ describe("drivers", function () {
       assert.equal(videoInfo.media.track[0].IsStreamable, 'Yes');
     });
   });
-  
+
   describe('convert video', () => {
     it("should convert video to streamable", async () => {
       const videoPath = await resourcesHelper.prepare('not-streamable-input-video.mp4');
@@ -91,7 +118,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, true);
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-video.mp4';
+      const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -122,7 +149,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, true);
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-video.mp4';
+      const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -158,7 +185,7 @@ describe("drivers", function () {
 
       assert.equal(result.processed, false);
 
-      const ouputStreamablePath = appHelpers.getCurDir() + '/test/resources/output-video.mp4';
+      const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-video.mp4';
       await new Promise(async (resolve, reject) => {
         const strm = fs.createWriteStream(ouputStreamablePath);
         result.stream.pipe(strm);
@@ -189,8 +216,8 @@ describe("drivers", function () {
             assert.equal(false, true);
           }
         });
-        
-        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/test/resources/output-screenshot.png');
+
+        const strm = fs.createWriteStream(resourcesHelper.getOutputDir() + '/output-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', resolve);
@@ -209,7 +236,7 @@ describe("drivers", function () {
           }
         });
 
-        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/test/resources/output-screenshot.png');
+        const strm = fs.createWriteStream(resourcesHelper.getOutputDir() + '/output-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', resolve);
@@ -230,7 +257,7 @@ describe("drivers", function () {
           }
         });
 
-        const strm = fs.createWriteStream(appHelpers.getCurDir() + '/test/resources/output-gif-screenshot.png');
+        const strm = fs.createWriteStream(resourcesHelper.getOutputDir() + '/output-gif-screenshot.png');
         result.stream.pipe(strm);
 
         strm.on('finish', () => result.emitFinish(resolve));

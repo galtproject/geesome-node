@@ -11,21 +11,15 @@ import _ from 'lodash';
 import sharp from "sharp";
 import AbstractDriver from "../abstractDriver.js";
 import {DriverInput} from "../interface.js";
+import {Stream} from "stream";
 const {pick} = _;
 
 export class ImageMetadataDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
 
   async processByStream(inputStream, options: any = {}) {
-    const buffer = await new Promise((resolve, reject) => {
-      const bufs = [];
-      inputStream.on('data', function(d){ bufs.push(d); });
-      inputStream.on('end', function(){
-        resolve(Buffer.concat(bufs));
-      });
-    });
-
-    const metadata = await sharp(buffer).metadata();
+    const image = inputStream.pipe(sharp());
+    const metadata = await image.metadata();
     return pick(metadata, ['format', 'width', 'height', 'space', 'channels', 'depth', 'density', 'chromaSubsampling', 'isProgressive', 'hasProfile', 'hasAlpha', 'orientation']);
   }
 }

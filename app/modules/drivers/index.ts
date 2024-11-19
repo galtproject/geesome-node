@@ -18,6 +18,7 @@ import {ImageMetadataDriver} from "./metadata/image.js";
 import {FileUploadDriver} from "./upload/file.js";
 import {GifPreviewDriver} from "./preview/gif.js";
 import IGeesomeDriversModule from "./interface.js";
+import {ImageWatermarkDriver} from "./convert/imageWatermark.js";
 
 export default () => ({
   preview: {
@@ -37,5 +38,6 @@ export default () => ({
   },
   convert: {
     videoToStreamable: new VideoToStreambleDriver(),
+    imageWatermark: new ImageWatermarkDriver(),
   }
 } as IGeesomeDriversModule);

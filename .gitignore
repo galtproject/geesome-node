@@ -19,3 +19,4 @@ test/.geesome-frontend
 test/.ipfs
 test/.ipfs-data
 test/.postgres-data
+test/.geesome-test-output

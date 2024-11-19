@@ -9,6 +9,8 @@
  */
 import path from 'path';
 import fs from "fs";
+import * as uuid from 'uuid';
+const {v4: uuidv4} = uuid['default'];
 
 function getAllFiles(dirPath, arrayOfFiles?) {
 	let files = fs.readdirSync(dirPath);
@@ -38,6 +40,23 @@ function getDirSize(directoryPath) {
 	return totalSize
 }
 
+async function writeStreamToRandomPath(inputStream, extension) {
+	const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.' + extension;
+	await new Promise((resolve, reject) =>
+		inputStream
+			.on('error', error => {
+				if (inputStream.truncated)
+					// delete the truncated file
+					fs.unlinkSync(path);
+				reject(error);
+			})
+			.pipe(fs.createWriteStream(path))
+			.on('close', () => resolve({path}))
+	);
+	return  path;
+}
+
 export default {
-	getDirSize
+	getDirSize,
+	writeStreamToRandomPath,
 }

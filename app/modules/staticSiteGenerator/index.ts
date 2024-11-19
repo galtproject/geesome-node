@@ -430,7 +430,7 @@ function getModule(app: IGeesomeApp, models) {
 
             const headers = getOgHeaders(options.site.title, options.lang, pageTitle, pageDescription, imageUrl);
             const htmlContent = await renderPage(path || '/', headers);
-            const {id: storageId} = await app.ms.storage.saveFileByData(htmlContent);
+            const {id: storageId} = await app.ms.storage.saveFile(htmlContent);
             if (type !== 'simple') {
                 storageDir += path;
             }
