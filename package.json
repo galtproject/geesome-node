@@ -25,7 +25,7 @@
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; tsx check/geesomePerfomance.ts --trace_gc",
     "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/tsx -P tsconfig.json check/geesomeClientPerfomance.ts",
     "generate-docs": "./node_modules/.bin/apidoc -i app/modules/api -o docs -t node_modules/apidoc-template/template && ./node_modules/.bin/http-server ./docs",
-    "test": "yarn -W && which fc-list && fc-cat --verbose && ls /usr/share/fonts/truetype/msttcorefonts && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
+    "test": "yarn -W && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
     "testCoverage": "node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker compose up",
     "docker-build": "bash/docker-build.sh",

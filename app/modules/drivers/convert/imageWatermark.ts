@@ -23,34 +23,49 @@ export class ImageWatermarkDriver extends AbstractDriver {
     console.log('ImagePreviewDriver.processByStream');
     const path = await helpers.writeStreamToRandomPath(inputStream, options.extension)
     const metadata = await sharp(path).metadata();
-    console.log('metadata', metadata);
+
+    const {color, background, spacing, font, sizeRatio} = options;
+    const biggestSide = metadata.width > metadata.height ? metadata.width : metadata.height;
+    const size = Math.round(biggestSide * (sizeRatio || 1/50)); //size
+    const padding = size / 2; //margin
+    const textLen = options.text.length;
+    const width = r(size * textLen * 0.7), height = size, left = size, top = metadata.height - size * 2;
 
     const text = {
-      text: `<span foreground="#ffff00">${options.text}</span>`,
-      width: 100,
-      height: 20,
+      text: `<span foreground="${color}">${options.text}</span>`,
+      font: font || 'monospace',
       justify: true,
       align: 'left',
-      spacing: 50,
-      rgba: true
+      rgba: true,
+      spacing,
+      height,
+      width
+    };
+    const createBackground = {
+      width: r(width + size),
+      height: r(height + size),
+      background,
+      channels: 4
     };
     const watermarkStream = sharp(path)
-        .composite([{
-          input: { text },
-          left: 30,
-          top: metadata.height - 30
-        }])
+        .composite([
+          {input: {create: createBackground}, left: r(left - padding), top: r(top - padding)},
+          {input: {text}, left, top},
+        ])
         .withMetadata()
         .toFormat(options.extension);
-    console.log('ImagePreviewDriver.watermarkStream');
 
     const resultStream = inputStream.pipe(watermarkStream) as Stream;
 
     resultStream.on("error", (err) => {
-      console.error('resultStream error', err);
+      console.error('ImageWatermarkDriver resultStream error', err);
       options.onError && options.onError(err);
     });
 
     return {stream: resultStream};
   }
+}
+
+function r(number) {
+  return Math.round(number);
 }
