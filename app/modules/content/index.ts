@@ -26,7 +26,8 @@ import IGeesomeContentModule from "./interface.js";
 import AbstractDriver from "../drivers/abstractDriver.js";
 import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
-const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, merge, last, startsWith, trimStart} = _;
+import {rtrim} from "telegram/Utils";
+const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
 
@@ -432,17 +433,18 @@ function getModule(app: IGeesomeApp) {
 				fileStream = dataToSave;
 			}
 
-			const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.saveFileByStream(userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
+			const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.checkFileSizeAndSaveByStream(userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
 				extension: extensionFromName,
 				driver: options.driver,
 				onProgress: options.onProgress,
 				waitForPin: options.waitForPin
 			}).catch(e => {
+				console.error('checkFileSizeAndSaveByStream', e);
 				dataToSave.emit && dataToSave.emit('end');
 				dataToSave.destroy && dataToSave.destroy();
 				throw e;
 			});
-			log('saveFileByStream extension', extension, 'mimeType', mimeType);
+			log('checkFileSizeAndSaveByStream extension', extension, 'mimeType', mimeType);
 
 			let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 			log('existsContent', !!existsContent);
@@ -464,6 +466,19 @@ function getModule(app: IGeesomeApp) {
 				name: fileName,
 				propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
 			}, options);
+		}
+
+		getDriverNameAndParams(options: {driver}) {
+			if (!options.driver) {
+				return {}
+			}
+			if (isObject(options.driver)) {
+				return options.driver;
+			}
+			try {
+				return JSON.parse(options.driver);
+			} catch (e) {}
+			return {name: options.driver}
 		}
 
 		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, name?, description?, view?, path?, onProgress? } = {}) {
@@ -488,12 +503,14 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			let storageFile;
-			const uploadDriver = options.driver && app.ms.drivers.upload[options.driver] as AbstractDriver;
+			const {name: driverName, params: driverParams} = this.getDriverNameAndParams(options);
+			const uploadDriver = driverName && app.ms.drivers.upload[driverName] as AbstractDriver;
 			if (uploadDriver && uploadDriver.isInputSupported(DriverInput.Source)) {
-				const dataToSave = await this.handleSourceByUploadDriver(url, options.driver);
+				const dataToSave = await this.handleSourceByUploadDriver(url, driverName, driverParams);
 				type = dataToSave.type;
-				const {resultFile, resultMimeType, resultExtension, resultProperties} = await this.saveFileByStream(userId, dataToSave.stream, type, {
+				const {resultFile, resultMimeType, resultExtension, resultProperties} = await this.checkFileSizeAndSaveByStream(userId, dataToSave.stream, type, {
 					extension,
+					driver: options.driver,
 					onProgress: options.onProgress
 				});
 				type = resultMimeType;
@@ -510,7 +527,7 @@ function getModule(app: IGeesomeApp) {
 					if (status !== 200) {
 						throw statusText;
 					}
-					return this.saveFileByStream(userId, data, headers['content-type'] || mime.lookup(name) || extension, {extension, driver: options.driver});
+					return this.checkFileSizeAndSaveByStream(userId, data, headers['content-type'] || mime.lookup(name) || extension, {extension, driver: options.driver});
 				});
 				type = resultMimeType;
 				storageFile = resultFile;
@@ -544,7 +561,7 @@ function getModule(app: IGeesomeApp) {
 			console.log('options.previews', options.previews);
 			if (options.previews) {
 				await pIteration.forEachSeries(options.previews, async (p: any) => {
-					const result = await this.saveFileByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
+					const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
 					console.log('result', result);
 					previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
 					previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
@@ -590,11 +607,10 @@ function getModule(app: IGeesomeApp) {
 			}, options);
 		}
 
-		private async saveFileByStream(userId: number, stream, mimeType, options: any = {}): Promise<any> {
-			return new Promise(async (resolve, reject) => {
-				let extension = (options.extension || last(mimeType.split('/')) || '').toLowerCase();
+		private async checkFileSizeAndSaveByStream(userId: number, stream, mimeType, options: any = {}): Promise<any> {
+			let properties, extension = (options.extension || last(mimeType.split('/')) || '').toLowerCase();
 
-				let properties;
+			return new Promise(async (resolve, reject) => {
 				if (commonHelper.isVideoType(mimeType)) {
 					log('videoToStreamable processByStream');
 					const convertResult = await app.ms.drivers.convert['videoToStreamable'].processByStream(stream, {
@@ -605,19 +621,14 @@ function getModule(app: IGeesomeApp) {
 					stream = convertResult.stream;
 					extension = convertResult.extension;
 					mimeType = convertResult.type;
-					properties =  {duration: convertResult['duration'] };
-				}
-
-				if (options.watermark) {
-					const watermarkResult = await app.ms.drivers.convert['imageWatermark'].processByStream(stream, options.watermark);
-					stream = watermarkResult.stream;
+					properties = {duration: convertResult['duration']};
 				}
 
 				const sizeRemained = await app.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 
 				if (sizeRemained !== null) {
 					log('sizeRemained', sizeRemained);
-					if(sizeRemained < 0) {
+					if (sizeRemained < 0) {
 						return reject("limit_reached");
 					}
 					console.log('sizeRemained', sizeRemained);
@@ -628,11 +639,12 @@ function getModule(app: IGeesomeApp) {
 							console.log('streamSize', streamSize);
 							if (streamSize >= sizeRemained) {
 								console.error("limit_reached for user", userId);
-								// callback("limit_reached", null);
+								try {
+									stream.destroy(new Error('limit_reached'));
+									sizeCheckStream.destroy(new Error('limit_reached'));
+								} catch (e) {console.log('error', e);}
 								reject("limit_reached");
-								// stream.emit('error', "limit_reached");
-								stream.end();
-								sizeCheckStream.end();
+								return callback(new Error('limit_reached'), null);
 							} else {
 								callback(null, chunk);
 							}
@@ -642,79 +654,91 @@ function getModule(app: IGeesomeApp) {
 
 					stream = stream.pipe(sizeCheckStream);
 				}
-				const storageOptions = {
-					waitForPin: options.waitForPin
-				};
-				log('options.driver', options.driver, 'storageOptions', storageOptions);
+				stream.on('error', reject);
+				this.saveFileByStream(stream, mimeType, options, properties, extension, reject, resolve).catch(reject);
+			});
+		}
+		
+		private async saveFileByStream(stream, mimeType, options, properties, extension, onError, onSuccess) {
+			const {name: driverName, params: driverParams, module: driverModule} = this.getDriverNameAndParams(options);
 
-				let resultFile: IStorageFile;
-				await Promise.all([
-					(async () => {
-						if (options.driver === 'archive') {
-							log('upload archive processByStream');
-							const uploadResult = await app.ms.drivers.upload['archive'].processByStream(stream, {
-								extension,
-								onProgress: options.onProgress,
-								onError: reject
-							});
-							if (!uploadResult) {
-								return; // onError handled
-							}
-							console.log('saveDirectory', uploadResult['tempPath'] + '/');
-							resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
-							if (uploadResult['emitFinish']) {
-								uploadResult['emitFinish']();
-							}
-							mimeType = 'directory';
-							extension = 'none';
-							console.log('uploadResult', uploadResult);
-							resultFile.size = uploadResult['size'];
-						} else {
-							log('app.ms.storage.isStreamAddSupport()', app.ms.storage.isStreamAddSupport());
-							if (app.ms.storage.isStreamAddSupport()) {
-								resultFile = await app.ms.storage.saveFileByData(stream, storageOptions);
-							} else {
-								const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
-									extension,
-									onProgress: options.onProgress,
-									onError: reject
-								});
-								log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
-								resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
-								resultFile.tempPath = uploadResult['tempPath'];
-								resultFile.emitFinish = uploadResult['emitFinish'];
-							}
-							// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
-							delete resultFile.size;
-						}
-					})().catch(e => console.error('resultFile', e)),
+			const storageOptions = {
+				waitForPin: options.waitForPin
+			};
+			log('saveFileByStream driverName', driverName);
 
-					(async () => {
-						console.log('mimeType', mimeType);
-						if (startsWith(mimeType, 'image')) {
-							properties = await app.ms.drivers.metadata['image'].processByStream(stream);
-							// console.log('metadata processByStream', properties);
-						}
-					})()
-				]);
-
-				if (!resultFile.size) {
-					const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
-					log('getFileStat storageContentStat', storageContentStat);
-					resultFile.size = storageContentStat.size;
-					log('resultFile.size', resultFile.size);
+			const propertiesPromise = new Promise(async (resolve) => {
+				console.log('mimeType', mimeType);
+				if (startsWith(mimeType, 'image')) {
+					properties = await app.ms.drivers.metadata['image'].processByStream(stream, {onError});
+					// console.log('metadata processByStream', properties);
 				}
+				resolve();
+			});
 
-				resolve({
-					resultFile: resultFile,
-					resultMimeType: mimeType,
-					resultExtension: extension,
-					resultProperties: properties
+			if (driverName && driverModule === 'convert') {
+				const watermarkResult = await app.ms.drivers.convert[driverName].processByStream(stream, driverParams);
+				stream = watermarkResult.stream;
+			}
+
+			let resultFile: IStorageFile;
+			if (driverName === 'archive') {
+				log('upload archive processByStream');
+				const uploadResult = await app.ms.drivers.upload['archive'].processByStream(stream, {
+					...driverParams,
+					onProgress: options.onProgress,
+					extension,
+					onError
 				});
+				if (!uploadResult) {
+					return; // onError handled
+				}
+				console.log('saveDirectory', uploadResult['tempPath'] + '/');
+				resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
+				if (uploadResult['emitFinish']) {
+					uploadResult['emitFinish']();
+				}
+				mimeType = 'directory';
+				extension = 'none';
+				console.log('uploadResult', uploadResult);
+				resultFile.size = uploadResult['size'];
+			} else {
+				log('app.ms.storage.isStreamAddSupport()', app.ms.storage.isStreamAddSupport());
+				if (app.ms.storage.isStreamAddSupport()) {
+					resultFile = await app.ms.storage.saveFileByData(stream, storageOptions);
+				} else {
+					const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
+						extension,
+						onProgress: options.onProgress,
+						onError
+					});
+					log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
+					resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
+					resultFile.tempPath = uploadResult['tempPath'];
+					resultFile.emitFinish = uploadResult['emitFinish'];
+				}
+				// get actual size from fileStat. Sometimes resultFile.size is bigger than fileStat size
+				delete resultFile.size;
+			}
+
+			if (!resultFile.size) {
+				const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
+				log('getFileStat storageContentStat', storageContentStat);
+				resultFile.size = storageContentStat.size;
+				log('resultFile.size', resultFile.size);
+			}
+
+			await propertiesPromise;
+
+			onSuccess({
+				resultFile: resultFile,
+				resultMimeType: mimeType,
+				resultExtension: extension,
+				resultProperties: properties
 			});
 		}
 
-		async handleSourceByUploadDriver(sourceLink, driver) {
+		async handleSourceByUploadDriver(sourceLink, driver, params = {}) {
 			const uploadDriver = app.ms.drivers.upload[driver] as AbstractDriver;
 			if (!uploadDriver) {
 				throw new Error(driver + "_upload_driver_not_found");
@@ -722,7 +746,7 @@ function getModule(app: IGeesomeApp) {
 			if (!uploadDriver.supportedInputs.includes(DriverInput.Source)) {
 				throw new Error(driver + "_upload_driver_input_not_correct");
 			}
-			return uploadDriver.processBySource(sourceLink, {});
+			return uploadDriver.processBySource(sourceLink, params);
 		}
 
 		async createContentByRemoteStorageId(userId, manifestStorageId, options: { userApiKeyId? } = {}) {
@@ -776,10 +800,7 @@ function getModule(app: IGeesomeApp) {
 		async getFileStreamForApiRequest(req, res, dataPath) {
 			app.ms.api.setStorageHeaders(res);
 
-			console.log('getDataPath', dataPath);
 			dataPath = await this.getDataPath(dataPath);
-			console.log('dataPath', dataPath);
-
 			let range = req.headers['range'];
 			if (!range) {
 				let content = await app.ms.database.getContentByStorageId(dataPath, false);
@@ -846,11 +867,7 @@ function getModule(app: IGeesomeApp) {
 					resultLength += data.length;
 				});
 				stream.on('end', (data) => {
-					console.log('range.start', range.start);
-					console.log('contentLength', contentLength);
-					console.log('resultLength ', resultLength);
-					console.log(range.start + contentLength, '/', dataSize);
-					console.log(range.start + resultLength, '/', dataSize);
+					console.log('range.start', range.start, 'contentLength', contentLength, 'resultLength ', resultLength, 'dataSize', dataSize);
 				});
 
 				let mimeType = '';

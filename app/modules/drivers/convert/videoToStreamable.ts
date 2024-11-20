@@ -20,7 +20,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
   supportedOutputSizes = [OutputSize.Medium];
 
   async processByStream(inputStream, options: any = {}) {
-    const path = helpers.writeStreamToRandomPath(inputStream, options.extension);
+    const path = await helpers.writeStreamToRandomPath(inputStream, options.extension);
 
     //TODO: get videoinfo in separated process
     let videoInfo = await mediainfo(path);
@@ -60,7 +60,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
         if (options.onProgress) {
           options.onProgress(progress);
         }
-        console.log('progress:', progress);
+        console.log('VideoToStreambleDriver progress:', progress);
       })
       .on('error', function (err, stdout, stderr) {
         console.error('An error occurred: ' + err.message, err, stderr);
