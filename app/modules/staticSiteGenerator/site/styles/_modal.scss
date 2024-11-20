@@ -95,10 +95,6 @@
     position: relative;
     max-height: calc(100vh - 60px);
     //padding: 15px;
-    img {
-        max-width: 100%;
-        max-height: inherit;
-    }
     [slot="header"] {
         position: relative;
         .md-icon-button {
@@ -148,6 +144,32 @@
     width: 50px;
     height: 50px;
     overflow: scroll;
+}
+
+.image-modal .modal-body {
+    position: relative;
+    .arrow-left, .arrow-right {
+        position: absolute;
+        top: 50%;
+        cursor: pointer;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .arrow-left {
+        transform: rotate(270deg);
+        left: 10px;
+    }
+    .arrow-right {
+        transform: rotate(90deg);
+        right: 10px;
+    }
+    img {
+        max-width: 100%;
+        max-height: calc(100vh - 60px);
+    }
 }
 
 @media (min-width: 768px) {
