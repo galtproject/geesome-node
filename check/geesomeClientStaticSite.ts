@@ -27,13 +27,28 @@ const port = isHttps ? 2053 : 2052;
       email: 'test@test.com',
       password: 'test'
     }));
-    console.log('apiKey', apiKey);
+    console.log('API_KEY=' + apiKey);
   }
   geesomeClient.setApiKey(apiKey);
 
   const promises = fs.readdirSync(process.env.DIR_PATH).map(fileName => {
     console.log('fileName', fileName);
-    return geesomeClient.saveContentData(fs.readFileSync(`${process.env.DIR_PATH}/${fileName}`), {fileName});
+    return geesomeClient.saveContentData(fs.readFileSync(`${process.env.DIR_PATH}/${fileName}`), {
+      fileName,
+      driver: {
+        name: 'imageWatermark',
+        module: 'convert',
+        params: {
+          text: 'test.com',
+          color: 'black',
+          background: '#ffffff80',
+          font: 'monospace',
+          spacing: 50,
+          sizeRatio: 1/50,
+          extension: 'jpg'
+        }
+      }
+    });
   })
 
   const contentList = await Promise.all(promises);
@@ -94,7 +109,7 @@ const port = isHttps ? 2053 : 2052;
         opacity: 0.5;
         margin-top: 5px;
       }
-      @media (max-width: 419px) {
+      @media (max-width: 450px) {
         .page-header {
           flex-direction: column;
         }

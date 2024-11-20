@@ -2,14 +2,16 @@ import {ModalItem} from "../AsyncModal/index.js";
 
 export default {
     template: `
-      <modal-item class="large-modal">
+      <modal-item class="large-modal image-modal">
         <template slot="header">
           <button class="md-icon-button close" @click="close">✖</button>
         </template>
 
-        <div class="modal-body" slot="body">
+        <template slot="body">
+          <div class="arrow-left" @click.prevent.stop="left"><div>▲</div></div>
           <img :src="image"/>
-        </div>
+          <div class="arrow-right" @click.prevent.stop="right"><div>▲</div></div>
+        </template>
       </modal-item>`,
     props: ['imageList', 'imageIndex'],
     components: {
@@ -21,17 +23,9 @@ export default {
     mounted() {
         this.listener = (event) => {
             if (event.key === 'ArrowRight') {
-                if (this.imageList[this.localImageIndex + 1]) {
-                    this.localImageIndex += 1;
-                } else {
-                    this.localImageIndex = 0;
-                }
+                this.right();
             } else if (event.key === 'ArrowLeft') {
-                if (this.imageList[this.localImageIndex - 1]) {
-                    this.localImageIndex -= 1;
-                } else {
-                    this.localImageIndex = this.imageList.length - 1;
-                }
+                this.left();
             }
         }
         document.addEventListener("keydown", this.listener);
@@ -45,6 +39,20 @@ export default {
       }
     },
     methods: {
+        left() {
+            if (this.imageList[this.localImageIndex - 1]) {
+                this.localImageIndex -= 1;
+            } else {
+                this.localImageIndex = this.imageList.length - 1;
+            }
+        },
+        right() {
+            if (this.imageList[this.localImageIndex + 1]) {
+                this.localImageIndex += 1;
+            } else {
+                this.localImageIndex = 0;
+            }
+        },
         close() {
             this.$root.$modal.close('image-modal');
         }
