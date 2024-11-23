@@ -24,7 +24,6 @@ export default async (app: IGeesomeApp) => {
 }
 
 async function getModule(app: IGeesomeApp, models) {
-    console.log('[SSG] destroy', await models.StaticSite.destroy({where: {storageId: 'bafybeiernumconjaftgxu2sh5vwbnmnl75g7xrjsp7m7gfrxxowmvsemra'}}));
     let finishCallbacks = {
 
     };
