@@ -804,11 +804,11 @@ function getModule(app: IGeesomeApp) {
 			let range = req.headers['range'];
 			if (!range) {
 				let storageId = dataPath;
-				let content = await app.ms.database.getContentByStorageId(storageId, false);
+				let content = await app.ms.database.getContentByStorageId(storageId, true);
 				if (!content && dataPath.split('/').length > 1) {
 					storageId = dataPath.split('/')[0];
 					console.log('getContentByStorageId', storageId);
-					content = await app.ms.database.getContentByStorageId(storageId, false);
+					content = await app.ms.database.getContentByStorageId(storageId, true);
 				}
 				console.log('content', content);
 				if (!content) {
