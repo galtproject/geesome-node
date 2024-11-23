@@ -814,7 +814,7 @@ function getModule(app: IGeesomeApp) {
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 					if (!storageIdAllowed) {
-						return res.status(423).send(content);
+						return res.send(423);
 					}
 				}
 				if (content) {

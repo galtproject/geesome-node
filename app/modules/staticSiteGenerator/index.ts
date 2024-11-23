@@ -24,8 +24,6 @@ export default async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
-    //TODO: remove
-    models.StaticSite.destroy({where: {storageId: 'bafybeiernumconjaftgxu2sh5vwbnmnl75g7xrjsp7m7gfrxxowmvsemra'}});
     let finishCallbacks = {
 
     };
