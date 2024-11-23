@@ -141,6 +141,9 @@ describe("staticSiteGenerator", function () {
 		const [gotStaticSiteInfo] = await staticSiteGenerator.getStaticSiteList(testUser.id, 'group', {limit: 10, sortBy: 'createdAt', sortDir: 'DESC'});
 		assert.equal(gotStaticSiteInfo.title, site.title);
 		assert.equal(gotStaticSiteInfo.name, site.name);
+
+		assert.equal(await staticSiteGenerator.isStorageIdAllowed(directoryStorageId), true);
+		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [directoryStorageId]), true);
 	});
 
 	it('should generate site correctly from content list', async () => {

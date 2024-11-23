@@ -812,10 +812,10 @@ function getModule(app: IGeesomeApp) {
 				}
 				console.log('content', content);
 				if (!content) {
-					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
-					if (!storageIdAllowed) {
-						return res.send(423);
-					}
+					// const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+					// if (!storageIdAllowed) {
+					// 	return res.send(423);
+					// }
 				}
 				if (content) {
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;

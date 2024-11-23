@@ -409,11 +409,10 @@ function getModule(config, appPass) {
 
     async callHook(callFromModule, name, args) {
       const supportHookListExist = !!this.msSupportHookList[name];
+      const modulesList = this.msSupportHookList[name] || this.config.modules;
       if (!supportHookListExist) {
         this.msSupportHookList[name] = [];
       }
-
-      const modulesList = this.msSupportHookList[name] || this.config.modules;
       return pIteration.mapSeries(modulesList, (moduleName: string) => {
         if (!this.ms[moduleName] || !this.ms[moduleName][name]) {
           return;
@@ -431,7 +430,10 @@ function getModule(config, appPass) {
 
 
     async callHookCheckAllowed(callFromModule, name, args) {
-      return this.callHook(callFromModule, name, args).then(responseList => responseList.some(a => !!a))
+      return this.callHook(callFromModule, name, args).then(responseList => {
+        console.log('responseList', responseList);
+        return responseList.some(a => !!a);
+      })
     }
 
     /**
