@@ -24,6 +24,8 @@ export default async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
+    //TODO: remove
+    models.StaticSite.destroy({where: {storageId: 'bafybeiernumconjaftgxu2sh5vwbnmnl75g7xrjsp7m7gfrxxowmvsemra'}});
     let finishCallbacks = {
 
     };
@@ -131,6 +133,14 @@ function getModule(app: IGeesomeApp, models) {
             this.processQueue();
 
             return waitingQueue;
+        }
+
+        async isStorageIdAllowed(storageId: string): Promise<boolean> {
+            return this.getStaticSiteByStorageId(storageId).then(site => !!site);
+        }
+
+        async getStaticSiteByStorageId(storageId: string): Promise<boolean> {
+            return models.StaticSite.findOne({where: {storageId}});
         }
 
         async getDefaultOptionsByGroupId(userId: number, groupId: number) {
