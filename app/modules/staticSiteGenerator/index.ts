@@ -18,13 +18,13 @@ let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
     app.checkModules(['asyncOperation', 'group', 'content']);
-    const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+    const module = await getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
     (await import('./api.js')).default(app, module);
     return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
-    models.StaticSite.destroy({where: {storageId: 'bafybeiernumconjaftgxu2sh5vwbnmnl75g7xrjsp7m7gfrxxowmvsemra'}});
+async function getModule(app: IGeesomeApp, models) {
+    console.log('[SSG] destroy', await models.StaticSite.destroy({where: {storageId: 'bafybeiernumconjaftgxu2sh5vwbnmnl75g7xrjsp7m7gfrxxowmvsemra'}}));
     let finishCallbacks = {
 
     };
