@@ -102,6 +102,8 @@ export interface IGeesomeApp {
 
   callHook(callFromModule, name, args): Promise<any>;
 
+  callHookCheckAllowed(callFromModule, name, args): Promise<boolean>;
+
   //TODO: define interface
   getPeers(topic): Promise<any>;
 

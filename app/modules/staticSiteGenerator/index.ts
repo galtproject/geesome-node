@@ -18,12 +18,12 @@ let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
     app.checkModules(['asyncOperation', 'group', 'content']);
-    const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+    const module = await getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
     (await import('./api.js')).default(app, module);
     return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+async function getModule(app: IGeesomeApp, models) {
     let finishCallbacks = {
 
     };
@@ -131,6 +131,14 @@ function getModule(app: IGeesomeApp, models) {
             this.processQueue();
 
             return waitingQueue;
+        }
+
+        async isStorageIdAllowed(storageId: string): Promise<boolean> {
+            return this.getStaticSiteByStorageId(storageId).then(site => !!site);
+        }
+
+        async getStaticSiteByStorageId(storageId: string): Promise<boolean> {
+            return models.StaticSite.findOne({where: {storageId}});
         }
 
         async getDefaultOptionsByGroupId(userId: number, groupId: number) {

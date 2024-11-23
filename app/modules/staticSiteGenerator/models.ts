@@ -44,6 +44,7 @@ export default async function (sequelize: Sequelize) {
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
 			{ fields: ['name'], unique: true },
 			{ fields: ['entityType', 'entityId'] },
+			{ fields: ['storageId'] },
 		]
 	} as any);
 

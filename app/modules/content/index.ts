@@ -803,12 +803,20 @@ function getModule(app: IGeesomeApp) {
 			dataPath = await this.getDataPath(dataPath);
 			let range = req.headers['range'];
 			if (!range) {
-				let content = await app.ms.database.getContentByStorageId(dataPath, false);
+				let storageId = dataPath;
+				let content = await app.ms.database.getContentByStorageId(storageId, true);
 				if (!content && dataPath.split('/').length > 1) {
-					console.log('getContentByStorageId', dataPath.split('/')[0]);
-					content = await app.ms.database.getContentByStorageId(dataPath.split('/')[0], false);
+					storageId = dataPath.split('/')[0];
+					console.log('getContentByStorageId', storageId);
+					content = await app.ms.database.getContentByStorageId(storageId, true);
 				}
 				console.log('content', content);
+				if (!content) {
+					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+					if (!storageIdAllowed) {
+						return res.send(423);
+					}
+				}
 				if (content) {
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
 					console.log('contentType', contentType);
