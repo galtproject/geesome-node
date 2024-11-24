@@ -1,7 +1,7 @@
 .content-list {
   display: flex;
   flex-wrap: wrap;
-  padding: 20px;
+  padding: 20px 20px 0;
   .content-item {
     width: calc(20% - 40px/5);
     background: no-repeat center/cover;
@@ -30,7 +30,7 @@
 
 @media (max-width: $MQMobileNarrow) {
   .content-list {
-    padding: 10px;
+    padding: 10px 10px 0;
 
     .content-item {
       width: calc(100%);
