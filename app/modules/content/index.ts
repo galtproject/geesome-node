@@ -722,9 +722,7 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			if (!resultFile.size) {
-				const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
-				log('getFileStat storageContentStat', storageContentStat);
-				resultFile.size = storageContentStat.size;
+				resultFile.size = await this.getFileSize(resultFile.id);
 				log('resultFile.size', resultFile.size);
 			}
 
@@ -811,7 +809,6 @@ function getModule(app: IGeesomeApp) {
 					content = await app.ms.database.getContentByStorageId(storageId, true);
 				}
 				console.log('content', content ? content.toJSON() : content);
-				console.log('getFileStat', await app.ms.storage.getFileStat(storageId));
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 					if (!storageIdAllowed) {
@@ -830,6 +827,8 @@ function getModule(app: IGeesomeApp) {
 				} else if (dataPath.endsWith('.js')) {
 					res.setHeader('Content-Type', 'text/javascript');
 				}
+				console.log('getFileStat', await app.ms.storage.getFileStat(dataPath));
+				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, await this.getFileSize(dataPath), false));
 				return this.getFileStream(dataPath).then((stream) => {
 					stream.pipe(res.stream);
 				});

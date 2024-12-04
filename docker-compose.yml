@@ -47,7 +47,7 @@ services:
     container_name: go_ipfs
     image: "ipfs/kubo:v0.21.0"
     restart: always
-    entrypoint: ["/bin/sh", "-c", "ipfs init; ipfs daemon & echo 'ipfs daemon started.'; sleep 86400; echo 'restart ipfs...'; reboot"]
+    entrypoint: ["/bin/sh", "-c", "ipfs init; ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001; ipfs daemon & echo 'ipfs daemon started.'; sleep 86400; echo 'restart ipfs...'; reboot"]
     environment:
       - IPFS_PROFILE
     expose:
