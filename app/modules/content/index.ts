@@ -810,7 +810,8 @@ function getModule(app: IGeesomeApp) {
 					console.log('getContentByStorageId', storageId);
 					content = await app.ms.database.getContentByStorageId(storageId, true);
 				}
-				console.log('content', content);
+				console.log('content', content ? content.toJSON() : content);
+				console.log('getFileStat', await app.ms.storage.getFileStat(storageId));
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 					if (!storageIdAllowed) {
