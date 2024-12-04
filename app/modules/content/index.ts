@@ -722,9 +722,7 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			if (!resultFile.size) {
-				const storageContentStat = await app.ms.storage.getFileStat(resultFile.id);
-				log('getFileStat storageContentStat', storageContentStat);
-				resultFile.size = storageContentStat.size;
+				resultFile.size = await this.getFileSize(resultFile.id);
 				log('resultFile.size', resultFile.size);
 			}
 
@@ -810,13 +808,14 @@ function getModule(app: IGeesomeApp) {
 					console.log('getContentByStorageId', storageId);
 					content = await app.ms.database.getContentByStorageId(storageId, true);
 				}
-				console.log('content', content);
+				console.log('content', content ? content.toJSON() : content);
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 					if (!storageIdAllowed) {
 						return res.send(423);
 					}
 				}
+
 				if (content) {
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
 					console.log('contentType', contentType);
@@ -829,6 +828,14 @@ function getModule(app: IGeesomeApp) {
 				} else if (dataPath.endsWith('.js')) {
 					res.setHeader('Content-Type', 'text/javascript');
 				}
+				const fileStat = await app.ms.storage.getFileStat(dataPath);
+				console.log('getFileStat', fileStat);
+				if (fileStat) {
+					content = await app.ms.database.getContentByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), true);
+				}
+				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false);
+				console.log('headers', headers);
+				res.writeHead(200, headers);
 				return this.getFileStream(dataPath).then((stream) => {
 					stream.pipe(res.stream);
 				});
@@ -910,14 +917,21 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getIpfsHashHeadersObj(content, dataPath, dataSize?, preview?) {
-			if (!dataSize) {
+			if (!dataSize && dataSize !== 0) {
 				dataSize = await this.getFileSize(dataPath, content);
 			}
+			let contentData = {}
+			if (content) {
+				contentData['Content-Type'] = content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType;
+			}
+			if (dataSize) {
+				contentData['Content-Length'] = dataSize;
+				contentData['x-ipfs-datasize'] = dataSize;
+			}
 			return {
+				...contentData,
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
-				'Content-Type': content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType,
-				'Content-Length': dataSize,
 				'cache-control': 'public, max-age=29030400, immutable',
 				'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
 				'x-ipfs-path': dataPath,
@@ -926,7 +940,6 @@ function getModule(app: IGeesomeApp) {
 				'x-ipfs-pop': 'ipfs-bank12-am6',
 				'x-ipfs-lb-pop': 'gateway-bank2-am6',
 				'x-proxy-cache': 'MISS',
-				'x-ipfs-datasize': dataSize,
 				'timing-allow-origin': '*'
 			}
 		}
