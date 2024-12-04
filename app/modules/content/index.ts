@@ -815,6 +815,7 @@ function getModule(app: IGeesomeApp) {
 						return res.send(423);
 					}
 				}
+
 				if (content) {
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
 					console.log('contentType', contentType);
@@ -827,8 +828,12 @@ function getModule(app: IGeesomeApp) {
 				} else if (dataPath.endsWith('.js')) {
 					res.setHeader('Content-Type', 'text/javascript');
 				}
-				console.log('getFileStat', await app.ms.storage.getFileStat(dataPath));
-				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, await this.getFileSize(dataPath), false));
+				const fileStat = await app.ms.storage.getFileStat(dataPath);
+				console.log('getFileStat', fileStat);
+				if (fileStat) {
+					content = await app.ms.database.getContentByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), true);
+				}
+				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false));
 				return this.getFileStream(dataPath).then((stream) => {
 					stream.pipe(res.stream);
 				});
@@ -913,10 +918,14 @@ function getModule(app: IGeesomeApp) {
 			if (!dataSize) {
 				dataSize = await this.getFileSize(dataPath, content);
 			}
+			let contentData = {}
+			if (content) {
+				contentData['Content-Type'] = content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType;
+			}
 			return {
+				...contentData,
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
-				'Content-Type': content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType,
 				'Content-Length': dataSize,
 				'cache-control': 'public, max-age=29030400, immutable',
 				'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
