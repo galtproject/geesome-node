@@ -915,18 +915,21 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async getIpfsHashHeadersObj(content, dataPath, dataSize?, preview?) {
-			if (!dataSize) {
+			if (!dataSize && dataSize !== 0) {
 				dataSize = await this.getFileSize(dataPath, content);
 			}
 			let contentData = {}
 			if (content) {
 				contentData['Content-Type'] = content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType;
 			}
+			if (dataSize) {
+				contentData['Content-Length'] = dataSize;
+				contentData['x-ipfs-datasize'] = dataSize;
+			}
 			return {
 				...contentData,
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
-				'Content-Length': dataSize,
 				'cache-control': 'public, max-age=29030400, immutable',
 				'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
 				'x-ipfs-path': dataPath,
@@ -935,7 +938,6 @@ function getModule(app: IGeesomeApp) {
 				'x-ipfs-pop': 'ipfs-bank12-am6',
 				'x-ipfs-lb-pop': 'gateway-bank2-am6',
 				'x-proxy-cache': 'MISS',
-				'x-ipfs-datasize': dataSize,
 				'timing-allow-origin': '*'
 			}
 		}
