@@ -19,7 +19,7 @@ const port = isHttps ? 2053 : 2052;
   let apiKey = process.env.API_KEY;
   const server = (isHttps ? 'https' : 'http') + '://' + hostname + ':' + port;
   console.log('server', server);
-  const geesomeClient = new GeesomeClient({ server, apiKey });
+  const geesomeClient = new GeesomeClient({server, apiKey});
 
   if (!apiKey) {
     ({apiKey} = await geesomeClient.setup({
@@ -39,13 +39,13 @@ const port = isHttps ? 2053 : 2052;
         name: 'imageWatermark',
         module: 'convert',
         params: {
-          text: 'eraofmeat.com',
+          text: 'test.com',
           color: '#ffffff80',
           background: 'black',
           // background: '#ffffff80',
           font: 'monospace',
           spacing: 50,
-          sizeRatio: 1/50,
+          sizeRatio: 1 / 50,
           extension: 'jpg'
         }
       }
@@ -54,7 +54,10 @@ const port = isHttps ? 2053 : 2052;
 
   const contentList = await Promise.all(promises);
 
-  let userQueueOperation = await geesomeClient.staticSiteRunGenerate({entityType: 'content-list', entityIds: contentList.map(c => c.id)}, {
+  let userQueueOperation = await geesomeClient.staticSiteRunGenerate({
+    entityType: 'content-list',
+    entityIds: contentList.map(c => c.id)
+  }, {
     site: {
       title: new Date().toISOString().slice(0, 19).replace('T', " "),
       name: 'test-' + new Date().getTime()
@@ -125,7 +128,7 @@ const port = isHttps ? 2053 : 2052;
 
   do {
     userQueueOperation = await geesomeClient.getOperationQueueItem(userQueueOperation.id);
-  } while(!userQueueOperation.asyncOperation || userQueueOperation.asyncOperation.inProcess);
+  } while (!userQueueOperation.asyncOperation || userQueueOperation.asyncOperation.inProcess);
   console.log('userQueueOperation', userQueueOperation);
   const {output} = userQueueOperation.asyncOperation;
   console.log('link:', geesomeClient.getContentLinkByStorageId(JSON.parse(output).storageId, true));
@@ -165,6 +168,7 @@ function sendPost(path, apiKey, data) {
     req.end();
   })
 }
+
 function isIpAddress(str) {
   return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(str);
 }
