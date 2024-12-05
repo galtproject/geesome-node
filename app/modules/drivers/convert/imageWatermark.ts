@@ -26,7 +26,7 @@ export class ImageWatermarkDriver extends AbstractDriver {
 
     const {color, background, spacing, font, sizeRatio} = options;
     const biggestSide = metadata.width > metadata.height ? metadata.width : metadata.height;
-    const size = Math.round(biggestSide * (sizeRatio || 1/50)); //size
+    const size = Math.round(biggestSide * (sizeRatio || 1 / 50)); //size
     const padding = size / 2; //margin
     const textLen = options.text.length;
     const width = r(size * textLen * 0.7), height = size;
@@ -48,12 +48,12 @@ export class ImageWatermarkDriver extends AbstractDriver {
       height: metadata.height + size * 2
     };
     const watermarkStream = sharp({create: createBackground})
-        .composite([
-          {input: path, left: 0, top: 0},
-          {input: {text}, left: size, top: metadata.height + padding},
-        ])
-        .withMetadata()
-        .toFormat(options.extension);
+      .composite([
+        {input: path, left: 0, top: 0},
+        {input: {text}, left: size, top: metadata.height + padding},
+      ])
+      .withMetadata()
+      .toFormat(options.extension);
 
     const resultStream = inputStream.pipe(watermarkStream) as Stream;
 
