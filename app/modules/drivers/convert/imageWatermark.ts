@@ -29,7 +29,7 @@ export class ImageWatermarkDriver extends AbstractDriver {
     const size = Math.round(biggestSide * (sizeRatio || 1/50)); //size
     const padding = size / 2; //margin
     const textLen = options.text.length;
-    const width = r(size * textLen * 0.7), height = size, left = size, top = metadata.height - size * 2;
+    const width = r(size * textLen * 0.7), height = size;
 
     const text = {
       text: `<span foreground="${color}">${options.text}</span>`,
@@ -42,15 +42,15 @@ export class ImageWatermarkDriver extends AbstractDriver {
       width
     };
     const createBackground = {
-      width: r(width + size),
-      height: r(height + size),
       background,
-      channels: 4
+      channels: 4,
+      width: metadata.width,
+      height: metadata.height + size * 2
     };
-    const watermarkStream = sharp(path)
+    const watermarkStream = sharp({create: createBackground})
         .composite([
-          {input: {create: createBackground}, left: r(left - padding), top: r(top - padding)},
-          {input: {text}, left, top},
+          {input: path, left: 0, top: 0},
+          {input: {text}, left: size, top: metadata.height + padding},
         ])
         .withMetadata()
         .toFormat(options.extension);

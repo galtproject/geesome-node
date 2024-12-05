@@ -39,9 +39,10 @@ const port = isHttps ? 2053 : 2052;
         name: 'imageWatermark',
         module: 'convert',
         params: {
-          text: 'test.com',
-          color: 'black',
-          background: '#ffffff80',
+          text: 'eraofmeat.com',
+          color: '#ffffff80',
+          background: 'black',
+          // background: '#ffffff80',
           font: 'monospace',
           spacing: 50,
           sizeRatio: 1/50,
