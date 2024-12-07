@@ -27,9 +27,9 @@ export class ImageWatermarkDriver extends AbstractDriver {
     const {color, background, spacing, font, sizeRatio} = options;
     const biggestSide = metadata.width > metadata.height ? metadata.width : metadata.height;
     const size = Math.round(biggestSide * (sizeRatio || 1 / 50)); //size
-    const padding = size / 2; //margin
+    const padding = Math.round(size / 2);
     const textLen = options.text.length;
-    const width = r(size * textLen * 0.7), height = size;
+    const width = Math.round(size * textLen * 0.7), height = size;
 
     const text = {
       text: `<span foreground="${color}">${options.text}</span>`,
