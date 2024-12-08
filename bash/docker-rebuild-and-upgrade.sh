@@ -4,8 +4,7 @@
 git checkout -- .
 git pull
 
-sudo chmod +x bash/*.sh && ./bash/docker-build.sh
+sudo chmod +x bash/*.sh && ./bash/docker-build.sh && ./bash/docker-prune.sh
 
 systemctl daemon-reload
 systemctl restart geesome-docker
-./bash/docker-prune.sh
