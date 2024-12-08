@@ -110,7 +110,12 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getFileCatalogItem(fileCatalogId);
 		}
 
-		async getFileCatalogItems(userId, parentItemId, type?, search = '', listParams?: IListParams) {
+		public async updateFileCatalogList(userId, fileCatalogIds, updateData) {
+			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
+			return models.FileCatalogItem.update(pick(updateData, ['description', 'type', 'view', 'position', 'isDeleted']), {where: {id: {[Op.in]: fileCatalogIds}, userId}});
+		}
+
+		async getFileCatalogItems(userId, parentItemId, type?, search = '', isDeleted = false, listParams?: IListParams) {
 			listParams = helpers.prepareListParams(listParams);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			if (parentItemId == 'null') {
@@ -124,8 +129,8 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			console.log('userId', userId, 'parentItemId', parentItemId, 'type', type, 'search', search);
 			return {
-				list: await this.getFileCatalogItemsList(userId, parentItemId, type, search, listParams),
-				total: await this.getFileCatalogItemsCount(userId, parentItemId, type, search)
+				list: await this.getFileCatalogItemsList(userId, parentItemId, type, search, isDeleted, listParams),
+				total: await this.getFileCatalogItemsCount(userId, parentItemId, type, search, isDeleted)
 			};
 		}
 
@@ -329,11 +334,11 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IFileCatalogItem;
 		}
 
-		async getFileCatalogItemsList(userId, parentItemId, type = null, search = '', listParams: IListParams = {}) {
+		async getFileCatalogItemsList(userId, parentItemId, type = null, search = '', isDeleted = false, listParams: IListParams = {}) {
 			app.ms.database.setDefaultListParamsValues(listParams);
 
 			const {limit, offset, sortBy, sortDir} = listParams;
-			const where: any = {userId, type, isDeleted: false};
+			const where: any = {userId, type, isDeleted: !!isDeleted};
 			if (!isUndefined(parentItemId)) {
 				where.parentItemId = parentItemId;
 			}
@@ -349,8 +354,8 @@ function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
-		async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '') {
-			const where: any = {userId, type, isDeleted: false};
+		async getFileCatalogItemsCount(userId, parentItemId, type = null, search = '', isDeleted = false) {
+			const where: any = {userId, type, isDeleted: !!isDeleted};
 			if (!isUndefined(parentItemId)) {
 				where.parentItemId = parentItemId;
 			}

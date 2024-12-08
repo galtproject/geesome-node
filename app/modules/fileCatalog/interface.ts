@@ -22,7 +22,7 @@ export default interface IGeesomeFileCatalogModule {
 
 	getContentByPath(userId, path): Promise<IContent>;
 
-	getFileCatalogItems(userId, parentItemId, type?, search?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
+	getFileCatalogItems(userId, parentItemId, type?, search?, isDeleted?, listParams?: IListParams): Promise<IFileCatalogListResponse>;
 
 	getFileCatalogItemsBreadcrumbs(userId, itemId): Promise<IFileCatalogItem[]>;
 
@@ -37,6 +37,8 @@ export default interface IGeesomeFileCatalogModule {
 	publishFolder(userId, fileCatalogId, options?: {bindToStatic?}): Promise<{storageId:string, staticId?:string}>;
 
 	saveManifestsToFolder(userId, path, toSaveList: ManifestToSave[], options?: { groupId? }): Promise<IFileCatalogItem>;
+
+	updateFileCatalogList(userId, fileCatalogIds, updateData): Promise<any>;
 
 	deleteFileCatalogItem(userId, fileCatalogId, options): Promise<boolean>;
 
