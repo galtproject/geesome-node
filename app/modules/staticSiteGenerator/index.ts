@@ -212,7 +212,7 @@ async function getModule(app: IGeesomeApp, models) {
             const siteStorageDir = `/${staticSite.staticId}-site`;
 
             await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
-            await this.copyContentsToSite(siteStorageDir, contents);
+            await this.copyContentsToSite(siteStorageDir, contents, true);
 
             return {
                 staticSite,
@@ -401,9 +401,9 @@ async function getModule(app: IGeesomeApp, models) {
             }
         }
 
-        async copyContentsToSite(siteStorageDir, contents: IContentData[]) {
+        async copyContentsToSite(siteStorageDir, contents: IContentData[], numericNames = false) {
             const copied = {};
-            await pIteration.forEach(contents, async (c: IContentData) => {
+            await pIteration.forEach(contents, async (c: IContentData, index) => {
                 if (copied[c.storageId]) {
                     return;
                 }
@@ -414,8 +414,9 @@ async function getModule(app: IGeesomeApp, models) {
                 });
                 const contentPath = `${siteStorageDir}/content`;
                 if(c.type !== 'text') {
-                    await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${c.storageId}.${c.extension}`).catch(e => console.warn('copyContentsToSite', e.message));
-                    await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${c.previewStorageId}.${c.previewExtension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                    const prefix = numericNames ? `${index + 1}_` : ``;
+                    await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${prefix}${c.storageId}.${c.extension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                    await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${prefix}${c.previewStorageId}.${c.previewExtension}`).catch(e => console.warn('copyContentsToSite', e.message));
                 }
                 copied[c.storageId] = true;
             });
