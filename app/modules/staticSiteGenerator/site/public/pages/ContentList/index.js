@@ -27,7 +27,7 @@ export default {
               component: markRaw(ImageModal),
               closeOnBackdrop: true,
               props: {
-                  imageList: this.contents.map(c => this.contentRoot + c.storageId + '.' + c.extension),
+                  imageList: this.contents.map((c, index) => this.contentRoot + (index + 1).toString() + '_' + c.storageId + '.' + c.extension),
                   imageIndex,
               }
           });
