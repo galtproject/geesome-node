@@ -109,8 +109,12 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         res.send(await contentModule.getContent(req.params.contentId));
     });
 
-    app.ms.api.onGet('content-by-storage-id/:contentStorageId', async (req, res) => {
+    app.ms.api.onAuthorizedGet('content-by-storage-id/:contentStorageId', async (req, res) => {
         res.send(await contentModule.getContentByStorageAndUserId(req.params.contentStorageId, req.user.id));
+    });
+
+    app.ms.api.onAuthorizedPost('content-list-by-storage-id', async (req, res) => {
+        res.send(await contentModule.getContentByStorageIdListAndUserId(req.body.idList, req.user.id));
     });
 
     app.ms.api.onGet('content-stats/*', async (req, res) => {

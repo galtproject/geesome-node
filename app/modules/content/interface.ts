@@ -12,6 +12,8 @@ export default interface IGeesomeContentModule {
 
 	getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
+	getContentByStorageIdListAndUserId(storageIdList, userId): Promise<IContent[]>;
+
 	getContentByManifestId(storageId): Promise<IContent>;
 
 	createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }): Promise<IContent>;
