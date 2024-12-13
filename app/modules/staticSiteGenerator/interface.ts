@@ -28,6 +28,8 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	getStaticSiteList(userId: number, entityType?: string, listParams?: IListParams): Promise<IStaticSite[]>;
 
+	getStaticSiteResponse(userId: number, entityType?: string, listParams?: IListParams): Promise<{list: IStaticSite[], total: number}>;
+
 	bindSiteToStaticId(userId: number, staticSiteId: number): Promise<any>;
 
 	updateStaticSiteInfo(userId: number, staticSiteId: number, updateData: any): Promise<any>;

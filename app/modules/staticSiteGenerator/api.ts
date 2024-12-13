@@ -18,7 +18,7 @@ export default (_app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule)
 		return res.send(await ssgModule.getStaticSiteInfo(req.user.id, pickRenderArgs(req.body)), 200);
 	});
 	api.onAuthorizedPost('get-list', async (req, res) => {
-		return res.send(await ssgModule.getStaticSiteList(req.user.id, req.body.entityType, helpers.prepareListParams(req.body)), 200);
+		return res.send(await ssgModule.getStaticSiteResponse(req.user.id, req.body.entityType, helpers.prepareListParams(req.body)), 200);
 	});
 	api.onAuthorizedPost('run', async (req, res) => {
 		return res.send(await ssgModule.addRenderToQueueAndProcess(req.user.id, req.apiKey.id, pickRenderArgs(req.body), req.body.options), 200);
