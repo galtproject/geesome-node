@@ -67,6 +67,13 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getContentByStorageAndUserId(storageId, userId);
 		}
 
+		getContentByStorageIdListAndUserId(storageIdList, userId) {
+			if (storageIdList.length > 1000) {
+				throw new Error('storageIdList.length too long');
+			}
+			return app.ms.database.getContentByStorageIdListAndUserId(storageIdList, userId);
+		}
+
 		getContentByManifestId(storageId) {
 			return app.ms.database.getContentByManifestId(storageId);
 		}

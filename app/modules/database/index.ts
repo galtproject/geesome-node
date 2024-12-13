@@ -172,6 +172,10 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return this.models.Content.findOne({where: {storageId, userId}}) as IContent;
   }
 
+  async getContentByStorageIdListAndUserId(storageIdList, userId) {
+    return this.models.Content.findOne({where: {storageId: {[Op.in]: storageIdList}, userId}}) as IContent;
+  }
+
   async getContentByManifestId(manifestStorageId) {
     return this.models.Content.findOne({where: {manifestStorageId}}) as IContent;
   }

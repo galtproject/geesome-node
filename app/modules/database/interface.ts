@@ -46,6 +46,8 @@ export interface IGeesomeDatabaseModule {
 
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
+  getContentByStorageIdListAndUserId(storageIdList, userId): Promise<IContent[]>;
+
   getContentByManifestId(manifestId): Promise<IContent>;
 
   getObjectByStorageId(storageId, resolveProp?): Promise<IObject>;

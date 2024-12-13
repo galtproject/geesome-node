@@ -113,6 +113,10 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         res.send(await contentModule.getContentByStorageAndUserId(req.params.contentStorageId, req.user.id));
     });
 
+    app.ms.api.onAuthorizedPost('content-list-by-storage-id', async (req, res) => {
+        res.send(await contentModule.getContentByStorageIdListAndUserId(req.body.idList, req.user.id));
+    });
+
     app.ms.api.onGet('content-stats/*', async (req, res) => {
         const dataPath = req.route.replace('content-stats/', '');
         return app.ms.storage.getFileStat(dataPath).then(d => res.send(d));
