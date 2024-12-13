@@ -502,6 +502,21 @@ async function getModule(app: IGeesomeApp, models) {
             return models.StaticSite.findAll({ where, limit, offset, order: [[sortBy, sortDir.toUpperCase()]]}) as IStaticSite[];
         }
 
+        async getStaticSiteCount(userId: number, entityType?: string, listParams: IListParams = {}) {
+            const where: any = {userId};
+            if (entityType) {
+                where['entityType'] = entityType;
+            }
+            return models.StaticSite.findAll({ where }) as IStaticSite[];
+        }
+
+        async getStaticSiteResponse(userId: number, entityType?: string, listParams: IListParams = {}) {
+            return {
+                list: await this.getStaticSiteList(userId, entityType, listParams),
+                total: await this.getStaticSiteCount(userId, entityType)
+            }
+        }
+
         isAutoActionAllowed(userId, funcName, funcArgs) {
             return ['addRenderToQueueAndProcess', 'runRenderAndWaitForFinish', 'bindSiteToStaticId'].includes(funcName);
         }
