@@ -6,7 +6,7 @@ export default (app: IGeesomeApp, fileCatalogModule: IGeesomeFileCatalogModule) 
 
     fileCatalogApi.onAuthorizedGet('', async (req, res) => {
         console.log('req.query', req.query);
-        res.send(await fileCatalogModule.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.isDeleted, req.query.search, req.query));
+        res.send(await fileCatalogModule.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query.isDeleted, req.query));
     });
     fileCatalogApi.onAuthorizedPost('update-items', async (req, res) => {
         res.send(await fileCatalogModule.updateFileCatalogList(req.user.id, req.body.fileCatalogIds, req.body));
