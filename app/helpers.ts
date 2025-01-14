@@ -96,8 +96,8 @@ export default {
 
 	prepareListParams(listParams?: IListParams): IListParams {
 		const res = pick(listParams, ['sortBy', 'sortDir', 'limit', 'offset']);
-		if (res.limit > 1000) {
-			res.limit = 1000;
+		if (res.limit > 10000) {
+			res.limit = 10000;
 		}
 		if (!res.sortBy) {
 			res.sortBy = 'createdAt';
