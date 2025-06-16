@@ -33,7 +33,7 @@ export default async function (sequelize, appModels) {
 			type: DataTypes.STRING(200)
 		},
 		size: {
-			type: DataTypes.INTEGER
+			type: DataTypes.BIGINT
 		},
 		position: {
 			type: DataTypes.INTEGER
