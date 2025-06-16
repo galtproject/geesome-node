@@ -57,9 +57,10 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			const methodPromise = this.executeOperation(moduleName, funcName, args);
 
-			console.error('res.id', res.id);
+			console.error('executeOperation', moduleName, funcName, args);
 			methodPromise
 				.then((res: any) => {
+					console.error('res.id', res.id, 'asyncOperation.id', asyncOperation.id);
 					this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						contentId: res.id
