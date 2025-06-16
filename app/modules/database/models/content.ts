@@ -34,7 +34,7 @@ export default async function (sequelize, models) {
       type: DataTypes.STRING
     },
     size: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     isPublic: {
       type: DataTypes.BOOLEAN
