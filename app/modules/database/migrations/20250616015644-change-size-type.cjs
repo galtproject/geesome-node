@@ -1,4 +1,6 @@
-export default {
+'use strict';
+
+module.exports = {
   up: async (queryInterface, Sequelize) => {
     return Promise.all([
       queryInterface.changeColumn('contents', 'size', {
