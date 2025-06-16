@@ -57,6 +57,7 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			const methodPromise = this.executeOperation(moduleName, funcName, args);
 
+			console.error('res.id', res.id);
 			methodPromise
 				.then((res: any) => {
 					this.updateUserAsyncOperation(asyncOperation.id, {
@@ -66,6 +67,7 @@ function getModule(app: IGeesomeApp, models) {
 					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
 				.catch((e) => {
+					console.error('asyncOperationWrapper', e);
 					return this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						errorType: 'unknown',
