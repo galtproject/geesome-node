@@ -1,0 +1,11 @@
+[Unit]
+Description=Restart IPFS container
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker restart go_ipfs
+
+[Install]
+WantedBy=multi-user.target
+
+
