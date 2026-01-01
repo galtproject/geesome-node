@@ -49,7 +49,7 @@ services:
     restart: always
     environment:
       - IPFS_PROFILE
-    entrypoint: ["/bin/sh", "-c", "ipfs init; ipfs config Addresses.API /ip4/0.0.0.0/tcp/5001; ipfs daemon & echo 'ipfs daemon started.'; sleep 86400; echo 'restart ipfs...'; reboot"]
+    entrypoint: ["ipfs", "daemon", "--migrate=true"]
     expose:
       - 5001
     ports:

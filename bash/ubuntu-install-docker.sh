@@ -18,5 +18,10 @@ docker compose build --no-cache && mkdir -p .docker-data
 
 sudo sed "s|/root/geesome-node|$PWD|g" < bash/geesome-docker.service > /etc/systemd/system/geesome-docker.service
 
+sudo cp bash/geesome-ipfs-restart.service /etc/systemd/system/geesome-ipfs-restart.service
+sudo cp bash/geesome-ipfs-restart.timer /etc/systemd/system/geesome-ipfs-restart.timer
+
+sudo systemctl daemon-reload
 systemctl enable geesome-docker
 systemctl start geesome-docker
+systemctl enable --now geesome-ipfs-restart.timer
