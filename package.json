@@ -91,7 +91,6 @@
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
     "protons-runtime": "5.5.0",
-    "request": "^2.88.2",
     "rimraf": "^3.0.2",
     "sass": "^1.43.4",
     "sass-loader": "^12.3.0",
