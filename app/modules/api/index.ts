@@ -120,7 +120,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 			if (!req.user || !req.user.id) {
 				return res.send({error: "Not authorized", errorCode: 2}, 401);
 			}
-			return this.handleCallback(req, res, callback);
+			return app.runWithApiKey(apiKey, () => this.handleCallback(req, res, callback));
 		}
 
 		onAuthorizedGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {

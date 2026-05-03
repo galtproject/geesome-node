@@ -137,6 +137,8 @@ export interface IUserApiKey {
   title?: string;
   userId: number;
   valueHash: string;
+  type?: string;
+  permissions?: string;
   expiredOn?: Date;
   isDisabled: boolean;
 }

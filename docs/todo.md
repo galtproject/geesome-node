@@ -146,13 +146,15 @@ Verification:
 
 ### 5. API Key Permissions And Expiration
 
+Status: implemented in [#190](https://github.com/galtproject/geesome-node/issues/190). Disabled and expired API keys no longer authenticate, and authorized API requests now apply the current key's stored permissions as a request-scoped limit on top of the user's core permissions.
+
 Goal: make API keys safer before broader service integrations.
 
 Scope:
 
-- Implement [#190](https://github.com/galtproject/geesome-node/issues/190) by rejecting disabled or expired keys in API authentication.
-- Clarify whether `permissions` on `userApiKey` should constrain core permissions at request time.
-- Add tests for disabled, expired, and permission-limited API keys.
+- Implemented [#190](https://github.com/galtproject/geesome-node/issues/190) by rejecting disabled or expired keys in API authentication.
+- `permissions` on `userApiKey` now constrain core permission checks at request time through an async request context. A user's own permissions remain the upper bound, and the API key must also allow the requested permission.
+- Added tests for disabled, expired, and permission-limited API keys.
 
 Likely modules:
 
