@@ -209,7 +209,7 @@ Cryptographic direction:
 Repo split:
 
 - `geesome-ui`: key generation/import/export UX, local private-key storage, encryption/decryption, recipient/device trust UI.
-- `geesome-libs`: crypto helper APIs, manifest schemas, key wrapping, message envelope encoding, compatibility tests.
+- `geesome-libs`: crypto helper APIs, manifest schemas, key wrapping, message envelope encoding, compatibility tests. Initial opaque envelope helpers are tracked in `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121).
 - `geesome-node`: storage/routing APIs for encrypted envelopes, public key lookup, membership metadata, delivery status, and migration away from backend plaintext handling.
 
 First deliverable:
@@ -217,6 +217,7 @@ First deliverable:
 - Write a protocol design note with threat model, device model, key lifecycle, group membership flow, offline recipients, recovery, and migration from the current PoC.
 - Mark backend encrypted chat endpoints as PoC/unsafe until frontend E2EE lands.
 - Add tests proving the node can persist and return opaque encrypted envelopes without needing plaintext.
+- Reuse the shared `geesome-libs` E2EE envelope helper contract from [#121](https://github.com/galtproject/geesome-libs/issues/121) for frontend/node compatibility tests.
 
 Verification:
 
@@ -260,6 +261,7 @@ First deliverable:
 - Design the ActivityPub data model and endpoint contract.
 - Implement read-only actor/outbox/WebFinger for one local group.
 - Add tests with deterministic JSON-LD payloads and signature fixtures.
+- Reuse the shared deterministic ActivityPub helper contract from `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121) for actor, WebFinger, Note/Create, digest, and request-signature fixtures.
 
 Verification:
 
