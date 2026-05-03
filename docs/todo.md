@@ -297,6 +297,7 @@ Implementation flow for all features and fixes:
 Preferred `gh` commands:
 
 - `gh auth status` before issue or PR work.
+- On macOS, `gh` may store tokens in the keyring; if sandboxed `gh auth status` reports an invalid token after the user has logged in, retry `gh auth status` or `gh api user --jq '.login'` with escalation before treating auth as broken.
 - `gh issue list --search "<keywords>"` to find an existing issue.
 - `gh issue create --title "<title>" --body "<description>"` when no suitable issue exists.
 - `gh pr create --fill --body "<summary>\n\nCloses #123"` after pushing the implementation branch.
