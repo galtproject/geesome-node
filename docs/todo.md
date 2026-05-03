@@ -37,7 +37,7 @@ Dependency security signals:
 
 - The old Dependabot PR batch is no longer open after the Node 22/API-key merges.
 - [#783](https://github.com/galtproject/geesome-node/issues/783) tracks the next dependency security pass.
-- `yarn audit --groups dependencies --level high` still reports high/critical transitive chains through older dependencies such as `bcrypt`/`@mapbox/node-pre-gyp`, `cids`/old IPFS packages, `sequelize-cli`, `geesome-libs`, deprecated transitive `request` consumers, and stale dev tooling.
+- `yarn audit --groups dependencies --level high` still reports high/critical transitive chains through older dependencies such as old IPFS packages, `sequelize-cli`, `geesome-libs`, and deprecated transitive `request` consumers.
 
 Runtime maintenance:
 
@@ -82,7 +82,7 @@ Verification:
 
 ### 2. Dependency Security Pass
 
-Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency. [#791](https://github.com/galtproject/geesome-node/issues/791) removes the deprecated unused `typings` devDependency.
+Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency. [#789](https://github.com/galtproject/geesome-node/issues/789) upgrades `bcrypt` to remove the vulnerable `@mapbox/node-pre-gyp` chain. [#791](https://github.com/galtproject/geesome-node/issues/791) removes the deprecated unused `typings` devDependency.
 
 Goal: merge or reproduce the Dependabot bumps in small batches.
 
@@ -92,7 +92,7 @@ Scope:
 - Remove unused direct legacy dependencies that only contribute transitive audit surface.
 - Remove stale direct dev tooling that is not called by scripts or source code.
 - Start with low-blast-radius transitive/dev bumps when Dependabot opens fresh PRs.
-- Handle runtime-sensitive bumps separately: `bcrypt`, old IPFS package chains, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
+- Handle runtime-sensitive bumps separately: old IPFS package chains, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
 - For `sequelize`, run database, group, static-site-generator, invite, pin, and social import tests because those modules rely on models and migrations.
 
 Verification:
@@ -100,6 +100,7 @@ Verification:
 - API module import smoke for the `request` removal.
 - Storage/API import smoke for the `cids` removal.
 - Package graph check for stale direct tooling removal.
+- Password helper smoke for the `bcrypt` major bump.
 - `yarn test`
 - `yarn audit --groups dependencies --level high` to document remaining high/critical chains.
 - If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command where local database/runtime permits.

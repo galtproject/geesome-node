@@ -23,6 +23,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 - Treat database and static-site-generator migrations as high-risk changes. Check the relevant module-local migration flow before adding or changing migrations.
 - When touching contracts shared with `geesome-libs` or `@geesome/ui`, review downstream impact before calling the task complete.
 - Keep `docs/todo.md` aligned when triaging GitHub issues or changing the README TODO list.
+- For dependency-security or Dependabot follow-ups, check open dependency-related issues and PRs before branching. If an open dependency PR already exists and the new work fits its scope, continue that PR branch and push the additional dependency fix there instead of opening parallel dependency PRs.
 - Treat chat encryption as unfinished unless the private keys stay in clients. Backend-side encryption is only a PoC and must not be documented as complete E2EE.
 - Treat libp2p chat transport as an online propagation layer, not as durable chat storage. Stable chat work must include opaque message persistence, acknowledgements, retry/backfill, ordering, and offline/device-sync behavior above pubsub.
 - Fast-delivery issues usually map to existing modules:
