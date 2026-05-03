@@ -32,17 +32,11 @@ Recent operational issues:
 - [#646 Add new group type: thread](https://github.com/galtproject/geesome-node/issues/646) - smaller group/feed evolution than secure chat.
 - [#641 Move packages to @geesome org](https://github.com/galtproject/geesome-node/issues/641) - package/dependency hygiene.
 
-Open Dependabot PRs that should be handled as security/maintenance work:
+Dependency security signals:
 
-- [#776 axios 1.12.0 to 1.15.0](https://github.com/galtproject/geesome-node/pull/776)
-- [#775 lodash 4.17.21 to 4.18.1](https://github.com/galtproject/geesome-node/pull/775)
-- [#774 handlebars 4.7.8 to 4.7.9](https://github.com/galtproject/geesome-node/pull/774)
-- [#773 picomatch 2.3.1 to 2.3.2](https://github.com/galtproject/geesome-node/pull/773)
-- [#772 sequelize 6.37.5 to 6.37.8](https://github.com/galtproject/geesome-node/pull/772)
-- [#771 immutable 4.3.2 to 4.3.8](https://github.com/galtproject/geesome-node/pull/771)
-- [#770 dottie 2.0.6 to 2.0.7](https://github.com/galtproject/geesome-node/pull/770)
-- [#769 ajv 6.12.6 to 6.14.0](https://github.com/galtproject/geesome-node/pull/769)
-- [#768 pbkdf2 3.1.2 to 3.1.5](https://github.com/galtproject/geesome-node/pull/768)
+- The old Dependabot PR batch is no longer open after the Node 22/API-key merges.
+- [#783](https://github.com/galtproject/geesome-node/issues/783) tracks the next dependency security pass.
+- `yarn audit --groups dependencies --level high` still reports high/critical transitive chains through older dependencies such as `bcrypt`/`@mapbox/node-pre-gyp`, `cids`/old IPFS packages, `sequelize-cli`, `geesome-libs`, and deprecated `request`.
 
 Runtime maintenance:
 
@@ -86,18 +80,23 @@ Verification:
 
 ### 2. Dependency Security Pass
 
+Status: started in [#783](https://github.com/galtproject/geesome-node/issues/783). The first slice removes the direct deprecated `request` dependency from the API proxy path and replaces it with Node's `http` module.
+
 Goal: merge or reproduce the Dependabot bumps in small batches.
 
 Scope:
 
-- Start with low-blast-radius transitive/dev bumps: `picomatch`, `handlebars`, `immutable`, `dottie`, `ajv`, `pbkdf2`.
-- Handle runtime-sensitive bumps separately: `axios`, `lodash`, `sequelize`.
+- Remove or replace direct deprecated dependencies where the code path is small and already covered by import smoke.
+- Start with low-blast-radius transitive/dev bumps when Dependabot opens fresh PRs.
+- Handle runtime-sensitive bumps separately: `bcrypt`, `cids`/old IPFS packages, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
 - For `sequelize`, run database, group, static-site-generator, invite, pin, and social import tests because those modules rely on models and migrations.
 
 Verification:
 
+- API module import smoke for the `request` removal.
 - `yarn test`
-- If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command.
+- `yarn audit --groups dependencies --level high` to document remaining high/critical chains.
+- If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command where local database/runtime permits.
 
 ### 3. Content Serving Stabilization
 

@@ -1,7 +1,7 @@
 import IGeesomeApiModule from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
-import request from 'request';
+import http from 'node:http';
 import _ from 'lodash';
 const {isNumber} = _;
 
@@ -207,7 +207,14 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
 	module.onGet('/api/v0/refs*', (req, res) => {
 		module.setStorageHeaders(res);
-		request('http://localhost:5002/api/v0/refs' + req.route.split('/api/v0/refs')[1]).pipe(res.stream);
+		const upstream = http.get('http://localhost:5002/api/v0/refs' + req.route.split('/api/v0/refs')[1], (upstreamRes) => {
+			res.writeHead(upstreamRes.statusCode || 500, upstreamRes.headers);
+			upstreamRes.pipe(res.stream);
+		});
+		upstream.on('error', (error) => {
+			console.error(error);
+			res.send(null, 502);
+		});
 	});
 
 	module.onAuthorizedPost('/save-object', async (req, res) => {
