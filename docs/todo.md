@@ -293,3 +293,11 @@ Implementation flow for all features and fixes:
 3. Update relevant plans, TODOs, README sections, or docs with completed scope, changed assumptions, and any remaining follow-up work.
 4. Commit with an issue reference and closing keyword, for example `Closes #123`.
 5. Open a PR that references the same issue and includes a short description of the implementation and verification.
+
+Preferred `gh` commands:
+
+- `gh auth status` before issue or PR work.
+- `gh issue list --search "<keywords>"` to find an existing issue.
+- `gh issue create --title "<title>" --body "<description>"` when no suitable issue exists.
+- `gh pr create --fill --body "<summary>\n\nCloses #123"` after pushing the implementation branch.
+- If `gh` is unavailable or unauthenticated, use the GitHub connector if available; otherwise ask the user for an issue number or permission to continue with a partial local-only handoff.
