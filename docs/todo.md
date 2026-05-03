@@ -28,7 +28,7 @@ Important correction: chat groups are not finished. Current encryption is a back
 Recent operational issues:
 
 - [#750 CPU overload problem](https://github.com/galtproject/geesome-node/issues/750) - current highest-risk runtime issue.
-- [#733 ERR_CONTENT_LENGTH_MISMATCH on file-catalog request](https://github.com/galtproject/geesome-node/issues/733) - content serving and response header correctness.
+- [#733 ERR_CONTENT_LENGTH_MISMATCH on file-catalog request](https://github.com/galtproject/geesome-node/issues/733) - content serving and response header correctness. Status: HEAD route preemption fixed; keep GET stream lifecycle/content-length checks in the content-serving slice.
 - [#662 Sticker bug](https://github.com/galtproject/geesome-node/issues/662) - media/content import polish.
 - [#646 Add new group type: thread](https://github.com/galtproject/geesome-node/issues/646) - smaller group/feed evolution than secure chat.
 - [#641 Move packages to @geesome org](https://github.com/galtproject/geesome-node/issues/641) - package/dependency hygiene.
@@ -104,6 +104,8 @@ Verification:
 - If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command where local database/runtime permits.
 
 ### 3. Content Serving Stabilization
+
+Status: in progress. [#733](https://github.com/galtproject/geesome-node/issues/733) now has a focused API HEAD regression so content-data/file-catalog storage handlers can set their own `Content-Length` and content headers instead of being swallowed by the generic HEAD fallback.
 
 Goal: fix the highest user-visible backend bugs before feature work.
 
