@@ -14,6 +14,7 @@ Corrections and added requirements:
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: added as the first fast-delivery slice.
+- Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -52,6 +53,7 @@ Issue clusters still represented by the old README TODO:
 - Pinning and backups: [#495](https://github.com/galtproject/geesome-node/issues/495), [#493](https://github.com/galtproject/geesome-node/issues/493), [#518](https://github.com/galtproject/geesome-node/issues/518), [#604](https://github.com/galtproject/geesome-node/issues/604).
 - Static sites and frontend delivery: [#573](https://github.com/galtproject/geesome-node/issues/573), [#564](https://github.com/galtproject/geesome-node/issues/564), [#494](https://github.com/galtproject/geesome-node/issues/494).
 - Permissions and auth: [#522](https://github.com/galtproject/geesome-node/issues/522), [#515](https://github.com/galtproject/geesome-node/issues/515), [#542](https://github.com/galtproject/geesome-node/issues/542), [#190](https://github.com/galtproject/geesome-node/issues/190).
+- Security review: [#782](https://github.com/galtproject/geesome-node/issues/782) for API auth and encryption flows.
 - Media and content handling: [#423](https://github.com/galtproject/geesome-node/issues/423), [#196](https://github.com/galtproject/geesome-node/issues/196), [#136](https://github.com/galtproject/geesome-node/issues/136), [#609](https://github.com/galtproject/geesome-node/issues/609).
 - Group/feed/search evolution: [#646](https://github.com/galtproject/geesome-node/issues/646), [#563](https://github.com/galtproject/geesome-node/issues/563), [#517](https://github.com/galtproject/geesome-node/issues/517), [#33](https://github.com/galtproject/geesome-node/issues/33), [#2](https://github.com/galtproject/geesome-node/issues/2).
 - Secure chat E2EE: [#2](https://github.com/galtproject/geesome-node/issues/2), [#33](https://github.com/galtproject/geesome-node/issues/33), [#115](https://github.com/galtproject/geesome-node/issues/115). Use [Vas3k's E2EE explainer](https://vas3k.blog/blog/end_to_end_encryption/) as background for why backend-only encryption and a single long-lived group key are not enough.
@@ -190,7 +192,31 @@ Verification:
 - `test/render.test.ts`
 - `yarn test`
 
-### 7. Secure Chat E2EE Design
+### 7. API And Encryption Security Review
+
+Goal: run a focused security review before expanding service integrations, ActivityPub federation, and production chat E2EE.
+
+Scope:
+
+- Review API authentication and authorization boundaries, including API-key expiry, disabled keys, scoped key permissions, user/admin permission separation, and route coverage.
+- Build a route/permission matrix for protected API endpoints, especially content upload, file catalog, groups, pinning, social imports, ActivityPub inbox/outbox, and service integrations.
+- Review encryption boundaries: backend-side chat encryption PoC, frontend E2EE envelopes, key storage, public/private key separation, sender signatures, replay/dedupe metadata, and attachment encryption.
+- Review secret handling for node app passphrases, account storage, social-network credentials, Pinata keys, ActivityPub signing keys, and local client bindings.
+- Model abuse cases: stolen API key, expired/disabled token reuse, scoped-token privilege escalation, replayed encrypted chat envelope, malicious ActivityPub request, and oversized upload/content-serving DoS.
+
+Deliverables:
+
+- Threat model and findings document.
+- Route/permission matrix.
+- Test checklist for authorization and encryption boundaries.
+- Follow-up issues for concrete vulnerabilities or missing controls.
+
+Verification:
+
+- Docs review against [#782](https://github.com/galtproject/geesome-node/issues/782).
+- Targeted tests for any concrete auth/encryption fixes created from the review.
+
+### 8. Secure Chat E2EE Design
 
 Goal: replace the backend encryption PoC with an implementation plan that can become real end-to-end encrypted chat.
 
@@ -223,7 +249,7 @@ Verification:
 - Node tests for opaque envelope storage.
 - Frontend/browser tests once client crypto exists.
 
-### 8. ActivityPub/Fediverse Integration MVP
+### 9. ActivityPub/Fediverse Integration MVP
 
 Goal: make GeeSome groups/posts visible and interoperable through ActivityPub without losing the IPFS/IPNS-first storage model.
 

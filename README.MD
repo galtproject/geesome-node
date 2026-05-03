@@ -243,6 +243,7 @@ geesomeClient.init().then(async () => {
 - Stabilize content serving, upload limits, and high-CPU paths reported in open operational issues.
 - Finish the existing Pinata/pinning path with manual and auto pin flows exposed cleanly in API/UI.
 - API key permissions and expiration are enforced; keep extending scoped service-token tests as new integrations land.
+- Run a focused security review of API authorization and encryption boundaries before expanding integrations and production E2EE.
 - Improve static-site generation options, favicon handling, and frontend build delivery by IPFS.
 - Design real frontend E2EE for chat groups using user-held private keys, recipient/device public keys, and group key rotation.
 - Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers.
