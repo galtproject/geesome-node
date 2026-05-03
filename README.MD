@@ -268,7 +268,7 @@ Existing services:
 
 ## Dependencies
 - GO IPFS or IPFS JS
-- Node 18.x or newer
+- Node 22.x
 - Sqlite
 - ffmpeg
 - Cerbot(Letsencrypt)

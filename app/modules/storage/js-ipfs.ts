@@ -11,7 +11,7 @@ import {IGeesomeApp} from "../../interface.js";
 import JsIpfsServiceNodePass from "geesome-libs/src/JsIpfsServiceNodePass.js";
 
 export default async (app: IGeesomeApp) => {
-  const { createHelia } = (await import("helia")).default;
+  const { createHelia } = await import("helia");
   while (true) {
     try {
       const helia = await createHelia({});

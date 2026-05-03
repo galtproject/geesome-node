@@ -13,7 +13,7 @@ Corrections and added requirements:
 - ActivityPub/Fediverse integration is an important feature. Research it, review the current implementation, document where it should be implemented in `geesome-node`, and decide whether current model schemas or API endpoints should be adjusted for ActivityPub best practices. Status: reflected in this TODO plan and detailed in `docs/activitypub-research.md`.
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
-- Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: added as the first fast-delivery slice.
+- Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
@@ -64,20 +64,23 @@ Issue clusters still represented by the old README TODO:
 
 ### 1. Node 22 Runtime Baseline
 
+Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779). The required Helia wrapper update landed in `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119). Follow-up work is limited to broader Node 24 compatibility validation and any runtime regressions found by CI.
+
 Goal: move GeeSome node work onto a supported Node.js runtime before deeper dependency and protocol work.
 
 Scope:
 
-- Add `.nvmrc` and/or `.node-version` with `22`.
-- Update `package.json` `engines.node` from `>=18` to `>=22 <25`.
-- Update Docker images and developer docs to Node 22.
+- Added `.nvmrc` and `.node-version` with `22`.
+- Updated `package.json` `engines.node` from `>=18` to `>=22 <25`.
+- Updated Docker image runtime pin and README dependency docs to Node 22.
 - Verify native/runtime-sensitive packages on Node 22: `bcrypt`, `sharp`, `keccak`, `node-mediainfo`, `sequelize-cli`, old IPFS/libp2p-related packages, and `@geesome/ui` build/install paths.
 - Keep Node 24 as a follow-up compatibility target, not the only supported runtime yet.
 
 Verification:
 
-- Fresh install on Node 22.
-- `yarn test`
+- Fresh install on Node 22: passed with `yarn -W --no-optional` after the `geesome-libs` Helia update.
+- Storage module Helia import smoke: passed with `node --import tsx --experimental-global-customevent -e "await import('./app/modules/storage/js-ipfs.ts')"`.
+- `yarn test`: currently blocked in this sandbox by PostgreSQL/network listener permissions (`SequelizeConnectionError` and `listen EPERM 0.0.0.0:2083`), not by dependency installation.
 - Database migration smoke commands if a test database is available.
 - Static frontend/package install path that pulls `@geesome/ui`.
 
@@ -231,10 +234,20 @@ Cryptographic direction:
 - Group membership changes require key rotation so removed members cannot read future messages.
 - For serious group chat, evaluate Matrix Olm/Megolm, Signal-style pairwise sessions plus sender keys, or MLS rather than inventing a custom protocol.
 
+Delivery and stability direction:
+
+- Do not treat libp2p PubSub/GossipSub as the durable chat database. It is useful for online propagation, but disconnected devices still need history backfill.
+- Persist signed opaque encrypted envelopes in `geesome-node` or another durable GeeSome/IPFS-backed message log so clients can reconnect and fetch missed messages.
+- Track `messageId`, `conversationId`, sender device, recipient device set, created timestamp, delivery attempts, and acknowledgement state separately from ciphertext.
+- Add idempotent send APIs and client-side dedupe by `messageId`; retries must not create duplicate chat messages.
+- Define ordering rules before UI work: append-only per-conversation sequence, Lamport/vector-style causal metadata, or another explicit merge rule for offline concurrent sends.
+- Add store-and-forward paths for offline recipients and multi-device users. libp2p direct streams/pubsub can accelerate delivery, but API/IPFS backfill should be the recovery path.
+- Run realistic tests with restart, offline sender/recipient, NAT/browser clients, duplicate delivery, delayed delivery, and large attachments. Attachment bytes should be content-addressed separately and referenced from the encrypted envelope.
+
 Repo split:
 
 - `geesome-ui`: key generation/import/export UX, local private-key storage, encryption/decryption, recipient/device trust UI.
-- `geesome-libs`: crypto helper APIs, manifest schemas, key wrapping, message envelope encoding, compatibility tests.
+- `geesome-libs`: crypto helper APIs, manifest schemas, key wrapping, message envelope encoding, compatibility tests. Initial opaque envelope helpers are tracked in `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121).
 - `geesome-node`: storage/routing APIs for encrypted envelopes, public key lookup, membership metadata, delivery status, and migration away from backend plaintext handling.
 
 First deliverable:
@@ -242,6 +255,8 @@ First deliverable:
 - Write a protocol design note with threat model, device model, key lifecycle, group membership flow, offline recipients, recovery, and migration from the current PoC.
 - Mark backend encrypted chat endpoints as PoC/unsafe until frontend E2EE lands.
 - Add tests proving the node can persist and return opaque encrypted envelopes without needing plaintext.
+- Reuse the shared `geesome-libs` E2EE envelope helper contract from [#121](https://github.com/galtproject/geesome-libs/issues/121) for frontend/node compatibility tests.
+- Add transport stability tests proving chat still works when realtime libp2p delivery is unavailable and clients recover through stored envelope backfill.
 
 Verification:
 
@@ -285,6 +300,7 @@ First deliverable:
 - Design the ActivityPub data model and endpoint contract.
 - Implement read-only actor/outbox/WebFinger for one local group.
 - Add tests with deterministic JSON-LD payloads and signature fixtures.
+- Reuse the shared deterministic ActivityPub helper contract from `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121) for actor, WebFinger, Note/Create, digest, and request-signature fixtures.
 
 Verification:
 
