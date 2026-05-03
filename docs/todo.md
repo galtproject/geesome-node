@@ -82,20 +82,22 @@ Verification:
 
 ### 2. Dependency Security Pass
 
-Status: started in [#783](https://github.com/galtproject/geesome-node/issues/783). The first slice removes the direct deprecated `request` dependency from the API proxy path and replaces it with Node's `http` module.
+Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency.
 
 Goal: merge or reproduce the Dependabot bumps in small batches.
 
 Scope:
 
 - Remove or replace direct deprecated dependencies where the code path is small and already covered by import smoke.
+- Remove unused direct legacy dependencies that only contribute transitive audit surface.
 - Start with low-blast-radius transitive/dev bumps when Dependabot opens fresh PRs.
-- Handle runtime-sensitive bumps separately: `bcrypt`, `cids`/old IPFS packages, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
+- Handle runtime-sensitive bumps separately: `bcrypt`, old IPFS package chains, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
 - For `sequelize`, run database, group, static-site-generator, invite, pin, and social import tests because those modules rely on models and migrations.
 
 Verification:
 
 - API module import smoke for the `request` removal.
+- Storage/API import smoke for the `cids` removal.
 - `yarn test`
 - `yarn audit --groups dependencies --level high` to document remaining high/critical chains.
 - If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command where local database/runtime permits.

@@ -59,7 +59,6 @@
     "body-parser": "^1.20.3",
     "busboy": "^1.6.0",
     "cheerio": "^1.0.0-rc.10",
-    "cids": "^0.7.0",
     "cookie-parser": "^1.4.4",
     "cross-blob": "^2.0.0",
     "crypto-js": "^4.2.0",
