@@ -13,6 +13,7 @@ Corrections and added requirements:
 - ActivityPub/Fediverse integration is an important feature. Research it, review the current implementation, document where it should be implemented in `geesome-node`, and decide whether current model schemas or API endpoints should be adjusted for ActivityPub best practices. Status: reflected in this TODO plan and detailed in `docs/activitypub-research.md`.
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
+- Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: added as the first fast-delivery slice.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -42,6 +43,10 @@ Open Dependabot PRs that should be handled as security/maintenance work:
 - [#769 ajv 6.12.6 to 6.14.0](https://github.com/galtproject/geesome-node/pull/769)
 - [#768 pbkdf2 3.1.2 to 3.1.5](https://github.com/galtproject/geesome-node/pull/768)
 
+Runtime maintenance:
+
+- Migrate the supported runtime from Node `>=18` to Node 22. Node 18 and Node 20 are EOL or effectively out of support for new GeeSome work. Use Node 22 as the immediate baseline, then validate Node 24 separately.
+
 Issue clusters still represented by the old README TODO:
 
 - Pinning and backups: [#495](https://github.com/galtproject/geesome-node/issues/495), [#493](https://github.com/galtproject/geesome-node/issues/493), [#518](https://github.com/galtproject/geesome-node/issues/518), [#604](https://github.com/galtproject/geesome-node/issues/604).
@@ -55,7 +60,26 @@ Issue clusters still represented by the old README TODO:
 
 ## Fast Delivery Plan
 
-### 1. Dependency Security Pass
+### 1. Node 22 Runtime Baseline
+
+Goal: move GeeSome node work onto a supported Node.js runtime before deeper dependency and protocol work.
+
+Scope:
+
+- Add `.nvmrc` and/or `.node-version` with `22`.
+- Update `package.json` `engines.node` from `>=18` to `>=22 <25`.
+- Update Docker images and developer docs to Node 22.
+- Verify native/runtime-sensitive packages on Node 22: `bcrypt`, `sharp`, `keccak`, `node-mediainfo`, `sequelize-cli`, old IPFS/libp2p-related packages, and `@geesome/ui` build/install paths.
+- Keep Node 24 as a follow-up compatibility target, not the only supported runtime yet.
+
+Verification:
+
+- Fresh install on Node 22.
+- `yarn test`
+- Database migration smoke commands if a test database is available.
+- Static frontend/package install path that pulls `@geesome/ui`.
+
+### 2. Dependency Security Pass
 
 Goal: merge or reproduce the Dependabot bumps in small batches.
 
@@ -70,7 +94,7 @@ Verification:
 - `yarn test`
 - If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command.
 
-### 2. Content Serving Stabilization
+### 3. Content Serving Stabilization
 
 Goal: fix the highest user-visible backend bugs before feature work.
 
@@ -96,7 +120,7 @@ Verification:
 - `test/app.test.ts`
 - `yarn test`
 
-### 3. Pinata And Pinning MVP
+### 4. Pinata And Pinning MVP
 
 Goal: turn "Pin to services like pinata from UI" into a shippable backend/API slice first.
 
@@ -120,7 +144,7 @@ Verification:
 - `test/autoActions.test.ts`
 - `yarn test`
 
-### 4. API Key Permissions And Expiration
+### 5. API Key Permissions And Expiration
 
 Goal: make API keys safer before broader service integrations.
 
@@ -142,7 +166,7 @@ Verification:
 - `test/app.test.ts`
 - `yarn test`
 
-### 5. Static Site Generator Polish
+### 6. Static Site Generator Polish
 
 Goal: deliver visible improvements without redesigning the protocol.
 
@@ -164,7 +188,7 @@ Verification:
 - `test/render.test.ts`
 - `yarn test`
 
-### 6. Secure Chat E2EE Design
+### 7. Secure Chat E2EE Design
 
 Goal: replace the backend encryption PoC with an implementation plan that can become real end-to-end encrypted chat.
 
@@ -197,7 +221,7 @@ Verification:
 - Node tests for opaque envelope storage.
 - Frontend/browser tests once client crypto exists.
 
-### 7. ActivityPub/Fediverse Integration MVP
+### 8. ActivityPub/Fediverse Integration MVP
 
 Goal: make GeeSome groups/posts visible and interoperable through ActivityPub without losing the IPFS/IPNS-first storage model.
 
