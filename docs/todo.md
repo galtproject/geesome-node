@@ -15,6 +15,7 @@ Corrections and added requirements:
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
+- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), and this plan now tracks the GeeSome Node-facing documentation/toolchain cleanup in [#787](https://github.com/galtproject/geesome-node/issues/787).
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -52,6 +53,7 @@ Issue clusters still represented by the old README TODO:
 - Group/feed/search evolution: [#646](https://github.com/galtproject/geesome-node/issues/646), [#563](https://github.com/galtproject/geesome-node/issues/563), [#517](https://github.com/galtproject/geesome-node/issues/517), [#33](https://github.com/galtproject/geesome-node/issues/33), [#2](https://github.com/galtproject/geesome-node/issues/2).
 - Secure chat E2EE: [#2](https://github.com/galtproject/geesome-node/issues/2), [#33](https://github.com/galtproject/geesome-node/issues/33), [#115](https://github.com/galtproject/geesome-node/issues/115). Use [Vas3k's E2EE explainer](https://vas3k.blog/blog/end_to_end_encryption/) as background for why backend-only encryption and a single long-lived group key are not enough.
 - ActivityPub/Fediverse integration: [#426 Make api for Fediverse](https://github.com/galtproject/geesome-node/issues/426).
+- API documentation toolchain: [#787](https://github.com/galtproject/geesome-node/issues/787), with implementation split across the microwave-hub `apidoc-template` and `apidoc-plugin-ts` submodules before GeeSome Node rewires generated docs to those cleaned-up packages.
 - Large protocol/integration epics: [#115](https://github.com/galtproject/geesome-node/issues/115), [#619](https://github.com/galtproject/geesome-node/issues/619), [#617](https://github.com/galtproject/geesome-node/issues/617), [#7](https://github.com/galtproject/geesome-node/issues/7), [#6](https://github.com/galtproject/geesome-node/issues/6).
 
 ## Fast Delivery Plan
@@ -194,7 +196,37 @@ Verification:
 - `test/render.test.ts`
 - `yarn test`
 
-### 7. API And Encryption Security Review
+### 7. API Documentation Toolchain Cleanup
+
+Status: planned in [#787](https://github.com/galtproject/geesome-node/issues/787). The repos are now tracked by microwave-hub as submodules:
+
+- `apidoc-template` for generated documentation UI/template work.
+- `apidoc-plugin-ts` for TypeScript parsing and apiDoc annotation support.
+
+Goal: make generated GeeSome API docs more user-friendly, flexible, and maintainable without hiding parser/template bugs inside `geesome-node`.
+
+Repo split:
+
+- `apidoc-template`: rewrite the generated docs UI for clearer navigation, search, request/response examples, mobile readability, and fewer unnecessary runtime/browser dependencies.
+- `apidoc-plugin-ts`: fix TypeScript parsing issues, strengthen `@apiInterface` handling, remove stale/bad dependencies where possible, and add focused tests for parser regressions.
+- `geesome-node`: keep API annotations accurate, consume the cleaned-up template/plugin, and verify `yarn generate-docs` still produces usable docs from `app/modules/api`.
+- `microwave-hub`: keep both API-doc repos as submodules so agents can route and coordinate docs tooling work from the hub.
+
+First deliverable:
+
+- Audit current `geesome-node` API doc generation command and package usage.
+- Open or find issues in `apidoc-template` and `apidoc-plugin-ts` for concrete UI/parser/dependency cleanup.
+- Add smoke tests or fixtures in `apidoc-plugin-ts` for the GeeSome annotation shapes that matter most.
+- Update `apidoc-template` docs/examples so generated API documentation is understandable to users who are not already familiar with the codebase.
+- Only after the template/plugin changes are released or pinned, adjust `geesome-node` package references and docs generation instructions.
+
+Verification:
+
+- `apidoc-plugin-ts`: `yarn test`
+- `apidoc-template`: static/template smoke check and rendered generated-docs review where practical.
+- `geesome-node`: `yarn generate-docs` and a quick browser/manual check of the generated `docs/` output.
+
+### 8. API And Encryption Security Review
 
 Goal: run a focused security review before expanding service integrations, ActivityPub federation, and production chat E2EE.
 
@@ -218,7 +250,7 @@ Verification:
 - Docs review against [#782](https://github.com/galtproject/geesome-node/issues/782).
 - Targeted tests for any concrete auth/encryption fixes created from the review.
 
-### 8. Secure Chat E2EE Design
+### 9. Secure Chat E2EE Design
 
 Goal: replace the backend encryption PoC with an implementation plan that can become real end-to-end encrypted chat.
 
@@ -263,7 +295,7 @@ Verification:
 - Node tests for opaque envelope storage.
 - Frontend/browser tests once client crypto exists.
 
-### 9. ActivityPub/Fediverse Integration MVP
+### 10. ActivityPub/Fediverse Integration MVP
 
 Goal: make GeeSome groups/posts visible and interoperable through ActivityPub without losing the IPFS/IPNS-first storage model.
 
