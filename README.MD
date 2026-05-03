@@ -5,7 +5,7 @@
 
 <h3 align="center">File Storage and Social Media Node</h3>
 <div align="center">
-  Current state: 0.3.0 - Beta
+  Current state: 0.4.0 - Beta
 </div>
 
 <br />
@@ -37,7 +37,7 @@ GeeSome protocol created to provide communication tool between communities of pr
 
 Galt Project team is aware of many cases of censorship and blocking in different social networks. These cases forced us to develop a new decentralized protocol and node application that would allow anyone to upload any content to his personal node and to share this content with the whole world without the risk of being blocked.
 
-Using the GeeSome protocol, communities in the Galt Project will be able to communicate in encrypted chat groups, share images, video, text or any data.
+Using the GeeSome protocol, communities in the Galt Project should eventually be able to communicate in end-to-end encrypted chat groups, share images, video, text or any data. Chat group encryption is currently only a proof of concept; real security requires client-side encryption with user-held private keys and recipient public keys.
 
 We are sure that this tool should be used not only by the project's communities, but also by anyone who is concerned about the safety of their data, censorship and blocking in web.
 
@@ -56,7 +56,7 @@ GeeSome Node can be used:
 - to save important content like Saved messages in telegrams and / or in the form of a file structure as in Google Drive
 - as a media platform for adding and viewing / listening to audio and video content, creating playlists
 - to share the uploaded content in any form (blog, playlist, file, folder)
-- to create chat groups and communicate with your friends (they can be invited by special links)
+- to create groups and, after frontend E2EE work is complete, communicate with your friends in secure chats
 
 ## GeeSome Scheme
 ![GeeSome-Scheme](https://user-images.githubusercontent.com/4842007/68893921-d912cf00-072e-11ea-8fe4-7d2937f32342.png)
@@ -74,7 +74,7 @@ Currently its storing in GeeSome node, but need to improve it.
 ### Test group
 ![GeeSome Test Group](https://github.com/galtproject/geesome-node/assets/4842007/e90053f3-e5f4-4fd4-bb98-3e334086fdc9)
 
-### Encrypted personal chat
+### Personal chat proof of concept
 ![GeeSome Personal Chat](https://user-images.githubusercontent.com/4842007/68895796-b97da580-0732-11ea-9fad-cddfafe2c146.jpg)
 
 ### Mobile version
@@ -222,7 +222,7 @@ geesomeClient.init().then(async () => {
 ```
 
 ## Current state and features:
-- Encrypted personal messages
+- Personal message encryption proof of concept; full secure chat groups still require frontend E2EE
 - Public channels and posts
 - Streamable media api(video and audio)
 - Basic file manager
@@ -240,16 +240,17 @@ geesomeClient.init().then(async () => {
 - Auto-backup social networks channels(Telegram)
 
 ## TODO:
-- Share folder by ipld, ipns manifest
-- Play audio and video content in groups as playlist
-- Public chat groups
-- Private chat groups
-- Feed for aggregate channels, chats, personal messages like in Telegram
-- Local IPNS accounts (in-browser) and signing authentication or publish transactions
-- PubSub communication with modules
-- Auto-backup shared groups and folders to another node
-- Auto-backup social networks channels(Twitter, YouTube, Instagram)
-- Pin to services like pinata from UI
+- Stabilize content serving, upload limits, and high-CPU paths reported in open operational issues.
+- Finish the existing Pinata/pinning path with manual and auto pin flows exposed cleanly in API/UI.
+- Tighten API key permissions and expiration behavior before expanding service integrations.
+- Improve static-site generation options, favicon handling, and frontend build delivery by IPFS.
+- Design real frontend E2EE for chat groups using user-held private keys, recipient/device public keys, and group key rotation.
+- Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers.
+- Expand group views toward thread/feed use cases while preserving existing post/group APIs.
+- Improve social backup/import workflows for Telegram and Twitter-compatible sources.
+- Keep protocol-scale work such as local IPNS accounts, PubSub modules, remote backup, Matrix/Filecoin integrations, and mobile/browser apps as separate epics.
+
+See [docs/todo.md](./docs/todo.md) for the issue-backed backlog snapshot and fast delivery plan.
 
 ## GeeSome Services
 You can develop your own GeeSome service in any programming language for extend GeeSome node functional by
@@ -266,7 +267,7 @@ Existing services:
 
 ## Dependencies
 - GO IPFS or IPFS JS
-- Node 16.x
+- Node 18.x or newer
 - Sqlite
 - ffmpeg
 - Cerbot(Letsencrypt)
@@ -282,7 +283,7 @@ Api available by [http://localhost:2052](http://localhost:2052) endpoint.
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)
-- API [documentation](https://geesome-node.galtproject.io:7722/ipns/QmQdr2fJ1qsYHnGN2FC1G9kitypiUQ271GhLa8qEtJnSN7/) and [endpoints code](./components/api/http-v1/index.ts)
+- API [documentation](https://geesome-node.galtproject.io:7722/ipns/QmQdr2fJ1qsYHnGN2FC1G9kitypiUQ271GhLa8qEtJnSN7/) and [endpoints code](./app/modules/api/index.ts)
 - [Libs repo](https://github.com/galtproject/geesome-libs)
 
 ## Articles
