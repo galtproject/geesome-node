@@ -14,8 +14,10 @@ Corrections and added requirements:
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: added as the first fast-delivery slice.
+- The docs/TODO branch and Dependabot bumps were merged. Analyze the merged state and actualize this TODO. Status: the previous open Dependabot PR list is now marked completed, and the dependency slice is reduced to post-merge validation plus residual lockfile cleanup.
+- Another Dependabot bump landed after that update: postcss 8.4.49 to 8.5.13. Status: added to the merged dependency validation list.
 
-Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
+Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs. Dependency snapshot updated after `origin/master` reached `2204e3e` with Dependabot PRs #768-#778 merged.
 
 This file turns the README TODO list into delivery slices that match the current codebase. The repo already has modules for pinning, static-site generation, API keys, content/file catalog, groups, social imports, and media drivers, so the fastest wins are mostly hardening and exposing existing paths.
 
@@ -31,17 +33,18 @@ Recent operational issues:
 - [#646 Add new group type: thread](https://github.com/galtproject/geesome-node/issues/646) - smaller group/feed evolution than secure chat.
 - [#641 Move packages to @geesome org](https://github.com/galtproject/geesome-node/issues/641) - package/dependency hygiene.
 
-Open Dependabot PRs that should be handled as security/maintenance work:
+Merged Dependabot PRs that still need post-merge validation:
 
-- [#776 axios 1.12.0 to 1.15.0](https://github.com/galtproject/geesome-node/pull/776)
-- [#775 lodash 4.17.21 to 4.18.1](https://github.com/galtproject/geesome-node/pull/775)
-- [#774 handlebars 4.7.8 to 4.7.9](https://github.com/galtproject/geesome-node/pull/774)
-- [#773 picomatch 2.3.1 to 2.3.2](https://github.com/galtproject/geesome-node/pull/773)
-- [#772 sequelize 6.37.5 to 6.37.8](https://github.com/galtproject/geesome-node/pull/772)
-- [#771 immutable 4.3.2 to 4.3.8](https://github.com/galtproject/geesome-node/pull/771)
-- [#770 dottie 2.0.6 to 2.0.7](https://github.com/galtproject/geesome-node/pull/770)
-- [#769 ajv 6.12.6 to 6.14.0](https://github.com/galtproject/geesome-node/pull/769)
-- [#768 pbkdf2 3.1.2 to 3.1.5](https://github.com/galtproject/geesome-node/pull/768)
+- [#778 postcss 8.4.49 to 8.5.13](https://github.com/galtproject/geesome-node/pull/778) - merged in `2204e3e`; also moves the `nanoid` dependency used by PostCSS from `3.3.7` to `3.3.12`.
+- [#776 axios 1.12.0 to 1.15.0](https://github.com/galtproject/geesome-node/pull/776) - merged in `4e38909`.
+- [#775 lodash 4.17.21 to 4.18.1](https://github.com/galtproject/geesome-node/pull/775) - merged in `f041a38`; `yarn.lock` still has a separate `lodash@~4.17.4` entry at `4.17.21`, so trace and remove/override that residual path if possible.
+- [#774 handlebars 4.7.8 to 4.7.9](https://github.com/galtproject/geesome-node/pull/774) - merged in `aaacac6`.
+- [#773 picomatch 2.3.1 to 2.3.2](https://github.com/galtproject/geesome-node/pull/773) - merged in `91a4547`.
+- [#772 sequelize 6.37.5 to 6.37.8](https://github.com/galtproject/geesome-node/pull/772) - merged in `a1fd872`; highest validation risk because migrations and model behavior depend on it.
+- [#771 immutable 4.3.2 to 4.3.8](https://github.com/galtproject/geesome-node/pull/771) - merged in `badbcef`.
+- [#770 dottie 2.0.6 to 2.0.7](https://github.com/galtproject/geesome-node/pull/770) - merged in `ad5b769`.
+- [#769 ajv 6.12.6 to 6.14.0](https://github.com/galtproject/geesome-node/pull/769) - merged in `0bbd789`.
+- [#768 pbkdf2 3.1.2 to 3.1.5](https://github.com/galtproject/geesome-node/pull/768) - merged in `9a89859`.
 
 Runtime maintenance:
 
@@ -79,20 +82,24 @@ Verification:
 - Database migration smoke commands if a test database is available.
 - Static frontend/package install path that pulls `@geesome/ui`.
 
-### 2. Dependency Security Pass
+### 2. Post-Merge Dependency Validation
 
-Goal: merge or reproduce the Dependabot bumps in small batches.
+Goal: prove the merged Dependabot bumps are safe and clean up residual vulnerable transitive paths.
 
 Scope:
 
-- Start with low-blast-radius transitive/dev bumps: `picomatch`, `handlebars`, `immutable`, `dottie`, `ajv`, `pbkdf2`.
-- Handle runtime-sensitive bumps separately: `axios`, `lodash`, `sequelize`.
-- For `sequelize`, run database, group, static-site-generator, invite, pin, and social import tests because those modules rely on models and migrations.
+- Run the full test suite on merged `master` after #768-#778.
+- Validate frontend/static-site CSS build paths affected by `postcss` and its `nanoid` subdependency.
+- Trace why `lodash@~4.17.4` remains locked to `4.17.21` while the main `lodash` ranges resolve to `4.18.1`.
+- Validate `sequelize` 6.37.8 with database, group, static-site-generator, invite, pin, and social import flows.
+- Smoke external/network-facing paths affected by `axios` and `pbkdf2`: pinning, social imports, Telegram/Twitter clients where practical, and auth/key derivation paths.
+- If validation fails, split fixes by dependency rather than rolling back the whole merged batch.
 
 Verification:
 
 - `yarn test`
-- If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command.
+- Narrow mapped tests for failed surfaces, then rerun the full command.
+- `yarn why lodash` or equivalent lockfile tracing for the residual `lodash@~4.17.4` entry.
 
 ### 3. Content Serving Stabilization
 
