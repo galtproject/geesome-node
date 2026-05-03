@@ -8,7 +8,6 @@
  */
 
 import fs from "fs";
-import rimraf from "rimraf";
 import * as uuid from 'uuid';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
@@ -64,7 +63,7 @@ export class FileUploadDriver extends AbstractDriver {
     return {
       tempPath: path,
       emitFinish: (callback) => {
-        rimraf(path, function () {
+        fs.rm(path, {force: true, recursive: true}, function () {
           callback && callback();
         });
       },

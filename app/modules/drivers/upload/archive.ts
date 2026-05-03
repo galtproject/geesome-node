@@ -8,7 +8,6 @@
  */
 
 import fs from "fs";
-import rimraf from "rimraf";
 import * as uuid from 'uuid';
 import unzip from 'unzip-stream';
 import {DriverInput, OutputSize} from "../interface.js";
@@ -52,7 +51,7 @@ export class ArchiveUploadDriver extends AbstractDriver {
     return {
       tempPath: path,
       emitFinish: (callback) => {
-        rimraf(path, () => callback && callback());
+        fs.rm(path, {force: true, recursive: true}, () => callback && callback());
       },
       type: 'folder',
       size
