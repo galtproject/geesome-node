@@ -92,7 +92,7 @@
     "sass": "^1.43.4",
     "sass-loader": "^12.3.0",
     "sequelize": "6.37.8",
-    "sequelize-cli": "6.2.0",
+    "sequelize-cli": "6.6.5",
     "serve-static": "^1.16.0",
     "sharp": "^0.33.5",
     "telegram": "2.17.10",
