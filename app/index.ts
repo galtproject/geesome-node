@@ -12,6 +12,7 @@ import _ from 'lodash';
 import debug from 'debug';
 import pIteration from 'p-iteration';
 import uuidAPIKey from "uuid-apikey";
+import {AsyncLocalStorage} from "node:async_hooks";
 import commonHelper from "geesome-libs/src/common.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface.js";
@@ -83,6 +84,8 @@ function getModule(config, appPass) {
     events: GeesomeEmitter;
 
     frontendStorageId;
+
+    apiKeyContext = new AsyncLocalStorage<any>();
 
     ms: {
       database: IGeesomeDatabaseModule,
@@ -313,11 +316,36 @@ function getModule(config, appPass) {
 
       if (!data.permissions) {
         data.permissions = JSON.stringify(await this.ms.database.getCorePermissions(userId).then(list => list.map(i => i.name)));
+      } else if (Array.isArray(data.permissions)) {
+        data.permissions = JSON.stringify(data.permissions);
       }
 
       await this.ms.database.addApiKey(data);
 
       return generated.apiKey;
+    }
+
+    getApiKeyPermissionList(apiKey) {
+      if (!apiKey || !apiKey.permissions) {
+        return [];
+      }
+      if (Array.isArray(apiKey.permissions)) {
+        return apiKey.permissions;
+      }
+      try {
+        const permissions = JSON.parse(apiKey.permissions);
+        return Array.isArray(permissions) ? permissions : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    isApiKeyExpired(apiKey, now = new Date()) {
+      return !!apiKey?.expiredOn && new Date(apiKey.expiredOn).getTime() <= now.getTime();
+    }
+
+    isApiKeyActive(apiKey, now = new Date()) {
+      return !!apiKey && !apiKey.isDisabled && !this.isApiKeyExpired(apiKey, now);
     }
 
     async getUserByApiToken(token) {
@@ -326,7 +354,7 @@ function getModule(config, appPass) {
       }
       const valueHash = uuidAPIKey['toUUID'](token);
       const keyObj = await this.ms.database.getApiKeyByHash(valueHash);
-      if (!keyObj) {
+      if (!this.isApiKeyActive(keyObj)) {
         return {user: null, apiKey: null};
       }
       return {
@@ -505,7 +533,61 @@ function getModule(config, appPass) {
       return this.ms.database.getUserLimit(userId, limitName);
     }
 
-    async isUserCan(userId, permission) {
+    runWithApiKey(apiKey, callback) {
+      return this.apiKeyContext.run(apiKey, callback);
+    }
+
+    isApiKeyCan(apiKey, permission) {
+      if (!apiKey) {
+        return true;
+      }
+      if (!this.isApiKeyActive(apiKey)) {
+        return false;
+      }
+      const permissions = this.getApiKeyPermissionList(apiKey);
+      if (startsWith(permission, 'admin:')) {
+        return permissions.includes(CorePermissionName.AdminAll) || permissions.includes(permission);
+      }
+      return permissions.includes(CorePermissionName.UserAll) || permissions.includes(permission);
+    }
+
+    async isUserCan(userId, permission, apiKey = this.apiKeyContext.getStore()) {
+      const userCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
+      const userCan = userCanAll || await this.ms.database.isHaveCorePermission(userId, permission);
+      if (!userCan) {
+        return false;
+      }
+      if (apiKey && apiKey.userId !== userId) {
+        return false;
+      }
+      return this.isApiKeyCan(apiKey, permission);
+    }
+
+    async isAdminCan(userId, permission, apiKey = this.apiKeyContext.getStore()) {
+      const adminCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll);
+      const adminCan = adminCanAll || await this.ms.database.isHaveCorePermission(userId, permission);
+      if (!adminCan) {
+        return false;
+      }
+      if (apiKey && apiKey.userId !== userId) {
+        return false;
+      }
+      return this.isApiKeyCan(apiKey, permission);
+    }
+
+    async checkUserCan(userId, permission, apiKey = this.apiKeyContext.getStore()) {
+      log('checkUserCan start', userId, permission);
+      if (startsWith(permission, 'admin:')) {
+        if (await this.isAdminCan(userId, permission, apiKey).then(can => !can)) {
+          throw new Error("not_permitted");
+        }
+      } else if (await this.isUserCan(userId, permission, apiKey).then(can => !can)) {
+        throw new Error("not_permitted");
+      }
+      log('checkUserCan finish', userId, permission);
+    }
+
+    async isUserCanByUserPermissionOnly(userId, permission) {
       const userCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.UserAll);
       if (userCanAll) {
         return true;
@@ -513,24 +595,12 @@ function getModule(config, appPass) {
       return this.ms.database.isHaveCorePermission(userId, permission);
     }
 
-    async isAdminCan(userId, permission) {
+    async isAdminCanByUserPermissionOnly(userId, permission) {
       const adminCanAll = await this.ms.database.isHaveCorePermission(userId, CorePermissionName.AdminAll);
       if (adminCanAll) {
         return true;
       }
       return this.ms.database.isHaveCorePermission(userId, permission);
-    }
-
-    async checkUserCan(userId, permission) {
-      log('checkUserCan start', userId, permission);
-      if (startsWith(permission, 'admin:')) {
-        if (await this.isAdminCan(userId, permission).then(can => !can)) {
-          throw new Error("not_permitted");
-        }
-      } else if (await this.isUserCan(userId, permission).then(can => !can)) {
-        throw new Error("not_permitted");
-      }
-      log('checkUserCan finish', userId, permission);
     }
 
     async encryptTextWithAppPass(text) {

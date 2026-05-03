@@ -163,6 +163,58 @@ describe("app", function () {
 		assert.equal(permissions.filter(p => p.name === CorePermissionName.UserGroupManagement).length, 1);
 	});
 
+	it('should reject disabled and expired api keys', async () => {
+		const apiKeyTestUser = await app.registerUser({
+			email: 'api-key-expiration@user.com',
+			name: 'api-key-expiration',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		const activeToken = await app.generateUserApiKey(apiKeyTestUser.id, {type: 'active-test'});
+		const activeAuth = await app.getUserByApiToken(activeToken);
+		assert.equal(activeAuth.user.id, apiKeyTestUser.id);
+		assert.equal(activeAuth.apiKey.isDisabled, false);
+
+		await app.updateApiKey(apiKeyTestUser.id, activeAuth.apiKey.id, {isDisabled: true});
+		const disabledAuth = await app.getUserByApiToken(activeToken);
+		assert.equal(disabledAuth.user, null);
+		assert.equal(disabledAuth.apiKey, null);
+
+		const expiredToken = await app.generateUserApiKey(apiKeyTestUser.id, {
+			type: 'expired-test',
+			expiredOn: new Date(Date.now() - 1000)
+		});
+		const expiredAuth = await app.getUserByApiToken(expiredToken);
+		assert.equal(expiredAuth.user, null);
+		assert.equal(expiredAuth.apiKey, null);
+	});
+
+	it('should scope user permissions by current api key permissions', async () => {
+		const apiKeyPermissionUser = await app.registerUser({
+			email: 'api-key-permissions@user.com',
+			name: 'api-key-permissions',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		const saveOnlyToken = await app.generateUserApiKey(apiKeyPermissionUser.id, {
+			type: 'save-only-test',
+			permissions: [CorePermissionName.UserSaveData]
+		});
+		const {apiKey} = await app.getUserByApiToken(saveOnlyToken);
+
+		assert.equal(await app.isUserCan(apiKeyPermissionUser.id, CorePermissionName.UserGroupManagement), true);
+		await app.runWithApiKey(apiKey, async () => {
+			assert.equal(await app.isUserCan(apiKeyPermissionUser.id, CorePermissionName.UserSaveData), true);
+			assert.equal(await app.isUserCan(apiKeyPermissionUser.id, CorePermissionName.UserGroupManagement), false);
+			try {
+				await app.checkUserCan(apiKeyPermissionUser.id, CorePermissionName.UserGroupManagement);
+				assert.equal(true, false);
+			} catch (e) {
+				assert.equal(e.message, 'not_permitted');
+			}
+		});
+	});
+
 	it('should correctly save data with only save permission', async () => {
 		try {
 			await app.registerUser({

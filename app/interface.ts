@@ -72,15 +72,17 @@ export interface IGeesomeApp {
 
   getUserByApiToken(apiKey): Promise<{user: IUser | null, apiKey: IUserApiKey | null}>;
 
+  runWithApiKey(apiKey: IUserApiKey, callback): Promise<any>;
+
   getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams): Promise<IUserApiKeysListResponse>;
 
   setUserLimit(adminId, limitData: IUserLimit): Promise<IUserLimit>;
 
-  checkUserCan(userId, permission): Promise<void>;
+  checkUserCan(userId, permission, apiKey?: IUserApiKey): Promise<void>;
 
-  isUserCan(userId, permission): Promise<boolean>;
+  isUserCan(userId, permission, apiKey?: IUserApiKey): Promise<boolean>;
 
-  isAdminCan(userId, permission): Promise<boolean>;
+  isAdminCan(userId, permission, apiKey?: IUserApiKey): Promise<boolean>;
 
   getDataStructure(dataId, isResolve?);
 
@@ -192,4 +194,3 @@ export interface IContentListResponse {
   list: IContent[];
   total: number;
 }
-
