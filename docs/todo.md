@@ -82,7 +82,7 @@ Verification:
 
 ### 2. Dependency Security Pass
 
-Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency. [#789](https://github.com/galtproject/geesome-node/issues/789) upgrades `bcrypt` to remove the vulnerable `@mapbox/node-pre-gyp` chain. [#791](https://github.com/galtproject/geesome-node/issues/791) removes the deprecated unused `typings` devDependency.
+Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency. [#789](https://github.com/galtproject/geesome-node/issues/789) upgrades `bcrypt` to remove the vulnerable `@mapbox/node-pre-gyp` chain. [#791](https://github.com/galtproject/geesome-node/issues/791) removes the deprecated unused `typings` devDependency. [#793](https://github.com/galtproject/geesome-node/issues/793) removes unused `lerna` dev tooling. [#794](https://github.com/galtproject/geesome-node/issues/794) removes unused `filecoin.js` dev tooling.
 
 Goal: merge or reproduce the Dependabot bumps in small batches.
 
