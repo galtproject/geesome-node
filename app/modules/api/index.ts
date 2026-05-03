@@ -53,7 +53,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 	});
 	service.head("/*", function (req, res, next) {
 		setHeaders(res);
-		res.send(200);
+		next();
 	});
 
 	const server = await service.listen(port);

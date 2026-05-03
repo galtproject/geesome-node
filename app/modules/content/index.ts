@@ -914,13 +914,12 @@ function getModule(app: IGeesomeApp) {
 			app.ms.api.setDefaultHeaders(res);
 			const dataPath = await this.getDataPath(hash);
 			const content = await app.ms.database.getContentByStorageId(dataPath, true);
+			let headersObj = {};
 			if (content) {
-				const headersObj = await this.getIpfsHashHeadersObj(content, dataPath, null, true);
-				Object.keys(headersObj).map(key => {
-					res.setHeader(key, headersObj[key]);
-				})
+				headersObj = await this.getIpfsHashHeadersObj(content, dataPath, null, true);
 			}
-			res.send(200);
+			res.writeHead(200, headersObj);
+			res.stream.end();
 		}
 
 		async getIpfsHashHeadersObj(content, dataPath, dataSize?, preview?) {
@@ -931,7 +930,7 @@ function getModule(app: IGeesomeApp) {
 			if (content) {
 				contentData['Content-Type'] = content.storageId !== dataPath && preview ? content.previewMimeType : content.mimeType;
 			}
-			if (dataSize) {
+			if (dataSize || dataSize === 0) {
 				contentData['Content-Length'] = dataSize;
 				contentData['x-ipfs-datasize'] = dataSize;
 			}
