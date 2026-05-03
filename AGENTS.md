@@ -24,6 +24,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 - When touching contracts shared with `geesome-libs` or `@geesome/ui`, review downstream impact before calling the task complete.
 - Keep `docs/todo.md` aligned when triaging GitHub issues or changing the README TODO list.
 - Treat chat encryption as unfinished unless the private keys stay in clients. Backend-side encryption is only a PoC and must not be documented as complete E2EE.
+- Treat libp2p chat transport as an online propagation layer, not as durable chat storage. Stable chat work must include opaque message persistence, acknowledgements, retry/backfill, ordering, and offline/device-sync behavior above pubsub.
 - Fast-delivery issues usually map to existing modules:
   - `pin` for Pinata/pinning work.
   - `staticSiteGenerator` for static-site options, favicon, generated pages, and frontend delivery.

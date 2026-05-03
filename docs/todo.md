@@ -206,6 +206,16 @@ Cryptographic direction:
 - Group membership changes require key rotation so removed members cannot read future messages.
 - For serious group chat, evaluate Matrix Olm/Megolm, Signal-style pairwise sessions plus sender keys, or MLS rather than inventing a custom protocol.
 
+Delivery and stability direction:
+
+- Do not treat libp2p PubSub/GossipSub as the durable chat database. It is useful for online propagation, but disconnected devices still need history backfill.
+- Persist signed opaque encrypted envelopes in `geesome-node` or another durable GeeSome/IPFS-backed message log so clients can reconnect and fetch missed messages.
+- Track `messageId`, `conversationId`, sender device, recipient device set, created timestamp, delivery attempts, and acknowledgement state separately from ciphertext.
+- Add idempotent send APIs and client-side dedupe by `messageId`; retries must not create duplicate chat messages.
+- Define ordering rules before UI work: append-only per-conversation sequence, Lamport/vector-style causal metadata, or another explicit merge rule for offline concurrent sends.
+- Add store-and-forward paths for offline recipients and multi-device users. libp2p direct streams/pubsub can accelerate delivery, but API/IPFS backfill should be the recovery path.
+- Run realistic tests with restart, offline sender/recipient, NAT/browser clients, duplicate delivery, delayed delivery, and large attachments. Attachment bytes should be content-addressed separately and referenced from the encrypted envelope.
+
 Repo split:
 
 - `geesome-ui`: key generation/import/export UX, local private-key storage, encryption/decryption, recipient/device trust UI.
@@ -218,6 +228,7 @@ First deliverable:
 - Mark backend encrypted chat endpoints as PoC/unsafe until frontend E2EE lands.
 - Add tests proving the node can persist and return opaque encrypted envelopes without needing plaintext.
 - Reuse the shared `geesome-libs` E2EE envelope helper contract from [#121](https://github.com/galtproject/geesome-libs/issues/121) for frontend/node compatibility tests.
+- Add transport stability tests proving chat still works when realtime libp2p delivery is unavailable and clients recover through stored envelope backfill.
 
 Verification:
 
