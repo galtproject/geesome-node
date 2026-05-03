@@ -5,7 +5,7 @@
   "main": "index.ts",
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=22 <25"
   },
   "scripts": {
     "start": "yarn --no-optional -W && DEBUG=geesome* ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
@@ -74,7 +74,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#6782deb",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#9b89a8a",
     "keccak": "^3.0.3",
     "kubo-rpc-client": "^5.0.2",
     "lodash": "^4.17.13",

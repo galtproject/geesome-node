@@ -13,7 +13,7 @@ Corrections and added requirements:
 - ActivityPub/Fediverse integration is an important feature. Research it, review the current implementation, document where it should be implemented in `geesome-node`, and decide whether current model schemas or API endpoints should be adjusted for ActivityPub best practices. Status: reflected in this TODO plan and detailed in `docs/activitypub-research.md`.
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
-- Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: added as the first fast-delivery slice.
+- Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -62,20 +62,23 @@ Issue clusters still represented by the old README TODO:
 
 ### 1. Node 22 Runtime Baseline
 
+Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779). The required Helia wrapper update landed in `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119). Follow-up work is limited to broader Node 24 compatibility validation and any runtime regressions found by CI.
+
 Goal: move GeeSome node work onto a supported Node.js runtime before deeper dependency and protocol work.
 
 Scope:
 
-- Add `.nvmrc` and/or `.node-version` with `22`.
-- Update `package.json` `engines.node` from `>=18` to `>=22 <25`.
-- Update Docker images and developer docs to Node 22.
+- Added `.nvmrc` and `.node-version` with `22`.
+- Updated `package.json` `engines.node` from `>=18` to `>=22 <25`.
+- Updated Docker image runtime pin and README dependency docs to Node 22.
 - Verify native/runtime-sensitive packages on Node 22: `bcrypt`, `sharp`, `keccak`, `node-mediainfo`, `sequelize-cli`, old IPFS/libp2p-related packages, and `@geesome/ui` build/install paths.
 - Keep Node 24 as a follow-up compatibility target, not the only supported runtime yet.
 
 Verification:
 
-- Fresh install on Node 22.
-- `yarn test`
+- Fresh install on Node 22: passed with `yarn -W --no-optional` after the `geesome-libs` Helia update.
+- Storage module Helia import smoke: passed with `node --import tsx --experimental-global-customevent -e "await import('./app/modules/storage/js-ipfs.ts')"`.
+- `yarn test`: currently blocked in this sandbox by PostgreSQL/network listener permissions (`SequelizeConnectionError` and `listen EPERM 0.0.0.0:2083`), not by dependency installation.
 - Database migration smoke commands if a test database is available.
 - Static frontend/package install path that pulls `@geesome/ui`.
 
