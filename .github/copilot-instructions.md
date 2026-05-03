@@ -6,3 +6,5 @@
 - Treat database migrations and static-site-generator migrations as high-risk. Review the relevant migration flow before adding or changing migrations.
 - When touching contracts shared with `geesome-libs` or `@geesome/ui`, review downstream impact before calling the task complete.
 - Preserve production-oriented scripts under `bash/` unless the task explicitly requires deployment or operational changes.
+- Keep `docs/todo.md` and the README TODO section in sync when triaging issues or changing project priorities.
+- Do not describe chat groups as finished or secure E2EE until encryption/decryption happens in the frontend with user-held private keys and recipient/device public keys.
