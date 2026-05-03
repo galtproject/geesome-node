@@ -16,6 +16,7 @@ Corrections and added requirements:
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: added as the first fast-delivery slice.
 - The docs/TODO branch and Dependabot bumps were merged. Analyze the merged state and actualize this TODO. Status: the previous open Dependabot PR list is now marked completed, and the dependency slice is reduced to post-merge validation plus residual lockfile cleanup.
 - Another Dependabot bump landed after that update: postcss 8.4.49 to 8.5.13. Status: added to the merged dependency validation list.
+- Implementation flow applies to all features and fixes, not only this TODO list: make a GitHub issue if no suitable issue exists, implement the change, update relevant plans/docs, commit with an issue-closing reference, and open a PR that references the issue with a short description. Status: added to the maintenance rule.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs. Dependency snapshot updated after `origin/master` reached `2204e3e` with Dependabot PRs #768-#778 merged.
 
@@ -284,3 +285,11 @@ These are still valid but not fast-delivery work:
 ## Maintenance Rule
 
 When a TODO item is delivered, update this file and the README TODO summary in the same PR. If an item becomes primarily frontend work, move the implementation plan to `geesome-ui` and leave only the backend contract here.
+
+Implementation flow for all features and fixes:
+
+1. Find an existing GitHub issue for the feature/fix, or create one with a clear description, acceptance criteria, and verification notes.
+2. Implement the change against that issue.
+3. Update relevant plans, TODOs, README sections, or docs with completed scope, changed assumptions, and any remaining follow-up work.
+4. Commit with an issue reference and closing keyword, for example `Closes #123`.
+5. Open a PR that references the same issue and includes a short description of the implementation and verification.
