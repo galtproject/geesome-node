@@ -109,7 +109,7 @@
     "@types/chai": "^4.3.20",
     "@types/mocha": "^10.0.9",
     "apidoc": "^1.2.0",
-    "apidoc-plugin-ts": "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git",
+    "apidoc-plugin-ts": "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1",
     "chai": "^4.2.0",
     "chai-http": "^4.2.1",
     "geesome-apidoc-template": "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git",

@@ -3386,9 +3386,9 @@ anymatch@~3.1.2:
     normalize-path "^3.0.0"
     picomatch "^2.0.4"
 
-"apidoc-plugin-ts@git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git":
+"apidoc-plugin-ts@git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1":
   version "1.1.0"
-  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#5ead337dd86cb97de37f9846e9331932cc3a3e1e"
+  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1950902c81f428f1b663326e0ba66bacbe"
   dependencies:
     ts-morph "3.1.0"
     typescript "3.5.2"
