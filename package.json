@@ -131,6 +131,7 @@
   "ingress_rules": [],
   "resourceAllocationStrategy": "",
   "resolutions": {
-    "@types/request": "2.48.13"
+    "@types/request": "2.48.13",
+    "elliptic": "6.6.1"
   }
 }
