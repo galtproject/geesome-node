@@ -147,6 +147,7 @@
     "geesome-libs/geesome-wallet-client/ethers/@ethersproject/providers/ws": "7.5.10",
     "geesome-libs/geesome-wallet-client/web3-provider-engine/ws": "5.2.4",
     "geesome-libs/eth-crypto/ethers/@ethersproject/providers/ws": "7.5.10",
+    "telegram/socks": "2.8.8",
     "geesome-libs/levelup/semver": "5.7.2",
     "geesome-libs/secp256k1": "5.0.1",
     "secp256k1": "4.0.4"
