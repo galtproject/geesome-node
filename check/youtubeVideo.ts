@@ -8,10 +8,6 @@
  */
 
 (async () => {
-  const youtubedl: any = await (await import('@microlink/youtube-dl')).default
-  youtubedl.getInfo([process.env.URL], function(err, info) {
-    if (err) throw err
-
-    console.log('info', info)
-  })
+  const {getYoutubeInfo} = await import('../app/modules/drivers/youtubeDlp.js');
+  console.log('info', await getYoutubeInfo(process.env.URL));
 })();

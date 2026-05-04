@@ -119,6 +119,9 @@ bash/docker-prune.sh && bash/docker-rebuild-and-upgrade.sh
 Warning: above commands deletes all stopped containers, not used images and docker build cache. Also, it's reverting not commited local git changes. 
 If you know more efficient way to update GeeSome container app - please, make a PR.
 
+# Optional media tools
+YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
+
 ## Getting started with GeeSome Node API
 1. Install GeeSome libs by npm:
 ```
