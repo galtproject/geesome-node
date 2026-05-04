@@ -12,9 +12,7 @@ import {execFile, spawn} from "child_process";
 import os from "os";
 import path from "path";
 import {Readable} from "stream";
-import * as uuid from "uuid";
-
-const {v4: uuidv4} = uuid["default"];
+import {v4 as uuidv4} from "uuid";
 
 function getYtDlpBinary() {
   return process.env.YT_DLP_BINARY || "yt-dlp";

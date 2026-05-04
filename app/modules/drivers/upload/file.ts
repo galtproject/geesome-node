@@ -8,10 +8,9 @@
  */
 
 import fs from "fs";
-import * as uuid from 'uuid';
+import {v4 as uuidv4} from 'uuid';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
-const {v4: uuidv4} = uuid['default'];
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];

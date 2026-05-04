@@ -140,6 +140,8 @@
     "geesome-libs/geesome-wallet-client/**/levelup/semver": "5.7.2",
     "geesome-libs/geesome-wallet-client/follow-redirects": "1.16.0",
     "geesome-libs/geesome-wallet-client/**/follow-redirects": "1.16.0",
+    "geesome-libs/geesome-wallet-client/**/fetch-ponyfill/node-fetch": "2.7.0",
+    "geesome-libs/**/fetch-ponyfill/node-fetch": "2.7.0",
     "geesome-libs/geesome-wallet-client/ethers/@ethersproject/providers/ws": "7.5.10",
     "geesome-libs/geesome-wallet-client/web3-provider-engine/ws": "5.2.4",
     "geesome-libs/eth-crypto/ethers/@ethersproject/providers/ws": "7.5.10",
