@@ -8,14 +8,14 @@ const {pick} = _;
 export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
-     * @api {post} user/save-file Save file
+     * @api {post} /v1/user/save-file Save file
      * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
      * @apiName UserSaveFile
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../interface.ts) {IFileContentInput} apiParam
+     * @apiInterface (../../interface.ts) {IFileContentInput} apiBody
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      */
@@ -36,14 +36,14 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     /**
-     * @api {post} user/save-data Save data
+     * @api {post} /v1/user/save-data Save data
      * @apiDescription Store data (string or buffer)
      * @apiName UserSaveData
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../interface.ts) {IDataContentInput} apiParam
+     * @apiInterface (../../interface.ts) {IDataContentInput} apiBody
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      */
@@ -58,14 +58,14 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     /**
-     * @api {post} user/save-data-by-url Save data by url
+     * @api {post} /v1/user/save-data-by-url Save data by url
      * @apiDescription Download and store data by url
      * @apiName UserSaveDataByUrl
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../interface.ts) {IUrlContentInput} apiParam
+     * @apiInterface (../../interface.ts) {IUrlContentInput} apiBody
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      */
@@ -80,14 +80,14 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     /**
-     * @api {post} user/save-directory Save directory
+     * @api {post} /v1/user/save-directory Save directory
      * @apiDescription Store directory content
      * @apiName UserSaveDirectory
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../interface.ts) {IDataContentInput} apiParam
+     * @apiInterface (../../interface.ts) {IDataContentInput} apiBody
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      */

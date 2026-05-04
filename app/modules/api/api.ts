@@ -20,7 +20,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 */
 
 	/**
-	 * @api {get} is-empty Request Node status
+	 * @api {get} /v1/is-empty Request Node status
 	 * @apiName IsEmpty
 	 * @apiGroup Setup
 	 *
@@ -33,7 +33,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	});
 
 	/**
-	 * @api {post} setup Setup first admin user
+	 * @api {post} /v1/setup Setup first admin user
 	 * @apiName RunSetup
 	 * @apiGroup Setup
 	 *
@@ -45,11 +45,11 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	});
 
 	/**
-	 * @api {post} login/password Login by password
+	 * @api {post} /v1/login/password Login by password
 	 * @apiName LoginPassword
 	 * @apiGroup Login
 	 *
-	 * @apiBody {String} login
+	 * @apiBody {String} username
 	 * @apiBody {String} password
 	 *
 	 * @apiInterface (../../interface.ts) {IUserAuthResponse} apiSuccess
@@ -64,7 +64,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	});
 
 	/**
-	 * @api {get} user Get current user
+	 * @api {get} /v1/user Get current user
 	 * @apiName UserCurrent
 	 * @apiGroup User
 	 *

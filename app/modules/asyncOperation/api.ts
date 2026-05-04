@@ -20,7 +20,8 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../database/interface.ts) {IUserAsyncOperation} apiSuccess
+     * @apiParam {Number} id Async operation id.
+     * @apiInterface (./interface.ts) {IUserAsyncOperation} apiSuccess
      */
     app.ms.api.onAuthorizedPost('user/get-async-operation/:id', async (req, res) => {
         res.send(await asyncOperationModule.getAsyncOperation(req.user.id, req.params.id));

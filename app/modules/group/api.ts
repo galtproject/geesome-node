@@ -12,15 +12,15 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
     });
     
     /**
-     * @api {post} user/create-group Create group
+     * @api {post} /v1/user/create-group Create group
      * @apiName UserGroupCreate
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../app/interface.ts) {IGroupInput} apiParam
+     * @apiInterface (./interface.ts) {IGroupInput} apiBody
      *
-     * @apiInterface (../../database/interface.ts) {IGroup} apiSuccess
+     * @apiInterface (./interface.ts) {IGroupApiResponse} apiSuccess
      */
     app.ms.api.onAuthorizedPost('user/create-group', async (req, res) => {
         res.send(await groupModule.createGroup(req.user.id, req.body), 200);
@@ -31,55 +31,58 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
     });
     
     /**
-     * @api {post} user/group/:groupId/update Edit group
+     * @api {post} /v1/user/group/:groupId/update Edit group
      * @apiDescription Can be edit by database id or storage id
      * @apiName UserGroupUpdate
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../app/interface.ts) {IGroupInput} apiParam
+     * @apiParam {String} groupId Group database id or storage id.
+     * @apiInterface (./interface.ts) {IGroupInput} apiBody
      *
-     * @apiInterface (../../database/interface.ts) {IGroup} apiSuccess
+     * @apiInterface (./interface.ts) {IGroupApiResponse} apiSuccess
      */
     app.ms.api.onAuthorizedPost('user/group/:groupId/update', async (req, res) => {
         res.send(await groupModule.updateGroup(req.user.id, req.params.groupId, req.body), 200);
     });
 
     /**
-     * @api {get} user/member-in-groups Get groups where user is member
+     * @api {get} /v1/user/member-in-groups Get groups where user is member
      * @apiName UserGroupsForMember
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
+     * @apiQuery {String} types Comma-separated group types.
+     * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/member-in-groups', async (req, res) => {
         res.send(await groupModule.getMemberInGroups(req.user.id, req.query.types.split(',')));
     });
 
     /**
-     * @api {get} user/admin-in-groups Get groups where user is admin
+     * @api {get} /v1/user/admin-in-groups Get groups where user is admin
      * @apiName UserGroupsForAdmin
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
+     * @apiQuery {String} types Comma-separated group types.
+     * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/admin-in-groups', async (req, res) => {
         res.send(await groupModule.getAdminInGroups(req.user.id, req.query.types.split(',')));
     });
 
     /**
-     * @api {get} user/personal-chat-groups Get personal chat groups
+     * @api {get} /v1/user/personal-chat-groups Get personal chat groups
      * @apiName UserGroupsAsPersonalChats
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../app/interface.ts) {IGroupListResponse} apiSuccess
+     * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/personal-chat-groups', async (req, res) => {
         res.send(await groupModule.getPersonalChatGroups(req.user.id));
@@ -94,16 +97,16 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
     });
 
     /**
-     * @api {post} user/group/:groupId/create-post Create Group post
+     * @api {post} /v1/user/group/create-post Create Group post
      * @apiDescription Create post by content ids and group id.
      * @apiName UserGroupCreatePost
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
      *
-     * @apiInterface (../../app/interface.ts) {IPostInput} apiParam
+     * @apiInterface (./interface.ts) {IPostInput} apiBody
      *
-     * @apiInterface (../../database/interface.ts) {IPost} apiSuccess
+     * @apiInterface (./interface.ts) {IPostApiResponse} apiSuccess
      */
     app.ms.api.onAuthorizedPost('user/group/create-post', async (req, res) => {
         res.send(await groupModule.createPost(req.user.id, req.body), 200);
@@ -166,18 +169,19 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
     });
 
     /**
-     * @api {get} group/:groupId/posts Get group posts
+     * @api {get} /v1/group/:groupId/posts Get group posts
      * @apiName GroupPosts
      * @apiGroup Group
      *
      * @apiUse ApiKey
      *
-     * @apiParam sortBy
-     * @apiParam sortDir
-     * @apiParam limit
-     * @apiParam offset
+     * @apiParam {String} groupId Group database id or storage id.
+     * @apiQuery {String} sortBy
+     * @apiQuery {String} sortDir
+     * @apiQuery {Number} limit
+     * @apiQuery {Number} offset
      *
-     * @apiInterface (../../app/interface.ts) {IPostListResponse} apiSuccess
+     * @apiInterface (./interface.ts) {IPostApiListResponse} apiSuccess
      */
     app.ms.api.onGet('group/:groupId/posts', async (req, res) => {
         res.send(await groupModule.getGroupPosts(req.params.groupId, req.query, req.query));

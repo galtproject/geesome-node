@@ -8,10 +8,10 @@ export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumA
 	 * @apiName GenerateAuthMessage
 	 * @apiGroup Login
 	 *
-	 * @apiParam {String} accountProvider Provider name, "ethereum" for example
-	 * @apiParam {String} accountAddress
+	 * @apiBody {String} accountProvider Provider name, "ethereum" for example
+	 * @apiBody {String} accountAddress
 	 *
-	 * @apiInterface (../../app/interface.ts) {IUserAuthMessageResponse} apiSuccess
+	 * @apiInterface (../../interface.ts) {IUserAuthMessageResponse} apiSuccess
 	 */
 	app.ms.api.onPost('generate-auth-message', async (req, res) => {
 		res.send(await ethereumAuthorizationModule.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
@@ -23,12 +23,12 @@ export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumA
 	 * @apiName LoginAuthMessage
 	 * @apiGroup Login
 	 *
-	 * @apiParam {Number} authMessageId Id from /v1/generate-auth-message response
-	 * @apiParam {String} accountAddress
-	 * @apiParam {String} signature
-	 * @apiParam {Any} params Special params of provider, {fieldName: String}(field that used in message for signing) in Ethereum.
+	 * @apiBody {Number} authMessageId Id from /v1/generate-auth-message response
+	 * @apiBody {String} accountAddress
+	 * @apiBody {String} signature
+	 * @apiBody {Any} params Special params of provider, {fieldName: String}(field that used in message for signing) in Ethereum.
 	 *
-	 * @apiInterface (../../app/interface.ts) {IUserAuthResponse} apiSuccess
+	 * @apiInterface (../../interface.ts) {IUserAuthResponse} apiSuccess
 	 */
 	app.ms.api.onPost('login/auth-message', async (req, res) => {
 		ethereumAuthorizationModule.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)

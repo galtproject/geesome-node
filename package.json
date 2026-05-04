@@ -24,7 +24,7 @@
     "rollback-migration": "( cd app/modules/database && ../../../node_modules/.bin/tsx ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate:undo)",
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; tsx check/geesomePerfomance.ts --trace_gc",
     "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/tsx -P tsconfig.json check/geesomeClientPerfomance.ts",
-    "generate-docs": "./node_modules/.bin/apidoc -i app/modules/api -o docs -t node_modules/geesome-apidoc-template/template",
+    "generate-docs": "./node_modules/.bin/apidoc -i app/modules -o docs -t node_modules/geesome-apidoc-template/template",
     "serve-docs": "./node_modules/.bin/http-server ./docs",
     "test": "yarn -W && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
     "testCoverage": "node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",

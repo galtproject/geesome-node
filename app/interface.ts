@@ -161,13 +161,44 @@ export interface IContentInput {
   async?: boolean;
 }
 
-export interface IUrlContentInput {
+export interface IFileContentInput extends IContentInput {
+  /**
+   * Multipart form-data file field.
+   */
+  file: any;
+  /**
+   * Upload driver from geesome-node/drivers/upload. "youtubeVideo" for example. Drivers can handle specific contents.
+   */
+  driver?: string;
+}
+
+export interface IDataContentInput extends IContentInput {
+  /**
+   * Raw content to store.
+   */
+  content?: any;
+  /**
+   * File name used for stored content metadata.
+   */
+  fileName?: string;
+  name?: string;
+  /**
+   * Content MIME type override.
+   */
+  mimeType?: string;
+  /**
+   * Upload driver from geesome-node/drivers/upload. "youtubeVideo" for example. Drivers can handle specific contents.
+   */
+  driver?: string;
+}
+
+export interface IUrlContentInput extends IContentInput {
   url: string;
   /**
    * Upload driver from geesome-node/drivers/upload. "youtubeVideo" for example. Drivers can handle specific contents.
    */
-  driver: string;
-  mimeType: string;
+  driver?: string;
+  mimeType?: string;
 }
 
 export interface ManifestToSave {
