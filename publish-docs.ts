@@ -18,7 +18,7 @@ export default (app: IGeesomeApp) => {
     return console.warn("Script for generating docs not found :(");
   }
   //TODO: include modules api
-  const child = spawn(apiDocPath, ['-i', 'app/modules/api', '-o', 'docs/',  '-t', 'node_modules/geesome-apidoc-template/template']);
+  const child = spawn(apiDocPath, ['-i', 'app/modules/api', '-o', 'docs/']);
 
   child.on('close', async (code) => {
     if (code !== 0) {

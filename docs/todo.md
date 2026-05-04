@@ -15,7 +15,7 @@ Corrections and added requirements:
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
-- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), and this plan now tracks the GeeSome Node-facing documentation/toolchain cleanup in [#787](https://github.com/galtproject/geesome-node/issues/787).
+- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), the GeeSome Node-facing cleanup is tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), and the immediate vulnerable `apidoc-core` removal is tracked in [#802](https://github.com/galtproject/geesome-node/issues/802).
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -94,7 +94,7 @@ Scope:
 - Start with low-blast-radius transitive/dev bumps when Dependabot opens fresh PRs.
 - Handle runtime-sensitive bumps separately: old IPFS package chains, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
 - For `sequelize`, run database, group, static-site-generator, invite, pin, and social import tests because those modules rely on models and migrations.
-- Remaining high/critical alerts need larger migrations rather than direct lockfile bumps: old Telegram bot `request` chains, `@microlink/youtube-dl` CLI helper chains, old `apidoc`/`apidoc-core`, and old `geesome-libs` wallet/libp2p crypto dependencies.
+- Remaining high/critical alerts need larger migrations rather than direct lockfile bumps: old Telegram bot `request` chains, `@microlink/youtube-dl` CLI helper chains, and old `geesome-libs` wallet/libp2p crypto dependencies. The old `apidoc`/`apidoc-core` chain is being removed separately in [#802](https://github.com/galtproject/geesome-node/issues/802).
 
 Verification:
 
@@ -206,7 +206,7 @@ Verification:
 
 ### 7. API Documentation Toolchain Cleanup
 
-Status: planned in [#787](https://github.com/galtproject/geesome-node/issues/787). The repos are now tracked by microwave-hub as submodules:
+Status: in progress. [#802](https://github.com/galtproject/geesome-node/issues/802) upgrades `geesome-node` to `apidoc@1.x`, removes the vulnerable `apidoc-core` package graph, and stops using the old incompatible published `geesome-apidoc-template` package in the node-side generation path. The broader user-friendly docs/template/parser cleanup remains planned in [#787](https://github.com/galtproject/geesome-node/issues/787). The repos are now tracked by microwave-hub as submodules:
 
 - `apidoc-template` for generated documentation UI/template work.
 - `apidoc-plugin-ts` for TypeScript parsing and apiDoc annotation support.
@@ -217,12 +217,13 @@ Repo split:
 
 - `apidoc-template`: rewrite the generated docs UI for clearer navigation, search, request/response examples, mobile readability, and fewer unnecessary runtime/browser dependencies.
 - `apidoc-plugin-ts`: fix TypeScript parsing issues, strengthen `@apiInterface` handling, remove stale/bad dependencies where possible, and add focused tests for parser regressions.
-- `geesome-node`: keep API annotations accurate, consume the cleaned-up template/plugin, and verify `yarn generate-docs` still produces usable docs from `app/modules/api`.
+- `geesome-node`: keep API annotations accurate, consume the cleaned-up template/plugin when they are ready, and verify `yarn generate-docs` still produces usable docs from `app/modules/api`.
 - `microwave-hub`: keep both API-doc repos as submodules so agents can route and coordinate docs tooling work from the hub.
 
 First deliverable:
 
-- Audit current `geesome-node` API doc generation command and package usage.
+- Audit current `geesome-node` API doc generation command and package usage. Status: [#802](https://github.com/galtproject/geesome-node/issues/802) found that modern `apidoc` auto-loads packages named `apidoc-plugin-*`, so `geesome-node` now consumes the existing GeeSome TypeScript plugin through an `apidoc-plugin-ts` npm alias.
+- Keep `geesome-node` on the default `apidoc@1.x` template until `apidoc-template` is modernized for the new `template/src/*` asset layout.
 - Open or find issues in `apidoc-template` and `apidoc-plugin-ts` for concrete UI/parser/dependency cleanup.
 - Add smoke tests or fixtures in `apidoc-plugin-ts` for the GeeSome annotation shapes that matter most.
 - Update `apidoc-template` docs/examples so generated API documentation is understandable to users who are not already familiar with the codebase.
