@@ -82,7 +82,7 @@ Verification:
 
 ### 2. Dependency Security Pass
 
-Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency. [#789](https://github.com/galtproject/geesome-node/issues/789) upgrades `bcrypt` to remove the vulnerable `@mapbox/node-pre-gyp` chain.
+Status: in progress. [#783](https://github.com/galtproject/geesome-node/issues/783) removed the direct deprecated `request` dependency from the API proxy path. [#785](https://github.com/galtproject/geesome-node/issues/785) removes the unused direct legacy `cids` dependency. [#789](https://github.com/galtproject/geesome-node/issues/789) upgrades `bcrypt` to remove the vulnerable `@mapbox/node-pre-gyp` chain. [#791](https://github.com/galtproject/geesome-node/issues/791) removes the deprecated unused `typings` devDependency. [#793](https://github.com/galtproject/geesome-node/issues/793) removes unused `lerna` dev tooling. [#794](https://github.com/galtproject/geesome-node/issues/794) removes unused `filecoin.js` dev tooling. [#795](https://github.com/galtproject/geesome-node/issues/795) replaces direct `rimraf` usage with Node `fs.rm`. [#796](https://github.com/galtproject/geesome-node/issues/796) bumps `sequelize-cli` within the 6.x line. [#797](https://github.com/galtproject/geesome-node/issues/797) updates Express 4 patch dependencies and removes unused direct `serve-static`. [#798](https://github.com/galtproject/geesome-node/issues/798) aligns shared dependency versions with `geesome-libs` [#123](https://github.com/galtproject/geesome-libs/issues/123) and `geesome-ui` [#1](https://github.com/galtproject/geesome-ui/issues/1).
 
 Goal: merge or reproduce the Dependabot bumps in small batches.
 
@@ -90,6 +90,7 @@ Scope:
 
 - Remove or replace direct deprecated dependencies where the code path is small and already covered by import smoke.
 - Remove unused direct legacy dependencies that only contribute transitive audit surface.
+- Remove stale direct dev tooling that is not called by scripts or source code.
 - Start with low-blast-radius transitive/dev bumps when Dependabot opens fresh PRs.
 - Handle runtime-sensitive bumps separately: old IPFS package chains, `sequelize-cli`, `axios`, `lodash`, `sequelize`, and any `geesome-libs` lockstep updates.
 - For `sequelize`, run database, group, static-site-generator, invite, pin, and social import tests because those modules rely on models and migrations.
@@ -98,6 +99,7 @@ Verification:
 
 - API module import smoke for the `request` removal.
 - Storage/API import smoke for the `cids` removal.
+- Package graph check for stale direct tooling removal.
 - Password helper smoke for the `bcrypt` major bump.
 - `yarn test`
 - `yarn audit --groups dependencies --level high` to document remaining high/critical chains.
