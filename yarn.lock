@@ -123,11 +123,9 @@
     semver "^6.3.1"
 
 "@babel/runtime@^7.5.5":
-  version "7.22.6"
-  resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.22.6.tgz#57d64b9ae3cff1d67eb067ae117dac087f5bd438"
-  integrity sha512-wDb5pWm4WDdF6LFUde3Jl8WzPA+3ZbxYqkC6xAXuD3irdEHN1k0NfTRrJD8ZD378SJ61miMLCqIOXYhd8x+AJQ==
-  dependencies:
-    regenerator-runtime "^0.13.11"
+  version "7.29.2"
+  resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.29.2.tgz#9a6e2d05f4b6692e1801cd4fb176ad823930ed5e"
+  integrity sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==
 
 "@babel/types@^7.22.5":
   version "7.22.5"
@@ -3372,6 +3370,7 @@ anymatch@~3.1.2:
 
 "apidoc-plugin-ts@git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1":
   version "1.1.0"
+  uid afc63f1950902c81f428f1b663326e0ba66bacbe
   resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1950902c81f428f1b663326e0ba66bacbe"
   dependencies:
     ts-morph "3.1.0"
@@ -6381,7 +6380,8 @@ functions-have-names@^1.2.2, functions-have-names@^1.2.3:
 
 "geesome-apidoc-template@git+ssh://git@github.com/MicrowaveDev/apidoc-template.git":
   version "1.1.0"
-  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git#cd5942b236a44c0357d7b7e4fe8656a81b9aaa70"
+  uid "6013e580e1364b4a35e6c8a8ecdc3ae69c7f513a"
+  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git#6013e580e1364b4a35e6c8a8ecdc3ae69c7f513a"
   dependencies:
     bootstrap "3.4.1"
     diff-match-patch "^1.0.5"
@@ -10018,7 +10018,7 @@ regenerator-runtime@^0.11.0:
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.11.1.tgz#be05ad7f9bf7d22e056f9726cee5017fbf19e2e9"
   integrity sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
 
-regenerator-runtime@^0.13.11, regenerator-runtime@^0.13.3:
+regenerator-runtime@^0.13.3:
   version "0.13.11"
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.11.tgz#f6dca3e7ceec20590d07ada785636a90cdca17f9"
   integrity sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg==
