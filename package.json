@@ -48,7 +48,7 @@
     "@types/keccak": "^3.0.5",
     "@types/lodash": "^4.17.13",
     "@types/morgan": "^1.9.9",
-    "@types/node-telegram-bot-api": "^0.64.7",
+    "@types/node-telegram-bot-api": "^0.64.14",
     "@types/unzip-stream": "^0.3.4",
     "@types/uuid": "^10.0.0",
     "@vue/devtools-api": "^6.6.4",
@@ -80,7 +80,7 @@
     "morgan": "^1.9.1",
     "node-cron": "^2.0.3",
     "node-mediainfo": "^1.0.3",
-    "node-telegram-bot-api": "^0.61.0",
+    "node-telegram-bot-api": "^0.67.0",
     "p-iteration": "^1.1.8",
     "passport": "^0.6.0",
     "passport-local": "^1.0.0",
@@ -129,5 +129,8 @@
   "environmentVariables": {},
   "k8s_service_names": [],
   "ingress_rules": [],
-  "resourceAllocationStrategy": ""
+  "resourceAllocationStrategy": "",
+  "resolutions": {
+    "@types/request": "2.48.13"
+  }
 }
