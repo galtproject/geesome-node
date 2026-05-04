@@ -71,7 +71,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#b1f54e0",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#78bed21",
     "keccak": "^3.0.3",
     "kubo-rpc-client": "^6.1.0",
     "lodash": "^4.18.1",
@@ -132,11 +132,18 @@
   "resourceAllocationStrategy": "",
   "resolutions": {
     "@types/request": "2.48.13",
+    "base-x": "3.0.11",
     "braces": "3.0.3",
     "elliptic": "6.6.1",
+    "eth-crypto/ethers/@ethersproject/providers/ws": "7.5.10",
     "geesome-libs/geesome-wallet-client/axios": "1.16.0",
+    "geesome-libs/geesome-wallet-client/**/levelup/semver": "5.7.2",
     "geesome-libs/geesome-wallet-client/follow-redirects": "1.16.0",
     "geesome-libs/geesome-wallet-client/**/follow-redirects": "1.16.0",
+    "geesome-libs/geesome-wallet-client/ethers/@ethersproject/providers/ws": "7.5.10",
+    "geesome-libs/geesome-wallet-client/web3-provider-engine/ws": "5.2.4",
+    "geesome-libs/eth-crypto/ethers/@ethersproject/providers/ws": "7.5.10",
+    "geesome-libs/levelup/semver": "5.7.2",
     "geesome-libs/secp256k1": "5.0.1",
     "secp256k1": "4.0.4"
   }
