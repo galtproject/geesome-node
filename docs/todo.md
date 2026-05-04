@@ -225,7 +225,7 @@ First deliverable:
 - Audit current `geesome-node` API doc generation command and package usage. Status: complete in [#802](https://github.com/galtproject/geesome-node/issues/802) and [#804](https://github.com/galtproject/geesome-node/issues/804).
 - Consume `apidoc-plugin-ts` and `geesome-apidoc-template` by git URL. Status: complete in [#804](https://github.com/galtproject/geesome-node/issues/804) and [#806](https://github.com/galtproject/geesome-node/issues/806).
 - Generate docs with the modern custom template. Status: complete; local smoke passes with `app/modules/api`.
-- Future polish only: richer endpoint examples, rendered browser/mobile review, and API annotation cleanup for warnings where request-body fields are currently documented as `@apiParam`.
+- Future polish only: richer endpoint examples and rendered browser/mobile review. API annotation cleanup for request-body fields is tracked in [#808](https://github.com/galtproject/geesome-node/issues/808).
 
 Verification:
 

@@ -37,7 +37,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiName RunSetup
 	 * @apiGroup Setup
 	 *
-	 * @apiInterface (../../interface.ts) {IUserInput} apiParam
+	 * @apiInterface (../../interface.ts) {IUserInput} apiBody
 	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
 	 */
 	module.onPost('setup', async (req, res) => {
@@ -49,8 +49,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiName LoginPassword
 	 * @apiGroup Login
 	 *
-	 * @apiParam {String} login
-	 * @apiParam {String} password
+	 * @apiBody {String} login
+	 * @apiBody {String} password
 	 *
 	 * @apiInterface (../../interface.ts) {IUserAuthResponse} apiSuccess
 	 */
