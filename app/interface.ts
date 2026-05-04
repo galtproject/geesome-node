@@ -225,3 +225,106 @@ export interface IContentListResponse {
   list: IContent[];
   total: number;
 }
+
+export interface IBooleanResultResponse {
+  result: boolean;
+}
+
+export interface IValidResponse {
+  valid: boolean;
+}
+
+export interface IStringResultResponse {
+  result: string;
+}
+
+export interface IListQueryInput {
+  search?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortDir?: string;
+}
+
+export interface IUserUpdateInput {
+  title?: string;
+  description?: string;
+  email?: string;
+  avatarImageId?: number;
+}
+
+export interface IUserApiKeyInput {
+  title?: string;
+  type?: string;
+  permissions?: string;
+  expiredOn?: Date | string;
+  isDisabled?: boolean;
+}
+
+export interface ITokenInput {
+  token: string;
+}
+
+export interface IUserIdInput {
+  userId: number;
+}
+
+export interface ICorePermissionInput {
+  userId: number;
+  permissionName: string;
+}
+
+export interface ICorePermissionListInput {
+  userId: number;
+  permissionNameList: string[];
+}
+
+export interface IUserLimitInput {
+  userId: number;
+  name: string;
+  value?: number;
+  period?: string;
+}
+
+export interface IBootNodeInput {
+  address: string;
+  type?: string;
+}
+
+export interface IStorageObjectInput {
+  [key: string]: any;
+}
+
+export interface IStorageObjectResponse {
+  storageId: string;
+  data?: any;
+}
+
+export interface INodeAddressListResponse {
+  result: string[];
+}
+
+export interface IStorageIdListInput {
+  idList: string[];
+}
+
+export interface IContentStatResponse {
+  size?: number;
+  type?: string;
+  mimeType?: string;
+}
+
+export interface IPinOptionsInput {
+  name?: string;
+  path?: string;
+  metadata?: any;
+}
+
+export interface IPinAccountListResponse {
+  list: any[];
+}
+
+export interface IForeignAccountLookupInput {
+  provider: string;
+  address: string;
+}

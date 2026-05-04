@@ -335,6 +335,50 @@ export interface IPostInput {
 	properties?: any;
 }
 
+export interface IPostUpdateInput {
+	contentIds?: number[];
+	contentsIds?: number[];
+	view?: string;
+	type?: string;
+	size?: string;
+	publishOn?: Date | string;
+	isPinned?: boolean;
+	isReplyForbidden?: boolean;
+	replyToId?: number;
+	repostOfId?: string;
+	properties?: any;
+}
+
+export interface IGroupUserInput {
+	userId: number;
+	permissions?: string[];
+}
+
+export interface IGroupUserListInput {
+	userIds: number[];
+}
+
+export interface IGroupPermissionInput {
+	userId: number;
+	permissions: string[];
+}
+
+export interface IGroupReadInput {
+	groupId: number;
+	readFrom?: number;
+	readAt?: Date | string;
+}
+
+export interface IUserFriendInput {
+	friendId: number;
+}
+
+export interface IGroupUnreadResponse {
+	count?: number;
+	cachedPostsCount?: number;
+	readFrom?: number;
+}
+
 export interface IGroupApiResponse {
 	id: number;
 	name: string;
