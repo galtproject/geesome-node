@@ -10,10 +10,9 @@
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 import sharp from "sharp";
-import * as uuid from 'uuid';
+import {v4 as uuidv4} from 'uuid';
 import fs from "fs";
 import { exec } from "child_process";
-const {v4: uuidv4} = uuid['default'];
 
 export class GifPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream, DriverInput.Path];
