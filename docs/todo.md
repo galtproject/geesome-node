@@ -15,7 +15,7 @@ Corrections and added requirements:
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
-- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), planning was tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), vulnerable `apidoc-core` removal was tracked in [#802](https://github.com/galtproject/geesome-node/issues/802), and final git-URL wiring is tracked in [#804](https://github.com/galtproject/geesome-node/issues/804).
+- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), planning was tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), vulnerable `apidoc-core` removal was tracked in [#802](https://github.com/galtproject/geesome-node/issues/802), final git-URL wiring was tracked in [#804](https://github.com/galtproject/geesome-node/issues/804), and the final plugin-master repoint is tracked in [#806](https://github.com/galtproject/geesome-node/issues/806).
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -206,7 +206,7 @@ Verification:
 
 ### 7. API Documentation Toolchain Cleanup
 
-Status: nearly complete. [#802](https://github.com/galtproject/geesome-node/issues/802) upgraded `geesome-node` to `apidoc@1.x` and removed the vulnerable `apidoc-core` package graph. [#804](https://github.com/galtproject/geesome-node/issues/804) wires `geesome-node` to the modern template and TypeScript plugin through git URLs. The repos are tracked by microwave-hub as submodules:
+Status: complete. [#802](https://github.com/galtproject/geesome-node/issues/802) upgraded `geesome-node` to `apidoc@1.x` and removed the vulnerable `apidoc-core` package graph. [#804](https://github.com/galtproject/geesome-node/issues/804) wired `geesome-node` to the modern template and TypeScript plugin through git URLs. [#806](https://github.com/galtproject/geesome-node/issues/806) repoints the plugin dependency to the merged plugin master instead of the temporary PR commit. The repos are tracked by microwave-hub as submodules:
 
 - `apidoc-template` for generated documentation UI/template work.
 - `apidoc-plugin-ts` for TypeScript parsing and apiDoc annotation support.
@@ -223,8 +223,8 @@ Repo split:
 First deliverable:
 
 - Audit current `geesome-node` API doc generation command and package usage. Status: complete in [#802](https://github.com/galtproject/geesome-node/issues/802) and [#804](https://github.com/galtproject/geesome-node/issues/804).
-- Consume `apidoc-plugin-ts` and `geesome-apidoc-template` by git URL. Status: in progress in [#804](https://github.com/galtproject/geesome-node/issues/804); the plugin git install fix is in [`apidoc-plugin-ts` PR #2](https://github.com/MicrowaveDev/apidoc-plugin-ts/pull/2).
-- Generate docs with the modern custom template. Status: local smoke passes with `app/modules/api`.
+- Consume `apidoc-plugin-ts` and `geesome-apidoc-template` by git URL. Status: complete in [#804](https://github.com/galtproject/geesome-node/issues/804) and [#806](https://github.com/galtproject/geesome-node/issues/806).
+- Generate docs with the modern custom template. Status: complete; local smoke passes with `app/modules/api`.
 - Future polish only: richer endpoint examples, rendered browser/mobile review, and API annotation cleanup for warnings where request-body fields are currently documented as `@apiParam`.
 
 Verification:
