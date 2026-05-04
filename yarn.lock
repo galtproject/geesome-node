@@ -3386,10 +3386,9 @@ anymatch@~3.1.2:
     normalize-path "^3.0.0"
     picomatch "^2.0.4"
 
-"apidoc-plugin-ts@npm:geesome-apidoc-plugin-ts@1.0.3":
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/geesome-apidoc-plugin-ts/-/geesome-apidoc-plugin-ts-1.0.3.tgz#1655faa8cb03310009bdea71837222eb83c6abe7"
-  integrity sha512-0Mnn/0Pp/QPgKFViKxC6ln8FgoAjmpROWQscPAbRGBRZyDLfhD1/ZxII0AsYBEsrM5o81hn26Wzk0nKGCkTc7g==
+"apidoc-plugin-ts@git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#d1c84f6":
+  version "1.1.0"
+  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#d1c84f6d6e026a4d66c852089bdba72398c1de9e"
   dependencies:
     ts-morph "3.1.0"
     typescript "3.5.2"
@@ -5521,7 +5520,7 @@ es6-symbol@^3.1.1, es6-symbol@^3.1.3:
     d "^1.0.1"
     ext "^1.1.2"
 
-esbuild-loader@^2.16.0:
+esbuild-loader@^2.16.0, esbuild-loader@^2.21.0:
   version "2.21.0"
   resolved "https://registry.yarnpkg.com/esbuild-loader/-/esbuild-loader-2.21.0.tgz#2698a3e565b0db2bb19a3dd91c2b6c9aad526c80"
   integrity sha512-k7ijTkCT43YBSZ6+fBCW1Gin7s46RrJ0VQaM8qA7lq7W+OLsGgtLyFV8470FzYi/4TeDexniTBTPTwZUnXXR5g==
@@ -6167,7 +6166,7 @@ expand-template@^2.0.3:
   resolved "https://registry.yarnpkg.com/expand-template/-/expand-template-2.0.3.tgz#6e14b3fcee0f3a6340ecb57d2e8918692052a47c"
   integrity sha512-XYfuKMvj4O35f/pOXLObndIRvyQ+/+6AhODh+OKWj9S9498pHHn/IMszH+gt0fBCRWMNfk1ZSp5x3AifmnI2vg==
 
-expose-loader@^4.0.0:
+expose-loader@^4.0.0, expose-loader@^4.1.0:
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/expose-loader/-/expose-loader-4.1.0.tgz#9c6d55d24e3ac0e5d50ee5dc7930d564fc475d48"
   integrity sha512-oLAesnzerwDGGADzBMnu0LPqqnlVz6e2V9lTa+/4X6VeW9W93x/nJpw05WBrcIdbqXm/EdnEQpiVDFFiQXuNfg==
@@ -6671,6 +6670,21 @@ functions-have-names@^1.2.2, functions-have-names@^1.2.3:
   resolved "https://registry.yarnpkg.com/functions-have-names/-/functions-have-names-1.2.3.tgz#0404fe4ee2ba2f607f0e0ec3c80bae994133b834"
   integrity sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==
 
+"geesome-apidoc-template@git+ssh://git@github.com/MicrowaveDev/apidoc-template.git":
+  version "1.1.0"
+  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git#cd5942b236a44c0357d7b7e4fe8656a81b9aaa70"
+  dependencies:
+    bootstrap "3.4.1"
+    diff-match-patch "^1.0.5"
+    esbuild-loader "^2.21.0"
+    expose-loader "^4.1.0"
+    handlebars "^4.7.9"
+    jquery "^3.7.1"
+    lodash "^4.17.21"
+    prismjs "^1.30.0"
+    semver "^7.5.0"
+    webpack "^5.106.2"
+
 "geesome-libs@https://github.com/galtproject/geesome-libs#9b89a8a":
   version "1.0.0"
   resolved "https://github.com/galtproject/geesome-libs#9b89a8aef25a5ed12bbc7b5ef912c4d047960258"
@@ -6992,7 +7006,7 @@ hamt-sharding@^3.0.6:
     sparse-array "^1.3.1"
     uint8arrays "^5.0.1"
 
-handlebars@^4.7.7:
+handlebars@^4.7.7, handlebars@^4.7.9:
   version "4.7.9"
   resolved "https://registry.yarnpkg.com/handlebars/-/handlebars-4.7.9.tgz#6f139082ab58dc4e5a0e51efe7db5ae890d56a0f"
   integrity sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==
@@ -8317,7 +8331,7 @@ joycon@^3.0.1:
   resolved "https://registry.yarnpkg.com/joycon/-/joycon-3.1.1.tgz#bce8596d6ae808f8b68168f5fc69280996894f03"
   integrity sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==
 
-jquery@^3.6.0:
+jquery@^3.6.0, jquery@^3.7.1:
   version "3.7.1"
   resolved "https://registry.yarnpkg.com/jquery/-/jquery-3.7.1.tgz#083ef98927c9a6a74d05a6af02806566d16274de"
   integrity sha512-m4avr8yL8kmFN8psrbFFFmB/If14iN5o9nw/NgnnM+kybDJpRsAynV2BsfpTYrTRysYUdADVD7CkUUizgkpLfg==
@@ -10182,7 +10196,7 @@ precond@0.2:
   resolved "https://registry.yarnpkg.com/precond/-/precond-0.2.3.tgz#aa9591bcaa24923f1e0f4849d240f47efc1075ac"
   integrity sha512-QCYG84SgGyGzqJ/vlMsxeXd/pgL/I94ixdNFyh1PusWmTCyVfPJjZ1K1jvHtsbfnXQs2TSkEP2fR7QiMZAnKFQ==
 
-prismjs@^1.25.0:
+prismjs@^1.25.0, prismjs@^1.30.0:
   version "1.30.0"
   resolved "https://registry.yarnpkg.com/prismjs/-/prismjs-1.30.0.tgz#d9709969d9d4e16403f6f348c63553b19f0975a9"
   integrity sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==
@@ -12536,7 +12550,7 @@ webpack-sources@^3.3.4:
   resolved "https://registry.yarnpkg.com/webpack-sources/-/webpack-sources-3.4.1.tgz#009d110999ebd9fb3a6fa8d32eec6f84d940e65d"
   integrity sha512-eACpxRN02yaawnt+uUNIF7Qje6A9zArxBbcAJjK1PK3S9Ycg5jIuJ8pW4q8EMnwNZCEGltcjkRx1QzOxOkKD8A==
 
-webpack@^5.64.2:
+webpack@^5.106.2, webpack@^5.64.2:
   version "5.106.2"
   resolved "https://registry.yarnpkg.com/webpack/-/webpack-5.106.2.tgz#ca8174b4fd80f055cc5a45fcc5577d6db76c8ac5"
   integrity sha512-wGN3qcrBQIFmQ/c0AiOAQBvrZ5lmY8vbbMv4Mxfgzqd/B6+9pXtLo73WuS1dSGXM5QYY3hZnIbvx+K1xxe6FyA==
