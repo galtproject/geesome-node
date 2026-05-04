@@ -20,6 +20,74 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 */
 
 	/**
+	 * @apiDefine AuthErrors
+	 *
+	 * @apiError (401) Unauthorized Missing, expired, disabled, or invalid API key.
+	 * @apiErrorExample {json} Unauthorized
+	 *   HTTP/1.1 401 Unauthorized
+	 *   {
+	 *     "message": "Unauthorized"
+	 *   }
+	 */
+
+	/**
+	 * @apiDefine AdminErrors
+	 *
+	 * @apiError (403) Forbidden Current user or API key does not have the required admin permission.
+	 * @apiErrorExample {json} Forbidden
+	 *   HTTP/1.1 403 Forbidden
+	 *   {
+	 *     "message": "Forbidden"
+	 *   }
+	 */
+
+	/**
+	 * @apiDefine ValidationErrors
+	 *
+	 * @apiError (400) BadRequest Request body, path parameter, or query parameter is invalid.
+	 * @apiError (404) NotFound Requested entity does not exist or is not visible to the current user.
+	 * @apiErrorExample {json} Validation error
+	 *   HTTP/1.1 400 Bad Request
+	 *   {
+	 *     "message": "Validation failed"
+	 *   }
+	 */
+
+	/**
+	 * @apiDefine UploadErrors
+	 *
+	 * @apiError (413) UploadLimitExceeded Uploaded content is larger than the current user's remaining limit.
+	 * @apiErrorExample {json} Upload limit exceeded
+	 *   HTTP/1.1 413 Payload Too Large
+	 *   {
+	 *     "message": "Upload limit exceeded"
+	 *   }
+	 */
+
+	/**
+	 * @apiDefine AsyncErrors
+	 *
+	 * @apiError (500) AsyncOperationFailed Async operation failed before producing a result.
+	 * @apiErrorExample {json} Async operation failed
+	 *   HTTP/1.1 500 Internal Server Error
+	 *   {
+	 *     "message": "Async operation failed"
+	 *   }
+	 */
+
+	/**
+	 * @apiDefine StorageErrors
+	 *
+	 * @apiError (400) StoragePathInvalid Storage path is invalid or cannot be resolved.
+	 * @apiError (502) StorageGatewayFailed Local storage or IPFS gateway request failed.
+	 * @apiErrorExample {json} Storage gateway failed
+	 *   HTTP/1.1 502 Bad Gateway
+	 *   {
+	 *     "message": "Storage gateway failed"
+	 *   }
+	 */
+
+	/**
 	 * @api {get} /v1/is-empty Request Node status
 	 * @apiName IsEmpty
 	 * @apiGroup Setup
@@ -39,6 +107,12 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 *
 	 * @apiInterface (../../interface.ts) {IUserInput} apiBody
 	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
+	 * @apiUse ValidationErrors
+	 *
+	 * @apiExample {curl} Example usage
+	 *   curl -X POST http://localhost:2052/v1/setup \
+	 *     -H "Content-Type: application/json" \
+	 *     -d '{"username":"admin","password":"secret","email":"admin@example.com"}'
 	 */
 	module.onPost('setup', async (req, res) => {
 		res.send(await app.setup(req.body), 200);
@@ -53,6 +127,21 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiBody {String} password
 	 *
 	 * @apiInterface (../../interface.ts) {IUserAuthResponse} apiSuccess
+	 * @apiUse ValidationErrors
+	 *
+	 * @apiExample {curl} Example usage
+	 *   curl -X POST http://localhost:2052/v1/login/password \
+	 *     -H "Content-Type: application/json" \
+	 *     -d '{"username":"admin","password":"secret"}'
+	 * @apiSuccessExample {json} Success response
+	 *   HTTP/1.1 200 OK
+	 *   {
+	 *     "apiKey": "geesome-api-key",
+	 *     "user": {
+	 *       "id": 1,
+	 *       "name": "admin"
+	 *     }
+	 *   }
 	 */
 	module.onPost('login/password', async (req, res) => {
 		app.loginPassword(req.body.username, req.body.password)
@@ -69,6 +158,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup User
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
 	 */
@@ -85,6 +175,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup User
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiInterface (../../interface.ts) {ITokenInput} apiBody
 	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
@@ -99,6 +190,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup User
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiParam {String} permissionName Core permission name.
 	 * @apiInterface (../../interface.ts) {IBooleanResultResponse} apiSuccess
@@ -113,6 +205,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup User
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IUserUpdateInput} apiBody
 	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
@@ -127,6 +220,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup UserApiKey
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiQuery {Boolean} isDisabled
 	 * @apiQuery {String} search
@@ -143,6 +237,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup UserApiKey
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiInterface (../database/interface.ts) {IUserApiKey} apiSuccess
 	 */
@@ -156,9 +251,16 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup UserApiKey
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IUserApiKeyInput} apiBody
 	 * @apiInterface (../database/interface.ts) {IUserApiKey} apiSuccess
+	 *
+	 * @apiExample {curl} Example usage
+	 *   curl -X POST http://localhost:2052/v1/user/api-key/add \
+	 *     -H "Authorization: Bearer geesome-api-key" \
+	 *     -H "Content-Type: application/json" \
+	 *     -d '{"title":"Local client","permissions":"content:write,group:write"}'
 	 */
 	module.onAuthorizedPost('user/api-key/add', async (req, res) => {
 		res.send(await app.generateUserApiKey(req.user.id, req.body));
@@ -170,6 +272,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup UserApiKey
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiParam {Number} userApiKeyId API key id.
 	 * @apiInterface (../../interface.ts) {IUserApiKeyInput} apiBody
@@ -191,6 +294,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminUser
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IUserInput} apiBody
 	 * @apiInterface (../database/interface.ts) {IUser} apiSuccess
@@ -210,6 +315,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminUser
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IUserIdInput} apiBody
 	 * @apiInterface (../../interface.ts) {IUserApiKeyInput} apiBody
@@ -227,6 +334,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminUser
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IUserLimitInput} apiBody
 	 */
@@ -240,6 +349,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminPermission
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {ICorePermissionInput} apiBody
 	 */
@@ -256,6 +367,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminPermission
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {ICorePermissionInput} apiBody
 	 */
@@ -272,6 +385,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminPermission
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {ICorePermissionListInput} apiBody
 	 */
@@ -288,6 +403,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminPermission
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IUserIdInput} apiBody
 	 * @apiSuccess {Object[]} list Core permission items.
@@ -305,6 +422,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminUser
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiInterface (../../interface.ts) {IUserListResponse} apiSuccess
@@ -320,6 +439,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminNode
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiQuery {String} type
 	 * @apiSuccess {String[]} list Boot node addresses.
@@ -334,6 +455,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminNode
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IBootNodeInput} apiBody
 	 */
@@ -347,6 +470,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminNode
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IBootNodeInput} apiBody
 	 */
@@ -360,6 +485,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup AdminUser
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiParam {Number} userId User id.
 	 * @apiParam {String} limitName Limit name.
@@ -381,7 +508,9 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiName IpldResolve
 	 * @apiGroup Storage
 	 *
+	 * @apiDescription Low-level storage helper for IPLD data inspection. Prefer higher-level content APIs when building user-facing integrations.
 	 * @apiQuery {Boolean} isResolve Resolve nested links.
+	 * @apiUse StorageErrors
 	 */
 	module.onGet('/ipld/*', async (req, res) => {
 		module.setStorageHeaders(res);
@@ -412,7 +541,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiName IpfsRefsProxy
 	 * @apiGroup Storage
 	 *
-	 * @apiDescription Compatibility proxy for local IPFS refs calls.
+	 * @apiDescription Low-level compatibility proxy for local IPFS refs calls.
+	 * @apiUse StorageErrors
 	 */
 	module.onGet('/api/v0/refs*', (req, res) => {
 		module.setStorageHeaders(res);
@@ -432,6 +562,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiGroup Storage
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse StorageErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IStorageObjectInput} apiBody
 	 * @apiInterface (../../interface.ts) {IStorageObjectResponse} apiSuccess

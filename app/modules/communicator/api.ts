@@ -11,8 +11,9 @@ export default (app: IGeesomeApp, communicatorModule: IGeesomeCommunicatorModule
 	 * @apiGroup User
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Exports the node/user communicator key material. Treat this response as secret.
+	 * @apiDescription Sensitive endpoint: exports node/user communicator key material. Treat this response as secret and avoid calling it from untrusted clients.
 	 * @apiSuccess {String} result Marshalled private key.
 	 */
 	app.ms.api.onAuthorizedPost('user/export-private-key', async (req, res) => {

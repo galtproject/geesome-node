@@ -39,10 +39,18 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiInterface (./interface.ts) {IGroupInput} apiBody
      *
      * @apiInterface (./interface.ts) {IGroupApiResponse} apiSuccess
+     *
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/create-group \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"name":"updates","title":"Updates","type":"channel","view":"telegram-like","theme":"default","isPublic":true}'
      */
     app.ms.api.onAuthorizedPost('user/create-group', async (req, res) => {
         res.send(await groupModule.createGroup(req.user.id, req.body), 200);
@@ -54,6 +62,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} postId Post id.
      * @apiInterface (./interface.ts) {IPostApiResponse} apiSuccess
@@ -69,6 +79,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group database id or storage id.
      * @apiInterface (./interface.ts) {IGroupInput} apiBody
@@ -85,6 +97,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiQuery {String} types Comma-separated group types.
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
@@ -99,6 +112,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiQuery {String} types Comma-separated group types.
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
@@ -113,6 +127,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
@@ -126,6 +141,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (../../interface.ts) {IValidResponse} apiSuccess
@@ -140,6 +156,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (../../interface.ts) {IValidResponse} apiSuccess
@@ -155,10 +172,18 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiInterface (./interface.ts) {IPostInput} apiBody
      *
      * @apiInterface (./interface.ts) {IPostApiResponse} apiSuccess
+     *
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/group/create-post \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"groupId":1,"contentIds":[10],"type":"post"}'
      */
     app.ms.api.onAuthorizedPost('user/group/create-post', async (req, res) => {
         res.send(await groupModule.createPost(req.user.id, req.body), 200);
@@ -170,6 +195,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} postId Post id.
      * @apiInterface (./interface.ts) {IPostUpdateInput} apiBody
@@ -185,6 +212,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (../../interface.ts) {IBooleanResultResponse} apiSuccess
@@ -199,6 +227,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      */
@@ -212,6 +242,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      */
@@ -225,6 +257,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupAdmin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupUserInput} apiBody
@@ -239,6 +273,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupAdmin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupUserInput} apiBody
@@ -253,6 +289,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupAdmin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupUserListInput} apiBody
@@ -267,6 +305,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupMember
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupUserInput} apiBody
@@ -281,6 +321,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupMember
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupUserListInput} apiBody
@@ -295,6 +337,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupMember
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupPermissionInput} apiBody
@@ -309,6 +353,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroupMember
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (./interface.ts) {IGroupUserInput} apiBody
@@ -337,6 +382,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (./interface.ts) {IGroupReadInput} apiBody
      */
@@ -350,6 +396,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup AdminGroup
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
@@ -395,6 +443,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserFriend
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiSuccess {Object[]} list Friend users.
@@ -409,6 +458,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserFriend
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (./interface.ts) {IUserFriendInput} apiBody
      */
@@ -422,6 +472,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserFriend
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (./interface.ts) {IUserFriendInput} apiBody
      */

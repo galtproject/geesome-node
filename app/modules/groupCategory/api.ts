@@ -27,6 +27,7 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiParam {String} categoryId Category id.
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (../group/interface.ts) {IPostApiListResponse} apiSuccess
+     * @apiUse ValidationErrors
      */
     app.ms.api.onGet('category/:categoryId/posts', async (req, res) => {
         res.send(await groupCategoryModule.getCategoryPosts(req.params.categoryId, req.query, req.query));
@@ -38,6 +39,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiInterface (./interface.ts) {IGroupCategoryInput} apiBody
      * @apiInterface (./interface.ts) {IGroupCategoryApiResponse} apiSuccess
@@ -52,6 +55,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} categoryId Category id.
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
@@ -67,6 +72,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} categoryId Category id.
      * @apiInterface (./interface.ts) {ICategoryGroupInput} apiBody
@@ -81,6 +88,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} categoryId Category id.
      * @apiInterface (./interface.ts) {ICategoryMemberInput} apiBody
@@ -95,6 +104,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} categoryId Category id.
      * @apiInterface (./interface.ts) {ICategoryMemberInput} apiBody
@@ -109,6 +120,7 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} categoryId Category id.
      * @apiInterface (../../interface.ts) {IBooleanResultResponse} apiSuccess
@@ -123,6 +135,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiInterface (./interface.ts) {IGroupSectionInput} apiBody
      * @apiInterface (./interface.ts) {IGroupSectionApiResponse} apiSuccess
@@ -137,6 +151,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupSectionId Group section id.
      * @apiInterface (./interface.ts) {IGroupSectionInput} apiBody
@@ -152,6 +168,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiParam {String} groupSectionId Group section id.
@@ -166,6 +184,7 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup UserCategory
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IGroupSectionApiListResponse} apiSuccess

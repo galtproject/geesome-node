@@ -14,10 +14,18 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse UploadErrors
      *
      * @apiInterface (../../interface.ts) {IFileContentInput} apiBody
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
+     *
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/save-file \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -F "file=@./avatar.png" \
+     *     -F "path=/avatars/avatar.png"
      */
     app.ms.api.onAuthorizedPost('user/save-file', async (req, res) => {
         const {files, fields: body} = await asyncBusboy(req.stream, {
@@ -42,10 +50,18 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse UploadErrors
      *
      * @apiInterface (../../interface.ts) {IDataContentInput} apiBody
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
+     *
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/save-data \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"content":"hello","fileName":"hello.txt","mimeType":"text/plain"}'
      */
     app.ms.api.onAuthorizedPost('user/save-data', async (req, res) => {
         const options = {
@@ -64,6 +80,8 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse UploadErrors
      *
      * @apiInterface (../../interface.ts) {IUrlContentInput} apiBody
      *
@@ -86,6 +104,8 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse UploadErrors
      *
      * @apiInterface (../../interface.ts) {IDataContentInput} apiBody
      *
@@ -107,6 +127,8 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup AdminContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (../../interface.ts) {IContentListResponse} apiSuccess
@@ -122,6 +144,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      *
      * @apiParam {String} contentId Content database id or storage id.
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
+     * @apiUse ValidationErrors
      */
     app.ms.api.onGet('content/:contentId', async (req, res) => {
         res.send(await contentModule.getContent(req.params.contentId));
@@ -133,6 +156,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} contentStorageId Content storage id.
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
@@ -147,6 +171,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IStorageIdListInput} apiBody
      * @apiSuccess {Object[]} list Content items.
@@ -162,6 +187,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      *
      * @apiDescription The wildcard path is the storage path inside content storage.
      * @apiInterface (../../interface.ts) {IContentStatResponse} apiSuccess
+     * @apiUse StorageErrors
      */
     app.ms.api.onGet('content-stats/*', async (req, res) => {
         const dataPath = req.route.replace('content-stats/', '');
@@ -174,6 +200,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup ContentData
      *
      * @apiDescription Streams bytes for the wildcard storage path.
+     * @apiUse StorageErrors
      */
     app.ms.api.onGet('content-data/*', async (req, res) => {
         const dataPath = req.route.replace('content-data/', '');
@@ -186,6 +213,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup ContentData
      *
      * @apiDescription Returns content headers for the wildcard storage path.
+     * @apiUse StorageErrors
      */
     app.ms.api.onHead('content-data/*', async (req, res) => {
         const dataPath = req.route.replace('content-data/', '');
@@ -198,6 +226,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup ContentData
      *
      * @apiDescription Unversioned IPFS gateway-compatible content stream.
+     * @apiUse StorageErrors
      */
     app.ms.api.onUnversionGet('/ipfs/*', async (req, res) => {
         console.log('req.route', req.route);
@@ -211,6 +240,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiGroup ContentData
      *
      * @apiDescription Unversioned IPFS gateway-compatible HEAD request.
+     * @apiUse StorageErrors
      */
     app.ms.api.onUnversionHead('/ipfs/*', async (req, res) => {
         const ipfsPath = req.route.replace('/ipfs/', '');
@@ -225,6 +255,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
          * @apiGroup ContentData
          *
          * @apiDescription Streams files from the configured frontend storage id when frontend storage is enabled.
+         * @apiUse StorageErrors
          */
         app.ms.api.onGet('/node*', async (req, res) => {
             if (req.route === '/node') {

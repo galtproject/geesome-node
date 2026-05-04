@@ -9,6 +9,8 @@ export default (app: IGeesomeApp, remoteGroupModule: IGeesomeRemoteGroupModule) 
      * @apiGroup Group
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {String} groupId Group database id, storage id, or remote id.
      * @apiInterface (../group/interface.ts) {IGroupApiResponse} apiSuccess

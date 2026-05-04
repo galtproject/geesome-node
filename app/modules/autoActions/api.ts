@@ -9,6 +9,8 @@ export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) 
      * @apiGroup UserAutoAction
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiBody {Object[]} list Auto action chain items.
      * @apiSuccess {Object[]} list Created auto actions.
@@ -22,6 +24,7 @@ export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) 
      * @apiGroup UserAutoAction
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IAutoActionListResponse} apiSuccess
@@ -35,6 +38,8 @@ export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) 
      * @apiGroup UserAutoAction
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {Number} id Auto action id.
      * @apiInterface (./interface.ts) {IAutoAction} apiBody

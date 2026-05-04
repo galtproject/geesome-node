@@ -22,6 +22,7 @@ export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
      * @apiGroup StaticId
      *
      * @apiDescription Unversioned IPNS-compatible content stream.
+     * @apiUse StorageErrors
      */
     app.ms.api.onUnversionGet('/ipns/*', async (req, res) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
@@ -36,6 +37,7 @@ export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
      * @apiGroup StaticId
      *
      * @apiDescription Unversioned IPNS-compatible HEAD request.
+     * @apiUse StorageErrors
      */
     app.ms.api.onUnversionHead('/ipns/*', async (req, res) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
@@ -51,6 +53,7 @@ export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
      *
      * @apiParam {String} storageId Static storage id.
      * @apiSuccess {String} result Resolved storage id.
+     * @apiUse StorageErrors
      */
     app.ms.api.onGet('/resolve/:storageId', async (req, res) => {
         staticIdModule.resolveStaticId(req.params.storageId).then(res.send.bind(res)).catch((err) => {

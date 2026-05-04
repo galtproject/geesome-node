@@ -9,6 +9,8 @@ export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccounts
 	 * @apiGroup UserForeignAccount
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
 	 *
 	 * @apiInterface (./interface.ts) {IForeignAccount} apiBody
 	 * @apiSuccess {Object[]} list Saved accounts.
@@ -23,6 +25,7 @@ export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccounts
 	 * @apiGroup UserForeignAccount
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
 	 *
 	 * @apiSuccess {Object[]} list Foreign accounts.
 	 */
@@ -36,6 +39,8 @@ export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccounts
 	 * @apiGroup AdminUser
 	 *
 	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
 	 *
 	 * @apiInterface (../../interface.ts) {IForeignAccountLookupInput} apiBody
 	 * @apiInterface (./interface.ts) {IForeignAccount} apiSuccess

@@ -12,6 +12,12 @@ export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumA
 	 * @apiBody {String} accountAddress
 	 *
 	 * @apiInterface (../../interface.ts) {IUserAuthMessageResponse} apiSuccess
+	 * @apiUse ValidationErrors
+	 *
+	 * @apiExample {curl} Example usage
+	 *   curl -X POST http://localhost:2052/v1/generate-auth-message \
+	 *     -H "Content-Type: application/json" \
+	 *     -d '{"accountProvider":"ethereum","accountAddress":"0x0000000000000000000000000000000000000000"}'
 	 */
 	app.ms.api.onPost('generate-auth-message', async (req, res) => {
 		res.send(await ethereumAuthorizationModule.generateUserAccountAuthMessage(req.body.accountProvider, req.body.accountAddress));
@@ -29,6 +35,7 @@ export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumA
 	 * @apiBody {Any} params Special params of provider, {fieldName: String}(field that used in message for signing) in Ethereum.
 	 *
 	 * @apiInterface (../../interface.ts) {IUserAuthResponse} apiSuccess
+	 * @apiUse ValidationErrors
 	 */
 	app.ms.api.onPost('login/auth-message', async (req, res) => {
 		ethereumAuthorizationModule.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)

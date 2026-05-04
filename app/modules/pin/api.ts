@@ -8,9 +8,17 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiGroup UserPin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiInterface (./interface.ts) {IPinAccount} apiBody
      * @apiInterface (./interface.ts) {IPinAccount} apiSuccess
+     *
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"name":"pinata","service":"pinata","apiKey":"pinata-key","secretApiKey":"pinata-secret"}'
      */
     app.ms.api.onAuthorizedPost('user/pin/create-account', async (req, res) => {
         res.send(await pinModule.createAccount(req.user.id, req.body));
@@ -22,6 +30,8 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiGroup UserPin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
      *
      * @apiParam {Number} id Pin account id.
      * @apiInterface (./interface.ts) {IPinAccount} apiBody
@@ -37,6 +47,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiGroup UserPin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IPinAccountListResponse} apiSuccess
      */
@@ -52,6 +63,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiGroup UserPin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
      *
      * @apiParam {String} groupId Group id.
      * @apiInterface (../../interface.ts) {IPinAccountListResponse} apiSuccess
@@ -68,6 +80,8 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiGroup UserPin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse StorageErrors
      *
      * @apiParam {String} accountName Pin account name.
      * @apiParam {String} storageId Content storage id.
@@ -83,6 +97,8 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiGroup UserPin
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse StorageErrors
      *
      * @apiParam {String} accountName Pin account name.
      * @apiParam {String} storageId Content storage id.

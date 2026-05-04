@@ -11,6 +11,12 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      * @apiParam {String} code Invite code.
      * @apiInterface (../../interface.ts) {IUserInput} apiBody
      * @apiInterface (../database/interface.ts) {IUser} apiSuccess
+     * @apiUse ValidationErrors
+     *
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/invite/join/INVITE-CODE \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"username":"new-user","password":"secret","email":"user@example.com"}'
      */
     app.ms.api.onPost('invite/join/:code', async (req, res) => {
         res.send(await inviteModule.registerUserByInviteCode(req.params.code, req.body));
@@ -22,6 +28,8 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      * @apiGroup AdminInvite
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
      *
      * @apiInterface (../database/interface.ts) {IInvite} apiBody
      * @apiInterface (../database/interface.ts) {IInvite} apiSuccess
@@ -36,6 +44,8 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      * @apiGroup AdminInvite
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (../../interface.ts) {IInvitesListResponse} apiSuccess
@@ -50,6 +60,8 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      * @apiGroup AdminInvite
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
      *
      * @apiParam {Number} id Invite id.
      * @apiInterface (../database/interface.ts) {IInvite} apiBody

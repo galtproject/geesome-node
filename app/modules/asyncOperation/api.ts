@@ -10,6 +10,8 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiGroup UserOther
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AsyncErrors
      *
      * @apiParam {Number} operationId Operation queue id.
      * @apiInterface (./interface.ts) {IUserOperationQueue} apiSuccess
@@ -24,6 +26,8 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiGroup UserOther
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AsyncErrors
      *
      * @apiInterface (./interface.ts) {IUserOperationQueueListInput} apiBody
      */
@@ -38,6 +42,8 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiGroup UserOther
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AsyncErrors
      *
      * @apiParam {Number} id Async operation id.
      * @apiInterface (./interface.ts) {IUserAsyncOperation} apiSuccess
@@ -52,8 +58,15 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiGroup UserOther
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AsyncErrors
      *
      * @apiInterface (./interface.ts) {IUserAsyncOperationSearchInput} apiBody
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/find-async-operations \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"channelLike":"content","inProcess":true}'
      * @apiSuccess {Object[]} list Async operation items.
      */
     app.ms.api.onAuthorizedPost('user/find-async-operations', async (req, res) => {
@@ -66,6 +79,8 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiGroup UserOther
      *
      * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AsyncErrors
      *
      * @apiParam {Number} id Async operation id.
      */
