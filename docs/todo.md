@@ -15,7 +15,7 @@ Corrections and added requirements:
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
-- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), the GeeSome Node-facing cleanup is tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), and the immediate vulnerable `apidoc-core` removal is tracked in [#802](https://github.com/galtproject/geesome-node/issues/802).
+- API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), planning was tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), vulnerable `apidoc-core` removal was tracked in [#802](https://github.com/galtproject/geesome-node/issues/802), and final git-URL wiring is tracked in [#804](https://github.com/galtproject/geesome-node/issues/804).
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -53,7 +53,7 @@ Issue clusters still represented by the old README TODO:
 - Group/feed/search evolution: [#646](https://github.com/galtproject/geesome-node/issues/646), [#563](https://github.com/galtproject/geesome-node/issues/563), [#517](https://github.com/galtproject/geesome-node/issues/517), [#33](https://github.com/galtproject/geesome-node/issues/33), [#2](https://github.com/galtproject/geesome-node/issues/2).
 - Secure chat E2EE: [#2](https://github.com/galtproject/geesome-node/issues/2), [#33](https://github.com/galtproject/geesome-node/issues/33), [#115](https://github.com/galtproject/geesome-node/issues/115). Use [Vas3k's E2EE explainer](https://vas3k.blog/blog/end_to_end_encryption/) as background for why backend-only encryption and a single long-lived group key are not enough.
 - ActivityPub/Fediverse integration: [#426 Make api for Fediverse](https://github.com/galtproject/geesome-node/issues/426).
-- API documentation toolchain: [#787](https://github.com/galtproject/geesome-node/issues/787), with implementation split across the microwave-hub `apidoc-template` and `apidoc-plugin-ts` submodules before GeeSome Node rewires generated docs to those cleaned-up packages.
+- API documentation toolchain: [#787](https://github.com/galtproject/geesome-node/issues/787), [#802](https://github.com/galtproject/geesome-node/issues/802), and [#804](https://github.com/galtproject/geesome-node/issues/804), with implementation split across the microwave-hub `apidoc-template` and `apidoc-plugin-ts` submodules before GeeSome Node rewires generated docs to those cleaned-up packages.
 - Large protocol/integration epics: [#115](https://github.com/galtproject/geesome-node/issues/115), [#619](https://github.com/galtproject/geesome-node/issues/619), [#617](https://github.com/galtproject/geesome-node/issues/617), [#7](https://github.com/galtproject/geesome-node/issues/7), [#6](https://github.com/galtproject/geesome-node/issues/6).
 
 ## Fast Delivery Plan
@@ -206,7 +206,7 @@ Verification:
 
 ### 7. API Documentation Toolchain Cleanup
 
-Status: in progress. [#802](https://github.com/galtproject/geesome-node/issues/802) upgrades `geesome-node` to `apidoc@1.x`, removes the vulnerable `apidoc-core` package graph, and stops using the old incompatible published `geesome-apidoc-template` package in the node-side generation path. The broader user-friendly docs/template/parser cleanup remains planned in [#787](https://github.com/galtproject/geesome-node/issues/787). The repos are now tracked by microwave-hub as submodules:
+Status: nearly complete. [#802](https://github.com/galtproject/geesome-node/issues/802) upgraded `geesome-node` to `apidoc@1.x` and removed the vulnerable `apidoc-core` package graph. [#804](https://github.com/galtproject/geesome-node/issues/804) wires `geesome-node` to the modern template and TypeScript plugin through git URLs. The repos are tracked by microwave-hub as submodules:
 
 - `apidoc-template` for generated documentation UI/template work.
 - `apidoc-plugin-ts` for TypeScript parsing and apiDoc annotation support.
@@ -215,19 +215,17 @@ Goal: make generated GeeSome API docs more user-friendly, flexible, and maintain
 
 Repo split:
 
-- `apidoc-template`: rewrite the generated docs UI for clearer navigation, search, request/response examples, mobile readability, and fewer unnecessary runtime/browser dependencies.
-- `apidoc-plugin-ts`: fix TypeScript parsing issues, strengthen `@apiInterface` handling, remove stale/bad dependencies where possible, and add focused tests for parser regressions.
-- `geesome-node`: keep API annotations accurate, consume the cleaned-up template/plugin when they are ready, and verify `yarn generate-docs` still produces usable docs from `app/modules/api`.
+- `apidoc-template`: modernized for the `apidoc@1.x` `template/src/*` layout, removes the active old vendored runtime folder, declares package dependencies, and includes a smoke command.
+- `apidoc-plugin-ts`: modernized for `apidoc@1.x`, strengthens GeeSome `@apiInterface ... apiParam` handling, ignores TypeScript utility base types such as `Record`, and includes focused parser fixtures.
+- `geesome-node`: consumes the cleaned-up template/plugin by git URL and verifies generated docs from `app/modules/api`.
 - `microwave-hub`: keep both API-doc repos as submodules so agents can route and coordinate docs tooling work from the hub.
 
 First deliverable:
 
-- Audit current `geesome-node` API doc generation command and package usage. Status: [#802](https://github.com/galtproject/geesome-node/issues/802) found that modern `apidoc` auto-loads packages named `apidoc-plugin-*`, so `geesome-node` now consumes the existing GeeSome TypeScript plugin through an `apidoc-plugin-ts` npm alias.
-- Keep `geesome-node` on the default `apidoc@1.x` template until `apidoc-template` is modernized for the new `template/src/*` asset layout.
-- Open or find issues in `apidoc-template` and `apidoc-plugin-ts` for concrete UI/parser/dependency cleanup.
-- Add smoke tests or fixtures in `apidoc-plugin-ts` for the GeeSome annotation shapes that matter most.
-- Update `apidoc-template` docs/examples so generated API documentation is understandable to users who are not already familiar with the codebase.
-- Only after the template/plugin changes are released or pinned, adjust `geesome-node` package references and docs generation instructions.
+- Audit current `geesome-node` API doc generation command and package usage. Status: complete in [#802](https://github.com/galtproject/geesome-node/issues/802) and [#804](https://github.com/galtproject/geesome-node/issues/804).
+- Consume `apidoc-plugin-ts` and `geesome-apidoc-template` by git URL. Status: in progress in [#804](https://github.com/galtproject/geesome-node/issues/804); the plugin git install fix is in [`apidoc-plugin-ts` PR #2](https://github.com/MicrowaveDev/apidoc-plugin-ts/pull/2).
+- Generate docs with the modern custom template. Status: local smoke passes with `app/modules/api`.
+- Future polish only: richer endpoint examples, rendered browser/mobile review, and API annotation cleanup for warnings where request-body fields are currently documented as `@apiParam`.
 
 Verification:
 
