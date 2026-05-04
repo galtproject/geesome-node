@@ -3372,6 +3372,7 @@ anymatch@~3.1.2:
 
 "apidoc-plugin-ts@git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1":
   version "1.1.0"
+  uid afc63f1950902c81f428f1b663326e0ba66bacbe
   resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1950902c81f428f1b663326e0ba66bacbe"
   dependencies:
     ts-morph "3.1.0"
@@ -6381,7 +6382,8 @@ functions-have-names@^1.2.2, functions-have-names@^1.2.3:
 
 "geesome-apidoc-template@git+ssh://git@github.com/MicrowaveDev/apidoc-template.git":
   version "1.1.0"
-  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git#cd5942b236a44c0357d7b7e4fe8656a81b9aaa70"
+  uid "6013e580e1364b4a35e6c8a8ecdc3ae69c7f513a"
+  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git#6013e580e1364b4a35e6c8a8ecdc3ae69c7f513a"
   dependencies:
     bootstrap "3.4.1"
     diff-match-patch "^1.0.5"
@@ -7973,9 +7975,9 @@ js-sha3@0.8.0, js-sha3@^0.8.0:
   integrity sha512-gF1cRrHhIzNfToc802P800N8PpXS+evLLXfsVpowqmAFR9uwbi89WvXg2QspOmXL8QL86J4T1EpFu+yUkwJY3Q==
 
 js-yaml@^4.1.0:
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-4.1.0.tgz#c1fb65f8f5017901cdd2c951864ba18458a10602"
-  integrity sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-4.1.1.tgz#854c292467705b699476e1a2decc0c8a3458806b"
+  integrity sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==
   dependencies:
     argparse "^2.0.1"
 
