@@ -125,3 +125,67 @@ export interface IGroupSectionListResponse {
 	list: IGroupSection[];
 	total: number;
 }
+
+export interface IGroupCategoryInput {
+	name: string;
+	title: string;
+	description?: string;
+	avatarImageId?: number;
+	coverImageId?: number;
+	isGlobal?: boolean;
+}
+
+export interface IGroupSectionInput {
+	name: string;
+	title: string;
+	categoryId?: number;
+	description?: string;
+	avatarImageId?: number;
+	coverImageId?: number;
+	isGlobal?: boolean;
+}
+
+export interface ICategoryGroupInput {
+	groupId: number;
+}
+
+export interface ICategoryMemberInput {
+	userId: number;
+	permissions?: string[];
+}
+
+export interface IGroupCategoryApiResponse {
+	id: number;
+	name: string;
+	title: string;
+	description?: string;
+	creatorId: number;
+	avatarImageId?: number;
+	coverImageId?: number;
+	isGlobal?: boolean;
+	storageId?: string;
+	staticStorageId?: string;
+	manifestStorageId?: string;
+	manifestStaticStorageId?: string;
+}
+
+export interface IGroupSectionApiResponse {
+	id: number;
+	name: string;
+	title: string;
+	description?: string;
+	creatorId: number;
+	categoryId: number;
+	avatarImageId?: number;
+	coverImageId?: number;
+	isGlobal?: boolean;
+	storageId?: string;
+	staticStorageId?: string;
+	manifestStorageId?: string;
+	manifestStaticStorageId?: string;
+}
+
+export interface IGroupSectionApiListResponse {
+	list: IGroupSectionApiResponse[];
+	total: number;
+}

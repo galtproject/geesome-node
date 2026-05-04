@@ -83,3 +83,17 @@ export interface IUserOperationQueue {
 	userApiKeyId: number;
 	asyncOperation?: IUserAsyncOperation;
 }
+
+export interface IUserOperationQueueListInput {
+	module: string;
+	limit?: number;
+	offset?: number;
+	sortBy?: string;
+	sortDir?: string;
+}
+
+export interface IUserAsyncOperationSearchInput {
+	name?: string;
+	channelLike?: string;
+	inProcess?: boolean;
+}

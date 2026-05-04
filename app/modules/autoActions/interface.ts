@@ -35,3 +35,7 @@ export interface IAutoAction {
 	currentExecuteAttempts?: number;
 	executeOn?: Date;
 }
+
+export interface IAutoActionListResponse {
+	list: IAutoAction[];
+}

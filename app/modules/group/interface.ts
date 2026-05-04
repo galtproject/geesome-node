@@ -319,3 +319,128 @@ export interface IGroupInput {
 	avatarImageId?: number;
 	coverImageId?: number;
 }
+
+export interface IPostInput {
+	groupId: number;
+	contentIds?: number[];
+	contentsIds?: number[];
+	view?: string;
+	type?: string;
+	size?: string;
+	publishOn?: Date | string;
+	isPinned?: boolean;
+	isReplyForbidden?: boolean;
+	replyToId?: number;
+	repostOfId?: string;
+	properties?: any;
+}
+
+export interface IPostUpdateInput {
+	contentIds?: number[];
+	contentsIds?: number[];
+	view?: string;
+	type?: string;
+	size?: string;
+	publishOn?: Date | string;
+	isPinned?: boolean;
+	isReplyForbidden?: boolean;
+	replyToId?: number;
+	repostOfId?: string;
+	properties?: any;
+}
+
+export interface IGroupUserInput {
+	userId: number;
+	permissions?: string[];
+}
+
+export interface IGroupUserListInput {
+	userIds: number[];
+}
+
+export interface IGroupPermissionInput {
+	userId: number;
+	permissions: string[];
+}
+
+export interface IGroupReadInput {
+	groupId: number;
+	readFrom?: number;
+	readAt?: Date | string;
+}
+
+export interface IUserFriendInput {
+	friendId: number;
+}
+
+export interface IGroupUnreadResponse {
+	count?: number;
+	cachedPostsCount?: number;
+	readFrom?: number;
+}
+
+export interface IGroupApiResponse {
+	id: number;
+	name: string;
+	title: string;
+	type: GroupType;
+	view: GroupView;
+	theme: string;
+	isPublic: boolean;
+	isRemote: boolean;
+	isOpen: boolean;
+	isReplyForbidden: boolean;
+	description?: string;
+	avatarImageId?: number;
+	coverImageId?: number;
+	storageId?: string;
+	staticStorageId?: string;
+	manifestStorageId?: string;
+	manifestStaticStorageId?: string;
+	createdAt: any;
+	updatedAt: any;
+}
+
+export interface IPostApiResponse {
+	id?: number;
+	status: PostStatus;
+	publishedAt?: any;
+	publishOn?: any;
+	groupId: number;
+	userId: number;
+	view?: string;
+	type?: string;
+	size?: string;
+	isDeleted?: boolean;
+	isPinned?: boolean;
+	isRemote?: boolean;
+	isEncrypted?: boolean;
+	isFullyPinned?: boolean;
+	isReplyForbidden?: boolean;
+	peersCount?: number;
+	fullyPeersCount?: number;
+	localId?: string;
+	storageId?: string;
+	staticStorageId?: string;
+	manifestStorageId?: string;
+	manifestStaticStorageId?: string;
+	replyToId?: number;
+	repostOfId?: string;
+	source?: string;
+	sourceChannelId?: string;
+	sourcePostId?: string;
+	sourceDate?: any;
+	encryptedManifestStorageId?: string;
+	createdAt: any;
+	updatedAt: any;
+}
+
+export interface IGroupApiListResponse {
+	list: IGroupApiResponse[];
+	total: number;
+}
+
+export interface IPostApiListResponse {
+	list: IPostApiResponse[];
+	total: number;
+}
