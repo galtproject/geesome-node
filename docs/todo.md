@@ -136,6 +136,8 @@ Verification:
 
 ### 4. Pinata And Pinning MVP
 
+Status: in progress. [#854](https://github.com/galtproject/geesome-node/issues/854) hardens direct pin negative paths with explicit missing-account, unknown-service, and missing-content errors before remote pinning is attempted.
+
 Goal: turn "Pin to services like pinata from UI" into a shippable backend/API slice first.
 
 Scope:
