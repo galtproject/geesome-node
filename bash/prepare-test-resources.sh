@@ -4,10 +4,24 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESOURCES_DIR="$ROOT_DIR/test/resources"
 
+command -v ffmpeg >/dev/null 2>&1 || {
+	echo "ffmpeg is required to generate deterministic test media fixtures." >&2
+	exit 127
+}
+
+command -v zip >/dev/null 2>&1 || {
+	echo "zip is required to generate deterministic test archive fixtures." >&2
+	exit 127
+}
+
 mkdir -p "$RESOURCES_DIR"
 
 if [[ ! -s "$RESOURCES_DIR/input-image.jpg" ]]; then
 	ffmpeg -y -f lavfi -i "testsrc=size=640x360:rate=1" -frames:v 1 -q:v 2 "$RESOURCES_DIR/input-image.jpg" >/dev/null 2>&1
+fi
+
+if [[ ! -s "$RESOURCES_DIR/input-image.png" ]]; then
+	ffmpeg -y -f lavfi -i "testsrc=size=640x360:rate=1" -frames:v 1 "$RESOURCES_DIR/input-image.png" >/dev/null 2>&1
 fi
 
 if [[ ! -s "$RESOURCES_DIR/not-streamable-input-video.mp4" ]]; then
@@ -31,6 +45,24 @@ if [[ ! -s "$RESOURCES_DIR/streamable-input-video.mp4" ]]; then
 		-c:a aac \
 		-movflags +faststart \
 		"$RESOURCES_DIR/streamable-input-video.mp4" >/dev/null 2>&1
+fi
+
+if [[ ! -s "$RESOURCES_DIR/input-video.mov" ]]; then
+	ffmpeg -y \
+		-f lavfi -i "testsrc=size=320x240:rate=24" \
+		-f lavfi -i "sine=frequency=600:sample_rate=44100" \
+		-t 2 \
+		-pix_fmt yuv420p \
+		-c:v libx264 \
+		-c:a aac \
+		"$RESOURCES_DIR/input-video.mov" >/dev/null 2>&1
+fi
+
+if [[ ! -s "$RESOURCES_DIR/test-gif.gif" ]]; then
+	ffmpeg -y \
+		-f lavfi -i "testsrc=size=160x120:rate=8" \
+		-t 1 \
+		"$RESOURCES_DIR/test-gif.gif" >/dev/null 2>&1
 fi
 
 if [[ ! -s "$RESOURCES_DIR/test-archive.zip" ]]; then

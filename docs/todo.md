@@ -44,6 +44,7 @@ Runtime maintenance:
 - Migrate the supported runtime from Node `>=18` to Node 22. Node 18 and Node 20 are EOL or effectively out of support for new GeeSome work. Use Node 22 as the immediate baseline, then validate Node 24 separately.
 - [#859](https://github.com/galtproject/geesome-node/issues/859) adds a Docker-backed full test flow for environments where host PostgreSQL credentials or `ffmpeg` are missing.
 - [#861](https://github.com/galtproject/geesome-node/issues/861) makes Docker the preferred full-suite test path and optimizes it for warm reruns after source-only implementation changes.
+- [#862](https://github.com/galtproject/geesome-node/issues/862) removes the remaining `gateway.ipfs.io` fallback from test media/archive fixtures by generating every named resource locally before the Docker suite runs.
 
 Issue clusters still represented by the old README TODO:
 
