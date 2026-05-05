@@ -179,6 +179,60 @@ describe("staticSiteGenerator", function () {
 		assert.equal(faviconContent.toString('hex'), avatarStorageContent.toString('hex'));
 	});
 
+	it('should normalize static site settings before render', async () => {
+		const stylesCss = '\n.static-site-settings-marker { color: rgb(1, 2, 3); }\n';
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
+			lang: 'en',
+			dateFormat: 'DD.MM.YYYY hh:mm:ss',
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			stylesCss,
+			post: {
+				titleLength: '5.8',
+				descriptionLength: 'bad-value',
+			},
+			postList: {
+				postsPerPage: '0',
+			},
+			site: {
+				title: 'MySite',
+				name: 'my_site',
+				description: 'My About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+
+		const staticSiteInfo = await staticSiteGenerator.getStaticSiteInfo(testUser.id, {entityType: 'group', entityId: testGroup.id});
+		const storedOptions = JSON.parse(staticSiteInfo.options);
+		assert.equal(storedOptions.post.titleLength, 5);
+		assert.equal(storedOptions.post.descriptionLength, 400);
+		assert.equal(storedOptions.postList.postsPerPage, 1);
+		assert.equal(storedOptions.stylesCss, stylesCss);
+
+		const styleCssContent = await app.ms.storage.getFileData(`${directoryStorageId}/style.css`).then(b => b.toString('utf8'));
+		assert.equal(styleCssContent.includes('.static-site-settings-marker'), true);
+	});
+
+	it('should reject invalid static site settings', async () => {
+		await assert.rejects(
+			() => staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
+				site: {
+					title: 'MySite',
+					name: 'bad site name',
+					description: 'My About',
+					username: 'myusername',
+					base: '/'
+				}
+			}),
+			/incorrect_name/
+		);
+
+		await assert.rejects(
+			() => staticSiteGenerator.updateStaticSiteInfo(testUser.id, 999999, {name: 'missing_site'}),
+			/static_site_not_found/
+		);
+	});
+
 	it('should generate site correctly from content list', async () => {
 		const contentIds = [];
 		for (let i = 0; i < 30; i++) {

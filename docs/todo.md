@@ -192,14 +192,14 @@ Verification:
 
 ### 6. Static Site Generator Polish
 
-Status: in progress. [#564](https://github.com/galtproject/geesome-node/issues/564) is the active slice for generated group-site favicons.
+Status: in progress. [#564](https://github.com/galtproject/geesome-node/issues/564) is implemented for generated group-site favicons. [#494](https://github.com/galtproject/geesome-node/issues/494) is the active static-site settings slice.
 
 Goal: deliver visible improvements without redesigning the protocol.
 
 Scope:
 
 - Finish [#564](https://github.com/galtproject/geesome-node/issues/564) by preferring group avatar for generated favicon when available, falling back to UI favicon. Implementation should copy the prepared group avatar storage object into `favicon.ico` during group static-site generation and keep content-list static sites on the bundled UI favicon.
-- Triage [#494](https://github.com/galtproject/geesome-node/issues/494) into concrete options with defaults, validation, and stored option compatibility.
+- Triage [#494](https://github.com/galtproject/geesome-node/issues/494) into concrete options with defaults, validation, and stored option compatibility. First implementation should normalize numeric render settings, validate static site names in the nested `site` object, keep custom CSS bounded, and persist the normalized render options used for the generated site.
 - Treat [#573](https://github.com/galtproject/geesome-node/issues/573) as a separate deployment/distribution task after generated sites are stable.
 
 Likely modules:

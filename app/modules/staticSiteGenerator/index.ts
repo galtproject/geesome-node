@@ -9,11 +9,61 @@ import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
 import site from './site/index.js';
 import vendorAssets from './site/vendorAssets.js';
-const {clone, uniq, merge, set, get, pick, last} = _;
+const {clone, uniq, merge, pick, last} = _;
 const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
 let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
+const customStylesCssMaxLength = 128 * 1024;
+
+function parsePositiveInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
+        return fallback;
+    }
+    return Math.min(Math.max(parsed, min), max);
+}
+
+function validateStaticSiteName(name) {
+    if (name && !helpers.validateUsername(name)) {
+        throw new Error("incorrect_name");
+    }
+}
+
+function normalizeStaticSiteOptions(options: any = {}) {
+    const normalized = clone(options) || {};
+    normalized.post = normalized.post || {};
+    normalized.postList = normalized.postList || {};
+    normalized.site = normalized.site || {};
+
+    validateStaticSiteName(normalized.name);
+    validateStaticSiteName(normalized.site.name);
+
+    normalized.post.titleLength = parsePositiveInteger(normalized.post.titleLength, 0, 0, 500);
+    normalized.post.descriptionLength = parsePositiveInteger(normalized.post.descriptionLength, 400, 0, 5000);
+    normalized.postList.postsPerPage = parsePositiveInteger(normalized.postList.postsPerPage, 10, 1, 100);
+
+    if (normalized.stylesCss !== undefined) {
+        if (typeof normalized.stylesCss !== 'string') {
+            throw new Error("incorrect_styles_css");
+        }
+        if (normalized.stylesCss.length > customStylesCssMaxLength) {
+            throw new Error("styles_css_too_large");
+        }
+    }
+
+    return normalized;
+}
+
+function prepareStaticSiteUpdateData(updateData) {
+    const prepared = clone(updateData) || {};
+    validateStaticSiteName(prepared.name);
+    if (prepared.options !== undefined) {
+        const parsedOptions = typeof prepared.options === 'string' ? JSON.parse(prepared.options) : prepared.options;
+        prepared.options = JSON.stringify(normalizeStaticSiteOptions(parsedOptions));
+    }
+    return prepared;
+}
 
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
@@ -45,9 +95,7 @@ async function getModule(app: IGeesomeApp, models) {
             } else {
                 throw Error('unknown_type');
             }
-            if (options['name'] && !helpers.validateUsername(options['name'])) {
-                throw new Error("incorrect_name");
-            }
+            options = normalizeStaticSiteOptions(options);
 
             const operationQueue = await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
                 renderArgs,
@@ -162,7 +210,7 @@ async function getModule(app: IGeesomeApp, models) {
             try {
                 staticSiteOptions = JSON.parse(staticSite.options)
             } catch (e) {}
-            return {
+            return normalizeStaticSiteOptions({
                 lang: 'en',
                 dateFormat: 'DD.MM.YYYY hh:mm:ss',
                 post: {
@@ -180,7 +228,7 @@ async function getModule(app: IGeesomeApp, models) {
                     base
                 },
                 ...staticSiteOptions
-            }
+            });
         }
 
         async getGroupResultOptions(group, options) {
@@ -193,13 +241,11 @@ async function getModule(app: IGeesomeApp, models) {
                     postsCount: group.publishedPostsCount,
                 }
             });
-            ['post.titleLength', 'post.descriptionLength', 'postList.postsPerPage'].forEach(name => {
-                set(merged, name, parseInt(get(merged, name)))
-            });
-            if (!merged.site.avatarUrl && merged.site.avatarStorageId) {
-                merged.site.avatarUrl = options.baseStorageUri + merged.site.avatarStorageId;
+            const normalized = normalizeStaticSiteOptions(merged);
+            if (!normalized.site.avatarUrl && normalized.site.avatarStorageId) {
+                normalized.site.avatarUrl = options.baseStorageUri + normalized.site.avatarStorageId;
             }
-            return merged;
+            return normalized;
         }
 
         async prepareContentListForRender(userId, entityType, entityIds, options: any = {}) {
@@ -228,8 +274,8 @@ async function getModule(app: IGeesomeApp, models) {
 
         async prepareGroupPostsForRender(userId, entityType, entityId, options: any = {}) {
             const group = await app.ms.group.getLocalGroup(userId, entityId);
-            let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
             options = await this.getGroupResultOptions(group, options);
+            let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
 
             const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
                 sortBy: 'publishedAt',
@@ -273,6 +319,9 @@ async function getModule(app: IGeesomeApp, models) {
 
         async getOrCreateStaticSite(userId, entityType, entityId, options) {
             const {site} = options;
+            if (!site || !site.name || !site.title) {
+                throw new Error("incorrect_static_site_options");
+            }
             let staticSite = await models.StaticSite.findOne({where: {entityType, entityId: entityId.toString()}});
             if (!staticSite) {
                 staticSite = await this.createDbStaticSite({userId, entityType, entityId, title: site.title, name: site.name, options: JSON.stringify(options)});
@@ -291,10 +340,11 @@ async function getModule(app: IGeesomeApp, models) {
                 renderData,
                 manifestStorageId
             } = await this.prepareGroupPostsForRender(userId, entityType, entityId, options);
+            const renderOptions = renderData.options;
 
             // VueSSR: initialize app
             const {renderPage, css} = await prepareRender(renderData);
-            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
+            const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (renderOptions.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
             // VueSSR: render main page
@@ -306,17 +356,17 @@ async function getModule(app: IGeesomeApp, models) {
              */
             await this.copySiteAssets(siteStorageDir, renderData.options.site.avatarStorageId);
 
-            await this.renderAndSave(renderPage, options, siteStorageDir, ``, 'main');
+            await this.renderAndSave(renderPage, renderOptions, siteStorageDir, ``, 'main');
             for (let i = 1; i <= renderData.pagesCount - 1; i++) {
                 // VueSSR: render other pages by url
-                await this.renderAndSave(renderPage, options, siteStorageDir, `/page/${i}`, 'page');
+                await this.renderAndSave(renderPage, renderOptions, siteStorageDir, `/page/${i}`, 'page');
             }
             await pIteration.forEachSeries(renderData.posts, (p) => {
-                return this.renderAndSave(renderPage, options, siteStorageDir, `/post/${p.id}`, 'post', p);
+                return this.renderAndSave(renderPage, renderOptions, siteStorageDir, `/post/${p.id}`, 'post', p);
             });
 
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            const baseData = {storageId, lastEntityManifestStorageId: manifestStorageId, options: JSON.stringify(options)};
+            const baseData = {storageId, lastEntityManifestStorageId: manifestStorageId, options: JSON.stringify(renderOptions)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return storageId;
         }
@@ -364,6 +414,7 @@ async function getModule(app: IGeesomeApp, models) {
         }
 
         async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
+            options = normalizeStaticSiteOptions(options);
             const {entityType, entityIds} = renderArgs;
             const {
                 staticSite,
@@ -531,13 +582,11 @@ async function getModule(app: IGeesomeApp, models) {
 
         async updateStaticSiteInfo(userId, staticSiteId, updateData) {
             const staticSiteInfo = await models.StaticSite.findOne({ where: {id: staticSiteId}}) as IStaticSite;
-            const {entityType, entityId, name} = staticSiteInfo;
             if (!staticSiteInfo) {
                 throw new Error("static_site_not_found");
             }
-            if (updateData['name'] && !helpers.validateUsername(updateData['name'])) {
-                throw new Error("incorrect_name");
-            }
+            updateData = prepareStaticSiteUpdateData(updateData);
+            const {entityType, entityId, name} = staticSiteInfo;
             if (name && updateData['name'] && updateData['name'] !== name) {
                 if (entityType === 'group') {
                     await app.ms.staticId.renameGroupStaticAccountId(userId, entityId, name, updateData['name']);
