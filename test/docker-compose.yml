@@ -29,6 +29,7 @@ services:
       - STORAGE_MODULE=ipfs-http-client
       - STORAGE_URL=http://go_ipfs:5001
       - STORAGE_SKIP_REMOTE_STOP=1
+      - GEESOME_TEST_OFFLINE_FIXTURES=1
 
   postgres:
     container_name: geesome_db

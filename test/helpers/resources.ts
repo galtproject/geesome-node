@@ -1,8 +1,19 @@
 
 import fs from "fs";
 import axios from "axios";
+import {execFileSync} from "node:child_process";
 import helpers from "../../app/helpers.js";
 import appHelpers from "../../app/helpers.js";
+
+const localFixtureNames = new Set([
+    'input-image.png',
+    'input-image.jpg',
+    'test-archive.zip',
+    'input-video.mov',
+    'not-streamable-input-video.mp4',
+    'streamable-input-video.mp4',
+    'test-gif.gif'
+]);
 
 export default {
     getOutputDir() {
@@ -19,6 +30,21 @@ export default {
         }
         if (fs.existsSync(dir + name)) {
             return dir + name;
+        }
+        if (localFixtureNames.has(name)) {
+            try {
+                execFileSync('bash', ['bash/prepare-test-resources.sh'], {
+                    cwd: helpers.getCurDir() + '/..',
+                    stdio: 'inherit'
+                });
+            } catch (error) {
+                if (process.env.GEESOME_TEST_OFFLINE_FIXTURES === '1') {
+                    throw error;
+                }
+            }
+            if (fs.existsSync(dir + name)) {
+                return dir + name;
+            }
         }
         const hashes = {
             'input-image.png': 'QmSnpR15Bdm3jVQWpmiGqRyqFGqararwGrvi1WdEmZzJRC',

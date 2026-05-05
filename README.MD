@@ -314,7 +314,7 @@ When a Docker image has already been built and you need to rerun the exact same 
 npm run test:docker:no-build
 ```
 
-The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. It sets `STORAGE_SKIP_REMOTE_STOP=1` so app teardown between test cases does not shut down the shared Kubo test service.
+The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. Fixture generation covers the image, video, GIF, and archive files used by the suite, so the Docker path does not depend on public IPFS gateways for test inputs. Docker sets `GEESOME_TEST_OFFLINE_FIXTURES=1` to fail fast if local fixture generation breaks. It sets `STORAGE_SKIP_REMOTE_STOP=1` so app teardown between test cases does not shut down the shared Kubo test service.
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)
