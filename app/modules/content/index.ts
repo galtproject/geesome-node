@@ -40,6 +40,22 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp) {
 	app.checkModules(['database', 'drivers', 'storage']);
 
+	function closeResponseStream(stream) {
+		if (stream.destroy) {
+			stream.destroy();
+		} else if (stream.end) {
+			stream.end();
+		}
+	}
+
+	function pipeStorageStream(stream, res) {
+		stream.on('error', (error) => {
+			console.error('content stream error', error);
+			closeResponseStream(res.stream);
+		});
+		stream.pipe(res.stream);
+	}
+
 	function parseByteRange(rangeHeader: string, dataSize: number, defaultChunkSize: number): {start: number, end: number} | null {
 		if (!rangeHeader || !rangeHeader.startsWith('bytes=') || rangeHeader.includes(',')) {
 			return null;
@@ -882,7 +898,7 @@ function getModule(app: IGeesomeApp) {
 				console.log('headers', headers);
 				res.writeHead(200, headers);
 				return this.getFileStream(dataPath).then((stream) => {
-					stream.pipe(res.stream);
+					pipeStorageStream(stream, res);
 				});
 			}
 
@@ -945,7 +961,7 @@ function getModule(app: IGeesomeApp) {
 					'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + dataSize,
 					'Content-Length': contentLength
 				});
-				stream.pipe(res.stream);
+				pipeStorageStream(stream, res);
 			});
 		}
 

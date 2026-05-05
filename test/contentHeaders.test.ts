@@ -1,5 +1,5 @@
 import assert from "assert";
-import {Readable} from "node:stream";
+import {PassThrough, Readable} from "node:stream";
 import contentModule from "../app/modules/content/index.js";
 import {ContentMimeType} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
@@ -149,6 +149,65 @@ describe("content headers", function () {
 
 		assert.deepEqual(sends, [[404]]);
 		assert.equal(streamRequested, false);
+	});
+
+	it("closes the response stream when a content stream fails after headers", async () => {
+		const responseStream = new PassThrough();
+		const writes: any = {};
+		let destroyed = false;
+		responseStream.destroy = (() => {
+			destroyed = true;
+			return responseStream;
+		}) as any;
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: {
+					onGet: () => null,
+					onHead: () => null,
+					onUnversionGet: () => null,
+					onUnversionHead: () => null,
+					onAuthorizedGet: () => null,
+					onAuthorizedPost: () => null,
+					setStorageHeaders: () => null
+				},
+				database: {
+					getContentByStorageId: async () => ({
+						storageId: "file.txt",
+						mimeType: "video/mp4",
+						size: 5
+					})
+				},
+				storage: {
+					getFileStat: async () => ({size: 5}),
+					getFileStream: async () => {
+						const stream = new PassThrough();
+						setImmediate(() => stream.emit("error", new Error("storage stream failed")));
+						return stream;
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			send: (...args) => {
+				writes.send = args;
+			},
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: responseStream
+		} as any, "file.txt");
+		await new Promise((resolve) => setImmediate(resolve));
+
+		assert.equal(writes.status, 206);
+		assert.equal(destroyed, true);
+		assert.equal(writes.send, undefined);
 	});
 
 	it("rejects malformed byte ranges before opening storage streams", async () => {
