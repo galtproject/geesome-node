@@ -315,13 +315,17 @@ export interface IContentStatResponse {
 }
 
 export interface IPinOptionsInput {
-  name?: string;
-  path?: string;
-  metadata?: any;
+  [key: string]: string | number | boolean | null;
 }
 
 export interface IPinAccountListResponse {
   list: any[];
+}
+
+export interface IPinServiceResponse {
+  data?: any;
+  status?: number;
+  statusText?: string;
 }
 
 export interface IForeignAccountLookupInput {
