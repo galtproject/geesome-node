@@ -90,7 +90,7 @@ describe("pin", function () {
 		}
 
 		let gotAccounts = await pins.getGroupAccountsList(testUser.id, testGroup.id);
-		assert.equal(acc.id, gotAccounts.length);
+		assert.equal(gotAccounts.length, 1);
 		assert.equal(acc.id, gotAccounts[0].id);
 
 		const acc2 = await pins.createAccount(testUser2.id, {

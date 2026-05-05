@@ -124,18 +124,18 @@ describe("staticSiteGenerator", function () {
 		assert.match(indexHtmlContent, /MySite/);
 		assert.match(indexHtmlContent, /My About/);
 		assert.match(indexHtmlContent, /Posts: 30/);
-		assert.equal(indexHtmlContent.includes('<link rel="stylesheet" href="./style.css">'), true);
+		assert.match(indexHtmlContent, /<link rel="stylesheet" href="\.\/style\.css"\/?>/);
 		assert.equal(indexHtmlContent.includes('<a href="./post/26/"'), true);
 		const page3HtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/page/5/index.html`).then(b => b.toString('utf8'));
 		assert.match(page3HtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.match(page3HtmlContent, /post-intro.+Hello world24/);
-		assert.equal(page3HtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
+		assert.match(page3HtmlContent, /<link rel="stylesheet" href="\.\.\/\.\.\/style\.css"\/?>/);
 		assert.equal(page3HtmlContent.includes('<a href="../../page/5/"'), true);
 		assert.equal(page3HtmlContent.includes('<a href="../../post/24/"'), true);
-		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/post/${posts[0].id}/index.html`).then(b => b.toString('utf8'));
+		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/post/${posts[0].localId}/index.html`).then(b => b.toString('utf8'));
 		assert.match(postHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.match(postHtmlContent, /post-page-content.+Hello world0/);
-		assert.equal(postHtmlContent.includes('<link rel="stylesheet" href="../../style.css">'), true);
+		assert.match(postHtmlContent, /<link rel="stylesheet" href="\.\.\/\.\.\/style\.css"\/?>/);
 		console.log('postHtmlContent', postHtmlContent);
 
 		const [gotStaticSiteInfo] = await staticSiteGenerator.getStaticSiteList(testUser.id, 'group', {limit: 10, sortBy: 'createdAt', sortDir: 'DESC'});
@@ -158,7 +158,7 @@ describe("staticSiteGenerator", function () {
 		}
 
 		console.log('generateContentsSite 1');
-		const directoryStorageId = await staticSiteGenerator.generateContentListSite(testUser.id, {entityType: 'content-list', entityIds: contentIds}, {
+		const {storageId: directoryStorageId} = await staticSiteGenerator.generateContentListSite(testUser.id, {entityType: 'content-list', entityIds: contentIds}, {
 			lang: 'en',
 			dateFormat: 'DD.MM.YYYY hh:mm:ss',
 			baseStorageUri: 'http://localhost:2052/ipfs/',
@@ -184,8 +184,8 @@ describe("staticSiteGenerator", function () {
 		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
 		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.equal(indexHtmlContent.includes('class="content-item'), true);
-		assert.equal(indexHtmlContent.includes('<link rel="stylesheet" href="./style.css">'), true);
-		assert.equal(indexHtmlContent.includes('<img src="./content/bafk'), true);
+		assert.match(indexHtmlContent, /<link rel="stylesheet" href="\.\/style\.css"\/?>/);
+		assert.match(indexHtmlContent, /<img[^>]+src="\.\/content\/\d+_bafk/);
 		console.log('indexHtmlContent', indexHtmlContent);
 	});
 });

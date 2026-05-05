@@ -98,7 +98,7 @@ async function getModule(app: IGeesomeApp, models) {
                 } else {
                     operationPrefix = 'type:' + entityType + ';id:' + entityId;
                 }
-                const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
+                asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
                     userApiKeyId,
                     module: this.moduleName,
                     name: 'run-' + this.moduleName + '-' + entityType,
@@ -108,8 +108,10 @@ async function getModule(app: IGeesomeApp, models) {
                 await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
 
                 options.asyncOperationId = asyncOperation.id;
-                // run in background
-                await this.generateContentListSite(userId, renderArgs, options).then(async ({storageId, staticSiteId}) => {
+                const generateSite = entityType === 'content-list'
+                    ? this.generateContentListSite(userId, renderArgs, options)
+                    : this.generateGroupSite(userId, renderArgs, options).then(storageId => ({storageId, staticSiteId: null}));
+                await generateSite.then(async ({storageId, staticSiteId}) => {
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                     await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, null, JSON.stringify({storageId, staticSiteId}));
                     if (finishCallbacks[waitingQueue.id]) {

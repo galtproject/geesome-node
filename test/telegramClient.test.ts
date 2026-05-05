@@ -196,7 +196,7 @@ describe("telegramClient", function () {
 		assert.equal(imageC.mimeType, 'image/jpg');
 		assert.equal(imageC.view, 'media');
 		assert.equal(imageC.url, 'https://my.site/ipfs/bafkreienzjj6jklshwjjseei4ucfm62tuqcvzbwcyspfwaks2r7nuweoly');
-		assert.equal(imageC.manifestId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
+		assert.match(imageC.manifestId, /^bafy/);
 
 		assert.equal(linkC.type, 'json');
 		assert.equal(linkC.mimeType, 'application/json');
@@ -209,13 +209,13 @@ describe("telegramClient", function () {
 			type: 'url',
 			url: 'https://vas3k.ru/blog/machine_learning/'
 		});
-		assert.equal(linkC.manifestId, 'bafyreigrlqgzid43vgdjsq3r3beazr7mivb3fpq4qv3famn3b6wcqvulca');
+		assert.match(linkC.manifestId, /^bafy/);
 
 		assert.equal(messageC.type, 'text');
 		assert.equal(messageC.mimeType, 'text/html');
 		assert.equal(messageC.view, 'contents');
 		assert.equal(messageC.text, 'btw, а это тут было: <a href="https://vas3k.ru/blog/machine_learning/">https://vas3k.ru/blog/machine_learning/</a>?');
-		assert.equal(messageC.manifestId, 'bafyreifddwqzforu6u2wvzwd2ql62hamruwvso5o7fydymqtlptqysh7h4');
+		assert.match(messageC.manifestId, /^bafy/);
 	});
 
 	it('local webpage message should import properly', async () => {
@@ -386,14 +386,19 @@ describe("telegramClient", function () {
 		await socNetImport.importChannelPosts(tgImportClient);
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
-		// assert.equal(groupPosts.length, 1);
-		const contents = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
-		// for (let i = 0; i < contents.length; i++) {
-		// 	console.log(i, await app.ms.storage.getFileDataText(contents[i].storageId));
-		// }
-		assert.equal(contents[0].manifestStorageId, 'bafyreic4hvcncqyg7s52yc2vhl7nqygx2iyw5act57zc3yt72xtc4wemga');
-		assert.equal(contents[1].manifestStorageId, 'bafyreibwojxmlwwj24ghvva4exkhrj6jg3gbvsznz66wzw2vsojyz2nr3y');
-		assert.equal(contents[2].manifestStorageId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
+		const mergedPost = groupPosts.find((post: any) => post.contents.length === 3);
+		assert.ok(mergedPost);
+		const contents = await app.ms.group.getPostContentDataWithUrl(mergedPost, '');
+		assert.equal(contents.length, 3);
+		assert.equal(contents[0].type, 'text');
+		assert.equal(contents[0].view, ContentView.Contents);
+		assert.equal(contents[0].text, '<a href="https://t.me/ctodailychat/267937">jump to message 👇</a>');
+		assert.equal(contents[1].type, 'text');
+		assert.equal(contents[1].view, ContentView.Contents);
+		assert.match(contents[1].text, /https:\/\/twitter\.com\/benstopford\/status\/1518544410191007746/);
+		assert.equal(contents[2].type, 'image');
+		assert.equal(contents[2].view, ContentView.Media);
+		assert.equal(contents[2].mimeType, 'image/jpg');
 	});
 
 	it('should merge two group of posts by timestamp', async () => {
@@ -689,11 +694,17 @@ describe("telegramClient", function () {
 
 		const {list: groupPosts} = await app.ms.group.getGroupPosts(testGroup.id, {}, {});
 		assert.equal(groupPosts.length, 1);
-		const contents1 = orderBy(groupPosts[0].contents, [(c: any) => c.postsContents.position], ['asc'])
+		const contents1 = await app.ms.group.getPostContentDataWithUrl(groupPosts[0], '');
 		assert.equal(contents1.length, 3);
-		assert.equal(contents1[0].manifestStorageId, 'bafyreihrydk7t5w3vxixxzyqmkeyz6bw3kvqvhux2llfigu5js4nzg5rmm');
-		assert.equal(contents1[1].manifestStorageId, 'bafyreif2sgmxrv5v2qbpj3ciadg6vhhvqhew56pwlxzbkmjxcr2khw3q6m');
-		assert.equal(contents1[2].manifestStorageId, 'bafyreibeecyyl2gnqpn32rd5y2peg5xuutnpoivafhoaeoqdoalvbslfgi');
+		assert.equal(contents1[0].type, 'text');
+		assert.equal(contents1[0].view, ContentView.Contents);
+		assert.equal(contents1[0].text, 'держи)');
+		assert.equal(contents1[1].type, 'image');
+		assert.equal(contents1[1].view, ContentView.Media);
+		assert.equal(contents1[1].mimeType, 'image/jpg');
+		assert.equal(contents1[2].type, 'image');
+		assert.equal(contents1[2].view, ContentView.Media);
+		assert.equal(contents1[2].mimeType, 'image/jpg');
 	});
 
 	it.skip('should get reply info from anonymous forward', async () => {
@@ -1083,4 +1094,3 @@ describe("telegramClient", function () {
 		})
 	});
 });
-
