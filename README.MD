@@ -286,6 +286,22 @@ Open UI page by url: [http://localhost:2042](http://localhost:2042)
 
 Api available by [http://localhost:2052](http://localhost:2052) endpoint.
 
+## Tests
+
+For quick module checks, run the targeted Mocha command that matches the changed area, for example:
+
+```
+node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha test/pinUnit.test.ts
+```
+
+For the full suite, prefer the Docker-backed flow when the host machine does not already have the expected PostgreSQL user/database and `ffmpeg` binary:
+
+```
+npm run test:docker
+```
+
+The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. It sets `STORAGE_SKIP_REMOTE_STOP=1` so app teardown between test cases does not shut down the shared Kubo test service.
+
 ## Links
 - [Manifests example](./docs/manifests-example.md)
 - API [documentation](https://geesome-node.galtproject.io:7722/ipns/QmQdr2fJ1qsYHnGN2FC1G9kitypiUQ271GhLa8qEtJnSN7/) and [endpoints code](./app/modules/api/index.ts)

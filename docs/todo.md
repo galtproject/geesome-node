@@ -42,6 +42,7 @@ Dependency security signals:
 Runtime maintenance:
 
 - Migrate the supported runtime from Node `>=18` to Node 22. Node 18 and Node 20 are EOL or effectively out of support for new GeeSome work. Use Node 22 as the immediate baseline, then validate Node 24 separately.
+- [#859](https://github.com/galtproject/geesome-node/issues/859) adds a Docker-backed full test flow for environments where host PostgreSQL credentials or `ffmpeg` are missing.
 
 Issue clusters still represented by the old README TODO:
 
@@ -103,6 +104,7 @@ Verification:
 - Package graph check for stale direct tooling removal.
 - Password helper smoke for the `bcrypt` major bump.
 - `yarn test`
+- `npm run test:docker` when host PostgreSQL or `ffmpeg` prerequisites are not available.
 - `yarn audit --groups dependencies --level high` to document remaining high/critical chains.
 - If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command where local database/runtime permits.
 
