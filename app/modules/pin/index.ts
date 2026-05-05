@@ -22,10 +22,13 @@ export function getModule(app: IGeesomeApp, models) {
 
 		async updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount> {
 			const account = await models.PinAccount.findOne({where: {id}});
+			if (!account) {
+				throw new Error("pin_account_not_found");
+			}
 			if (account.userId !== userId && !(await app.ms.group.canEditGroup(userId, account.groupId))) {
 				throw new Error("not_permitted");
 			}
-			return models.PinAccount.update(updateData, {where: {id}})
+			return models.PinAccount.update(await this.encryptPinAccountIfNecessary(updateData), {where: {id}})
 				.then(() => models.PinAccount.findOne({where: {id}}))
 				.then(acc => this.decryptPinAccountIfNecessary(acc));
 		}
