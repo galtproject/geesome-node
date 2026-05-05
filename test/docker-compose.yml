@@ -1,15 +1,18 @@
 services:
-  web:
-    container_name: geesome
-    build: ../
-    command: npm run test
-    restart: always
+  test:
+    container_name: geesome-test
+    build:
+      context: ../
+      dockerfile: test/Dockerfile
+    command: npm run test:docker:run
     ports:
       - 2052
       - 2082
     depends_on:
-      - ipfs
-      - postgres
+      postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_started
     volumes:
       - "${GEESOME_DATA:-./.geesome-data}:/geesome-node/data"
       - "${GEESOME_FRONTEND_DIST:-./.geesome-frontend}:/geesome-node/frontend/docker-dist"
@@ -23,11 +26,13 @@ services:
       - DATABASE_NAME=geesome_node
       - DATABASE_HOST=geesome_db
       - DATABASE_PORT=5432
+      - STORAGE_MODULE=ipfs-http-client
+      - STORAGE_URL=http://go_ipfs:5001
+      - STORAGE_SKIP_REMOTE_STOP=1
 
   postgres:
     container_name: geesome_db
     image: postgres:14-alpine
-    restart: always
     expose:
       - 5432
     volumes:
@@ -36,11 +41,15 @@ services:
       - POSTGRES_PASSWORD=geesome
       - POSTGRES_USER=geesome
       - POSTGRES_DB=geesome_node
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geesome -d geesome_node"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   ipfs:
     container_name: go_ipfs
     image: "ipfs/kubo:v0.31.0"
-    restart: always
     environment:
       - IPFS_PROFILE
     expose:

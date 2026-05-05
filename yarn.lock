@@ -3398,9 +3398,9 @@ anymatch@~3.1.2:
     normalize-path "^3.0.0"
     picomatch "^2.0.4"
 
-"apidoc-plugin-ts@git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1":
+"apidoc-plugin-ts@git+https://github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1":
   version "1.1.0"
-  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1950902c81f428f1b663326e0ba66bacbe"
+  resolved "git+https://github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1950902c81f428f1b663326e0ba66bacbe"
   dependencies:
     ts-morph "3.1.0"
     typescript "3.5.2"
@@ -6402,9 +6402,9 @@ functions-have-names@^1.2.2, functions-have-names@^1.2.3:
   resolved "https://registry.yarnpkg.com/functions-have-names/-/functions-have-names-1.2.3.tgz#0404fe4ee2ba2f607f0e0ec3c80bae994133b834"
   integrity sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==
 
-"geesome-apidoc-template@git+ssh://git@github.com/MicrowaveDev/apidoc-template.git":
+"geesome-apidoc-template@git+https://github.com/MicrowaveDev/apidoc-template.git":
   version "1.1.0"
-  resolved "git+ssh://git@github.com/MicrowaveDev/apidoc-template.git#6013e580e1364b4a35e6c8a8ecdc3ae69c7f513a"
+  resolved "git+https://github.com/MicrowaveDev/apidoc-template.git#6013e580e1364b4a35e6c8a8ecdc3ae69c7f513a"
   dependencies:
     bootstrap "3.4.1"
     diff-match-patch "^1.0.5"

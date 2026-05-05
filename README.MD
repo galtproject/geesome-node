@@ -286,6 +286,36 @@ Open UI page by url: [http://localhost:2042](http://localhost:2042)
 
 Api available by [http://localhost:2052](http://localhost:2052) endpoint.
 
+## Tests
+
+For quick module checks, run the targeted Mocha command that matches the changed area, for example:
+
+```
+node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha test/pinUnit.test.ts
+```
+
+For the full suite, use the Docker-backed flow as the primary verification path:
+
+```
+npm run test:docker
+```
+
+The default Docker test path is optimized for warm reruns while implementing. It reuses Docker dependency layers and keeps PostgreSQL/IPFS data between runs, while still rebuilding the source snapshot and starting the GeeSome test process fresh. Use it after ordinary source changes.
+
+Use a cold reset when service state, generated data, package files, or Docker setup changed:
+
+```
+npm run test:docker:cold
+```
+
+When a Docker image has already been built and you need to rerun the exact same source snapshot, the fastest loop can skip the build check:
+
+```
+npm run test:docker:no-build
+```
+
+The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. It sets `STORAGE_SKIP_REMOTE_STOP=1` so app teardown between test cases does not shut down the shared Kubo test service.
+
 ## Links
 - [Manifests example](./docs/manifests-example.md)
 - API [documentation](https://geesome-node.galtproject.io:7722/ipns/QmQdr2fJ1qsYHnGN2FC1G9kitypiUQ271GhLa8qEtJnSN7/) and [endpoints code](./app/modules/api/index.ts)

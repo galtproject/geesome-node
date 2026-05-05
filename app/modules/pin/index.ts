@@ -60,7 +60,7 @@ export function getModule(app: IGeesomeApp, models) {
 			if (!account) {
 				throw new Error("pin_account_not_found");
 			}
-			return this.pinByAnyService(storageId, account)
+			return this.pinByAnyService(storageId, account, options)
 		}
 
 		async pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options = {}): Promise<any> {
@@ -68,7 +68,7 @@ export function getModule(app: IGeesomeApp, models) {
 			if (!account) {
 				throw new Error("pin_account_not_found");
 			}
-			return this.pinByAnyService(storageId, account)
+			return this.pinByAnyService(storageId, account, options)
 		}
 
 		async pinByAnyService(storageId: string, account: IPinAccount, options?) {
@@ -88,9 +88,8 @@ export function getModule(app: IGeesomeApp, models) {
 				throw new Error("content_not_found");
 			}
 			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
-			console.log('hostNodes', hostNodes);
-			return axios
-				.post(account.endpoint || `https://api.pinata.cloud/pinning/pinByHash`, {
+			try {
+				return await axios.post(account.endpoint || `https://api.pinata.cloud/pinning/pinByHash`, {
 					hostNodes,
 					hashToPin: storageId,
 					pinataMetadata: {
@@ -100,6 +99,12 @@ export function getModule(app: IGeesomeApp, models) {
 				},{
 					headers: { pinata_api_key: account.apiKey, pinata_secret_api_key: account.secretApiKey }
 				});
+			} catch (error) {
+				const normalizedError = new Error("pinata_pin_failed") as Error & {status?: number, details?: any};
+				normalizedError.status = error?.response?.status;
+				normalizedError.details = error?.response?.data || error?.message;
+				throw normalizedError;
+			}
 		}
 
 		async encryptPinAccountIfNecessary(pinAccount: IPinAccount) {
