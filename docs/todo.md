@@ -142,7 +142,7 @@ Verification:
 
 ### 4. Pinata And Pinning MVP
 
-Status: in progress. [#854](https://github.com/galtproject/geesome-node/issues/854) hardens direct pin negative paths with explicit missing-account, unknown-service, and missing-content errors before remote pinning is attempted. [#856](https://github.com/galtproject/geesome-node/issues/856) keeps pin account secret updates encrypted and returns an explicit missing-account error for update calls. [#858](https://github.com/galtproject/geesome-node/issues/858) forwards caller pin options into Pinata metadata and normalizes remote Pinata failures to `pinata_pin_failed`.
+Status: in progress. [#854](https://github.com/galtproject/geesome-node/issues/854) hardens direct pin negative paths with explicit missing-account, unknown-service, and missing-content errors before remote pinning is attempted. [#856](https://github.com/galtproject/geesome-node/issues/856) keeps pin account secret updates encrypted and returns an explicit missing-account error for update calls. [#858](https://github.com/galtproject/geesome-node/issues/858) forwards caller pin options into Pinata metadata and normalizes remote Pinata failures to `pinata_pin_failed`. [#868](https://github.com/galtproject/geesome-node/issues/868) documents the account and direct pin API flows, examples, forwarded Pinata keyvalues, and common pin errors.
 
 Goal: turn "Pin to services like pinata from UI" into a shippable backend/API slice first.
 
