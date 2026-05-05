@@ -11,7 +11,7 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+export function getModule(app: IGeesomeApp, models) {
 	class PinModule implements IGeesomePinModule {
 		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
 			return models.PinAccount.create({
@@ -54,15 +54,24 @@ function getModule(app: IGeesomeApp, models) {
 
 		async pinByUserAccount(userId: number, name: string, storageId: string, options = {}): Promise<any> {
 			const account = await this.getUserAccount(userId, name);
+			if (!account) {
+				throw new Error("pin_account_not_found");
+			}
 			return this.pinByAnyService(storageId, account)
 		}
 
 		async pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options = {}): Promise<any> {
 			const account = await this.getGroupAccount(userId, groupId, name);
+			if (!account) {
+				throw new Error("pin_account_not_found");
+			}
 			return this.pinByAnyService(storageId, account)
 		}
 
 		async pinByAnyService(storageId: string, account: IPinAccount, options?) {
+			if (!account) {
+				throw new Error("pin_account_not_found");
+			}
 			if (account.service === 'pinata') {
 				return this.pinByPinata(storageId, account, options);
 			} else {
@@ -72,6 +81,9 @@ function getModule(app: IGeesomeApp, models) {
 
 		async pinByPinata(storageId: string, account: IPinAccount, options?) {
 			const content = await app.ms.content.getContentByStorageAndUserId(storageId, account.userId);
+			if (!content) {
+				throw new Error("content_not_found");
+			}
 			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
 			console.log('hostNodes', hostNodes);
 			return axios
