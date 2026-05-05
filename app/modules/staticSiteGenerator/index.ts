@@ -304,6 +304,8 @@ async function getModule(app: IGeesomeApp, models) {
                     fs.writeFileSync(routePath + '/index.html', htmlContent);
                 }
              */
+            await this.copySiteAssets(siteStorageDir, renderData.options.site.avatarStorageId);
+
             await this.renderAndSave(renderPage, options, siteStorageDir, ``, 'main');
             for (let i = 1; i <= renderData.pagesCount - 1; i++) {
                 // VueSSR: render other pages by url
@@ -354,6 +356,13 @@ async function getModule(app: IGeesomeApp, models) {
             }
         }
 
+        async copySiteAssets(siteStorageDir: string, faviconSourceStorageId?: string) {
+            await this.saveSiteAssets();
+            await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
+            await app.ms.storage.copyFileFromId(vendorAssetsStorageId, `${siteStorageDir}/vendor`);
+            await app.ms.storage.copyFileFromId(faviconSourceStorageId || faviconStorageId, `${siteStorageDir}/favicon.ico`);
+        }
+
         async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
             const {entityType, entityIds} = renderArgs;
             const {
@@ -366,10 +375,7 @@ async function getModule(app: IGeesomeApp, models) {
             const {id: cssStorageId} = await app.ms.storage.saveFileByData(css + (options.stylesCss || ''));
             await app.ms.storage.copyFileFromId(cssStorageId, `${siteStorageDir}/style.css`);
 
-            await this.saveSiteAssets();
-            await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
-            await app.ms.storage.copyFileFromId(vendorAssetsStorageId, `${siteStorageDir}/vendor`);
-            await app.ms.storage.copyFileFromId(faviconStorageId, `${siteStorageDir}/favicon.ico`);
+            await this.copySiteAssets(siteStorageDir);
 
             renderData.defaultRoute = 'content-list';
 
