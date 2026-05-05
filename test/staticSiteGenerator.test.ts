@@ -146,6 +146,39 @@ describe("staticSiteGenerator", function () {
 		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [directoryStorageId]), true);
 	});
 
+	it('should use group avatar as generated site favicon', async () => {
+		const pngImagePath = await resourcesHelper.prepare('input-image.png');
+		const avatarContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
+			groupId: testGroup.id,
+			waitForPin: true
+		});
+		await app.ms.group.updateGroup(testUser.id, testGroup.id, {avatarImageId: avatarContent.id});
+
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
+			lang: 'en',
+			dateFormat: 'DD.MM.YYYY hh:mm:ss',
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			post: {
+				titleLength: 0,
+				descriptionLength: 400,
+			},
+			postList: {
+				postsPerPage: 5,
+			},
+			site: {
+				title: 'MySite',
+				name: 'my_site',
+				description: 'My About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+
+		const faviconContent = await app.ms.storage.getFileData(`${directoryStorageId}/favicon.ico`);
+		const avatarStorageContent = await app.ms.storage.getFileData(avatarContent.storageId);
+		assert.equal(faviconContent.toString('hex'), avatarStorageContent.toString('hex'));
+	});
+
 	it('should generate site correctly from content list', async () => {
 		const contentIds = [];
 		for (let i = 0; i < 30; i++) {
