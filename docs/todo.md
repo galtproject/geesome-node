@@ -108,7 +108,7 @@ Verification:
 
 ### 3. Content Serving Stabilization
 
-Status: in progress. [#733](https://github.com/galtproject/geesome-node/issues/733) now has a focused API HEAD regression so content-data/file-catalog storage handlers can set their own `Content-Length` and content headers instead of being swallowed by the generic HEAD fallback. [#846](https://github.com/galtproject/geesome-node/issues/846) extends the same header behavior to gateway HEAD requests so published folder/IPFS-style paths can return storage headers.
+Status: in progress. [#733](https://github.com/galtproject/geesome-node/issues/733) now has a focused API HEAD regression so content-data/file-catalog storage handlers can set their own `Content-Length` and content headers instead of being swallowed by the generic HEAD fallback. [#846](https://github.com/galtproject/geesome-node/issues/846) extends the same header behavior to gateway HEAD requests so published folder/IPFS-style paths can return storage headers. [#848](https://github.com/galtproject/geesome-node/issues/848) hardens byte-range handling so malformed or unsatisfiable ranges return `416` before storage streams are opened.
 
 Goal: fix the highest user-visible backend bugs before feature work.
 
