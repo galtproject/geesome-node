@@ -40,6 +40,43 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp) {
 	app.checkModules(['database', 'drivers', 'storage']);
 
+	function parseByteRange(rangeHeader: string, dataSize: number, defaultChunkSize: number): {start: number, end: number} | null {
+		if (!rangeHeader || !rangeHeader.startsWith('bytes=') || rangeHeader.includes(',')) {
+			return null;
+		}
+
+		const rangeParts = rangeHeader.replace(/bytes=/, "").split("-");
+		if (rangeParts.length !== 2) {
+			return null;
+		}
+		const [rawStart, rawEnd] = rangeParts;
+		if ((rawStart === '' && rawEnd === '') || (rawStart && !/^\d+$/.test(rawStart)) || (rawEnd && !/^\d+$/.test(rawEnd))) {
+			return null;
+		}
+
+		let start: number;
+		let end: number;
+		if (rawStart === '') {
+			const suffixLength = parseInt(rawEnd, 10);
+			if (!suffixLength) {
+				return null;
+			}
+			start = Math.max(dataSize - suffixLength, 0);
+			end = dataSize - 1;
+		} else {
+			start = parseInt(rawStart, 10);
+			end = rawEnd ? parseInt(rawEnd, 10) : start + defaultChunkSize;
+		}
+
+		if (dataSize <= 0 || start >= dataSize || end < start) {
+			return null;
+		}
+		if (end > dataSize - 1) {
+			end = dataSize - 1;
+		}
+		return {start, end};
+	}
+
 	class ContentModule implements IGeesomeContentModule {
 
 		async getAllContentList(adminId, searchString?, listParams?: IListParams) {
@@ -866,14 +903,15 @@ function getModule(app: IGeesomeApp) {
 				chunkSize = Math.ceil(dataSize * 0.25);
 			}
 
-			range = range.replace(/bytes=/, "").split("-");
-
-			range[0] = range[0] ? parseInt(range[0], 10) : 0;
-			range[1] = range[1] ? parseInt(range[1], 10) : range[0] + chunkSize;
-			if(range[1] > dataSize - 1) {
-				range[1] = dataSize - 1;
+			range = parseByteRange(range, dataSize, chunkSize);
+			if (!range) {
+				res.writeHead(416, {
+					'Content-Range': `bytes */${dataSize}`,
+					'Accept-Ranges': 'bytes',
+					'Cross-Origin-Resource-Policy': 'cross-origin'
+				});
+				return res.stream.end();
 			}
-			range = {start: range[0], end: range[1]};
 
 			const contentLength = range.end - range.start + 1;
 
