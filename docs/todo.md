@@ -43,6 +43,7 @@ Runtime maintenance:
 
 - Migrate the supported runtime from Node `>=18` to Node 22. Node 18 and Node 20 are EOL or effectively out of support for new GeeSome work. Use Node 22 as the immediate baseline, then validate Node 24 separately.
 - [#859](https://github.com/galtproject/geesome-node/issues/859) adds a Docker-backed full test flow for environments where host PostgreSQL credentials or `ffmpeg` are missing.
+- [#861](https://github.com/galtproject/geesome-node/issues/861) makes Docker the preferred full-suite test path and optimizes it for warm reruns after source-only implementation changes.
 
 Issue clusters still represented by the old README TODO:
 
@@ -103,8 +104,9 @@ Verification:
 - Storage/API import smoke for the `cids` removal.
 - Package graph check for stale direct tooling removal.
 - Password helper smoke for the `bcrypt` major bump.
-- `yarn test`
-- `npm run test:docker` when host PostgreSQL or `ffmpeg` prerequisites are not available.
+- Targeted Mocha test for the touched module.
+- `npm run test:docker` as the main full-suite path. Use `npm run test:docker:no-build` only to rerun the exact same already-built source snapshot, and `npm run test:docker:cold` when Docker service data may be stale.
+- `yarn test` only when the host already has matching PostgreSQL, IPFS, and media prerequisites.
 - `yarn audit --groups dependencies --level high` to document remaining high/critical chains.
 - If a single bump fails, isolate with the narrowest mapped test file, then rerun the full test command where local database/runtime permits.
 

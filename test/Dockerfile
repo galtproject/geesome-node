@@ -1,6 +1,10 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:22.21.1-bookworm-slim
 
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		ca-certificates \
 		curl \
@@ -20,7 +24,8 @@ RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.co
 	&& git config --global url."https://github.com/".insteadOf "git@github.com:"
 
 COPY package.json yarn.lock ./
-RUN yarn -W --no-optional
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
+	yarn -W --no-optional --frozen-lockfile
 
 COPY . .
 

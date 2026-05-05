@@ -1,13 +1,66 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-rm -rf \
-	test/.geesome-data \
-	test/.geesome-frontend \
-	test/.geesome-test-output \
-	test/.ipfs \
-	test/.ipfs-data \
-	test/.postgres-data
+usage() {
+	cat <<'USAGE'
+Usage:
+  bash/docker-test [--cold] [--no-build]
 
-docker compose -f ./test/docker-compose.yml down --remove-orphans
-docker compose -f ./test/docker-compose.yml up --build --force-recreate --abort-on-container-exit --exit-code-from test test
+Runs the full test suite in Docker with PostgreSQL, IPFS, Node 22, and ffmpeg.
+
+Default mode is warm and optimized for source-only implementation changes:
+Docker reuses dependency layers and service data, while the test process still
+starts fresh.
+
+Options:
+  --cold      Stop/remove Compose services and test data before running.
+  --no-build  Reuse the existing test image. Use only when package files and
+              Dockerfile have not changed.
+USAGE
+}
+
+cold=0
+build=1
+
+while (($#)); do
+	case "$1" in
+		--cold)
+			cold=1
+			;;
+		--no-build)
+			build=0
+			;;
+		-h|--help)
+			usage
+			exit 0
+			;;
+		*)
+			echo "Unknown option: $1" >&2
+			usage >&2
+			exit 1
+			;;
+	esac
+	shift
+done
+
+compose=(docker compose -f ./test/docker-compose.yml)
+
+if [[ "$cold" -eq 1 ]]; then
+	rm -rf \
+		test/.geesome-data \
+		test/.geesome-frontend \
+		test/.geesome-test-output \
+		test/.ipfs \
+		test/.ipfs-data \
+		test/.postgres-data
+	"${compose[@]}" down --remove-orphans --volumes
+else
+	"${compose[@]}" rm -f -s test >/dev/null 2>&1 || true
+fi
+
+up_args=(up --remove-orphans --abort-on-container-exit --exit-code-from test)
+if [[ "$build" -eq 1 ]]; then
+	up_args+=(--build)
+fi
+
+"${compose[@]}" "${up_args[@]}" test

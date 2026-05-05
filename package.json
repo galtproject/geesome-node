@@ -29,6 +29,8 @@
     "test:prepare-resources": "bash bash/prepare-test-resources.sh",
     "test": "yarn -W && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
     "test:docker": "bash bash/docker-test",
+    "test:docker:cold": "bash bash/docker-test --cold",
+    "test:docker:no-build": "bash bash/docker-test --no-build",
     "test:docker:run": "bash bash/docker-test-run.sh",
     "testCoverage": "node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker compose up",
