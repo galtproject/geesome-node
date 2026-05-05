@@ -111,6 +111,46 @@ describe("content headers", function () {
 		assert.equal(streamRequested, false);
 	});
 
+	it("returns 404 for allowed storage paths missing from storage", async () => {
+		let streamRequested = false;
+		const sends: any[] = [];
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: {
+					onGet: () => null,
+					onHead: () => null,
+					onUnversionGet: () => null,
+					onUnversionHead: () => null,
+					onAuthorizedGet: () => null,
+					onAuthorizedPost: () => null,
+					setStorageHeaders: () => null
+				},
+				database: {
+					getContentByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => null,
+					getFileStream: async () => {
+						streamRequested = true;
+						return Readable.from(["unexpected"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {}
+		} as any, {
+			send: (...args) => sends.push(args),
+			setHeader: () => null
+		} as any, "missing.txt");
+
+		assert.deepEqual(sends, [[404]]);
+		assert.equal(streamRequested, false);
+	});
+
 	it("rejects malformed byte ranges before opening storage streams", async () => {
 		let streamRequested = false;
 		const writes: any = {};
