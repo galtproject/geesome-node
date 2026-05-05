@@ -16,16 +16,20 @@ describe("api headers", function () {
 
 	it("lets module HEAD handlers set storage response headers", async () => {
 		const port = 7788;
-		const api = await apiModule({
-			config: {port},
-			ms: {
-				database: {getUsersCount: async () => 0},
-				storage: {remoteNodeAddressList: async () => []},
-				communicator: {nodeAddressList: async () => []}
-			}
-		} as unknown as IGeesomeApp);
+		const previousPort = process.env.PORT;
+		let api;
+		delete process.env.PORT;
 
 		try {
+			api = await apiModule({
+				config: {port},
+				ms: {
+					database: {getUsersCount: async () => 0},
+					storage: {remoteNodeAddressList: async () => []},
+					communicator: {nodeAddressList: async () => []}
+				}
+			} as unknown as IGeesomeApp);
+
 			api.onHead("content-data/*", async (req, res) => {
 				res.writeHead(200, {
 					"Content-Length": "5",
@@ -42,7 +46,12 @@ describe("api headers", function () {
 			assert.equal(res.headers["content-type"], "text/plain");
 			assert.equal(res.headers["x-test-head-handler"], "content-data");
 		} finally {
-			api.stop();
+			if (previousPort === undefined) {
+				delete process.env.PORT;
+			} else {
+				process.env.PORT = previousPort;
+			}
+			api?.stop();
 		}
 	});
 });
