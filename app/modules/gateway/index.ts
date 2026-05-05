@@ -6,10 +6,12 @@ import IGeesomeGatewayModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "./helpers.js";
 
-export default async (app: IGeesomeApp) => {
+export default async (app: IGeesomeApp, options: {registerApi?: boolean, port?: number | string} = {}) => {
 	app.checkModules(['api']);
-	const module = await getModule(app, process.env.GATEWAY_PORT || 2082);
-	(await import('./api.js')).default(app, module);
+	const module = await getModule(app, options.port || process.env.GATEWAY_PORT || 2082);
+	if (options.registerApi !== false) {
+		(await import('./api.js')).default(app, module);
+	}
 	return module;
 }
 
@@ -40,7 +42,7 @@ async function getModule(app: IGeesomeApp, port) {
 	});
 	service.head("/*", function (req, res, next) {
 		setHeaders(res);
-		res.send(200);
+		next();
 	});
 
 	const server = await service.listen(port);
@@ -64,6 +66,12 @@ async function getModule(app: IGeesomeApp, port) {
 		}
 		onGetRequest(callback) {
 			service.get("/*", (req, res) => {
+				setHeaders(res);
+				callback(app.ms.api.reqToModuleInput(req), app.ms.api.resToModuleOutput(res));
+			});
+		}
+		onHeadRequest(callback) {
+			service.head("/*", (req, res) => {
 				setHeaders(res);
 				callback(app.ms.api.reqToModuleInput(req), app.ms.api.resToModuleOutput(res));
 			});

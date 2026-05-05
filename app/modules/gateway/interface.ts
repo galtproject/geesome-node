@@ -4,4 +4,6 @@ export default interface IGeesomeGatewayModule {
 	getDnsLinkPathFromRequest(req): Promise<string>;
 
 	onGetRequest(callback);
+
+	onHeadRequest(callback);
 }
