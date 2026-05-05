@@ -1,4 +1,5 @@
 import assert from "assert";
+import axios from "axios";
 import {getModule as getPinModule} from "../app/modules/pin/index.js";
 import {IGeesomeApp} from "../app/interface.js";
 
@@ -39,6 +40,16 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 }
 
 describe("pin negative paths", function () {
+	let originalAxiosPost;
+
+	beforeEach(() => {
+		originalAxiosPost = axios.post;
+	});
+
+	afterEach(() => {
+		axios.post = originalAxiosPost;
+	});
+
 	it("fails explicitly when a user pin account is missing", async () => {
 		const pins = createPinModule();
 
@@ -98,5 +109,58 @@ describe("pin negative paths", function () {
 		assert.equal(account.secretApiKey, "new-secret");
 		assert.equal(account.secretApiKeyEncrypted, "encrypted:new-secret");
 		assert.equal(updated.secretApiKey, "new-secret");
+	});
+
+	it("forwards pin options to Pinata metadata", async () => {
+		let pinataRequest;
+		axios.post = async (url, body, config) => {
+			pinataRequest = {url, body, config};
+			return {data: {ok: true}};
+		};
+		const pins = createPinModule(
+			[{
+				userId: 1,
+				name: "pinata",
+				service: "pinata",
+				apiKey: "pinata-key",
+				secretApiKey: "pinata-secret"
+			}],
+			{"storage-id": {userId: 1, name: "content-name"}}
+		);
+
+		await pins.pinByUserAccount(1, "pinata", "storage-id", {source: "auto-action"});
+
+		assert.deepEqual(pinataRequest.body, {
+			hostNodes: ["node-address"],
+			hashToPin: "storage-id",
+			pinataMetadata: {
+				name: "content-name",
+				keyvalues: {source: "auto-action"}
+			}
+		});
+		assert.equal(pinataRequest.config.headers.pinata_api_key, "pinata-key");
+		assert.equal(pinataRequest.config.headers.pinata_secret_api_key, "pinata-secret");
+	});
+
+	it("normalizes remote Pinata request failures", async () => {
+		axios.post = async () => {
+			const error = new Error("request failed") as Error & {response?: any};
+			error.response = {status: 503, data: {error: "temporarily unavailable"}};
+			throw error;
+		};
+		const pins = createPinModule(
+			[{userId: 1, name: "pinata", service: "pinata"}],
+			{"storage-id": {userId: 1, name: "content-name"}}
+		);
+
+		await assert.rejects(
+			() => pins.pinByUserAccount(1, "pinata", "storage-id"),
+			(error: Error & {status?: number, details?: any}) => {
+				assert.equal(error.message, "pinata_pin_failed");
+				assert.equal(error.status, 503);
+				assert.deepEqual(error.details, {error: "temporarily unavailable"});
+				return true;
+			}
+		);
 	});
 });
