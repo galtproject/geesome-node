@@ -20,6 +20,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 - Use `yarn install` for dependency setup.
 - Prefer `yarn test` as the default verification command for code changes.
 - For targeted work, run the narrow test file first when one maps directly to the touched module, then run `yarn test` before handoff when practical.
+- If the full suite is blocked by host dependencies such as PostgreSQL auth or missing `ffmpeg`, use `npm run test:docker`. It runs the suite in Docker with Postgres, IPFS, Node 22, and ffmpeg available.
 - Treat database and static-site-generator migrations as high-risk changes. Check the relevant module-local migration flow before adding or changing migrations.
 - When touching contracts shared with `geesome-libs` or `@geesome/ui`, review downstream impact before calling the task complete.
 - Keep `docs/todo.md` aligned when triaging GitHub issues or changing the README TODO list.

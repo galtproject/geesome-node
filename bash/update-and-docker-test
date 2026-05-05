@@ -1,6 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-docker run --rm -v /var/lib/docker:/var/lib/docker alpine truncate -s 0 $(docker inspect --format='{{.LogPath}}' geesome)
-rm -rf test/.geesome-data test/.geesome-frontend test/.ipfs test/.ipfs-data test/.postgres-data
-bash/docker-update
-docker compose -f ./test/docker-compose.yml restart && docker logs geesome -f
+exec bash/docker-test
