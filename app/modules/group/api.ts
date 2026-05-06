@@ -475,8 +475,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse AuthErrors
      *
      * @apiInterface (./interface.ts) {IUserFriendInput} apiBody
-     */
+    */
     app.ms.api.onAuthorizedPost('user/remove-friend', async (req, res) => {
-        res.send(await groupModule.addUserFriendById(req.user.id, req.body.friendId));
+        res.send(await groupModule.removeUserFriendById(req.user.id, req.body.friendId));
     });
 };

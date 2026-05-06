@@ -78,7 +78,7 @@ Backend encryption with app-held passphrases is useful only for at-rest protecti
 
 ## Required Follow-Up Work
 
-1. [#874](https://github.com/galtproject/geesome-node/issues/874): add a route ownership matrix for token-only handlers and convert ambiguous routes into concrete tests/fixes. The first implemented slice covers `asyncOperation` in [security-route-ownership.md](./security-route-ownership.md).
+1. [#874](https://github.com/galtproject/geesome-node/issues/874): add a route ownership matrix for token-only handlers and convert ambiguous routes into concrete tests/fixes. Implemented slices cover `asyncOperation` and core `group` mutations in [security-route-ownership.md](./security-route-ownership.md).
 2. [#874](https://github.com/galtproject/geesome-node/issues/874): add focused tests for the highest-risk token-only handlers in `group`, `content`, `fileCatalog`, `staticSiteGenerator`, `pin`, and social import modules.
 3. [#876](https://github.com/galtproject/geesome-node/issues/876): add response-shape tests that prove current external-service secrets are not returned by list/get/login/update APIs.
 4. [#875](https://github.com/galtproject/geesome-node/issues/875): add public-route abuse tests for content/gateway range handling, storage misses, and webhook/auth-message replay behavior.

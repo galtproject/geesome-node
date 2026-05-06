@@ -384,13 +384,11 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async canCreatePostInGroup(userId, groupId) {
-			console.log('canCreatePostInGroup', userId, groupId);
 			if (!groupId) {
 				return false;
 			}
 			groupId = await this.checkGroupId(groupId);
 			const group = await this.getLocalGroup(userId, groupId);
-			console.log('isAdminInGroup', await this.isAdminInGroupPure(userId, groupId));
 			let canCreate = (await this.isAdminInGroupPure(userId, groupId))
 				|| (!group.isOpen && await this.isMemberInGroupPure(userId, groupId));
 			if(canCreate) {
@@ -415,7 +413,6 @@ function getModule(app: IGeesomeApp, models) {
 			if (await this.isAdminInGroupPure(userId, post.groupId)) {
 				return true;
 			}
-			console.log('post.group.isReplyForbidden', post.group.isReplyForbidden);
 			return !post.group.isReplyForbidden;
 		}
 
@@ -1138,4 +1135,3 @@ function getModule(app: IGeesomeApp, models) {
 
 	return new GroupModule();
 }
-
