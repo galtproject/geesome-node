@@ -37,7 +37,6 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 	class TelegramClientModule implements IGeesomeTelegramClient {
 		async login(userId, loginData) {
 			let {id: accountId, phoneNumber, apiId, apiKey, password, dcId, qrToken, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS, byQrCode} = loginData;
-			console.log('apiKey', apiKey);
 			apiId = parseInt(apiId);
 			stage = parseInt(stage);
 			let acc;

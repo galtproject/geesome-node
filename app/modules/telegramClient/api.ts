@@ -1,11 +1,35 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeTelegramClient from "./interface.js";
 
+function sanitizeSocNetAccount(account) {
+	if (!account) {
+		return account;
+	}
+	const plainAccount = account.toJSON ? account.toJSON() : {...account};
+	plainAccount.hasApiKey = !!plainAccount.apiKey;
+	plainAccount.hasAccessToken = !!plainAccount.accessToken;
+	plainAccount.hasSessionKey = !!plainAccount.sessionKey;
+	delete plainAccount.apiKey;
+	delete plainAccount.accessToken;
+	delete plainAccount.sessionKey;
+	return plainAccount;
+}
+
+function sanitizeLoginResult(result) {
+	if (!result) {
+		return result;
+	}
+	const plainResult = {...result};
+	delete plainResult.sessionKey;
+	plainResult.account = sanitizeSocNetAccount(plainResult.account);
+	return plainResult;
+}
+
 export default (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient) => {
 	const api = app.ms.api.prefix('soc-net/telegram/');
 
 	api.onAuthorizedPost('login', async (req, res) => {
-		return res.send(await wrapApiResult(telegramClientModule.login(req.user.id, req.body)), 200);
+		return res.send(sanitizeLoginResult(await wrapApiResult(telegramClientModule.login(req.user.id, req.body))), 200);
 	});
 	api.onAuthorizedPost('user-info', async (req, res) => {
 		if (req.body.username === 'me') {
@@ -17,8 +41,8 @@ export default (app: IGeesomeApp, telegramClientModule: IGeesomeTelegramClient) 
 	api.onAuthorizedPost('update-account', async (req, res) => {
 		const user = await wrapApiResult(telegramClientModule.getMeByUserId(req.user.id, req.body.accountData));
 		const username = user['username'];
-		const fullName = res.user['firstName'] + ' ' + res.user['lastName'];
-		return res.send(await telegramClientModule.createOrUpdateAccount(req.user.id, {...req.body.accountData, userId: req.user.id, username, fullName}), 200);
+		const fullName = user['firstName'] + ' ' + user['lastName'];
+		return res.send(sanitizeSocNetAccount(await telegramClientModule.createOrUpdateAccount(req.user.id, {...req.body.accountData, userId: req.user.id, username, fullName})), 200);
 	});
 	api.onAuthorizedPost('channels', async (req, res) => {
 		return res.send(await wrapApiResult(telegramClientModule.getUserChannelsByUserId(req.user.id, req.body.accountData)), 200);

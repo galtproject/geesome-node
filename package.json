@@ -25,6 +25,8 @@
     "check-perfomance": "npm run recreate-test-database; rm -rf ./.jsipfs-test; tsx check/geesomePerfomance.ts --trace_gc",
     "check-client-perfomance": "node --max-old-space-size=4096 -- node_modules/.bin/tsx -P tsconfig.json check/geesomeClientPerfomance.ts",
     "generate-docs": "./node_modules/.bin/apidoc -i app/modules -o docs -t node_modules/geesome-apidoc-template/template",
+    "security:route-inventory": "node --import tsx check/securityRouteInventory.ts --check",
+    "security:route-inventory:update": "node --import tsx check/securityRouteInventory.ts --write",
     "serve-docs": "tsx check/serveDocs.ts",
     "test:prepare-resources": "bash bash/prepare-test-resources.sh",
     "test": "yarn -W && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
