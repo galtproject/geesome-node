@@ -26,6 +26,7 @@ export interface IAutoAction {
 	moduleName?: string;
 	funcName?: string;
 	funcArgs?: string; // JSON
+	funcArgsEncrypted?: string;
 	lastError?: string;
 	isActive?: boolean;
 	runPeriod?: number;

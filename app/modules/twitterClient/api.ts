@@ -1,11 +1,36 @@
 import {IGeesomeApp} from "../../interface";
 import IGeesomeTwitterClient from "./interface";
 
+function sanitizeSocNetAccount(account) {
+	if (!account) {
+		return account;
+	}
+	const plainAccount = account.toJSON ? account.toJSON() : {...account};
+	plainAccount.hasApiKey = !!plainAccount.apiKey;
+	plainAccount.hasAccessToken = !!plainAccount.accessToken;
+	plainAccount.hasSessionKey = !!plainAccount.sessionKey;
+	delete plainAccount.apiKey;
+	delete plainAccount.accessToken;
+	delete plainAccount.sessionKey;
+	return plainAccount;
+}
+
+function sanitizeLoginResult(result) {
+	if (!result) {
+		return result;
+	}
+	const plainResult = {...result};
+	delete plainResult.apiKey;
+	delete plainResult.sessionKey;
+	plainResult.account = sanitizeSocNetAccount(plainResult.account);
+	return plainResult;
+}
+
 export default (app: IGeesomeApp, twitterClientModule: IGeesomeTwitterClient) => {
 	const api = app.ms.api.prefix('soc-net/twitter/');
 
 	api.onAuthorizedPost('login', async (req, res) => {
-		return res.send(await twitterClientModule.login(req.user.id, req.body), 200);
+		return res.send(sanitizeLoginResult(await twitterClientModule.login(req.user.id, req.body)), 200);
 	})
 	api.onAuthorizedPost('user-info', async (req, res) => {
 		if (req.body.username === 'me') {
