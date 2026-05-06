@@ -14,7 +14,7 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+export function getModule(app: IGeesomeApp, models) {
 	let finishCallbacks = {
 
 	};
@@ -187,6 +187,9 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getUserOperationQueue(userId, userOperationQueueId) {
 			const userOperationQueue = await models.UserOperationQueue.findOne({where: {id: userOperationQueueId}, include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
+			if (!userOperationQueue) {
+				throw new Error("operation_queue_not_found");
+			}
 			if (userOperationQueue.userId != userId) {
 				throw new Error("not_permitted");
 			}
