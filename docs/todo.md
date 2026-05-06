@@ -16,6 +16,7 @@ Corrections and added requirements:
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
 - API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), planning was tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), vulnerable `apidoc-core` removal was tracked in [#802](https://github.com/galtproject/geesome-node/issues/802), final git-URL wiring was tracked in [#804](https://github.com/galtproject/geesome-node/issues/804), plugin-master repoint was tracked in [#806](https://github.com/galtproject/geesome-node/issues/806), request-body annotation support was tracked in [#808](https://github.com/galtproject/geesome-node/issues/808), all-module generation for existing annotated specs is tracked in [#810](https://github.com/galtproject/geesome-node/issues/810), practical remaining route coverage is tracked in [#812](https://github.com/galtproject/geesome-node/issues/812), and final examples/errors/render polish is tracked in [#813](https://github.com/galtproject/geesome-node/issues/813).
+- Add database scalability review for the possibility of storing hundreds of thousands of posts and their content records in groups. Status: tracked in [#880](https://github.com/galtproject/geesome-node/issues/880) and added as a dedicated review slice.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -55,6 +56,7 @@ Issue clusters still represented by the old README TODO:
 - Security review: [#782](https://github.com/galtproject/geesome-node/issues/782) for API auth and encryption flows.
 - Media and content handling: [#423](https://github.com/galtproject/geesome-node/issues/423), [#196](https://github.com/galtproject/geesome-node/issues/196), [#136](https://github.com/galtproject/geesome-node/issues/136), [#609](https://github.com/galtproject/geesome-node/issues/609).
 - Group/feed/search evolution: [#646](https://github.com/galtproject/geesome-node/issues/646), [#563](https://github.com/galtproject/geesome-node/issues/563), [#517](https://github.com/galtproject/geesome-node/issues/517), [#33](https://github.com/galtproject/geesome-node/issues/33), [#2](https://github.com/galtproject/geesome-node/issues/2).
+- Database scalability: [#880](https://github.com/galtproject/geesome-node/issues/880) for large groups with hundreds of thousands of posts and attached content records.
 - Secure chat E2EE: [#2](https://github.com/galtproject/geesome-node/issues/2), [#33](https://github.com/galtproject/geesome-node/issues/33), [#115](https://github.com/galtproject/geesome-node/issues/115). Use [Vas3k's E2EE explainer](https://vas3k.blog/blog/end_to_end_encryption/) as background for why backend-only encryption and a single long-lived group key are not enough.
 - ActivityPub/Fediverse integration: [#426 Make api for Fediverse](https://github.com/galtproject/geesome-node/issues/426).
 - API documentation toolchain: [#787](https://github.com/galtproject/geesome-node/issues/787), [#802](https://github.com/galtproject/geesome-node/issues/802), [#804](https://github.com/galtproject/geesome-node/issues/804), [#806](https://github.com/galtproject/geesome-node/issues/806), [#808](https://github.com/galtproject/geesome-node/issues/808), [#810](https://github.com/galtproject/geesome-node/issues/810), [#812](https://github.com/galtproject/geesome-node/issues/812), and [#813](https://github.com/galtproject/geesome-node/issues/813), with implementation split across the microwave-hub `apidoc-template` and `apidoc-plugin-ts` submodules before GeeSome Node rewires generated docs to those cleaned-up packages.
@@ -358,6 +360,37 @@ Verification:
 - New module tests for actor serialization, WebFinger, and outbox payloads.
 - Existing `test/group.test.ts` for post compatibility.
 - Later integration smoke against a local ActivityPub test server.
+
+### 11. Database Scalability For Large Groups
+
+Status: planned in [#880](https://github.com/galtproject/geesome-node/issues/880).
+
+Goal: verify whether the current database schema, indexes, query patterns, and content/post associations can support groups with hundreds of thousands of posts and attached content records.
+
+Scope:
+
+- Audit hot tables and joins for group timelines, post contents, content metadata, group membership/admin pivots, read/unread state, imports, async operations, and static-site generation queues.
+- Review current indexes and Sequelize query shapes for large-group paths: group post lists, post content loading, user-visible post reads, unread counters, static-site generation, social imports, and backup/export flows.
+- Define target dataset sizes and benchmark fixtures for large groups, including posts with multiple content attachments and generated manifests.
+- Identify where offset pagination becomes too expensive and where keyset pagination, denormalized counters, materialized views, or batch jobs are needed.
+- Review storage/database split boundaries so large content bytes stay content-addressed while metadata remains queryable.
+- Produce follow-up implementation issues for concrete index migrations, query rewrites, benchmark scripts, and API pagination changes.
+
+Likely modules:
+
+- `app/modules/group`
+- `app/modules/content`
+- `app/modules/fileCatalog`
+- `app/modules/staticSiteGenerator`
+- `app/modules/socNetImport`
+- `app/modules/asyncOperation`
+- `app/modules/database`
+
+Verification:
+
+- Scalability review document with query inventory, current indexes, risk table, and recommended fixes.
+- Synthetic benchmark or fixture plan for hundreds of thousands of posts with content attachments.
+- Targeted tests or scripts for any immediate index/query fixes discovered during review.
 
 ## Deferred Epics
 
