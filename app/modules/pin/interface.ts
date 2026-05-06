@@ -4,6 +4,8 @@ export default interface IGeesomePinModule {
 
 	updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount>;
 
+	deleteAccount(userId: number, id: number): Promise<{success: boolean}>;
+
 	getUserAccount(userId: number, name: string): Promise<IPinAccount>;
 
 	getGroupAccount(userId: number, groupId: number, name: string): Promise<IPinAccount>;

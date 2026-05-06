@@ -1,6 +1,20 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomePinModule from "./interface.js";
 
+function sanitizePinAccount(account) {
+    if (!account) {
+        return account;
+    }
+    const plainAccount = account.toJSON ? account.toJSON() : {...account};
+    delete plainAccount.secretApiKey;
+    delete plainAccount.secretApiKeyEncrypted;
+    return plainAccount;
+}
+
+function sanitizePinAccounts(accounts) {
+    return accounts.map(account => sanitizePinAccount(account));
+}
+
 export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
     /**
      * @apiDefine PinErrors
@@ -24,7 +38,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/create-account Create pin account
      * @apiName UserPinCreateAccount
      * @apiGroup UserPin
-     * @apiDescription Creates a user-owned or group-owned account for an external pinning service. For Pinata, set `service` to `pinata`; `secretApiKey` can be encrypted at rest by setting `isEncrypted` to `true`.
+     * @apiDescription Creates a user-owned or group-owned account for an external pinning service. When `groupId` is provided, the current user must be able to edit that group. For Pinata, set `service` to `pinata`; `secretApiKey` can be encrypted at rest by setting `isEncrypted` to `true`. Secret fields are write-only and are not returned in API responses.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -47,14 +61,14 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      *     -d '{"name":"group-pinata","service":"pinata","groupId":42,"apiKey":"pinata-key","secretApiKey":"pinata-secret","isEncrypted":true}'
      */
     app.ms.api.onAuthorizedPost('user/pin/create-account', async (req, res) => {
-        res.send(await pinModule.createAccount(req.user.id, req.body));
+        res.send(sanitizePinAccount(await pinModule.createAccount(req.user.id, req.body)));
     });
 
     /**
      * @api {post} /v1/user/pin/update-account/:id Update pin account
      * @apiName UserPinUpdateAccount
      * @apiGroup UserPin
-     * @apiDescription Updates a user-owned pin account or a group-owned pin account editable by the current user. Secret updates follow the same `isEncrypted` handling as account creation.
+     * @apiDescription Updates a user-owned pin account or a group-owned pin account editable by the current user. Secret updates follow the same `isEncrypted` handling as account creation. Secret fields are write-only and are not returned in API responses.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -72,7 +86,28 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      *     -d '{"secretApiKey":"new-pinata-secret","isEncrypted":true}'
      */
     app.ms.api.onAuthorizedPost('user/pin/update-account/:id', async (req, res) => {
-        res.send(await pinModule.updateAccount(req.user.id, req.params.id, req.body));
+        res.send(sanitizePinAccount(await pinModule.updateAccount(req.user.id, req.params.id, req.body)));
+    });
+
+    /**
+     * @api {post} /v1/user/pin/delete-account/:id Delete pin account
+     * @apiName UserPinDeleteAccount
+     * @apiGroup UserPin
+     * @apiDescription Deletes a user-owned pin account or a group-owned pin account editable by the current user. This only removes the local service credentials; it does not unpin already pinned remote content.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiSuccess {Boolean} success Account was deleted.
+     *
+     * @apiExample {curl} Delete a Pinata account
+     *   curl -X POST http://localhost:2052/v1/user/pin/delete-account/15 \
+     *     -H "Authorization: Bearer geesome-api-key"
+     */
+    app.ms.api.onAuthorizedPost('user/pin/delete-account/:id', async (req, res) => {
+        res.send(await pinModule.deleteAccount(req.user.id, req.params.id));
     });
 
     /**
@@ -92,7 +127,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      */
     app.ms.api.onAuthorizedGet('user/pin/user-accounts', async (req, res) => {
         res.send({
-            list: await pinModule.getUserAccountsList(req.user.id)
+            list: sanitizePinAccounts(await pinModule.getUserAccountsList(req.user.id))
         });
     });
 
@@ -115,7 +150,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      */
     app.ms.api.onAuthorizedGet('user/pin/group-accounts/:groupId', async (req, res) => {
         res.send({
-            list: await pinModule.getGroupAccountsList(req.user.id, req.params.groupId)
+            list: sanitizePinAccounts(await pinModule.getGroupAccountsList(req.user.id, req.params.groupId))
         });
     });
 

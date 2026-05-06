@@ -1236,10 +1236,9 @@
     "@ethersproject/properties" "^5.7.0"
     "@ethersproject/strings" "^5.7.0"
 
-"@geesome/ui@0.1.0":
+"@geesome/ui@https://github.com/galtproject/geesome-ui#4c24162":
   version "0.1.0"
-  resolved "https://registry.yarnpkg.com/@geesome/ui/-/ui-0.1.0.tgz#d86af42cc4e2508562dfe59343a11915ed48bab2"
-  integrity sha512-6WZ9KRf6CT4OKTubOhqOFPfnmR8kNW98ziTDmgBKppe5prEuEZ6OmlKT3lhsz7M8JQHPQAZo7vHaQHqI7uy90w==
+  resolved "https://github.com/galtproject/geesome-ui#4c241621fb1a291f5d007ecdac0ac450fdc9351f"
 
 "@helia/bitswap@^3.2.3":
   version "3.2.3"
