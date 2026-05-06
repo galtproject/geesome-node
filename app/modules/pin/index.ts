@@ -14,6 +14,9 @@ export default async (app: IGeesomeApp) => {
 export function getModule(app: IGeesomeApp, models) {
 	class PinModule implements IGeesomePinModule {
 		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
+			if (account.groupId && !(await app.ms.group.canEditGroup(userId, account.groupId))) {
+				throw new Error("not_permitted");
+			}
 			return models.PinAccount.create({
 				...await this.encryptPinAccountIfNecessary(account),
 				userId
@@ -25,12 +28,30 @@ export function getModule(app: IGeesomeApp, models) {
 			if (!account) {
 				throw new Error("pin_account_not_found");
 			}
-			if (account.userId !== userId && !(await app.ms.group.canEditGroup(userId, account.groupId))) {
-				throw new Error("not_permitted");
-			}
+			await this.checkCanManageAccount(userId, account);
 			return models.PinAccount.update(await this.encryptPinAccountIfNecessary(updateData), {where: {id}})
 				.then(() => models.PinAccount.findOne({where: {id}}))
 				.then(acc => this.decryptPinAccountIfNecessary(acc));
+		}
+
+		async deleteAccount(userId: number, id: number): Promise<{success: boolean}> {
+			const account = await models.PinAccount.findOne({where: {id}});
+			if (!account) {
+				throw new Error("pin_account_not_found");
+			}
+			await this.checkCanManageAccount(userId, account);
+			await models.PinAccount.destroy({where: {id}});
+			return {success: true};
+		}
+
+		async checkCanManageAccount(userId: number, account: IPinAccount) {
+			if (account.userId === userId) {
+				return;
+			}
+			if (account.groupId && await app.ms.group.canEditGroup(userId, account.groupId)) {
+				return;
+			}
+			throw new Error("not_permitted");
 		}
 
 		async getUserAccount(userId: number, name: string): Promise<IPinAccount> {

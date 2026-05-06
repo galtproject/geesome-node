@@ -3,7 +3,7 @@ import axios from "axios";
 import {getModule as getPinModule} from "../app/modules/pin/index.js";
 import {IGeesomeApp} from "../app/interface.js";
 
-function createPinModule(accounts: any[] = [], contentByStorageId: Record<string, any> = {}) {
+function createPinModule(accounts: any[] = [], contentByStorageId: Record<string, any> = {}, editableGroupIds: number[] = [1]) {
 	return getPinModule({
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
 		decryptTextWithAppPass: async (text) => text.replace(/^encrypted:/, ""),
@@ -18,11 +18,19 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 				remoteNodeAddressList: async () => ["node-address"]
 			},
 			group: {
-				canEditGroup: async () => true
+				canEditGroup: async (userId, groupId) => editableGroupIds.includes(Number(groupId))
 			}
 		}
 	} as unknown as IGeesomeApp, {
 		PinAccount: {
+			create: async (account) => {
+				const created = {
+					id: accounts.length + 1,
+					...account
+				};
+				accounts.push(created);
+				return created;
+			},
 			findOne: async ({where}) => accounts.find((account) => {
 				return Object.keys(where).every((key) => account[key] === where[key]);
 			}) || null,
@@ -34,6 +42,16 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 					Object.assign(account, updateData);
 				}
 				return [account ? 1 : 0];
+			},
+			destroy: async ({where}) => {
+				const index = accounts.findIndex((item) => {
+					return Object.keys(where).every((key) => item[key] === where[key]);
+				});
+				if (index === -1) {
+					return 0;
+				}
+				accounts.splice(index, 1);
+				return 1;
 			}
 		}
 	});
@@ -82,6 +100,60 @@ describe("pin negative paths", function () {
 
 		await assert.rejects(
 			() => pins.updateAccount(1, 404, {apiKey: "updated"}),
+			(error: Error) => error.message === "pin_account_not_found"
+		);
+	});
+
+	it("allows group pin account creation only for editable groups", async () => {
+		const accounts = [];
+		const pins = createPinModule(accounts, {}, [10]);
+
+		const created = await pins.createAccount(1, {
+			name: "group-pinata",
+			service: "pinata",
+			groupId: 10,
+			apiKey: "pinata-key",
+			secretApiKey: "pinata-secret",
+			isEncrypted: true
+		});
+
+		assert.equal(created.userId, 1);
+		assert.equal(created.groupId, 10);
+		assert.equal(created.secretApiKey, "");
+		assert.equal(created.secretApiKeyEncrypted, "encrypted:pinata-secret");
+
+		await assert.rejects(
+			() => pins.createAccount(1, {
+				name: "other-group-pinata",
+				service: "pinata",
+				groupId: 20,
+				apiKey: "pinata-key"
+			}),
+			(error: Error) => error.message === "not_permitted"
+		);
+		assert.equal(accounts.length, 1);
+	});
+
+	it("deletes pin accounts only when the user can manage them", async () => {
+		const accounts = [
+			{id: 1, userId: 1, name: "user-pinata", service: "pinata"},
+			{id: 2, userId: 2, groupId: 10, name: "group-pinata", service: "pinata"},
+			{id: 3, userId: 2, groupId: 20, name: "other-group-pinata", service: "pinata"}
+		];
+		const pins = createPinModule(accounts, {}, [10]);
+
+		assert.deepEqual(await pins.deleteAccount(1, 1), {success: true});
+		assert.deepEqual(await pins.deleteAccount(1, 2), {success: true});
+		assert.equal(accounts.some(account => account.id === 1), false);
+		assert.equal(accounts.some(account => account.id === 2), false);
+		assert.equal(accounts.some(account => account.id === 3), true);
+
+		await assert.rejects(
+			() => pins.deleteAccount(1, 3),
+			(error: Error) => error.message === "not_permitted"
+		);
+		await assert.rejects(
+			() => pins.deleteAccount(1, 404),
 			(error: Error) => error.message === "pin_account_not_found"
 		);
 	});
