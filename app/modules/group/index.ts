@@ -795,6 +795,18 @@ function getModule(app: IGeesomeApp, models) {
 			const oldSize = oldPost.size || 0;
 			postData.size = contentsData ? sumBy(contentsData, contentSize) : await this.getPostSizeSum(postId);
 			const newSize = postData.size || 0;
+			const newReplyToId = !isUndefined(postData.replyToId) ? postData.replyToId : oldPost.replyToId;
+			const newRepostOfId = !isUndefined(postData.repostOfId) ? postData.repostOfId : oldPost.repostOfId;
+			const replyToPostIds = uniqBy(
+				[oldPost.replyToId, newReplyToId].filter(id => !!id).map(id => ({id})),
+				'id'
+			).map(p => p.id);
+			const repostOfPostIds = uniqBy(
+				[oldPost.repostOfId, newRepostOfId].filter(id => !!id).map(id => ({id})),
+				'id'
+			).map(p => p.id);
+			const shouldReconcileReplyCounters = wasPublished !== isPublished || Number(oldPost.replyToId || 0) !== Number(newReplyToId || 0);
+			const shouldReconcileRepostCounters = wasPublished !== isPublished || Number(oldPost.repostOfId || 0) !== Number(newRepostOfId || 0);
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
 				if (isPublished && !oldPost.localId) {
@@ -813,6 +825,26 @@ function getModule(app: IGeesomeApp, models) {
 					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: -oldSize, availableDelta: -1}, {transaction});
 				} else if (isPublished && newSize !== oldSize) {
 					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize - oldSize}, {transaction});
+				}
+
+				if (shouldReconcileReplyCounters) {
+					await pIteration.forEach(replyToPostIds, async (replyToId) => {
+						const repliesCount = await models.Post.count({
+							where: this.getPostsWhere({replyToId}),
+							transaction
+						});
+						await models.Post.update({repliesCount}, {where: {id: replyToId}, transaction});
+					});
+				}
+
+				if (shouldReconcileRepostCounters) {
+					await pIteration.forEach(repostOfPostIds, async (repostOfId) => {
+						const repostsCount = await models.Post.count({
+							where: {repostOfId, isDeleted: false, status: PostStatus.Published},
+							transaction
+						});
+						await models.Post.update({repostsCount}, {where: {id: repostOfId}, transaction});
+					});
 				}
 			});
 			if (isPublished) {

@@ -130,6 +130,35 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getPostPure(replyPost.id)).isDeleted, true);
 	});
 
+	it('reconciles reply counters when published replies become drafts', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const parentContent = await app.ms.content.saveData(testUser.id, 'status parent post', null, {
+			mimeType: 'text/markdown'
+		});
+		const replyContent = await app.ms.content.saveData(testUser.id, 'status reply post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const parentPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: parentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const replyPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: replyContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 1);
+
+		await app.ms.group.updatePost(testUser.id, replyPost.id, {status: PostStatus.Draft});
+
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 0);
+	});
+
 	it('removes deleted posts from regenerated group manifest trie', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
