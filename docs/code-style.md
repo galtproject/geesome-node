@@ -40,6 +40,43 @@ This applies to every form of `if` — early returns, guards, dispatch, ternary-
 
 The only exception is a single-expression conditional inside an expression context (`x ? a : b`, `cond && doThing()` for fire-and-forget side-effects), which is *not* an `if` statement.
 
+### Prefer guard exits over nested positive branches
+
+When a branch exits the current control flow (`return`, `throw`, `continue`, or `break`), put that guard first and keep the remaining code at the outer indentation level. Do not wrap the main path in a positive `if` just to fall through to an exit later.
+
+```ts
+// don't
+try {
+  content = await app.ms.database.addContent(contentData);
+} catch (e) {
+  if (isUserStorageUniqueError(e, contentData)) {
+    const existsContent = await app.ms.database.getContentByStorageAndUserId(contentData.storageId, contentData.userId);
+    if (existsContent) {
+      await this.updateExistsContentMetadata(userId, existsContent, options);
+      return existsContent;
+    }
+  }
+  throw e;
+}
+
+// do
+try {
+  content = await app.ms.database.addContent(contentData);
+} catch (e) {
+  if (!isUserStorageUniqueError(e, contentData)) {
+    throw e;
+  }
+  const existsContent = await app.ms.database.getContentByStorageAndUserId(contentData.storageId, contentData.userId);
+  if (!existsContent) {
+    throw e;
+  }
+  await this.updateExistsContentMetadata(userId, existsContent, options);
+  return existsContent;
+}
+```
+
+This applies to ordinary method guards too: validate permissions/inputs first, exit on the invalid case, then keep the real work unindented.
+
 ## Defaults
 
 ### File layout

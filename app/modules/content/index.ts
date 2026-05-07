@@ -426,15 +426,16 @@ function getModule(app: IGeesomeApp) {
 			try {
 				content = await app.ms.database.addContent(contentData);
 			} catch (e) {
-				if (isUserStorageUniqueError(e, contentData)) {
-					const existsContent = await app.ms.database.getContentByStorageAndUserId(contentData.storageId, contentData.userId);
-					if (existsContent) {
-						await this.updateExistsContentMetadata(userId, existsContent, options);
-						await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
-						return existsContent;
-					}
+				if (!isUserStorageUniqueError(e, contentData)) {
+					throw e;
 				}
-				throw e;
+				const existsContent = await app.ms.database.getContentByStorageAndUserId(contentData.storageId, contentData.userId);
+				if (!existsContent) {
+					throw e;
+				}
+				await this.updateExistsContentMetadata(userId, existsContent, options);
+				await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
+				return existsContent;
 			}
 			log('content');
 
