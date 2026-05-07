@@ -44,11 +44,19 @@ export interface IGeesomeDatabaseModule {
 
   getContentByStorageId(storageId, findByPreviews?): Promise<IContent>;
 
+  getSharedContentByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IContent>;
+
+  countStorageIdReferences(storageId, excludeContentId?): Promise<{otherContents: number; previewRefs: number}>;
+
+  countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number}>;
+
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
   getContentByStorageIdListAndUserId(storageIdList, userId): Promise<IContent[]>;
 
   getContentByManifestId(manifestId): Promise<IContent>;
+
+  getContentByManifestAndUserId(manifestId, userId): Promise<IContent>;
 
   getObjectByStorageId(storageId, resolveProp?): Promise<IObject>;
 

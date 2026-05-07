@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import debug from 'debug';
-import {Op} from "sequelize";
+import {Op, Transaction} from "sequelize";
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import pgpHelper from "geesome-libs/src/pgpHelper.js";
@@ -19,6 +19,10 @@ import {
 } from "../database/interface.js";
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
+
+function contentSize(content) {
+	return Number(content?.size) || 0;
+}
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
@@ -227,13 +231,11 @@ function getModule(app: IGeesomeApp, models) {
 
 		async updateGroupManifest(userId, groupId) {
 			log('updateGroupManifest');
-			const [group, size, availablePostsCount] = await Promise.all([
-				this.getGroup(groupId),
-				this.getGroupSizeSum(groupId),
-				this.getGroupPostsCount(groupId, { isDeleted: false })
-			]);
-			group.size = size;
-			log('getGroup, getGroupSizeSum');
+			// Counters (size, availablePostsCount, publishedPostsCount) are maintained
+			// incrementally in incrementGroupCounters() during post create/update/delete.
+			// updateGroupManifest no longer runs SUM(size)/COUNT per regeneration; a full
+			// rebuild is available via reconcileGroupCounters() for ops use only.
+			const group = await this.getGroup(groupId);
 
 			const manifestStorageId = await app.generateAndSaveManifest('group', group);
 			log('generateAndSaveManifest');
@@ -251,11 +253,40 @@ function getModule(app: IGeesomeApp, models) {
 			promises.push(this.updateGroupPure(groupId, {
 				manifestStorageId,
 				storageUpdatedAt,
-				staticStorageUpdatedAt,
-				size,
-				availablePostsCount
+				staticStorageUpdatedAt
 			}));
 			return Promise.all(promises);
+		}
+
+		async incrementGroupCounters(groupId, deltas: {sizeDelta?: number, availableDelta?: number, publishedDelta?: number} = {}, options: any = {}) {
+			const updateData: any = {};
+			const addCounterDelta = (column, delta) => {
+				const value = Number(delta);
+				if (!Number.isFinite(value) || value === 0) {
+					return;
+				}
+				updateData[column] = app.ms.database.sequelize.literal(`COALESCE("${column}", 0) + ${value}`);
+			};
+
+			addCounterDelta('size', deltas.sizeDelta);
+			if (deltas.availableDelta) {
+				addCounterDelta('availablePostsCount', deltas.availableDelta);
+			}
+			addCounterDelta('publishedPostsCount', deltas.publishedDelta);
+
+			if (!Object.keys(updateData).length) {
+				return;
+			}
+			return models.Group.update(updateData, {where: {id: groupId}, transaction: options.transaction});
+		}
+
+		async reconcileGroupCounters(groupId) {
+			const [size, availablePostsCount, maxLocalId] = await Promise.all([
+				models.Post.sum('size', {where: {groupId, isDeleted: false, status: PostStatus.Published}}).then(s => s || 0),
+				models.Post.count({where: {groupId, isDeleted: false, status: PostStatus.Published}}),
+				models.Post.max('localId', {where: {groupId}}).then(m => m || 0),
+			]);
+			return this.updateGroupPure(groupId, {size, availablePostsCount, publishedPostsCount: maxLocalId});
 		}
 
 		async updatePostManifest(userId, postId) {
@@ -355,16 +386,60 @@ function getModule(app: IGeesomeApp, models) {
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
+
+			// D8/D9: keyset/cursor pagination. When the caller passes a cursor (publishedAt + id),
+			// scan forward by (publishedAt DESC, id DESC) and skip total. The legacy offset path is
+			// preserved so existing callers do not change. Cursor pagination drops the count and the
+			// offset and exposes nextCursor in the result so a UI can iterate without large offsets.
+			const hasCursor = !isUndefined(filters['cursorPublishedAt']) && !isUndefined(filters['cursorId']);
+			const where = this.getGroupPostsWhere(groupId, filters);
+			const order: any[] = hasCursor
+				? [['publishedAt', 'DESC'], ['id', 'DESC']]
+				: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]];
+
+			// P1 large-feed hydration: scan only Post ids for the requested page first, then hydrate
+			// contents/repost data for that bounded id set. This keeps limit/offset/cursor selection
+			// aligned with post indexes instead of making the timeline page scan carry attachment joins.
+			const pagePosts = await models.Post.findAll({
+				attributes: ['id', 'publishedAt'],
+				where,
+				order,
+				limit,
+				offset: hasCursor ? undefined : offset
+			});
+			const postIds = pagePosts.map(post => post.id);
+			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
+
+			let nextCursor: {publishedAt: any; id: any} | null = null;
+			if (hasCursor && pagePosts.length === limit) {
+				const last = pagePosts[pagePosts.length - 1];
+				nextCursor = {publishedAt: last.publishedAt, id: last.id};
+			}
+
 			return {
-				list: await models.Post.findAll({
-					where: this.getGroupPostsWhere(groupId, filters),
-					include: [{association: 'contents'}, {association: 'repostOf', include: [{association: 'contents'}, {association: 'group'}]}],
-					order: [[sortBy, sortDir.toUpperCase()]],
-					limit,
-					offset
-				}),
-				total: await this.getGroupPostsCount(groupId, filters)
+				list,
+				total: hasCursor ? null : await this.getGroupPostsCount(groupId, filters),
+				nextCursor,
 			};
+		}
+
+		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
+			groupId = await this.checkGroupId(groupId);
+			listParams = helpers.prepareListParams(listParams);
+			if (isUndefined(filters['isDeleted'])) {
+				filters['isDeleted'] = false;
+			}
+
+			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'updatedAt'});
+			const {limit, offset, sortBy, sortDir} = listParams;
+
+			return models.Post.findAll({
+				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
+				where: this.getGroupPostsWhere(groupId, filters),
+				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
+				limit,
+				offset
+			}) as IPost[];
 		}
 
 		async checkGroupId(groupId) {
@@ -432,17 +507,40 @@ function getModule(app: IGeesomeApp, models) {
 			return some(responses) && post.userId === userId;
 		}
 
-		async getContentsForPost(contents: IContent[]) {
+		async resolveContentForPost(userId: number, content: IContent) {
+			if (content.id) {
+				const dbContent: IContent = await app.ms.database.getContent(content.id);
+				if (!dbContent) {
+					throw new Error("content_not_found");
+				}
+				if (dbContent.userId === userId || dbContent.isPublic) {
+					return {id: dbContent.id, view: content.view || dbContent.view, size: dbContent.size};
+				}
+				throw new Error("content_not_permitted");
+			}
+			if (content.manifestStorageId) {
+				const dbContent: IContent = await app.ms.content.createContentByRemoteStorageId(userId, content.manifestStorageId);
+				if (!dbContent) {
+					throw new Error("content_not_found");
+				}
+				return {id: dbContent.id, view: content.view || dbContent.view, size: dbContent.size};
+			}
+			if (content.storageId) {
+				const dbContent: IContent = await app.ms.database.getContentByStorageAndUserId(content.storageId, userId);
+				if (!dbContent) {
+					throw new Error("content_not_found");
+				}
+				return {id: dbContent.id, view: content.view || dbContent.view, size: dbContent.size};
+			}
+			throw new Error("content_not_found");
+		}
+
+		async getContentsForPost(userId: number, contents: IContent[]) {
 			if(!contents) {
 				return null;
 			}
-			let contentsData = contents.filter(c => c.id);
-			const manifestStorageContents = contents.filter(c => c.manifestStorageId);
-			const contentsByStorageManifests = await pIteration.map(manifestStorageContents, async c => ({
-				id: await app.ms.content.getContentByManifestId(c.manifestStorageId).then(c => c ? c.id : null),
-				...c
-			}));
-			return uniqBy(contentsData.concat(contentsByStorageManifests.filter(c => c.id)), 'id');
+			const contentsData = await pIteration.map(contents, c => this.resolveContentForPost(userId, c));
+			return uniqBy(contentsData.filter(c => c.id), 'id');
 		}
 
 		async createPost(userId, postData) {
@@ -461,14 +559,9 @@ function getModule(app: IGeesomeApp, models) {
 			postData.groupId = await this.checkGroupId(postData.groupId);
 			log('checkGroupId');
 
-			if (postData.status === PostStatus.Published) {
-				postData.localId = await this.getPostLocalId(postData);
-				postData.publishedAt = postData.publishedAt || new Date();
-			}
-			log('localId');
-
-			const contents = await this.getContentsForPost(postData.contents);
+			const contents = await this.getContentsForPost(userId, postData.contents);
 			delete postData.contents;
+			const size = sumBy(contents || [], contentSize);
 
 			const [user, group] = await Promise.all([
 				app.ms.database.getUser(userId),
@@ -484,70 +577,83 @@ function getModule(app: IGeesomeApp, models) {
 			if(!postData.isRemote) {
 				postData.isRemote = false;
 			}
-			let post = await this.addPost(postData);
-			log('addPost');
 
-			let replyPostUpdatePromise = (async() => {
-				if (post.replyToId) {
-					const repliesCount = await this.getAllPostsCount({
-						replyToId: post.replyToId
-					});
-					await models.Post.update({repliesCount}, {where: {id: post.replyToId}});
+			let post;
+			await app.ms.database.sequelize.transaction(async (transaction) => {
+				if (postData.status === PostStatus.Published) {
+					postData.localId = await this.allocatePostLocalId(postData, transaction);
+					postData.publishedAt = postData.publishedAt || new Date();
 				}
-			})();
-			log('replyPostUpdatePromise');
+				log('localId');
 
-			if (contents) {
-				await this.setPostContents(post.id, contents);
+				post = await this.addPost(postData, {transaction});
+				log('addPost');
+
+				if (post.replyToId) {
+					const repliesCount = await models.Post.count({
+						where: this.getPostsWhere({replyToId: post.replyToId}),
+						transaction
+					});
+					await models.Post.update({repliesCount}, {where: {id: post.replyToId}, transaction});
+				}
+				log('replyPostUpdate');
+
+				if (contents) {
+					await this.setPostContents(post.id, contents, {transaction});
+				}
+				log('setPostContents');
+
+				await models.Post.update({size}, {where: {id: post.id}, transaction});
+				log('updatePost');
+
+				if (post.status === PostStatus.Published) {
+					await this.incrementGroupCounters(post.groupId, {sizeDelta: size || 0, availableDelta: 1}, {transaction});
+				}
+			});
+			post = await this.getPostPure(post.id);
+
+			// B4: drafts are DB-only canonical state. Skip post/group manifest, static directory,
+			// and the personal-chat encryption handshake unless the row was created as Published.
+			if (post.status === PostStatus.Published) {
+				post = await this.updatePostManifest(userId, post.id);
+				log('updatePostManifest');
+
+				if (group.isEncrypted && group.type === GroupType.PersonalChat) {
+					// Encrypt post id
+					const keyForEncrypt = await app.ms.accountStorage.getStaticIdPublicKeyByOr(group.staticStorageId);
+
+					const userKey = await communicator.keyLookup(user.manifestStaticStorageId);
+					const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
+					const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
+					const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
+					const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
+
+					//TODO: enable on fluence update
+
+					// communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getAccountsGroupUpdatesTopic([user.manifestStaticStorageId, group.staticStorageId], group.name), {
+					// 	type: 'new_post',
+					// 	postId: encryptedText,
+					// 	groupId: group.manifestStaticStorageId,
+					// 	isEncrypted: true,
+					// 	sentAt: (post.publishedAt || post.createdAt).toString()
+					// });
+
+					await models.Post.update({isEncrypted: true, encryptedManifestStorageId: encryptedText}, {where: {id: post.id}});
+					await this.updateGroupManifest(userId, group.id);
+				} else {
+					// Send plain post id
+					//TODO: enable on fluence update
+
+					// communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getUpdatesTopic(group.staticStorageId, 'update'), {
+					// 	type: 'new_post',
+					// 	postId: post.manifestStorageId,
+					// 	groupId: group.manifestStaticStorageId,
+					// 	isEncrypted: false,
+					// 	sentAt: (post.publishedAt || post.createdAt).toString()
+					// });
+					log('publishEventByStaticId');
+				}
 			}
-			log('setPostContents');
-
-			let size = await this.getPostSizeSum(post.id);
-			log('getPostSizeSum');
-			await models.Post.update({size}, {where: {id: post.id}});
-			log('updatePost');
-
-			post = await this.updatePostManifest(userId, post.id);
-			log('updatePostManifest');
-
-			if (group.isEncrypted && group.type === GroupType.PersonalChat) {
-				// Encrypt post id
-				const keyForEncrypt = await app.ms.accountStorage.getStaticIdPublicKeyByOr(group.staticStorageId);
-
-				const userKey = await communicator.keyLookup(user.manifestStaticStorageId);
-				const userPrivateKey = await pgpHelper.transformKey(userKey.marshal());
-				const userPublicKey = await pgpHelper.transformKey(userKey.public.marshal(), true);
-				const publicKeyForEncrypt = await pgpHelper.transformKey(peerIdHelper.base64ToPublicKey(keyForEncrypt), true);
-				const encryptedText = await pgpHelper.encrypt([userPrivateKey], [publicKeyForEncrypt, userPublicKey], post.manifestStorageId);
-
-				//TODO: enable on fluence update
-
-				// communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getAccountsGroupUpdatesTopic([user.manifestStaticStorageId, group.staticStorageId], group.name), {
-				// 	type: 'new_post',
-				// 	postId: encryptedText,
-				// 	groupId: group.manifestStaticStorageId,
-				// 	isEncrypted: true,
-				// 	sentAt: (post.publishedAt || post.createdAt).toString()
-				// });
-
-				await models.Post.update({isEncrypted: true, encryptedManifestStorageId: encryptedText}, {where: {id: post.id}});
-				await this.updateGroupManifest(userId, group.id);
-			} else {
-				// Send plain post id
-				//TODO: enable on fluence update
-
-				// communicator.publishEventByStaticId(user.manifestStaticStorageId, communicator.getUpdatesTopic(group.staticStorageId, 'update'), {
-				// 	type: 'new_post',
-				// 	postId: post.manifestStorageId,
-				// 	groupId: group.manifestStaticStorageId,
-				// 	isEncrypted: false,
-				// 	sentAt: (post.publishedAt || post.createdAt).toString()
-				// });
-				log('publishEventByStaticId');
-			}
-
-			await replyPostUpdatePromise;
-			log('await replyPostUpdatePromise');
 
 			return post;
 		}
@@ -571,12 +677,17 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async prepareContentData(c: IContent): Promise<IContentData> {
+			// Prefer the PostsContents join-row view when this Content arrives via post.contents
+			// hydration; the Content row's default view is the fallback. P2: "Per-post attachment
+			// metadata is not consistently read from the join row" — same fix as the post manifest
+			// generator.
+			const attachmentView = c['postsContents']?.view || c.view || ContentView.Contents;
 			const baseData = {
 				id: c.id,
 				name: c.name,
 				storageId: c.storageId,
 				previewStorageId: c.mediumPreviewStorageId,
-				view: c.view || ContentView.Contents,
+				view: attachmentView,
 				manifestId: c.manifestStorageId,
 				extension: c.extension,
 				previewExtension: c.previewExtension,
@@ -642,30 +753,57 @@ function getModule(app: IGeesomeApp, models) {
 		async updatePost(userId, postId, postData) {
 			const oldPost = await this.getPostPure(postId);
 
-			const [, canEdit, canEditNewGroup] = await Promise.all([
+			// B5: cross-group moves are not supported. Users who want a post in another group
+			// repost it (repostOfId) or create a new post that reuses the same content attachments.
+			if (!isUndefined(postData.groupId) && Number(postData.groupId) !== Number(oldPost.groupId)) {
+				throw new Error("group_move_not_supported");
+			}
+			delete postData.groupId;
+
+			const [, canEdit] = await Promise.all([
 				await app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
 				this.canEditPostInGroup(userId, oldPost.groupId, postId),
-				postData.groupId ? this.canEditPostInGroup(userId, postData.groupId, postId) : true
 			]);
-			if (!canEdit || !canEditNewGroup) {
+			if (!canEdit) {
 				throw new Error("not_permitted");
 			}
 
-			const contentsData = await this.getContentsForPost(postData.contents);
+			const contentsData = await this.getContentsForPost(userId, postData.contents);
 			delete postData.contents;
 
-			if (postData.status === PostStatus.Published && !oldPost.localId) {
-				postData.localId = await this.getPostLocalId(postData);
+			// B4: drafts are DB-only. Only run manifest/static rebuild when the merged status is Published.
+			// (Note: Published -> Draft transition does not yet tombstone the post in the group manifest;
+			// see the deletes/tombstones P1 finding for the matching follow-up.)
+			const mergedStatus = !isUndefined(postData.status) ? postData.status : oldPost.status;
+			const wasPublished = oldPost.status === PostStatus.Published && !oldPost.isDeleted;
+			const isPublished = mergedStatus === PostStatus.Published;
+			const oldSize = oldPost.size || 0;
+			postData.size = contentsData ? sumBy(contentsData, contentSize) : await this.getPostSizeSum(postId);
+			const newSize = postData.size || 0;
+
+			await app.ms.database.sequelize.transaction(async (transaction) => {
+				if (isPublished && !oldPost.localId) {
+					postData.localId = await this.allocatePostLocalId({...postData, groupId: oldPost.groupId}, transaction);
+					postData.publishedAt = postData.publishedAt || oldPost.publishedAt || new Date();
+				}
+
+				if(contentsData) {
+					await this.setPostContents(postId, contentsData, {transaction});
+				}
+
+				await models.Post.update(postData, {where: {id: postId}, transaction});
+				if (isPublished && !wasPublished) {
+					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize, availableDelta: 1}, {transaction});
+				} else if (!isPublished && wasPublished) {
+					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: -oldSize, availableDelta: -1}, {transaction});
+				} else if (isPublished && newSize !== oldSize) {
+					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize - oldSize}, {transaction});
+				}
+			});
+			if (isPublished) {
+				return this.updatePostManifest(userId, postId);
 			}
-
-			if(contentsData) {
-				await this.setPostContents(postId, contentsData);
-			}
-
-			postData.size = await this.getPostSizeSum(postId);
-
-			await models.Post.update(postData, {where: {id: postId}});
-			return this.updatePostManifest(userId, postId);
+			return this.getPostPure(postId);
 		}
 
 		async deletePosts(userId, postIds) {
@@ -677,17 +815,83 @@ function getModule(app: IGeesomeApp, models) {
 			if (cantEditSomeOfPosts) {
 				throw new Error("not_permitted");
 			}
-			return this.updatePosts(postIds, {isDeleted: true})
+
+			// Capture counter deltas before mutating state so we know which posts were currently
+			// counted toward availability/size at the moment of deletion.
+			const decrementsByGroup: Record<number, {sizeDelta: number, availableDelta: number}> = {};
+			for (const p of posts) {
+				if (!p.groupId) {
+					continue;
+				}
+				// already counted out
+				if (p.isDeleted) {
+					continue;
+				}
+				// drafts/queued never moved counters
+				if (p.status !== PostStatus.Published) {
+					continue;
+				}
+				const entry = decrementsByGroup[p.groupId] || {sizeDelta: 0, availableDelta: 0};
+				entry.sizeDelta -= (p.size || 0);
+				entry.availableDelta -= 1;
+				decrementsByGroup[p.groupId] = entry;
+			}
+			const replyToPostIds = uniqBy(posts.filter(p => p.replyToId).map(p => ({id: p.replyToId})), 'id').map(p => p.id);
+			const repostOfPostIds = uniqBy(posts.filter(p => p.repostOfId).map(p => ({id: p.repostOfId})), 'id').map(p => p.id);
+
+			await app.ms.database.sequelize.transaction(async (transaction) => {
+				await this.updatePosts(postIds, {isDeleted: true}, {transaction});
+
+				await pIteration.forEach(Object.entries(decrementsByGroup), async ([groupId, deltas]) => {
+					await this.incrementGroupCounters(Number(groupId), deltas, {transaction});
+				});
+
+				await pIteration.forEach(replyToPostIds, async (replyToId) => {
+					const repliesCount = await models.Post.count({
+						where: this.getPostsWhere({replyToId}),
+						transaction
+					});
+					await models.Post.update({repliesCount}, {where: {id: replyToId}, transaction});
+				});
+
+				await pIteration.forEach(repostOfPostIds, async (repostOfId) => {
+					const repostsCount = await models.Post.count({
+						where: {repostOfId, isDeleted: false, status: PostStatus.Published},
+						transaction
+					});
+					await models.Post.update({repostsCount}, {where: {id: repostOfId}, transaction});
+				});
+			});
+
+			// Regenerate the affected group manifests so counters and deleted local-id tombstones land.
+			// The manifest is still monolithic; chunked post-index storage remains the follow-up P1.
+			const affectedGroupIds = Array.from(new Set(posts.map(p => p.groupId).filter((id): id is number => !!id)));
+			await pIteration.forEach(affectedGroupIds, async (groupId) => {
+				await this.updateGroupManifest(userId, groupId);
+			});
+
+			return true;
 		}
 
-		async getPostLocalId(post: IPost) {
+		async allocatePostLocalId(post: IPost, transaction) {
 			if (!post.groupId) {
 				return null;
 			}
-			const group = await this.getGroup(post.groupId);
-			group.publishedPostsCount++;
-			await this.updateGroupPure(group.id, {publishedPostsCount: group.publishedPostsCount});
-			return group.publishedPostsCount;
+			const group = await models.Group.findOne({
+				where: {id: post.groupId},
+				transaction,
+				lock: Transaction.LOCK.UPDATE
+			});
+			if (!group) {
+				throw new Error("group_not_found");
+			}
+			const nextLocalId = (group.publishedPostsCount || 0) + 1;
+			await group.update({publishedPostsCount: nextLocalId}, {transaction});
+			return nextLocalId;
+		}
+
+		async getPostLocalId(post: IPost) {
+			return app.ms.database.sequelize.transaction((transaction) => this.allocatePostLocalId(post, transaction));
 		}
 
 		async addUserFriendById(userId, friendId) {
@@ -853,9 +1057,30 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		getPostsWhere(filters) {
-			const where = {
+			const where: any = {
 				isDeleted: false
 			};
+			// C1: default to Published-only visibility. Admin/editor callers must pass
+			// `includeAllStatuses: true`, an explicit `status`, or a `statusIn` list to see drafts.
+			const statusOverride = !isUndefined(filters.status) || !isUndefined(filters.statusNe) || filters.statusIn;
+			if (!filters.includeAllStatuses && !statusOverride) {
+				where['status'] = PostStatus.Published;
+			}
+			// D8 keyset cursor: forward-scan by (publishedAt DESC, id DESC).
+			// Inclusive predicate: rows strictly older than the cursor publishedAt, OR same publishedAt with smaller id.
+			if (!isUndefined(filters.cursorPublishedAt) && !isUndefined(filters.cursorId)) {
+				const cursorAt = filters.cursorPublishedAt instanceof Date
+					? filters.cursorPublishedAt
+					: new Date(filters.cursorPublishedAt);
+				where[Op.and] = [
+					{
+						[Op.or]: [
+							{publishedAt: {[Op.lt]: cursorAt}},
+							{publishedAt: cursorAt, id: {[Op.lt]: parseInt(filters.cursorId, 10)}}
+						]
+					}
+				];
+			}
 			['id', 'status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
 				if(filters[name] === 'null') {
 					filters[name] = null;
@@ -870,6 +1095,9 @@ function getModule(app: IGeesomeApp, models) {
 					where[name] = {[Op.ne]: filters[name + 'Ne']};
 				}
 			});
+			if (filters.statusIn) {
+				where['status'] = {[Op.in]: filters.statusIn};
+			}
 			['publishedAt', 'updatedAt', 'id'].forEach(field => {
 				['Gt', 'Gte', 'Lt', 'Lte'].forEach((postfix) => {
 					if (filters[field + postfix]) {
@@ -934,13 +1162,14 @@ function getModule(app: IGeesomeApp, models) {
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 
-			return models.Post.findAll({
+			const pagePosts = await models.Post.findAll({
+				attributes: ['id'],
 				where: this.getPostsWhere(filters),
-				include: [{association: 'contents'}],
-				order: [[sortBy, sortDir.toUpperCase()]],
+				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
 				limit,
 				offset
 			});
+			return this.getHydratedPostListByIds(pagePosts.map(post => post.id));
 		}
 
 		async getAllPostsCount(filters = {}) {
@@ -989,30 +1218,55 @@ function getModule(app: IGeesomeApp, models) {
 				include: [{association: 'contents'}, {association: 'group'}],
 			});
 
-			post.contents = orderBy(post.contents, [(content) => {
-				return content.postsContents.position;
-			}], ['asc']);
-
-			return post;
+			return this.orderPostContents(post);
 		}
 
 		async getPostsMetadata(postIds) {
 			return models.Post.findAll({ where: {id: {[Op.in]: postIds}}}) as IPost[];
 		}
 
-		async getPostListByIdsPure(groupId, postIds) {
-			const posts = await models.Post.findAll({
-				where: {groupId, id: {[Op.in]: postIds}},
-				include: [{association: 'contents'}, {association: 'group'}],
-			});
-
-			posts.forEach(post => {
+		orderPostContents(post) {
+			if (!post) {
+				return post;
+			}
+			if (post.contents) {
 				post.contents = orderBy(post.contents, [(content) => {
 					return content.postsContents.position;
 				}], ['asc']);
-			})
+			}
+			if (post.repostOf && post.repostOf.contents) {
+				post.repostOf.contents = orderBy(post.repostOf.contents, [(content) => {
+					return content.postsContents.position;
+				}], ['asc']);
+			}
+			return post;
+		}
 
-			return posts;
+		async getHydratedPostListByIds(postIds, options: {groupId?, includeGroup?, includeRepostOf?} = {}) {
+			if (!postIds.length) {
+				return [];
+			}
+			const where: any = {id: {[Op.in]: postIds}};
+			if (!isUndefined(options.groupId)) {
+				where.groupId = options.groupId;
+			}
+			const include: any[] = [{association: 'contents'}];
+			if (options.includeGroup) {
+				include.push({association: 'group'});
+			}
+			if (options.includeRepostOf) {
+				include.push({association: 'repostOf', include: [{association: 'contents'}, {association: 'group'}]});
+			}
+			const posts = await models.Post.findAll({where, include});
+			const postsById = new Map();
+			for (const post of posts) {
+				postsById.set(post.id, this.orderPostContents(post));
+			}
+			return postIds.map(id => postsById.get(id)).filter(post => !!post);
+		}
+
+		async getPostListByIdsPure(groupId, postIds) {
+			return this.getHydratedPostListByIds(postIds, {groupId, includeGroup: true});
 		}
 
 		async getPostByManifestId(manifestStorageId) {
@@ -1047,26 +1301,64 @@ function getModule(app: IGeesomeApp, models) {
 			return post;
 		}
 
-		async addPost(post) {
-			return models.Post.create(post);
+		async addPost(post, options: any = {}) {
+			return models.Post.create(post, {transaction: options.transaction});
 		}
 
-		async updatePosts(ids, updateData) {
-			return models.Post.update(updateData, {where: {id: {[Op.in]: ids}}});
+		async updatePosts(ids, updateData, options: any = {}) {
+			return models.Post.update(updateData, {where: {id: {[Op.in]: ids}}, transaction: options.transaction});
 		}
 
-		async setPostContents(postId, contents) {
-			contents = await pIteration.map(contents, async (content: IContent, position) => {
-				const contentObj: any = await app.ms.database.getContent(content.id);
-				contentObj.postsContents = {position, view: content.view};
-				return contentObj;
+		async setPostContents(postId, contents, options: any = {}) {
+			// Targeted diff against PostsContents instead of the full DELETE+INSERT cycle that
+			// Sequelize's auto-managed setContents would do. Closes the P2 finding "setPostContents
+			// deletes and re-inserts the entire join on each edit". Position is part of the key so
+			// reorder still produces delete+insert pairs (functionally equivalent to today), but
+			// edits that change only one attachment now touch one row.
+			const {transaction} = options;
+			const desired: Array<{contentId: number; position: number; view: any}> = [];
+			await pIteration.forEach(contents, async (content: IContent, position) => {
+				const contentObj: any = await models.Content.findOne({where: {id: content.id}, transaction});
+				if (!contentObj) {
+					return;
+				}
+				desired.push({contentId: contentObj.id, position, view: content.view});
 			});
-			return (await this.getPostPure(postId)).setContents(contents);
+
+			const existing = await models.PostsContents.findAll({where: {postId}, transaction});
+			const keyOf = (r: any) => `${r.contentId}@${r.position}`;
+			const existingByKey = new Map<string, any>();
+			for (const row of existing) {
+				existingByKey.set(keyOf(row), row);
+			}
+			const desiredKeys = new Set(desired.map(keyOf));
+
+			const toDelete = existing.filter(r => !desiredKeys.has(keyOf(r)));
+			const toInsert = desired.filter(d => !existingByKey.has(keyOf(d)));
+			const toUpdate: Array<{id: any; view: any}> = [];
+			for (const d of desired) {
+				const existingRow = existingByKey.get(keyOf(d));
+				if (existingRow && existingRow.view !== d.view) {
+					toUpdate.push({id: existingRow.id, view: d.view});
+				}
+			}
+
+			const ops: Promise<any>[] = [];
+			if (toDelete.length > 0) {
+				ops.push(models.PostsContents.destroy({where: {id: {[Op.in]: toDelete.map(r => r.id)}}, transaction}));
+			}
+			if (toInsert.length > 0) {
+				ops.push(models.PostsContents.bulkCreate(toInsert.map(d => ({postId, contentId: d.contentId, position: d.position, view: d.view})), {transaction}));
+			}
+			for (const u of toUpdate) {
+				ops.push(models.PostsContents.update({view: u.view}, {where: {id: u.id}, transaction}));
+			}
+			return Promise.all(ops);
 		}
 
 		async getPostSizeSum(id) {
 			const post = await this.getPostPure(id);
-			return sumBy(post.contents, 'size');
+			return sumBy(post.contents, contentSize);
 		}
 
 		async addGroupPermission(userId, groupId, permissionName) {

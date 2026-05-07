@@ -100,6 +100,11 @@ export default async function (sequelize: Sequelize, models) {
       primaryKey: true,
       unique: true // group can be in one section
     },
+  } as any, {
+    indexes: [
+      { name: 'group_sections_pivot_section_group_idx', fields: ['sectionId', 'groupId'] },
+      { name: 'group_sections_pivot_group_idx', fields: ['groupId'] },
+    ]
   } as any);
 
   models.Group.belongsToMany(GroupSection, {as: 'sections', through: models.GroupSectionsPivot, foreignKey: 'groupId'});

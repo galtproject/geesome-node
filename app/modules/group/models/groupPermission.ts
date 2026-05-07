@@ -23,10 +23,9 @@ export default async function (sequelize: Sequelize, models) {
     },
   } as any, {
     indexes: [
-      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
-      // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      // Scalability review slice 9 (matched by 20260506000002-add-permission-and-membership-indexes.cjs):
+      { name: 'group_permissions_user_group_name_idx', fields: ['userId', 'groupId', 'name'] },
+      { name: 'group_permissions_group_user_idx', fields: ['groupId', 'userId'] }
     ]
   } as any);
 

@@ -58,19 +58,19 @@ export default async function (sequelize, models) {
       type: DataTypes.STRING(200)
     },
     largePreviewSize: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     mediumPreviewStorageId: {
       type: DataTypes.STRING(200)
     },
     mediumPreviewSize: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     smallPreviewStorageId: {
       type: DataTypes.STRING(200)
     },
     smallPreviewSize: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     previewMimeType: {
       type: DataTypes.STRING(200)
@@ -102,7 +102,14 @@ export default async function (sequelize, models) {
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
       // { fields: ['chainAccountAddress'] },
       // { fields: ['tokensAddress'] },
-      { fields: ['storageId', 'userId'] }
+      { fields: ['storageId', 'userId'] },
+      // Scalability review slice 9 (matched by 20260506000001-add-content-and-quota-indexes.cjs):
+      { name: 'contents_user_created_idx', fields: ['userId', 'createdAt', 'id'] },
+      { name: 'contents_manifest_storage_idx', fields: ['manifestStorageId'] },
+      { name: 'contents_user_manifest_storage_idx', fields: ['userId', 'manifestStorageId'] },
+      { name: 'contents_large_preview_storage_idx', fields: ['largePreviewStorageId'] },
+      { name: 'contents_medium_preview_storage_idx', fields: ['mediumPreviewStorageId'] },
+      { name: 'contents_small_preview_storage_idx', fields: ['smallPreviewStorageId'] }
     ]
   } as any);
 

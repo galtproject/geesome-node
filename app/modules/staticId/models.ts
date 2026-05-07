@@ -34,7 +34,9 @@ export default async function (sequelize: Sequelize) {
 			// { fields: ['tokensAddress'] },
 			{fields: ['staticId', 'dynamicId'], unique: true},
 			{fields: ['staticId', 'boundAt']},
-			{fields: ['staticId']}
+			{fields: ['staticId']},
+			// Scalability review slice 9 (matched by 20260506000001-add-content-and-quota-indexes.cjs):
+			{name: 'static_id_histories_dynamic_bound_idx', fields: ['dynamicId', 'boundAt']}
 		]
 	} as any);
 

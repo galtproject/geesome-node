@@ -49,6 +49,73 @@ describe("groupCategory", function () {
 		await app.stop();
 	});
 
+	it('hydrates category feed pages after id-only page selection', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test')).list[0];
+		const category = await groupCategory.createCategory(testUser.id, {name: 'feed-category'});
+		await groupCategory.addGroupToCategory(testUser.id, testGroup.id, category.id);
+
+		const outsideGroup = await app.ms.group.createGroup(testUser.id, {
+			name: 'outside-category',
+			title: 'Outside Category'
+		});
+		const outsideContent = await app.ms.content.saveData(testUser.id, 'outside', null, {
+			mimeType: 'text/markdown'
+		});
+		await app.ms.group.createPost(testUser.id, {
+			contents: [{id: outsideContent.id, view: ContentView.Contents}],
+			groupId: outsideGroup.id,
+			publishedAt: new Date('2026-02-04T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const olderContent = await app.ms.content.saveData(testUser.id, 'older', null, {
+			mimeType: 'text/markdown'
+		});
+		const olderPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: olderContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-02-01T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const middleContent = await app.ms.content.saveData(testUser.id, 'middle', null, {
+			mimeType: 'text/markdown'
+		});
+		const middlePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: middleContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-02-02T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const newestAttachment = await app.ms.content.saveData(testUser.id, 'newest attachment', null, {
+			mimeType: 'text/markdown'
+		});
+		const newestBody = await app.ms.content.saveData(testUser.id, 'newest body', null, {
+			mimeType: 'text/markdown'
+		});
+		const newestPost = await app.ms.group.createPost(testUser.id, {
+			contents: [
+				{id: newestAttachment.id, view: ContentView.Attachment},
+				{id: newestBody.id, view: ContentView.Contents}
+			],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-02-03T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const page = await groupCategory.getCategoryPosts(category.id, {}, {limit: 2});
+		assert.equal(page.total, 3);
+		assert.deepEqual(page.list.map(post => post.id), [newestPost.id, middlePost.id]);
+		assert.deepEqual(page.list[0].contents.map(content => content.id), [newestAttachment.id, newestBody.id]);
+		assert.deepEqual(page.list[0].contents.map(content => content.postsContents.view), [ContentView.Attachment, ContentView.Contents]);
+		assert.equal(page.list[0].group.id, testGroup.id);
+
+		const secondPage = await groupCategory.getCategoryPosts(category.id, {}, {limit: 2, offset: 2});
+		assert.deepEqual(secondPage.list.map(post => post.id), [olderPost.id]);
+	});
+
 	it('categories should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test')).list[0];
@@ -219,7 +286,7 @@ describe("groupCategory", function () {
 			});
 			assert.equal(true, false);
 		} catch (e) {
-			assert.equal(e.toString().includes("not_permitted"), true);
+			assert.equal(e.toString().includes("group_move_not_supported"), true);
 		}
 
 		try {

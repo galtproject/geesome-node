@@ -49,6 +49,8 @@ export default async function (sequelize: Sequelize) {
 			{ fields: ['name', 'userId', 'groupId'], unique: true },
 			{ fields: ['service', 'userId'] },
 			{ fields: ['service', 'groupId'] },
+			{ name: 'pin_accounts_user_name_idx', fields: ['userId', 'name'] },
+			{ name: 'pin_accounts_group_name_idx', fields: ['groupId', 'name'] },
 		]
 	} as any);
 

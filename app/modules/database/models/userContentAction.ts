@@ -16,14 +16,13 @@ export default async function (sequelize, models) {
       type: DataTypes.STRING(200)
     },
     size: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
   } as any, {
     indexes: [
-      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
-      // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      // Scalability review slice 9 (matched by 20260506000001-add-content-and-quota-indexes.cjs):
+      { name: 'user_content_actions_user_name_created_idx', fields: ['userId', 'name', 'createdAt'] },
+      { name: 'user_content_actions_content_idx', fields: ['contentId'] }
     ]
   } as any);
 

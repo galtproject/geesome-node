@@ -1,5 +1,6 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeGroupCategoryModule from "./interface.js";
+import helpers from "../../helpers.js";
 
 export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModule) => {
 
@@ -30,7 +31,7 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiUse ValidationErrors
      */
     app.ms.api.onGet('category/:categoryId/posts', async (req, res) => {
-        res.send(await groupCategoryModule.getCategoryPosts(req.params.categoryId, req.query, req.query));
+        res.send(await groupCategoryModule.getCategoryPosts(req.params.categoryId, helpers.sanitizePublicPostFilters(req.query), req.query));
     });
 
     /**

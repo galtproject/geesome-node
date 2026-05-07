@@ -84,6 +84,8 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
+	getGroupManifestPostRefs(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
+
 	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt}>;
 
 	addOrUpdateGroupRead(userId, groupReadData);
@@ -152,6 +154,8 @@ export default interface IGeesomeGroupModule {
 	updatePosts(ids, updateData): Promise<IPost>;
 
 	getPostsMetadata(ids): Promise<IPost[]>;
+
+	getHydratedPostListByIds(postIds, options?): Promise<IPost[]>;
 
 	getPostSizeSum(id): Promise<number>;
 

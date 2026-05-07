@@ -9,8 +9,9 @@
 
 import assert from "assert";
 import IGeesomeFileCatalogModule, {FileCatalogItemType} from "../app/modules/fileCatalog/interface.js";
-import {CorePermissionName} from "../app/modules/database/interface.js";
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
+import {PostStatus} from "../app/modules/group/interface.js";
 
 describe("app", function () {
 	this.timeout(60000);
@@ -45,6 +46,28 @@ describe("app", function () {
 
 	afterEach(async () => {
 		await app.stop();
+	});
+
+	it("keeps content rows that are still referenced by posts when deleting a catalog item", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(adminUser.id, 'test').then(r => r.list))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'Hello post', 'post.md', {
+			mimeType: 'text/markdown'
+		});
+		const fileItem = await fileCatalog.saveContentByPath(testUser.id, '/post.md', content.id);
+
+		await app.ms.group.createPost(testUser.id, {
+			contents: [{id: content.id, view: ContentView.Attachment}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
+
+		const gotContent = await app.ms.database.getContent(content.id);
+		assert.equal(!!gotContent, true);
+		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 	});
 
 	it("should create directory by files manifests correctly", async () => {
