@@ -56,6 +56,12 @@ function getModule(app: IGeesomeApp) {
 		stream.pipe(res.stream);
 	}
 
+	function isUserStorageUniqueError(error, contentData) {
+		return error?.name === 'SequelizeUniqueConstraintError'
+			&& contentData?.userId
+			&& contentData?.storageId;
+	}
+
 	function parseByteRange(rangeHeader: string, dataSize: number, defaultChunkSize: number): {start: number, end: number} | null {
 		if (!rangeHeader || !rangeHeader.startsWith('bytes=') || rangeHeader.includes(',')) {
 			return null;
@@ -416,7 +422,20 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			contentData.userId = userId;
-			const content = await app.ms.database.addContent(contentData);
+			let content;
+			try {
+				content = await app.ms.database.addContent(contentData);
+			} catch (e) {
+				if (isUserStorageUniqueError(e, contentData)) {
+					const existsContent = await app.ms.database.getContentByStorageAndUserId(contentData.storageId, contentData.userId);
+					if (existsContent) {
+						await this.updateExistsContentMetadata(userId, existsContent, options);
+						await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
+						return existsContent;
+					}
+				}
+				throw e;
+			}
 			log('content');
 
 			await Promise.all([
