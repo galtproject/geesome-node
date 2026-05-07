@@ -328,6 +328,8 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'cursorUpdatedAt')
     && !has(manifestSource, 'limit: 9999999');
   const hasGroupManifestDeleteUnset = has(manifestSource, 'unsetTreeNode(groupManifest.posts, post.localId)');
+  const hasGroupManifestStatusUnset = has(manifestSource, 'statusNe: PostStatus.Published')
+    && has(groupSource, 'this.updateGroupManifest(userId, oldPost.groupId)');
   const hasPostWriteTransaction = has(groupSource, 'allocatePostLocalId(postData, transaction)')
     && has(groupSource, 'this.addPost(postData, {transaction})')
     && has(groupSource, 'this.setPostContents(post.id, contents, {transaction})')
@@ -379,9 +381,11 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/entityJsonManifest/index.ts',
       hotspot: 'generateGroupManifest',
       observedPattern: hasGroupManifestRefBatches
-        ? (hasGroupManifestDeleteUnset
-          ? 'loads the previous posts trie, scans changed/deleted lightweight post refs in (updatedAt,id) cursor batches, then unsets deleted local IDs'
-          : 'loads the previous posts trie and scans changed lightweight post refs in (updatedAt,id) cursor batches')
+        ? (hasGroupManifestDeleteUnset && hasGroupManifestStatusUnset
+          ? 'loads the previous posts trie, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, then unsets removed local IDs'
+          : (hasGroupManifestDeleteUnset
+            ? 'loads the previous posts trie, scans changed/deleted lightweight post refs in (updatedAt,id) cursor batches, then unsets deleted local IDs'
+            : 'loads the previous posts trie and scans changed lightweight post refs in (updatedAt,id) cursor batches'))
         : (hasGroupManifestPostRefs
           ? (hasGroupManifestDeleteUnset
             ? 'loads the previous posts trie, scans changed lightweight post refs and changed deleted refs, then unsets deleted local IDs'
