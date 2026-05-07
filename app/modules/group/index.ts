@@ -432,10 +432,25 @@ function getModule(app: IGeesomeApp, models) {
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'updatedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = this.getGroupPostsWhere(groupId, filters);
+			if (!isUndefined(filters.cursorUpdatedAt) && !isUndefined(filters.cursorId)) {
+				const cursorAt = filters.cursorUpdatedAt instanceof Date
+					? filters.cursorUpdatedAt
+					: new Date(filters.cursorUpdatedAt);
+				const cursorClause = {
+					[Op.or]: [
+						{updatedAt: {[Op.gt]: cursorAt}},
+						{updatedAt: cursorAt, id: {[Op.gt]: parseInt(filters.cursorId, 10)}}
+					]
+				};
+				where[Op.and] = Array.isArray(where[Op.and])
+					? [...where[Op.and], cursorClause]
+					: [cursorClause];
+			}
 
 			return models.Post.findAll({
 				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
-				where: this.getGroupPostsWhere(groupId, filters),
+				where,
 				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
 				limit,
 				offset

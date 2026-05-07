@@ -164,6 +164,33 @@ describe("group", function () {
 		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, secondPost.localId), secondPost.manifestStorageId);
 	});
 
+	it('scans changed group manifest refs in cursor batches', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const posts = [];
+		for (const index of [0, 1, 2, 3]) {
+			const content = await app.ms.content.saveData(testUser.id, `batched manifest post ${index}`, null, {
+				mimeType: 'text/markdown'
+			});
+			posts.push(await app.ms.group.createPost(testUser.id, {
+				contents: [{id: content.id, view: ContentView.Contents}],
+				groupId: testGroup.id,
+				status: PostStatus.Published
+			}));
+		}
+
+		const groupBeforeDelete = await app.ms.group.getGroup(testGroup.id);
+		await app.ms.group.updatePosts([posts[1].id, posts[3].id], {isDeleted: true});
+
+		const manifest = await app.ms.entityJsonManifest.generateManifest('group', groupBeforeDelete, {
+			postRefsBatchSize: 1
+		});
+		assert.equal(trieHelper.getNode(manifest.posts, posts[0].localId), posts[0].manifestStorageId);
+		assert.equal(trieHelper.getNode(manifest.posts, posts[1].localId), undefined);
+		assert.equal(trieHelper.getNode(manifest.posts, posts[2].localId), posts[2].manifestStorageId);
+		assert.equal(trieHelper.getNode(manifest.posts, posts[3].localId), undefined);
+	});
+
 	it('hydrates timeline pages after id-only page selection', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

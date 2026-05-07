@@ -17,6 +17,7 @@ import {IGroupCategory} from "../groupCategory/interface.js";
 import {IContent, IUser} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 const log = debug('geesome:app');
+const defaultGroupManifestPostRefsBatchSize = 1000;
 
 export default async (app: IGeesomeApp) => {
   return getModule(app);
@@ -52,12 +53,45 @@ function getModule(app: IGeesomeApp) {
     }
   }
 
+  function getGroupManifestPostRefsBatchSize(options: any = {}) {
+    const batchSize = Number(options.postRefsBatchSize || defaultGroupManifestPostRefsBatchSize);
+    if (Number.isFinite(batchSize) && batchSize > 0) {
+      return Math.floor(batchSize);
+    }
+    return defaultGroupManifestPostRefsBatchSize;
+  }
+
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
 
     }
 
-    async generateGroupManifest(groupData: IGroup) {
+    async forEachGroupManifestPostRef(groupId, filters, options, callback: (post: IPost) => void) {
+      const batchSize = getGroupManifestPostRefsBatchSize(options);
+      let cursor: {updatedAt: any; id: any} | null = null;
+      while (true) {
+        const batchFilters: any = {...filters};
+        if (cursor) {
+          batchFilters.cursorUpdatedAt = cursor.updatedAt;
+          batchFilters.cursorId = cursor.id;
+        }
+
+        const posts = await app.ms.group.getGroupManifestPostRefs(groupId, batchFilters, {
+          limit: batchSize,
+          sortBy: 'updatedAt',
+          sortDir: 'ASC'
+        });
+        posts.forEach(callback);
+        if (posts.length < batchSize) {
+          break;
+        }
+
+        const lastPost = posts[posts.length - 1];
+        cursor = {updatedAt: lastPost.updatedAt, id: lastPost.id};
+      }
+    }
+
+    async generateGroupManifest(groupData: IGroup, options: any = {}) {
       //TODO: size => postsSize
       const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
 
@@ -94,17 +128,13 @@ function getModule(app: IGeesomeApp) {
         groupManifest.members = [groupData.staticStorageId, creator.manifestStaticStorageId];
       }
 
-      const [newGroupPosts, deletedGroupPosts] = await Promise.all([
-        app.ms.group.getGroupManifestPostRefs(groupData.id, filters, {limit: 9999999, sortBy: 'updatedAt'}),
-        groupData.manifestStorageId
-          ? app.ms.group.getGroupManifestPostRefs(groupData.id, deletedFilters, {limit: 9999999, sortBy: 'updatedAt'})
-          : []
-      ]);
-      deletedGroupPosts.forEach((post: IPost) => {
-        unsetTreeNode(groupManifest.posts, post.localId);
-      });
+      if (groupData.manifestStorageId) {
+        await this.forEachGroupManifestPostRef(groupData.id, deletedFilters, options, (post: IPost) => {
+          unsetTreeNode(groupManifest.posts, post.localId);
+        });
+      }
       //TODO: remove deprecated
-      newGroupPosts.forEach((post: IPost) => {
+      await this.forEachGroupManifestPostRef(groupData.id, filters, options, (post: IPost) => {
         treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
       });
       this.setManifestMeta(groupManifest, 'group');
@@ -113,7 +143,7 @@ function getModule(app: IGeesomeApp) {
 
     async generateManifest(name, data, options?) {
       if (name === 'group') {
-        return this.generateGroupManifest(data as IGroup);
+        return this.generateGroupManifest(data as IGroup, options);
       } else if (name === 'category') {
         const category: IGroupCategory = data;
         const categoryManifest = ipfsHelper.pickObjectFields(category, ['name', 'title', 'type', 'view', 'theme', 'isGlobal', 'description', 'createdAt', 'updatedAt']);
