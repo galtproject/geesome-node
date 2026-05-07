@@ -56,6 +56,9 @@ function modelRows(): ModelRow[] {
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
+  const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
+    && has(contentSource, "fields: ['userId', 'storageId']")
+    && has(contentSource, 'unique: true');
 
   return [
     {
@@ -113,7 +116,9 @@ function modelRows(): ModelRow[] {
       source: 'app/modules/database/models/content.ts',
       model: 'Content',
       indexes: [
-        'storageId,userId non-unique ownership lookup',
+        hasContentUserStorageUnique
+          ? 'userId,storageId unique ownership constraint plus storageId,userId lookup'
+          : 'storageId,userId non-unique ownership lookup',
         has(contentSource, 'manifestStaticStorageId') && has(contentSource, 'unique: true') ? 'manifestStaticStorageId unique' : 'manifestStaticStorageId uniqueness not found',
         has(contentSource, "fields: ['userId', 'manifestStorageId'") ? 'userId,manifestStorageId actor-scoped lookup' : 'missing actor-scoped manifest lookup index',
       ],
@@ -121,7 +126,9 @@ function modelRows(): ModelRow[] {
         has(contentSource, "fields: ['userId'") ? 'has user listing index' : 'missing user/created listing index',
         has(contentSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
         has(contentSource, "fields: ['mediumPreviewStorageId'") ? 'has preview lookup indexes' : 'missing preview lookup indexes for file/header serving',
-        'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
+        hasContentUserStorageUnique
+          ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
+          : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
       ],
     },
     {
