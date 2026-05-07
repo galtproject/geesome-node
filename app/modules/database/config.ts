@@ -16,6 +16,16 @@ export default {
   'password': process.env.DATABASE_PASSWORD || 'geesome',
   'host': process.env.DATABASE_HOST || 'localhost',
   'port': parseInt(process.env.DATABASE_PORT || '5432'),
+  // P3 fix from the scalability review: Sequelize defaults to a 5-connection pool, which throttles
+  // any node serving more than a handful of concurrent API calls (every authenticated request fans
+  // out to permission, group, and post queries in parallel). The defaults below are conservative
+  // for a single-process node and overridable via env so deployers can tune to their hardware.
+  'pool': {
+    max: parseInt(process.env.DATABASE_POOL_MAX || '20'),
+    min: parseInt(process.env.DATABASE_POOL_MIN || '0'),
+    acquire: parseInt(process.env.DATABASE_POOL_ACQUIRE_MS || '30000'),
+    idle: parseInt(process.env.DATABASE_POOL_IDLE_MS || '30000'),
+  },
   'logging': (d) => {
     if (
         d.includes('SELECT "post"."id", "post"."status", "post"."name", "post"."publishedAt"') ||

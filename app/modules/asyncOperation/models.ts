@@ -57,9 +57,8 @@ export default async function (sequelize: Sequelize) {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			// { fields: ['chainAccountAddress'] },
-			// { fields: ['tokensAddress'] },
-			// { fields: ['tokensAddress', 'chainAccountAddress'] }
+			{ name: 'user_async_operations_user_process_name_created_idx', fields: ['userId', 'inProcess', 'name', 'createdAt'] },
+			{ name: 'user_async_operations_process_updated_idx', fields: ['inProcess', 'updatedAt'] },
 		]
 	} as any);
 

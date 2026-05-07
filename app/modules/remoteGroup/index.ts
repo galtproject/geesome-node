@@ -36,6 +36,7 @@ function getModule(app: IGeesomeApp) {
 		async createPostByRemoteStorageId(userId, manifestStorageId, groupId, publishedAt = null, isEncrypted = false) {
 			const postObject: IPost = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'post', {
 				isEncrypted,
+				userId,
 				groupId,
 				publishedAt
 			});
@@ -49,8 +50,7 @@ function getModule(app: IGeesomeApp) {
 			let post = await app.ms.group.addPost(postObject);
 
 			if (!isEncrypted) {
-				// console.log('postObject', postObject);
-				await app.ms.group.setPostContents(post.id, contents.map(c => c.id));
+				await app.ms.group.setPostContents(post.id, contents);
 			}
 
 			await app.ms.group.updateGroupManifest(userId, post.groupId);

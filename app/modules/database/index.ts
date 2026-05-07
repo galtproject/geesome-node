@@ -26,6 +26,33 @@ import {
 } from "./interface.js";
 const {merge, isUndefined} = _;
 const SessionStore = expressSessionSequelize(expressSession.Store);
+const maxListLimit = 10000;
+
+function parseNonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value as any, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function sanitizeSortBy(value, fallback) {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    return fallback;
+  }
+  return value;
+}
+
+function sanitizeSortDir(value, fallback) {
+  const sortDir = typeof value === 'string' ? value.toUpperCase() : fallback.toUpperCase();
+  if (sortDir !== 'ASC' && sortDir !== 'DESC') {
+    return fallback.toUpperCase();
+  }
+  return sortDir;
+}
 
 export default async function (app: IGeesomeApp) {
   if (!fs.existsSync('./data')) {
@@ -40,10 +67,10 @@ export default async function (app: IGeesomeApp) {
     throw e;
   }
 
-  return new MysqlDatabase(sequelize, models, config) as IGeesomeDatabaseModule;
+  return new PostgresDatabase(sequelize, models, config) as IGeesomeDatabaseModule;
 };
 
-class MysqlDatabase implements IGeesomeDatabaseModule {
+class PostgresDatabase implements IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
   config: any;
@@ -168,6 +195,55 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
     return this.models.Content.findOne({ where }) as IContent;
   }
 
+  // A1 shared-content seam (see docs/database-scalability-review.md). Returns a single Content row
+  // for shared metadata reads (public file/preview headers, MIME type, size). Multiple users may own
+  // separate Content rows with the same storageId; pick the oldest by id for deterministic
+  // tie-breaking so the same physical object always resolves to the same metadata row across calls.
+  // When the A2 carve-out lands, this helper switches to read from the canonical contentAssets
+  // table without any caller change.
+  async getSharedContentByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
+    const where = opts.includePreviews
+      ? {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]}
+      : {storageId};
+    return this.models.Content.findOne({where, order: [['id', 'ASC']]}) as IContent;
+  }
+
+  // A1 reference-count helper for physical storage objects. Used by deleteFileCatalogItem before
+  // unpinning/removing the storage object so a delete by one user cannot break another user's row,
+  // a Content row that uses the storageId as a preview, or a future canonical asset.
+  async countStorageIdReferences(storageId, excludeContentId?: number) {
+    const otherContentsWhere: any = {storageId};
+    if (excludeContentId) {
+      otherContentsWhere.id = {[Op.ne]: excludeContentId};
+    }
+    const [otherContents, previewRefs] = await Promise.all([
+      this.models.Content.count({where: otherContentsWhere}),
+      this.models.Content.count({
+        where: {
+          [Op.or]: [
+            {largePreviewStorageId: storageId},
+            {mediumPreviewStorageId: storageId},
+            {smallPreviewStorageId: storageId},
+          ],
+        },
+      }),
+    ]);
+    return {otherContents, previewRefs};
+  }
+
+  // A1 reference-count helper for a specific Content row. Used by delete paths to detect
+  // attachments/avatars/covers/file-catalog references that would orphan if the row is destroyed.
+  async countContentReferences(contentId) {
+    const [posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars] = await Promise.all([
+      this.models.PostsContents.count({where: {contentId}}),
+      this.models.FileCatalogItem.count({where: {contentId}}),
+      this.models.Group.count({where: {avatarImageId: contentId}}),
+      this.models.Group.count({where: {coverImageId: contentId}}),
+      this.models.User.count({where: {avatarImageId: contentId}}),
+    ]);
+    return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars};
+  }
+
   async getContentByStorageAndUserId(storageId, userId) {
     return this.models.Content.findOne({where: {storageId, userId}}) as IContent;
   }
@@ -178,6 +254,10 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
 
   async getContentByManifestId(manifestStorageId) {
     return this.models.Content.findOne({where: {manifestStorageId}}) as IContent;
+  }
+
+  async getContentByManifestAndUserId(manifestStorageId, userId) {
+    return this.models.Content.findOne({where: {manifestStorageId, userId}}) as IContent;
   }
 
   async getObjectByStorageId(storageId, resolveProp = false) {
@@ -404,9 +484,13 @@ class MysqlDatabase implements IGeesomeDatabaseModule {
   }
 
   setDefaultListParamsValues(listParams: IListParams, defaultParams: IListParams = {}) {
-    listParams.sortBy = listParams.sortBy || defaultParams.sortBy || 'createdAt';
-    listParams.sortDir = listParams.sortDir || defaultParams.sortDir || 'desc';
-    listParams.limit = parseInt(listParams.limit as any) || defaultParams.limit || 20;
-    listParams.offset = parseInt(listParams.offset as any) || defaultParams.offset || 0;
+    const defaultSortBy = sanitizeSortBy(defaultParams.sortBy, 'createdAt');
+    const defaultSortDir = sanitizeSortDir(defaultParams.sortDir, 'DESC');
+    const defaultLimit = parseNonNegativeInteger(defaultParams.limit, 20);
+    const defaultOffset = parseNonNegativeInteger(defaultParams.offset, 0);
+    listParams.sortBy = sanitizeSortBy(listParams.sortBy, defaultSortBy);
+    listParams.sortDir = sanitizeSortDir(listParams.sortDir, defaultSortDir);
+    listParams.limit = Math.min(parseNonNegativeInteger(listParams.limit, defaultLimit), maxListLimit);
+    listParams.offset = parseNonNegativeInteger(listParams.offset, defaultOffset);
   }
 }

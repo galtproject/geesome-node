@@ -35,7 +35,7 @@ export default async function (sequelize: Sequelize, models) {
       type: DataTypes.INTEGER
     },
     size: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     isRemote: {
       type: DataTypes.BOOLEAN
@@ -124,14 +124,26 @@ export default async function (sequelize: Sequelize, models) {
       { fields: ['repostOfId'] },
       { fields: ['source', 'sourceDate'] },
       { fields: ['source', 'sourceChannelId'] },
-      { fields: ['source', 'sourceChannelId', 'sourcePostId'] }
+      { fields: ['source', 'sourceChannelId', 'sourcePostId'] },
+      // Scalability review slice 4 (matched by 20260506000000-add-post-timeline-indexes.cjs):
+      { name: 'posts_group_timeline_idx', fields: ['groupId', 'isDeleted', 'status', 'publishedAt', 'id'] },
+      { name: 'posts_group_manifest_cursor_idx', fields: ['groupId', 'status', 'updatedAt', 'id'] },
+      { name: 'posts_group_id_idx', fields: ['groupId', 'id'] },
+      { name: 'posts_group_local_idx', fields: ['groupId', 'localId'] },
+      { name: 'posts_manifest_storage_id_idx', fields: ['manifestStorageId'] }
     ]
   } as any);
 
   models.PostsContents = sequelize.define('postsContents', {
     position: {type: DataTypes.INTEGER},
     view: {type: DataTypes.STRING(200)},
-  } as any, {} as any);
+  } as any, {
+    indexes: [
+      // Scalability review slice 4 (matched by 20260506000000-add-post-timeline-indexes.cjs):
+      { name: 'posts_contents_post_position_idx', fields: ['postId', 'position'] },
+      { name: 'posts_contents_content_idx', fields: ['contentId'] }
+    ]
+  } as any);
 
   models.Content.belongsToMany(Post, {as: 'posts', through: models.PostsContents});
   Post.belongsToMany(models.Content, {as: 'contents', through: models.PostsContents});

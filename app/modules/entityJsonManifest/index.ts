@@ -25,6 +25,33 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp) {
   app.checkModules(['database', 'group', 'accountStorage', 'staticId', 'storage']);
 
+  function unsetTreeNode(tree: Record<string, any>, id) {
+    if (!tree || !id) {
+      return;
+    }
+    const treePath = treeLib.getTreePath(id);
+    const parentStack: Array<{node: Record<string, any>; key: string}> = [];
+    let parentNode = tree;
+    for (let i = 0; i < treePath.length - 1; i++) {
+      const key = treePath[i];
+      const nextNode = parentNode[key];
+      if (!nextNode || typeof nextNode !== 'object') {
+        return;
+      }
+      parentStack.push({node: parentNode, key});
+      parentNode = nextNode;
+    }
+
+    delete parentNode[treePath[treePath.length - 1]];
+    for (let i = parentStack.length - 1; i >= 0; i--) {
+      const {node, key} = parentStack[i];
+      if (Object.keys(node[key] || {}).length) {
+        break;
+      }
+      delete node[key];
+    }
+  }
+
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
 
@@ -36,11 +63,13 @@ function getModule(app: IGeesomeApp) {
 
       groupManifest.posts = {};
 
-      const filters = {status: PostStatus.Published};
+      const filters: any = {status: PostStatus.Published, isDeleted: false};
+      const deletedFilters: any = {status: PostStatus.Published, isDeleted: true};
       if (groupData.manifestStorageId) {
         const lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
         filters['updatedAtGte'] = new Date(lastGroupManifest.updatedAt);
-        groupManifest.posts = lastGroupManifest.posts;
+        deletedFilters['updatedAtGte'] = filters['updatedAtGte'];
+        groupManifest.posts = lastGroupManifest.posts || {};
       }
 
       if (groupData.isEncrypted) {
@@ -65,8 +94,15 @@ function getModule(app: IGeesomeApp) {
         groupManifest.members = [groupData.staticStorageId, creator.manifestStaticStorageId];
       }
 
-      const newGroupPosts = await app.ms.group.getGroupPosts(groupData.id, filters, {limit: 9999999}).then(r => r.list);
-      // console.log('newGroupPosts', group.id, newGroupPosts);
+      const [newGroupPosts, deletedGroupPosts] = await Promise.all([
+        app.ms.group.getGroupManifestPostRefs(groupData.id, filters, {limit: 9999999, sortBy: 'updatedAt'}),
+        groupData.manifestStorageId
+          ? app.ms.group.getGroupManifestPostRefs(groupData.id, deletedFilters, {limit: 9999999, sortBy: 'updatedAt'})
+          : []
+      ]);
+      deletedGroupPosts.forEach((post: IPost) => {
+        unsetTreeNode(groupManifest.posts, post.localId);
+      });
       //TODO: remove deprecated
       newGroupPosts.forEach((post: IPost) => {
         treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
@@ -102,8 +138,12 @@ function getModule(app: IGeesomeApp) {
         postManifest.authorStaticId = post.authorStaticStorageId;
 
         postManifest.contents = post.contents.map((content: IContent) => {
+          // Per-post view lives on the PostsContents join row (set by setPostContents). Fall back
+          // to the Content row's default view only when the join row is missing or unset; this is
+          // the P2 finding "Per-post attachment metadata is not consistently read from the join row".
+          const attachmentView = content['postsContents']?.view || content.view;
           return {
-            view: content.view,
+            view: attachmentView,
             storageId: content.manifestStorageId //this.getStorageRef(content.manifestStorageId)
           };
         });
@@ -242,14 +282,21 @@ function getModule(app: IGeesomeApp) {
 
           post.groupStorageId = manifest.groupId;
           post.groupStaticStorageId = manifest.groupStaticId;
-          // const group = await app.createGroupByRemoteStorageId(manifest.group)
 
-          const contentsIds = manifest.contents.map(content => {
-            return content.storageId;
-          });
+          if (options.userId !== undefined) {
+            post.userId = options.userId;
+          }
+          if (options.groupId !== undefined) {
+            post.groupId = options.groupId;
+          }
+          if (options.publishedAt) {
+            post.publishedAt = options.publishedAt;
+          }
 
-          post.contents = await pIteration.map(contentsIds, (contentId) => {
-            return app.ms.content.createContentByRemoteStorageId(null, contentId);
+          const importerUserId = options.userId !== undefined ? options.userId : null;
+          post.contents = await pIteration.map(manifest.contents, async (manifestContent) => {
+            const contentRow: any = await app.ms.content.createContentByRemoteStorageId(importerUserId, manifestContent.storageId);
+            return { id: contentRow ? contentRow.id : null, view: manifestContent.view };
           });
         }
 

@@ -39,7 +39,7 @@ export default async function (sequelize: Sequelize, models) {
       type: DataTypes.STRING(200)
     },
     size: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     isPublic: {
       type: DataTypes.BOOLEAN
@@ -124,7 +124,8 @@ export default async function (sequelize: Sequelize, models) {
       // { fields: ['chainAccountAddress'] },
       { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false, isCollateral: false} },
       { fields: ['manifestStorageId'] },
-      { fields: ['manifestStaticStorageId'] }
+      { fields: ['manifestStaticStorageId'] },
+      { name: 'groups_static_rebind_idx', fields: ['isDeleted', 'staticStorageUpdatedAt'] }
     ]
   } as any);
 
@@ -134,12 +135,24 @@ export default async function (sequelize: Sequelize, models) {
   Group.belongsTo(models.User, {as: 'creator', foreignKey: 'creatorId'});
   models.User.hasMany(Group, {as: 'createdGroups', foreignKey: 'creatorId'});
 
-  models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {} as any);
+  models.GroupAdministrators = sequelize.define('groupAdministrators', {} as any, {
+    indexes: [
+      // Scalability review slice 9 (matched by 20260506000002-add-permission-and-membership-indexes.cjs):
+      { name: 'group_admins_user_group_idx', fields: ['userId', 'groupId'] },
+      { name: 'group_admins_group_user_idx', fields: ['groupId', 'userId'] }
+    ]
+  } as any);
 
   Group.belongsToMany(models.User, {as: 'administrators', through: models.GroupAdministrators});
   models.User.belongsToMany(Group, {as: 'administratorInGroups', through: models.GroupAdministrators});
 
-  models.GroupMembers = sequelize.define('groupMembers', {} as any, {} as any);
+  models.GroupMembers = sequelize.define('groupMembers', {} as any, {
+    indexes: [
+      // Scalability review slice 9 (matched by 20260506000002-add-permission-and-membership-indexes.cjs):
+      { name: 'group_members_user_group_idx', fields: ['userId', 'groupId'] },
+      { name: 'group_members_group_user_idx', fields: ['groupId', 'userId'] }
+    ]
+  } as any);
 
   Group.belongsToMany(models.User, {as: 'members', through: models.GroupMembers});
   models.User.belongsToMany(Group, {as: 'memberInGroups', through: models.GroupMembers});

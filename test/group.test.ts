@@ -9,6 +9,7 @@
 
 import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
+import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
@@ -46,6 +47,198 @@ describe("group", function () {
 		await app.stop();
 	});
 
+	it('requires actor-scoped content rows for post attachments', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const ownerContent = await app.ms.content.saveData(testUser.id, 'private attachment', null, {
+			mimeType: 'text/markdown'
+		});
+		const newUser = await app.registerUser({
+			email: 'new@user.com',
+			name: 'new',
+			password: 'new',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const newGroup = await app.ms.group.createGroup(newUser.id, {name: 'new-group', title: 'New group'});
+
+		await assert.rejects(
+			() => app.ms.group.createPost(newUser.id, {
+				contents: [{id: ownerContent.id, view: ContentView.Attachment}],
+				groupId: newGroup.id,
+				status: PostStatus.Published
+			}),
+			(error: Error) => error.message === 'content_not_permitted'
+		);
+
+		const post = await app.ms.group.createPost(newUser.id, {
+			contents: [{manifestStorageId: ownerContent.manifestStorageId, view: ContentView.Attachment}],
+			groupId: newGroup.id,
+			status: PostStatus.Published
+		});
+		const gotPost = await app.ms.group.getPostPure(post.id);
+		assert.equal(gotPost.contents.length, 1);
+		assert.equal(gotPost.contents[0].userId, newUser.id);
+		assert.equal(gotPost.contents[0].storageId, ownerContent.storageId);
+		assert.notEqual(gotPost.contents[0].id, ownerContent.id);
+	});
+
+	it('allocates group local ids with a row lock under concurrency', async () => {
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
+
+		const localIds = await Promise.all(expectedLocalIds.map(() => {
+			return app.ms.group.getPostLocalId({groupId: testGroup.id} as any);
+		}));
+		localIds.sort((a, b) => a - b);
+
+		assert.deepEqual(localIds, expectedLocalIds);
+		assert.equal((await app.ms.group.getGroup(testGroup.id)).publishedPostsCount, expectedLocalIds.length);
+	});
+
+	it('deletes published replies with counters in one DB transaction', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const parentContent = await app.ms.content.saveData(testUser.id, 'parent post', null, {
+			mimeType: 'text/markdown'
+		});
+		const replyContent = await app.ms.content.saveData(testUser.id, 'reply post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const parentPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: parentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const replyPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: replyContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		const groupBeforeDelete = await app.ms.group.getGroup(testGroup.id);
+		assert.equal(groupBeforeDelete.availablePostsCount, 2);
+		assert.equal(Number(groupBeforeDelete.size), Number(parentContent.size) + Number(replyContent.size));
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 1);
+
+		await app.ms.group.deletePosts(testUser.id, [replyPost.id]);
+
+		const groupAfterDelete = await app.ms.group.getGroup(testGroup.id);
+		assert.equal(groupAfterDelete.availablePostsCount, 1);
+		assert.equal(Number(groupAfterDelete.size), Number(parentContent.size));
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 0);
+		assert.equal((await app.ms.group.getPostPure(replyPost.id)).isDeleted, true);
+	});
+
+	it('removes deleted posts from regenerated group manifest trie', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'second manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const firstPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		const groupBeforeDelete = await app.ms.group.getGroup(testGroup.id);
+		const manifestBeforeDelete = await app.ms.storage.getObject(groupBeforeDelete.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestBeforeDelete.posts, firstPost.localId), firstPost.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestBeforeDelete.posts, secondPost.localId), secondPost.manifestStorageId);
+
+		await app.ms.group.deletePosts(testUser.id, [firstPost.id]);
+
+		const groupAfterDelete = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterDelete = await app.ms.storage.getObject(groupAfterDelete.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, firstPost.localId), undefined);
+		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, secondPost.localId), secondPost.manifestStorageId);
+	});
+
+	it('hydrates timeline pages after id-only page selection', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		const sourceContent = await app.ms.content.saveData(testUser.id, 'source post', null, {
+			mimeType: 'text/markdown'
+		});
+		const sourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: sourceContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-01-01T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const middleContent = await app.ms.content.saveData(testUser.id, 'middle post', null, {
+			mimeType: 'text/markdown'
+		});
+		const middlePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: middleContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-01-02T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const newestAttachment = await app.ms.content.saveData(testUser.id, 'newest attachment', null, {
+			mimeType: 'text/markdown'
+		});
+		const newestBody = await app.ms.content.saveData(testUser.id, 'newest body', null, {
+			mimeType: 'text/markdown'
+		});
+		const newestPost = await app.ms.group.createPost(testUser.id, {
+			contents: [
+				{id: newestAttachment.id, view: ContentView.Attachment},
+				{id: newestBody.id, view: ContentView.Contents}
+			],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-01-03T00:00:00.000Z'),
+			repostOfId: sourcePost.id,
+			status: PostStatus.Published
+		});
+
+		const offsetPage = await app.ms.group.getGroupPosts(testGroup.id, {}, {limit: 2});
+		assert.equal(offsetPage.total, 3);
+		assert.equal(offsetPage.nextCursor, null);
+		assert.deepEqual(offsetPage.list.map(post => post.id), [newestPost.id, middlePost.id]);
+		assert.deepEqual(offsetPage.list[0].contents.map(content => content.id), [newestAttachment.id, newestBody.id]);
+		assert.deepEqual(offsetPage.list[0].contents.map(content => content.postsContents.view), [ContentView.Attachment, ContentView.Contents]);
+		assert.equal(offsetPage.list[0].repostOf.id, sourcePost.id);
+		assert.deepEqual(offsetPage.list[0].repostOf.contents.map(content => content.id), [sourceContent.id]);
+
+		const firstCursorPage = await app.ms.group.getGroupPosts(testGroup.id, {
+			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
+			cursorId: '999999999'
+		}, {limit: 2});
+		assert.equal(firstCursorPage.total, null);
+		assert.deepEqual(firstCursorPage.list.map(post => post.id), [newestPost.id, middlePost.id]);
+		assert(firstCursorPage.nextCursor);
+
+		const secondCursorPage = await app.ms.group.getGroupPosts(testGroup.id, {
+			cursorPublishedAt: firstCursorPage.nextCursor.publishedAt,
+			cursorId: firstCursorPage.nextCursor.id
+		}, {limit: 2});
+		assert.equal(secondCursorPage.total, null);
+		assert.equal(secondCursorPage.nextCursor, null);
+		assert.deepEqual(secondCursorPage.list.map(post => post.id), [sourcePost.id]);
+
+		const allPosts = await app.ms.group.getAllPosts({groupId: testGroup.id}, {
+			limit: 3,
+			sortBy: 'publishedAt',
+			sortDir: 'desc'
+		});
+		assert.deepEqual(allPosts.map(post => post.id), [newestPost.id, middlePost.id, sourcePost.id]);
+		assert.deepEqual(allPosts[0].contents.map(content => content.id), [newestAttachment.id, newestBody.id]);
+	});
+
 	it('isReplyForbidden should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
@@ -80,9 +273,10 @@ describe("group", function () {
 			assert.equal(e.toString().includes("incorrect_name"), true);
 		}
 		const group2 = await app.ms.group.createGroup(newUser.id, {name: 'test2', title: 'Test2'});
+		const newUserContentRef = {manifestStorageId: postContent.manifestStorageId, view: ContentView.Contents};
 
 		await app.ms.group.createPost(newUser.id, {
-			contents: [{id: postContent.id, view: ContentView.Contents}],
+			contents: [newUserContentRef],
 			replyToId: testPost.id,
 			groupId: group2.id,
 			status: PostStatus.Published
@@ -92,7 +286,7 @@ describe("group", function () {
 
 		try {
 			await app.ms.group.createPost(newUser.id, {
-				contents: [{id: postContent.id, view: ContentView.Contents}],
+				contents: [newUserContentRef],
 				replyToId: testPost.id,
 				groupId: group2.id,
 				status: PostStatus.Published
@@ -105,7 +299,7 @@ describe("group", function () {
 		await app.ms.group.updatePost(testUser.id, testPost.id, {isReplyForbidden: false});
 
 		await app.ms.group.createPost(newUser.id, {
-			contents: [{id: postContent.id, view: ContentView.Contents}],
+			contents: [newUserContentRef],
 			replyToId: testPost.id,
 			groupId: group2.id,
 			status: PostStatus.Published
@@ -114,7 +308,7 @@ describe("group", function () {
 		await app.ms.group.updateGroup(testUser.id, testGroup.id, {isReplyForbidden: false});
 
 		await app.ms.group.createPost(newUser.id, {
-			contents: [{id: postContent.id, view: ContentView.Contents}],
+			contents: [newUserContentRef],
 			replyToId: testPost.id,
 			groupId: group2.id,
 			status: PostStatus.Published
@@ -124,7 +318,7 @@ describe("group", function () {
 
 		try {
 			await app.ms.group.createPost(newUser.id, {
-				contents: [{id: postContent.id, view: ContentView.Contents}],
+				contents: [newUserContentRef],
 				replyToId: testPost.id,
 				groupId: group2.id,
 				status: PostStatus.Published

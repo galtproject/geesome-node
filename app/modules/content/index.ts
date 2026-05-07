@@ -27,7 +27,7 @@ import AbstractDriver from "../drivers/abstractDriver.js";
 import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
 import {rtrim} from "telegram/Utils";
-const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, merge, last, startsWith, trimStart} = _;
+const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, isUndefined, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
 
@@ -807,22 +807,48 @@ function getModule(app: IGeesomeApp) {
 			return uploadDriver.processBySource(sourceLink, params);
 		}
 
-		async createContentByRemoteStorageId(userId, manifestStorageId, options: { userApiKeyId? } = {}) {
-			let dbContent = await app.ms.database.getContentByManifestId(manifestStorageId);
+		async createContentByRemoteStorageId(userId, manifestStorageId, options: { groupId?, userApiKeyId? } = {}) {
+			let dbContent = userId === null || isUndefined(userId)
+				? await app.ms.database.getContentByManifestId(manifestStorageId)
+				: await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId);
 			if (dbContent) {
 				return dbContent;
 			}
 
 			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'content');
 			contentObject.isRemote = true;
-			return this.createContentByObject(userId, manifestStorageId, options);
+			contentObject.manifestStorageId = contentObject.manifestStorageId || manifestStorageId;
+			return this.createContentByObject(userId, contentObject, options);
 		}
 
-		async createContentByObject(userId, contentObject, options?: { userApiKeyId? }) {
-			const storageId = contentObject.manifestStaticStorageId || contentObject.manifestStorageId;
-			const dbContent = await app.ms.database.getContentByStorageAndUserId(storageId, userId);
-			if (dbContent) {
-				return dbContent;
+		async createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }) {
+			if (userId !== null && !isUndefined(userId)) {
+				if (contentObject.manifestStorageId) {
+					const dbContent = await app.ms.database.getContentByManifestAndUserId(contentObject.manifestStorageId, userId);
+					if (dbContent) {
+						return dbContent;
+					}
+				}
+				if (contentObject.storageId) {
+					const dbContent = await app.ms.database.getContentByStorageAndUserId(contentObject.storageId, userId);
+					if (dbContent) {
+						return dbContent;
+					}
+				}
+			}
+			if (userId === null || isUndefined(userId)) {
+				if (contentObject.manifestStorageId) {
+					const dbContent = await app.ms.database.getContentByManifestId(contentObject.manifestStorageId);
+					if (dbContent) {
+						return dbContent;
+					}
+				}
+				if (contentObject.storageId) {
+					const dbContent = await app.ms.database.getSharedContentByStorageId(contentObject.storageId);
+					if (dbContent) {
+						return dbContent;
+					}
+				}
 			}
 			return this.addContent(userId, contentObject, options);
 		}
@@ -862,11 +888,13 @@ function getModule(app: IGeesomeApp) {
 			let range = req.headers['range'];
 			if (!range) {
 				let storageId = dataPath;
-				let content = await app.ms.database.getContentByStorageId(storageId, true);
+				// Shared-metadata read (A1): deterministic tie-break across same-storageId rows
+				// owned by different users. Public serving must not depend on which user's row was
+				// inserted first into the heap.
+				let content = await app.ms.database.getSharedContentByStorageId(storageId, {includePreviews: true});
 				if (!content && dataPath.split('/').length > 1) {
 					storageId = dataPath.split('/')[0];
-					console.log('getContentByStorageId', storageId);
-					content = await app.ms.database.getContentByStorageId(storageId, true);
+					content = await app.ms.database.getSharedContentByStorageId(storageId, {includePreviews: true});
 				}
 				console.log('content', content ? content.toJSON() : content);
 				if (!content) {
@@ -893,7 +921,7 @@ function getModule(app: IGeesomeApp) {
 				if (!fileStat) {
 					return res.send(404);
 				}
-				content = await app.ms.database.getContentByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), true);
+				content = await app.ms.database.getSharedContentByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
 				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false);
 				console.log('headers', headers);
 				res.writeHead(200, headers);
@@ -968,7 +996,8 @@ function getModule(app: IGeesomeApp) {
 		async getContentHead(req, res, hash) {
 			app.ms.api.setDefaultHeaders(res);
 			const dataPath = await this.getDataPath(hash);
-			const content = await app.ms.database.getContentByStorageId(dataPath, true);
+			// A1 shared-metadata read for public HEAD requests.
+			const content = await app.ms.database.getSharedContentByStorageId(dataPath, {includePreviews: true});
 			let headersObj = {};
 			if (content) {
 				headersObj = await this.getIpfsHashHeadersObj(content, dataPath, null, true);

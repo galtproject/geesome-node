@@ -74,20 +74,32 @@ function getModule(app: IGeesomeApp, models) {
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
 			const {limit, offset, sortBy, sortDir} = listParams;
+			// Keep the category/group pivot join in the page-selection query, then hydrate only
+			// the bounded post id set. This mirrors group timelines and avoids making content
+			// attachment joins participate in category feed pagination.
+			const pagePosts = await models.Post.findAll({
+				attributes: Array.from(new Set(['id', sortBy])),
+				where: app.ms.group.getPostsWhere(filters),
+				include: [
+					{
+						association: 'group', required: true,
+						attributes: ['id'],
+						include: [{
+							association: 'categories',
+							attributes: [],
+							through: {attributes: []},
+							where: {id: categoryId},
+							required: true
+						}]
+					}
+				],
+				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
+				limit,
+				offset
+			});
+
 			return {
-				list: await models.Post.findAll({
-					where: app.ms.group.getPostsWhere(filters),
-					include: [
-						{association: 'contents'},
-						{
-							association: 'group', required: true,
-							include: [{association: 'categories', where: {id: categoryId}, required: true}]
-						}
-					],
-					order: [[sortBy, sortDir.toUpperCase()]],
-					limit,
-					offset
-				}),
+				list: await app.ms.group.getHydratedPostListByIds(pagePosts.map(post => post.id), {includeGroup: true}),
 				total: await this.getCategoryPostsCount(categoryId, filters)
 			};
 		}
@@ -396,4 +408,3 @@ function getModule(app: IGeesomeApp, models) {
 	}
 	return new GroupCategoryModule();
 }
-

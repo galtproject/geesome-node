@@ -1,5 +1,6 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeGroupModule from "./interface.js";
+import helpers from "../../helpers.js";
 
 export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
@@ -422,7 +423,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiInterface (./interface.ts) {IPostApiListResponse} apiSuccess
      */
     app.ms.api.onGet('group/:groupId/posts', async (req, res) => {
-        res.send(await groupModule.getGroupPosts(req.params.groupId, req.query, req.query));
+        res.send(await groupModule.getGroupPosts(req.params.groupId, helpers.sanitizePublicPostFilters(req.query), req.query));
     });
 
     /**

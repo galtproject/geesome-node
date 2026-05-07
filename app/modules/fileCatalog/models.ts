@@ -52,6 +52,8 @@ export default async function (sequelize, appModels) {
 			// { fields: ['tokensAddress'] },
 			// { fields: ['parentItemId', 'userId', 'name'], unique: true, where: { isDeleted: false } },
 			// { fields: ['userId', 'name'], unique: true, where: { parentItemId: null, isDeleted: false } }
+			// Scalability review slice 9 (matched by 20260506000001-add-content-and-quota-indexes.cjs):
+			{name: 'file_catalog_items_content_idx', fields: ['contentId']}
 		]
 	} as any);
 
