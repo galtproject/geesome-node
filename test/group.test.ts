@@ -130,6 +130,35 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getPostPure(replyPost.id)).isDeleted, true);
 	});
 
+	it('reconciles reply counters when published replies become drafts', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const parentContent = await app.ms.content.saveData(testUser.id, 'status parent post', null, {
+			mimeType: 'text/markdown'
+		});
+		const replyContent = await app.ms.content.saveData(testUser.id, 'status reply post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const parentPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: parentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const replyPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: replyContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 1);
+
+		await app.ms.group.updatePost(testUser.id, replyPost.id, {status: PostStatus.Draft});
+
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 0);
+	});
+
 	it('removes deleted posts from regenerated group manifest trie', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
@@ -162,6 +191,70 @@ describe("group", function () {
 		const manifestAfterDelete = await app.ms.storage.getObject(groupAfterDelete.manifestStorageId);
 		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, firstPost.localId), undefined);
 		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, secondPost.localId), secondPost.manifestStorageId);
+	});
+
+	it('removes unpublished posts from regenerated group manifest trie', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first status manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'second status manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const firstPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		const groupBeforeUnpublish = await app.ms.group.getGroup(testGroup.id);
+		const manifestBeforeUnpublish = await app.ms.storage.getObject(groupBeforeUnpublish.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestBeforeUnpublish.posts, firstPost.localId), firstPost.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestBeforeUnpublish.posts, secondPost.localId), secondPost.manifestStorageId);
+		assert.equal(groupBeforeUnpublish.availablePostsCount, 2);
+
+		await app.ms.group.updatePost(testUser.id, firstPost.id, {status: PostStatus.Draft});
+
+		const groupAfterUnpublish = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterUnpublish = await app.ms.storage.getObject(groupAfterUnpublish.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfterUnpublish.posts, firstPost.localId), undefined);
+		assert.equal(trieHelper.getNode(manifestAfterUnpublish.posts, secondPost.localId), secondPost.manifestStorageId);
+		assert.equal(groupAfterUnpublish.availablePostsCount, 1);
+		assert.equal(Number(groupAfterUnpublish.size), Number(secondContent.size));
+	});
+
+	it('scans changed group manifest refs in cursor batches', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const posts = [];
+		for (const index of [0, 1, 2, 3]) {
+			const content = await app.ms.content.saveData(testUser.id, `batched manifest post ${index}`, null, {
+				mimeType: 'text/markdown'
+			});
+			posts.push(await app.ms.group.createPost(testUser.id, {
+				contents: [{id: content.id, view: ContentView.Contents}],
+				groupId: testGroup.id,
+				status: PostStatus.Published
+			}));
+		}
+
+		const groupBeforeDelete = await app.ms.group.getGroup(testGroup.id);
+		await app.ms.group.updatePosts([posts[1].id, posts[3].id], {isDeleted: true});
+
+		const manifest = await app.ms.entityJsonManifest.generateManifest('group', groupBeforeDelete, {
+			postRefsBatchSize: 1
+		});
+		assert.equal(trieHelper.getNode(manifest.posts, posts[0].localId), posts[0].manifestStorageId);
+		assert.equal(trieHelper.getNode(manifest.posts, posts[1].localId), undefined);
+		assert.equal(trieHelper.getNode(manifest.posts, posts[2].localId), posts[2].manifestStorageId);
+		assert.equal(trieHelper.getNode(manifest.posts, posts[3].localId), undefined);
 	});
 
 	it('hydrates timeline pages after id-only page selection', async () => {

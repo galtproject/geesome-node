@@ -432,10 +432,25 @@ function getModule(app: IGeesomeApp, models) {
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'updatedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = this.getGroupPostsWhere(groupId, filters);
+			if (!isUndefined(filters.cursorUpdatedAt) && !isUndefined(filters.cursorId)) {
+				const cursorAt = filters.cursorUpdatedAt instanceof Date
+					? filters.cursorUpdatedAt
+					: new Date(filters.cursorUpdatedAt);
+				const cursorClause = {
+					[Op.or]: [
+						{updatedAt: {[Op.gt]: cursorAt}},
+						{updatedAt: cursorAt, id: {[Op.gt]: parseInt(filters.cursorId, 10)}}
+					]
+				};
+				where[Op.and] = Array.isArray(where[Op.and])
+					? [...where[Op.and], cursorClause]
+					: [cursorClause];
+			}
 
 			return models.Post.findAll({
 				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
-				where: this.getGroupPostsWhere(groupId, filters),
+				where,
 				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
 				limit,
 				offset
@@ -771,15 +786,27 @@ function getModule(app: IGeesomeApp, models) {
 			const contentsData = await this.getContentsForPost(userId, postData.contents);
 			delete postData.contents;
 
-			// B4: drafts are DB-only. Only run manifest/static rebuild when the merged status is Published.
-			// (Note: Published -> Draft transition does not yet tombstone the post in the group manifest;
-			// see the deletes/tombstones P1 finding for the matching follow-up.)
+			// B4: drafts are DB-only. Only run post manifest/static rebuild when the merged status is Published.
+			// Published rows that leave the public lifecycle still need the group manifest regenerated so
+			// its inherited posts trie drops the old local ID.
 			const mergedStatus = !isUndefined(postData.status) ? postData.status : oldPost.status;
 			const wasPublished = oldPost.status === PostStatus.Published && !oldPost.isDeleted;
 			const isPublished = mergedStatus === PostStatus.Published;
 			const oldSize = oldPost.size || 0;
 			postData.size = contentsData ? sumBy(contentsData, contentSize) : await this.getPostSizeSum(postId);
 			const newSize = postData.size || 0;
+			const newReplyToId = !isUndefined(postData.replyToId) ? postData.replyToId : oldPost.replyToId;
+			const newRepostOfId = !isUndefined(postData.repostOfId) ? postData.repostOfId : oldPost.repostOfId;
+			const replyToPostIds = uniqBy(
+				[oldPost.replyToId, newReplyToId].filter(id => !!id).map(id => ({id})),
+				'id'
+			).map(p => p.id);
+			const repostOfPostIds = uniqBy(
+				[oldPost.repostOfId, newRepostOfId].filter(id => !!id).map(id => ({id})),
+				'id'
+			).map(p => p.id);
+			const shouldReconcileReplyCounters = wasPublished !== isPublished || Number(oldPost.replyToId || 0) !== Number(newReplyToId || 0);
+			const shouldReconcileRepostCounters = wasPublished !== isPublished || Number(oldPost.repostOfId || 0) !== Number(newRepostOfId || 0);
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
 				if (isPublished && !oldPost.localId) {
@@ -799,9 +826,32 @@ function getModule(app: IGeesomeApp, models) {
 				} else if (isPublished && newSize !== oldSize) {
 					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize - oldSize}, {transaction});
 				}
+
+				if (shouldReconcileReplyCounters) {
+					await pIteration.forEach(replyToPostIds, async (replyToId) => {
+						const repliesCount = await models.Post.count({
+							where: this.getPostsWhere({replyToId}),
+							transaction
+						});
+						await models.Post.update({repliesCount}, {where: {id: replyToId}, transaction});
+					});
+				}
+
+				if (shouldReconcileRepostCounters) {
+					await pIteration.forEach(repostOfPostIds, async (repostOfId) => {
+						const repostsCount = await models.Post.count({
+							where: {repostOfId, isDeleted: false, status: PostStatus.Published},
+							transaction
+						});
+						await models.Post.update({repostsCount}, {where: {id: repostOfId}, transaction});
+					});
+				}
 			});
 			if (isPublished) {
 				return this.updatePostManifest(userId, postId);
+			}
+			if (wasPublished) {
+				await this.updateGroupManifest(userId, oldPost.groupId);
 			}
 			return this.getPostPure(postId);
 		}
