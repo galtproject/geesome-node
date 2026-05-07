@@ -786,9 +786,9 @@ function getModule(app: IGeesomeApp, models) {
 			const contentsData = await this.getContentsForPost(userId, postData.contents);
 			delete postData.contents;
 
-			// B4: drafts are DB-only. Only run manifest/static rebuild when the merged status is Published.
-			// (Note: Published -> Draft transition does not yet tombstone the post in the group manifest;
-			// see the deletes/tombstones P1 finding for the matching follow-up.)
+			// B4: drafts are DB-only. Only run post manifest/static rebuild when the merged status is Published.
+			// Published rows that leave the public lifecycle still need the group manifest regenerated so
+			// its inherited posts trie drops the old local ID.
 			const mergedStatus = !isUndefined(postData.status) ? postData.status : oldPost.status;
 			const wasPublished = oldPost.status === PostStatus.Published && !oldPost.isDeleted;
 			const isPublished = mergedStatus === PostStatus.Published;
@@ -817,6 +817,9 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			if (isPublished) {
 				return this.updatePostManifest(userId, postId);
+			}
+			if (wasPublished) {
+				await this.updateGroupManifest(userId, oldPost.groupId);
 			}
 			return this.getPostPure(postId);
 		}

@@ -99,10 +99,12 @@ function getModule(app: IGeesomeApp) {
 
       const filters: any = {status: PostStatus.Published, isDeleted: false};
       const deletedFilters: any = {status: PostStatus.Published, isDeleted: true};
+      const unpublishedFilters: any = {statusNe: PostStatus.Published};
       if (groupData.manifestStorageId) {
         const lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
         filters['updatedAtGte'] = new Date(lastGroupManifest.updatedAt);
         deletedFilters['updatedAtGte'] = filters['updatedAtGte'];
+        unpublishedFilters['updatedAtGte'] = filters['updatedAtGte'];
         groupManifest.posts = lastGroupManifest.posts || {};
       }
 
@@ -130,6 +132,9 @@ function getModule(app: IGeesomeApp) {
 
       if (groupData.manifestStorageId) {
         await this.forEachGroupManifestPostRef(groupData.id, deletedFilters, options, (post: IPost) => {
+          unsetTreeNode(groupManifest.posts, post.localId);
+        });
+        await this.forEachGroupManifestPostRef(groupData.id, unpublishedFilters, options, (post: IPost) => {
           unsetTreeNode(groupManifest.posts, post.localId);
         });
       }

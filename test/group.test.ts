@@ -164,6 +164,43 @@ describe("group", function () {
 		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, secondPost.localId), secondPost.manifestStorageId);
 	});
 
+	it('removes unpublished posts from regenerated group manifest trie', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first status manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'second status manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const firstPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		const groupBeforeUnpublish = await app.ms.group.getGroup(testGroup.id);
+		const manifestBeforeUnpublish = await app.ms.storage.getObject(groupBeforeUnpublish.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestBeforeUnpublish.posts, firstPost.localId), firstPost.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestBeforeUnpublish.posts, secondPost.localId), secondPost.manifestStorageId);
+		assert.equal(groupBeforeUnpublish.availablePostsCount, 2);
+
+		await app.ms.group.updatePost(testUser.id, firstPost.id, {status: PostStatus.Draft});
+
+		const groupAfterUnpublish = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterUnpublish = await app.ms.storage.getObject(groupAfterUnpublish.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfterUnpublish.posts, firstPost.localId), undefined);
+		assert.equal(trieHelper.getNode(manifestAfterUnpublish.posts, secondPost.localId), secondPost.manifestStorageId);
+		assert.equal(groupAfterUnpublish.availablePostsCount, 1);
+		assert.equal(Number(groupAfterUnpublish.size), Number(secondContent.size));
+	});
+
 	it('scans changed group manifest refs in cursor batches', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
