@@ -321,7 +321,12 @@ function hotspotRows(): HotspotRow[] {
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map') && has(groupSource, "attributes: ['id']");
   const hasCategoryIdFirstHydration = has(categorySource, 'getHydratedPostListByIds(pagePosts.map') && has(categorySource, "attributes: Array.from(new Set(['id', sortBy]))");
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
-    && has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters');
+    && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
+      || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
+  const hasGroupManifestRefBatches = hasGroupManifestPostRefs
+    && has(manifestSource, 'forEachGroupManifestPostRef')
+    && has(groupSource, 'cursorUpdatedAt')
+    && !has(manifestSource, 'limit: 9999999');
   const hasGroupManifestDeleteUnset = has(manifestSource, 'unsetTreeNode(groupManifest.posts, post.localId)');
   const hasPostWriteTransaction = has(groupSource, 'allocatePostLocalId(postData, transaction)')
     && has(groupSource, 'this.addPost(postData, {transaction})')
@@ -373,16 +378,22 @@ function hotspotRows(): HotspotRow[] {
       area: 'Group manifest generation',
       source: 'app/modules/entityJsonManifest/index.ts',
       hotspot: 'generateGroupManifest',
-      observedPattern: hasGroupManifestPostRefs
+      observedPattern: hasGroupManifestRefBatches
         ? (hasGroupManifestDeleteUnset
-          ? 'loads the previous posts trie, scans changed lightweight post refs and changed deleted refs, then unsets deleted local IDs'
-          : 'loads the previous posts trie and scans changed lightweight post refs')
-        : (has(manifestSource, 'limit: 9999999') ? 'loads effectively all matching group posts' : 'review implementation'),
-      scalabilityRisk: hasGroupManifestPostRefs
-        ? 'content/repost hydration is avoided for manifest refs, but rebuild still materializes large ref windows and rewrites a monolithic manifest'
-        : (has(read('app/modules/group/models/post.ts'), 'posts_group_manifest_cursor_idx')
-          ? 'manifest cursor index exists, but rebuild still materializes large post sets and rewrites a monolithic manifest'
-          : 'manifest rebuilds can become full-table scans and large memory spikes'),
+          ? 'loads the previous posts trie, scans changed/deleted lightweight post refs in (updatedAt,id) cursor batches, then unsets deleted local IDs'
+          : 'loads the previous posts trie and scans changed lightweight post refs in (updatedAt,id) cursor batches')
+        : (hasGroupManifestPostRefs
+          ? (hasGroupManifestDeleteUnset
+            ? 'loads the previous posts trie, scans changed lightweight post refs and changed deleted refs, then unsets deleted local IDs'
+            : 'loads the previous posts trie and scans changed lightweight post refs')
+          : (has(manifestSource, 'limit: 9999999') ? 'loads effectively all matching group posts' : 'review implementation')),
+      scalabilityRisk: hasGroupManifestRefBatches
+        ? 'content/repost hydration and large changed-ref windows are avoided; rebuild still loads/copies the previous posts trie and rewrites a monolithic manifest'
+        : (hasGroupManifestPostRefs
+          ? 'content/repost hydration is avoided for manifest refs, but rebuild still materializes large ref windows and rewrites a monolithic manifest'
+          : (has(read('app/modules/group/models/post.ts'), 'posts_group_manifest_cursor_idx')
+            ? 'manifest cursor index exists, but rebuild still materializes large post sets and rewrites a monolithic manifest'
+            : 'manifest rebuilds can become full-table scans and large memory spikes')),
     },
     {
       area: 'Post visibility',
