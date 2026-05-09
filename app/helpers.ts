@@ -20,6 +20,7 @@ type ListCursorOptions = {
 	cursorValueFilter?: string;
 	cursorIdFilter?: string;
 	direction?: CursorDirection;
+	orderDir?: string;
 };
 
 type ListCursorState = {
@@ -27,6 +28,7 @@ type ListCursorState = {
 	valueField: string;
 	idField: string;
 	direction: CursorDirection;
+	orderDir?: string;
 	value?: any;
 	id?: number;
 };
@@ -64,6 +66,7 @@ function getCursorOptions(options: ListCursorOptions = {}) {
 		cursorValueFilter: options.cursorValueFilter || 'cursorPublishedAt',
 		cursorIdFilter: options.cursorIdFilter || 'cursorId',
 		direction: options.direction || 'before',
+		orderDir: options.orderDir,
 	};
 }
 
@@ -89,6 +92,7 @@ function getListCursorState(filters: any = {}, options: ListCursorOptions = {}):
 		valueField: cursorOptions.valueField,
 		idField: cursorOptions.idField,
 		direction: cursorOptions.direction as CursorDirection,
+		orderDir: cursorOptions.orderDir,
 	};
 	if (!hasCursor) {
 		return state;
@@ -114,10 +118,12 @@ function getCursorComparisonOperator(direction: CursorDirection) {
 }
 
 function getCursorListOrder(cursor: ListCursorState, listParams: IListParams): any[] {
+	const sortDir = listParams.sortDir.toUpperCase();
 	if (cursor.hasCursor) {
-		return [[cursor.valueField, 'DESC'], [cursor.idField, 'DESC']];
+		const cursorSortDir = cursor.orderDir ? sanitizeSortDir(cursor.orderDir, sortDir) : 'DESC';
+		return [[cursor.valueField, cursorSortDir], [cursor.idField, cursorSortDir]];
 	}
-	return [[listParams.sortBy, listParams.sortDir.toUpperCase()], [cursor.idField, listParams.sortDir.toUpperCase()]];
+	return [[listParams.sortBy, sortDir], [cursor.idField, sortDir]];
 }
 
 function getCursorListOffset(cursor: ListCursorState, offset) {

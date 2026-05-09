@@ -84,6 +84,8 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
+	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
+
 	getGroupManifestPostRefs(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
 	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt, readPostId?}>;
