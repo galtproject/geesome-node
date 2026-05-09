@@ -950,8 +950,8 @@ function getModule(app: IGeesomeApp) {
 				});
 			}
 
-			console.log('getContentByStorageId', dataPath);
-			const content = await this.getContentByStorageId(dataPath);
+			console.log('getSharedContentByStorageId', dataPath);
+			const content = await app.ms.database.getSharedContentByStorageId(dataPath, {includePreviews: true});
 			if (content && content.mimeType === ContentMimeType.Directory) {
 				// console.log('content.mimeType', dataPath, content.mimeType);
 				dataPath += '/index.html';

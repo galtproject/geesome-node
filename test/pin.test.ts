@@ -98,8 +98,7 @@ describe("pin", function () {
 			service: 'pinata',
 			apiKey: '111',
 			secretApiKey: '222',
-			isEncrypted: true,
-			groupId: testGroup.id
+			isEncrypted: true
 		});
 
 		gotAccount = await pins.getUserAccount(testUser.id, 'pinata-1');
