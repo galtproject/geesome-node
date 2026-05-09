@@ -114,6 +114,22 @@ describe("groupCategory", function () {
 
 		const secondPage = await groupCategory.getCategoryPosts(category.id, {}, {limit: 2, offset: 2});
 		assert.deepEqual(secondPage.list.map(post => post.id), [olderPost.id]);
+
+		const firstCursorPage = await groupCategory.getCategoryPosts(category.id, {
+			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
+			cursorId: '999999999'
+		}, {limit: 2});
+		assert.equal(firstCursorPage.total, null);
+		assert.deepEqual(firstCursorPage.list.map(post => post.id), [newestPost.id, middlePost.id]);
+		assert(firstCursorPage.nextCursor);
+
+		const secondCursorPage = await groupCategory.getCategoryPosts(category.id, {
+			cursorPublishedAt: firstCursorPage.nextCursor.publishedAt,
+			cursorId: firstCursorPage.nextCursor.id
+		}, {limit: 2});
+		assert.equal(secondCursorPage.total, null);
+		assert.equal(secondCursorPage.nextCursor, null);
+		assert.deepEqual(secondCursorPage.list.map(post => post.id), [olderPost.id]);
 	});
 
 	it('categories should work properly', async () => {

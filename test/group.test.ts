@@ -81,6 +81,33 @@ describe("group", function () {
 		assert.notEqual(gotPost.contents[0].id, ownerContent.id);
 	});
 
+	it('imports remote group media into actor-scoped content rows', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const ownerAvatar = await app.ms.content.saveData(testUser.id, 'private avatar', null, {
+			mimeType: 'text/markdown'
+		});
+		const avatarObject = await app.ms.entityJsonManifest.manifestIdToDbObject(ownerAvatar.manifestStorageId, 'content');
+		const newUser = await app.registerUser({
+			email: 'remote-media@user.com',
+			name: 'remote-media',
+			password: 'remote-media',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		const importedGroup = await app.ms.group.createGroupByObject(newUser.id, {
+			name: 'remote-media-group',
+			title: 'Remote media group',
+			isRemote: true,
+			avatarImage: avatarObject
+		});
+		const gotGroup = await app.ms.group.getGroup(importedGroup.id);
+
+		assert.equal(gotGroup.avatarImage.userId, newUser.id);
+		assert.equal(gotGroup.avatarImage.storageId, ownerAvatar.storageId);
+		assert.notEqual(gotGroup.avatarImage.id, ownerAvatar.id);
+		assert.equal(gotGroup.coverImageId, null);
+	});
+
 	it('allocates group local ids with a row lock under concurrency', async () => {
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
@@ -332,6 +359,129 @@ describe("group", function () {
 		assert.deepEqual(allPosts[0].contents.map(content => content.id), [newestAttachment.id, newestBody.id]);
 	});
 
+	it('returns lightweight group post refs without hydrating contents', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'lightweight ref body', null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: content.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-01-04T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const refs = await app.ms.group.getGroupPostRefs(testGroup.id, {}, {
+			limit: 1,
+			sortBy: 'publishedAt'
+		});
+		const refJson = refs[0].toJSON();
+
+		assert.equal(refs.length, 1);
+		assert.equal(refJson.id, post.id);
+		assert.equal(refJson.localId, post.localId);
+		assert.deepEqual(Object.keys(refJson).sort(), ['id', 'localId', 'publishedAt'].sort());
+	});
+
+	it('iterates lightweight group post refs in cursor batches', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const createdPosts = [];
+		for (const publishedAt of [
+			'2026-01-04T00:00:00.000Z',
+			'2026-01-01T00:00:00.000Z',
+			'2026-01-03T00:00:00.000Z',
+			'2026-01-05T00:00:00.000Z',
+			'2026-01-02T00:00:00.000Z'
+		]) {
+			createdPosts.push(await app.ms.group.createPost(testUser.id, {
+				groupId: testGroup.id,
+				publishedAt: new Date(publishedAt),
+				status: PostStatus.Published
+			}));
+		}
+
+		const batchSizes = [];
+		const seenPostIds = [];
+		await app.ms.group.forEachGroupPostRefBatch(testGroup.id, {
+			batchLimit: 2,
+			listParams: {
+				sortBy: 'publishedAt',
+				sortDir: 'ASC'
+			},
+			attributes: ['id', 'publishedAt'],
+			cursor: {
+				cursorValueFilter: 'testCursorPublishedAt',
+				cursorIdFilter: 'testCursorId',
+				direction: 'after',
+				orderDir: 'ASC'
+			}
+		}, async ({postRefs}) => {
+			batchSizes.push(postRefs.length);
+			postRefs.forEach(postRef => {
+				const refJson = postRef.toJSON();
+				assert.deepEqual(Object.keys(refJson).sort(), ['id', 'publishedAt'].sort());
+				seenPostIds.push(postRef.id);
+			});
+		});
+		const expectedPostIds = createdPosts
+			.sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime() || a.id - b.id)
+			.map(post => post.id);
+
+		assert.deepEqual(batchSizes, [2, 2, 1]);
+		assert.deepEqual(seenPostIds, expectedPostIds);
+	});
+
+	it('reverses social import local ids from cursor-batched refs', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const socNetImport = (app.ms as any).socNetImport;
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			accountId: 1,
+			socNet: 'test',
+			groupId: testGroup.id,
+			channelId: 'reverse-local-ids',
+			title: 'Reverse Local IDs'
+		});
+
+		for (const [index, publishedAt] of [
+			'2026-01-05T00:00:00.000Z',
+			'2026-01-04T00:00:00.000Z',
+			'2026-01-03T00:00:00.000Z',
+			'2026-01-02T00:00:00.000Z',
+			'2026-01-01T00:00:00.000Z'
+		].entries()) {
+			const post = await app.ms.group.createPost(testUser.id, {
+				groupId: testGroup.id,
+				publishedAt: new Date(publishedAt),
+				status: PostStatus.Published
+			});
+			await socNetImport.storeMessage(null, {
+				userId: testUser.id,
+				dbChannelId: channel.id,
+				msgId: String(index + 1),
+				postId: post.id,
+				timestamp: Math.floor(new Date(publishedAt).getTime() / 1000),
+				isNeedToReverse: true
+			});
+		}
+
+		await socNetImport.reversePostsLocalIds(testUser.id, channel.id);
+
+		const postRefs = await app.ms.group.getGroupPostRefs(testGroup.id, {}, {
+			sortBy: 'publishedAt',
+			sortDir: 'ASC',
+			limit: 10
+		}, {
+			attributes: ['id', 'localId', 'publishedAt']
+		});
+
+		assert.deepEqual(postRefs.map(post => post.localId), [1, 2, 3, 4, 5]);
+		assert.equal(await socNetImport.getDbChannelStartReverseMessage(channel.id), null);
+	});
+
 	it('isReplyForbidden should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
@@ -546,6 +696,42 @@ describe("group", function () {
 		await app.ms.group.addOrUpdateGroupRead(testUser.id, {
 			groupId: testGroup.id,
 			readAt: post.publishedAt
+		});
+
+		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
+	});
+
+	it('uses readPostId for unread posts with the same publishedAt timestamp', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const publishedAt = new Date('2026-05-09T12:00:00.000Z');
+		const content = await app.ms.content.saveData(testUser.id, 'same timestamp unread cursor', null, {
+			mimeType: 'text/markdown'
+		});
+		const postData = {
+			contents: [{manifestStorageId: content.manifestStorageId, view: ContentView.Attachment}],
+			groupId: testGroup.id,
+			publishedAt,
+			status: PostStatus.Published
+		};
+
+		const olderSameTimePost = await app.ms.group.createPost(testUser.id, postData);
+		const newerSameTimePost = await app.ms.group.createPost(testUser.id, postData);
+
+		await app.ms.group.addOrUpdateGroupRead(testUser.id, {
+			groupId: testGroup.id,
+			readAt: publishedAt,
+			readPostId: olderSameTimePost.id
+		});
+		const unreadAfterOlderCursor = await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id);
+
+		assert.equal(unreadAfterOlderCursor.count, 1);
+		assert.equal(unreadAfterOlderCursor.readPostId, olderSameTimePost.id);
+
+		await app.ms.group.addOrUpdateGroupRead(testUser.id, {
+			groupId: testGroup.id,
+			readAt: publishedAt,
+			readPostId: newerSameTimePost.id
 		});
 
 		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);

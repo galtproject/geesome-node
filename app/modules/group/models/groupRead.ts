@@ -18,6 +18,9 @@ export default async function (sequelize: Sequelize, models) {
     readAt: {
       type: DataTypes.DATE
     },
+    readPostId: {
+      type: DataTypes.INTEGER
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

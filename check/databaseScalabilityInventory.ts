@@ -41,9 +41,11 @@ function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const contentSource = read('app/modules/database/models/content.ts');
+  const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
   const groupReadSource = read('app/modules/group/models/groupRead.ts');
   const socNetImportSource = read('app/modules/socNetImport/models.ts');
+  const socNetImportIndexSource = read('app/modules/socNetImport/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/models.ts');
   const groupCategorySource = read('app/modules/groupCategory/models/groupCategory.ts');
   const groupSectionSource = read('app/modules/groupCategory/models/groupSection.ts');
@@ -129,6 +131,19 @@ function modelRows(): ModelRow[] {
         hasContentUserStorageUnique
           ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
           : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
+      ],
+    },
+    {
+      area: 'File catalog',
+      source: 'app/modules/fileCatalog/models.ts',
+      model: 'FileCatalogItem',
+      indexes: [
+        has(fileCatalogModelSource, 'file_catalog_items_content_idx') ? 'contentId reverse index' : 'missing contentId reverse index',
+      ],
+      notes: [
+        has(fileCatalogModelSource, 'file_catalog_items_content_idx')
+          ? 'content delete/reference checks have the reverse content lookup index; folder-tree uniqueness remains a separate cleanup-backed constraint'
+          : 'content delete/reference checks need a reverse content lookup index before large libraries',
       ],
     },
     {
@@ -241,9 +256,11 @@ function modelRows(): ModelRow[] {
         has(groupReadSource, "fields: ['userId', 'groupId'") ? 'userId,groupId unique' : 'review',
       ],
       notes: [
-        has(postSource, 'posts_group_timeline_idx')
-          ? 'supports one read cursor per user/group; count is indexed but cursor is timestamp-only'
-          : 'supports one read cursor per user/group; unread count still depends on Post timeline index',
+        has(groupReadSource, 'readPostId') && has(postSource, 'posts_group_timeline_idx')
+          ? 'supports one read cursor per user/group; unread count can use readAt plus readPostId tie-breaker'
+          : (has(postSource, 'posts_group_timeline_idx')
+            ? 'supports one read cursor per user/group; count is indexed but cursor is timestamp-only'
+            : 'supports one read cursor per user/group; unread count still depends on Post timeline index'),
       ],
     },
     {
@@ -256,7 +273,9 @@ function modelRows(): ModelRow[] {
           : 'review source indexes',
       ],
       notes: [
-        'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries',
+        has(socNetImportIndexSource, 'getGroupPostRefs(dbChannel.groupId') || has(socNetImportIndexSource, 'forEachGroupPostRefBatch(dbChannel.groupId')
+          ? 'import duplicate checks are mostly indexed; reversal paths use lightweight post refs instead of hydrated timeline rows'
+          : 'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries',
       ],
     },
     {
@@ -298,12 +317,16 @@ function modelRows(): ModelRow[] {
       model: 'Tag / TaggedPosts / Mention / AutoTag',
       indexes: [
         has(tagSource, "fields: ['name'") ? 'tag name index' : 'no explicit tag indexes',
-        has(tagSource, 'TaggedPosts') ? 'taggedPosts through table defined' : 'taggedPosts not found',
+        has(tagSource, 'tagged_posts_post_tag_idx') && has(tagSource, 'tagged_posts_tag_post_idx')
+          ? 'taggedPosts post/tag indexes'
+          : has(tagSource, 'TaggedPosts') ? 'taggedPosts through table defined' : 'taggedPosts not found',
         has(mentionSource, "fields: ['sourcePostId'") ? 'mention FK indexes' : 'no explicit mention lookup indexes',
         has(autoTagSource, "fields: ['groupId'") ? 'autoTag group index' : 'no explicit autoTag lookup indexes',
       ],
       notes: [
-        'quiet today, but tag/mention/federation filters need post/tag and source/target indexes before large feeds',
+        has(tagSource, 'tagged_posts_tag_post_idx') && has(mentionSource, 'mentions_target_group_idx') && has(autoTagSource, 'auto_tags_result_tag_idx')
+          ? 'tag/mention/auto-tag lookup indexes are present; feed cursor/count policy still needs review before large tag surfaces'
+          : 'quiet today, but tag/mention/federation filters need post/tag and source/target indexes before large feeds',
       ],
     },
   ];
@@ -326,14 +349,34 @@ function hotspotRows(): HotspotRow[] {
   const helpersSource = read('app/helpers.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map') && has(groupSource, "attributes: ['id']");
-  const hasCategoryIdFirstHydration = has(categorySource, 'getHydratedPostListByIds(pagePosts.map') && has(categorySource, "attributes: Array.from(new Set(['id', sortBy]))");
+  const hasCategoryIdFirstHydration = has(categorySource, 'getHydratedPostListByIds(pagePosts.map')
+    && has(categorySource, "helpers.getCursorListAttributes(['id'], cursor, sortBy)");
+  const hasCategoryCursor = has(categorySource, 'helpers.getListCursorState(filters)')
+    && has(categorySource, 'helpers.getNextListCursor(cursor, pagePosts, limit)')
+    && has(categorySource, 'total: cursor.hasCursor ? null');
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
+  const hasSocialImportPostRefBatches = has(importSource, 'forEachGroupPostRefBatch(dbChannel.groupId')
+    && has(importSource, 'reverseLocalIdBatchLimit')
+    && has(groupSource, 'forEachGroupPostRefBatch')
+    && !has(importSource, 'limit: 10000');
+  const hasSocialImportPostRefs = (has(importSource, 'getGroupPostRefs(dbChannel.groupId') || hasSocialImportPostRefBatches)
+    && has(importSource, 'idGte: startReverseMessage.postId');
   const hasGroupManifestRefBatches = hasGroupManifestPostRefs
     && has(manifestSource, 'forEachGroupManifestPostRef')
     && has(groupSource, 'cursorUpdatedAt')
     && !has(manifestSource, 'limit: 9999999');
+  const hasGeneratedOutputPostBatchHelper = has(groupSource, 'forEachHydratedGroupPostBatch')
+    && has(groupSource, 'getHydratedGroupPostBatch')
+    && has(groupSource, 'getGroupPostRefs(groupId')
+    && has(groupSource, 'getHydratedPostListByIds');
+  const hasStaticSitePostRefBatches = hasGeneratedOutputPostBatchHelper
+    && has(staticSiteSource, 'forEachHydratedGroupPostBatch(entityId')
+    && has(staticSiteSource, 'generatedGroupPostBatchLimit');
+  const hasRssPostRefs = hasGeneratedOutputPostBatchHelper
+    && has(rssSource, 'forEachHydratedGroupPostBatch(groupId')
+    && has(rssSource, 'rssPostBatchLimit');
   const hasGroupManifestDeleteUnset = has(manifestSource, 'unsetTreeNode(groupManifest.posts, post.localId)');
   const hasGroupManifestStatusUnset = has(manifestSource, 'statusNe: PostStatus.Published')
     && has(groupSource, 'this.updateGroupManifest(userId, oldPost.groupId)');
@@ -380,10 +423,14 @@ function hotspotRows(): HotspotRow[] {
       area: 'Unread counters',
       source: 'app/modules/group/index.ts',
       hotspot: 'getGroupUnreadPostsData',
-      observedPattern: has(groupSource, 'publishedAtGt: groupRead.readAt') ? 'count posts newer than read cursor' : 'review implementation',
-      scalabilityRisk: has(read('app/modules/group/models/post.ts'), 'posts_group_timeline_idx')
-        ? 'count is backed by the timeline index, but read cursor remains timestamp-only'
-        : 'count needs a composite post index on group/deleted/publishedAt',
+      observedPattern: has(groupSource, 'publishedAfterCursorAt')
+        ? 'count posts newer than the stored (readAt, readPostId) cursor when present, with readAt-only fallback'
+        : (has(groupSource, 'publishedAtGt: groupRead.readAt') ? 'count posts newer than read cursor' : 'review implementation'),
+      scalabilityRisk: has(groupSource, 'publishedAfterCursorAt') && has(read('app/modules/group/models/post.ts'), 'posts_group_timeline_idx')
+        ? 'count is backed by the timeline index and can disambiguate same-timestamp posts; old readAt-only rows still use the legacy timestamp predicate'
+        : (has(read('app/modules/group/models/post.ts'), 'posts_group_timeline_idx')
+          ? 'count is backed by the timeline index, but read cursor remains timestamp-only'
+          : 'count needs a composite post index on group/deleted/publishedAt'),
     },
     {
       area: 'Group manifest generation',
@@ -442,35 +489,55 @@ function hotspotRows(): HotspotRow[] {
       area: 'Static site rendering',
       source: 'app/modules/staticSiteGenerator/index.ts',
       hotspot: 'prepareGroupPostsForRender',
-      observedPattern: has(staticSiteSource, 'limit: 9999') ? 'loads up to 9999 posts with contents before rendering pages' : 'review implementation',
-      scalabilityRisk: 'bounded but still heavy for media-rich groups; should batch IDs and contents',
+      observedPattern: hasStaticSitePostRefBatches
+        ? 'scans lightweight post refs in cursor batches, then hydrates and renders each bounded batch'
+        : (has(staticSiteSource, 'limit: 9999') ? 'loads up to 9999 posts with contents before rendering pages' : 'review implementation'),
+      scalabilityRisk: hasStaticSitePostRefBatches
+        ? 'large exports still materialize final render data and copy content, but DB hydration is page-scoped'
+        : 'bounded but still heavy for media-rich groups; should batch IDs and contents',
     },
     {
       area: 'RSS rendering',
       source: 'app/modules/rss/index.ts',
       hotspot: 'groupRss',
-      observedPattern: has(rssSource, 'limit: 9999') ? 'loads up to 9999 posts with contents for feed generation' : 'review implementation',
-      scalabilityRisk: 'feeds should cap lower or use a feed-specific projection',
+      observedPattern: hasRssPostRefs
+        ? 'scans lightweight post refs in cursor batches, then hydrates selected feed batches'
+        : (has(rssSource, 'limit: 9999') ? 'loads up to 9999 posts with contents for feed generation' : 'review implementation'),
+      scalabilityRisk: hasRssPostRefs
+        ? 'feed generation avoids total counts and the previous 9999-row hydration query; body extraction still reads selected content files'
+        : 'feeds should cap lower or use a feed-specific projection',
     },
     {
       area: 'Social import reversal',
       source: 'app/modules/socNetImport/index.ts',
       hotspot: 'reverse-post import path',
-      observedPattern: has(importSource, 'idGte: startReverseMessage.postId') ? 'uses getGroupPosts with idGte filter' : 'review implementation',
-      scalabilityRisk: hasTimelineIdFirstHydration
+      observedPattern: hasSocialImportPostRefBatches
+        ? 'uses lightweight group post refs in (publishedAt,id) cursor batches'
+        : (hasSocialImportPostRefs
+        ? 'uses lightweight group post refs with idGte filter'
+        : (has(importSource, 'idGte: startReverseMessage.postId') ? 'uses getGroupPosts with idGte filter' : 'review implementation')),
+      scalabilityRisk: hasSocialImportPostRefBatches
+        ? 'reversal avoids content/repost hydration and avoids the previous fixed 10000-row window; localId updates still run row-by-row'
+        : (hasSocialImportPostRefs
+        ? 'reversal avoids content/repost hydration; remaining risk is the large fixed window before true cursor batching'
+        : (hasTimelineIdFirstHydration
         ? 'reversal scans now inherit page-scoped hydration, but should still use purpose-built groupId/id cursor scans when content is not needed'
-        : 'reversal scans should use groupId/id index and avoid content joins until needed',
+        : 'reversal scans should use groupId/id index and avoid content joins until needed')),
     },
     {
       area: 'Category feeds',
       source: 'app/modules/groupCategory/index.ts',
       hotspot: 'getCategoryPosts',
-      observedPattern: hasCategoryIdFirstHydration
+      observedPattern: hasCategoryCursor
+        ? 'joins group/category pivots only for page post ID selection, supports (publishedAt,id) cursor pages, then hydrates contents/group for the bounded page'
+        : (hasCategoryIdFirstHydration
         ? 'joins group/category pivots only for page post ID selection, then hydrates contents/group for the bounded page'
-        : (has(categorySource, "association: 'categories'") ? 'joins posts through group categories with contents include and limit/offset' : 'review implementation'),
-      scalabilityRisk: hasCategoryIdFirstHydration
+        : (has(categorySource, "association: 'categories'") ? 'joins posts through group categories with contents include and limit/offset' : 'review implementation')),
+      scalabilityRisk: hasCategoryCursor
+        ? 'cursor pages skip total counts and avoid large offsets; legacy offset callers still pay count/offset cost'
+        : (hasCategoryIdFirstHydration
         ? 'content joins no longer drive category page selection; pivot indexes are present, while offset/count cost and cursor migration remain open'
-        : 'category feeds inherit timeline pagination/content hydration risks plus pivot-table join costs',
+        : 'category feeds inherit timeline pagination/content hydration risks plus pivot-table join costs'),
     },
     {
       area: 'Content preview serving',

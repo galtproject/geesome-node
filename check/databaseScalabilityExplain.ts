@@ -96,9 +96,11 @@ async function main() {
       replacements: {groupId},
     },
     {
-      name: 'Social-import reverse scan (groupId + idGte)',
-      notes: 'reversePostsLocalIds; expected to use posts_group_id_idx.',
-      sql: `SELECT id, "localId" FROM posts WHERE "groupId" = :groupId AND "id" >= :idGte ORDER BY id LIMIT 1000`,
+      name: 'Social-import reverse scan (groupId + idGte + published cursor)',
+      notes: 'reversePostsLocalIds; expected to use the group timeline index for bounded ref batches.',
+      sql: `SELECT id, "localId", "publishedAt" FROM posts
+              WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published' AND "id" >= :idGte
+              ORDER BY "publishedAt" ASC, id ASC LIMIT 500`,
       replacements: {groupId, idGte: 1},
     },
     {

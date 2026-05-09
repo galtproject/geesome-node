@@ -84,9 +84,17 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
+	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
+
+	forEachGroupPostRefBatch(groupId, options, onBatch): Promise<number>;
+
+	getHydratedGroupPostBatch(groupId, filters?, listParams?: IListParams, options?): Promise<IHydratedGroupPostBatch>;
+
+	forEachHydratedGroupPostBatch(groupId, options, onBatch): Promise<number>;
+
 	getGroupManifestPostRefs(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
-	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt}>;
+	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt, readPostId?}>;
 
 	addOrUpdateGroupRead(userId, groupReadData);
 
@@ -173,7 +181,18 @@ export interface IGroupListResponse {
 
 export interface IPostListResponse {
 	list: IPost[];
-	total: number;
+	total: number | null;
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
+export interface IGroupPostRefBatch {
+	postRefs: IPost[];
+	refCount: number;
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
+export interface IHydratedGroupPostBatch extends IGroupPostRefBatch {
+	groupPosts: IPost[];
 }
 
 
@@ -249,6 +268,7 @@ export interface IGroupRead {
 	id?: number;
 	readFrom?;
 	readAt?;
+	readPostId?: number;
 	userId: number;
 	groupId: number;
 	cachedPostsCount: number;
@@ -371,6 +391,7 @@ export interface IGroupReadInput {
 	groupId: number;
 	readFrom?: number;
 	readAt?: Date | string;
+	readPostId?: number;
 }
 
 export interface IUserFriendInput {
@@ -381,6 +402,8 @@ export interface IGroupUnreadResponse {
 	count?: number;
 	cachedPostsCount?: number;
 	readFrom?: number;
+	readAt?: Date | string;
+	readPostId?: number;
 }
 
 export interface IGroupApiResponse {

@@ -15,6 +15,8 @@ const {prepareRender} = site;
 const base = '/';
 let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
 const customStylesCssMaxLength = 128 * 1024;
+const generatedGroupPostsLimit = 9999;
+const generatedGroupPostBatchLimit = 100;
 
 function parsePositiveInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
     const parsed = parseInt(value, 10);
@@ -272,28 +274,48 @@ async function getModule(app: IGeesomeApp, models) {
             }
         }
 
+        async preparePostObjectsForRender(userId, options, siteStorageDir, groupPosts, renderedCount, renderProgressTotal) {
+            return pIteration.mapSeries(groupPosts, async (post) => {
+                renderedCount.count += 1;
+                if (options.asyncOperationId && renderedCount.count % 10 === 0) {
+                    await app.ms.asyncOperation.updateAsyncOperation(
+                        userId,
+                        options.asyncOperationId,
+                        Math.min(50, renderedCount.count * 50 / renderProgressTotal)
+                    );
+                }
+                return this.postToObj(options, siteStorageDir, post);
+            });
+        }
+
         async prepareGroupPostsForRender(userId, entityType, entityId, options: any = {}) {
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             options = await this.getGroupResultOptions(group, options);
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
 
-            const {list: groupPosts} = await app.ms.group.getGroupPosts(entityId, {}, {
-                sortBy: 'publishedAt',
-                sortDir: 'desc',
-                limit: 9999,
-                offset: 0
-            });
-
             const siteStorageDir = `/${staticSite.staticId}-site`;
-
-            const posts = await pIteration.mapSeries(groupPosts, async (gp, i) => {
-                if (options.asyncOperationId && i % 10 === 0) {
-                    await app.ms.asyncOperation.updateAsyncOperation(userId, options.asyncOperationId, (i + 1) * 50 / groupPosts.length);
-                }
-                return this.postToObj(options, siteStorageDir, gp);
-            });
-
             await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
+
+            const posts = [];
+            const renderedCount = {count: 0};
+            const renderProgressTotal = Math.max(
+                1,
+                Math.min(options.site.postsCount || generatedGroupPostsLimit, generatedGroupPostsLimit)
+            );
+            await app.ms.group.forEachHydratedGroupPostBatch(entityId, {
+                maxRefs: generatedGroupPostsLimit,
+                batchLimit: generatedGroupPostBatchLimit,
+                listParams: {
+                    sortBy: 'publishedAt',
+                    sortDir: 'desc'
+                },
+                hydrateOptions: {
+                    includeRepostOf: true
+                }
+            }, async ({groupPosts}) => {
+                const postObjects = await this.preparePostObjectsForRender(userId, options, siteStorageDir, groupPosts, renderedCount, renderProgressTotal);
+                posts.push(...postObjects);
+            });
 
             const postsPerPage = options.postList.postsPerPage;
             const pagesCount = Math.ceil(posts.length / postsPerPage);
@@ -416,7 +438,10 @@ async function getModule(app: IGeesomeApp, models) {
             await this.saveSiteAssets();
             await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
             await app.ms.storage.copyFileFromId(vendorAssetsStorageId, `${siteStorageDir}/vendor`);
-            await app.ms.storage.copyFileFromId(faviconSourceStorageId || faviconStorageId, `${siteStorageDir}/favicon.ico`);
+            const faviconId = faviconSourceStorageId || faviconStorageId;
+            if (faviconId) {
+                await app.ms.storage.copyFileFromId(faviconId, `${siteStorageDir}/favicon.ico`);
+            }
         }
 
         async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {

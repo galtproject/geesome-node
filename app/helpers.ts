@@ -5,12 +5,33 @@ import {dirname} from 'path';
 import cryptoJS from "crypto-js";
 import {fileURLToPath} from 'url';
 import createKeccakHash from "keccak";
+import {Op} from 'sequelize';
 import commonHelper from "geesome-libs/src/common.js";
 import {IListParams} from "./modules/database/interface.js";
 const {map, pick} = _;
 
 const saltRounds = 10;
 const maxListLimit = 10000;
+type CursorDirection = 'before' | 'after';
+
+type ListCursorOptions = {
+	valueField?: string;
+	idField?: string;
+	cursorValueFilter?: string;
+	cursorIdFilter?: string;
+	direction?: CursorDirection;
+	orderDir?: string;
+};
+
+type ListCursorState = {
+	hasCursor: boolean;
+	valueField: string;
+	idField: string;
+	direction: CursorDirection;
+	orderDir?: string;
+	value?: any;
+	id?: number;
+};
 
 function parseNonNegativeInteger(value, fallback = null) {
 	const parsed = Number.parseInt(value as any, 10);
@@ -36,6 +57,133 @@ function sanitizeSortDir(value, fallback = 'DESC') {
 		return fallback.toUpperCase();
 	}
 	return sortDir;
+}
+
+function getCursorOptions(options: ListCursorOptions = {}) {
+	return {
+		valueField: options.valueField || 'publishedAt',
+		idField: options.idField || 'id',
+		cursorValueFilter: options.cursorValueFilter || 'cursorPublishedAt',
+		cursorIdFilter: options.cursorIdFilter || 'cursorId',
+		direction: options.direction || 'before',
+		orderDir: options.orderDir,
+	};
+}
+
+function isCursorValuePresent(value) {
+	return typeof value !== 'undefined' && value !== null;
+}
+
+function parseCursorId(value) {
+	const parsed = Number.parseInt(value as any, 10);
+	if (!Number.isFinite(parsed)) {
+		return null;
+	}
+	return parsed;
+}
+
+function getListCursorState(filters: any = {}, options: ListCursorOptions = {}): ListCursorState {
+	const cursorOptions = getCursorOptions(options);
+	const rawValue = filters[cursorOptions.cursorValueFilter];
+	const id = parseCursorId(filters[cursorOptions.cursorIdFilter]);
+	const hasCursor = isCursorValuePresent(rawValue) && id !== null;
+	const state: ListCursorState = {
+		hasCursor,
+		valueField: cursorOptions.valueField,
+		idField: cursorOptions.idField,
+		direction: cursorOptions.direction as CursorDirection,
+		orderDir: cursorOptions.orderDir,
+	};
+	if (!hasCursor) {
+		return state;
+	}
+	state.value = rawValue instanceof Date ? rawValue : new Date(rawValue);
+	state.id = id;
+	return state;
+}
+
+function appendAndWhereClause(where, clause) {
+	if (Array.isArray(where[Op.and])) {
+		where[Op.and] = [...where[Op.and], clause];
+		return;
+	}
+	where[Op.and] = [clause];
+}
+
+function getCursorComparisonOperator(direction: CursorDirection) {
+	if (direction === 'after') {
+		return Op.gt;
+	}
+	return Op.lt;
+}
+
+function getCursorListOrder(cursor: ListCursorState, listParams: IListParams): any[] {
+	const sortDir = listParams.sortDir.toUpperCase();
+	if (cursor.hasCursor) {
+		const cursorSortDir = cursor.orderDir ? sanitizeSortDir(cursor.orderDir, sortDir) : 'DESC';
+		return [[cursor.valueField, cursorSortDir], [cursor.idField, cursorSortDir]];
+	}
+	return [[listParams.sortBy, sortDir], [cursor.idField, sortDir]];
+}
+
+function getCursorListOffset(cursor: ListCursorState, offset) {
+	if (cursor.hasCursor) {
+		return undefined;
+	}
+	return offset;
+}
+
+function getCursorListAttributes(baseAttributes: string[], cursor: ListCursorState, sortBy) {
+	const orderField = cursor.hasCursor ? cursor.valueField : sortBy;
+	if (!orderField) {
+		return Array.from(new Set(baseAttributes));
+	}
+	return Array.from(new Set([...baseAttributes, orderField]));
+}
+
+function getNextListCursor(cursor: ListCursorState, pageRows: any[], limit) {
+	if (!cursor.hasCursor || pageRows.length !== limit) {
+		return null;
+	}
+	return getNextCursorFromRows(pageRows, limit, cursor);
+}
+
+function getNextCursorFromRows(pageRows: any[], limit, options: ListCursorOptions = {}) {
+	if (pageRows.length !== limit) {
+		return null;
+	}
+	const cursorOptions = getCursorOptions(options);
+	const last = pageRows[pageRows.length - 1];
+	return {
+		[cursorOptions.valueField]: last[cursorOptions.valueField],
+		[cursorOptions.idField]: last[cursorOptions.idField],
+	};
+}
+
+function getCursorFiltersFromCursor(cursor, options: ListCursorOptions = {}) {
+	if (!cursor) {
+		return {};
+	}
+	const cursorOptions = getCursorOptions(options);
+	return {
+		[cursorOptions.cursorValueFilter]: cursor[cursorOptions.valueField],
+		[cursorOptions.cursorIdFilter]: cursor[cursorOptions.idField],
+	};
+}
+
+function addCursorWhere(where, filters: any = {}, options: ListCursorOptions = {}) {
+	const cursor = getListCursorState(filters, options);
+	if (!cursor.hasCursor) {
+		return cursor;
+	}
+	const comparisonOperator = getCursorComparisonOperator(cursor.direction);
+	appendAndWhereClause(where, {
+		[Op.or]: [
+			{[cursor.valueField]: {[comparisonOperator]: cursor.value}},
+			{[cursor.valueField]: cursor.value, [cursor.idField]: {[comparisonOperator]: cursor.id}}
+		]
+	});
+	return cursor;
 }
 
 function getCurDir() {
@@ -142,6 +290,22 @@ export default {
 
 		return res;
 	},
+
+	getListCursorState,
+
+	addCursorWhere,
+
+	getCursorListOrder,
+
+	getCursorListOffset,
+
+	getCursorListAttributes,
+
+	getNextListCursor,
+
+	getNextCursorFromRows,
+
+	getCursorFiltersFromCursor,
 
 	// C1: strip visibility-override fields so untrusted callers cannot bypass the
 	// Published-only default in getPostsWhere by passing ?status=draft etc.

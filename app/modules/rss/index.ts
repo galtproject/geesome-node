@@ -3,6 +3,8 @@ import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface.js";
 import {IPost} from "../group/interface.js";
 const {chunk, find, filter, flatten} = _;
+const rssPostsLimit = 9999;
+const rssPostBatchLimit = 100;
 
 export default async (app: IGeesomeApp) => {
     const xml = await import('xml');
@@ -23,18 +25,12 @@ function getModule(app: IGeesomeApp, xml) {
         }
 
         async groupRss(groupId, host, forUserId?) {
-            console.log('groupId', groupId);
             const group = await app.ms.group.getLocalGroup(null, groupId);
             // TODO: check permission to read not public groups by user id
             if (!forUserId && !group.isPublic) {
                 throw new Error('group_not_public');
             }
-            const {list: groupPosts} = await app.ms.group.getGroupPosts(groupId, {}, {
-                sortBy: 'publishedAt',
-                sortDir: 'desc',
-                limit: 9999,
-                offset: 0
-            });
+            const groupPosts = await this.getGroupPostsForFeed(groupId);
 
             const feedObject = {
                 rss: [
@@ -63,31 +59,49 @@ function getModule(app: IGeesomeApp, xml) {
             return '<?xml version="1.0" encoding="UTF-8"?>' + xml(feedObject);
         }
 
+        getPostFeedText(contents) {
+            return (find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text
+                || (find(contents, (c) => c.type === 'text') || {}).text
+                || '';
+        }
+
+        async postToFeedItem(homePage, host, post) {
+            const contents = await app.ms.group.getPostContentDataWithUrl(post, host + '/ipfs/');
+            const text = this.getPostFeedText(contents);
+            const images = filter(contents, (c) => c.type === 'image');
+            return {
+                item: [
+                    {title: text.slice(0, 50) + (text.length > 50 ? '...' : '')},
+                    {pubDate: new Date(post.publishedAt).toUTCString()},
+                    {guid: [{_attr: {isPermaLink: true}}, `${homePage}/posts/${post.localId}/`]},
+                    {description: {_cdata: text + images.map(src => `<div><img src="${src.url}" style="max-width: 100%;"></div>`)}},
+                ],
+            }
+        }
+
         async buildFeed(
             homePage,
             host,
             posts: IPost[]
         ) {
             return pIteration.mapSeries(chunk(posts, 10), (postsChunk) => {
-                return pIteration.map(postsChunk, post => {
-                    return app.ms.group.getPostContentDataWithUrl(post, host + '/ipfs/', ).then((contents) => {
-                        console.log('contents', contents);
-                        let text = (find(contents, (c) => c.type === 'text' && c.view === 'contents') || {}).text;
-                        if (!text) {
-                            text = (find(contents, (c) => c.type === 'text') || {}).text;;
-                        }
-                        const images = filter(contents, (c) => c.type === 'image');
-                        return {
-                            item: [
-                                {title: text.slice(0, 50) + (text.length > 50 ? '...' : '')},
-                                {pubDate: new Date(post.publishedAt).toUTCString()},
-                                {guid: [{_attr: {isPermaLink: true}}, `${homePage}/posts/${post.localId}/`]},
-                                {description: {_cdata: text + images.map(src => `<div><img src="${src.url}" style="max-width: 100%;"></div>`)}},
-                            ],
-                        }
-                    });
-                })
+                return pIteration.map(postsChunk, post => this.postToFeedItem(homePage, host, post));
             }).then(chunks => flatten(chunks));
+        }
+
+        async getGroupPostsForFeed(groupId) {
+            const feedPosts = [];
+            await app.ms.group.forEachHydratedGroupPostBatch(groupId, {
+                maxRefs: rssPostsLimit,
+                batchLimit: rssPostBatchLimit,
+                listParams: {
+                    sortBy: 'publishedAt',
+                    sortDir: 'desc'
+                }
+            }, async ({groupPosts}) => {
+                feedPosts.push(...groupPosts);
+            });
+            return feedPosts;
         }
     }
     return new RssGenerator();

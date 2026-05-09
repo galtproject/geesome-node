@@ -74,11 +74,13 @@ function getModule(app: IGeesomeApp, models) {
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 
 			const {limit, offset, sortBy, sortDir} = listParams;
+			const cursor = helpers.getListCursorState(filters);
+			const order = helpers.getCursorListOrder(cursor, {sortBy, sortDir});
 			// Keep the category/group pivot join in the page-selection query, then hydrate only
 			// the bounded post id set. This mirrors group timelines and avoids making content
 			// attachment joins participate in category feed pagination.
 			const pagePosts = await models.Post.findAll({
-				attributes: Array.from(new Set(['id', sortBy])),
+				attributes: helpers.getCursorListAttributes(['id'], cursor, sortBy),
 				where: app.ms.group.getPostsWhere(filters),
 				include: [
 					{
@@ -93,14 +95,16 @@ function getModule(app: IGeesomeApp, models) {
 						}]
 					}
 				],
-				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
+				order,
 				limit,
-				offset
+				offset: helpers.getCursorListOffset(cursor, offset)
 			});
+			const nextCursor = helpers.getNextListCursor(cursor, pagePosts, limit);
 
 			return {
 				list: await app.ms.group.getHydratedPostListByIds(pagePosts.map(post => post.id), {includeGroup: true}),
-				total: await this.getCategoryPostsCount(categoryId, filters)
+				total: cursor.hasCursor ? null : await this.getCategoryPostsCount(categoryId, filters),
+				nextCursor
 			};
 		}
 

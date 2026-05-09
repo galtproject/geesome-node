@@ -35,6 +35,19 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
 
+	async function createActorContentFromGroupObject(userId, contentObject) {
+		if (!contentObject) {
+			return null;
+		}
+		if (contentObject.storageId) {
+			return app.ms.content.createContentByObject(userId, contentObject);
+		}
+		if (contentObject.manifestStorageId) {
+			return app.ms.content.createContentByRemoteStorageId(userId, contentObject.manifestStorageId);
+		}
+		return null;
+	}
+
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
 			console.log('groupData', groupData);
@@ -69,14 +82,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async createGroupByObject(userId, groupObject) {
-			let dbAvatar = await app.ms.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
-			if (!dbAvatar) {
-				dbAvatar = await app.ms.content.createContentByObject(userId, groupObject.avatarImage);
-			}
-			let dbCover = await app.ms.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
-			if (!dbCover) {
-				dbCover = await app.ms.content.createContentByObject(userId, groupObject.coverImage);
-			}
+			const dbAvatar = await createActorContentFromGroupObject(userId, groupObject.avatarImage);
+			const dbCover = await createActorContentFromGroupObject(userId, groupObject.coverImage);
 			const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
 			const dbGroup = await this.addGroup(extend(pick(groupObject, groupFields), {
 				avatarImageId: dbAvatar ? dbAvatar.id : null,
@@ -308,9 +315,18 @@ function getModule(app: IGeesomeApp, models) {
 		async getGroupUnreadPostsData(userId, groupId) {
 			const groupRead = await this.getGroupRead(userId, groupId);
 			if (groupRead) {
+				const unreadFilters: any = {isDeleted: false};
+				const hasReadPostCursor = groupRead.readAt && !isUndefined(groupRead.readPostId) && groupRead.readPostId !== null;
+				if (hasReadPostCursor) {
+					unreadFilters.publishedAfterCursorAt = groupRead.readAt;
+					unreadFilters.publishedAfterCursorId = groupRead.readPostId;
+				} else {
+					unreadFilters.publishedAtGt = groupRead.readAt;
+				}
 				return {
 					readAt: groupRead.readAt,
-					count: await this.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt, isDeleted: false })
+					readPostId: groupRead.readPostId,
+					count: await this.getGroupPostsCount(groupId, unreadFilters)
 				};
 			}
 			const group = await this.getGroup(groupId);
@@ -385,76 +401,144 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
-			const {limit, offset, sortBy, sortDir} = listParams;
+			const {limit} = listParams;
+			const cursor = helpers.getListCursorState(filters);
 
 			// D8/D9: keyset/cursor pagination. When the caller passes a cursor (publishedAt + id),
 			// scan forward by (publishedAt DESC, id DESC) and skip total. The legacy offset path is
 			// preserved so existing callers do not change. Cursor pagination drops the count and the
 			// offset and exposes nextCursor in the result so a UI can iterate without large offsets.
-			const hasCursor = !isUndefined(filters['cursorPublishedAt']) && !isUndefined(filters['cursorId']);
-			const where = this.getGroupPostsWhere(groupId, filters);
-			const order: any[] = hasCursor
-				? [['publishedAt', 'DESC'], ['id', 'DESC']]
-				: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]];
-
-			// P1 large-feed hydration: scan only Post ids for the requested page first, then hydrate
-			// contents/repost data for that bounded id set. This keeps limit/offset/cursor selection
-			// aligned with post indexes instead of making the timeline page scan carry attachment joins.
-			const pagePosts = await models.Post.findAll({
-				attributes: ['id', 'publishedAt'],
-				where,
-				order,
-				limit,
-				offset: hasCursor ? undefined : offset
+			const pagePosts = await this.getGroupPostRefs(groupId, filters, listParams, {
+				attributes: ['id', 'publishedAt']
 			});
 			const postIds = pagePosts.map(post => post.id);
 			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
-
-			let nextCursor: {publishedAt: any; id: any} | null = null;
-			if (hasCursor && pagePosts.length === limit) {
-				const last = pagePosts[pagePosts.length - 1];
-				nextCursor = {publishedAt: last.publishedAt, id: last.id};
-			}
+			const nextCursor = helpers.getNextListCursor(cursor, pagePosts, limit);
 
 			return {
 				list,
-				total: hasCursor ? null : await this.getGroupPostsCount(groupId, filters),
+				total: cursor.hasCursor ? null : await this.getGroupPostsCount(groupId, filters),
 				nextCursor,
 			};
 		}
 
-		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
+		async getGroupPostRefs(groupId, filters = {}, listParams?: IListParams, options: any = {}) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = helpers.prepareListParams(listParams);
 			if (isUndefined(filters['isDeleted'])) {
 				filters['isDeleted'] = false;
 			}
 
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'updatedAt'});
+			app.ms.database.setDefaultListParamsValues(listParams, options.defaultListParams || {sortBy: 'publishedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
+			const cursorOptions = options.cursor || {};
+			const cursor = helpers.getListCursorState(filters, cursorOptions);
 			const where = this.getGroupPostsWhere(groupId, filters);
-			if (!isUndefined(filters.cursorUpdatedAt) && !isUndefined(filters.cursorId)) {
-				const cursorAt = filters.cursorUpdatedAt instanceof Date
-					? filters.cursorUpdatedAt
-					: new Date(filters.cursorUpdatedAt);
-				const cursorClause = {
-					[Op.or]: [
-						{updatedAt: {[Op.gt]: cursorAt}},
-						{updatedAt: cursorAt, id: {[Op.gt]: parseInt(filters.cursorId, 10)}}
-					]
-				};
-				where[Op.and] = Array.isArray(where[Op.and])
-					? [...where[Op.and], cursorClause]
-					: [cursorClause];
+			if (options.cursor) {
+				helpers.addCursorWhere(where, filters, options.cursor);
 			}
 
+			// Lightweight scans should not hydrate attachments/reposts. Callers that only need
+			// timeline identity can reuse this instead of the full post-list loader.
 			return models.Post.findAll({
-				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
+				attributes: helpers.getCursorListAttributes(options.attributes || ['id', 'localId', 'publishedAt'], cursor, sortBy),
 				where,
-				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
+				order: helpers.getCursorListOrder(cursor, {sortBy, sortDir}),
 				limit,
-				offset
+				offset: helpers.getCursorListOffset(cursor, offset)
 			}) as IPost[];
+		}
+
+		async forEachGroupPostRefBatch(groupId, options: any = {}, onBatch) {
+			const maxRefs = isUndefined(options.maxRefs) ? Number.MAX_SAFE_INTEGER : options.maxRefs;
+			const batchLimit = isUndefined(options.batchLimit) ? 100 : options.batchLimit;
+			const listParams = options.listParams || {};
+			let filters = {...(options.filters || {})};
+			let processedRefs = 0;
+
+			while (processedRefs < maxRefs) {
+				const limit = Math.min(batchLimit, maxRefs - processedRefs);
+				const postRefs = await this.getGroupPostRefs(groupId, filters, {
+					...listParams,
+					limit,
+					offset: 0
+				}, options);
+				const refCount = postRefs.length;
+				const nextCursor = helpers.getNextCursorFromRows(postRefs, limit, options.cursor);
+				const batch = {
+					postRefs,
+					refCount,
+					nextCursor
+				};
+				if (!batch.refCount) {
+					break;
+				}
+				processedRefs += batch.refCount;
+				const shouldContinue = await onBatch(batch, {processedRefs});
+				if (shouldContinue === false || !batch.nextCursor) {
+					break;
+				}
+				filters = {
+					...filters,
+					...helpers.getCursorFiltersFromCursor(batch.nextCursor, options.cursor)
+				};
+			}
+
+			return processedRefs;
+		}
+
+		async getHydratedGroupPostBatch(groupId, filters = {}, listParams?: IListParams, options: any = {}) {
+			listParams = helpers.prepareListParams(listParams);
+			app.ms.database.setDefaultListParamsValues(listParams, options.defaultListParams || {sortBy: 'publishedAt'});
+			const postRefs = await this.getGroupPostRefs(groupId, filters, listParams, {
+				attributes: options.attributes || ['id', 'publishedAt'],
+				cursor: options.cursor,
+				defaultListParams: options.defaultListParams
+			});
+			const hydrateOptions = {
+				groupId,
+				...(options.hydrateOptions || {})
+			};
+			const groupPosts = await this.getHydratedPostListByIds(
+				postRefs.map(post => post.id),
+				hydrateOptions
+			);
+			return {
+				postRefs,
+				groupPosts,
+				refCount: postRefs.length,
+				nextCursor: helpers.getNextCursorFromRows(postRefs, listParams.limit, options.cursor)
+			};
+		}
+
+		async forEachHydratedGroupPostBatch(groupId, options: any = {}, onBatch) {
+			return this.forEachGroupPostRefBatch(groupId, options, async (refBatch, state) => {
+				const hydrateOptions = {
+					groupId,
+					...(options.hydrateOptions || {})
+				};
+				const groupPosts = await this.getHydratedPostListByIds(
+					refBatch.postRefs.map(post => post.id),
+					hydrateOptions
+				);
+				return onBatch({
+					...refBatch,
+					groupPosts
+				}, state);
+			});
+		}
+
+		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
+			return this.getGroupPostRefs(groupId, filters, listParams, {
+				defaultListParams: {sortBy: 'updatedAt'},
+				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
+				cursor: {
+					valueField: 'updatedAt',
+					cursorValueFilter: 'cursorUpdatedAt',
+					direction: 'after',
+					orderDir: 'ASC'
+				}
+			});
 		}
 
 		async checkGroupId(groupId) {
@@ -1117,20 +1201,12 @@ function getModule(app: IGeesomeApp, models) {
 				where['status'] = PostStatus.Published;
 			}
 			// D8 keyset cursor: forward-scan by (publishedAt DESC, id DESC).
-			// Inclusive predicate: rows strictly older than the cursor publishedAt, OR same publishedAt with smaller id.
-			if (!isUndefined(filters.cursorPublishedAt) && !isUndefined(filters.cursorId)) {
-				const cursorAt = filters.cursorPublishedAt instanceof Date
-					? filters.cursorPublishedAt
-					: new Date(filters.cursorPublishedAt);
-				where[Op.and] = [
-					{
-						[Op.or]: [
-							{publishedAt: {[Op.lt]: cursorAt}},
-							{publishedAt: cursorAt, id: {[Op.lt]: parseInt(filters.cursorId, 10)}}
-						]
-					}
-				];
-			}
+			helpers.addCursorWhere(where, filters);
+			helpers.addCursorWhere(where, filters, {
+				cursorValueFilter: 'publishedAfterCursorAt',
+				cursorIdFilter: 'publishedAfterCursorId',
+				direction: 'after'
+			});
 			['id', 'status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
 				if(filters[name] === 'null') {
 					filters[name] = null;
