@@ -50,14 +50,18 @@ export default async function (sequelize: Sequelize, models) {
     }
   } as any, {
     indexes: [
-      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
-      // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      { name: 'tags_name_idx', fields: ['name'] },
+      { name: 'tags_manifest_storage_idx', fields: ['manifestStorageId'] },
+      { name: 'tags_manifest_static_storage_idx', fields: ['manifestStaticStorageId'] },
     ]
   } as any);
 
-  models.TaggedPosts = sequelize.define('taggedPosts', {} as any, {} as any);
+  models.TaggedPosts = sequelize.define('taggedPosts', {} as any, {
+    indexes: [
+      { name: 'tagged_posts_post_tag_idx', fields: ['postId', 'tagId'] },
+      { name: 'tagged_posts_tag_post_idx', fields: ['tagId', 'postId'] },
+    ]
+  } as any);
 
   Tag.belongsToMany(models.Post, {as: 'post', through: models.TaggedPosts});
   models.Post.belongsToMany(Tag, {as: 'tags', through: models.TaggedPosts});

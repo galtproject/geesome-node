@@ -298,12 +298,16 @@ function modelRows(): ModelRow[] {
       model: 'Tag / TaggedPosts / Mention / AutoTag',
       indexes: [
         has(tagSource, "fields: ['name'") ? 'tag name index' : 'no explicit tag indexes',
-        has(tagSource, 'TaggedPosts') ? 'taggedPosts through table defined' : 'taggedPosts not found',
+        has(tagSource, 'tagged_posts_post_tag_idx') && has(tagSource, 'tagged_posts_tag_post_idx')
+          ? 'taggedPosts post/tag indexes'
+          : has(tagSource, 'TaggedPosts') ? 'taggedPosts through table defined' : 'taggedPosts not found',
         has(mentionSource, "fields: ['sourcePostId'") ? 'mention FK indexes' : 'no explicit mention lookup indexes',
         has(autoTagSource, "fields: ['groupId'") ? 'autoTag group index' : 'no explicit autoTag lookup indexes',
       ],
       notes: [
-        'quiet today, but tag/mention/federation filters need post/tag and source/target indexes before large feeds',
+        has(tagSource, 'tagged_posts_tag_post_idx') && has(mentionSource, 'mentions_target_group_idx') && has(autoTagSource, 'auto_tags_result_tag_idx')
+          ? 'tag/mention/auto-tag lookup indexes are present; feed cursor/count policy still needs review before large tag surfaces'
+          : 'quiet today, but tag/mention/federation filters need post/tag and source/target indexes before large feeds',
       ],
     },
   ];
