@@ -45,6 +45,7 @@ function modelRows(): ModelRow[] {
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
   const groupReadSource = read('app/modules/group/models/groupRead.ts');
   const socNetImportSource = read('app/modules/socNetImport/models.ts');
+  const socNetImportIndexSource = read('app/modules/socNetImport/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/models.ts');
   const groupCategorySource = read('app/modules/groupCategory/models/groupCategory.ts');
   const groupSectionSource = read('app/modules/groupCategory/models/groupSection.ts');
@@ -272,7 +273,9 @@ function modelRows(): ModelRow[] {
           : 'review source indexes',
       ],
       notes: [
-        'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries',
+        has(socNetImportIndexSource, 'getGroupPostRefs(dbChannel.groupId')
+          ? 'import duplicate checks are mostly indexed; reversal paths use lightweight post refs instead of hydrated timeline rows'
+          : 'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries',
       ],
     },
     {
@@ -354,6 +357,8 @@ function hotspotRows(): HotspotRow[] {
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
+  const hasSocialImportPostRefs = has(importSource, 'getGroupPostRefs(dbChannel.groupId')
+    && has(importSource, 'idGte: startReverseMessage.postId');
   const hasGroupManifestRefBatches = hasGroupManifestPostRefs
     && has(manifestSource, 'forEachGroupManifestPostRef')
     && has(groupSource, 'cursorUpdatedAt')
@@ -484,10 +489,14 @@ function hotspotRows(): HotspotRow[] {
       area: 'Social import reversal',
       source: 'app/modules/socNetImport/index.ts',
       hotspot: 'reverse-post import path',
-      observedPattern: has(importSource, 'idGte: startReverseMessage.postId') ? 'uses getGroupPosts with idGte filter' : 'review implementation',
-      scalabilityRisk: hasTimelineIdFirstHydration
+      observedPattern: hasSocialImportPostRefs
+        ? 'uses lightweight group post refs with idGte filter'
+        : (has(importSource, 'idGte: startReverseMessage.postId') ? 'uses getGroupPosts with idGte filter' : 'review implementation'),
+      scalabilityRisk: hasSocialImportPostRefs
+        ? 'reversal avoids content/repost hydration; remaining risk is the large fixed window before true cursor batching'
+        : (hasTimelineIdFirstHydration
         ? 'reversal scans now inherit page-scoped hydration, but should still use purpose-built groupId/id cursor scans when content is not needed'
-        : 'reversal scans should use groupId/id index and avoid content joins until needed',
+        : 'reversal scans should use groupId/id index and avoid content joins until needed'),
     },
     {
       area: 'Category feeds',

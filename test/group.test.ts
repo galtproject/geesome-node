@@ -359,6 +359,31 @@ describe("group", function () {
 		assert.deepEqual(allPosts[0].contents.map(content => content.id), [newestAttachment.id, newestBody.id]);
 	});
 
+	it('returns lightweight group post refs without hydrating contents', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'lightweight ref body', null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: content.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			publishedAt: new Date('2026-01-04T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const refs = await app.ms.group.getGroupPostRefs(testGroup.id, {}, {
+			limit: 1,
+			sortBy: 'publishedAt'
+		});
+		const refJson = refs[0].toJSON();
+
+		assert.equal(refs.length, 1);
+		assert.equal(refJson.id, post.id);
+		assert.equal(refJson.localId, post.localId);
+		assert.deepEqual(Object.keys(refJson).sort(), ['id', 'localId', 'publishedAt'].sort());
+	});
+
 	it('isReplyForbidden should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

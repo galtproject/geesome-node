@@ -401,25 +401,15 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
-			const {limit, offset, sortBy, sortDir} = listParams;
+			const {limit} = listParams;
 			const cursor = helpers.getListCursorState(filters);
 
 			// D8/D9: keyset/cursor pagination. When the caller passes a cursor (publishedAt + id),
 			// scan forward by (publishedAt DESC, id DESC) and skip total. The legacy offset path is
 			// preserved so existing callers do not change. Cursor pagination drops the count and the
 			// offset and exposes nextCursor in the result so a UI can iterate without large offsets.
-			const where = this.getGroupPostsWhere(groupId, filters);
-			const order = helpers.getCursorListOrder(cursor, {sortBy, sortDir});
-
-			// P1 large-feed hydration: scan only Post ids for the requested page first, then hydrate
-			// contents/repost data for that bounded id set. This keeps limit/offset/cursor selection
-			// aligned with post indexes instead of making the timeline page scan carry attachment joins.
-			const pagePosts = await models.Post.findAll({
-				attributes: ['id', 'publishedAt'],
-				where,
-				order,
-				limit,
-				offset: helpers.getCursorListOffset(cursor, offset)
+			const pagePosts = await this.getGroupPostRefs(groupId, filters, listParams, {
+				attributes: ['id', 'publishedAt']
 			});
 			const postIds = pagePosts.map(post => post.id);
 			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
@@ -432,29 +422,44 @@ function getModule(app: IGeesomeApp, models) {
 			};
 		}
 
-		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
+		async getGroupPostRefs(groupId, filters = {}, listParams?: IListParams, options: any = {}) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = helpers.prepareListParams(listParams);
 			if (isUndefined(filters['isDeleted'])) {
 				filters['isDeleted'] = false;
 			}
 
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'updatedAt'});
+			app.ms.database.setDefaultListParamsValues(listParams, options.defaultListParams || {sortBy: 'publishedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
+			const cursorOptions = options.cursor || {};
+			const cursor = helpers.getListCursorState(filters, cursorOptions);
 			const where = this.getGroupPostsWhere(groupId, filters);
-			helpers.addCursorWhere(where, filters, {
-				valueField: 'updatedAt',
-				cursorValueFilter: 'cursorUpdatedAt',
-				direction: 'after'
-			});
+			if (options.cursor) {
+				helpers.addCursorWhere(where, filters, options.cursor);
+			}
 
+			// Lightweight scans should not hydrate attachments/reposts. Callers that only need
+			// timeline identity can reuse this instead of the full post-list loader.
 			return models.Post.findAll({
-				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
+				attributes: helpers.getCursorListAttributes(options.attributes || ['id', 'localId', 'publishedAt'], cursor, sortBy),
 				where,
-				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
+				order: helpers.getCursorListOrder(cursor, {sortBy, sortDir}),
 				limit,
-				offset
+				offset: helpers.getCursorListOffset(cursor, offset)
 			}) as IPost[];
+		}
+
+		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
+			return this.getGroupPostRefs(groupId, filters, listParams, {
+				defaultListParams: {sortBy: 'updatedAt'},
+				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
+				cursor: {
+					valueField: 'updatedAt',
+					cursorValueFilter: 'cursorUpdatedAt',
+					direction: 'after',
+					orderDir: 'ASC'
+				}
+			});
 		}
 
 		async checkGroupId(groupId) {

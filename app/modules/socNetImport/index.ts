@@ -427,7 +427,12 @@ function getModule(app: IGeesomeApp, models) {
 			if (!startReverseMessage) {
 				return;
 			}
-			const {list: postsToReverse} = await app.ms.group.getGroupPosts(dbChannel.groupId, {idGte: startReverseMessage.postId});
+			const postsToReverse = await app.ms.group.getGroupPostRefs(dbChannel.groupId, {idGte: startReverseMessage.postId}, {
+				sortBy: 'publishedAt',
+				sortDir: 'DESC',
+				limit: 10000,
+				offset: 0
+			});
 			console.log('postsToReverse.length', postsToReverse.length);
 			if (postsToReverse.length < 2) {
 				return;
