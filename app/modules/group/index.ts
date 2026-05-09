@@ -24,14 +24,6 @@ function contentSize(content) {
 	return Number(content?.size) || 0;
 }
 
-function addAndWhereClause(where, clause) {
-	if (Array.isArray(where[Op.and])) {
-		where[Op.and] = [...where[Op.and], clause];
-		return;
-	}
-	where[Op.and] = [clause];
-}
-
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
@@ -410,16 +402,14 @@ function getModule(app: IGeesomeApp, models) {
 
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
+			const cursor = helpers.getListCursorState(filters);
 
 			// D8/D9: keyset/cursor pagination. When the caller passes a cursor (publishedAt + id),
 			// scan forward by (publishedAt DESC, id DESC) and skip total. The legacy offset path is
 			// preserved so existing callers do not change. Cursor pagination drops the count and the
 			// offset and exposes nextCursor in the result so a UI can iterate without large offsets.
-			const hasCursor = !isUndefined(filters['cursorPublishedAt']) && !isUndefined(filters['cursorId']);
 			const where = this.getGroupPostsWhere(groupId, filters);
-			const order: any[] = hasCursor
-				? [['publishedAt', 'DESC'], ['id', 'DESC']]
-				: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]];
+			const order = helpers.getCursorListOrder(cursor, {sortBy, sortDir});
 
 			// P1 large-feed hydration: scan only Post ids for the requested page first, then hydrate
 			// contents/repost data for that bounded id set. This keeps limit/offset/cursor selection
@@ -429,20 +419,15 @@ function getModule(app: IGeesomeApp, models) {
 				where,
 				order,
 				limit,
-				offset: hasCursor ? undefined : offset
+				offset: helpers.getCursorListOffset(cursor, offset)
 			});
 			const postIds = pagePosts.map(post => post.id);
 			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
-
-			let nextCursor: {publishedAt: any; id: any} | null = null;
-			if (hasCursor && pagePosts.length === limit) {
-				const last = pagePosts[pagePosts.length - 1];
-				nextCursor = {publishedAt: last.publishedAt, id: last.id};
-			}
+			const nextCursor = helpers.getNextListCursor(cursor, pagePosts, limit);
 
 			return {
 				list,
-				total: hasCursor ? null : await this.getGroupPostsCount(groupId, filters),
+				total: cursor.hasCursor ? null : await this.getGroupPostsCount(groupId, filters),
 				nextCursor,
 			};
 		}
@@ -457,20 +442,11 @@ function getModule(app: IGeesomeApp, models) {
 			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'updatedAt'});
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where = this.getGroupPostsWhere(groupId, filters);
-			if (!isUndefined(filters.cursorUpdatedAt) && !isUndefined(filters.cursorId)) {
-				const cursorAt = filters.cursorUpdatedAt instanceof Date
-					? filters.cursorUpdatedAt
-					: new Date(filters.cursorUpdatedAt);
-				const cursorClause = {
-					[Op.or]: [
-						{updatedAt: {[Op.gt]: cursorAt}},
-						{updatedAt: cursorAt, id: {[Op.gt]: parseInt(filters.cursorId, 10)}}
-					]
-				};
-				where[Op.and] = Array.isArray(where[Op.and])
-					? [...where[Op.and], cursorClause]
-					: [cursorClause];
-			}
+			helpers.addCursorWhere(where, filters, {
+				valueField: 'updatedAt',
+				cursorValueFilter: 'cursorUpdatedAt',
+				direction: 'after'
+			});
 
 			return models.Post.findAll({
 				attributes: ['id', 'localId', 'isDeleted', 'isEncrypted', 'manifestStorageId', 'encryptedManifestStorageId', 'updatedAt'],
@@ -1141,29 +1117,12 @@ function getModule(app: IGeesomeApp, models) {
 				where['status'] = PostStatus.Published;
 			}
 			// D8 keyset cursor: forward-scan by (publishedAt DESC, id DESC).
-			// Inclusive predicate: rows strictly older than the cursor publishedAt, OR same publishedAt with smaller id.
-			if (!isUndefined(filters.cursorPublishedAt) && !isUndefined(filters.cursorId)) {
-				const cursorAt = filters.cursorPublishedAt instanceof Date
-					? filters.cursorPublishedAt
-					: new Date(filters.cursorPublishedAt);
-				addAndWhereClause(where, {
-					[Op.or]: [
-						{publishedAt: {[Op.lt]: cursorAt}},
-						{publishedAt: cursorAt, id: {[Op.lt]: parseInt(filters.cursorId, 10)}}
-					]
-				});
-			}
-			if (!isUndefined(filters.publishedAfterCursorAt) && !isUndefined(filters.publishedAfterCursorId)) {
-				const cursorAt = filters.publishedAfterCursorAt instanceof Date
-					? filters.publishedAfterCursorAt
-					: new Date(filters.publishedAfterCursorAt);
-				addAndWhereClause(where, {
-					[Op.or]: [
-						{publishedAt: {[Op.gt]: cursorAt}},
-						{publishedAt: cursorAt, id: {[Op.gt]: parseInt(filters.publishedAfterCursorId, 10)}}
-					]
-				});
-			}
+			helpers.addCursorWhere(where, filters);
+			helpers.addCursorWhere(where, filters, {
+				cursorValueFilter: 'publishedAfterCursorAt',
+				cursorIdFilter: 'publishedAfterCursorId',
+				direction: 'after'
+			});
 			['id', 'status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
 				if(filters[name] === 'null') {
 					filters[name] = null;
