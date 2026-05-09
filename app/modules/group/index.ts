@@ -35,6 +35,19 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
 
+	async function createActorContentFromGroupObject(userId, contentObject) {
+		if (!contentObject) {
+			return null;
+		}
+		if (contentObject.storageId) {
+			return app.ms.content.createContentByObject(userId, contentObject);
+		}
+		if (contentObject.manifestStorageId) {
+			return app.ms.content.createContentByRemoteStorageId(userId, contentObject.manifestStorageId);
+		}
+		return null;
+	}
+
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
 			console.log('groupData', groupData);
@@ -69,14 +82,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async createGroupByObject(userId, groupObject) {
-			let dbAvatar = await app.ms.database.getContentByManifestId(groupObject.avatarImage.manifestStorageId);
-			if (!dbAvatar) {
-				dbAvatar = await app.ms.content.createContentByObject(userId, groupObject.avatarImage);
-			}
-			let dbCover = await app.ms.database.getContentByManifestId(groupObject.coverImage.manifestStorageId);
-			if (!dbCover) {
-				dbCover = await app.ms.content.createContentByObject(userId, groupObject.coverImage);
-			}
+			const dbAvatar = await createActorContentFromGroupObject(userId, groupObject.avatarImage);
+			const dbCover = await createActorContentFromGroupObject(userId, groupObject.coverImage);
 			const groupFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'view', 'type', 'theme', 'homePage', 'isPublic', 'isRemote', 'description', 'size'];
 			const dbGroup = await this.addGroup(extend(pick(groupObject, groupFields), {
 				avatarImageId: dbAvatar ? dbAvatar.id : null,
