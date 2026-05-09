@@ -16,6 +16,7 @@ import {IContent} from "../database/interface.js";
 import {GroupType} from "../group/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 const {pick, uniq, uniqBy, orderBy, find, some, isString, reverse, last} = _;
+const reverseLocalIdBatchLimit = 500;
 
 export default async (app: IGeesomeApp) => {
 	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
@@ -419,6 +420,27 @@ function getModule(app: IGeesomeApp, models) {
 			}) as any;
 		}
 
+		async getFirstPostToReverse(groupId, startPostId) {
+			const postRefs = await app.ms.group.getGroupPostRefs(groupId, {idGte: startPostId}, {
+				sortBy: 'publishedAt',
+				sortDir: 'DESC',
+				limit: 1,
+				offset: 0
+			}, {
+				attributes: ['id', 'localId', 'publishedAt']
+			});
+			return postRefs[0] || null;
+		}
+
+		async reversePostLocalIdBatch(postRefs, state) {
+			return pIteration.forEachSeries(postRefs, async (postRef) => {
+				state.minPostId = Math.min(state.minPostId, postRef.id);
+				state.maxPostId = Math.max(state.maxPostId, postRef.id);
+				await postRef.update({localId: state.startLocalId + state.reversedCount});
+				state.reversedCount += 1;
+			});
+		}
+
 		async reversePostsLocalIds(userId, dbChannelId) {
 			console.log('dbChannelsToReverse', dbChannelId);
 			const dbChannel = await this.getDbChannel(userId, {id: dbChannelId});
@@ -427,22 +449,38 @@ function getModule(app: IGeesomeApp, models) {
 			if (!startReverseMessage) {
 				return;
 			}
-			const postsToReverse = await app.ms.group.getGroupPostRefs(dbChannel.groupId, {idGte: startReverseMessage.postId}, {
-				sortBy: 'publishedAt',
-				sortDir: 'DESC',
-				limit: 10000,
-				offset: 0
-			});
-			console.log('postsToReverse.length', postsToReverse.length);
-			if (postsToReverse.length < 2) {
+			const startPost = await this.getFirstPostToReverse(dbChannel.groupId, startReverseMessage.postId);
+			if (!startPost) {
 				return;
 			}
-			const startPost = postsToReverse[0];
-			const lastPost = last(postsToReverse);
-			await pIteration.forEach(reverse(postsToReverse), (p, i) => p.update({localId: startPost.localId + i}));
-			console.log('startPost.id', startPost.id, 'last(postsToReverse).id', last(postsToReverse).id);
+			const reverseState = {
+				startLocalId: startPost.localId,
+				reversedCount: 0,
+				minPostId: startPost.id,
+				maxPostId: startPost.id
+			};
+			await app.ms.group.forEachGroupPostRefBatch(dbChannel.groupId, {
+				filters: {idGte: startReverseMessage.postId},
+				batchLimit: reverseLocalIdBatchLimit,
+				listParams: {
+					sortBy: 'publishedAt',
+					sortDir: 'ASC'
+				},
+				attributes: ['id', 'localId', 'publishedAt'],
+				cursor: {
+					cursorValueFilter: 'reverseCursorPublishedAt',
+					cursorIdFilter: 'reverseCursorId',
+					direction: 'after',
+					orderDir: 'ASC'
+				}
+			}, ({postRefs}) => this.reversePostLocalIdBatch(postRefs, reverseState));
+			console.log('postsToReverse.length', reverseState.reversedCount);
+			if (reverseState.reversedCount < 2) {
+				return;
+			}
+			console.log('firstPostId', reverseState.minPostId, 'lastPostId', reverseState.maxPostId);
 			return models.Message.update({isNeedToReverse: false}, {
-				where: {dbChannelId, isNeedToReverse: true, postId: {[Op.gte]: startPost.id, [Op.lte]: lastPost.id}},
+				where: {dbChannelId, isNeedToReverse: true, postId: {[Op.gte]: reverseState.minPostId, [Op.lte]: reverseState.maxPostId}},
 			});
 		}
 
