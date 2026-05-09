@@ -50,10 +50,12 @@ export default async function (sequelize: Sequelize, models) {
     }
   } as any, {
     indexes: [
-      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
-      // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      { name: 'mentions_source_post_idx', fields: ['sourcePostId'] },
+      { name: 'mentions_target_post_idx', fields: ['targetPostId'] },
+      { name: 'mentions_source_group_idx', fields: ['sourceGroupId'] },
+      { name: 'mentions_target_group_idx', fields: ['targetGroupId'] },
+      { name: 'mentions_creator_idx', fields: ['creatorId'] },
+      { name: 'mentions_manifest_storage_idx', fields: ['manifestStorageId'] },
     ]
   } as any);
 

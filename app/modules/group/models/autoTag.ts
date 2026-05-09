@@ -20,10 +20,13 @@ export default async function (sequelize: Sequelize, models) {
     }
   } as any, {
     indexes: [
-      // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      // { fields: ['chainAccountAddress'] },
-      // { fields: ['tokensAddress'] },
-      // { fields: ['tokensAddress', 'chainAccountAddress'] }
+      { name: 'auto_tags_group_idx', fields: ['groupId'] },
+      { name: 'auto_tags_result_tag_idx', fields: ['resultTagId'] },
+      { name: 'auto_tags_required_tag1_idx', fields: ['requiredTag1Id'] },
+      { name: 'auto_tags_required_tag2_idx', fields: ['requiredTag2Id'] },
+      { name: 'auto_tags_required_tag3_idx', fields: ['requiredTag3Id'] },
+      { name: 'auto_tags_required_tag4_idx', fields: ['requiredTag4Id'] },
+      { name: 'auto_tags_required_tag5_idx', fields: ['requiredTag5Id'] },
     ]
   } as any);
 
@@ -36,7 +39,7 @@ export default async function (sequelize: Sequelize, models) {
   AutoTag.belongsTo(models.Tag, {as: 'resultTag', foreignKey: 'resultTagId'});
 
   AutoTag.belongsTo(models.Group, {as: 'group', foreignKey: 'groupId'});
-  models.User.hasMany(AutoTag, {as: 'autoTags', foreignKey: 'groupId'});
+  models.Group.hasMany(AutoTag, {as: 'autoTags', foreignKey: 'groupId'});
 
   return AutoTag.sync({});
 };
