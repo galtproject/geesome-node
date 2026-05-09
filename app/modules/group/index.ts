@@ -449,6 +449,61 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IPost[];
 		}
 
+		async getHydratedGroupPostBatch(groupId, filters = {}, listParams?: IListParams, options: any = {}) {
+			listParams = helpers.prepareListParams(listParams);
+			app.ms.database.setDefaultListParamsValues(listParams, options.defaultListParams || {sortBy: 'publishedAt'});
+			const postRefs = await this.getGroupPostRefs(groupId, filters, listParams, {
+				attributes: options.attributes || ['id', 'publishedAt'],
+				cursor: options.cursor,
+				defaultListParams: options.defaultListParams
+			});
+			const hydrateOptions = {
+				groupId,
+				...(options.hydrateOptions || {})
+			};
+			const groupPosts = await this.getHydratedPostListByIds(
+				postRefs.map(post => post.id),
+				hydrateOptions
+			);
+			return {
+				postRefs,
+				groupPosts,
+				refCount: postRefs.length,
+				nextCursor: helpers.getNextCursorFromRows(postRefs, listParams.limit, options.cursor)
+			};
+		}
+
+		async forEachHydratedGroupPostBatch(groupId, options: any = {}, onBatch) {
+			const maxRefs = options.maxRefs || Number.MAX_SAFE_INTEGER;
+			const batchLimit = options.batchLimit || 100;
+			const listParams = options.listParams || {};
+			let filters = {...(options.filters || {})};
+			let processedRefs = 0;
+
+			while (processedRefs < maxRefs) {
+				const limit = Math.min(batchLimit, maxRefs - processedRefs);
+				const batch = await this.getHydratedGroupPostBatch(groupId, filters, {
+					...listParams,
+					limit,
+					offset: 0
+				}, options);
+				if (!batch.refCount) {
+					break;
+				}
+				processedRefs += batch.refCount;
+				const shouldContinue = await onBatch(batch, {processedRefs});
+				if (shouldContinue === false || !batch.nextCursor) {
+					break;
+				}
+				filters = {
+					...filters,
+					...helpers.getCursorFiltersFromCursor(batch.nextCursor, options.cursor)
+				};
+			}
+
+			return processedRefs;
+		}
+
 		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
 			return this.getGroupPostRefs(groupId, filters, listParams, {
 				defaultListParams: {sortBy: 'updatedAt'},

@@ -363,6 +363,16 @@ function hotspotRows(): HotspotRow[] {
     && has(manifestSource, 'forEachGroupManifestPostRef')
     && has(groupSource, 'cursorUpdatedAt')
     && !has(manifestSource, 'limit: 9999999');
+  const hasGeneratedOutputPostBatchHelper = has(groupSource, 'forEachHydratedGroupPostBatch')
+    && has(groupSource, 'getHydratedGroupPostBatch')
+    && has(groupSource, 'getGroupPostRefs(groupId')
+    && has(groupSource, 'getHydratedPostListByIds');
+  const hasStaticSitePostRefBatches = hasGeneratedOutputPostBatchHelper
+    && has(staticSiteSource, 'forEachHydratedGroupPostBatch(entityId')
+    && has(staticSiteSource, 'generatedGroupPostBatchLimit');
+  const hasRssPostRefs = hasGeneratedOutputPostBatchHelper
+    && has(rssSource, 'forEachHydratedGroupPostBatch(groupId')
+    && has(rssSource, 'rssPostBatchLimit');
   const hasGroupManifestDeleteUnset = has(manifestSource, 'unsetTreeNode(groupManifest.posts, post.localId)');
   const hasGroupManifestStatusUnset = has(manifestSource, 'statusNe: PostStatus.Published')
     && has(groupSource, 'this.updateGroupManifest(userId, oldPost.groupId)');
@@ -475,15 +485,23 @@ function hotspotRows(): HotspotRow[] {
       area: 'Static site rendering',
       source: 'app/modules/staticSiteGenerator/index.ts',
       hotspot: 'prepareGroupPostsForRender',
-      observedPattern: has(staticSiteSource, 'limit: 9999') ? 'loads up to 9999 posts with contents before rendering pages' : 'review implementation',
-      scalabilityRisk: 'bounded but still heavy for media-rich groups; should batch IDs and contents',
+      observedPattern: hasStaticSitePostRefBatches
+        ? 'scans lightweight post refs in cursor batches, then hydrates and renders each bounded batch'
+        : (has(staticSiteSource, 'limit: 9999') ? 'loads up to 9999 posts with contents before rendering pages' : 'review implementation'),
+      scalabilityRisk: hasStaticSitePostRefBatches
+        ? 'large exports still materialize final render data and copy content, but DB hydration is page-scoped'
+        : 'bounded but still heavy for media-rich groups; should batch IDs and contents',
     },
     {
       area: 'RSS rendering',
       source: 'app/modules/rss/index.ts',
       hotspot: 'groupRss',
-      observedPattern: has(rssSource, 'limit: 9999') ? 'loads up to 9999 posts with contents for feed generation' : 'review implementation',
-      scalabilityRisk: 'feeds should cap lower or use a feed-specific projection',
+      observedPattern: hasRssPostRefs
+        ? 'scans lightweight post refs in cursor batches, then hydrates selected feed batches'
+        : (has(rssSource, 'limit: 9999') ? 'loads up to 9999 posts with contents for feed generation' : 'review implementation'),
+      scalabilityRisk: hasRssPostRefs
+        ? 'feed generation avoids total counts and the previous 9999-row hydration query; body extraction still reads selected content files'
+        : 'feeds should cap lower or use a feed-specific projection',
     },
     {
       area: 'Social import reversal',

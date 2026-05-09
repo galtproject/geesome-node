@@ -145,10 +145,29 @@ function getNextListCursor(cursor: ListCursorState, pageRows: any[], limit) {
 	if (!cursor.hasCursor || pageRows.length !== limit) {
 		return null;
 	}
+	return getNextCursorFromRows(pageRows, limit, cursor);
+}
+
+function getNextCursorFromRows(pageRows: any[], limit, options: ListCursorOptions = {}) {
+	if (pageRows.length !== limit) {
+		return null;
+	}
+	const cursorOptions = getCursorOptions(options);
 	const last = pageRows[pageRows.length - 1];
 	return {
-		[cursor.valueField]: last[cursor.valueField],
-		[cursor.idField]: last[cursor.idField],
+		[cursorOptions.valueField]: last[cursorOptions.valueField],
+		[cursorOptions.idField]: last[cursorOptions.idField],
+	};
+}
+
+function getCursorFiltersFromCursor(cursor, options: ListCursorOptions = {}) {
+	if (!cursor) {
+		return {};
+	}
+	const cursorOptions = getCursorOptions(options);
+	return {
+		[cursorOptions.cursorValueFilter]: cursor[cursorOptions.valueField],
+		[cursorOptions.cursorIdFilter]: cursor[cursorOptions.idField],
 	};
 }
 
@@ -283,6 +302,10 @@ export default {
 	getCursorListAttributes,
 
 	getNextListCursor,
+
+	getNextCursorFromRows,
+
+	getCursorFiltersFromCursor,
 
 	// C1: strip visibility-override fields so untrusted callers cannot bypass the
 	// Published-only default in getPostsWhere by passing ?status=draft etc.
