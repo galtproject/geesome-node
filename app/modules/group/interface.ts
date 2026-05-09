@@ -173,7 +173,8 @@ export interface IGroupListResponse {
 
 export interface IPostListResponse {
 	list: IPost[];
-	total: number;
+	total: number | null;
+	nextCursor?: {publishedAt: any; id: any} | null;
 }
 
 

@@ -346,7 +346,11 @@ function hotspotRows(): HotspotRow[] {
   const helpersSource = read('app/helpers.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map') && has(groupSource, "attributes: ['id']");
-  const hasCategoryIdFirstHydration = has(categorySource, 'getHydratedPostListByIds(pagePosts.map') && has(categorySource, "attributes: Array.from(new Set(['id', sortBy]))");
+  const hasCategoryIdFirstHydration = has(categorySource, 'getHydratedPostListByIds(pagePosts.map')
+    && has(categorySource, "helpers.getCursorListAttributes(['id'], cursor, sortBy)");
+  const hasCategoryCursor = has(categorySource, 'helpers.getListCursorState(filters)')
+    && has(categorySource, 'helpers.getNextListCursor(cursor, pagePosts, limit)')
+    && has(categorySource, 'total: cursor.hasCursor ? null');
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
@@ -489,12 +493,16 @@ function hotspotRows(): HotspotRow[] {
       area: 'Category feeds',
       source: 'app/modules/groupCategory/index.ts',
       hotspot: 'getCategoryPosts',
-      observedPattern: hasCategoryIdFirstHydration
+      observedPattern: hasCategoryCursor
+        ? 'joins group/category pivots only for page post ID selection, supports (publishedAt,id) cursor pages, then hydrates contents/group for the bounded page'
+        : (hasCategoryIdFirstHydration
         ? 'joins group/category pivots only for page post ID selection, then hydrates contents/group for the bounded page'
-        : (has(categorySource, "association: 'categories'") ? 'joins posts through group categories with contents include and limit/offset' : 'review implementation'),
-      scalabilityRisk: hasCategoryIdFirstHydration
+        : (has(categorySource, "association: 'categories'") ? 'joins posts through group categories with contents include and limit/offset' : 'review implementation')),
+      scalabilityRisk: hasCategoryCursor
+        ? 'cursor pages skip total counts and avoid large offsets; legacy offset callers still pay count/offset cost'
+        : (hasCategoryIdFirstHydration
         ? 'content joins no longer drive category page selection; pivot indexes are present, while offset/count cost and cursor migration remain open'
-        : 'category feeds inherit timeline pagination/content hydration risks plus pivot-table join costs',
+        : 'category feeds inherit timeline pagination/content hydration risks plus pivot-table join costs'),
     },
     {
       area: 'Content preview serving',
