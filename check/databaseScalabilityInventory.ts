@@ -41,6 +41,7 @@ function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const contentSource = read('app/modules/database/models/content.ts');
+  const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
   const groupReadSource = read('app/modules/group/models/groupRead.ts');
   const socNetImportSource = read('app/modules/socNetImport/models.ts');
@@ -129,6 +130,19 @@ function modelRows(): ModelRow[] {
         hasContentUserStorageUnique
           ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
           : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
+      ],
+    },
+    {
+      area: 'File catalog',
+      source: 'app/modules/fileCatalog/models.ts',
+      model: 'FileCatalogItem',
+      indexes: [
+        has(fileCatalogModelSource, 'file_catalog_items_content_idx') ? 'contentId reverse index' : 'missing contentId reverse index',
+      ],
+      notes: [
+        has(fileCatalogModelSource, 'file_catalog_items_content_idx')
+          ? 'content delete/reference checks have the reverse content lookup index; folder-tree uniqueness remains a separate cleanup-backed constraint'
+          : 'content delete/reference checks need a reverse content lookup index before large libraries',
       ],
     },
     {
@@ -241,9 +255,11 @@ function modelRows(): ModelRow[] {
         has(groupReadSource, "fields: ['userId', 'groupId'") ? 'userId,groupId unique' : 'review',
       ],
       notes: [
-        has(postSource, 'posts_group_timeline_idx')
-          ? 'supports one read cursor per user/group; count is indexed but cursor is timestamp-only'
-          : 'supports one read cursor per user/group; unread count still depends on Post timeline index',
+        has(groupReadSource, 'readPostId') && has(postSource, 'posts_group_timeline_idx')
+          ? 'supports one read cursor per user/group; unread count can use readAt plus readPostId tie-breaker'
+          : (has(postSource, 'posts_group_timeline_idx')
+            ? 'supports one read cursor per user/group; count is indexed but cursor is timestamp-only'
+            : 'supports one read cursor per user/group; unread count still depends on Post timeline index'),
       ],
     },
     {
@@ -384,10 +400,14 @@ function hotspotRows(): HotspotRow[] {
       area: 'Unread counters',
       source: 'app/modules/group/index.ts',
       hotspot: 'getGroupUnreadPostsData',
-      observedPattern: has(groupSource, 'publishedAtGt: groupRead.readAt') ? 'count posts newer than read cursor' : 'review implementation',
-      scalabilityRisk: has(read('app/modules/group/models/post.ts'), 'posts_group_timeline_idx')
-        ? 'count is backed by the timeline index, but read cursor remains timestamp-only'
-        : 'count needs a composite post index on group/deleted/publishedAt',
+      observedPattern: has(groupSource, 'publishedAfterCursorAt')
+        ? 'count posts newer than the stored (readAt, readPostId) cursor when present, with readAt-only fallback'
+        : (has(groupSource, 'publishedAtGt: groupRead.readAt') ? 'count posts newer than read cursor' : 'review implementation'),
+      scalabilityRisk: has(groupSource, 'publishedAfterCursorAt') && has(read('app/modules/group/models/post.ts'), 'posts_group_timeline_idx')
+        ? 'count is backed by the timeline index and can disambiguate same-timestamp posts; old readAt-only rows still use the legacy timestamp predicate'
+        : (has(read('app/modules/group/models/post.ts'), 'posts_group_timeline_idx')
+          ? 'count is backed by the timeline index, but read cursor remains timestamp-only'
+          : 'count needs a composite post index on group/deleted/publishedAt'),
     },
     {
       area: 'Group manifest generation',

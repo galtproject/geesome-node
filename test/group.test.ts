@@ -578,6 +578,42 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
 	});
 
+	it('uses readPostId for unread posts with the same publishedAt timestamp', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const publishedAt = new Date('2026-05-09T12:00:00.000Z');
+		const content = await app.ms.content.saveData(testUser.id, 'same timestamp unread cursor', null, {
+			mimeType: 'text/markdown'
+		});
+		const postData = {
+			contents: [{manifestStorageId: content.manifestStorageId, view: ContentView.Attachment}],
+			groupId: testGroup.id,
+			publishedAt,
+			status: PostStatus.Published
+		};
+
+		const olderSameTimePost = await app.ms.group.createPost(testUser.id, postData);
+		const newerSameTimePost = await app.ms.group.createPost(testUser.id, postData);
+
+		await app.ms.group.addOrUpdateGroupRead(testUser.id, {
+			groupId: testGroup.id,
+			readAt: publishedAt,
+			readPostId: olderSameTimePost.id
+		});
+		const unreadAfterOlderCursor = await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id);
+
+		assert.equal(unreadAfterOlderCursor.count, 1);
+		assert.equal(unreadAfterOlderCursor.readPostId, olderSameTimePost.id);
+
+		await app.ms.group.addOrUpdateGroupRead(testUser.id, {
+			groupId: testGroup.id,
+			readAt: publishedAt,
+			readPostId: newerSameTimePost.id
+		});
+
+		assert.equal((await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id)).count, 0);
+	});
+
 	it('getGroupPostPath', async () => {
 		assert.equal(app.ms.group.getGroupPostPath(1), '0/0/1');
 		assert.equal(app.ms.group.getGroupPostPath(12), '0/0/12');

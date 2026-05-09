@@ -24,6 +24,14 @@ function contentSize(content) {
 	return Number(content?.size) || 0;
 }
 
+function addAndWhereClause(where, clause) {
+	if (Array.isArray(where[Op.and])) {
+		where[Op.and] = [...where[Op.and], clause];
+		return;
+	}
+	where[Op.and] = [clause];
+}
+
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
@@ -315,9 +323,18 @@ function getModule(app: IGeesomeApp, models) {
 		async getGroupUnreadPostsData(userId, groupId) {
 			const groupRead = await this.getGroupRead(userId, groupId);
 			if (groupRead) {
+				const unreadFilters: any = {isDeleted: false};
+				const hasReadPostCursor = groupRead.readAt && !isUndefined(groupRead.readPostId) && groupRead.readPostId !== null;
+				if (hasReadPostCursor) {
+					unreadFilters.publishedAfterCursorAt = groupRead.readAt;
+					unreadFilters.publishedAfterCursorId = groupRead.readPostId;
+				} else {
+					unreadFilters.publishedAtGt = groupRead.readAt;
+				}
 				return {
 					readAt: groupRead.readAt,
-					count: await this.getGroupPostsCount(groupId, { publishedAtGt: groupRead.readAt, isDeleted: false })
+					readPostId: groupRead.readPostId,
+					count: await this.getGroupPostsCount(groupId, unreadFilters)
 				};
 			}
 			const group = await this.getGroup(groupId);
@@ -1129,14 +1146,23 @@ function getModule(app: IGeesomeApp, models) {
 				const cursorAt = filters.cursorPublishedAt instanceof Date
 					? filters.cursorPublishedAt
 					: new Date(filters.cursorPublishedAt);
-				where[Op.and] = [
-					{
-						[Op.or]: [
-							{publishedAt: {[Op.lt]: cursorAt}},
-							{publishedAt: cursorAt, id: {[Op.lt]: parseInt(filters.cursorId, 10)}}
-						]
-					}
-				];
+				addAndWhereClause(where, {
+					[Op.or]: [
+						{publishedAt: {[Op.lt]: cursorAt}},
+						{publishedAt: cursorAt, id: {[Op.lt]: parseInt(filters.cursorId, 10)}}
+					]
+				});
+			}
+			if (!isUndefined(filters.publishedAfterCursorAt) && !isUndefined(filters.publishedAfterCursorId)) {
+				const cursorAt = filters.publishedAfterCursorAt instanceof Date
+					? filters.publishedAfterCursorAt
+					: new Date(filters.publishedAfterCursorAt);
+				addAndWhereClause(where, {
+					[Op.or]: [
+						{publishedAt: {[Op.gt]: cursorAt}},
+						{publishedAt: cursorAt, id: {[Op.gt]: parseInt(filters.publishedAfterCursorId, 10)}}
+					]
+				});
 			}
 			['id', 'status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
 				if(filters[name] === 'null') {

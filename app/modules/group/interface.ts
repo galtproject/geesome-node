@@ -86,7 +86,7 @@ export default interface IGeesomeGroupModule {
 
 	getGroupManifestPostRefs(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
-	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt}>;
+	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt, readPostId?}>;
 
 	addOrUpdateGroupRead(userId, groupReadData);
 
@@ -249,6 +249,7 @@ export interface IGroupRead {
 	id?: number;
 	readFrom?;
 	readAt?;
+	readPostId?: number;
 	userId: number;
 	groupId: number;
 	cachedPostsCount: number;
@@ -371,6 +372,7 @@ export interface IGroupReadInput {
 	groupId: number;
 	readFrom?: number;
 	readAt?: Date | string;
+	readPostId?: number;
 }
 
 export interface IUserFriendInput {
@@ -381,6 +383,8 @@ export interface IGroupUnreadResponse {
 	count?: number;
 	cachedPostsCount?: number;
 	readFrom?: number;
+	readAt?: Date | string;
+	readPostId?: number;
 }
 
 export interface IGroupApiResponse {
