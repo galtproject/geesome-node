@@ -384,6 +384,104 @@ describe("group", function () {
 		assert.deepEqual(Object.keys(refJson).sort(), ['id', 'localId', 'publishedAt'].sort());
 	});
 
+	it('iterates lightweight group post refs in cursor batches', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const createdPosts = [];
+		for (const publishedAt of [
+			'2026-01-04T00:00:00.000Z',
+			'2026-01-01T00:00:00.000Z',
+			'2026-01-03T00:00:00.000Z',
+			'2026-01-05T00:00:00.000Z',
+			'2026-01-02T00:00:00.000Z'
+		]) {
+			createdPosts.push(await app.ms.group.createPost(testUser.id, {
+				groupId: testGroup.id,
+				publishedAt: new Date(publishedAt),
+				status: PostStatus.Published
+			}));
+		}
+
+		const batchSizes = [];
+		const seenPostIds = [];
+		await app.ms.group.forEachGroupPostRefBatch(testGroup.id, {
+			batchLimit: 2,
+			listParams: {
+				sortBy: 'publishedAt',
+				sortDir: 'ASC'
+			},
+			attributes: ['id', 'publishedAt'],
+			cursor: {
+				cursorValueFilter: 'testCursorPublishedAt',
+				cursorIdFilter: 'testCursorId',
+				direction: 'after',
+				orderDir: 'ASC'
+			}
+		}, async ({postRefs}) => {
+			batchSizes.push(postRefs.length);
+			postRefs.forEach(postRef => {
+				const refJson = postRef.toJSON();
+				assert.deepEqual(Object.keys(refJson).sort(), ['id', 'publishedAt'].sort());
+				seenPostIds.push(postRef.id);
+			});
+		});
+		const expectedPostIds = createdPosts
+			.sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime() || a.id - b.id)
+			.map(post => post.id);
+
+		assert.deepEqual(batchSizes, [2, 2, 1]);
+		assert.deepEqual(seenPostIds, expectedPostIds);
+	});
+
+	it('reverses social import local ids from cursor-batched refs', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const socNetImport = (app.ms as any).socNetImport;
+		const channel = await socNetImport.createDbChannel({
+			userId: testUser.id,
+			accountId: 1,
+			socNet: 'test',
+			groupId: testGroup.id,
+			channelId: 'reverse-local-ids',
+			title: 'Reverse Local IDs'
+		});
+
+		for (const [index, publishedAt] of [
+			'2026-01-05T00:00:00.000Z',
+			'2026-01-04T00:00:00.000Z',
+			'2026-01-03T00:00:00.000Z',
+			'2026-01-02T00:00:00.000Z',
+			'2026-01-01T00:00:00.000Z'
+		].entries()) {
+			const post = await app.ms.group.createPost(testUser.id, {
+				groupId: testGroup.id,
+				publishedAt: new Date(publishedAt),
+				status: PostStatus.Published
+			});
+			await socNetImport.storeMessage(null, {
+				userId: testUser.id,
+				dbChannelId: channel.id,
+				msgId: String(index + 1),
+				postId: post.id,
+				timestamp: Math.floor(new Date(publishedAt).getTime() / 1000),
+				isNeedToReverse: true
+			});
+		}
+
+		await socNetImport.reversePostsLocalIds(testUser.id, channel.id);
+
+		const postRefs = await app.ms.group.getGroupPostRefs(testGroup.id, {}, {
+			sortBy: 'publishedAt',
+			sortDir: 'ASC',
+			limit: 10
+		}, {
+			attributes: ['id', 'localId', 'publishedAt']
+		});
+
+		assert.deepEqual(postRefs.map(post => post.localId), [1, 2, 3, 4, 5]);
+		assert.equal(await socNetImport.getDbChannelStartReverseMessage(channel.id), null);
+	});
+
 	it('isReplyForbidden should work properly', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

@@ -449,6 +449,44 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IPost[];
 		}
 
+		async forEachGroupPostRefBatch(groupId, options: any = {}, onBatch) {
+			const maxRefs = isUndefined(options.maxRefs) ? Number.MAX_SAFE_INTEGER : options.maxRefs;
+			const batchLimit = isUndefined(options.batchLimit) ? 100 : options.batchLimit;
+			const listParams = options.listParams || {};
+			let filters = {...(options.filters || {})};
+			let processedRefs = 0;
+
+			while (processedRefs < maxRefs) {
+				const limit = Math.min(batchLimit, maxRefs - processedRefs);
+				const postRefs = await this.getGroupPostRefs(groupId, filters, {
+					...listParams,
+					limit,
+					offset: 0
+				}, options);
+				const refCount = postRefs.length;
+				const nextCursor = helpers.getNextCursorFromRows(postRefs, limit, options.cursor);
+				const batch = {
+					postRefs,
+					refCount,
+					nextCursor
+				};
+				if (!batch.refCount) {
+					break;
+				}
+				processedRefs += batch.refCount;
+				const shouldContinue = await onBatch(batch, {processedRefs});
+				if (shouldContinue === false || !batch.nextCursor) {
+					break;
+				}
+				filters = {
+					...filters,
+					...helpers.getCursorFiltersFromCursor(batch.nextCursor, options.cursor)
+				};
+			}
+
+			return processedRefs;
+		}
+
 		async getHydratedGroupPostBatch(groupId, filters = {}, listParams?: IListParams, options: any = {}) {
 			listParams = helpers.prepareListParams(listParams);
 			app.ms.database.setDefaultListParamsValues(listParams, options.defaultListParams || {sortBy: 'publishedAt'});
@@ -474,34 +512,20 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async forEachHydratedGroupPostBatch(groupId, options: any = {}, onBatch) {
-			const maxRefs = options.maxRefs || Number.MAX_SAFE_INTEGER;
-			const batchLimit = options.batchLimit || 100;
-			const listParams = options.listParams || {};
-			let filters = {...(options.filters || {})};
-			let processedRefs = 0;
-
-			while (processedRefs < maxRefs) {
-				const limit = Math.min(batchLimit, maxRefs - processedRefs);
-				const batch = await this.getHydratedGroupPostBatch(groupId, filters, {
-					...listParams,
-					limit,
-					offset: 0
-				}, options);
-				if (!batch.refCount) {
-					break;
-				}
-				processedRefs += batch.refCount;
-				const shouldContinue = await onBatch(batch, {processedRefs});
-				if (shouldContinue === false || !batch.nextCursor) {
-					break;
-				}
-				filters = {
-					...filters,
-					...helpers.getCursorFiltersFromCursor(batch.nextCursor, options.cursor)
+			return this.forEachGroupPostRefBatch(groupId, options, async (refBatch, state) => {
+				const hydrateOptions = {
+					groupId,
+					...(options.hydrateOptions || {})
 				};
-			}
-
-			return processedRefs;
+				const groupPosts = await this.getHydratedPostListByIds(
+					refBatch.postRefs.map(post => post.id),
+					hydrateOptions
+				);
+				return onBatch({
+					...refBatch,
+					groupPosts
+				}, state);
+			});
 		}
 
 		async getGroupManifestPostRefs(groupId, filters = {}, listParams?: IListParams) {
