@@ -251,8 +251,22 @@ describe("app", function () {
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.storageId), true);
 		assert.equal(contentObj.mimeType, 'text/plain');
 
-		await app.ms.content.saveData(saveDataTestUser.id, 'test', 'text.txt', { waitForPin: true });
+		const duplicateTextContent = await app.ms.content.saveData(saveDataTestUser.id, 'test', 'text.txt', { waitForPin: true });
 		log('saveData');
+		assert.equal(duplicateTextContent.id, textContent.id);
+		assert.equal(
+			(await app.ms.database.getContentByStorageIdListAndUserId([textContent.storageId], saveDataTestUser.id)).length,
+			1
+		);
+
+		const secondSaveDataUser = await app.registerUser({
+			email: 'user-save-data-2@user.com',
+			name: 'user-save-data-2',
+			permissions: [CorePermissionName.UserSaveData]
+		});
+		const otherUserTextContent = await app.ms.content.saveData(secondSaveDataUser.id, 'test', 'text.txt', { waitForPin: true });
+		assert.equal(otherUserTextContent.storageId, textContent.storageId);
+		assert.notEqual(otherUserTextContent.id, textContent.id);
 
 		const ipld = await app.ms.storage.saveObject(contentObj, { waitForPin: true });
 		assert.equal(ipld, textContent.manifestStorageId);
