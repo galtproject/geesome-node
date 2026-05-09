@@ -81,6 +81,33 @@ describe("group", function () {
 		assert.notEqual(gotPost.contents[0].id, ownerContent.id);
 	});
 
+	it('imports remote group media into actor-scoped content rows', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const ownerAvatar = await app.ms.content.saveData(testUser.id, 'private avatar', null, {
+			mimeType: 'text/markdown'
+		});
+		const avatarObject = await app.ms.entityJsonManifest.manifestIdToDbObject(ownerAvatar.manifestStorageId, 'content');
+		const newUser = await app.registerUser({
+			email: 'remote-media@user.com',
+			name: 'remote-media',
+			password: 'remote-media',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		const importedGroup = await app.ms.group.createGroupByObject(newUser.id, {
+			name: 'remote-media-group',
+			title: 'Remote media group',
+			isRemote: true,
+			avatarImage: avatarObject
+		});
+		const gotGroup = await app.ms.group.getGroup(importedGroup.id);
+
+		assert.equal(gotGroup.avatarImage.userId, newUser.id);
+		assert.equal(gotGroup.avatarImage.storageId, ownerAvatar.storageId);
+		assert.notEqual(gotGroup.avatarImage.id, ownerAvatar.id);
+		assert.equal(gotGroup.coverImageId, null);
+	});
+
 	it('allocates group local ids with a row lock under concurrency', async () => {
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
