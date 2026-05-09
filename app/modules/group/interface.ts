@@ -86,6 +86,10 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
 
+	getHydratedGroupPostBatch(groupId, filters?, listParams?: IListParams, options?): Promise<IHydratedGroupPostBatch>;
+
+	forEachHydratedGroupPostBatch(groupId, options, onBatch): Promise<number>;
+
 	getGroupManifestPostRefs(groupId, filters?, listParams?: IListParams): Promise<IPost[]>;
 
 	getGroupUnreadPostsData(userId, groupId): Promise<{count, readAt, readPostId?}>;
@@ -176,6 +180,13 @@ export interface IGroupListResponse {
 export interface IPostListResponse {
 	list: IPost[];
 	total: number | null;
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
+export interface IHydratedGroupPostBatch {
+	postRefs: IPost[];
+	groupPosts: IPost[];
+	refCount: number;
 	nextCursor?: {publishedAt: any; id: any} | null;
 }
 
