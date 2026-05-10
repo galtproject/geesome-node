@@ -15,14 +15,74 @@ import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface.js";
 import {IContent} from "../database/interface.js";
 import {GroupType} from "../group/interface.js";
 import {IGeesomeApp} from "../../interface.js";
-const {pick, uniq, uniqBy, orderBy, find, some, isString, reverse, last} = _;
+const {pick, uniq, uniqBy, orderBy, find, some, isString, isUndefined, reverse, last} = _;
 const reverseLocalIdBatchLimit = 500;
+const POST_SOURCE_IDENTITY_UNIQUE_INDEX = 'posts_group_source_post_unique';
+const POST_SOURCE_IDENTITY_FIELDS = ['groupId', 'source', 'sourceChannelId', 'sourcePostId'];
 
 export default async (app: IGeesomeApp) => {
 	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
 	await (await import('./api.js')).default(app, module);
 	return module;
+}
+
+function getPostSourceIdentity(postData) {
+	if (!postData) {
+		return null;
+	}
+	const missingField = POST_SOURCE_IDENTITY_FIELDS.find((field) => {
+		return isUndefined(postData[field]) || postData[field] === null;
+	});
+	if (missingField) {
+		return null;
+	}
+	return pick(postData, POST_SOURCE_IDENTITY_FIELDS);
+}
+
+function getUniqueConstraintName(e) {
+	if (!e) {
+		return null;
+	}
+	if (e.parent && e.parent.constraint) {
+		return e.parent.constraint;
+	}
+	if (e.original && e.original.constraint) {
+		return e.original.constraint;
+	}
+	if (e.constraint) {
+		return e.constraint;
+	}
+	return null;
+}
+
+function getUniqueErrorFieldNames(e) {
+	if (!e || !e.fields) {
+		return [];
+	}
+	if (Array.isArray(e.fields)) {
+		return e.fields;
+	}
+	return Object.keys(e.fields);
+}
+
+function isPostSourceUniqueError(e, postData) {
+	if (!e || e.name !== 'SequelizeUniqueConstraintError') {
+		return false;
+	}
+	const constraintName = getUniqueConstraintName(e);
+	if (constraintName === POST_SOURCE_IDENTITY_UNIQUE_INDEX) {
+		return true;
+	}
+	const sourceIdentity = getPostSourceIdentity(postData);
+	if (!sourceIdentity) {
+		return false;
+	}
+	const errorFieldNames = getUniqueErrorFieldNames(e);
+	if (!errorFieldNames.length) {
+		return false;
+	}
+	return POST_SOURCE_IDENTITY_FIELDS.every(field => errorFieldNames.includes(field));
 }
 
 function getModule(app: IGeesomeApp, models) {
@@ -217,7 +277,7 @@ function getModule(app: IGeesomeApp, models) {
 					replyTo ? postData.replyToId = replyTo.id : null;
 				}
 				postData.properties = properties;
-				postData.sourcePostId = m.id;
+				postData.sourcePostId = m.id.toString();
 
 				const post = await this.checkExistMessageAndPublishPost(_client, postData, m, dbChannel, _importState, type);
 				if (type === 'reply') {
@@ -252,7 +312,7 @@ function getModule(app: IGeesomeApp, models) {
 
 			return this.publishPost(importState, existsChannelMessage, postData, {
 				userId,
-				msgId: m.id,
+				msgId: postData.sourcePostId,
 				dbChannelId: dbChannel.id,
 				repostOfDbChannelId: importState.repostOfDbChannelId,
 				groupedId: m.groupedId ? m.groupedId.toString() : null,
@@ -261,6 +321,32 @@ function getModule(app: IGeesomeApp, models) {
 				repostOfMsgId: postData.properties.repostOfMsgId,
 				isNeedToReverse: importState.isNeedToReverse,
 			});
+		}
+
+		async getPostBySourceIdentity(postData) {
+			const sourceIdentity = getPostSourceIdentity(postData);
+			if (!sourceIdentity) {
+				return null;
+			}
+			return app.ms.database.models.Post.findOne({where: sourceIdentity});
+		}
+
+		async createPostOrUpdateSourceIdentity(userId, postData) {
+			try {
+				return await app.ms.group.createPost(userId, postData);
+			} catch (e) {
+				if (!isPostSourceUniqueError(e, postData)) {
+					throw e;
+				}
+				const existsPost = await this.getPostBySourceIdentity(postData);
+				if (!existsPost) {
+					throw e;
+				}
+				const updatePostData = {...postData};
+				delete updatePostData.userId;
+				await app.ms.group.updatePost(userId, existsPost.id, updatePostData);
+				return app.ms.group.getPostPure(existsPost.id);
+			}
 		}
 
 		async publishPost(_importState, _existsChannelMessage, _postData, _msgData) {
@@ -316,7 +402,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (existsPostId) {
 				await app.ms.group.updatePost(userId, existsPostId, _postData);
 			} else {
-				existsPostId = await app.ms.group.createPost(userId, _postData).then(p => p.id);
+				existsPostId = await this.createPostOrUpdateSourceIdentity(userId, _postData).then(p => p.id);
 			}
 
 			_msgData.postId = existsPostId;

@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {Sequelize, DataTypes} from 'sequelize';
+import {Sequelize, DataTypes, Op} from 'sequelize';
 
 export default async function (sequelize: Sequelize, models) {
 
@@ -130,6 +130,17 @@ export default async function (sequelize: Sequelize, models) {
       { name: 'posts_group_manifest_cursor_idx', fields: ['groupId', 'status', 'updatedAt', 'id'] },
       { name: 'posts_group_id_idx', fields: ['groupId', 'id'] },
       { name: 'posts_group_local_unique', fields: ['groupId', 'localId'], unique: true },
+      {
+        name: 'posts_group_source_post_unique',
+        fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId'],
+        unique: true,
+        where: {
+          groupId: {[Op.ne]: null},
+          source: {[Op.ne]: null},
+          sourceChannelId: {[Op.ne]: null},
+          sourcePostId: {[Op.ne]: null}
+        }
+      },
       { name: 'posts_manifest_storage_id_idx', fields: ['manifestStorageId'] }
     ]
   } as any);
