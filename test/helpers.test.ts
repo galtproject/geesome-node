@@ -44,5 +44,21 @@ describe('helpers', () => {
 			limit: 100,
 			offset: 2
 		});
+
+		const fileCatalogOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'id', 'position', 'name'],
+			maxLimit: 200
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'position',
+			sortDir: 'desc',
+			limit: '500' as any
+		}, fileCatalogOptions), {
+			sortBy: 'position',
+			sortDir: 'DESC',
+			limit: 200
+		});
 	});
 });
