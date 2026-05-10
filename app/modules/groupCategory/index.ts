@@ -7,6 +7,11 @@ import {GroupType} from "../group/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers";
 const {isUndefined, pick} = _;
+const publicPostListParams = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'staticId', 'group']);
@@ -70,8 +75,8 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getCategoryPosts(categoryId, filters = {}, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+			listParams = helpers.prepareListParams(listParams, publicPostListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, publicPostListParams);
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const cursor = helpers.getListCursorState(filters);

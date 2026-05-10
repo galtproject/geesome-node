@@ -19,6 +19,7 @@ import {
   IContent,
   IGeesomeDatabaseModule,
   IListParams,
+  IListParamsOptions,
   IObject,
   IUser,
   IUserApiKey,
@@ -36,12 +37,16 @@ function parseNonNegativeInteger(value, fallback) {
   return parsed;
 }
 
-function sanitizeSortBy(value, fallback) {
+function sanitizeSortBy(value, fallback, allowedSortBy?: string[]) {
+  const fallbackSortBy = allowedSortBy?.includes(fallback) || !allowedSortBy?.length ? fallback : allowedSortBy[0];
   if (typeof value !== 'string') {
-    return fallback;
+    return fallbackSortBy;
   }
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
-    return fallback;
+    return fallbackSortBy;
+  }
+  if (allowedSortBy?.length && !allowedSortBy.includes(value)) {
+    return fallbackSortBy;
   }
   return value;
 }
@@ -52,6 +57,11 @@ function sanitizeSortDir(value, fallback) {
     return fallback.toUpperCase();
   }
   return sortDir;
+}
+
+function getListLimitCap(defaultParams: IListParamsOptions) {
+  const cap = parseNonNegativeInteger(defaultParams.maxLimit, maxListLimit);
+  return Math.min(cap, maxListLimit);
 }
 
 export default async function (app: IGeesomeApp) {
@@ -483,14 +493,15 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.models.Value.destroy({where: {key}});
   }
 
-  setDefaultListParamsValues(listParams: IListParams, defaultParams: IListParams = {}) {
-    const defaultSortBy = sanitizeSortBy(defaultParams.sortBy, 'createdAt');
+  setDefaultListParamsValues(listParams: IListParams, defaultParams: IListParamsOptions = {}) {
+    const defaultSortBy = sanitizeSortBy(defaultParams.sortBy, 'createdAt', defaultParams.allowedSortBy);
     const defaultSortDir = sanitizeSortDir(defaultParams.sortDir, 'DESC');
     const defaultLimit = parseNonNegativeInteger(defaultParams.limit, 20);
     const defaultOffset = parseNonNegativeInteger(defaultParams.offset, 0);
-    listParams.sortBy = sanitizeSortBy(listParams.sortBy, defaultSortBy);
+    const limitCap = getListLimitCap(defaultParams);
+    listParams.sortBy = sanitizeSortBy(listParams.sortBy, defaultSortBy, defaultParams.allowedSortBy);
     listParams.sortDir = sanitizeSortDir(listParams.sortDir, defaultSortDir);
-    listParams.limit = Math.min(parseNonNegativeInteger(listParams.limit, defaultLimit), maxListLimit);
+    listParams.limit = Math.min(parseNonNegativeInteger(listParams.limit, defaultLimit), limitCap);
     listParams.offset = parseNonNegativeInteger(listParams.offset, defaultOffset);
   }
 }

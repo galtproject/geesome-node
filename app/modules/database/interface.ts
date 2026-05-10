@@ -118,7 +118,7 @@ export interface IGeesomeDatabaseModule {
 
   clearValue(key: string): Promise<void>;
 
-  setDefaultListParamsValues(listParams: IListParams, defaultParams?: IListParams);
+  setDefaultListParamsValues(listParams: IListParams, defaultParams?: IListParamsOptions);
 }
 
 export interface IInvite {
@@ -138,6 +138,11 @@ export interface IListParams {
   offset?: number;
   sortBy?: string;
   sortDir?: string;
+}
+
+export interface IListParamsOptions extends IListParams {
+  allowedSortBy?: string[];
+  maxLimit?: number;
 }
 
 export interface IUserApiKey {
