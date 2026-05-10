@@ -398,16 +398,22 @@ async function getModule(app: IGeesomeApp, models) {
                 ({id: publicDirStorageId} = await app.ms.storage.saveDirectory(`${helpers.getCurDir()}/modules/staticSiteGenerator/site/public`));
             }
             if (!faviconStorageId) {
-                let faviconPath = `${helpers.getCurDir()}/../node_modules/@geesome/ui`;
+                const uiPath = `${helpers.getCurDir()}/../node_modules/@geesome/ui`;
+                let faviconPath;
                 try {
-                    fs.readdirSync(faviconPath).some(name => {
+                    fs.readdirSync(uiPath).some(name => {
                         if (name.startsWith('favicon.')) {
-                            faviconPath += '/' + name;
+                            faviconPath = `${uiPath}/${name}`;
                             return true;
                         }
                     });
+                    if (!faviconPath) {
+                        faviconPath = `${uiPath}/assets/favicon.ico`;
+                    }
                     ({id: faviconStorageId} = await app.ms.storage.saveFileByPath(faviconPath));
-                } catch (e) {console.warn('ssg favicon', e)}
+                } catch (e) {
+                    console.warn('ssg favicon', e);
+                }
             }
             if (!vendorAssetsStorageId) {
                 const vendorAssetsDirectory = '/ssgVendorAssets'

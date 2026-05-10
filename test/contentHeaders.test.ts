@@ -23,7 +23,7 @@ describe("content headers", function () {
 					setDefaultHeaders: () => null
 				},
 				database: {
-					getContentByStorageId: async () => ({
+					getSharedContentByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: ContentMimeType.Text,
 						size: contentSize
@@ -74,7 +74,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getContentByStorageId: async () => ({
+					getSharedContentByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: ContentMimeType.Text,
 						size: contentSize
@@ -128,7 +128,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getContentByStorageId: async () => null
+					getSharedContentByStorageId: async () => null
 				},
 				storage: {
 					getFileStat: async () => null,
@@ -173,7 +173,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getContentByStorageId: async () => ({
+					getSharedContentByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: "video/mp4",
 						size: 5
@@ -227,7 +227,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getContentByStorageId: async () => ({
+					getSharedContentByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: ContentMimeType.Text,
 						size: contentSize
@@ -280,7 +280,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getContentByStorageId: async () => ({
+					getSharedContentByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: "video/mp4",
 						size: contentSize
