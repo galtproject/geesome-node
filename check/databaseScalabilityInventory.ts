@@ -83,6 +83,12 @@ function modelRows(): ModelRow[] {
     && has(userLimitSource, 'unique: true');
   const hasUserLimitDuplicateRetry = has(appSource, 'isUserLimitUniqueError')
     && has(appSource, 'newExistLimit');
+  const hasPinUserNameUnique = has(pinSource, 'pin_accounts_user_name_unique')
+    && has(pinSource, "fields: ['userId', 'name']")
+    && has(pinSource, 'unique: true');
+  const hasPinGroupNameUnique = has(pinSource, 'pin_accounts_group_name_unique')
+    && has(pinSource, "fields: ['groupId', 'name']")
+    && has(pinSource, 'unique: true');
 
   return [
     {
@@ -252,19 +258,16 @@ function modelRows(): ModelRow[] {
       source: 'app/modules/pin/models.ts',
       model: 'PinAccount',
       indexes: [
-        has(pinSource, "fields: ['name', 'userId', 'groupId']")
-          ? 'legacy name,userId,groupId uniqueness'
-          : 'review owner/name uniqueness',
-        has(pinSource, 'pin_accounts_user_name_idx')
-          ? 'userId,name lookup index'
-          : 'missing user/name lookup index',
-        has(pinSource, 'pin_accounts_group_name_idx')
-          ? 'groupId,name lookup index'
-          : 'missing group/name lookup index',
+        hasPinUserNameUnique
+          ? 'cleanup-backed userId,name unique lookup'
+          : 'missing user/name unique lookup',
+        hasPinGroupNameUnique
+          ? 'cleanup-backed groupId,name unique lookup'
+          : 'missing group/name unique lookup',
       ],
       notes: [
-        has(pinSource, 'pin_accounts_user_name_idx') && has(pinSource, 'pin_accounts_group_name_idx')
-          ? 'hot owner/name lookups are indexed; uniqueness semantics still use the legacy name-leading composite'
+        hasPinUserNameUnique && hasPinGroupNameUnique
+          ? 'runtime owner/name lookups are deterministic after duplicate-name cleanup'
           : 'pin account lookup should start with owner id before name',
       ],
     },
@@ -382,6 +385,7 @@ function hotspotRows(): HotspotRow[] {
   const asyncOperationSource = read('app/modules/asyncOperation/index.ts');
   const autoActionSource = read('app/modules/autoActions/index.ts');
   const pinSource = read('app/modules/pin/index.ts');
+  const pinModelSource = read('app/modules/pin/models.ts');
   const helpersSource = read('app/helpers.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map') && has(groupSource, "attributes: ['id']");
@@ -634,8 +638,8 @@ function hotspotRows(): HotspotRow[] {
       observedPattern: has(pinSource, 'findOne({where: {userId, name}}') && has(pinSource, 'findOne({where: {groupId, name}}')
         ? 'looks up pin accounts by owner id plus name'
         : 'review pin account lookup implementation',
-      scalabilityRisk: has(read('app/modules/pin/models.ts'), 'pin_accounts_user_name_idx') && has(read('app/modules/pin/models.ts'), 'pin_accounts_group_name_idx')
-        ? 'hot owner/name lookups are indexed; legacy uniqueness still starts with name'
+      scalabilityRisk: has(pinModelSource, 'pin_accounts_user_name_unique') && has(pinModelSource, 'pin_accounts_group_name_unique')
+        ? 'owner/name lookups are indexed and uniqueness-backed'
         : 'owner/name lookup cannot use the legacy name-leading uniqueness well',
     },
     {

@@ -12,6 +12,10 @@ import {CorePermissionName} from "../app/modules/database/interface.js";
 import IGeesomePinModule from "../app/modules/pin/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
+function isUniqueConstraintError(error: Error) {
+	return error.name === 'SequelizeUniqueConstraintError';
+}
+
 describe("pin", function () {
 	this.timeout(60000);
 
@@ -128,5 +132,64 @@ describe("pin", function () {
 
 		gotAccount = await pins.getUserAccount(testUser.id, 'pinata-1');
 		assert.equal(gotAccount.apiKey, '123');
+	});
+
+	it('enforces pin account names for user and group lookups', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const testUser2 = await app.registerUser({
+			email: 'pin-user-2@user.com',
+			name: 'pin-user-2',
+			password: 'pin-user-2',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		await pins.createAccount(testUser.id, {
+			name: 'pinata-unique',
+			service: 'pinata',
+			apiKey: '111',
+			secretApiKey: '222'
+		});
+
+		await assert.rejects(
+			() => pins.createAccount(testUser.id, {
+				name: 'pinata-unique',
+				service: 'pinata',
+				apiKey: '333',
+				secretApiKey: '444'
+			}),
+			isUniqueConstraintError
+		);
+
+		await assert.rejects(
+			() => pins.createAccount(testUser.id, {
+				name: 'pinata-unique',
+				service: 'pinata',
+				apiKey: '555',
+				secretApiKey: '666',
+				groupId: testGroup.id
+			}),
+			isUniqueConstraintError
+		);
+
+		await pins.createAccount(testUser.id, {
+			name: 'pinata-group-unique',
+			service: 'pinata',
+			apiKey: '777',
+			secretApiKey: '888',
+			groupId: testGroup.id
+		});
+		await app.ms.group.addAdminToGroup(testUser.id, testGroup.id, testUser2.id);
+
+		await assert.rejects(
+			() => pins.createAccount(testUser2.id, {
+				name: 'pinata-group-unique',
+				service: 'pinata',
+				apiKey: '999',
+				secretApiKey: '000',
+				groupId: testGroup.id
+			}),
+			isUniqueConstraintError
+		);
 	});
 });
