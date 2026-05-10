@@ -4,7 +4,7 @@ import debug from 'debug';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
 import IGeesomeFileCatalogModule, {FileCatalogItemType, IFileCatalogItem} from "./interface.js";
-import {CorePermissionName, IContent, IListParams} from "../database/interface.js";
+import {CorePermissionName, IContent, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp, ManifestToSave} from "../../interface.js";
 import helpers from "../../helpers";
 const {first, isUndefined, upperFirst, trim, reverse, difference, pick} = _;
@@ -13,6 +13,11 @@ const FILE_CATALOG_PATH_UNIQUE_INDEXES = [
 	'file_catalog_items_child_path_unique',
 	'file_catalog_items_root_path_unique'
 ];
+const fileCatalogPublicListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'id', 'position', 'name'],
+	maxLimit: 200
+};
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
@@ -190,7 +195,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getFileCatalogItems(userId, parentItemId, type?, search = '', isDeleted = false, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, fileCatalogPublicListParams);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			if (parentItemId == 'null') {
 				parentItemId = null;

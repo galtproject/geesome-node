@@ -405,6 +405,8 @@ function hotspotRows(): HotspotRow[] {
     && has(helpersSource, 'maxLimit')
     && has(groupSource, 'publicPostListParams')
     && has(categorySource, 'publicPostListParams');
+  const hasFileCatalogListLimits = has(fileCatalogSource, 'fileCatalogPublicListParams')
+    && has(fileCatalogSource, 'helpers.prepareListParams(listParams, fileCatalogPublicListParams)');
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
@@ -666,12 +668,16 @@ function hotspotRows(): HotspotRow[] {
       hotspot: 'prepareListParams',
       observedPattern: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
         ? (hasPublicPostListLimits
-          ? 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds below the global export ceiling'
+          ? (hasFileCatalogListLimits
+            ? 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds plus file-catalog browsing below the global export ceiling'
+            : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds below the global export ceiling')
           : 'normalizes limit/offset to non-negative integers, caps limit, allowlists simple sort columns, and clamps sort direction')
         : 'review list parameter normalization',
       scalabilityRisk: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
         ? (hasPublicPostListLimits
-          ? 'group and category public post feeds now use indexed sort allowlists and a lower browsing cap; remaining endpoints still need endpoint-specific policies'
+          ? (hasFileCatalogListLimits
+            ? 'group/category public post feeds and user file-catalog browsing use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies'
+            : 'group and category public post feeds now use indexed sort allowlists and a lower browsing cap; remaining endpoints still need endpoint-specific policies')
           : 'bad public list params are normalized before Sequelize; endpoint-specific sort allowlists and lower public max page sizes remain open')
         : 'negative offsets/limits and arbitrary sort params can reach large-list queries',
     },
