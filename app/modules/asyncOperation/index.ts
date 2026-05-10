@@ -2,9 +2,15 @@ import _ from 'lodash';
 import {Op} from "sequelize";
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
-import {CorePermissionName, IListParams} from "../database/interface.js";
+import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
 const {isObject, last} = _;
+const operationQueueListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id'],
+	maxLimit: 100
+};
 
 export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
@@ -247,6 +253,9 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getWaitingOperationQueueListByModule(userId, module, listParams: IListParams) {
+			listParams = helpers.prepareListParams(listParams, operationQueueListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, operationQueueListParams);
+
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where = {userId, module, isWaiting: true};
 			return {

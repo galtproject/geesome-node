@@ -3,7 +3,7 @@ import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite, IStaticSiteRenderArgs} from "./interface.js";
-import {IContentData, IListParams} from "../database/interface.js";
+import {IContentData, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
@@ -17,6 +17,11 @@ let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
 const customStylesCssMaxLength = 128 * 1024;
 const generatedGroupPostsLimit = 9999;
 const generatedGroupPostBatchLimit = 100;
+const staticSiteListParams: IListParamsOptions = {
+    sortBy: 'createdAt',
+    allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'entityType', 'entityId'],
+    maxLimit: 100
+};
 
 function parsePositiveInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
     const parsed = parseInt(value, 10);
@@ -584,6 +589,8 @@ async function getModule(app: IGeesomeApp, models) {
         }
 
         async getStaticSiteList(userId: number, entityType?: string, listParams: IListParams = {}) {
+            app.ms.database.setDefaultListParamsValues(listParams, staticSiteListParams);
+
             const where: any = {userId};
             if (entityType) {
                 where['entityType'] = entityType;
@@ -597,10 +604,12 @@ async function getModule(app: IGeesomeApp, models) {
             if (entityType) {
                 where['entityType'] = entityType;
             }
-            return models.StaticSite.findAll({ where }) as IStaticSite[];
+            return models.StaticSite.count({ where });
         }
 
         async getStaticSiteResponse(userId: number, entityType?: string, listParams: IListParams = {}) {
+            listParams = helpers.prepareListParams(listParams, staticSiteListParams);
+
             return {
                 list: await this.getStaticSiteList(userId, entityType, listParams),
                 total: await this.getStaticSiteCount(userId, entityType)
