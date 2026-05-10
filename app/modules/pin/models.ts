@@ -6,7 +6,7 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-import {Sequelize, DataTypes} from 'sequelize';
+import {Sequelize, DataTypes, Op} from 'sequelize';
 
 export default async function (sequelize: Sequelize) {
 
@@ -46,11 +46,26 @@ export default async function (sequelize: Sequelize) {
 	} as any, {
 		indexes: [
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['name', 'userId', 'groupId'], unique: true },
 			{ fields: ['service', 'userId'] },
 			{ fields: ['service', 'groupId'] },
-			{ name: 'pin_accounts_user_name_idx', fields: ['userId', 'name'] },
-			{ name: 'pin_accounts_group_name_idx', fields: ['groupId', 'name'] },
+			{
+				name: 'pin_accounts_user_name_unique',
+				fields: ['userId', 'name'],
+				unique: true,
+				where: {
+					userId: {[Op.ne]: null},
+					name: {[Op.ne]: null}
+				}
+			},
+			{
+				name: 'pin_accounts_group_name_unique',
+				fields: ['groupId', 'name'],
+				unique: true,
+				where: {
+					groupId: {[Op.ne]: null},
+					name: {[Op.ne]: null}
+				}
+			},
 		]
 	} as any);
 
