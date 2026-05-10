@@ -140,7 +140,7 @@ export default async function (sequelize: Sequelize, models) {
   } as any, {
     indexes: [
       // Scalability review slice 4 (matched by 20260506000000-add-post-timeline-indexes.cjs):
-      { name: 'posts_contents_post_position_idx', fields: ['postId', 'position'] },
+      { name: 'posts_contents_post_position_unique', fields: ['postId', 'position'], unique: true },
       { name: 'posts_contents_content_idx', fields: ['contentId'] }
     ]
   } as any);

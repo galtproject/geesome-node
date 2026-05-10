@@ -1461,25 +1461,23 @@ function getModule(app: IGeesomeApp, models) {
 
 			const toDelete = existing.filter(r => !desiredKeys.has(keyOf(r)));
 			const toInsert = desired.filter(d => !existingByKey.has(keyOf(d)));
-			const toUpdate: Array<{id: any; view: any}> = [];
+			const toUpdate: Array<{contentId: any; view: any}> = [];
 			for (const d of desired) {
 				const existingRow = existingByKey.get(keyOf(d));
 				if (existingRow && existingRow.view !== d.view) {
-					toUpdate.push({id: existingRow.id, view: d.view});
+					toUpdate.push({contentId: existingRow.contentId, view: d.view});
 				}
 			}
 
-			const ops: Promise<any>[] = [];
 			if (toDelete.length > 0) {
-				ops.push(models.PostsContents.destroy({where: {id: {[Op.in]: toDelete.map(r => r.id)}}, transaction}));
+				await models.PostsContents.destroy({where: {postId, contentId: {[Op.in]: toDelete.map(r => r.contentId)}}, transaction});
 			}
 			if (toInsert.length > 0) {
-				ops.push(models.PostsContents.bulkCreate(toInsert.map(d => ({postId, contentId: d.contentId, position: d.position, view: d.view})), {transaction}));
+				await models.PostsContents.bulkCreate(toInsert.map(d => ({postId, contentId: d.contentId, position: d.position, view: d.view})), {transaction});
 			}
-			for (const u of toUpdate) {
-				ops.push(models.PostsContents.update({view: u.view}, {where: {id: u.id}, transaction}));
-			}
-			return Promise.all(ops);
+			return Promise.all(toUpdate.map(u => {
+				return models.PostsContents.update({view: u.view}, {where: {postId, contentId: u.contentId}, transaction});
+			}));
 		}
 
 		async getPostSizeSum(id) {
