@@ -19,6 +19,11 @@ import {
 } from "../database/interface.js";
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
+const publicPostListParams = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
 
 function contentSize(content) {
 	return Number(content?.size) || 0;
@@ -394,12 +399,12 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
 			groupId = await this.checkGroupId(groupId);
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, publicPostListParams);
 			if (isUndefined(filters['isDeleted'])) {
 				filters['isDeleted'] = false;
 			}
 
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
+			app.ms.database.setDefaultListParamsValues(listParams, publicPostListParams);
 			const {limit} = listParams;
 			const cursor = helpers.getListCursorState(filters);
 

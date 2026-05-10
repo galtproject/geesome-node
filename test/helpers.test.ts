@@ -25,4 +25,24 @@ describe('helpers', () => {
 			offset: 7
 		});
 	});
+
+	it('applies endpoint list sort allowlists and caps', () => {
+		const publicPostOptions = {
+			sortBy: 'publishedAt',
+			allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'name',
+			sortDir: 'asc',
+			limit: '10000' as any,
+			offset: '2' as any
+		}, publicPostOptions), {
+			sortBy: 'publishedAt',
+			sortDir: 'ASC',
+			limit: 100,
+			offset: 2
+		});
+	});
 });

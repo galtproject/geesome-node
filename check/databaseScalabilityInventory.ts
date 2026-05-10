@@ -394,6 +394,10 @@ function hotspotRows(): HotspotRow[] {
   const hasCategoryCursor = has(categorySource, 'helpers.getListCursorState(filters)')
     && has(categorySource, 'helpers.getNextListCursor(cursor, pagePosts, limit)')
     && has(categorySource, 'total: cursor.hasCursor ? null');
+  const hasPublicPostListLimits = has(helpersSource, 'allowedSortBy')
+    && has(helpersSource, 'maxLimit')
+    && has(groupSource, 'publicPostListParams')
+    && has(categorySource, 'publicPostListParams');
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
@@ -647,10 +651,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/helpers.ts',
       hotspot: 'prepareListParams',
       observedPattern: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
-        ? 'normalizes limit/offset to non-negative integers, caps limit, allowlists simple sort columns, and clamps sort direction'
+        ? (hasPublicPostListLimits
+          ? 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds below the global export ceiling'
+          : 'normalizes limit/offset to non-negative integers, caps limit, allowlists simple sort columns, and clamps sort direction')
         : 'review list parameter normalization',
       scalabilityRisk: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
-        ? 'bad public list params are normalized before Sequelize; endpoint-specific sort allowlists and lower public max page sizes remain open'
+        ? (hasPublicPostListLimits
+          ? 'group and category public post feeds now use indexed sort allowlists and a lower browsing cap; remaining endpoints still need endpoint-specific policies'
+          : 'bad public list params are normalized before Sequelize; endpoint-specific sort allowlists and lower public max page sizes remain open')
         : 'negative offsets/limits and arbitrary sort params can reach large-list queries',
     },
     {

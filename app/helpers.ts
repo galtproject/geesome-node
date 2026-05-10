@@ -7,7 +7,7 @@ import {fileURLToPath} from 'url';
 import createKeccakHash from "keccak";
 import {Op} from 'sequelize';
 import commonHelper from "geesome-libs/src/common.js";
-import {IListParams} from "./modules/database/interface.js";
+import {IListParams, IListParamsOptions} from "./modules/database/interface.js";
 const {map, pick} = _;
 
 const saltRounds = 10;
@@ -41,12 +41,16 @@ function parseNonNegativeInteger(value, fallback = null) {
 	return parsed;
 }
 
-function sanitizeSortBy(value, fallback = 'createdAt') {
+function sanitizeSortBy(value, fallback = 'createdAt', allowedSortBy?: string[]) {
+	const fallbackSortBy = allowedSortBy?.includes(fallback) || !allowedSortBy?.length ? fallback : allowedSortBy[0];
 	if (typeof value !== 'string') {
-		return fallback;
+		return fallbackSortBy;
 	}
 	if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
-		return fallback;
+		return fallbackSortBy;
+	}
+	if (allowedSortBy?.length && !allowedSortBy.includes(value)) {
+		return fallbackSortBy;
 	}
 	return value;
 }
@@ -68,6 +72,11 @@ function getCursorOptions(options: ListCursorOptions = {}) {
 		direction: options.direction || 'before',
 		orderDir: options.orderDir,
 	};
+}
+
+function getListLimitCap(options: IListParamsOptions = {}) {
+	const cap = parseNonNegativeInteger(options.maxLimit, maxListLimit);
+	return Math.min(cap, maxListLimit);
 }
 
 function isCursorValuePresent(value) {
@@ -269,14 +278,16 @@ export default {
 		console.log.apply(console, logArgs);
 	},
 
-	prepareListParams(listParams?: IListParams): IListParams {
+	prepareListParams(listParams?: IListParams, options: IListParamsOptions = {}): IListParams {
 		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset']);
-		res.sortBy = sanitizeSortBy(res.sortBy);
+		const defaultSortBy = sanitizeSortBy(options.sortBy, 'createdAt', options.allowedSortBy);
+		res.sortBy = sanitizeSortBy(res.sortBy, defaultSortBy, options.allowedSortBy);
 		res.sortDir = sanitizeSortDir(res.sortDir);
 
 		const limit = parseNonNegativeInteger(res.limit);
+		const limitCap = getListLimitCap(options);
 		if (limit !== null) {
-			res.limit = Math.min(limit, maxListLimit);
+			res.limit = Math.min(limit, limitCap);
 		} else {
 			delete res.limit;
 		}
