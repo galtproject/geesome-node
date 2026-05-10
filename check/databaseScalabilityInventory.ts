@@ -71,6 +71,13 @@ function modelRows(): ModelRow[] {
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
+  const hasFileCatalogPathUnique = has(fileCatalogModelSource, 'file_catalog_items_child_path_unique')
+    && has(fileCatalogModelSource, 'file_catalog_items_root_path_unique')
+    && has(fileCatalogModelSource, "fields: ['parentItemId', 'userId', 'name']")
+    && has(fileCatalogModelSource, "fields: ['userId', 'name']")
+    && has(fileCatalogModelSource, 'unique: true');
+  const hasFileCatalogParentListIndex = has(fileCatalogModelSource, 'file_catalog_items_user_parent_list_idx')
+    && has(fileCatalogModelSource, "fields: ['userId', 'parentItemId', 'isDeleted', 'type', 'createdAt', 'id']");
   const hasUserLimitUnique = has(userLimitSource, 'user_limits_user_name_unique')
     && has(userLimitSource, "fields: ['userId', 'name']")
     && has(userLimitSource, 'unique: true');
@@ -159,10 +166,12 @@ function modelRows(): ModelRow[] {
       model: 'FileCatalogItem',
       indexes: [
         has(fileCatalogModelSource, 'file_catalog_items_content_idx') ? 'contentId reverse index' : 'missing contentId reverse index',
+        hasFileCatalogParentListIndex ? 'user,parent,isDeleted,type,createdAt,id folder listing index' : 'missing folder listing index',
+        hasFileCatalogPathUnique ? 'cleanup-backed active path uniqueness for child and root rows' : 'missing active path uniqueness',
       ],
       notes: [
-        has(fileCatalogModelSource, 'file_catalog_items_content_idx')
-          ? 'content delete/reference checks have the reverse content lookup index; folder-tree uniqueness remains a separate cleanup-backed constraint'
+        has(fileCatalogModelSource, 'file_catalog_items_content_idx') && hasFileCatalogParentListIndex && hasFileCatalogPathUnique
+          ? 'content reference checks, large folder listings, and exact active path writes are covered'
           : 'content delete/reference checks need a reverse content lookup index before large libraries',
       ],
     },

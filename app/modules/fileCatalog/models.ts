@@ -6,7 +6,7 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-import {Sequelize, DataTypes} from 'sequelize';
+import {Sequelize, DataTypes, Op} from 'sequelize';
 
 export default async function (sequelize, appModels) {
 	const FileCatalogItem = sequelize.define('fileCatalogItem', {
@@ -50,10 +50,32 @@ export default async function (sequelize, appModels) {
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
 			// { fields: ['chainAccountAddress'] },
 			// { fields: ['tokensAddress'] },
-			// { fields: ['parentItemId', 'userId', 'name'], unique: true, where: { isDeleted: false } },
-			// { fields: ['userId', 'name'], unique: true, where: { parentItemId: null, isDeleted: false } }
 			// Scalability review slice 9 (matched by 20260506000001-add-content-and-quota-indexes.cjs):
-			{name: 'file_catalog_items_content_idx', fields: ['contentId']}
+			{name: 'file_catalog_items_content_idx', fields: ['contentId']},
+			// Scalability review slice 39 (matched by 20260510000001-enforce-file-catalog-active-path-unique.cjs):
+			{name: 'file_catalog_items_user_parent_list_idx', fields: ['userId', 'parentItemId', 'isDeleted', 'type', 'createdAt', 'id']},
+			{
+				name: 'file_catalog_items_child_path_unique',
+				fields: ['parentItemId', 'userId', 'name'],
+				unique: true,
+				where: {
+					isDeleted: false,
+					parentItemId: {[Op.ne]: null},
+					userId: {[Op.ne]: null},
+					name: {[Op.ne]: null}
+				}
+			},
+			{
+				name: 'file_catalog_items_root_path_unique',
+				fields: ['userId', 'name'],
+				unique: true,
+				where: {
+					isDeleted: false,
+					parentItemId: null,
+					userId: {[Op.ne]: null},
+					name: {[Op.ne]: null}
+				}
+			}
 		]
 	} as any);
 
