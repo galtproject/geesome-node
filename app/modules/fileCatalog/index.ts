@@ -9,6 +9,10 @@ import {IGeesomeApp, ManifestToSave} from "../../interface.js";
 import helpers from "../../helpers";
 const {first, isUndefined, upperFirst, trim, reverse, difference, pick} = _;
 const log = debug('geesome:app');
+const FILE_CATALOG_PATH_UNIQUE_INDEXES = [
+	'file_catalog_items_child_path_unique',
+	'file_catalog_items_root_path_unique'
+];
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
@@ -16,6 +20,76 @@ export default async (app: IGeesomeApp) => {
 	const module = getModule(app, await (await import('./models.js')).default(sequelize, models));
 	(await import('./api.js')).default(app, module);
 	return module;
+}
+
+function getUniqueConstraintName(e) {
+	if (!e) {
+		return null;
+	}
+	if (e.parent && e.parent.constraint) {
+		return e.parent.constraint;
+	}
+	if (e.original && e.original.constraint) {
+		return e.original.constraint;
+	}
+	if (e.constraint) {
+		return e.constraint;
+	}
+	return null;
+}
+
+function getUniqueErrorFieldNames(e) {
+	if (!e || !e.fields) {
+		return [];
+	}
+	if (Array.isArray(e.fields)) {
+		return e.fields;
+	}
+	return Object.keys(e.fields);
+}
+
+function isFileCatalogPathUniqueError(e) {
+	if (!e || e.name !== 'SequelizeUniqueConstraintError') {
+		return false;
+	}
+	const constraintName = getUniqueConstraintName(e);
+	if (FILE_CATALOG_PATH_UNIQUE_INDEXES.includes(constraintName)) {
+		return true;
+	}
+	const fieldNames = getUniqueErrorFieldNames(e);
+	if (!fieldNames.length) {
+		return false;
+	}
+	return fieldNames.includes('userId')
+		&& fieldNames.includes('name')
+		&& (
+			fieldNames.includes('parentItemId')
+			|| fieldNames.length === 2
+		);
+}
+
+function getFileCatalogPathWhere(userId, parentItemId, name, type?) {
+	const where: any = {userId, parentItemId, name, isDeleted: false};
+	if (!isUndefined(type)) {
+		where.type = type;
+	}
+	return where;
+}
+
+function truncateCatalogItemName(name) {
+	return String(name || '').slice(0, 200);
+}
+
+function getNumberedCatalogItemName(name, number) {
+	const cleanName = truncateCatalogItemName(name);
+	if (number <= 1) {
+		return cleanName;
+	}
+	const suffix = ` (${number})`;
+	const extension = path.extname(cleanName);
+	const stem = extension ? cleanName.slice(0, -extension.length) : cleanName;
+	const maxStemLength = Math.max(1, 200 - suffix.length - extension.length);
+	return stem.slice(0, maxStemLength) + suffix + extension;
 }
 
 function getModule(app: IGeesomeApp, models) {
@@ -69,7 +143,7 @@ function getModule(app: IGeesomeApp, models) {
 				return;
 			}
 
-			const resultItem = await this.addFileCatalogItem({
+			const resultItem = await this.addFileCatalogItemWithAvailableName({
 				name: content.name || "Unnamed " + new Date().toISOString(),
 				type: FileCatalogItemType.File,
 				position: (await this.getFileCatalogItemsCount(userId, parentItemId)) + 1,
@@ -198,7 +272,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
-		public async findCatalogItemByPath(userId, path, type, createFoldersIfNotExists = false): Promise<{ foundCatalogItem: IFileCatalogItem, lastFolderId: number }> {
+		public async findCatalogItemByPath(userId, path, type, createFoldersIfNotExists = false): Promise<{ foundCatalogItem: IFileCatalogItem, lastFolderId: number } | null> {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const pathArr = trim(path, '/').split('/');
 			const foldersArr = pathArr.slice(0, -1);
@@ -210,18 +284,29 @@ function getModule(app: IGeesomeApp, models) {
 				if (breakSearch) {
 					return;
 				}
-				const foundItems = await this.getFileCatalogItemsList(userId, currentFolderId, FileCatalogItemType.Folder, name);
+				const foundItems = await this.getActiveFileCatalogPathItems(userId, currentFolderId, name, FileCatalogItemType.Folder);
 
 				if (foundItems.length) {
 					currentFolderId = foundItems[0].id;
 				} else if (createFoldersIfNotExists) {
-					const newFileCatalogFolder = await this.addFileCatalogItem({
-						name,
-						userId,
-						type: FileCatalogItemType.Folder,
-						position: (await this.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
-						parentItemId: currentFolderId
-					});
+					let newFileCatalogFolder;
+					try {
+						newFileCatalogFolder = await this.addFileCatalogItem({
+							name,
+							userId,
+							type: FileCatalogItemType.Folder,
+							position: (await this.getFileCatalogItemsCount(userId, currentFolderId)) + 1,
+							parentItemId: currentFolderId
+						});
+					} catch (e) {
+						if (!isFileCatalogPathUniqueError(e)) {
+							throw e;
+						}
+						newFileCatalogFolder = await this.getActiveFileCatalogPathItem(userId, currentFolderId, name, FileCatalogItemType.Folder);
+						if (!newFileCatalogFolder) {
+							throw e;
+						}
+					}
 					currentFolderId = newFileCatalogFolder.id;
 				} else {
 					breakSearch = true;
@@ -232,7 +317,7 @@ function getModule(app: IGeesomeApp, models) {
 				return null;
 			}
 
-			const results = await this.getFileCatalogItemsList(userId, currentFolderId, type, lastItemName);
+			const results = await this.getActiveFileCatalogPathItems(userId, currentFolderId, lastItemName, type);
 			if (results.length > 1) {
 				await pIteration.forEach(results.slice(1), (item: any) => models.FileCatalogItem.update({isDeleted: true}, {where: {id: item.id}}));
 				console.log('remove excess file items: ', lastItemName);
@@ -257,7 +342,11 @@ function getModule(app: IGeesomeApp, models) {
 			const fileName = trim(path, '/').split('/').slice(-1)[0];
 			console.log('saveContentByPath', 'fileName:', fileName);
 
-			let {foundCatalogItem: fileItem, lastFolderId} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
+			const pathResult = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
+			if (!pathResult) {
+				throw new Error('path_not_found');
+			}
+			let {foundCatalogItem: fileItem, lastFolderId} = pathResult;
 
 			const content = await app.ms.database.getContent(contentId);
 			if (fileItem) {
@@ -265,16 +354,27 @@ function getModule(app: IGeesomeApp, models) {
 				await models.FileCatalogItem.update({contentId, size: content.size}, {where: {id: fileItem.id}});
 			} else {
 				console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
-				fileItem = await this.addFileCatalogItem({
-					userId,
-					contentId,
-					name: fileName,
-					type: FileCatalogItemType.File,
-					position: (await this.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
-					parentItemId: lastFolderId,
-					groupId: options.groupId,
-					size: content.size
-				});
+				try {
+					fileItem = await this.addFileCatalogItem({
+						userId,
+						contentId,
+						name: fileName,
+						type: FileCatalogItemType.File,
+						position: (await this.getFileCatalogItemsCount(userId, lastFolderId)) + 1,
+						parentItemId: lastFolderId,
+						groupId: options.groupId,
+						size: content.size
+					});
+				} catch (e) {
+					if (!isFileCatalogPathUniqueError(e)) {
+						throw e;
+					}
+					fileItem = await this.getActiveFileCatalogPathItem(userId, lastFolderId, fileName, FileCatalogItemType.File);
+					if (!fileItem) {
+						throw e;
+					}
+					await models.FileCatalogItem.update({contentId, size: content.size}, {where: {id: fileItem.id}});
+				}
 			}
 			if (fileItem.parentItemId) {
 				const size = await this.getFileCatalogItemsSizeSum(fileItem.parentItemId);
@@ -294,14 +394,18 @@ function getModule(app: IGeesomeApp, models) {
 
 		public async getContentByPath(userId, path) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File);
+			const result = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File);
+			if (!result) {
+				return null;
+			}
+			const fileCatalogItem = result.foundCatalogItem;
 			return fileCatalogItem ? await app.ms.database.getContent(fileCatalogItem.contentId) : null;
 		}
 
 		public async getFileCatalogItemByPath(userId, path, type: FileCatalogItemType) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const {foundCatalogItem: fileCatalogItem} = await this.findCatalogItemByPath(userId, path, type);
-			return fileCatalogItem;
+			const result = await this.findCatalogItemByPath(userId, path, type);
+			return result ? result.foundCatalogItem : null;
 		}
 
 		public async deleteFileCatalogItem(userId, itemId, options: { deleteContent? } = {}) {
@@ -401,7 +505,45 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async isFileCatalogItemExistWithContent(userId, parentItemId, contentId) {
-			return models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId}}).then(r => !!r);
+			return models.FileCatalogItem.findOne({where: {userId, parentItemId, contentId, isDeleted: false}}).then(r => !!r);
+		}
+
+		async getActiveFileCatalogPathItems(userId, parentItemId, name, type?) {
+			return models.FileCatalogItem.findAll({
+				where: getFileCatalogPathWhere(userId, parentItemId, name, type),
+				order: [['createdAt', 'DESC'], ['id', 'DESC']],
+				include: [{association: 'content'}]
+			}) as IFileCatalogItem[];
+		}
+
+		async getActiveFileCatalogPathItem(userId, parentItemId, name, type?) {
+			return (await this.getActiveFileCatalogPathItems(userId, parentItemId, name, type))[0];
+		}
+
+		async getAvailableFileCatalogItemName(userId, parentItemId, name) {
+			let number = 1;
+			while (number <= 1000) {
+				const candidateName = getNumberedCatalogItemName(name, number);
+				const existsItem = await this.getActiveFileCatalogPathItem(userId, parentItemId, candidateName);
+				if (!existsItem) {
+					return candidateName;
+				}
+				number += 1;
+			}
+			throw new Error('file_catalog_name_conflict');
+		}
+
+		async addFileCatalogItemWithAvailableName(item) {
+			while (true) {
+				const name = await this.getAvailableFileCatalogItemName(item.userId, item.parentItemId, item.name);
+				try {
+					return await this.addFileCatalogItem({...item, name});
+				} catch (e) {
+					if (!isFileCatalogPathUniqueError(e)) {
+						throw e;
+					}
+				}
+			}
 		}
 
 		async getFileCatalogItemsBreadcrumbsList(childItemId) {
@@ -440,7 +582,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getFileCatalogItemsSizeSum(parentItemId) {
 			return models.FileCatalogItem.sum('size', {
-				where: {parentItemId}
+				where: {parentItemId, isDeleted: false}
 			});
 		}
 

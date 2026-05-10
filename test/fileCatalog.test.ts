@@ -13,6 +13,11 @@ import {ContentView, CorePermissionName} from "../app/modules/database/interface
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
 
+function isUniqueConstraintError(error: any) {
+	assert.equal(error.name, 'SequelizeUniqueConstraintError');
+	return true;
+}
+
 describe("app", function () {
 	this.timeout(60000);
 
@@ -46,6 +51,57 @@ describe("app", function () {
 
 	afterEach(async () => {
 		await app.stop();
+	});
+
+	it("enforces active file catalog path uniqueness per user and parent", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const otherUser = await app.registerUser({
+			email: 'other@user.com',
+			name: 'other',
+			password: 'other',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		const rootFolder = await fileCatalog.createUserFolder(testUser.id, null, 'shared');
+		await assert.rejects(
+			() => fileCatalog.createUserFolder(testUser.id, null, 'shared'),
+			isUniqueConstraintError
+		);
+
+		await fileCatalog.createUserFolder(otherUser.id, null, 'shared');
+		await fileCatalog.updateFileCatalogItem(testUser.id, rootFolder.id, {isDeleted: true});
+
+		const recreatedRootFolder = await fileCatalog.createUserFolder(testUser.id, null, 'shared');
+		const childFolder = await fileCatalog.createUserFolder(testUser.id, recreatedRootFolder.id, 'nested');
+		await assert.rejects(
+			() => fileCatalog.addFileCatalogItem({
+				name: childFolder.name,
+				type: FileCatalogItemType.File,
+				position: 2,
+				parentItemId: recreatedRootFolder.id,
+				userId: testUser.id
+			}),
+			isUniqueConstraintError
+		);
+	});
+
+	it("updates an existing file catalog path instead of adding duplicate active items", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first', 'file.txt');
+		const secondContent = await app.ms.content.saveData(testUser.id, 'second', 'file.txt');
+
+		const firstFileItem = await fileCatalog.saveContentByPath(testUser.id, '/race/file.txt', firstContent.id);
+		const secondFileItem = await fileCatalog.saveContentByPath(testUser.id, '/race/file.txt', secondContent.id);
+		const activePathItems = await fileCatalog.getFileCatalogItems(
+			testUser.id,
+			secondFileItem.parentItemId,
+			FileCatalogItemType.File,
+			'file.txt'
+		);
+
+		assert.equal(firstFileItem.id, secondFileItem.id);
+		assert.equal(secondFileItem.contentId, secondContent.id);
+		assert.equal(activePathItems.total, 1);
 	});
 
 	it("keeps content rows that are still referenced by posts when deleting a catalog item", async () => {
