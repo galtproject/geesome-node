@@ -111,6 +111,41 @@ describe("app", function () {
 		// assert.notEqual(contentObj.storageAccountId, null);
 	});
 
+	it('keeps one user limit row per user and name', async () => {
+		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const limitData = {
+			name: UserLimitName.SaveContentSize,
+			value: 100 * (10 ** 3),
+			adminId: adminUser.id,
+			userId: testUser.id,
+			periodTimestamp: 60,
+			isActive: true
+		};
+		const [firstLimit, secondLimit] = await Promise.all([
+			app.setUserLimit(adminUser.id, limitData),
+			app.setUserLimit(adminUser.id, {
+				...limitData,
+				value: 200 * (10 ** 3)
+			})
+		]);
+		const thirdLimit = await app.setUserLimit(adminUser.id, {
+			...limitData,
+			value: 300 * (10 ** 3)
+		});
+		const matchingLimits = await (app.ms.database as any).models.UserLimit.count({
+			where: {
+				userId: testUser.id,
+				name: UserLimitName.SaveContentSize
+			}
+		});
+
+		assert.equal(firstLimit.id, secondLimit.id);
+		assert.equal(secondLimit.id, thirdLimit.id);
+		assert.equal(thirdLimit.value, 300 * (10 ** 3));
+		assert.equal(matchingLimits, 1);
+	});
+
 	it('loginPassword and updateUser should work properly', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 

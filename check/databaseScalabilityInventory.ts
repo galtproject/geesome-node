@@ -50,6 +50,7 @@ function modelRows(): ModelRow[] {
   const groupCategorySource = read('app/modules/groupCategory/models/groupCategory.ts');
   const groupSectionSource = read('app/modules/groupCategory/models/groupSection.ts');
   const staticIdSource = read('app/modules/staticId/models.ts');
+  const appSource = read('app/index.ts');
   const userContentActionSource = read('app/modules/database/models/userContentAction.ts');
   const userLimitSource = read('app/modules/database/models/userLimit.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/models.ts');
@@ -61,6 +62,11 @@ function modelRows(): ModelRow[] {
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
+  const hasUserLimitUnique = has(userLimitSource, 'user_limits_user_name_unique')
+    && has(userLimitSource, "fields: ['userId', 'name']")
+    && has(userLimitSource, 'unique: true');
+  const hasUserLimitDuplicateRetry = has(appSource, 'isUserLimitUniqueError')
+    && has(appSource, 'newExistLimit');
 
   return [
     {
@@ -167,12 +173,16 @@ function modelRows(): ModelRow[] {
       model: 'UserContentAction / UserLimit',
       indexes: [
         has(userContentActionSource, "fields: ['userId'") ? 'content action user index' : 'no explicit content action indexes',
-        has(userLimitSource, "fields: ['userId', 'name'") ? 'user limit user,name index' : 'no explicit user limit user/name index',
+        hasUserLimitUnique ? 'user limit user,name unique' : (has(userLimitSource, "fields: ['userId', 'name'") ? 'user limit user,name index' : 'no explicit user limit user/name index'),
       ],
       notes: [
-        has(userContentActionSource, 'DataTypes.BIGINT')
+        has(userContentActionSource, 'DataTypes.BIGINT') && hasUserLimitUnique && hasUserLimitDuplicateRetry
+          ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads; ledger size is BIGINT; UserLimit is unique per user/name after duplicate cleanup and duplicate-key retry'
+          : (has(userContentActionSource, 'DataTypes.BIGINT') && hasUserLimitUnique
+          ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads; ledger size is BIGINT; UserLimit is unique per user/name after duplicate cleanup'
+          : (has(userContentActionSource, 'DataTypes.BIGINT')
           ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads; ledger size is BIGINT; UserLimit lookup index is present but uniqueness is still separate'
-          : 'quota checks sum UserContentAction by userId/name/createdAt before uploads; size remains INTEGER',
+          : 'quota checks sum UserContentAction by userId/name/createdAt before uploads; size remains INTEGER')),
       ],
     },
     {

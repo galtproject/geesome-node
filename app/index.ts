@@ -82,6 +82,12 @@ export default async (extendConfig) => {
 };
 
 function getModule(config, appPass) {
+  function isUserLimitUniqueError(error, limitData: IUserLimit) {
+    return error?.name === 'SequelizeUniqueConstraintError'
+      && !!limitData?.userId
+      && !!limitData?.name;
+  }
+
   class GeesomeApp implements IGeesomeApp {
     events: GeesomeEmitter;
 
@@ -403,8 +409,20 @@ function getModule(config, appPass) {
       if (existLimit) {
         await this.ms.database.updateUserLimit(existLimit.id, limitData);
         return this.ms.database.getUserLimit(limitData.userId, limitData.name);
-      } else {
-        return this.ms.database.addUserLimit(limitData);
+      }
+
+      try {
+        return await this.ms.database.addUserLimit(limitData);
+      } catch (e) {
+        if (!isUserLimitUniqueError(e, limitData)) {
+          throw e;
+        }
+        const newExistLimit = await this.ms.database.getUserLimit(limitData.userId, limitData.name);
+        if (!newExistLimit) {
+          throw e;
+        }
+        await this.ms.database.updateUserLimit(newExistLimit.id, limitData);
+        return this.ms.database.getUserLimit(limitData.userId, limitData.name);
       }
     }
 

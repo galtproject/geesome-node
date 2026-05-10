@@ -30,7 +30,7 @@ export default async function (sequelize, models) {
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      { name: 'user_limits_user_name_idx', fields: ['userId', 'name'] }
+      { name: 'user_limits_user_name_unique', fields: ['userId', 'name'], unique: true }
     ]
   } as any);
 
