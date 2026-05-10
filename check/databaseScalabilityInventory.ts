@@ -59,6 +59,9 @@ function modelRows(): ModelRow[] {
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
+  const hasPostGroupLocalUnique = has(postSource, 'posts_group_local_unique')
+    && has(postSource, "fields: ['groupId', 'localId']")
+    && has(postSource, 'unique: true');
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
@@ -87,7 +90,7 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         has(postSource, "fields: ['groupId'") ? 'has group index' : 'missing explicit group timeline index',
-        has(postSource, "fields: ['groupId', 'localId'") ? 'has group/local lookup index' : 'missing explicit group/local lookup index',
+        hasPostGroupLocalUnique ? 'has group/local unique identity' : (has(postSource, "fields: ['groupId', 'localId'") ? 'has group/local lookup index' : 'missing explicit group/local lookup index'),
         has(postSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
       ],
     },
@@ -289,7 +292,8 @@ function modelRows(): ModelRow[] {
           : 'review source indexes',
       ],
       notes: [
-        has(socNetImportIndexSource, 'getGroupPostRefs(dbChannel.groupId') || has(socNetImportIndexSource, 'forEachGroupPostRefBatch(dbChannel.groupId')
+        (has(socNetImportIndexSource, 'getGroupPostRefs') || has(socNetImportIndexSource, 'forEachGroupPostRefBatch'))
+          && has(socNetImportIndexSource, 'dbChannel.groupId')
           ? 'import duplicate checks are mostly indexed; reversal paths use lightweight post refs instead of hydrated timeline rows'
           : 'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries',
       ],
@@ -373,11 +377,12 @@ function hotspotRows(): HotspotRow[] {
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
-  const hasSocialImportPostRefBatches = has(importSource, 'forEachGroupPostRefBatch(dbChannel.groupId')
+  const hasSocialImportPostRefBatches = has(importSource, 'forEachGroupPostRefBatch')
+    && has(importSource, 'dbChannel.groupId')
     && has(importSource, 'reverseLocalIdBatchLimit')
     && has(groupSource, 'forEachGroupPostRefBatch')
     && !has(importSource, 'limit: 10000');
-  const hasSocialImportPostRefs = (has(importSource, 'getGroupPostRefs(dbChannel.groupId') || hasSocialImportPostRefBatches)
+  const hasSocialImportPostRefs = ((has(importSource, 'getGroupPostRefs') && has(importSource, 'dbChannel.groupId')) || hasSocialImportPostRefBatches)
     && has(importSource, 'idGte: startReverseMessage.postId');
   const hasGroupManifestRefBatches = hasGroupManifestPostRefs
     && has(manifestSource, 'forEachGroupManifestPostRef')
