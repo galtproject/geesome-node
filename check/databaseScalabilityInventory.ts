@@ -55,6 +55,8 @@ function modelRows(): ModelRow[] {
   const userLimitSource = read('app/modules/database/models/userLimit.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/models.ts');
   const autoActionSource = read('app/modules/autoActions/models.ts');
+  const autoActionIndexSource = read('app/modules/autoActions/index.ts');
+  const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/models.ts');
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
@@ -68,6 +70,8 @@ function modelRows(): ModelRow[] {
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
+  const hasBoundedAutoActionExecutor = has(autoActionIndexSource, 'limit: autoActionExecuteBatchLimit')
+    && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
@@ -249,7 +253,9 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         has(autoActionSource, 'auto_actions_active_execute_idx')
-          ? 'due active executor scan is indexed; executor locking/batching policy remains separate'
+          ? (hasBoundedAutoActionExecutor
+            ? 'due active executor scan is indexed, bounded, and de-duplicated inside one node; multi-node claim locking remains separate'
+            : 'due active executor scan is indexed; executor locking/batching policy remains separate')
           : 'scheduled executor should lead with isActive and range on executeOn',
       ],
     },
@@ -384,6 +390,7 @@ function hotspotRows(): HotspotRow[] {
   const staticIdSource = read('app/modules/staticId/index.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/index.ts');
   const autoActionSource = read('app/modules/autoActions/index.ts');
+  const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/index.ts');
   const pinModelSource = read('app/modules/pin/models.ts');
   const helpersSource = read('app/helpers.ts');
@@ -398,6 +405,9 @@ function hotspotRows(): HotspotRow[] {
     && has(helpersSource, 'maxLimit')
     && has(groupSource, 'publicPostListParams')
     && has(categorySource, 'publicPostListParams');
+  const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
+    && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
+    && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
@@ -629,10 +639,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/autoActions/index.ts',
       hotspot: 'getAutoActionsToExecute',
       observedPattern: has(autoActionSource, 'executeOn: {[Op.lte]: new Date()}, isActive: true')
-        ? 'periodic executor selects active actions due before now'
+        ? (hasBoundedAutoActionExecutor
+          ? 'periodic executor selects active due actions in deterministic executeOn/id batches and cron de-dupes queued/running action ids'
+          : 'periodic executor selects active actions due before now')
         : 'review auto-action executor query',
       scalabilityRisk: has(read('app/modules/autoActions/models.ts'), 'auto_actions_active_execute_idx')
-        ? 'due/active range scan is indexed; batching and duplicate executor locking remain separate scheduler concerns'
+        ? (hasBoundedAutoActionExecutor
+          ? 'due/active range scan is indexed and per-node duplicate/batch pressure is bounded; multi-node claim locking remains separate'
+          : 'due/active range scan is indexed; batching and duplicate executor locking remain separate scheduler concerns')
         : 'executor can scan active rows without executeOn range support',
     },
     {

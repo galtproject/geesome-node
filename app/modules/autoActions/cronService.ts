@@ -7,6 +7,7 @@ const {some, uniqBy, isArray, isString} = _;
 export default class CronService {
 	queueByModules = {};
 	inProcessByModules = {};
+	actionIdsInQueueOrProcess = new Set();
 	prevActionsResultByRootId = {};
 	actionsIdsByRootId = {};
 	app: IGeesomeApp;
@@ -30,11 +31,15 @@ export default class CronService {
 			this.actionsIdsByRootId[rootActionId] = [];
 		}
 		actions.forEach(a => {
+			if (this.isActionQueuedOrRunning(a)) {
+				return;
+			}
 			if(!this.queueByModules[a.moduleName]) {
 				this.queueByModules[a.moduleName] = []
 			}
 			if (!some(this.queueByModules[a.moduleName], _a => _a.id === a.id)) {
 				this.queueByModules[a.moduleName].push(a);
+				this.markActionQueuedOrRunning(a);
 				if (rootActionId) {
 					this.actionsIdsByRootId[rootActionId].push(a.id);
 				}
@@ -57,36 +62,64 @@ export default class CronService {
 	async runQueueByModule(moduleName, rootActionId = null): Promise<IAutoAction[]> {
 		this.inProcessByModules[moduleName] = true;
 		let executedActions = [];
-		while (this.queueByModules[moduleName].length) {
-			let parallelCount = 1;
-			if (this.queueByModules[moduleName].parallelAutoActionsCount) {
-				parallelCount = this.queueByModules[moduleName].parallelAutoActionsCount();
+		try {
+			while (this.queueByModules[moduleName].length) {
+				let parallelCount = 1;
+				if (this.queueByModules[moduleName].parallelAutoActionsCount) {
+					parallelCount = this.queueByModules[moduleName].parallelAutoActionsCount();
+				}
+				const actionsToParallelExecute = uniqBy(this.queueByModules[moduleName].splice(0, parallelCount), (a: any) => a.id);
+				await pIteration.forEach(actionsToParallelExecute, a => this.executeActionAndAddNextToQueue(a, rootActionId));
+				executedActions = executedActions.concat(actionsToParallelExecute);
 			}
-			const actionsToParallelExecute = uniqBy(this.queueByModules[moduleName].splice(0, parallelCount), (a: any) => a.id);
-			await pIteration.forEach(actionsToParallelExecute, a => this.executeActionAndAddNextToQueue(a, rootActionId));
-			executedActions = executedActions.concat(actionsToParallelExecute);
+		} finally {
+			this.inProcessByModules[moduleName] = false;
 		}
-		this.inProcessByModules[moduleName] = false;
 		return executedActions;
 	}
 
 	async executeActionAndAddNextToQueue(a: IAutoAction, rootActionId = null) {
-		const {result, success} = await this.executeAction(a, rootActionId);
-		if (!success) {
+		try {
+			const {result, success} = await this.executeAction(a, rootActionId);
+			if (!success) {
+				this.clearPrevActions(a.id, rootActionId);
+				return;
+			}
+			if (!rootActionId) {
+				rootActionId = a.id;
+			}
+			if (!this.prevActionsResultByRootId[rootActionId]) {
+				this.prevActionsResultByRootId[rootActionId] = {};
+			}
+			this.prevActionsResultByRootId[rootActionId][this.getPrevActionDictName(a)] = result;
+
+			this.addActionsListToQueueAndRun(await this.autoActionsModule.getNextActionsById(a.userId, a.id), rootActionId);
+
 			this.clearPrevActions(a.id, rootActionId);
+		} finally {
+			this.clearQueuedOrRunningAction(a);
+		}
+	}
+
+	isActionQueuedOrRunning(a: IAutoAction) {
+		if (a.id === null || typeof a.id === 'undefined') {
+			return false;
+		}
+		return this.actionIdsInQueueOrProcess.has(a.id);
+	}
+
+	markActionQueuedOrRunning(a: IAutoAction) {
+		if (a.id === null || typeof a.id === 'undefined') {
 			return;
 		}
-		if (!rootActionId) {
-			rootActionId = a.id;
-		}
-		if (!this.prevActionsResultByRootId[rootActionId]) {
-			this.prevActionsResultByRootId[rootActionId] = {};
-		}
-		this.prevActionsResultByRootId[rootActionId][this.getPrevActionDictName(a)] = result;
+		this.actionIdsInQueueOrProcess.add(a.id);
+	}
 
-		this.addActionsListToQueueAndRun(await this.autoActionsModule.getNextActionsById(a.userId, a.id), rootActionId);
-
-		this.clearPrevActions(a.id, rootActionId);
+	clearQueuedOrRunningAction(a: IAutoAction) {
+		if (a.id === null || typeof a.id === 'undefined') {
+			return;
+		}
+		this.actionIdsInQueueOrProcess.delete(a.id);
 	}
 
 	getPrevActionDictName(a) {
