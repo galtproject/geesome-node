@@ -62,6 +62,9 @@ function modelRows(): ModelRow[] {
   const hasPostGroupLocalUnique = has(postSource, 'posts_group_local_unique')
     && has(postSource, "fields: ['groupId', 'localId']")
     && has(postSource, 'unique: true');
+  const hasPostSourceUnique = has(postSource, 'posts_group_source_post_unique')
+    && has(postSource, "fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId']")
+    && has(postSource, 'unique: true');
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
@@ -87,10 +90,12 @@ function modelRows(): ModelRow[] {
         'source,sourceDate',
         'source,sourceChannelId',
         'source,sourceChannelId,sourcePostId',
+        hasPostSourceUnique ? 'groupId,source,sourceChannelId,sourcePostId unique source identity' : 'missing group/source unique identity',
       ],
       notes: [
         has(postSource, "fields: ['groupId'") ? 'has group index' : 'missing explicit group timeline index',
         hasPostGroupLocalUnique ? 'has group/local unique identity' : (has(postSource, "fields: ['groupId', 'localId'") ? 'has group/local lookup index' : 'missing explicit group/local lookup index'),
+        hasPostSourceUnique ? 'has group/source unique import identity' : 'missing group/source unique import identity',
         has(postSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
       ],
     },
@@ -292,10 +297,12 @@ function modelRows(): ModelRow[] {
           : 'review source indexes',
       ],
       notes: [
-        (has(socNetImportIndexSource, 'getGroupPostRefs') || has(socNetImportIndexSource, 'forEachGroupPostRefBatch'))
-          && has(socNetImportIndexSource, 'dbChannel.groupId')
-          ? 'import duplicate checks are mostly indexed; reversal paths use lightweight post refs instead of hydrated timeline rows'
-          : 'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries',
+        hasPostSourceUnique && has(socNetImportIndexSource, 'createPostOrUpdateSourceIdentity')
+          ? 'message duplicate checks and post source identity are constraint-backed; reversal paths use lightweight post refs when present'
+          : ((has(socNetImportIndexSource, 'getGroupPostRefs') || has(socNetImportIndexSource, 'forEachGroupPostRefBatch'))
+            && has(socNetImportIndexSource, 'dbChannel.groupId')
+            ? 'import duplicate checks are mostly indexed; reversal paths use lightweight post refs instead of hydrated timeline rows'
+            : 'import duplicate checks are mostly indexed; reversal paths reuse group timeline queries'),
       ],
     },
     {

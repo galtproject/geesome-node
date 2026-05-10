@@ -152,6 +152,62 @@ describe("group", function () {
 		);
 	});
 
+	it('reuses existing social import posts by source identity', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const socNetImport = (app.ms as any).socNetImport;
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first imported body', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'updated imported body', null, {
+			mimeType: 'text/markdown'
+		});
+		const sourceIdentity = {
+			groupId: testGroup.id,
+			source: 'socNetImport:test',
+			sourceChannelId: 'channel-1',
+			sourcePostId: 'post-1'
+		};
+		const firstPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			propertiesJson: JSON.stringify({sourceLink: 'first'}),
+			sourceDate: new Date('2026-01-01T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+		const secondPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			propertiesJson: JSON.stringify({sourceLink: 'updated'}),
+			sourceDate: new Date('2026-01-01T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		const gotPost = await app.ms.group.getPostPure(firstPost.id);
+		const sourceRowsCount = await models.Post.count({where: sourceIdentity});
+
+		assert.equal(secondPost.id, firstPost.id);
+		assert.equal(sourceRowsCount, 1);
+		assert.deepEqual(gotPost.contents.map(content => content.id), [secondContent.id]);
+		assert.equal(JSON.parse(gotPost.propertiesJson).sourceLink, 'updated');
+
+		const otherGroup = await app.ms.group.createGroup(testUser.id, {
+			name: 'same-source-other-group',
+			title: 'Same source other group'
+		});
+		const otherPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			groupId: otherGroup.id,
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			propertiesJson: JSON.stringify({sourceLink: 'other-group'}),
+			sourceDate: new Date('2026-01-01T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		assert.notEqual(otherPost.id, firstPost.id);
+	});
+
 	it('does not use the local id high-water mark as unread count when availability is zero', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
