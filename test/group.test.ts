@@ -121,6 +121,45 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getGroup(testGroup.id)).publishedPostsCount, expectedLocalIds.length);
 	});
 
+	it('replaces post content at an existing position without duplicate join rows', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first attachment', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'second attachment', null, {
+			mimeType: 'text/markdown'
+		});
+		const replacementContent = await app.ms.content.saveData(testUser.id, 'replacement attachment', null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [
+				{id: firstContent.id, view: ContentView.Contents},
+				{id: secondContent.id, view: ContentView.Attachment}
+			],
+			groupId: testGroup.id,
+			status: PostStatus.Draft
+		});
+
+		await app.ms.group.updatePost(testUser.id, post.id, {
+			contents: [
+				{id: replacementContent.id, view: ContentView.Contents},
+				{id: secondContent.id, view: ContentView.Attachment}
+			]
+		});
+
+		const gotPost = await app.ms.group.getPostPure(post.id);
+		const joinRows = await (app.ms.database as any).models.PostsContents.findAll({
+			where: {postId: post.id},
+			order: [['position', 'ASC']]
+		});
+
+		assert.deepEqual(gotPost.contents.map(content => content.id), [replacementContent.id, secondContent.id]);
+		assert.deepEqual(joinRows.map(row => row.position), [0, 1]);
+		assert.equal(joinRows.length, 2);
+	});
+
 	it('deletes published replies with counters in one DB transaction', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

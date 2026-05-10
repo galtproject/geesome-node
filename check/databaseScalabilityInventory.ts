@@ -59,6 +59,9 @@ function modelRows(): ModelRow[] {
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
+  const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
+    && has(postSource, "fields: ['postId', 'position']")
+    && has(postSource, 'unique: true');
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
@@ -93,13 +96,16 @@ function modelRows(): ModelRow[] {
       source: 'app/modules/group/models/post.ts',
       model: 'PostsContents',
       indexes: [
-        has(postSource, 'posts_contents_post_position_idx') ? 'postId,position order index' : 'missing postId,position index',
+        has(postSource, 'through: models.PostsContents') ? 'contentId,postId through primary key' : 'review through primary key',
+        hasPostContentPositionUnique ? 'postId,position unique order index' : (has(postSource, 'posts_contents_post_position_idx') ? 'postId,position order index' : 'missing postId,position index'),
         has(postSource, 'posts_contents_content_idx') ? 'contentId reverse index' : 'missing contentId reverse index',
       ],
       notes: [
-        has(postSource, 'posts_contents_post_position_idx') && has(postSource, 'posts_contents_content_idx')
+        hasPostContentPositionUnique && has(postSource, 'posts_contents_content_idx')
+          ? 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; remaining work is body projection'
+          : (has(postSource, 'posts_contents_post_position_idx') && has(postSource, 'posts_contents_content_idx')
           ? 'join lookup indexes present; API timeline hydration is page-scoped; remaining work is attachment constraints and body projection'
-          : 'review through indexes',
+          : 'review through indexes'),
       ],
     },
     {
