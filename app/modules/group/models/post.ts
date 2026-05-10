@@ -129,7 +129,7 @@ export default async function (sequelize: Sequelize, models) {
       { name: 'posts_group_timeline_idx', fields: ['groupId', 'isDeleted', 'status', 'publishedAt', 'id'] },
       { name: 'posts_group_manifest_cursor_idx', fields: ['groupId', 'status', 'updatedAt', 'id'] },
       { name: 'posts_group_id_idx', fields: ['groupId', 'id'] },
-      { name: 'posts_group_local_idx', fields: ['groupId', 'localId'] },
+      { name: 'posts_group_local_unique', fields: ['groupId', 'localId'], unique: true },
       { name: 'posts_manifest_storage_id_idx', fields: ['manifestStorageId'] }
     ]
   } as any);

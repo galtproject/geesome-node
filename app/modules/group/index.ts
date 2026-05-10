@@ -238,8 +238,9 @@ function getModule(app: IGeesomeApp, models) {
 
 		async updateGroupManifest(userId, groupId) {
 			log('updateGroupManifest');
-			// Counters (size, availablePostsCount, publishedPostsCount) are maintained
-			// incrementally in incrementGroupCounters() during post create/update/delete.
+			// Counters (size, availablePostsCount) are maintained incrementally in
+			// incrementGroupCounters() during post create/update/delete. publishedPostsCount
+			// is a legacy localId high-water mark maintained by allocatePostLocalId().
 			// updateGroupManifest no longer runs SUM(size)/COUNT per regeneration; a full
 			// rebuild is available via reconcileGroupCounters() for ops use only.
 			const group = await this.getGroup(groupId);
@@ -265,7 +266,7 @@ function getModule(app: IGeesomeApp, models) {
 			return Promise.all(promises);
 		}
 
-		async incrementGroupCounters(groupId, deltas: {sizeDelta?: number, availableDelta?: number, publishedDelta?: number} = {}, options: any = {}) {
+		async incrementGroupCounters(groupId, deltas: {sizeDelta?: number, availableDelta?: number} = {}, options: any = {}) {
 			const updateData: any = {};
 			const addCounterDelta = (column, delta) => {
 				const value = Number(delta);
@@ -279,8 +280,6 @@ function getModule(app: IGeesomeApp, models) {
 			if (deltas.availableDelta) {
 				addCounterDelta('availablePostsCount', deltas.availableDelta);
 			}
-			addCounterDelta('publishedPostsCount', deltas.publishedDelta);
-
 			if (!Object.keys(updateData).length) {
 				return;
 			}
@@ -339,7 +338,7 @@ function getModule(app: IGeesomeApp, models) {
 			return {
 				readAt: null,
 				//TODO: delete publishedPostsCount using after migration
-				count: group.availablePostsCount || group.publishedPostsCount
+				count: group.availablePostsCount ?? group.publishedPostsCount
 			};
 		}
 
@@ -445,7 +444,8 @@ function getModule(app: IGeesomeApp, models) {
 				where,
 				order: helpers.getCursorListOrder(cursor, {sortBy, sortDir}),
 				limit,
-				offset: helpers.getCursorListOffset(cursor, offset)
+				offset: helpers.getCursorListOffset(cursor, offset),
+				transaction: options.transaction
 			}) as IPost[];
 		}
 
@@ -1019,7 +1019,8 @@ function getModule(app: IGeesomeApp, models) {
 			if (!group) {
 				throw new Error("group_not_found");
 			}
-			const nextLocalId = (group.publishedPostsCount || 0) + 1;
+			const maxLocalId = await models.Post.max('localId', {where: {groupId: post.groupId}, transaction}).then(m => m || 0);
+			const nextLocalId = Math.max(group.publishedPostsCount || 0, maxLocalId) + 1;
 			await group.update({publishedPostsCount: nextLocalId}, {transaction});
 			return nextLocalId;
 		}

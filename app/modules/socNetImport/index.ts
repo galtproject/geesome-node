@@ -8,7 +8,7 @@
  */
 
 import _ from 'lodash';
-import {Op} from "sequelize";
+import {Op, Transaction} from "sequelize";
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface.js";
@@ -436,8 +436,15 @@ function getModule(app: IGeesomeApp, models) {
 			return pIteration.forEachSeries(postRefs, async (postRef) => {
 				state.minPostId = Math.min(state.minPostId, postRef.id);
 				state.maxPostId = Math.max(state.maxPostId, postRef.id);
-				await postRef.update({localId: state.startLocalId + state.reversedCount});
+				await postRef.update({localId: state.startLocalId + state.reversedCount}, {transaction: state.transaction});
 				state.reversedCount += 1;
+			});
+		}
+
+		async movePostLocalIdBatchToTemporary(postRefs, state) {
+			return pIteration.forEachSeries(postRefs, async (postRef) => {
+				await postRef.update({localId: state.temporaryLocalId + state.movedCount}, {transaction: state.transaction});
+				state.movedCount += 1;
 			});
 		}
 
@@ -453,13 +460,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (!startPost) {
 				return;
 			}
-			const reverseState = {
-				startLocalId: startPost.localId,
-				reversedCount: 0,
-				minPostId: startPost.id,
-				maxPostId: startPost.id
-			};
-			await app.ms.group.forEachGroupPostRefBatch(dbChannel.groupId, {
+			const reverseBatchOptions = {
 				filters: {idGte: startReverseMessage.postId},
 				batchLimit: reverseLocalIdBatchLimit,
 				listParams: {
@@ -473,14 +474,51 @@ function getModule(app: IGeesomeApp, models) {
 					direction: 'after',
 					orderDir: 'ASC'
 				}
-			}, ({postRefs}) => this.reversePostLocalIdBatch(postRefs, reverseState));
-			console.log('postsToReverse.length', reverseState.reversedCount);
-			if (reverseState.reversedCount < 2) {
-				return;
-			}
-			console.log('firstPostId', reverseState.minPostId, 'lastPostId', reverseState.maxPostId);
-			return models.Message.update({isNeedToReverse: false}, {
-				where: {dbChannelId, isNeedToReverse: true, postId: {[Op.gte]: reverseState.minPostId, [Op.lte]: reverseState.maxPostId}},
+			};
+			return app.ms.database.sequelize.transaction(async (transaction) => {
+				const group = await app.ms.database.models.Group.findOne({
+					where: {id: dbChannel.groupId},
+					transaction,
+					lock: Transaction.LOCK.UPDATE
+				});
+				if (!group) {
+					throw new Error('group_not_found');
+				}
+				const maxLocalId = await app.ms.database.models.Post.max('localId', {
+					where: {groupId: dbChannel.groupId},
+					transaction
+				}).then(m => m || 0);
+				const reverseState = {
+					startLocalId: startPost.localId,
+					temporaryLocalId: maxLocalId + 1,
+					movedCount: 0,
+					reversedCount: 0,
+					minPostId: startPost.id,
+					maxPostId: startPost.id,
+					transaction
+				};
+				await app.ms.group.forEachGroupPostRefBatch(
+					dbChannel.groupId,
+					{...reverseBatchOptions, transaction},
+					({postRefs}) => this.movePostLocalIdBatchToTemporary(postRefs, reverseState)
+				);
+				if (!reverseState.movedCount) {
+					return;
+				}
+				await app.ms.group.forEachGroupPostRefBatch(
+					dbChannel.groupId,
+					{...reverseBatchOptions, transaction},
+					({postRefs}) => this.reversePostLocalIdBatch(postRefs, reverseState)
+				);
+				console.log('postsToReverse.length', reverseState.reversedCount);
+				if (reverseState.reversedCount < 2) {
+					return;
+				}
+				console.log('firstPostId', reverseState.minPostId, 'lastPostId', reverseState.maxPostId);
+				return models.Message.update({isNeedToReverse: false}, {
+					where: {dbChannelId, isNeedToReverse: true, postId: {[Op.gte]: reverseState.minPostId, [Op.lte]: reverseState.maxPostId}},
+					transaction
+				});
 			});
 		}
 

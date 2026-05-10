@@ -121,6 +121,51 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getGroup(testGroup.id)).publishedPostsCount, expectedLocalIds.length);
 	});
 
+	it('keeps group local ids unique when the counter is stale', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		await models.Post.create({
+			groupId: testGroup.id,
+			userId: testUser.id,
+			status: PostStatus.Published,
+			localId: 5,
+			isDeleted: false,
+			isRemote: false
+		});
+		await models.Group.update({publishedPostsCount: 1}, {where: {id: testGroup.id}});
+
+		const nextLocalId = await app.ms.group.getPostLocalId({groupId: testGroup.id} as any);
+
+		assert.equal(nextLocalId, 6);
+		assert.equal((await app.ms.group.getGroup(testGroup.id)).publishedPostsCount, 6);
+		await assert.rejects(
+			() => models.Post.create({
+				groupId: testGroup.id,
+				userId: testUser.id,
+				status: PostStatus.Published,
+				localId: 5,
+				isDeleted: false,
+				isRemote: false
+			}),
+			(error: Error) => error.name === 'SequelizeUniqueConstraintError'
+		);
+	});
+
+	it('does not use the local id high-water mark as unread count when availability is zero', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		await models.Group.update({
+			availablePostsCount: 0,
+			publishedPostsCount: 5
+		}, {where: {id: testGroup.id}});
+
+		const unreadData = await app.ms.group.getGroupUnreadPostsData(testUser.id, testGroup.id);
+
+		assert.equal(unreadData.count, 0);
+	});
+
 	it('replaces post content at an existing position without duplicate join rows', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
