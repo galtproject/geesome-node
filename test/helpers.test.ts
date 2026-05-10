@@ -60,5 +60,21 @@ describe('helpers', () => {
 			sortDir: 'DESC',
 			limit: 200
 		});
+
+		const categoryManagementOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'unsafeColumn',
+			sortDir: 'asc',
+			limit: '250' as any
+		}, categoryManagementOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'ASC',
+			limit: 100
+		});
 	});
 });
