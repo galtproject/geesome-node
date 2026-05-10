@@ -5,6 +5,7 @@ import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 const {some, orderBy, reverse} = _;
+const autoActionExecuteBatchLimit = 100;
 
 export default async (app: IGeesomeApp) => {
 	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
@@ -108,7 +109,11 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAutoActionsToExecute() {
-			return models.AutoAction.findAll({where: { executeOn: {[Op.lte]: new Date()}, isActive: true} }).then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a)));
+			return models.AutoAction.findAll({
+				where: { executeOn: {[Op.lte]: new Date()}, isActive: true},
+				order: [['executeOn', 'ASC'], ['id', 'ASC']],
+				limit: autoActionExecuteBatchLimit
+			}).then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a)));
 		}
 
 		async getNextActionsById(userId, id) {
@@ -203,4 +208,3 @@ function getModule(app: IGeesomeApp, models) {
 
 	return new AutoActionsModule();
 }
-
