@@ -64,6 +64,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 38 | Social import post source identity enforces one row per `(groupId,source,sourceChannelId,sourcePostId)` after duplicate cleanup and duplicate-key retry | `39b6135` |
 | 39 | File catalog enforces active path uniqueness per user/parent, adds the folder-listing index, retries concurrent path writes through the existing item, and suffixes duplicate generic upload names | `a92296e` |
 | 40 | Pin accounts enforce deterministic owner/name lookup with cleanup-backed unique `(userId,name)` and `(groupId,name)` indexes | this PR |
+| 41 | Migration integrity audit verifies recent migrations, final indexes/types, deduped identities, high-water counters, and broken relations after backup/restore rollout rehearsal | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 
@@ -293,9 +294,24 @@ These should be validated with `EXPLAIN ANALYZE` against a large fixture before 
 | `mentions` | present: `(sourcePostId)`, `(targetPostId)`, `(sourceGroupId)`, `(targetGroupId)`, `(creatorId)` | ActivityPub/social graph and mention lookup paths |
 | `autoTags` | present: `(groupId)` and required/result tag FK indexes | auto-tag rule lookup before large feed/tag automation |
 
+## Migration Integrity Audit
+
+Recent migration slices now have a DB-backed verification command:
+
+```bash
+npm run database:migration-integrity
+```
+
+Run it after taking a database backup and applying migrations to the restored/test target. The command connects to the configured Postgres database, verifies that every recent `202605...` database/group migration is listed in the audit, checks that those migrations are recorded in `SequelizeMeta`, then validates the resulting schema and data state. It fails if a required index is missing or invalid, a widened size column is not `BIGINT`, a cleanup-backed uniqueness invariant still has duplicates, a post local-ID high-water counter regressed, or a relation touched by the dedupe/backfill migrations points at a missing row.
+
+When a migration fails the audit, restore the backup, adjust the migration or follow-up repair, rerun migrations, and rerun the audit before exposing the upgraded database to users. For model-sync test databases that did not run Sequelize migrations, use `npm run database:migration-integrity -- --skip-migration-meta`; production/upgrade rehearsals should not skip migration metadata.
+
+Any new database/group migration at or after the May 2026 scalability migration floor must extend `check/databaseMigrationIntegrity.ts` with its expected indexes, columns, duplicate cleanup checks, relation checks, or explicit rationale. The coverage check intentionally fails when a new recent migration file appears without corresponding audit coverage.
+
 ## Verification
 
 - `npm run database:scalability:update`
 - `npm run database:scalability`
+- `npm run database:migration-integrity`
 
 This review now tracks both the inventory and the shipped first index/query slices. Remaining implementation should still be measured against the large Docker-backed fixture instead of guessed from small local data.

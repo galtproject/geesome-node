@@ -31,6 +31,7 @@
     "database:scalability:update": "node --import tsx check/databaseScalabilityInventory.ts --write",
     "database:scalability:fixture": "node --import tsx check/databaseScalabilityFixture.ts",
     "database:scalability:explain": "node --import tsx check/databaseScalabilityExplain.ts",
+    "database:migration-integrity": "node --import tsx check/databaseMigrationIntegrity.ts",
     "serve-docs": "tsx check/serveDocs.ts",
     "test:prepare-resources": "bash bash/prepare-test-resources.sh",
     "test": "yarn -W && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
