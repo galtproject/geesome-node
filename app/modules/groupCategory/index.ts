@@ -2,7 +2,7 @@ import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface.js";
-import {CorePermissionName, IListParams} from "../database/interface.js";
+import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {GroupType} from "../group/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers";
@@ -10,6 +10,11 @@ const {isUndefined, pick} = _;
 const publicPostListParams = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
+const categoryManagementListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name'],
 	maxLimit: 100
 };
 
@@ -115,8 +120,8 @@ function getModule(app: IGeesomeApp, models) {
 
 		async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
 			//TODO: check userId?
-			listParams = helpers.prepareListParams(listParams);
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+			listParams = helpers.prepareListParams(listParams, categoryManagementListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams);
 			const {limit, offset, sortBy, sortDir} = listParams;
 
 			return {
@@ -277,7 +282,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupSectionItems(filters?, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, categoryManagementListParams);
 			return {
 				list: await this.getGroupSections(filters, listParams),
 				total: await this.getGroupSectionsCount(filters)
@@ -309,7 +314,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupSections(filters = {}, listParams: IListParams = {}) {
-			app.ms.database.setDefaultListParamsValues(listParams);
+			app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams);
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 
@@ -388,7 +393,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getCategorySections(categoryId, filters = {}, listParams: IListParams = {}) {
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+			app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams);
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 
