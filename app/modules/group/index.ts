@@ -826,8 +826,15 @@ function getModule(app: IGeesomeApp, models) {
 			let post;
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
+				const lockedGroup = await this.lockGroupForPostWrite(postData.groupId, transaction);
+				const existingPost = await this.getActivePostByGroupAndManifestId(postData, {transaction});
+				if (existingPost) {
+					post = existingPost;
+					return;
+				}
+
 				if (shouldPublishPost && !postData.localId) {
-					postData.localId = await this.allocatePostLocalId(postData, transaction);
+					postData.localId = await this.allocatePostLocalId(postData, transaction, lockedGroup);
 				}
 				if (shouldPublishPost) {
 					postData.publishedAt = postData.publishedAt || new Date();
@@ -1094,18 +1101,41 @@ function getModule(app: IGeesomeApp, models) {
 			return true;
 		}
 
-		async allocatePostLocalId(post: IPost, transaction) {
-			if (!post.groupId) {
+		async lockGroupForPostWrite(groupId, transaction) {
+			if (!groupId) {
 				return null;
 			}
 			const group = await models.Group.findOne({
-				where: {id: post.groupId},
+				where: {id: groupId},
 				transaction,
 				lock: Transaction.LOCK.UPDATE
 			});
 			if (!group) {
 				throw new Error("group_not_found");
 			}
+			return group;
+		}
+
+		async getActivePostByGroupAndManifestId(post: IPost, options: any = {}) {
+			if (!post.groupId || !post.manifestStorageId) {
+				return null;
+			}
+			return models.Post.findOne({
+				where: {
+					groupId: post.groupId,
+					manifestStorageId: post.manifestStorageId,
+					isDeleted: false
+				},
+				order: [['id', 'ASC']],
+				transaction: options.transaction
+			});
+		}
+
+		async allocatePostLocalId(post: IPost, transaction, lockedGroup = null) {
+			if (!post.groupId) {
+				return null;
+			}
+			const group = lockedGroup || await this.lockGroupForPostWrite(post.groupId, transaction);
 			const maxLocalId = await models.Post.max('localId', {where: {groupId: post.groupId}, transaction}).then(m => m || 0);
 			const nextLocalId = Math.max(group.publishedPostsCount || 0, maxLocalId) + 1;
 			await group.update({publishedPostsCount: nextLocalId}, {transaction});

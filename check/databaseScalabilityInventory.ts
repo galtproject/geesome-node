@@ -665,6 +665,9 @@ function hotspotRows(): HotspotRow[] {
     && has(manifestSource, "'source', 'sourceChannelId', 'sourcePostId', 'sourceDate'")
     && has(manifestSource, 'normalizeManifestDate')
     && has(groupTestSource, 'imports remote post manifests through canonical post state');
+  const hasRemotePostManifestIdempotency = has(groupSource, 'getActivePostByGroupAndManifestId')
+    && has(groupSource, 'lockGroupForPostWrite(postData.groupId, transaction)')
+    && has(groupTestSource, 'reuses an active remote post when the same manifest import is retried');
   const hasGroupCounterRepairTest = has(groupTestSource, 'repairs group size, availability, and local-id high-water counters')
     && has(groupTestSource, 'reconcileGroupCounters(testGroup.id)');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
@@ -861,10 +864,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/remoteGroup/index.ts',
       hotspot: 'createPostByRemoteStorageId',
       observedPattern: hasRemotePostManifestImportState
-        ? 'remote post manifests preserve source/date fields, claim content manifests into actor-scoped rows, and create the local remote post through the canonical post DB transaction'
+        ? (hasRemotePostManifestIdempotency
+          ? 'remote post manifests preserve source/date fields, claim content manifests into actor-scoped rows, reuse an active same-group manifest row on retry while refreshing the group manifest, and create new local remote posts through the canonical post DB transaction'
+          : 'remote post manifests preserve source/date fields, claim content manifests into actor-scoped rows, and create the local remote post through the canonical post DB transaction')
         : 'remote post manifest import bypasses at least part of the canonical post DB transaction or lacks source/date/content regression coverage',
       scalabilityRisk: hasRemotePostManifestImportState
-        ? 'remote manifest imports now get localId, attachment, counter, group-manifest, and post-event state consistently; duplicate manifest idempotency and remote edit/delete replay remain future work'
+        ? (hasRemotePostManifestIdempotency
+          ? 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, and same-manifest retry state consistently; remote edit/delete replay remains future work'
+          : 'remote manifest imports now get localId, attachment, counter, group-manifest, and post-event state consistently; duplicate manifest idempotency and remote edit/delete replay remain future work')
         : 'remote manifest imports can drift from canonical post counters/events or lose source/date metadata under large import/retry workflows',
     },
     {

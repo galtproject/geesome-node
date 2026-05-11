@@ -181,6 +181,57 @@ describe("group", function () {
 		]);
 	});
 
+	it('reuses an active remote post when the same manifest import is retried', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const sourceContent = await app.ms.content.saveData(testUser.id, 'retryable remote post', 'retryable-remote-post.md', {
+			mimeType: 'text/markdown'
+		});
+		const sourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: sourceContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const importer = await app.registerUser({
+			email: 'remote-post-retry@user.com',
+			name: 'remote-post-retry',
+			password: 'remote-post-retry',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const targetGroup = await app.ms.group.createGroup(importer.id, {
+			name: 'remote-post-retry-import',
+			title: 'Remote post retry import'
+		});
+		const models = (app.ms.database as any).models;
+
+		await app.ms.content.createContentByRemoteStorageId(importer.id, sourceContent.manifestStorageId);
+		const importedPosts = await Promise.all([
+			(app.ms as any).remoteGroup.createPostByRemoteStorageId(importer.id, sourcePost.manifestStorageId, targetGroup.id),
+			(app.ms as any).remoteGroup.createPostByRemoteStorageId(importer.id, sourcePost.manifestStorageId, targetGroup.id)
+		]);
+		const gotGroup = await app.ms.group.getGroup(targetGroup.id);
+		const postCount = await models.Post.count({
+			where: {
+				groupId: targetGroup.id,
+				manifestStorageId: sourcePost.manifestStorageId,
+				isDeleted: false
+			}
+		});
+		const postEvents = await models.PostEvent.findAll({
+			where: {postId: importedPosts[0].id},
+			order: [['createdAt', 'ASC'], ['id', 'ASC']]
+		});
+
+		assert.equal(importedPosts[0].id, importedPosts[1].id);
+		assert.equal(postCount, 1);
+		assert.equal(Number(gotGroup.availablePostsCount), 1);
+		assert.equal(Number(gotGroup.publishedPostsCount), 1);
+		assert.equal(Number(gotGroup.size), Number(sourceContent.size));
+		assert.deepEqual(postEvents.map(event => `${event.type}:${event.action}`), [
+			`${PostEventType.PostLifecycle}:${PostEventAction.Created}`
+		]);
+	});
+
 	it('allocates group local ids with a row lock under concurrency', async () => {
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
