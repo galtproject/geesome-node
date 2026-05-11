@@ -171,6 +171,7 @@ async createGroup(userId, groupData) {
 - Migrations target Postgres only and run `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (and matching `DROP INDEX CONCURRENTLY IF EXISTS` in the `down`). Migrations that use `CONCURRENTLY` set `useTransaction: false` and never wrap statements in `.catch(() => {})`.
 - Use `Model.increment({col: delta}, {where: ...})` for atomic counter writes; do not read-modify-write.
 - Bulk inserts in migrations and seed scripts use raw SQL with `:replacement` placeholders rather than `bulkCreate`, both for speed and to keep the migration legible.
+- Do not inline repeated ID cleanup/deduplication in module methods. Use `helpers.normalizeUniqueIds(ids)` for generic numeric ID arrays or scalars instead of hand-rolling `filter`/`Number(...)`/`uniqBy` chains.
 
 ### Tests
 

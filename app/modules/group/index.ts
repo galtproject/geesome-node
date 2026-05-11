@@ -331,10 +331,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async reconcilePostRelationCounters(postIds, options: any = {}) {
-			const ids = uniqBy(
-				(postIds || []).filter(id => !isUndefined(id) && id !== null).map(id => ({id: Number(id)})),
-				'id'
-			).map(p => p.id).filter(id => Number.isFinite(id));
+			const ids = helpers.normalizeUniqueIds(postIds);
 			return pIteration.forEach(ids, async (postId) => {
 				const [repliesCount, repostsCount] = await Promise.all([
 					models.Post.count({
@@ -930,14 +927,8 @@ function getModule(app: IGeesomeApp, models) {
 			const newSize = postData.size || 0;
 			const newReplyToId = !isUndefined(postData.replyToId) ? postData.replyToId : oldPost.replyToId;
 			const newRepostOfId = !isUndefined(postData.repostOfId) ? postData.repostOfId : oldPost.repostOfId;
-			const replyToPostIds = uniqBy(
-				[oldPost.replyToId, newReplyToId].filter(id => !!id).map(id => ({id})),
-				'id'
-			).map(p => p.id);
-			const repostOfPostIds = uniqBy(
-				[oldPost.repostOfId, newRepostOfId].filter(id => !!id).map(id => ({id})),
-				'id'
-			).map(p => p.id);
+			const replyToPostIds = helpers.normalizeUniqueIds([oldPost.replyToId, newReplyToId]);
+			const repostOfPostIds = helpers.normalizeUniqueIds([oldPost.repostOfId, newRepostOfId]);
 			const shouldReconcileReplyCounters = wasPublished !== isPublished || Number(oldPost.replyToId || 0) !== Number(newReplyToId || 0);
 			const shouldReconcileRepostCounters = wasPublished !== isPublished || Number(oldPost.repostOfId || 0) !== Number(newRepostOfId || 0);
 
@@ -1003,8 +994,8 @@ function getModule(app: IGeesomeApp, models) {
 				entry.availableDelta -= 1;
 				decrementsByGroup[p.groupId] = entry;
 			}
-			const replyToPostIds = uniqBy(posts.filter(p => p.replyToId).map(p => ({id: p.replyToId})), 'id').map(p => p.id);
-			const repostOfPostIds = uniqBy(posts.filter(p => p.repostOfId).map(p => ({id: p.repostOfId})), 'id').map(p => p.id);
+			const replyToPostIds = helpers.normalizeUniqueIds(posts.map(p => p.replyToId));
+			const repostOfPostIds = helpers.normalizeUniqueIds(posts.map(p => p.repostOfId));
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
 				await this.updatePosts(postIds, {isDeleted: true}, {transaction});

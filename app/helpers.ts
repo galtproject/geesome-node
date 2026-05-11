@@ -238,6 +238,24 @@ function hasId(id) {
 	return id !== null && typeof id !== 'undefined';
 }
 
+function normalizeUniqueIds(ids: any = []) {
+	const values = Array.isArray(ids) ? ids : [ids];
+	const uniqueIds: number[] = [];
+	const seenIds = new Set<number>();
+	values.forEach((id) => {
+		if (!hasId(id)) {
+			return;
+		}
+		const parsed = Number(id);
+		if (!Number.isFinite(parsed) || seenIds.has(parsed)) {
+			return;
+		}
+		seenIds.add(parsed);
+		uniqueIds.push(parsed);
+	});
+	return uniqueIds;
+}
+
 function shouldIncludeListTotal(listParams: IListParams = {}, cursor: {hasCursor?: boolean} = {}) {
 	if (cursor.hasCursor) {
 		return false;
@@ -249,6 +267,8 @@ export default {
 	getCurDir,
 
 	hasId,
+
+	normalizeUniqueIds,
 
 	shouldIncludeListTotal,
 
