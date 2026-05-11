@@ -44,6 +44,7 @@ const userFriendListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
 	maxLimit: 100
 };
+const staticRebindBatchLimit = helpers.parsePositiveInteger(process.env.STATIC_REBIND_BATCH_LIMIT, 100);
 
 function contentSize(content) {
 	return Number(content?.size) || 0;
@@ -1196,14 +1197,17 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IGroup;
 		}
 
-		async getGroupWhereStaticOutdated(outdatedForSeconds) {
+		async getGroupWhereStaticOutdated(outdatedForSeconds, options: any = {}) {
+			const limit = helpers.parsePositiveInteger(options.limit, staticRebindBatchLimit);
 			return models.Group.findAll({
 				where: {
 					staticStorageUpdatedAt: {
 						[Op.lt]: commonHelper.moveDate(-parseFloat(outdatedForSeconds), 'second')
 					},
 					isDeleted: false
-				}
+				},
+				order: [['staticStorageUpdatedAt', 'ASC'], ['id', 'ASC']],
+				limit
 			});
 		}
 

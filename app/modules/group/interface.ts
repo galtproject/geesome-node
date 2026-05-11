@@ -105,7 +105,7 @@ export default interface IGeesomeGroupModule {
 
 	getGroupByManifestId(manifestId, staticManifestId): Promise<IGroup>;
 
-	getGroupWhereStaticOutdated(outdatedForHours): Promise<IGroup[]>;
+	getGroupWhereStaticOutdated(outdatedForHours, options?): Promise<IGroup[]>;
 
 	getRemoteGroups(): Promise<IGroup[]>;
 

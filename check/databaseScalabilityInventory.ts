@@ -631,6 +631,10 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'checkUserContentActionLimit')
     && has(databaseSource, 'Transaction.LOCK.UPDATE')
     && has(contentSource, 'addContentWithUserContentAction');
+  const hasBoundedStaticRebindScan = has(groupSource, 'getGroupWhereStaticOutdated')
+    && has(groupSource, 'staticRebindBatchLimit')
+    && has(groupSource, "order: [['staticStorageUpdatedAt', 'ASC'], ['id', 'ASC']]")
+    && has(groupSource, 'limit');
 
   return [
     {
@@ -918,12 +922,16 @@ function hotspotRows(): HotspotRow[] {
       area: 'Static rebind scan',
       source: 'app/modules/group/index.ts',
       hotspot: 'getGroupWhereStaticOutdated',
-      observedPattern: has(groupSource, 'staticStorageUpdatedAt') && has(groupSource, 'Op.lt')
+      observedPattern: hasBoundedStaticRebindScan
+        ? 'filters non-deleted groups whose staticStorageUpdatedAt is older than the threshold, ordered oldest-first in a capped batch'
+        : (has(groupSource, 'staticStorageUpdatedAt') && has(groupSource, 'Op.lt')
         ? 'filters non-deleted groups whose staticStorageUpdatedAt is older than the threshold'
-        : 'review static rebind scan implementation',
-      scalabilityRisk: has(read('app/modules/group/models/group.ts'), 'groups_static_rebind_idx')
+        : 'review static rebind scan implementation'),
+      scalabilityRisk: hasBoundedStaticRebindScan
+        ? 'scan predicate is indexed and bounded for manual/ops use; cron remains disabled and should become event-driven before high churn'
+        : (has(read('app/modules/group/models/group.ts'), 'groups_static_rebind_idx')
         ? 'scan predicate is indexed; cron remains disabled and should probably become event-driven before high churn'
-        : 'minute-level scan would range-scan groups without a static-rebind index',
+        : 'minute-level scan would range-scan groups without a static-rebind index'),
     },
     {
       area: 'Static ID resolution',
