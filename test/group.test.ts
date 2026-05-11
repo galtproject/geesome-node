@@ -152,6 +152,33 @@ describe("group", function () {
 		);
 	});
 
+	it('returns static rebind candidates as a bounded oldest-first batch', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const models = (app.ms.database as any).models;
+		const oldGroup = await app.ms.group.createGroup(testUser.id, {name: 'old-static', title: 'Old Static'});
+		const middleGroup = await app.ms.group.createGroup(testUser.id, {name: 'middle-static', title: 'Middle Static'});
+		const freshGroup = await app.ms.group.createGroup(testUser.id, {name: 'fresh-static', title: 'Fresh Static'});
+		const deletedGroup = await app.ms.group.createGroup(testUser.id, {name: 'deleted-static', title: 'Deleted Static'});
+
+		await models.Group.update({
+			staticStorageUpdatedAt: commonHelper.moveDate(-10, 'minute')
+		}, {where: {id: oldGroup.id}});
+		await models.Group.update({
+			staticStorageUpdatedAt: commonHelper.moveDate(-5, 'minute')
+		}, {where: {id: middleGroup.id}});
+		await models.Group.update({
+			staticStorageUpdatedAt: commonHelper.moveDate(-10, 'second')
+		}, {where: {id: freshGroup.id}});
+		await models.Group.update({
+			staticStorageUpdatedAt: commonHelper.moveDate(-20, 'minute'),
+			isDeleted: true
+		}, {where: {id: deletedGroup.id}});
+
+		const outdatedGroups = await app.ms.group.getGroupWhereStaticOutdated(60, {limit: 2});
+
+		assert.deepEqual(outdatedGroups.map(group => group.id), [oldGroup.id, middleGroup.id]);
+	});
+
 	it('reuses existing social import posts by source identity', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

@@ -44,6 +44,14 @@ function parseNonNegativeInteger(value, fallback = null) {
 	return parsed;
 }
 
+function parsePositiveInteger(value, fallback) {
+	const parsed = Number.parseInt(value as any, 10);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback;
+	}
+	return parsed;
+}
+
 function sanitizeSortBy(value, fallback = 'createdAt', allowedSortBy?: string[]) {
 	const fallbackSortBy = allowedSortBy?.includes(fallback) || !allowedSortBy?.length ? fallback : allowedSortBy[0];
 	if (typeof value !== 'string') {
@@ -318,6 +326,8 @@ export default {
 
 		console.log.apply(console, logArgs);
 	},
+
+	parsePositiveInteger,
 
 	prepareListParams(listParams?: IListParams, options: IListParamsOptions = {}): IListParams {
 		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset', 'includeTotal']);
