@@ -38,6 +38,11 @@ const adminUserListParams: IListParamsOptions = {
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
   maxLimit: 100
 };
+const userFriendListParams: IListParamsOptions = {
+  sortBy: 'createdAt',
+  allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
+  maxLimit: 100
+};
 const adminContentListParams: IListParamsOptions = {
   sortBy: 'createdAt',
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
@@ -351,19 +356,25 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getUserFriends(userId, search?, listParams: IListParams = {}) {
-    this.setDefaultListParamsValues(listParams);
-    const {limit, offset} = listParams;
-    //TODO: use search and order
+    this.setDefaultListParamsValues(listParams, userFriendListParams);
+    const {limit, offset, sortBy, sortDir} = listParams;
+    const where = this.getAllUsersWhere(search);
+    const order: any[] = [[sortBy, sortDir.toUpperCase()]];
+    if (sortBy !== 'id') {
+      order.push(['id', sortDir.toUpperCase()]);
+    }
     return (await this.getUser(userId)).getFriends({
+      where,
       include: [ {association: 'avatarImage'} ],
+      order,
       limit,
       offset
     });
   }
 
   async getUserFriendsCount(userId, search?) {
-    //TODO: use search
-    return (await this.getUser(userId)).countFriends();
+    const where = this.getAllUsersWhere(search);
+    return (await this.getUser(userId)).countFriends({where});
   }
 
   async createUserAccount(accountData) {

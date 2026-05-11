@@ -35,6 +35,11 @@ const userGroupListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'title', 'type'],
 	maxLimit: 100
 };
+const userFriendListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
+	maxLimit: 100
+};
 
 function contentSize(content) {
 	return Number(content?.size) || 0;
@@ -1086,7 +1091,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserFriends(userId, search?, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, userFriendListParams);
 			await app.checkUserCan(userId, CorePermissionName.UserFriendsManagement);
 			return {
 				list: await app.ms.database.getUserFriends(userId, search, listParams),

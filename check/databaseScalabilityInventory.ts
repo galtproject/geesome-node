@@ -451,6 +451,12 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'countMemberInGroups({where})')
     && has(groupSource, 'countAdministratorInGroups({where})')
     && has(groupSource, 'models.Group.count({where})');
+  const hasUserFriendListLimits = has(groupSource, 'userFriendListParams')
+    && has(groupSource, 'helpers.prepareListParams(listParams, userFriendListParams)')
+    && has(databaseSource, 'userFriendListParams')
+    && has(databaseSource, 'this.setDefaultListParamsValues(listParams, userFriendListParams)')
+    && has(databaseSource, 'getAllUsersWhere(search)')
+    && has(databaseSource, 'countFriends({where})');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -461,6 +467,7 @@ function hotspotRows(): HotspotRow[] {
     hasApiKeyListLimits ? 'API-key lists' : null,
     hasAdminDirectoryListLimits ? 'admin directory lists' : null,
     hasUserGroupListLimits ? 'user group membership/chat lists' : null,
+    hasUserFriendListLimits ? 'user friend lists' : null,
   ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")

@@ -450,7 +450,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
-     * @apiSuccess {Object[]} list Friend users.
+     * @apiQuery {String} [search] Search friend name, email, or storage account.
+     * @apiInterface (../../interface.ts) {IUserListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/get-friends', async (req, res) => {
         res.send(await groupModule.getUserFriends(req.user.id, req.query.search, req.query));

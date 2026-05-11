@@ -156,5 +156,21 @@ describe('helpers', () => {
 			sortDir: 'DESC',
 			limit: 100
 		});
+
+		const userFriendOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'passwordHash',
+			sortDir: 'desc',
+			limit: '500' as any
+		}, userFriendOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'DESC',
+			limit: 100
+		});
 	});
 });
