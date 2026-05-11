@@ -377,6 +377,68 @@ describe("group", function () {
 		assert.equal(Number(groupAfterDraft.size), Number(parentContent.size));
 	});
 
+	it('reconciles social import source identity when a post is deleted', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const socNetImport = (app.ms as any).socNetImport;
+		const parentContent = await app.ms.content.saveData(testUser.id, 'import delete parent', null, {
+			mimeType: 'text/markdown'
+		});
+		const importContent = await app.ms.content.saveData(testUser.id, 'import delete body', null, {
+			mimeType: 'text/markdown'
+		});
+		const parentPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: parentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const sourceIdentity = {
+			groupId: testGroup.id,
+			source: 'socNetImport:test',
+			sourceChannelId: 'delete-channel',
+			sourcePostId: 'delete-post'
+		};
+		const importedPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: importContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			repostOfId: parentPost.id,
+			propertiesJson: JSON.stringify({sourceLink: 'published'}),
+			sourceDate: new Date('2026-01-04T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+		const groupAfterPublish = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterPublish = await app.ms.storage.getObject(groupAfterPublish.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfterPublish.posts, importedPost.localId), importedPost.manifestStorageId);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 1);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repostsCount, 1);
+		assert.equal(groupAfterPublish.availablePostsCount, 2);
+		assert.equal(Number(groupAfterPublish.size), Number(parentContent.size) + Number(importContent.size));
+
+		const deletedPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: importContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			repostOfId: parentPost.id,
+			propertiesJson: JSON.stringify({sourceLink: 'deleted'}),
+			sourceDate: new Date('2026-01-04T00:00:00.000Z'),
+			isDeleted: true,
+			status: PostStatus.Published
+		});
+
+		const groupAfterDelete = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterDelete = await app.ms.storage.getObject(groupAfterDelete.manifestStorageId);
+		const gotDeletedPost = await app.ms.group.getPostPure(importedPost.id);
+		assert.equal(deletedPost.id, importedPost.id);
+		assert.equal(gotDeletedPost.isDeleted, true);
+		assert.equal(gotDeletedPost.status, PostStatus.Published);
+		assert.equal(trieHelper.getNode(manifestAfterDelete.posts, importedPost.localId), undefined);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 0);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repostsCount, 0);
+		assert.equal(groupAfterDelete.availablePostsCount, 1);
+		assert.equal(Number(groupAfterDelete.size), Number(parentContent.size));
+	});
+
 	it('does not use the local id high-water mark as unread count when availability is zero', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
