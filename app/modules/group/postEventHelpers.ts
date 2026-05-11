@@ -36,7 +36,7 @@ function isDeletedPostState(post) {
 	return postData?.isDeleted === true || postData?.status === PostStatus.Deleted;
 }
 
-function getSourceImportEventAction(previousPost, nextPost) {
+function getPostEventAction(previousPost, nextPost) {
 	if (!previousPost) {
 		if (isDeletedPostState(nextPost)) {
 			return PostEventAction.Deleted;
@@ -47,6 +47,33 @@ function getSourceImportEventAction(previousPost, nextPost) {
 		return PostEventAction.Deleted;
 	}
 	return PostEventAction.Updated;
+}
+
+function buildPostEvent(type: PostEventType, userId, previousPost, nextPost) {
+	const nextPostData = getPlainPostData(nextPost);
+	const previousPostData = getPlainPostData(previousPost);
+	if (!nextPostData?.id || !nextPostData.groupId) {
+		return null;
+	}
+	return {
+		type,
+		action: getPostEventAction(previousPostData, nextPostData),
+		userId,
+		postId: nextPostData.id,
+		groupId: nextPostData.groupId,
+		source: nextPostData.source || null,
+		sourceChannelId: nextPostData.sourceChannelId || null,
+		sourcePostId: nextPostData.sourcePostId || null,
+		sourceDate: nextPostData.sourceDate,
+		previousStatus: previousPostData?.status || null,
+		nextStatus: nextPostData.status || null,
+		previousIsDeleted: previousPostData ? previousPostData.isDeleted === true : null,
+		nextIsDeleted: nextPostData.isDeleted === true,
+		payloadJson: JSON.stringify({
+			previous: pickPostEventPayload(previousPostData),
+			next: pickPostEventPayload(nextPostData)
+		})
+	};
 }
 
 function pickPostEventPayload(postData) {
@@ -63,31 +90,15 @@ function pickPostEventPayload(postData) {
 }
 
 export function buildSourceImportPostEvent(userId, previousPost, nextPost) {
-	const nextPostData = getPlainPostData(nextPost);
-	const previousPostData = getPlainPostData(previousPost);
-	const sourceIdentity = getPostSourceIdentity(nextPostData);
+	const sourceIdentity = getPostSourceIdentity(nextPost);
 	if (!sourceIdentity) {
 		return null;
 	}
-	return {
-		type: PostEventType.SourceImport,
-		action: getSourceImportEventAction(previousPostData, nextPostData),
-		userId,
-		postId: nextPostData.id,
-		groupId: sourceIdentity.groupId,
-		source: sourceIdentity.source,
-		sourceChannelId: sourceIdentity.sourceChannelId,
-		sourcePostId: sourceIdentity.sourcePostId,
-		sourceDate: nextPostData.sourceDate,
-		previousStatus: previousPostData?.status || null,
-		nextStatus: nextPostData.status || null,
-		previousIsDeleted: previousPostData ? previousPostData.isDeleted === true : null,
-		nextIsDeleted: nextPostData.isDeleted === true,
-		payloadJson: JSON.stringify({
-			previous: pickPostEventPayload(previousPostData),
-			next: pickPostEventPayload(nextPostData)
-		})
-	};
+	return buildPostEvent(PostEventType.SourceImport, userId, previousPost, nextPost);
+}
+
+export function buildPostLifecycleEvent(userId, previousPost, nextPost) {
+	return buildPostEvent(PostEventType.PostLifecycle, userId, previousPost, nextPost);
 }
 
 export function getPostEventState(post) {
