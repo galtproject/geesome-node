@@ -21,12 +21,12 @@ export default async function (sequelize, models) {
     resolveProp: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+      allowNull: false,
     }
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-      { fields: ['storageId'], unique: true },
-      { fields: ['storageId', 'resolveProp'], unique: true },
+      { name: 'objects_storage_resolve_prop_unique', fields: ['storageId', 'resolveProp'], unique: true },
     ]
   } as any);
 

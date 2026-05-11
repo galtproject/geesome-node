@@ -126,6 +126,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['async-operation queue retention indexes'],
   },
   {
+    module: 'database',
+    file: '20260511000002-fix-object-cache-resolve-prop-key.cjs',
+    verifies: ['object cache storage/resolveProp uniqueness', 'object cache storage-only unique index removal'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -185,6 +190,7 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'contents_manifest_storage_idx', table: 'contents', columns: ['manifestStorageId']},
   {name: 'contents_user_manifest_storage_idx', table: 'contents', columns: ['userId', 'manifestStorageId']},
   {name: 'contents_user_storage_unique', table: 'contents', columns: ['userId', 'storageId'], unique: true},
+  {name: 'objects_storage_resolve_prop_unique', table: 'objects', columns: ['storageId', 'resolveProp'], unique: true},
   {name: 'file_catalog_items_content_idx', table: 'fileCatalogItems', columns: ['contentId']},
   {name: 'file_catalog_items_user_parent_list_idx', table: 'fileCatalogItems', columns: ['userId', 'parentItemId', 'isDeleted', 'type', 'createdAt', 'id']},
   {name: 'file_catalog_items_child_path_unique', table: 'fileCatalogItems', columns: ['parentItemId', 'userId', 'name'], unique: true},
@@ -249,6 +255,37 @@ const expectedIndexes: ExpectedIndex[] = [
 
 const countChecks: CountCheck[] = [
   duplicateCheck('same-user content storage duplicates', 'contents', ['userId', 'storageId']),
+  duplicateCheck('object cache storage/resolveProp duplicates', 'objects', ['storageId', 'resolveProp']),
+  {
+    name: 'object cache resolveProp values are normalized',
+    requirements: [{table: 'objects', columns: ['resolveProp']}],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM objects
+      WHERE "resolveProp" IS NULL
+    `,
+  },
+  {
+    name: 'object cache storage-only unique indexes are removed',
+    requirements: [{table: 'objects', columns: ['storageId']}],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM pg_index
+      JOIN pg_class table_class ON table_class.oid = pg_index.indrelid
+      JOIN pg_namespace namespace ON namespace.oid = table_class.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND table_class.relname = 'objects'
+        AND pg_index.indisunique
+        AND ARRAY(
+          SELECT pg_attribute.attname::text
+          FROM unnest(pg_index.indkey) WITH ORDINALITY AS index_key(attnum, ord)
+          JOIN pg_attribute
+            ON pg_attribute.attrelid = table_class.oid
+            AND pg_attribute.attnum = index_key.attnum
+          ORDER BY index_key.ord
+        ) = ARRAY['storageId']
+    `,
+  },
   duplicateCheck('user limit user/name duplicates', 'userLimits', ['userId', 'name']),
   duplicateCheck('pin account user/name duplicates', 'pinAccounts', ['userId', 'name']),
   duplicateCheck('pin account group/name duplicates', 'pinAccounts', ['groupId', 'name']),
