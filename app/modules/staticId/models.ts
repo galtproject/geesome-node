@@ -40,7 +40,29 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const StaticIdBinding = sequelize.define('staticIdBinding', {
+		staticId: {
+			type: DataTypes.STRING(200),
+			allowNull: false
+		},
+		dynamicId: {
+			type: DataTypes.STRING(200)
+		},
+		isActive: {
+			type: DataTypes.BOOLEAN
+		},
+		boundAt: {
+			type: DataTypes.DATE
+		}
+	} as any, {
+		indexes: [
+			{name: 'static_id_bindings_static_unique', fields: ['staticId'], unique: true},
+			{name: 'static_id_bindings_dynamic_bound_idx', fields: ['dynamicId', 'boundAt']}
+		]
+	} as any);
+
 	return {
-		StaticIdHistory: await StaticIdHistory.sync({})
+		StaticIdHistory: await StaticIdHistory.sync({}),
+		StaticIdBinding: await StaticIdBinding.sync({})
 	};
 };
