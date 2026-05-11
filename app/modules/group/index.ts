@@ -729,9 +729,10 @@ function getModule(app: IGeesomeApp, models) {
 				postData.isRemote = false;
 			}
 
+			const shouldPublishPost = postData.status === PostStatus.Published && postData.isDeleted !== true;
 			let post;
 			await app.ms.database.sequelize.transaction(async (transaction) => {
-				if (postData.status === PostStatus.Published) {
+				if (shouldPublishPost) {
 					postData.localId = await this.allocatePostLocalId(postData, transaction);
 					postData.publishedAt = postData.publishedAt || new Date();
 				}
@@ -751,15 +752,16 @@ function getModule(app: IGeesomeApp, models) {
 				await models.Post.update({size}, {where: {id: post.id}, transaction});
 				log('updatePost');
 
-				if (post.status === PostStatus.Published) {
+				if (post.status === PostStatus.Published && !post.isDeleted) {
 					await this.incrementGroupCounters(post.groupId, {sizeDelta: size || 0, availableDelta: 1}, {transaction});
 				}
 			});
 			post = await this.getPostPure(post.id);
 
-			// B4: drafts are DB-only canonical state. Skip post/group manifest, static directory,
-			// and the personal-chat encryption handshake unless the row was created as Published.
-			if (post.status === PostStatus.Published) {
+			// B4: drafts/deleted rows are DB-only canonical state. Skip post/group manifest,
+			// static directory, and the personal-chat encryption handshake unless the row
+			// was created as an active published post.
+			if (post.status === PostStatus.Published && !post.isDeleted) {
 				post = await this.updatePostManifest(userId, post.id);
 				log('updatePostManifest');
 
@@ -916,12 +918,13 @@ function getModule(app: IGeesomeApp, models) {
 			const contentsData = await this.getContentsForPost(userId, postData.contents);
 			delete postData.contents;
 
-			// B4: drafts are DB-only. Only run post manifest/static rebuild when the merged status is Published.
-			// Published rows that leave the public lifecycle still need the group manifest regenerated so
-			// its inherited posts trie drops the old local ID.
+			// B4: drafts/deleted rows are DB-only. Only run post manifest/static rebuild when
+			// the merged row is actively published. Rows that leave the public lifecycle still
+			// need the group manifest regenerated so its inherited posts trie drops the old local ID.
 			const mergedStatus = !isUndefined(postData.status) ? postData.status : oldPost.status;
+			const mergedIsDeleted = !isUndefined(postData.isDeleted) ? postData.isDeleted : oldPost.isDeleted;
 			const wasPublished = oldPost.status === PostStatus.Published && !oldPost.isDeleted;
-			const isPublished = mergedStatus === PostStatus.Published;
+			const isPublished = mergedStatus === PostStatus.Published && !mergedIsDeleted;
 			const oldSize = oldPost.size || 0;
 			postData.size = contentsData ? sumBy(contentsData, contentSize) : await this.getPostSizeSum(postId);
 			const newSize = postData.size || 0;
