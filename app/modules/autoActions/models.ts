@@ -55,6 +55,7 @@ export default async function (sequelize: Sequelize) {
 			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
 			{ fields: ['isActive'] },
 			{ name: 'auto_actions_active_execute_idx', fields: ['isActive', 'executeOn'] },
+			{ name: 'auto_actions_user_created_idx', fields: ['userId', 'createdAt', 'id'] },
 		]
 	} as any);
 

@@ -172,5 +172,21 @@ describe('helpers', () => {
 			sortDir: 'DESC',
 			limit: 100
 		});
+
+		const autoActionOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'moduleName', 'funcName', 'executeOn', 'isActive'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'funcArgsEncrypted',
+			sortDir: 'asc',
+			limit: '500' as any
+		}, autoActionOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'ASC',
+			limit: 100
+		});
 	});
 });

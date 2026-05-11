@@ -7,7 +7,7 @@ export default interface IGeesomeAutoActionsModule {
 
 	getAutoActionsToExecute(): Promise<IAutoAction[]>;
 
-	getUserActions(userId: number, params?): Promise<{list: IAutoAction[]}>;
+	getUserActions(userId: number, params?): Promise<IAutoActionListResponse>;
 
 	getNextActionsById(userId, id): Promise<IAutoAction[]>;
 
@@ -39,4 +39,5 @@ export interface IAutoAction {
 
 export interface IAutoActionListResponse {
 	list: IAutoAction[];
+	total: number;
 }

@@ -4,8 +4,36 @@ import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
-const {some, orderBy, reverse} = _;
+import {IListParamsOptions} from "../database/interface.js";
+import helpers from "../../helpers.js";
+const {some, orderBy, reverse, pick} = _;
 const autoActionExecuteBatchLimit = 100;
+const autoActionListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'moduleName', 'funcName', 'executeOn', 'isActive'],
+	maxLimit: 100
+};
+const autoActionListFilterKeys = ['moduleName', 'funcName', 'isActive'];
+
+function getAutoActionListWhere(userId, params = {}) {
+	const where: any = pick(params, autoActionListFilterKeys);
+
+	if (where.isActive === 'true') {
+		where.isActive = true;
+	} else if (where.isActive === 'false') {
+		where.isActive = false;
+	} else if (where.isActive !== true && where.isActive !== false) {
+		delete where.isActive;
+	}
+	if (where.moduleName !== undefined && typeof where.moduleName !== 'string') {
+		delete where.moduleName;
+	}
+	if (where.funcName !== undefined && typeof where.funcName !== 'string') {
+		delete where.funcName;
+	}
+
+	return {...where, userId};
+}
 
 export default async (app: IGeesomeApp) => {
 	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
@@ -103,8 +131,23 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserActions(userId, params = {}) {
+			const listParams = helpers.prepareListParams(params, autoActionListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, autoActionListParams);
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = getAutoActionListWhere(userId, params);
+			const order = sortBy === 'id'
+				? [[sortBy, sortDir.toUpperCase()]]
+				: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]];
+
 			return {
-				list: await models.AutoAction.findAll({ where: { ...params, userId }, include: [ {association: 'nextActions'}, {association: 'baseActions'} ] }).then(as => pIteration.map(as, a => this.decryptAutoActionIfNecessary(a)))
+				list: await models.AutoAction.findAll({
+					where,
+					include: [ {association: 'nextActions'}, {association: 'baseActions'} ],
+					order,
+					limit,
+					offset
+				}).then(as => pIteration.map(as, a => this.decryptAutoActionIfNecessary(a))),
+				total: await models.AutoAction.count({where})
 			}
 		}
 

@@ -226,6 +226,11 @@ export function getModule(app: IGeesomeApp, models) {
 			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true}});
 		}
 
+		async flushDatabase() {
+			await models.UserOperationQueue.destroy({where: {}});
+			await models.UserAsyncOperation.destroy({where: {}});
+		}
+
 		async getUserAsyncOperation(id) {
 			return models.UserAsyncOperation.findOne({where: {id}}) as IUserAsyncOperation;
 		}

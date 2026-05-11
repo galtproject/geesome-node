@@ -1587,7 +1587,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async flushDatabase() {
 			await pIteration.forEachSeries([
-				'AutoTag', 'Tag', 'PostsContents', 'Post', 'GroupPermission',
+				'AutoTag', 'Tag', 'GroupRead', 'PostsContents', 'Post', 'GroupPermission',
 				'GroupAdministrators', 'GroupMembers', 'Group'
 			], (modelName) => {
 				return models[modelName].destroy({where: {}});
