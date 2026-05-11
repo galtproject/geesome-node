@@ -2,11 +2,16 @@ import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import geesomeMessages from "geesome-libs/src/messages.js";
-import {CorePermissionName, IInvite, IListParams} from "../database/interface.js";
+import {CorePermissionName, IInvite, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp, IUserInput} from "../../interface.js";
 import IGeesomeInviteModule from "./interface.js";
 import helpers from "../../helpers";
 const {isUndefined, pick} = _;
+const inviteListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'code', 'isActive'],
+	maxLimit: 100
+};
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group']);
@@ -92,9 +97,9 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserInvites(userId, filters = {}, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, inviteListParams);
 
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+			app.ms.database.setDefaultListParamsValues(listParams, inviteListParams);
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where = { createdById: userId };
@@ -149,11 +154,12 @@ function getModule(app: IGeesomeApp, models) {
 			if (!isUndefined(filters['isActive'])) {
 				where['isActive'] = isUndefined(filters['isActive']);
 			}
-			return models.Invite.findAll({ where });
+			return models.Invite.count({ where });
 		}
 
 		async getAllInvites(filters = {}, listParams: IListParams = {}) {
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'createdAt'});
+			listParams = helpers.prepareListParams(listParams, inviteListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, inviteListParams);
 
 			const {limit, offset, sortBy, sortDir} = listParams;
 			const where = { };

@@ -92,5 +92,21 @@ describe('helpers', () => {
 			sortDir: 'DESC',
 			limit: 100
 		});
+
+		const inviteOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'code', 'isActive'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'permissions',
+			sortDir: 'asc',
+			limit: '500' as any
+		}, inviteOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'ASC',
+			limit: 100
+		});
 	});
 });
