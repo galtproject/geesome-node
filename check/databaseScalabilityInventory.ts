@@ -152,10 +152,11 @@ function modelRows(): ModelRow[] {
         'name,isRemote unique local non-collateral',
         'manifestStorageId',
         'manifestStaticStorageId',
+        has(groupSource, 'groups_creator_type_deleted_created_idx') ? 'creatorId,type,isDeleted,createdAt,id creator list index' : 'missing creator/type/deleted listing index',
         has(groupSource, 'groups_static_rebind_idx') ? 'isDeleted,staticStorageUpdatedAt static rebind index' : 'missing static rebind index',
       ],
       notes: [
-        has(groupSource, "fields: ['creatorId'") ? 'has creator listing index' : 'missing creator/type/deleted listing index',
+        has(groupSource, 'groups_creator_type_deleted_created_idx') ? 'has creator listing index' : 'missing creator/type/deleted listing index',
         has(groupSource, 'group_members_user_group_idx') && has(groupSource, 'group_admins_user_group_idx')
           ? 'membership/admin through indexes present'
           : 'review membership indexes',

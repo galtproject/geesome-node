@@ -129,6 +129,14 @@ async function main() {
               WHERE "userId" = :userId AND "name" = 'upload' AND "createdAt" >= :since`,
       replacements: {userId, since: new Date(0)},
     },
+    {
+      name: 'Creator-owned personal-chat group page',
+      notes: 'getPersonalChatGroups / getCreatorInGroupsByType; expected to use groups_creator_type_deleted_created_idx for creatorId/type/isDeleted filters and default createdAt ordering.',
+      sql: `SELECT id, name, "createdAt" FROM groups
+              WHERE "creatorId" = :userId AND type = 'personal_chat' AND "isDeleted" = false
+              ORDER BY "createdAt" DESC, id DESC LIMIT :limit`,
+      replacements: {userId, limit: PAGE_LIMIT},
+    },
   ];
 
   const lines: string[] = [
