@@ -9,6 +9,15 @@ describe('helpers', () => {
 		assert.strictEqual(helpers.hasId(undefined), false);
 	});
 
+	it('normalizes unique ids for shared relation helpers', () => {
+		assert.deepEqual(
+			helpers.normalizeUniqueIds([1, '1', 2, null, undefined, 'bad', Number.NaN, Number.POSITIVE_INFINITY, '3']),
+			[1, 2, 3]
+		);
+		assert.deepEqual(helpers.normalizeUniqueIds('4'), [4]);
+		assert.deepEqual(helpers.normalizeUniqueIds(null), []);
+	});
+
 	it('sanitizes list params before they reach Sequelize queries', () => {
 		assert.deepEqual(helpers.prepareListParams({
 			sortBy: 'createdAt;DROP',
