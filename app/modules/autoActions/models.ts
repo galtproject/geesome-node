@@ -8,9 +8,36 @@
  */
 import {Sequelize, DataTypes} from 'sequelize';
 
-export default async function (sequelize: Sequelize) {
+async function getAutoActionExecutionClaimSchemaState(sequelize: Sequelize) {
+	const [rows] = await sequelize.query(`
+		SELECT
+			to_regclass('"autoActions"') IS NOT NULL AS "tableExists",
+			EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+					AND table_name = 'autoActions'
+					AND column_name = 'executeClaimedAt'
+			) AS "hasExecuteClaimedAt",
+			EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+					AND table_name = 'autoActions'
+					AND column_name = 'executeClaimExpiresAt'
+			) AS "hasExecuteClaimExpiresAt"
+	`);
+	const row = (rows as any[])[0] || {};
+	const hasExecutionClaimColumns = row.hasExecuteClaimedAt === true && row.hasExecuteClaimExpiresAt === true;
 
-	const AutoAction = sequelize.define('autoAction', {
+	return {
+		tableExists: row.tableExists === true,
+		hasExecutionClaimColumns,
+	};
+}
+
+function getAutoActionAttributes(includeExecutionClaimColumns: boolean) {
+	const attributes = {
 		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#data-types
 		userId: {
 			type: DataTypes.INTEGER
@@ -50,13 +77,42 @@ export default async function (sequelize: Sequelize) {
 		executeOn: {
 			type: DataTypes.DATE
 		},
-	} as any, {
-		indexes: [
-			// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
-			{ fields: ['isActive'] },
-			{ name: 'auto_actions_active_execute_idx', fields: ['isActive', 'executeOn'] },
-			{ name: 'auto_actions_user_created_idx', fields: ['userId', 'createdAt', 'id'] },
-		]
+	} as any;
+
+	if (includeExecutionClaimColumns) {
+		attributes.executeClaimedAt = {
+			type: DataTypes.DATE
+		};
+		attributes.executeClaimExpiresAt = {
+			type: DataTypes.DATE
+		};
+	}
+
+	return attributes;
+}
+
+function getAutoActionIndexes(includeExecutionClaimIndex: boolean) {
+	const indexes = [
+		// http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes
+		{ fields: ['isActive'] },
+		{ name: 'auto_actions_active_execute_idx', fields: ['isActive', 'executeOn'] },
+		{ name: 'auto_actions_user_created_idx', fields: ['userId', 'createdAt', 'id'] },
+	];
+
+	if (includeExecutionClaimIndex) {
+		indexes.push({ name: 'auto_actions_active_execute_claim_idx', fields: ['isActive', 'executeOn', 'executeClaimExpiresAt', 'id'] });
+	}
+
+	return indexes;
+}
+
+export default async function (sequelize: Sequelize) {
+	const schemaState = await getAutoActionExecutionClaimSchemaState(sequelize);
+	const includeExecutionClaimColumns = !schemaState.tableExists || schemaState.hasExecutionClaimColumns;
+	const includeExecutionClaimIndex = !schemaState.tableExists;
+
+	const AutoAction = sequelize.define('autoAction', getAutoActionAttributes(includeExecutionClaimColumns), {
+		indexes: getAutoActionIndexes(includeExecutionClaimIndex)
 	} as any);
 
 	await AutoAction.sync({});
@@ -114,6 +170,7 @@ export default async function (sequelize: Sequelize) {
 
 	return {
 		AutoAction,
+		autoActionExecutionClaimsSupported: includeExecutionClaimColumns,
 		NextActionsPivot: await NextActionsPivot.sync({}),
 		AutoActionLog: await AutoActionLog.sync({})
 	};

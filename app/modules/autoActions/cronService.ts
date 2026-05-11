@@ -19,11 +19,11 @@ export default class CronService {
 	}
 
 	async getActionsAndAddToQueue() {
-		return this.addActionsListToQueue(await this.autoActionsModule.getAutoActionsToExecute());
+		return this.addActionsListToQueue(await this.autoActionsModule.claimAutoActionsToExecute());
 	}
 
 	async getActionsAndAddToQueueAndRun() {
-		return this.addActionsListToQueueAndRun(await this.autoActionsModule.getAutoActionsToExecute());
+		return this.addActionsListToQueueAndRun(await this.autoActionsModule.claimAutoActionsToExecute());
 	}
 
 	addActionsListToQueue(actions: IAutoAction[], rootActionId = null) {

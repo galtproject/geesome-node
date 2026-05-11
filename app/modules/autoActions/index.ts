@@ -1,13 +1,15 @@
 import _ from 'lodash';
-import {Op} from "sequelize";
+import {Op, QueryTypes} from "sequelize";
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
-import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
+import IGeesomeAutoActionsModule, {IAutoAction, IAutoActionClaimOptions} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import {IListParamsOptions} from "../database/interface.js";
 import helpers from "../../helpers.js";
 const {some, orderBy, reverse} = _;
 const autoActionExecuteBatchLimit = 100;
+const defaultAutoActionClaimTtlMs = 5 * 60 * 1000;
+const autoActionClaimTtlMs = parsePositiveNumber(process.env.AUTO_ACTION_CLAIM_TTL_MS, defaultAutoActionClaimTtlMs);
 const autoActionListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'moduleName', 'funcName', 'executeOn', 'isActive'],
@@ -19,9 +21,48 @@ const autoActionListFilterTypes = {
 	isActive: 'boolean'
 } as const;
 
+function parsePositiveNumber(value, fallback) {
+	const parsed = Number.parseInt(value as any, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function getAutoActionListWhere(userId, params = {}) {
 	const where = helpers.prepareWhereParams(params, autoActionListFilterTypes);
 	return {...where, userId};
+}
+
+function getDueAutoActionWhere(now: Date, executionClaimsSupported: boolean) {
+	const where = {
+		executeOn: {[Op.lte]: now},
+		isActive: true,
+	} as any;
+
+	if (executionClaimsSupported) {
+		where[Op.or] = [
+			{executeClaimExpiresAt: null},
+			{executeClaimExpiresAt: {[Op.lte]: now}},
+		];
+	}
+
+	return where;
+}
+
+function getAutoActionClaimExpiresAt(now: Date, options: IAutoActionClaimOptions) {
+	const claimTtlMs = typeof options.claimTtlMs === 'number' && Number.isFinite(options.claimTtlMs) && options.claimTtlMs > 0
+		? options.claimTtlMs
+		: autoActionClaimTtlMs;
+
+	return new Date(now.getTime() + claimTtlMs);
+}
+
+function getAutoActionClaimReleaseData(executionClaimsSupported: boolean) {
+	if (!executionClaimsSupported) {
+		return {};
+	}
+	return {
+		executeClaimedAt: null,
+		executeClaimExpiresAt: null,
+	};
 }
 
 export default async (app: IGeesomeApp) => {
@@ -33,6 +74,8 @@ export default async (app: IGeesomeApp) => {
 }
 
 function getModule(app: IGeesomeApp, models) {
+	const executionClaimsSupported = models.autoActionExecutionClaimsSupported === true;
+
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
 		async addAutoAction(userId, autoAction) {
 			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions);
@@ -141,11 +184,51 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAutoActionsToExecute() {
+			const now = new Date();
+
 			return models.AutoAction.findAll({
-				where: { executeOn: {[Op.lte]: new Date()}, isActive: true},
+				where: getDueAutoActionWhere(now, executionClaimsSupported),
 				order: [['executeOn', 'ASC'], ['id', 'ASC']],
 				limit: autoActionExecuteBatchLimit
 			}).then((actions) => pIteration.map(actions, a => this.decryptAutoActionIfNecessary(a)));
+		}
+
+		async claimAutoActionsToExecute(options: IAutoActionClaimOptions = {}) {
+			if (!executionClaimsSupported) {
+				return this.getAutoActionsToExecute();
+			}
+			const now = options.now || new Date();
+			const claimExpiresAt = getAutoActionClaimExpiresAt(now, options);
+			const actions = await app.ms.database.sequelize.query<any>(`
+				WITH due_actions AS (
+					SELECT id
+					FROM "autoActions"
+					WHERE "isActive" = true
+						AND "executeOn" <= :now
+						AND ("executeClaimExpiresAt" IS NULL OR "executeClaimExpiresAt" <= :now)
+					ORDER BY "executeOn" ASC, id ASC
+					FOR UPDATE SKIP LOCKED
+					LIMIT :limit
+				)
+				UPDATE "autoActions" AS "autoAction"
+				SET
+					"executeClaimedAt" = :now,
+					"executeClaimExpiresAt" = :claimExpiresAt,
+					"updatedAt" = :now
+				FROM due_actions
+				WHERE "autoAction".id = due_actions.id
+				RETURNING "autoAction".*
+			`, {
+				replacements: {
+					now,
+					claimExpiresAt,
+					limit: autoActionExecuteBatchLimit,
+				},
+				type: QueryTypes.SELECT,
+			});
+			const orderedActions = orderBy(actions, ['executeOn', 'id'], ['asc', 'asc']);
+
+			return pIteration.map(orderedActions, a => this.decryptAutoActionIfNecessary(a));
 		}
 
 		async getNextActionsById(userId, id) {
@@ -166,14 +249,21 @@ function getModule(app: IGeesomeApp, models) {
 
 		async updateAutoActionExecuteOn(userId, id, extendData: IAutoAction = {}) {
 			const existAction = await models.AutoAction.findOne({where: {id}});
-			if (!existAction || !existAction.executePeriod || !existAction.isActive) {
+			if (!existAction) {
 				return; // nothing to update
 			}
 			if (existAction.userId !== userId) {
 				throw new Error("userId_dont_match");
 			}
-			await existAction.update({
+			const updateData = {
 				...extendData,
+				...getAutoActionClaimReleaseData(executionClaimsSupported)
+			};
+			if (!existAction.executePeriod || !existAction.isActive) {
+				return existAction.update(updateData);
+			}
+			await existAction.update({
+				...updateData,
 				executeOn: commonHelper.moveDate(existAction.executePeriod, 'seconds')
 			});
 		}

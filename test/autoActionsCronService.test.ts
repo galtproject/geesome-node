@@ -34,6 +34,7 @@ describe("autoActions cron service", () => {
 		};
 		const autoActionsModule = {
 			getAutoActionsToExecute: async () => [action],
+			claimAutoActionsToExecute: async () => [action],
 			getNextActionsById: async () => [],
 			deactivateAutoActionWithError: async () => null,
 			handleAutoActionSuccessfulExecution: async () => null,

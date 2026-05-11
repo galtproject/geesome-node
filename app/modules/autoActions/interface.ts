@@ -7,6 +7,8 @@ export default interface IGeesomeAutoActionsModule {
 
 	getAutoActionsToExecute(): Promise<IAutoAction[]>;
 
+	claimAutoActionsToExecute(options?: IAutoActionClaimOptions): Promise<IAutoAction[]>;
+
 	getUserActions(userId: number, params?): Promise<IAutoActionListResponse>;
 
 	getNextActionsById(userId, id): Promise<IAutoAction[]>;
@@ -30,11 +32,19 @@ export interface IAutoAction {
 	lastError?: string;
 	isActive?: boolean;
 	runPeriod?: number;
+	executePeriod?: number;
 	position?: number;
 	nextActions?: IAutoAction[];
 	totalExecuteAttempts?: number;
 	currentExecuteAttempts?: number;
 	executeOn?: Date;
+	executeClaimedAt?: Date;
+	executeClaimExpiresAt?: Date;
+}
+
+export interface IAutoActionClaimOptions {
+	now?: Date;
+	claimTtlMs?: number;
 }
 
 export interface IAutoActionListResponse {
