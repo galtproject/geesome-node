@@ -331,6 +331,56 @@ describe("group", function () {
 		assert.equal(unreadData.count, 0);
 	});
 
+	it('repairs group size, availability, and local-id high-water counters', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const activeContent = await app.ms.content.saveData(testUser.id, 'active counter post', null, {
+			mimeType: 'text/markdown'
+		});
+		const draftContent = await app.ms.content.saveData(testUser.id, 'draft counter post', null, {
+			mimeType: 'text/markdown'
+		});
+		const deletedContent = await app.ms.content.saveData(testUser.id, 'deleted counter post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const activePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: activeContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const draftPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: draftContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const deletedPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: deletedContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		await app.ms.group.updatePost(testUser.id, draftPost.id, {status: PostStatus.Draft});
+		await app.ms.group.deletePosts(testUser.id, [deletedPost.id]);
+		await models.Group.update({
+			size: 999999,
+			availablePostsCount: 99,
+			publishedPostsCount: 1
+		}, {where: {id: testGroup.id}});
+
+		await app.ms.group.reconcileGroupCounters(testGroup.id);
+
+		const repairedGroup = await app.ms.group.getGroup(testGroup.id);
+		const highWaterLocalId = Math.max(
+			Number(activePost.localId),
+			Number(draftPost.localId),
+			Number(deletedPost.localId)
+		);
+		assert.equal(repairedGroup.availablePostsCount, 1);
+		assert.equal(Number(repairedGroup.size), Number(activeContent.size));
+		assert.equal(repairedGroup.publishedPostsCount, highWaterLocalId);
+	});
+
 	it('replaces post content at an existing position without duplicate join rows', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

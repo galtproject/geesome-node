@@ -622,6 +622,8 @@ function hotspotRows(): HotspotRow[] {
   const hasSocialImportRelationCounterUpsertTest = has(groupTestSource, 'reconciles relation counters when social import upserts move targets');
   const hasSocialImportGroupCounterUpsertTest = has(groupTestSource, 'groupAfterSecondImport.availablePostsCount')
     && has(groupTestSource, 'Number(groupAfterSecondImport.size)');
+  const hasGroupCounterRepairTest = has(groupTestSource, 'repairs group size, availability, and local-id high-water counters')
+    && has(groupTestSource, 'reconcileGroupCounters(testGroup.id)');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
     && has(databaseSource, 'async getSharedContentByManifestId')
     && has(databaseSource, "order: [['id', 'ASC']]")
@@ -739,9 +741,11 @@ function hotspotRows(): HotspotRow[] {
           : 'post create/update run localId allocation, post rows, attachments, size, and counters as separate statements'),
       scalabilityRisk: hasCanonicalPostDbTransaction
         ? (hasPostStatusCounterReconcile
-          ? (hasSocialImportRelationCounterUpsertTest && hasSocialImportGroupCounterUpsertTest
-            ? 'canonical post DB partial-state risk is reduced; relation and group counters have source-identity upsert coverage, while remote delete/edit tombstones and manifest/static derived work still need transaction/job boundaries'
-            : 'canonical post DB partial-state risk is reduced and relation counters have a reusable repair helper; import/upsert lifecycle semantics and manifest/static derived work still need transaction/job boundaries')
+          ? (hasSocialImportRelationCounterUpsertTest && hasSocialImportGroupCounterUpsertTest && hasGroupCounterRepairTest
+            ? 'canonical post DB partial-state risk is reduced; relation and group counters have source-identity upsert coverage plus group counter repair drift coverage, while remote delete/edit tombstones and manifest/static derived work still need transaction/job boundaries'
+            : (hasSocialImportRelationCounterUpsertTest && hasSocialImportGroupCounterUpsertTest
+              ? 'canonical post DB partial-state risk is reduced; relation and group counters have source-identity upsert coverage, while remote delete/edit tombstones and manifest/static derived work still need transaction/job boundaries'
+              : 'canonical post DB partial-state risk is reduced and relation counters have a reusable repair helper; import/upsert lifecycle semantics and manifest/static derived work still need transaction/job boundaries'))
           : 'canonical post DB partial-state risk is reduced; status/import/upsert transitions and manifest/static derived work still need transaction/job boundaries')
         : (hasPostWriteTransaction
           ? 'create/update partial DB state risk is reduced; delete/import transitions and manifest/static derived work still need transaction/job boundaries'
