@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import {Op, QueryTypes} from "sequelize";
+import {Op} from "sequelize";
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAutoActionsModule, {IAutoAction, IAutoActionClaimOptions} from "./interface.js";
@@ -199,32 +199,10 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			const now = options.now || new Date();
 			const claimExpiresAt = getAutoActionClaimExpiresAt(now, options);
-			const actions = await app.ms.database.sequelize.query<any>(`
-				WITH due_actions AS (
-					SELECT id
-					FROM "autoActions"
-					WHERE "isActive" = true
-						AND "executeOn" <= :now
-						AND ("executeClaimExpiresAt" IS NULL OR "executeClaimExpiresAt" <= :now)
-					ORDER BY "executeOn" ASC, id ASC
-					FOR UPDATE SKIP LOCKED
-					LIMIT :limit
-				)
-				UPDATE "autoActions" AS "autoAction"
-				SET
-					"executeClaimedAt" = :now,
-					"executeClaimExpiresAt" = :claimExpiresAt,
-					"updatedAt" = :now
-				FROM due_actions
-				WHERE "autoAction".id = due_actions.id
-				RETURNING "autoAction".*
-			`, {
-				replacements: {
-					now,
-					claimExpiresAt,
-					limit: autoActionExecuteBatchLimit,
-				},
-				type: QueryTypes.SELECT,
+			const actions = await models.AutoAction.claimDueForExecution({
+				now,
+				claimExpiresAt,
+				limit: autoActionExecuteBatchLimit
 			});
 			const orderedActions = orderBy(actions, ['executeOn', 'id'], ['asc', 'asc']);
 

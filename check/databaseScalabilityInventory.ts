@@ -85,7 +85,8 @@ function modelRows(): ModelRow[] {
   const hasAutoActionDbClaims = has(autoActionSource, 'executeClaimExpiresAt')
     && has(autoActionSource, 'auto_actions_active_execute_claim_idx')
     && has(autoActionIndexSource, 'claimAutoActionsToExecute')
-    && has(autoActionIndexSource, 'FOR UPDATE SKIP LOCKED')
+    && has(autoActionIndexSource, 'claimDueForExecution')
+    && has(autoActionSource, 'FOR UPDATE SKIP LOCKED')
     && has(autoActionCronSource, 'claimAutoActionsToExecute');
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
@@ -451,6 +452,7 @@ function hotspotRows(): HotspotRow[] {
   const staticIdSource = read('app/modules/staticId/index.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/index.ts');
   const autoActionSource = read('app/modules/autoActions/index.ts');
+  const autoActionModelSource = read('app/modules/autoActions/models.ts');
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/index.ts');
   const pinModelSource = read('app/modules/pin/models.ts');
@@ -539,8 +541,10 @@ function hotspotRows(): HotspotRow[] {
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
   const hasAutoActionDbClaims = has(autoActionSource, 'claimAutoActionsToExecute')
-    && has(autoActionSource, 'FOR UPDATE SKIP LOCKED')
-    && has(autoActionSource, 'executeClaimExpiresAt')
+    && has(autoActionSource, 'claimDueForExecution')
+    && has(autoActionModelSource, 'FOR UPDATE SKIP LOCKED')
+    && has(autoActionModelSource, 'executeClaimExpiresAt')
+    && has(autoActionModelSource, 'auto_actions_active_execute_claim_idx')
     && has(autoActionCronSource, 'claimAutoActionsToExecute');
   const hasAsyncOperationRetention = has(asyncOperationSource, 'cleanupFinishedAsyncOperations')
     && has(asyncOperationSource, 'finishedOperationCleanupBatchLimit')

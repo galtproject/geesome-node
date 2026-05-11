@@ -6,7 +6,7 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-import {Sequelize, DataTypes} from 'sequelize';
+import {Sequelize, DataTypes, QueryTypes} from 'sequelize';
 
 async function getAutoActionExecutionClaimSchemaState(sequelize: Sequelize) {
 	const [rows] = await sequelize.query(`
@@ -106,6 +106,36 @@ function getAutoActionIndexes(includeExecutionClaimIndex: boolean) {
 	return indexes;
 }
 
+async function claimDueAutoActionsForExecution(sequelize: Sequelize, {now, claimExpiresAt, limit}) {
+	return sequelize.query<any>(`
+		WITH due_actions AS (
+			SELECT id
+			FROM "autoActions"
+			WHERE "isActive" = true
+				AND "executeOn" <= :now
+				AND ("executeClaimExpiresAt" IS NULL OR "executeClaimExpiresAt" <= :now)
+			ORDER BY "executeOn" ASC, id ASC
+			FOR UPDATE SKIP LOCKED
+			LIMIT :limit
+		)
+		UPDATE "autoActions" AS "autoAction"
+		SET
+			"executeClaimedAt" = :now,
+			"executeClaimExpiresAt" = :claimExpiresAt,
+			"updatedAt" = :now
+		FROM due_actions
+		WHERE "autoAction".id = due_actions.id
+		RETURNING "autoAction".*
+	`, {
+		replacements: {
+			now,
+			claimExpiresAt,
+			limit,
+		},
+		type: QueryTypes.SELECT,
+	});
+}
+
 export default async function (sequelize: Sequelize) {
 	const schemaState = await getAutoActionExecutionClaimSchemaState(sequelize);
 	const includeExecutionClaimColumns = !schemaState.tableExists || schemaState.hasExecutionClaimColumns;
@@ -114,6 +144,7 @@ export default async function (sequelize: Sequelize) {
 	const AutoAction = sequelize.define('autoAction', getAutoActionAttributes(includeExecutionClaimColumns), {
 		indexes: getAutoActionIndexes(includeExecutionClaimIndex)
 	} as any);
+	(AutoAction as any).claimDueForExecution = (claimOptions) => claimDueAutoActionsForExecution(sequelize, claimOptions);
 
 	await AutoAction.sync({});
 
