@@ -558,6 +558,40 @@ describe("group", function () {
 		assert.equal(joinRows.length, 2);
 	});
 
+	it('records post lifecycle events for ordinary post writes', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const postContent = await app.ms.content.saveData(testUser.id, 'lifecycle post body', null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: postContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Draft
+		});
+
+		await app.ms.group.updatePost(testUser.id, post.id, {isReplyForbidden: true});
+		await app.ms.group.deletePosts(testUser.id, [post.id]);
+
+		const lifecycleEvents = await models.PostEvent.findAll({
+			where: {postId: post.id, type: PostEventType.PostLifecycle},
+			order: [['createdAt', 'ASC'], ['id', 'ASC']]
+		});
+		assert.equal(lifecycleEvents.length, 3);
+		assert.deepEqual(lifecycleEvents.map(event => event.action), [
+			PostEventAction.Created,
+			PostEventAction.Updated,
+			PostEventAction.Deleted
+		]);
+		assert.equal(lifecycleEvents[0].previousStatus, null);
+		assert.equal(lifecycleEvents[0].nextStatus, PostStatus.Draft);
+		assert.equal(lifecycleEvents[1].previousIsDeleted, false);
+		assert.equal(lifecycleEvents[1].nextIsDeleted, false);
+		assert.equal(lifecycleEvents[2].previousIsDeleted, false);
+		assert.equal(lifecycleEvents[2].nextIsDeleted, true);
+	});
+
 	it('deletes published replies with counters in one DB transaction', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

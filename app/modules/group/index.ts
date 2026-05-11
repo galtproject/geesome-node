@@ -7,7 +7,7 @@ import pgpHelper from "geesome-libs/src/pgpHelper.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
 import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface.js";
-import {buildSourceImportPostEvent, getPostEventState} from './postEventHelpers.js';
+import {buildPostLifecycleEvent, buildSourceImportPostEvent, getPostEventState} from './postEventHelpers.js';
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import {
@@ -753,10 +753,11 @@ function getModule(app: IGeesomeApp, models) {
 				await models.Post.update({size}, {where: {id: post.id}, transaction});
 				log('updatePost');
 
-				const postEvent = buildSourceImportPostEvent(userId, null, {...getPostEventState(post), size});
-				if (postEvent) {
-					await this.addPostEvent(postEvent, {transaction});
-				}
+				const nextPostEventState = {...getPostEventState(post), size};
+				await this.addPostEvents([
+					buildPostLifecycleEvent(userId, null, nextPostEventState),
+					buildSourceImportPostEvent(userId, null, nextPostEventState)
+				], {transaction});
 
 				if (post.status === PostStatus.Published && !post.isDeleted) {
 					await this.incrementGroupCounters(post.groupId, {sizeDelta: size || 0, availableDelta: 1}, {transaction});
@@ -961,10 +962,10 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				await models.Post.update(postData, {where: {id: postId}, transaction});
-				const postEvent = buildSourceImportPostEvent(userId, oldPost, nextPostEventState);
-				if (postEvent) {
-					await this.addPostEvent(postEvent, {transaction});
-				}
+				await this.addPostEvents([
+					buildPostLifecycleEvent(userId, oldPost, nextPostEventState),
+					buildSourceImportPostEvent(userId, oldPost, nextPostEventState)
+				], {transaction});
 				if (isPublished && !wasPublished) {
 					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize, availableDelta: 1}, {transaction});
 				} else if (!isPublished && wasPublished) {
@@ -1027,10 +1028,10 @@ function getModule(app: IGeesomeApp, models) {
 						...getPostEventState(post),
 						isDeleted: true
 					};
-					const postEvent = buildSourceImportPostEvent(userId, post, nextPostEventState);
-					if (postEvent) {
-						await this.addPostEvent(postEvent, {transaction});
-					}
+					await this.addPostEvents([
+						buildPostLifecycleEvent(userId, post, nextPostEventState),
+						buildSourceImportPostEvent(userId, post, nextPostEventState)
+					], {transaction});
 				});
 
 				await pIteration.forEach(Object.entries(decrementsByGroup), async ([groupId, deltas]) => {
@@ -1555,6 +1556,14 @@ function getModule(app: IGeesomeApp, models) {
 
 		async addPostEvent(postEvent, options: any = {}) {
 			return models.PostEvent.create(postEvent, {transaction: options.transaction});
+		}
+
+		async addPostEvents(postEvents, options: any = {}) {
+			const events = postEvents.filter(event => !!event);
+			if (!events.length) {
+				return [];
+			}
+			return models.PostEvent.bulkCreate(events, {transaction: options.transaction});
 		}
 
 		async updatePosts(ids, updateData, options: any = {}) {

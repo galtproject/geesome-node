@@ -654,6 +654,11 @@ function hotspotRows(): HotspotRow[] {
     && has(postEventHelperSource, 'PostEventType.SourceImport')
     && has(groupTestSource, 'PostEventAction.Deleted')
     && has(groupTestSource, 'models.PostEvent.findAll');
+  const hasPostLifecycleEvents = has(postEventHelperSource, 'PostEventType.PostLifecycle')
+    && has(groupSource, 'buildPostLifecycleEvent')
+    && has(groupSource, 'addPostEvents')
+    && has(groupTestSource, 'records post lifecycle events for ordinary post writes')
+    && has(groupTestSource, 'PostEventType.PostLifecycle');
   const hasGroupCounterRepairTest = has(groupTestSource, 'repairs group size, availability, and local-id high-water counters')
     && has(groupTestSource, 'reconcileGroupCounters(testGroup.id)');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
@@ -790,13 +795,21 @@ function hotspotRows(): HotspotRow[] {
     {
       area: 'Post event ledger',
       source: 'app/modules/group/index.ts',
-      hotspot: 'source-identity import lifecycle',
-      observedPattern: hasSourceImportPostEvents
-        ? 'source-identity create/update/delete transitions append PostEvent rows inside the post DB transaction'
-        : 'source-identity import lifecycle is represented only by the latest mutable Post row',
-      scalabilityRisk: hasSourceImportPostEvents
-        ? 'remote import tombstone replay/audit risk is reduced for source-identity upserts; the broader post revision/event model and derived manifest jobs remain future work'
-        : 'remote import deletes and edits cannot be replayed or audited beyond current mutable row state',
+      hotspot: 'post and source-identity import lifecycle',
+      observedPattern: hasPostLifecycleEvents
+        ? (hasSourceImportPostEvents
+          ? 'ordinary post create/update/delete and source-identity create/update/delete transitions append PostEvent rows inside the post DB transaction'
+          : 'ordinary post create/update/delete transitions append PostEvent rows inside the post DB transaction; source import events still need coverage')
+        : (hasSourceImportPostEvents
+          ? 'source-identity create/update/delete transitions append PostEvent rows inside the post DB transaction'
+          : 'post and source-identity import lifecycle is represented only by the latest mutable Post row'),
+      scalabilityRisk: hasPostLifecycleEvents
+        ? (hasSourceImportPostEvents
+          ? 'post and remote import replay/audit risk is reduced for canonical writes; derived manifest/static job events, delivery state, and richer revision payloads remain future work'
+          : 'post replay/audit risk is reduced for canonical writes; remote import tombstone replay plus derived manifest/static job events remain future work')
+        : (hasSourceImportPostEvents
+          ? 'remote import tombstone replay/audit risk is reduced for source-identity upserts; the broader post revision/event model and derived manifest jobs remain future work'
+          : 'remote import deletes and edits cannot be replayed or audited beyond current mutable row state'),
     },
     {
       area: 'Static site rendering',

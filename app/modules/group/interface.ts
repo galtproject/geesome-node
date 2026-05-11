@@ -165,6 +165,8 @@ export default interface IGeesomeGroupModule {
 
 	addPostEvent(postEvent, options?): Promise<any>;
 
+	addPostEvents(postEvents, options?): Promise<any>;
+
 	getPostByManifestId(manifestStorageId): Promise<IPost>;
 
 	getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId): Promise<IPost>;
@@ -343,6 +345,7 @@ export enum PostStatus {
 }
 
 export enum PostEventType {
+	PostLifecycle = 'post_lifecycle',
 	SourceImport = 'source_import'
 }
 
