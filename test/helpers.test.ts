@@ -189,4 +189,30 @@ describe('helpers', () => {
 			limit: 100
 		});
 	});
+
+	it('sanitizes allowlisted where params before they reach Sequelize queries', () => {
+		const autoActionWhereOptions = {
+			moduleName: 'string',
+			funcName: 'string',
+			isActive: 'boolean'
+		} as const;
+
+		assert.deepEqual(helpers.prepareWhereParams({
+			moduleName: 'contentBot',
+			funcName: ['unsafe'],
+			isActive: 'false',
+			unsafeWhereKey: 'ignored'
+		}, autoActionWhereOptions), {
+			moduleName: 'contentBot',
+			isActive: false
+		});
+
+		assert.deepEqual(helpers.prepareWhereParams({
+			moduleName: {unsafe: true},
+			funcName: 'run',
+			isActive: 'maybe'
+		}, autoActionWhereOptions), {
+			funcName: 'run'
+		});
+	});
 });

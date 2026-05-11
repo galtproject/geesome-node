@@ -33,6 +33,9 @@ type ListCursorState = {
 	id?: number;
 };
 
+type WhereParamType = 'boolean' | 'string';
+type WhereParamsOptions = Record<string, WhereParamType>;
+
 function parseNonNegativeInteger(value, fallback = null) {
 	const parsed = Number.parseInt(value as any, 10);
 	if (!Number.isFinite(parsed) || parsed < 0) {
@@ -61,6 +64,29 @@ function sanitizeSortDir(value, fallback = 'DESC') {
 		return fallback.toUpperCase();
 	}
 	return sortDir;
+}
+
+function sanitizeBooleanFilter(value) {
+	if (value === 'true') {
+		return true;
+	}
+	if (value === 'false') {
+		return false;
+	}
+	if (value === true || value === false) {
+		return value;
+	}
+	return undefined;
+}
+
+function sanitizeWhereParam(value, type: WhereParamType) {
+	if (type === 'boolean') {
+		return sanitizeBooleanFilter(value);
+	}
+	if (type === 'string' && typeof value === 'string') {
+		return value;
+	}
+	return undefined;
 }
 
 function getCursorOptions(options: ListCursorOptions = {}) {
@@ -299,6 +325,19 @@ export default {
 			delete res.offset;
 		}
 
+		return res;
+	},
+
+	prepareWhereParams(params: any = {}, options: WhereParamsOptions = {}) {
+		const res = pick(params || {}, Object.keys(options));
+		Object.keys(options).forEach((key) => {
+			const value = sanitizeWhereParam(res[key], options[key]);
+			if (value === undefined) {
+				delete res[key];
+				return;
+			}
+			res[key] = value;
+		});
 		return res;
 	},
 

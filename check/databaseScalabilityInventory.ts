@@ -468,6 +468,7 @@ function hotspotRows(): HotspotRow[] {
     && has(autoActionSource, 'helpers.prepareListParams(params, autoActionListParams)')
     && has(autoActionSource, 'app.ms.database.setDefaultListParamsValues(listParams, autoActionListParams)')
     && has(autoActionSource, 'getAutoActionListWhere(userId, params)')
+    && has(autoActionSource, 'helpers.prepareWhereParams(params, autoActionListFilterTypes)')
     && has(autoActionSource, 'models.AutoAction.count({where})');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,

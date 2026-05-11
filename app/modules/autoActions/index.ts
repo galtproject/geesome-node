@@ -6,32 +6,21 @@ import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import {IListParamsOptions} from "../database/interface.js";
 import helpers from "../../helpers.js";
-const {some, orderBy, reverse, pick} = _;
+const {some, orderBy, reverse} = _;
 const autoActionExecuteBatchLimit = 100;
 const autoActionListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'moduleName', 'funcName', 'executeOn', 'isActive'],
 	maxLimit: 100
 };
-const autoActionListFilterKeys = ['moduleName', 'funcName', 'isActive'];
+const autoActionListFilterTypes = {
+	moduleName: 'string',
+	funcName: 'string',
+	isActive: 'boolean'
+} as const;
 
 function getAutoActionListWhere(userId, params = {}) {
-	const where: any = pick(params, autoActionListFilterKeys);
-
-	if (where.isActive === 'true') {
-		where.isActive = true;
-	} else if (where.isActive === 'false') {
-		where.isActive = false;
-	} else if (where.isActive !== true && where.isActive !== false) {
-		delete where.isActive;
-	}
-	if (where.moduleName !== undefined && typeof where.moduleName !== 'string') {
-		delete where.moduleName;
-	}
-	if (where.funcName !== undefined && typeof where.funcName !== 'string') {
-		delete where.funcName;
-	}
-
+	const where = helpers.prepareWhereParams(params, autoActionListFilterTypes);
 	return {...where, userId};
 }
 
