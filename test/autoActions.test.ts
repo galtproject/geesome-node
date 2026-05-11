@@ -237,4 +237,37 @@ describe("autoActions", function () {
 		assert.equal(secondPage.total, 3);
 		assert.deepEqual(secondPage.list.map(action => action.moduleName), ['action-3']);
 	});
+
+	it('claims due auto actions before cron execution', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const dueAction = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'testModule',
+			funcName: 'run',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 1,
+			currentExecuteAttempts: 1,
+			executePeriod: 60,
+			executeOn: new Date(Date.now() - 1000)
+		});
+
+		const claimStartedAt = new Date();
+		const firstClaim = await autoActions.claimAutoActionsToExecute({
+			now: claimStartedAt,
+			claimTtlMs: 1000
+		});
+		assert.deepEqual(firstClaim.map(action => action.id), [dueAction.id]);
+
+		const secondClaim = await autoActions.claimAutoActionsToExecute({
+			now: new Date(claimStartedAt.getTime() + 500),
+			claimTtlMs: 1000
+		});
+		assert.deepEqual(secondClaim, []);
+
+		const expiredClaim = await autoActions.claimAutoActionsToExecute({
+			now: new Date(claimStartedAt.getTime() + 1500),
+			claimTtlMs: 1000
+		});
+		assert.deepEqual(expiredClaim.map(action => action.id), [dueAction.id]);
+	});
 });

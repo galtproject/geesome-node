@@ -82,6 +82,12 @@ function modelRows(): ModelRow[] {
     && has(postSource, 'unique: true');
   const hasBoundedAutoActionExecutor = has(autoActionIndexSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
+  const hasAutoActionDbClaims = has(autoActionSource, 'executeClaimExpiresAt')
+    && has(autoActionSource, 'auto_actions_active_execute_claim_idx')
+    && has(autoActionIndexSource, 'claimAutoActionsToExecute')
+    && has(autoActionIndexSource, 'claimDueForExecution')
+    && has(autoActionSource, 'FOR UPDATE SKIP LOCKED')
+    && has(autoActionCronSource, 'claimAutoActionsToExecute');
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
@@ -296,6 +302,9 @@ function modelRows(): ModelRow[] {
         has(autoActionSource, 'auto_actions_active_execute_idx')
           ? 'isActive,executeOn executor index'
           : 'missing active/due executor index',
+        hasAutoActionDbClaims
+          ? 'isActive,executeOn,executeClaimExpiresAt,id claim index'
+          : 'missing execution-claim index',
         has(autoActionSource, 'auto_actions_user_created_idx')
           ? 'userId,createdAt,id management-list index'
           : 'missing user management-list index',
@@ -303,7 +312,9 @@ function modelRows(): ModelRow[] {
       notes: [
         has(autoActionSource, 'auto_actions_active_execute_idx') && has(autoActionSource, 'auto_actions_user_created_idx')
           ? (hasBoundedAutoActionExecutor
-            ? 'due active executor scan and user management-list default paging are indexed; executor is bounded and de-duplicated inside one node; multi-node claim locking remains separate'
+            ? (hasAutoActionDbClaims
+              ? 'due active executor scan, execution claims, and user management-list default paging are indexed; cron claims due actions atomically before queueing'
+              : 'due active executor scan and user management-list default paging are indexed; executor is bounded and de-duplicated inside one node; multi-node claim locking remains separate')
             : 'due active executor scan and user management-list default paging are indexed; executor locking/batching policy remains separate')
           : 'scheduled executor and management list should have active/executeOn and user/default-order indexes',
       ],
@@ -441,6 +452,7 @@ function hotspotRows(): HotspotRow[] {
   const staticIdSource = read('app/modules/staticId/index.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/index.ts');
   const autoActionSource = read('app/modules/autoActions/index.ts');
+  const autoActionModelSource = read('app/modules/autoActions/models.ts');
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/index.ts');
   const pinModelSource = read('app/modules/pin/models.ts');
@@ -528,6 +540,12 @@ function hotspotRows(): HotspotRow[] {
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
+  const hasAutoActionDbClaims = has(autoActionSource, 'claimAutoActionsToExecute')
+    && has(autoActionSource, 'claimDueForExecution')
+    && has(autoActionModelSource, 'FOR UPDATE SKIP LOCKED')
+    && has(autoActionModelSource, 'executeClaimExpiresAt')
+    && has(autoActionModelSource, 'auto_actions_active_execute_claim_idx')
+    && has(autoActionCronSource, 'claimAutoActionsToExecute');
   const hasAsyncOperationRetention = has(asyncOperationSource, 'cleanupFinishedAsyncOperations')
     && has(asyncOperationSource, 'finishedOperationCleanupBatchLimit')
     && has(asyncOperationSource, 'asyncOperationId: null');
@@ -793,16 +811,20 @@ function hotspotRows(): HotspotRow[] {
     {
       area: 'Auto action executor',
       source: 'app/modules/autoActions/index.ts',
-      hotspot: 'getAutoActionsToExecute',
-      observedPattern: has(autoActionSource, 'executeOn: {[Op.lte]: new Date()}, isActive: true')
-        ? (hasBoundedAutoActionExecutor
-          ? 'periodic executor selects active due actions in deterministic executeOn/id batches and cron de-dupes queued/running action ids'
-          : 'periodic executor selects active actions due before now')
+      hotspot: 'claimAutoActionsToExecute',
+      observedPattern: has(autoActionSource, 'getDueAutoActionWhere') && has(autoActionSource, 'executeOn: {[Op.lte]: now}')
+        ? (hasAutoActionDbClaims
+          ? 'cron atomically claims active due actions in deterministic executeOn/id batches with expiring DB claims before queueing'
+          : (hasBoundedAutoActionExecutor
+            ? 'periodic executor selects active due actions in deterministic executeOn/id batches and cron de-dupes queued/running action ids'
+            : 'periodic executor selects active actions due before now'))
         : 'review auto-action executor query',
       scalabilityRisk: has(read('app/modules/autoActions/models.ts'), 'auto_actions_active_execute_idx')
-        ? (hasBoundedAutoActionExecutor
-          ? 'due/active range scan is indexed and per-node duplicate/batch pressure is bounded; multi-node claim locking remains separate'
-          : 'due/active range scan is indexed; batching and duplicate executor locking remain separate scheduler concerns')
+        ? (hasAutoActionDbClaims
+          ? 'due/active scan and claim lookup are indexed; multi-node workers skip rows already claimed until the claim expires'
+          : (hasBoundedAutoActionExecutor
+            ? 'due/active range scan is indexed and per-node duplicate/batch pressure is bounded; multi-node claim locking remains separate'
+            : 'due/active range scan is indexed; batching and duplicate executor locking remain separate scheduler concerns'))
         : 'executor can scan active rows without executeOn range support',
     },
     {

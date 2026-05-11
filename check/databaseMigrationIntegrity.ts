@@ -131,6 +131,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['object cache storage/resolveProp uniqueness', 'object cache storage-only unique index removal'],
   },
   {
+    module: 'database',
+    file: '20260511000003-add-auto-action-execution-claims.cjs',
+    verifies: ['auto-action execution claim columns and index'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -180,6 +185,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'contents', columns: ['mediumPreviewSize'], type: 'bigint'},
   {table: 'contents', columns: ['smallPreviewSize'], type: 'bigint'},
   {table: 'groupReads', columns: ['readPostId'], type: 'integer'},
+  {table: 'autoActions', columns: ['executeClaimedAt'], type: 'timestamp with time zone'},
+  {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -203,6 +210,7 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'user_operation_queues_async_operation_idx', table: 'userOperationQueues', columns: ['asyncOperationId']},
   {name: 'user_operation_queues_waiting_async_updated_idx', table: 'userOperationQueues', columns: ['isWaiting', 'asyncOperationId', 'updatedAt', 'id']},
   {name: 'auto_actions_active_execute_idx', table: 'autoActions', columns: ['isActive', 'executeOn']},
+  {name: 'auto_actions_active_execute_claim_idx', table: 'autoActions', columns: ['isActive', 'executeOn', 'executeClaimExpiresAt', 'id']},
   {name: 'auto_actions_user_created_idx', table: 'autoActions', columns: ['userId', 'createdAt', 'id']},
   {name: 'groups_creator_type_deleted_created_idx', table: 'groups', columns: ['creatorId', 'type', 'isDeleted', 'createdAt', 'id']},
   {name: 'groups_static_rebind_idx', table: 'groups', columns: ['isDeleted', 'staticStorageUpdatedAt']},

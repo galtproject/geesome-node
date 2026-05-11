@@ -167,6 +167,7 @@ async createGroup(userId, groupData) {
 
 - Models live in `app/modules/<module>/models/*.ts` (or a single `models.ts`).
 - Indexes are declared in the model options alongside `sequelize.define(...)` and mirrored in production migrations under `app/modules/<module>/migrations/`. Both sources must agree.
+- Put model-table-specific raw SQL in the model file as a named model helper/static method, then call that helper from module logic. Module entry files should orchestrate business flow, permissions, TTLs, hooks, encryption/decryption, and result shaping; they should not embed long CTE/update statements for one table.
 - Migrations target Postgres only and run `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (and matching `DROP INDEX CONCURRENTLY IF EXISTS` in the `down`). Migrations that use `CONCURRENTLY` set `useTransaction: false` and never wrap statements in `.catch(() => {})`.
 - Use `Model.increment({col: delta}, {where: ...})` for atomic counter writes; do not read-modify-write.
 - Bulk inserts in migrations and seed scripts use raw SQL with `:replacement` placeholders rather than `bulkCreate`, both for speed and to keep the migration legible.
