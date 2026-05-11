@@ -1,6 +1,6 @@
 import commonHelper from "geesome-libs/src/common.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
-import {IGroup, IPost, PostStatus} from "../group/interface.js";
+import {IGroup, IPost} from "../group/interface.js";
 import IGeesomeRemoteGroupModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 
@@ -40,22 +40,7 @@ function getModule(app: IGeesomeApp) {
 				groupId,
 				publishedAt
 			});
-			postObject.isRemote = true;
-			postObject.status = PostStatus.Published;
-			postObject.localId = await app.ms.group.getPostLocalId(postObject);
-
-			const {contents} = postObject;
-			delete postObject.contents;
-
-			let post = await app.ms.group.addPost(postObject);
-
-			if (!isEncrypted) {
-				await app.ms.group.setPostContents(post.id, contents);
-			}
-
-			await app.ms.group.updateGroupManifest(userId, post.groupId);
-
-			return app.ms.group.getPostPure(post.id);
+			return app.ms.group.createRemotePostByObject(userId, postObject);
 		}
 
 		async createGroupByRemoteStorageId(userId, manifestStorageId) {
@@ -77,4 +62,3 @@ function getModule(app: IGeesomeApp) {
 	}
 	return new RemoteGroupModule();
 }
-

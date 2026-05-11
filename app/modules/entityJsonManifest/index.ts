@@ -61,6 +61,24 @@ function getModule(app: IGeesomeApp) {
     return defaultGroupManifestPostRefsBatchSize;
   }
 
+  function normalizeManifestDate(value) {
+    if (!value) {
+      return value;
+    }
+    if (value instanceof Date) {
+      return value;
+    }
+    const numericDate = typeof value === 'number' ? value : (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : null);
+    if (numericDate && Number.isFinite(numericDate) && numericDate < 100000000000) {
+      return new Date(numericDate * 1000);
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date;
+  }
+
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
 
@@ -308,7 +326,7 @@ function getModule(app: IGeesomeApp) {
         if (options.isEncrypted) {
           post = { ...options, isEncrypted: true, encryptedManifestStorageId: manifestId };
         } else {
-          post = ipfsHelper.pickObjectFields(manifest, ['status', 'publishedAt', 'view', 'type', 'size']);
+          post = ipfsHelper.pickObjectFields(manifest, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'sourceDate']);
 
           post.manifestStorageId = manifestId;
 
@@ -324,9 +342,8 @@ function getModule(app: IGeesomeApp) {
           if (options.groupId !== undefined) {
             post.groupId = options.groupId;
           }
-          if (options.publishedAt) {
-            post.publishedAt = options.publishedAt;
-          }
+          post.publishedAt = normalizeManifestDate(options.publishedAt || post.publishedAt);
+          post.sourceDate = normalizeManifestDate(post.sourceDate);
 
           const importerUserId = options.userId !== undefined ? options.userId : null;
           post.contents = await pIteration.map(manifest.contents, async (manifestContent) => {

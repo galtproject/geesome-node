@@ -108,6 +108,79 @@ describe("group", function () {
 		assert.equal(gotGroup.coverImageId, null);
 	});
 
+	it('imports remote post manifests through canonical post state', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const sourceDate = new Date('2026-05-12T08:30:00.000Z');
+		const textContent = await app.ms.content.saveData(testUser.id, 'remote post text', 'remote-post-text.md', {
+			mimeType: 'text/markdown'
+		});
+		const attachmentContent = await app.ms.content.saveData(testUser.id, 'remote post attachment', 'remote-post-attachment.md', {
+			mimeType: 'text/markdown'
+		});
+		const sourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [
+				{id: textContent.id, view: ContentView.Contents},
+				{id: attachmentContent.id, view: ContentView.Attachment}
+			],
+			groupId: sourceGroup.id,
+			source: 'remote-source',
+			sourceChannelId: 'remote-channel',
+			sourcePostId: 'remote-post',
+			sourceDate,
+			status: PostStatus.Published
+		});
+		const importer = await app.registerUser({
+			email: 'remote-post@user.com',
+			name: 'remote-post',
+			password: 'remote-post',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const targetGroup = await app.ms.group.createGroup(importer.id, {
+			name: 'remote-post-import',
+			title: 'Remote post import'
+		});
+
+		const importedPost = await (app.ms as any).remoteGroup.createPostByRemoteStorageId(
+			importer.id,
+			sourcePost.manifestStorageId,
+			targetGroup.id,
+			sourcePost.publishedAt
+		);
+		const gotPost = await app.ms.group.getPostPure(importedPost.id);
+		const gotGroup = await app.ms.group.getGroup(targetGroup.id);
+		const groupManifest = await app.ms.storage.getObject(gotGroup.manifestStorageId);
+		const models = (app.ms.database as any).models;
+		const postEvents = await models.PostEvent.findAll({
+			where: {postId: importedPost.id},
+			order: [['createdAt', 'ASC'], ['id', 'ASC']]
+		});
+
+		assert.equal(gotPost.userId, importer.id);
+		assert.equal(gotPost.groupId, targetGroup.id);
+		assert.equal(gotPost.manifestStorageId, sourcePost.manifestStorageId);
+		assert.equal(gotPost.source, 'remote-source');
+		assert.equal(gotPost.sourceChannelId, 'remote-channel');
+		assert.equal(gotPost.sourcePostId, 'remote-post');
+		assert.equal(new Date(gotPost.sourceDate).toISOString(), sourceDate.toISOString());
+		assert.equal(gotPost.contents.length, 2);
+		assert.equal(gotPost.contents[0].userId, importer.id);
+		assert.equal(gotPost.contents[0].storageId, textContent.storageId);
+		assert.notEqual(gotPost.contents[0].id, textContent.id);
+		assert.equal(gotPost.contents[0].postsContents.view, ContentView.Contents);
+		assert.equal(gotPost.contents[1].userId, importer.id);
+		assert.equal(gotPost.contents[1].storageId, attachmentContent.storageId);
+		assert.notEqual(gotPost.contents[1].id, attachmentContent.id);
+		assert.equal(gotPost.contents[1].postsContents.view, ContentView.Attachment);
+		assert.equal(Number(gotGroup.availablePostsCount), 1);
+		assert.equal(Number(gotGroup.size), Number(textContent.size) + Number(attachmentContent.size));
+		assert.equal(trieHelper.getNode(groupManifest.posts, gotPost.localId), gotPost.manifestStorageId);
+		assert.deepEqual(postEvents.map(event => `${event.type}:${event.action}`), [
+			`${PostEventType.PostLifecycle}:${PostEventAction.Created}`,
+			`${PostEventType.SourceImport}:${PostEventAction.Created}`
+		]);
+	});
+
 	it('allocates group local ids with a row lock under concurrency', async () => {
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
