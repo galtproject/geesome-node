@@ -317,6 +317,66 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getPostPure(secondRepostParent.id)).repostsCount, 1);
 	});
 
+	it('reconciles social import source identity when a post becomes draft', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const socNetImport = (app.ms as any).socNetImport;
+		const parentContent = await app.ms.content.saveData(testUser.id, 'import lifecycle parent', null, {
+			mimeType: 'text/markdown'
+		});
+		const importContent = await app.ms.content.saveData(testUser.id, 'import lifecycle body', null, {
+			mimeType: 'text/markdown'
+		});
+		const parentPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: parentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const sourceIdentity = {
+			groupId: testGroup.id,
+			source: 'socNetImport:test',
+			sourceChannelId: 'lifecycle-channel',
+			sourcePostId: 'lifecycle-post'
+		};
+		const importedPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: importContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			repostOfId: parentPost.id,
+			propertiesJson: JSON.stringify({sourceLink: 'published'}),
+			sourceDate: new Date('2026-01-03T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+		const groupAfterPublish = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterPublish = await app.ms.storage.getObject(groupAfterPublish.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfterPublish.posts, importedPost.localId), importedPost.manifestStorageId);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 1);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repostsCount, 1);
+		assert.equal(groupAfterPublish.availablePostsCount, 2);
+		assert.equal(Number(groupAfterPublish.size), Number(parentContent.size) + Number(importContent.size));
+
+		const draftPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: importContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			repostOfId: parentPost.id,
+			propertiesJson: JSON.stringify({sourceLink: 'draft'}),
+			sourceDate: new Date('2026-01-03T00:00:00.000Z'),
+			status: PostStatus.Draft
+		});
+
+		const groupAfterDraft = await app.ms.group.getGroup(testGroup.id);
+		const manifestAfterDraft = await app.ms.storage.getObject(groupAfterDraft.manifestStorageId);
+		const gotDraftPost = await app.ms.group.getPostPure(importedPost.id);
+		assert.equal(draftPost.id, importedPost.id);
+		assert.equal(gotDraftPost.status, PostStatus.Draft);
+		assert.equal(trieHelper.getNode(manifestAfterDraft.posts, importedPost.localId), undefined);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 0);
+		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repostsCount, 0);
+		assert.equal(groupAfterDraft.availablePostsCount, 1);
+		assert.equal(Number(groupAfterDraft.size), Number(parentContent.size));
+	});
+
 	it('does not use the local id high-water mark as unread count when availability is zero', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
