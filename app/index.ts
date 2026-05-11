@@ -32,6 +32,7 @@ import {
   CorePermissionName,
   IGeesomeDatabaseModule,
   IListParams,
+  IListParamsOptions,
   IUser,
   IUserLimit,
   UserContentActionName,
@@ -42,6 +43,11 @@ import helpers from './helpers.js';
 import config from './config.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
+const apiKeyListParams: IListParamsOptions = {
+  sortBy: 'createdAt',
+  allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],
+  maxLimit: 100
+};
 
 export default async (extendConfig) => {
   const resConfig = merge(config, extendConfig || {});
@@ -380,7 +386,7 @@ function getModule(config, appPass) {
     }
 
     async getUserApiKeys(userId, isDisabled?, search?, listParams?: IListParams) {
-      listParams = helpers.prepareListParams(listParams);
+      listParams = helpers.prepareListParams(listParams, apiKeyListParams);
       await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
       return {
         list: await this.ms.database.getApiKeysByUser(userId, isDisabled, search, listParams),
