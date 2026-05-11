@@ -311,9 +311,9 @@ function getModule(config, appPass) {
     async createUserByObject(userId, userObject) {
       let dbAvatar;
       if (userObject.avatarImage?.manifestStorageId) {
-        dbAvatar = userId === null || isUndefined(userId)
-          ? await this.ms.database.getSharedContentByManifestId(userObject.avatarImage.manifestStorageId)
-          : await this.ms.database.getContentByManifestAndUserId(userObject.avatarImage.manifestStorageId, userId);
+        dbAvatar = helpers.hasId(userId)
+          ? await this.ms.database.getContentByManifestAndUserId(userObject.avatarImage.manifestStorageId, userId)
+          : await this.ms.database.getSharedContentByManifestId(userObject.avatarImage.manifestStorageId);
       }
       if (!dbAvatar && userObject.avatarImage) {
         dbAvatar = await this.ms.content.createContentByObject(userId, userObject.avatarImage);
