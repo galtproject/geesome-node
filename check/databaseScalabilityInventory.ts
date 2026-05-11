@@ -71,6 +71,11 @@ function modelRows(): ModelRow[] {
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
+  const hasStaticIdCurrentBinding = has(staticIdSource, 'StaticIdBinding')
+    && has(staticIdSource, 'static_id_bindings_static_unique')
+    && has(staticIdSource, "fields: ['staticId']")
+    && has(staticIdSource, 'static_id_bindings_dynamic_bound_idx')
+    && has(staticIdSource, "fields: ['dynamicId', 'boundAt']");
   const hasPostGroupLocalUnique = has(postSource, 'posts_group_local_unique')
     && has(postSource, "fields: ['groupId', 'localId']")
     && has(postSource, 'unique: true');
@@ -230,16 +235,20 @@ function modelRows(): ModelRow[] {
     {
       area: 'Static ID history',
       source: 'app/modules/staticId/models.ts',
-      model: 'StaticIdHistory',
+      model: 'StaticIdHistory / StaticIdBinding',
       indexes: [
         has(staticIdSource, "fields: ['staticId', 'dynamicId'") ? 'staticId,dynamicId unique' : 'review static/dynamic unique index',
         has(staticIdSource, "fields: ['staticId', 'boundAt'") ? 'staticId,boundAt' : 'missing staticId,boundAt index',
         has(staticIdSource, "fields: ['dynamicId'") ? 'dynamicId lookup index' : 'missing dynamicId-leading lookup index',
+        hasStaticIdCurrentBinding ? 'staticId unique current binding; dynamicId,boundAt current lookup' : 'missing compact current-binding table',
       ],
       notes: [
-        has(staticIdSource, "fields: ['dynamicId'")
+        hasStaticIdCurrentBinding
+          ? 'hot static and dynamic resolution use compact current-binding rows created by model sync; StaticIdHistory remains audit history and still needs retention/compaction policy'
+          : (has(staticIdSource, "fields: ['dynamicId'")
           ? 'group/static manifest churn can create long history; dynamicId lookup is indexed, latest-binding/retention still open'
-          : 'group/static manifest churn can create long history; getStaticIdItemByDynamicId needs dynamicId-leading index or latest-binding table',
+          : 'group/static manifest churn can create long history; getStaticIdItemByDynamicId needs dynamicId-leading index or latest-binding table'
+          ),
       ],
     },
     {
@@ -450,6 +459,7 @@ function hotspotRows(): HotspotRow[] {
   const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const inviteSource = read('app/modules/invite/index.ts');
   const staticIdSource = read('app/modules/staticId/index.ts');
+  const staticIdModelSource = read('app/modules/staticId/models.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/index.ts');
   const autoActionSource = read('app/modules/autoActions/index.ts');
   const autoActionModelSource = read('app/modules/autoActions/models.ts');
@@ -596,6 +606,11 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, "order: [['id', 'ASC']]")
     && has(databaseSource, 'return this.getSharedContentByManifestId(manifestStorageId)');
   const hasCanonicalPostDbTransaction = hasPostWriteTransaction && hasPostDeleteTransaction;
+  const hasStaticIdCurrentBinding = has(staticIdSource, 'models.StaticIdBinding.findOne({where: {dynamicId}')
+    && has(staticIdSource, 'getStaticIdHistoryFallbackByDynamicId')
+    && has(staticIdSource, 'setStaticIdBindingFromHistory')
+    && has(staticIdModelSource, 'static_id_bindings_static_unique')
+    && has(staticIdModelSource, 'static_id_bindings_dynamic_bound_idx');
 
   return [
     {
@@ -890,10 +905,15 @@ function hotspotRows(): HotspotRow[] {
       area: 'Static ID resolution',
       source: 'app/modules/staticId/index.ts',
       hotspot: 'getStaticIdItemByDynamicId',
-      observedPattern: has(staticIdSource, 'findOne({where: {dynamicId}') ? 'dynamicId lookup ordered by boundAt' : 'review staticId dynamic lookup',
-      scalabilityRisk: has(read('app/modules/staticId/models.ts'), "fields: ['dynamicId'")
+      observedPattern: hasStaticIdCurrentBinding
+        ? 'current-binding lookup by dynamicId with a guarded history fallback/lazy fill for model-sync upgrades'
+        : (has(staticIdSource, 'findOne({where: {dynamicId}') ? 'dynamicId lookup ordered by boundAt' : 'review staticId dynamic lookup'),
+      scalabilityRisk: hasStaticIdCurrentBinding
+        ? 'hot static-ID resolution uses compact current rows; audit-history retention still needs policy'
+        : (has(staticIdModelSource, "fields: ['dynamicId'")
         ? 'dynamicId lookup is indexed, but manifest churn still needs latest-binding and retention policy'
-        : 'manifest churn can grow history while dynamicId lookups lack a dynamicId-leading index',
+        : 'manifest churn can grow history while dynamicId lookups lack a dynamicId-leading index'
+        ),
     },
   ];
 }

@@ -205,6 +205,8 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'user_content_actions_user_name_created_idx', table: 'userContentActions', columns: ['userId', 'name', 'createdAt']},
   {name: 'user_content_actions_content_idx', table: 'userContentActions', columns: ['contentId']},
   {name: 'static_id_histories_dynamic_bound_idx', table: 'staticIdHistories', columns: ['dynamicId', 'boundAt']},
+  {name: 'static_id_bindings_static_unique', table: 'staticIdBindings', columns: ['staticId'], unique: true},
+  {name: 'static_id_bindings_dynamic_bound_idx', table: 'staticIdBindings', columns: ['dynamicId', 'boundAt']},
   {name: 'user_async_operations_user_process_name_created_idx', table: 'userAsyncOperations', columns: ['userId', 'inProcess', 'name', 'createdAt']},
   {name: 'user_async_operations_process_updated_idx', table: 'userAsyncOperations', columns: ['inProcess', 'updatedAt']},
   {name: 'user_operation_queues_async_operation_idx', table: 'userOperationQueues', columns: ['asyncOperationId']},
@@ -264,6 +266,7 @@ const expectedIndexes: ExpectedIndex[] = [
 const countChecks: CountCheck[] = [
   duplicateCheck('same-user content storage duplicates', 'contents', ['userId', 'storageId']),
   duplicateCheck('object cache storage/resolveProp duplicates', 'objects', ['storageId', 'resolveProp']),
+  duplicateCheck('static-id current binding duplicates', 'staticIdBindings', ['staticId']),
   {
     name: 'object cache resolveProp values are normalized',
     requirements: [{table: 'objects', columns: ['resolveProp']}],
@@ -302,6 +305,42 @@ const countChecks: CountCheck[] = [
   duplicateCheck('post source identity duplicates', 'posts', ['groupId', 'source', 'sourceChannelId', 'sourcePostId']),
   duplicateCheck('active file-catalog child path duplicates', 'fileCatalogItems', ['parentItemId', 'userId', 'name'], '"isDeleted" IS FALSE'),
   duplicateCheck('active file-catalog root path duplicates', 'fileCatalogItems', ['userId', 'name'], '"isDeleted" IS FALSE AND "parentItemId" IS NULL'),
+  {
+    name: 'static-id current bindings have matching history pairs',
+    requirements: [
+      {table: 'staticIdBindings', columns: ['staticId', 'dynamicId']},
+      {table: 'staticIdHistories', columns: ['staticId', 'dynamicId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "staticIdBindings" binding
+      LEFT JOIN "staticIdHistories" history
+        ON history."staticId" = binding."staticId"
+        AND history."dynamicId" IS NOT DISTINCT FROM binding."dynamicId"
+      WHERE history.id IS NULL
+    `,
+  },
+  {
+    name: 'static-id current bindings match latest history dynamic ids',
+    requirements: [
+      {table: 'staticIdBindings', columns: ['staticId', 'dynamicId']},
+      {table: 'staticIdHistories', columns: ['staticId', 'dynamicId', 'boundAt', 'id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "staticIdBindings" binding
+      JOIN (
+        SELECT DISTINCT ON ("staticId")
+          "staticId",
+          "dynamicId"
+        FROM "staticIdHistories"
+        WHERE "staticId" IS NOT NULL
+        ORDER BY "staticId", "boundAt" DESC NULLS LAST, id DESC
+      ) latest
+        ON latest."staticId" = binding."staticId"
+      WHERE binding."dynamicId" IS DISTINCT FROM latest."dynamicId"
+    `,
+  },
   relationCheck('post content rows point to posts', 'postsContents', 'postId', 'posts'),
   relationCheck('post content rows point to contents', 'postsContents', 'contentId', 'contents'),
   relationCheck('file catalog content links point to contents', 'fileCatalogItems', 'contentId', 'contents'),
