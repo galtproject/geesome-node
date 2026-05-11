@@ -812,6 +812,49 @@ function getModule(app: IGeesomeApp, models) {
 			return post;
 		}
 
+		async createRemotePostByObject(userId, postData) {
+			postData = clone(postData);
+			postData.userId = userId;
+			postData.groupId = await this.checkGroupId(postData.groupId);
+			postData.isRemote = true;
+			postData.status = PostStatus.Published;
+
+			const contents = await this.getContentsForPost(userId, postData.contents);
+			delete postData.contents;
+			const size = sumBy(contents || [], contentSize);
+			const shouldPublishPost = postData.status === PostStatus.Published && postData.isDeleted !== true;
+			let post;
+
+			await app.ms.database.sequelize.transaction(async (transaction) => {
+				if (shouldPublishPost && !postData.localId) {
+					postData.localId = await this.allocatePostLocalId(postData, transaction);
+				}
+				if (shouldPublishPost) {
+					postData.publishedAt = postData.publishedAt || new Date();
+				}
+
+				post = await this.addPost(postData, {transaction});
+				await this.reconcilePostRelationCounters([post.replyToId, post.repostOfId], {transaction});
+				if (contents) {
+					await this.setPostContents(post.id, contents, {transaction});
+				}
+				await models.Post.update({size}, {where: {id: post.id}, transaction});
+
+				const nextPostEventState = {...getPostEventState(post), size};
+				await this.addPostEvents([
+					buildPostLifecycleEvent(userId, null, nextPostEventState),
+					buildSourceImportPostEvent(userId, null, nextPostEventState)
+				], {transaction});
+
+				if (post.status === PostStatus.Published && !post.isDeleted) {
+					await this.incrementGroupCounters(post.groupId, {sizeDelta: size || 0, availableDelta: 1}, {transaction});
+				}
+			});
+
+			await this.updateGroupManifest(userId, post.groupId);
+			return this.getPostPure(post.id);
+		}
+
 		async getPost(userId, postId) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			//TODO: add check for user can view post

@@ -485,6 +485,7 @@ function hotspotRows(): HotspotRow[] {
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupTestSource = read('test/group.test.ts');
   const manifestSource = read('app/modules/entityJsonManifest/index.ts');
+  const remoteGroupSource = read('app/modules/remoteGroup/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/index.ts');
   const rssSource = read('app/modules/rss/index.ts');
   const importSource = read('app/modules/socNetImport/index.ts');
@@ -659,6 +660,11 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'addPostEvents')
     && has(groupTestSource, 'records post lifecycle events for ordinary post writes')
     && has(groupTestSource, 'PostEventType.PostLifecycle');
+  const hasRemotePostManifestImportState = has(remoteGroupSource, 'createRemotePostByObject(userId, postObject)')
+    && has(groupSource, 'async createRemotePostByObject')
+    && has(manifestSource, "'source', 'sourceChannelId', 'sourcePostId', 'sourceDate'")
+    && has(manifestSource, 'normalizeManifestDate')
+    && has(groupTestSource, 'imports remote post manifests through canonical post state');
   const hasGroupCounterRepairTest = has(groupTestSource, 'repairs group size, availability, and local-id high-water counters')
     && has(groupTestSource, 'reconcileGroupCounters(testGroup.id)');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
@@ -849,6 +855,17 @@ function hotspotRows(): HotspotRow[] {
         : (hasTimelineIdFirstHydration
         ? 'reversal scans now inherit page-scoped hydration, but should still use purpose-built groupId/id cursor scans when content is not needed'
         : 'reversal scans should use groupId/id index and avoid content joins until needed')),
+    },
+    {
+      area: 'Remote post import',
+      source: 'app/modules/remoteGroup/index.ts',
+      hotspot: 'createPostByRemoteStorageId',
+      observedPattern: hasRemotePostManifestImportState
+        ? 'remote post manifests preserve source/date fields, claim content manifests into actor-scoped rows, and create the local remote post through the canonical post DB transaction'
+        : 'remote post manifest import bypasses at least part of the canonical post DB transaction or lacks source/date/content regression coverage',
+      scalabilityRisk: hasRemotePostManifestImportState
+        ? 'remote manifest imports now get localId, attachment, counter, group-manifest, and post-event state consistently; duplicate manifest idempotency and remote edit/delete replay remain future work'
+        : 'remote manifest imports can drift from canonical post counters/events or lose source/date metadata under large import/retry workflows',
     },
     {
       area: 'Category feeds',
