@@ -33,6 +33,16 @@ const apiKeyListParams: IListParamsOptions = {
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],
   maxLimit: 100
 };
+const adminUserListParams: IListParamsOptions = {
+  sortBy: 'createdAt',
+  allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
+  maxLimit: 100
+};
+const adminContentListParams: IListParamsOptions = {
+  sortBy: 'createdAt',
+  allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+  maxLimit: 100
+};
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -408,7 +418,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllUserList(searchString?, listParams: IListParams = {}) {
-    this.setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams, adminUserListParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.User.findAll({
       where: this.getAllUsersWhere(searchString),
@@ -437,7 +447,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getAllContentList(searchString, listParams: IListParams = {}) {
-    this.setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams, adminContentListParams);
     const {sortBy, sortDir, limit, offset} = listParams;
     return this.models.Content.findAll({
       where: this.getAllContentWhere(searchString),

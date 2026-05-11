@@ -124,5 +124,21 @@ describe('helpers', () => {
 			sortDir: 'DESC',
 			limit: 100
 		});
+
+		const adminDirectoryOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'passwordHash',
+			sortDir: 'asc',
+			limit: '500' as any
+		}, adminDirectoryOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'ASC',
+			limit: 100
+		});
 	});
 });

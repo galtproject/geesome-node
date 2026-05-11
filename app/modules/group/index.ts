@@ -15,13 +15,19 @@ import {
 	GroupPermissionName,
 	IContent,
 	IContentData,
-	IListParams
+	IListParams,
+	IListParamsOptions
 } from "../database/interface.js";
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const publicPostListParams = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
+const adminGroupListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'title', 'type', 'isDeleted'],
 	maxLimit: 100
 };
 
@@ -1120,10 +1126,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAllGroupList(adminId, searchString?, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, adminGroupListParams);
 			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
 
-			app.ms.database.setDefaultListParamsValues(listParams);
+			app.ms.database.setDefaultListParamsValues(listParams, adminGroupListParams);
 			const {sortBy, sortDir, limit, offset} = listParams;
 			return {
 				list: await models.Group.findAll({
