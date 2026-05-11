@@ -140,6 +140,7 @@ export interface IListParams {
   offset?: number;
   sortBy?: string;
   sortDir?: string;
+  includeTotal?: boolean;
 }
 
 export interface IListParamsOptions extends IListParams {

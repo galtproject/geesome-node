@@ -451,7 +451,10 @@ function hotspotRows(): HotspotRow[] {
     && has(categorySource, "helpers.getCursorListAttributes(['id'], cursor, sortBy)");
   const hasCategoryCursor = has(categorySource, 'helpers.getListCursorState(filters)')
     && has(categorySource, 'helpers.getNextListCursor(cursor, pagePosts, limit)')
-    && has(categorySource, 'total: cursor.hasCursor ? null');
+    && has(categorySource, 'helpers.shouldIncludeListTotal(listParams, cursor)');
+  const hasOptionalPostTotals = has(helpersSource, 'shouldIncludeListTotal')
+    && has(groupSource, 'helpers.shouldIncludeListTotal(listParams, cursor)')
+    && has(categorySource, 'helpers.shouldIncludeListTotal(listParams, cursor)');
   const hasPublicPostListLimits = has(helpersSource, 'allowedSortBy')
     && has(helpersSource, 'maxLimit')
     && has(groupSource, 'publicPostListParams')
@@ -577,12 +580,16 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/group/index.ts',
       hotspot: 'getGroupPosts',
       observedPattern: hasTimelineIdFirstHydration
-        ? 'keyset/cursor and legacy offset paths select page post IDs first, then hydrate contents/reposts for the bounded page'
+        ? (hasOptionalPostTotals
+          ? 'keyset/cursor and legacy offset paths select page post IDs first, hydrate contents/reposts for the bounded page, and allow offset callers to skip totals'
+          : 'keyset/cursor and legacy offset paths select page post IDs first, then hydrate contents/reposts for the bounded page')
         : (has(groupSource, 'nextCursor')
           ? 'keyset/cursor path exists, but findAll still includes contents/repost contents and legacy offset/count path remains'
           : (has(groupSource, 'include: [{association: \'contents\'') ? 'findAll with contents/repost contents include, total count, limit/offset' : 'review implementation')),
       scalabilityRisk: hasTimelineIdFirstHydration
-        ? 'page selection avoids attachment joins; remaining risks are offset total counts and high-volume callers that request very large pages'
+        ? (hasOptionalPostTotals
+          ? 'page selection avoids attachment joins; cursor pages and includeTotal=false skip counts, while default legacy offset callers can still request totals'
+          : 'page selection avoids attachment joins; remaining risks are offset total counts and high-volume callers that request very large pages')
         : (has(groupSource, 'nextCursor')
           ? 'cursor avoids large offsets, but eager content/repost hydration can still fan out per page'
           : 'large offsets and eager content joins can scan/sort many rows before returning one page'),
@@ -708,12 +715,16 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/groupCategory/index.ts',
       hotspot: 'getCategoryPosts',
       observedPattern: hasCategoryCursor
-        ? 'joins group/category pivots only for page post ID selection, supports (publishedAt,id) cursor pages, then hydrates contents/group for the bounded page'
+        ? (hasOptionalPostTotals
+          ? 'joins group/category pivots only for page post ID selection, supports (publishedAt,id) cursor pages and includeTotal=false offset pages, then hydrates contents/group for the bounded page'
+          : 'joins group/category pivots only for page post ID selection, supports (publishedAt,id) cursor pages, then hydrates contents/group for the bounded page')
         : (hasCategoryIdFirstHydration
         ? 'joins group/category pivots only for page post ID selection, then hydrates contents/group for the bounded page'
         : (has(categorySource, "association: 'categories'") ? 'joins posts through group categories with contents include and limit/offset' : 'review implementation')),
       scalabilityRisk: hasCategoryCursor
-        ? 'cursor pages skip total counts and avoid large offsets; legacy offset callers still pay count/offset cost'
+        ? (hasOptionalPostTotals
+          ? 'cursor pages and explicit includeTotal=false offset pages skip counts; legacy offset callers still pay count/offset cost by default'
+          : 'cursor pages skip total counts and avoid large offsets; legacy offset callers still pay count/offset cost')
         : (hasCategoryIdFirstHydration
         ? 'content joins no longer drive category page selection; pivot indexes are present, while offset/count cost and cursor migration remain open'
         : 'category feeds inherit timeline pagination/content hydration risks plus pivot-table join costs'),
@@ -824,12 +835,12 @@ function hotspotRows(): HotspotRow[] {
       hotspot: 'prepareListParams',
       observedPattern: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
         ? (cappedListSurfaces.length
-          ? `normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps ${joinList(cappedListSurfaces)} below the global export ceiling`
+          ? `normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, supports includeTotal opt-out, and caps ${joinList(cappedListSurfaces)} below the global export ceiling`
           : 'normalizes limit/offset to non-negative integers, caps limit, allowlists simple sort columns, and clamps sort direction')
         : 'review list parameter normalization',
       scalabilityRisk: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
         ? (cappedListSurfaces.length
-          ? `${joinList(cappedListSurfaces)} use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies`
+          ? `${joinList(cappedListSurfaces)} use endpoint allowlists and lower caps; post feeds can opt out of totals; remaining endpoints still need endpoint-specific policies`
           : 'bad public list params are normalized before Sequelize; endpoint-specific sort allowlists and lower public max page sizes remain open')
         : 'negative offsets/limits and arbitrary sort params can reach large-list queries',
     },

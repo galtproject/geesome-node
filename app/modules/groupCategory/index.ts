@@ -113,7 +113,7 @@ function getModule(app: IGeesomeApp, models) {
 
 			return {
 				list: await app.ms.group.getHydratedPostListByIds(pagePosts.map(post => post.id), {includeGroup: true}),
-				total: cursor.hasCursor ? null : await this.getCategoryPostsCount(categoryId, filters),
+				total: helpers.shouldIncludeListTotal(listParams, cursor) ? await this.getCategoryPostsCount(categoryId, filters) : null,
 				nextCursor
 			};
 		}
