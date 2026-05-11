@@ -62,6 +62,13 @@ describe("staticId", function () {
 		assert.equal(lazyReverseItem.staticId, staticId);
 		assert.equal(await StaticIdBinding.count({where: {staticId}}), 1);
 
+		const compactResult = await app.ms.staticId.compactStaticIdHistory({staticId, keepPerStaticId: 1, limit: 10});
+		assert.equal(compactResult.deletedHistory, 1);
+		assert.equal(await StaticIdBinding.count({where: {staticId}}), 1);
+		assert.equal(await StaticIdHistory.count({where: {staticId}}), 1);
+		assert.equal((await app.ms.staticId.getActualStaticIdItem(staticId)).dynamicId, newDynamicId);
+		assert.equal(await app.ms.staticId.getStaticIdItemByDynamicId(oldDynamicId), null);
+
 		await app.ms.staticId.destroyStaticIdHistory(staticId);
 
 		assert.equal(await StaticIdBinding.count({where: {staticId}}), 0);

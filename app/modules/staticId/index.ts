@@ -1,11 +1,22 @@
 import debug from 'debug';
 import pIteration from 'p-iteration';
-import IGeesomeStaticIdModule, {IStaticIdHistoryItem} from "./interface.js";
+import IGeesomeStaticIdModule, {IStaticIdHistoryCompactionOptions, IStaticIdHistoryItem} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 const log = debug('geesome:app');
+const staticIdHistoryRetainedRows = parsePositiveNumber(process.env.STATIC_ID_HISTORY_RETAINED_ROWS, 20);
+const staticIdHistoryCleanupBatchLimit = parsePositiveNumber(process.env.STATIC_ID_HISTORY_CLEANUP_BATCH_LIMIT, 1000);
+const staticIdHistoryStartupCleanupBatchLimit = parsePositiveNumber(process.env.STATIC_ID_HISTORY_STARTUP_CLEANUP_BATCH_LIMIT, 0);
+
+function parsePositiveNumber(value, fallback) {
+	const parsed = Number.parseInt(value as any, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+	if (staticIdHistoryStartupCleanupBatchLimit) {
+		await module.compactStaticIdHistory({limit: staticIdHistoryStartupCleanupBatchLimit});
+	}
 	(await import('./api.js')).default(app, module);
 	return module;
 }
@@ -58,6 +69,11 @@ function getModule(app: IGeesomeApp, models) {
 				defaults: staticIdItem
 			});
 			await this.setStaticIdBinding(staticIdItem);
+			if (staticIdItem.staticId) {
+				await this.compactStaticIdHistory({staticId: staticIdItem.staticId}).catch((e) => {
+					log('compactStaticIdHistory error', e);
+				});
+			}
 			return historyItem;
 		}
 
@@ -73,6 +89,12 @@ function getModule(app: IGeesomeApp, models) {
 		async destroyStaticIdHistory(staticId) {
 			await models.StaticIdBinding.destroy({where: {staticId}});
 			return models.StaticIdHistory.destroy({where: {staticId}});
+		}
+
+		async compactStaticIdHistory(options: IStaticIdHistoryCompactionOptions = {}) {
+			const keepPerStaticId = parsePositiveNumber(options.keepPerStaticId, staticIdHistoryRetainedRows);
+			const limit = parsePositiveNumber(options.limit, staticIdHistoryCleanupBatchLimit);
+			return models.StaticIdHistory.compactStaleHistory({staticId: options.staticId, keepPerStaticId, limit});
 		}
 
 		async getStaticIdItemByDynamicId(dynamicId) {

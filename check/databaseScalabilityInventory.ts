@@ -58,6 +58,7 @@ function modelRows(): ModelRow[] {
   const groupCategorySource = read('app/modules/groupCategory/models/groupCategory.ts');
   const groupSectionSource = read('app/modules/groupCategory/models/groupSection.ts');
   const staticIdSource = read('app/modules/staticId/models.ts');
+  const staticIdIndexSource = read('app/modules/staticId/index.ts');
   const databaseModuleSource = read('app/modules/database/index.ts');
   const appSource = read('app/index.ts');
   const userContentActionSource = read('app/modules/database/models/userContentAction.ts');
@@ -76,6 +77,9 @@ function modelRows(): ModelRow[] {
     && has(staticIdSource, "fields: ['staticId']")
     && has(staticIdSource, 'static_id_bindings_dynamic_bound_idx')
     && has(staticIdSource, "fields: ['dynamicId', 'boundAt']");
+  const hasStaticIdHistoryCompaction = has(staticIdSource, 'compactStaleHistory')
+    && has(staticIdIndexSource, 'compactStaticIdHistory')
+    && has(staticIdIndexSource, 'STATIC_ID_HISTORY_RETAINED_ROWS');
   const hasPostGroupLocalUnique = has(postSource, 'posts_group_local_unique')
     && has(postSource, "fields: ['groupId', 'localId']")
     && has(postSource, 'unique: true');
@@ -243,11 +247,14 @@ function modelRows(): ModelRow[] {
         hasStaticIdCurrentBinding ? 'staticId unique current binding; dynamicId,boundAt current lookup' : 'missing compact current-binding table',
       ],
       notes: [
-        hasStaticIdCurrentBinding
+        hasStaticIdCurrentBinding && hasStaticIdHistoryCompaction
+          ? 'hot static and dynamic resolution use compact current-binding rows created by model sync; StaticIdHistory keeps bounded per-static audit history and preserves the current binding'
+          : (hasStaticIdCurrentBinding
           ? 'hot static and dynamic resolution use compact current-binding rows created by model sync; StaticIdHistory remains audit history and still needs retention/compaction policy'
           : (has(staticIdSource, "fields: ['dynamicId'")
           ? 'group/static manifest churn can create long history; dynamicId lookup is indexed, latest-binding/retention still open'
           : 'group/static manifest churn can create long history; getStaticIdItemByDynamicId needs dynamicId-leading index or latest-binding table'
+          )
           ),
       ],
     },
@@ -611,6 +618,9 @@ function hotspotRows(): HotspotRow[] {
     && has(staticIdSource, 'setStaticIdBindingFromHistory')
     && has(staticIdModelSource, 'static_id_bindings_static_unique')
     && has(staticIdModelSource, 'static_id_bindings_dynamic_bound_idx');
+  const hasStaticIdHistoryCompaction = has(staticIdSource, 'compactStaticIdHistory')
+    && has(staticIdSource, 'STATIC_ID_HISTORY_RETAINED_ROWS')
+    && has(staticIdModelSource, 'compactStaleHistory');
 
   return [
     {
@@ -909,7 +919,9 @@ function hotspotRows(): HotspotRow[] {
         ? 'current-binding lookup by dynamicId with a guarded history fallback/lazy fill for model-sync upgrades'
         : (has(staticIdSource, 'findOne({where: {dynamicId}') ? 'dynamicId lookup ordered by boundAt' : 'review staticId dynamic lookup'),
       scalabilityRisk: hasStaticIdCurrentBinding
-        ? 'hot static-ID resolution uses compact current rows; audit-history retention still needs policy'
+        ? (hasStaticIdHistoryCompaction
+        ? 'hot static-ID resolution uses compact current rows; bounded per-static history cleanup preserves current bindings while capping new churn'
+        : 'hot static-ID resolution uses compact current rows; audit-history retention still needs policy')
         : (has(staticIdModelSource, "fields: ['dynamicId'")
         ? 'dynamicId lookup is indexed, but manifest churn still needs latest-binding and retention policy'
         : 'manifest churn can grow history while dynamicId lookups lack a dynamicId-leading index'
