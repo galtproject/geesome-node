@@ -26,7 +26,7 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiGroup Category
      *
      * @apiParam {String} categoryId Category id.
-     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+     * @apiInterface (../../interface.ts) {IPostListQueryInput} apiQuery
      * @apiInterface (../group/interface.ts) {IPostApiListResponse} apiSuccess
      * @apiUse ValidationErrors
      */

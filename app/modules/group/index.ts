@@ -446,7 +446,7 @@ function getModule(app: IGeesomeApp, models) {
 
 			return {
 				list,
-				total: cursor.hasCursor ? null : await this.getGroupPostsCount(groupId, filters),
+				total: helpers.shouldIncludeListTotal(listParams, cursor) ? await this.getGroupPostsCount(groupId, filters) : null,
 				nextCursor,
 			};
 		}

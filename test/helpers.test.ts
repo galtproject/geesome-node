@@ -24,13 +24,28 @@ describe('helpers', () => {
 			sortBy: 'publishedAt',
 			sortDir: 'asc',
 			limit: '10001' as any,
-			offset: '7' as any
+			offset: '7' as any,
+			includeTotal: 'false' as any
 		}), {
 			sortBy: 'publishedAt',
 			sortDir: 'ASC',
 			limit: 10000,
-			offset: 7
+			offset: 7,
+			includeTotal: false
 		});
+
+		assert.deepEqual(helpers.prepareListParams({
+			includeTotal: 'maybe' as any
+		}), {
+			sortBy: 'createdAt',
+			sortDir: 'DESC'
+		});
+	});
+
+	it('skips list totals for cursor pages or explicit opt out', () => {
+		assert.strictEqual(helpers.shouldIncludeListTotal({}, {}), true);
+		assert.strictEqual(helpers.shouldIncludeListTotal({includeTotal: false}, {}), false);
+		assert.strictEqual(helpers.shouldIncludeListTotal({includeTotal: true}, {hasCursor: true}), false);
 	});
 
 	it('applies endpoint list sort allowlists and caps', () => {

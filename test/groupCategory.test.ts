@@ -115,6 +115,10 @@ describe("groupCategory", function () {
 		const secondPage = await groupCategory.getCategoryPosts(category.id, {}, {limit: 2, offset: 2});
 		assert.deepEqual(secondPage.list.map(post => post.id), [olderPost.id]);
 
+		const noTotalPage = await groupCategory.getCategoryPosts(category.id, {}, {limit: 2, includeTotal: false});
+		assert.equal(noTotalPage.total, null);
+		assert.deepEqual(noTotalPage.list.map(post => post.id), [newestPost.id, middlePost.id]);
+
 		const firstCursorPage = await groupCategory.getCategoryPosts(category.id, {
 			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
 			cursorId: '999999999'

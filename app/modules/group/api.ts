@@ -418,11 +418,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse ApiKey
      *
      * @apiParam {String} groupId Group database id or storage id.
-     * @apiQuery {String} sortBy
-     * @apiQuery {String} sortDir
-     * @apiQuery {Number} limit
-     * @apiQuery {Number} offset
      *
+     * @apiInterface (../../interface.ts) {IPostListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IPostApiListResponse} apiSuccess
      */
     app.ms.api.onGet('group/:groupId/posts', async (req, res) => {

@@ -230,10 +230,19 @@ function hasId(id) {
 	return id !== null && typeof id !== 'undefined';
 }
 
+function shouldIncludeListTotal(listParams: IListParams = {}, cursor: {hasCursor?: boolean} = {}) {
+	if (cursor.hasCursor) {
+		return false;
+	}
+	return listParams.includeTotal !== false;
+}
+
 export default {
 	getCurDir,
 
 	hasId,
+
+	shouldIncludeListTotal,
 
 	validateEmail(email) {
 		return /^\w+([\+\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
@@ -311,10 +320,17 @@ export default {
 	},
 
 	prepareListParams(listParams?: IListParams, options: IListParamsOptions = {}): IListParams {
-		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset']);
+		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset', 'includeTotal']);
 		const defaultSortBy = sanitizeSortBy(options.sortBy, 'createdAt', options.allowedSortBy);
 		res.sortBy = sanitizeSortBy(res.sortBy, defaultSortBy, options.allowedSortBy);
 		res.sortDir = sanitizeSortDir(res.sortDir);
+
+		const includeTotal = sanitizeBooleanFilter(res.includeTotal);
+		if (includeTotal !== undefined) {
+			res.includeTotal = includeTotal;
+		} else {
+			delete res.includeTotal;
+		}
 
 		const limit = parseNonNegativeInteger(res.limit);
 		const limitCap = getListLimitCap(options);

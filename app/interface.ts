@@ -246,6 +246,12 @@ export interface IListQueryInput {
   sortDir?: string;
 }
 
+export interface IPostListQueryInput extends IListQueryInput {
+  cursorPublishedAt?: string | Date;
+  cursorId?: number | string;
+  includeTotal?: boolean;
+}
+
 export interface IUserUpdateInput {
   title?: string;
   description?: string;

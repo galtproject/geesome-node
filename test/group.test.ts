@@ -474,6 +474,10 @@ describe("group", function () {
 		assert.equal(offsetPage.list[0].repostOf.id, sourcePost.id);
 		assert.deepEqual(offsetPage.list[0].repostOf.contents.map(content => content.id), [sourceContent.id]);
 
+		const noTotalOffsetPage = await app.ms.group.getGroupPosts(testGroup.id, {}, {limit: 2, includeTotal: false});
+		assert.equal(noTotalOffsetPage.total, null);
+		assert.deepEqual(noTotalOffsetPage.list.map(post => post.id), [newestPost.id, middlePost.id]);
+
 		const firstCursorPage = await app.ms.group.getGroupPosts(testGroup.id, {
 			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
 			cursorId: '999999999'
