@@ -458,7 +458,12 @@ function hotspotRows(): HotspotRow[] {
   const pinModelSource = read('app/modules/pin/models.ts');
   const helpersSource = read('app/helpers.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
-  const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map') && has(groupSource, "attributes: ['id']");
+  const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
+    && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
+  const hasAllPostsCursorRefs = has(groupSource, 'async getAllPostRefs')
+    && has(groupSource, 'async forEachAllPostRefBatch')
+    && has(groupSource, 'helpers.getCursorListOrder(cursor, {sortBy, sortDir})')
+    && has(groupSource, 'helpers.getCursorListOffset(cursor, offset)');
   const hasCategoryIdFirstHydration = has(categorySource, 'getHydratedPostListByIds(pagePosts.map')
     && has(categorySource, "helpers.getCursorListAttributes(['id'], cursor, sortBy)");
   const hasCategoryCursor = has(categorySource, 'helpers.getListCursorState(filters)')
@@ -617,10 +622,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/group/index.ts',
       hotspot: 'getAllPosts',
       observedPattern: hasAllPostsIdFirstHydration
-        ? 'selects page post IDs first, then hydrates contents for the bounded page'
+        ? (hasAllPostsCursorRefs
+          ? 'selects cursor-aware page post refs first, then hydrates contents for the bounded page; exports can iterate lightweight refs in cursor batches'
+          : 'selects page post IDs first, then hydrates contents for the bounded page')
         : (has(groupSource, 'async getAllPosts') ? 'findAll with contents include and limit/offset' : 'review implementation'),
       scalabilityRisk: hasAllPostsIdFirstHydration
-        ? 'content joins no longer drive page selection, but all-group offset scans still need cursor/export projections for high-volume use'
+        ? (hasAllPostsCursorRefs
+          ? 'content joins no longer drive page selection; high-volume all-post scans can avoid offsets through cursor ref batches'
+          : 'content joins no longer drive page selection, but all-group offset scans still need cursor/export projections for high-volume use')
         : 'same offset/content join risk across all groups',
     },
     {

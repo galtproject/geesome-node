@@ -133,6 +133,10 @@ export default interface IGeesomeGroupModule {
 
 	getAllPosts(filters?, listParams?: IListParams): Promise<IPost[]>;
 
+	getAllPostRefs(filters?, listParams?: IListParams, options?): Promise<IPost[]>;
+
+	forEachAllPostRefBatch(options, onBatch): Promise<number>;
+
 	getAllPostsCount(filters?): Promise<number>;
 
 	getAllGroupCount(searchString?): Promise<number>;

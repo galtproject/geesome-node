@@ -25,6 +25,10 @@ const publicPostListParams = {
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
 	maxLimit: 100
 };
+const allPostListParams = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id']
+};
 const adminGroupListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'title', 'type', 'isDeleted'],
@@ -1339,18 +1343,69 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getAllPosts(filters = {}, listParams: IListParams = {}) {
-			app.ms.database.setDefaultListParamsValues(listParams, {sortBy: 'publishedAt'});
-
-			const {limit, offset, sortBy, sortDir} = listParams;
-
-			const pagePosts = await models.Post.findAll({
-				attributes: ['id'],
-				where: this.getPostsWhere(filters),
-				order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
-				limit,
-				offset
+			const pagePosts = await this.getAllPostRefs(filters, listParams, {
+				attributes: ['id', 'publishedAt']
 			});
 			return this.getHydratedPostListByIds(pagePosts.map(post => post.id));
+		}
+
+		async getAllPostRefs(filters = {}, listParams: IListParams = {}, options: any = {}) {
+			listParams = helpers.prepareListParams(listParams, options.defaultListParams || allPostListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, options.defaultListParams || allPostListParams);
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const cursorOptions = options.cursor || {};
+			const cursor = helpers.getListCursorState(filters, cursorOptions);
+			const where = this.getPostsWhere(filters);
+			if (options.cursor) {
+				helpers.addCursorWhere(where, filters, options.cursor);
+			}
+
+			return models.Post.findAll({
+				attributes: helpers.getCursorListAttributes(options.attributes || ['id', 'publishedAt'], cursor, sortBy),
+				where,
+				order: helpers.getCursorListOrder(cursor, {sortBy, sortDir}),
+				limit,
+				offset: helpers.getCursorListOffset(cursor, offset),
+				transaction: options.transaction
+			}) as IPost[];
+		}
+
+		async forEachAllPostRefBatch(options: any = {}, onBatch) {
+			const maxRefs = isUndefined(options.maxRefs) ? Number.MAX_SAFE_INTEGER : options.maxRefs;
+			const batchLimit = isUndefined(options.batchLimit) ? 100 : options.batchLimit;
+			const listParams = options.listParams || {};
+			let filters = {...(options.filters || {})};
+			let processedRefs = 0;
+
+			while (processedRefs < maxRefs) {
+				const limit = Math.min(batchLimit, maxRefs - processedRefs);
+				const postRefs = await this.getAllPostRefs(filters, {
+					...listParams,
+					limit,
+					offset: 0
+				}, options);
+				const refCount = postRefs.length;
+				const nextCursor = helpers.getNextCursorFromRows(postRefs, limit, options.cursor);
+				const batch = {
+					postRefs,
+					refCount,
+					nextCursor
+				};
+				if (!batch.refCount) {
+					break;
+				}
+				processedRefs += batch.refCount;
+				const shouldContinue = await onBatch(batch, {processedRefs});
+				if (shouldContinue === false || !batch.nextCursor) {
+					break;
+				}
+				filters = {
+					...filters,
+					...helpers.getCursorFiltersFromCursor(batch.nextCursor, options.cursor)
+				};
+			}
+
+			return processedRefs;
 		}
 
 		async getAllPostsCount(filters = {}) {
