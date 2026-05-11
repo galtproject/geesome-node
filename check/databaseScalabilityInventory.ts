@@ -46,6 +46,7 @@ function joinList(items: string[]): string {
 
 function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
+  const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const contentSource = read('app/modules/database/models/content.ts');
   const objectSource = read('app/modules/database/models/object.ts');
@@ -89,6 +90,8 @@ function modelRows(): ModelRow[] {
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
+  const hasPostEventSourceIdentityIndex = has(postEventSource, 'post_events_source_identity_idx')
+    && has(postEventSource, "fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId', 'createdAt', 'id']");
   const hasBoundedAutoActionExecutor = has(autoActionIndexSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
   const hasAutoActionDbClaims = has(autoActionSource, 'executeClaimExpiresAt')
@@ -169,7 +172,23 @@ function modelRows(): ModelRow[] {
           ? 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; remaining work is body projection'
           : (has(postSource, 'posts_contents_post_position_idx') && has(postSource, 'posts_contents_content_idx')
           ? 'join lookup indexes present; API timeline hydration is page-scoped; remaining work is attachment constraints and body projection'
-          : 'review through indexes'),
+        : 'review through indexes'),
+      ],
+    },
+    {
+      area: 'Post events',
+      source: 'app/modules/group/models/postEvent.ts',
+      model: 'PostEvent',
+      indexes: [
+        has(postEventSource, 'post_events_post_created_idx') ? 'postId,createdAt,id event stream' : 'missing post event stream index',
+        has(postEventSource, 'post_events_group_created_idx') ? 'groupId,createdAt,id group event stream' : 'missing group event stream index',
+        hasPostEventSourceIdentityIndex ? 'groupId,source,sourceChannelId,sourcePostId,createdAt,id import event stream' : 'missing source-identity event stream index',
+        has(postEventSource, 'post_events_type_action_created_idx') ? 'type,action,createdAt,id event filter' : 'missing type/action event filter',
+      ],
+      notes: [
+        hasPostEventSourceIdentityIndex
+          ? 'model-sync-created append-only post event table is ready for source-identity import audit/replay rows'
+          : 'source import lifecycle remains represented only by mutable Post rows',
       ],
     },
     {
@@ -462,6 +481,8 @@ function modelRows(): ModelRow[] {
 function hotspotRows(): HotspotRow[] {
   const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
+  const postEventHelperSource = read('app/modules/group/postEventHelpers.ts');
+  const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupTestSource = read('test/group.test.ts');
   const manifestSource = read('app/modules/entityJsonManifest/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/index.ts');
@@ -628,6 +649,11 @@ function hotspotRows(): HotspotRow[] {
   const hasSocialImportDeleteLifecycleTest = has(groupTestSource, 'reconciles social import source identity when a post is deleted')
     && has(groupTestSource, 'manifestAfterDelete.posts')
     && has(groupTestSource, 'groupAfterDelete.availablePostsCount');
+  const hasSourceImportPostEvents = has(postEventSource, 'post_events_source_identity_idx')
+    && has(groupSource, 'buildSourceImportPostEvent')
+    && has(postEventHelperSource, 'PostEventType.SourceImport')
+    && has(groupTestSource, 'PostEventAction.Deleted')
+    && has(groupTestSource, 'models.PostEvent.findAll');
   const hasGroupCounterRepairTest = has(groupTestSource, 'repairs group size, availability, and local-id high-water counters')
     && has(groupTestSource, 'reconcileGroupCounters(testGroup.id)');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
@@ -760,6 +786,17 @@ function hotspotRows(): HotspotRow[] {
         : (hasPostWriteTransaction
           ? 'create/update partial DB state risk is reduced; delete/import transitions and manifest/static derived work still need transaction/job boundaries'
           : 'failures can leave partial post rows, attachment rows, counters, or skipped local IDs under load/retries'),
+    },
+    {
+      area: 'Post event ledger',
+      source: 'app/modules/group/index.ts',
+      hotspot: 'source-identity import lifecycle',
+      observedPattern: hasSourceImportPostEvents
+        ? 'source-identity create/update/delete transitions append PostEvent rows inside the post DB transaction'
+        : 'source-identity import lifecycle is represented only by the latest mutable Post row',
+      scalabilityRisk: hasSourceImportPostEvents
+        ? 'remote import tombstone replay/audit risk is reduced for source-identity upserts; the broader post revision/event model and derived manifest jobs remain future work'
+        : 'remote import deletes and edits cannot be replayed or audited beyond current mutable row state',
     },
     {
       area: 'Static site rendering',
