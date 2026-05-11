@@ -501,6 +501,59 @@ describe("group", function () {
 		});
 		assert.deepEqual(allPosts.map(post => post.id), [newestPost.id, middlePost.id, sourcePost.id]);
 		assert.deepEqual(allPosts[0].contents.map(content => content.id), [newestAttachment.id, newestBody.id]);
+
+		const firstAllCursorPage = await app.ms.group.getAllPosts({
+			groupId: testGroup.id,
+			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
+			cursorId: '999999999'
+		}, {
+			limit: 2,
+			sortBy: 'publishedAt',
+			sortDir: 'desc'
+		});
+		const secondAllCursorPage = await app.ms.group.getAllPosts({
+			groupId: testGroup.id,
+			cursorPublishedAt: firstAllCursorPage[1].publishedAt,
+			cursorId: firstAllCursorPage[1].id
+		}, {
+			limit: 2,
+			sortBy: 'publishedAt',
+			sortDir: 'desc'
+		});
+		assert.deepEqual(firstAllCursorPage.map(post => post.id), [newestPost.id, middlePost.id]);
+		assert.deepEqual(secondAllCursorPage.map(post => post.id), [sourcePost.id]);
+
+		const allPostRefs = await app.ms.group.getAllPostRefs({groupId: testGroup.id}, {
+			limit: 1,
+			sortBy: 'publishedAt',
+			sortDir: 'desc'
+		}, {
+			attributes: ['id', 'publishedAt']
+		});
+		assert.deepEqual(Object.keys(allPostRefs[0].toJSON()).sort(), ['id', 'publishedAt'].sort());
+
+		const allPostBatchIds = [];
+		const allPostBatchSizes = [];
+		await app.ms.group.forEachAllPostRefBatch({
+			filters: {groupId: testGroup.id},
+			batchLimit: 2,
+			listParams: {
+				sortBy: 'publishedAt',
+				sortDir: 'ASC'
+			},
+			attributes: ['id', 'publishedAt'],
+			cursor: {
+				cursorValueFilter: 'allCursorPublishedAt',
+				cursorIdFilter: 'allCursorId',
+				direction: 'after',
+				orderDir: 'ASC'
+			}
+		}, async ({postRefs}) => {
+			allPostBatchSizes.push(postRefs.length);
+			postRefs.forEach(postRef => allPostBatchIds.push(postRef.id));
+		});
+		assert.deepEqual(allPostBatchSizes, [2, 1]);
+		assert.deepEqual(allPostBatchIds, [sourcePost.id, middlePost.id, newestPost.id]);
 	});
 
 	it('returns lightweight group post refs without hydrating contents', async () => {
