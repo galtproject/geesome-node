@@ -18,6 +18,7 @@ const fileCatalogPublicListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'id', 'position', 'name'],
 	maxLimit: 200
 };
+const fileCatalogPublishBatchLimit = 500;
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'group', 'storage', 'staticId', 'content']);
@@ -237,17 +238,37 @@ function getModule(app: IGeesomeApp, models) {
 			return path;
 		}
 
-		public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
-			const fileCatalogChildrenFolders = await this.getFileCatalogItemsList(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder);
+		async forEachFileCatalogChild(userId, parentItemId, type: FileCatalogItemType, callback: (item: IFileCatalogItem) => Promise<any>) {
+			let lastId = 0;
+			let childItems: IFileCatalogItem[];
+			do {
+				childItems = await models.FileCatalogItem.findAll({
+					where: {
+						userId,
+						parentItemId,
+						type,
+						isDeleted: false,
+						id: {[Op.gt]: lastId}
+					},
+					order: [['id', 'ASC']],
+					include: [{association: 'content'}],
+					limit: fileCatalogPublishBatchLimit
+				}) as IFileCatalogItem[];
 
-			await pIteration.forEachSeries(fileCatalogChildrenFolders, async (fItem: IFileCatalogItem) => {
+				await pIteration.forEachSeries(childItems, callback);
+				if (childItems.length) {
+					lastId = childItems[childItems.length - 1].id;
+				}
+			} while (childItems.length === fileCatalogPublishBatchLimit);
+		}
+
+		public async makeFolderChildrenStorageDirsAndCopyFiles(fileCatalogItem, storageDirPath) {
+			await this.forEachFileCatalogChild(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.Folder, async (fItem: IFileCatalogItem) => {
 				const sPath = await this.makeFolderStorageDir(fItem);
 				return this.makeFolderChildrenStorageDirsAndCopyFiles(fItem, sPath)
 			});
 
-			const fileCatalogChildrenFiles = await this.getFileCatalogItemsList(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File);
-
-			await pIteration.forEachSeries(fileCatalogChildrenFiles, async (fileCatalogItem: IFileCatalogItem) => {
+			await this.forEachFileCatalogChild(fileCatalogItem.userId, fileCatalogItem.id, FileCatalogItemType.File, async (fileCatalogItem: IFileCatalogItem) => {
 				await app.ms.storage.copyFileFromId(fileCatalogItem.content.storageId, storageDirPath + fileCatalogItem.name);
 			});
 		}

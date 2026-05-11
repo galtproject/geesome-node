@@ -416,6 +416,10 @@ function hotspotRows(): HotspotRow[] {
     && has(categorySource, 'publicPostListParams');
   const hasFileCatalogListLimits = has(fileCatalogSource, 'fileCatalogPublicListParams')
     && has(fileCatalogSource, 'helpers.prepareListParams(listParams, fileCatalogPublicListParams)');
+  const hasFileCatalogPublishBatchTraversal = has(fileCatalogSource, 'forEachFileCatalogChild')
+    && has(fileCatalogSource, 'fileCatalogPublishBatchLimit')
+    && has(fileCatalogSource, "order: [['id', 'ASC']]")
+    && has(fileCatalogSource, 'id: {[Op.gt]: lastId}');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -677,6 +681,17 @@ function hotspotRows(): HotspotRow[] {
       scalabilityRisk: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
         ? 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle'
         : 'same storageId rows, post attachments, generated output, and pins need reference checks before physical deletion',
+    },
+    {
+      area: 'File catalog publish',
+      source: 'app/modules/fileCatalog/index.ts',
+      hotspot: 'publishFolder / makeFolderChildrenStorageDirsAndCopyFiles',
+      observedPattern: hasFileCatalogPublishBatchTraversal
+        ? 'recursively scans child folders and files in id-ordered batches before copying storage files'
+        : 'recursive folder publish calls the paged browsing helper for child folders/files',
+      scalabilityRisk: hasFileCatalogPublishBatchTraversal
+        ? 'large folder publishes avoid the public browsing cap and avoid one unbounded child read per folder'
+        : 'large folders can publish only the default page or require an unsafe unbounded child query',
     },
     {
       area: 'Quota checks',
