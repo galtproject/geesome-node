@@ -172,5 +172,47 @@ describe('helpers', () => {
 			sortDir: 'DESC',
 			limit: 100
 		});
+
+		const autoActionOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'moduleName', 'funcName', 'executeOn', 'isActive'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'funcArgsEncrypted',
+			sortDir: 'asc',
+			limit: '500' as any
+		}, autoActionOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'ASC',
+			limit: 100
+		});
+	});
+
+	it('sanitizes allowlisted where params before they reach Sequelize queries', () => {
+		const autoActionWhereOptions = {
+			moduleName: 'string',
+			funcName: 'string',
+			isActive: 'boolean'
+		} as const;
+
+		assert.deepEqual(helpers.prepareWhereParams({
+			moduleName: 'contentBot',
+			funcName: ['unsafe'],
+			isActive: 'false',
+			unsafeWhereKey: 'ignored'
+		}, autoActionWhereOptions), {
+			moduleName: 'contentBot',
+			isActive: false
+		});
+
+		assert.deepEqual(helpers.prepareWhereParams({
+			moduleName: {unsafe: true},
+			funcName: 'run',
+			isActive: 'maybe'
+		}, autoActionWhereOptions), {
+			funcName: 'run'
+		});
 	});
 });

@@ -17,7 +17,6 @@ describe("databaseMigrationIntegrity", function () {
     try {
       app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7789});
       await app.flushDatabase();
-      await (app.ms.database as any).sequelize.query('TRUNCATE "userAsyncOperations", "groupReads" CASCADE');
       const admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then((r) => r.user);
       const testUser = await app.registerUser({
         email: 'user@user.com',

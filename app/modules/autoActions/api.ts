@@ -47,6 +47,9 @@ export default (app: IGeesomeApp, autoActionsModule: IGeesomeAutoActionsModule) 
      * @apiUse AuthErrors
      *
      * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+     * @apiQuery {String} [moduleName] Filter by module name.
+     * @apiQuery {String} [funcName] Filter by function name.
+     * @apiQuery {Boolean} [isActive] Filter by active state.
      * @apiInterface (./interface.ts) {IAutoActionListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/get-auto-actions', async (req, res) => {

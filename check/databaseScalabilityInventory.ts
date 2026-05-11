@@ -257,13 +257,16 @@ function modelRows(): ModelRow[] {
         has(autoActionSource, 'auto_actions_active_execute_idx')
           ? 'isActive,executeOn executor index'
           : 'missing active/due executor index',
+        has(autoActionSource, 'auto_actions_user_created_idx')
+          ? 'userId,createdAt,id management-list index'
+          : 'missing user management-list index',
       ],
       notes: [
-        has(autoActionSource, 'auto_actions_active_execute_idx')
+        has(autoActionSource, 'auto_actions_active_execute_idx') && has(autoActionSource, 'auto_actions_user_created_idx')
           ? (hasBoundedAutoActionExecutor
-            ? 'due active executor scan is indexed, bounded, and de-duplicated inside one node; multi-node claim locking remains separate'
-            : 'due active executor scan is indexed; executor locking/batching policy remains separate')
-          : 'scheduled executor should lead with isActive and range on executeOn',
+            ? 'due active executor scan and user management-list default paging are indexed; executor is bounded and de-duplicated inside one node; multi-node claim locking remains separate'
+            : 'due active executor scan and user management-list default paging are indexed; executor locking/batching policy remains separate')
+          : 'scheduled executor and management list should have active/executeOn and user/default-order indexes',
       ],
     },
     {
@@ -461,6 +464,12 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'this.setDefaultListParamsValues(listParams, userFriendListParams)')
     && has(databaseSource, 'getAllUsersWhere(search)')
     && has(databaseSource, 'countFriends({where})');
+  const hasAutoActionListLimits = has(autoActionSource, 'autoActionListParams')
+    && has(autoActionSource, 'helpers.prepareListParams(params, autoActionListParams)')
+    && has(autoActionSource, 'app.ms.database.setDefaultListParamsValues(listParams, autoActionListParams)')
+    && has(autoActionSource, 'getAutoActionListWhere(userId, params)')
+    && has(autoActionSource, 'helpers.prepareWhereParams(params, autoActionListFilterTypes)')
+    && has(autoActionSource, 'models.AutoAction.count({where})');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -472,6 +481,7 @@ function hotspotRows(): HotspotRow[] {
     hasAdminDirectoryListLimits ? 'admin directory lists' : null,
     hasUserGroupListLimits ? 'user group membership/chat lists' : null,
     hasUserFriendListLimits ? 'user friend lists' : null,
+    hasAutoActionListLimits ? 'auto-action management lists' : null,
   ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
@@ -727,6 +737,19 @@ function hotspotRows(): HotspotRow[] {
           ? 'due/active range scan is indexed and per-node duplicate/batch pressure is bounded; multi-node claim locking remains separate'
           : 'due/active range scan is indexed; batching and duplicate executor locking remain separate scheduler concerns')
         : 'executor can scan active rows without executeOn range support',
+    },
+    {
+      area: 'Auto action management list',
+      source: 'app/modules/autoActions/index.ts',
+      hotspot: 'getUserActions',
+      observedPattern: hasAutoActionListLimits
+        ? 'filters by user plus known fields, applies endpoint sort allowlists/default pages, and returns count-only totals'
+        : 'loads matching user actions without endpoint-specific list defaults',
+      scalabilityRisk: has(read('app/modules/autoActions/models.ts'), 'auto_actions_user_created_idx')
+        ? (hasAutoActionListLimits
+          ? 'default user/createdAt/id pages are indexed and capped; alternate sort fields stay bounded by the page cap'
+          : 'user-list index exists, but endpoint paging/filter policy should be verified')
+        : 'large per-user auto-action histories can scan and sort without a user/default-order index',
     },
     {
       area: 'Pin account lookup',

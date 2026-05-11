@@ -169,4 +169,72 @@ describe("autoActions", function () {
 			});
 		}
 	});
+
+	it('paginates user auto action management lists safely', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const otherUser = await app.registerUser({
+			email: 'other@user.com',
+			name: 'other',
+			password: 'other',
+			permissions: [CorePermissionName.UserAll]
+		});
+
+		async function addAction(userId, moduleName, isActive = true) {
+			return autoActions.addAutoAction(userId, {
+				moduleName,
+				funcName: 'run',
+				funcArgs: '[]',
+				isActive,
+				totalExecuteAttempts: 1,
+				currentExecuteAttempts: 1,
+				executeOn: new Date(Date.now() + 60000)
+			});
+		}
+
+		await addAction(testUser.id, 'action-1');
+		await addAction(testUser.id, 'action-2');
+		await addAction(testUser.id, 'inactive-action', false);
+		await addAction(testUser.id, 'action-3');
+		await addAction(otherUser.id, 'other-user-action');
+
+		const firstPage = await autoActions.getUserActions(testUser.id, {
+			isActive: 'true',
+			limit: '2',
+			offset: '0',
+			sortBy: 'id',
+			sortDir: 'asc',
+			unsafeWhereKey: 'ignored'
+		} as any);
+
+		assert.equal(firstPage.total, 3);
+		assert.deepEqual(firstPage.list.map(action => action.moduleName), ['action-1', 'action-2']);
+
+		const malformedFiltersPage = await autoActions.getUserActions(testUser.id, {
+			isActive: 'maybe',
+			moduleName: ['action-1'],
+			funcName: {bad: 'value'},
+			limit: '10',
+			sortBy: 'id',
+			sortDir: 'asc'
+		} as any);
+
+		assert.equal(malformedFiltersPage.total, 4);
+		assert.deepEqual(malformedFiltersPage.list.map(action => action.moduleName), [
+			'action-1',
+			'action-2',
+			'inactive-action',
+			'action-3'
+		]);
+
+		const secondPage = await autoActions.getUserActions(testUser.id, {
+			isActive: 'true',
+			limit: '2',
+			offset: '2',
+			sortBy: 'id',
+			sortDir: 'asc'
+		} as any);
+
+		assert.equal(secondPage.total, 3);
+		assert.deepEqual(secondPage.list.map(action => action.moduleName), ['action-3']);
+	});
 });
