@@ -5,6 +5,8 @@ export default interface IGeesomeStaticIdModule {
 
 	destroyStaticIdHistory(staticId): Promise<any>;
 
+	compactStaticIdHistory(options?: IStaticIdHistoryCompactionOptions): Promise<IStaticIdHistoryCompactionResult>;
+
 	getStaticIdItemByDynamicId(dynamicId): Promise<IStaticIdHistoryItem>;
 
 	bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem>;
@@ -40,4 +42,17 @@ export interface IStaticIdHistoryItem {
 	periodTimestamp?: number;
 	isActive: boolean;
 	boundAt: Date;
+}
+
+export interface IStaticIdHistoryCompactionOptions {
+	staticId?: string;
+	keepPerStaticId?: number;
+	limit?: number;
+}
+
+export interface IStaticIdHistoryCompactionResult {
+	deletedHistory: number;
+	staticId?: string | null;
+	keepPerStaticId: number;
+	limit: number;
 }
