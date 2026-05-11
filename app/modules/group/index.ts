@@ -812,7 +812,7 @@ function getModule(app: IGeesomeApp, models) {
 			return post;
 		}
 
-		async createRemotePostByObject(userId, postData) {
+		async createRemotePostByObject(userId, postData, options: any = {}) {
 			postData = clone(postData);
 			postData.userId = userId;
 			postData.groupId = await this.checkGroupId(postData.groupId);
@@ -858,7 +858,9 @@ function getModule(app: IGeesomeApp, models) {
 				}
 			});
 
-			await this.updateGroupManifest(userId, post.groupId);
+			if (!options.skipGroupManifestUpdate) {
+				await this.updateGroupManifest(userId, post.groupId);
+			}
 			return this.getPostPure(post.id);
 		}
 

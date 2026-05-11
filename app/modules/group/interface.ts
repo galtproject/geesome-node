@@ -56,7 +56,7 @@ export default interface IGeesomeGroupModule {
 
 	createPost(userId, postData);
 
-	createRemotePostByObject(userId, postData);
+	createRemotePostByObject(userId, postData, options?);
 
 	updatePost(userId, postId, postData);
 
