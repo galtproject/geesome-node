@@ -47,4 +47,21 @@ describe("databaseValues", function () {
 
 		await database.setValue('1 — копия.jpeg', '1 — копия.jpeg');
 	});
+
+	it("should key object cache entries by resolveProp", async () => {
+		const storageId = 'object-cache-resolve-prop-test';
+
+		await database.addObject({storageId, resolveProp: false, data: 'root'});
+		await database.addObject({storageId, resolveProp: true, data: 'resolved'});
+
+		const rootObject = await database.getObjectByStorageId(storageId, false);
+		const resolvedObject = await database.getObjectByStorageId(storageId, true);
+
+		assert.strictEqual(rootObject.data, 'root');
+		assert.strictEqual(resolvedObject.data, 'resolved');
+		await assert.rejects(
+			database.addObject({storageId, resolveProp: true, data: 'duplicate'}),
+			/unique|duplicate/i
+		);
+	});
 });

@@ -48,6 +48,7 @@ function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const contentSource = read('app/modules/database/models/content.ts');
+  const objectSource = read('app/modules/database/models/object.ts');
   const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
   const groupReadSource = read('app/modules/group/models/groupRead.ts');
@@ -83,6 +84,9 @@ function modelRows(): ModelRow[] {
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
+  const hasObjectResolvePropUnique = has(objectSource, 'objects_storage_resolve_prop_unique')
+    && has(objectSource, "fields: ['storageId', 'resolveProp']")
+    && has(objectSource, 'unique: true');
   const hasFileCatalogPathUnique = has(fileCatalogModelSource, 'file_catalog_items_child_path_unique')
     && has(fileCatalogModelSource, 'file_catalog_items_root_path_unique')
     && has(fileCatalogModelSource, "fields: ['parentItemId', 'userId', 'name']")
@@ -180,6 +184,19 @@ function modelRows(): ModelRow[] {
         hasContentUserStorageUnique
           ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
           : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
+      ],
+    },
+    {
+      area: 'Object cache',
+      source: 'app/modules/database/models/object.ts',
+      model: 'Object',
+      indexes: [
+        hasObjectResolvePropUnique ? 'storageId,resolveProp unique cache key' : 'missing resolveProp-aware cache key',
+      ],
+      notes: [
+        hasObjectResolvePropUnique && has(objectSource, 'allowNull: false')
+          ? 'active data-structure cache keys resolved and unresolved storage paths separately'
+          : 'object cache should key by storageId plus resolveProp so resolved path reads do not collide',
       ],
     },
     {

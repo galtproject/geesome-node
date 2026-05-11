@@ -530,7 +530,7 @@ function getModule(config, appPass) {
         return startsWith(data, '{') || startsWith(data, '[') ? JSON.parse(data) : data;
       }
       return this.ms.storage.getObject(storageId, resolveProp).then((result) => {
-        this.ms.database.addObject({storageId, data: isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
+        this.ms.database.addObject({storageId, resolveProp, data: isString(result) ? result : JSON.stringify(result)}).catch(() => {/* already saved */});
         return result;
       }).catch(e => {
         console.error('getObject error', e)
