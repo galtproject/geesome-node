@@ -108,5 +108,21 @@ describe('helpers', () => {
 			sortDir: 'ASC',
 			limit: 100
 		});
+
+		const apiKeyOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'permissions',
+			sortDir: 'desc',
+			limit: '500' as any
+		}, apiKeyOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'DESC',
+			limit: 100
+		});
 	});
 });

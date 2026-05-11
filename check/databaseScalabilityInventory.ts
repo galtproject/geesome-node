@@ -378,6 +378,7 @@ function modelRows(): ModelRow[] {
 }
 
 function hotspotRows(): HotspotRow[] {
+  const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
   const manifestSource = read('app/modules/entityJsonManifest/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/index.ts');
@@ -422,6 +423,10 @@ function hotspotRows(): HotspotRow[] {
     && has(inviteSource, 'helpers.prepareListParams(listParams, inviteListParams)')
     && has(inviteSource, 'app.ms.database.setDefaultListParamsValues(listParams, inviteListParams)')
     && has(inviteSource, 'models.Invite.count({ where })');
+  const hasApiKeyListLimits = has(appSource, 'apiKeyListParams')
+    && has(appSource, 'helpers.prepareListParams(listParams, apiKeyListParams)')
+    && has(databaseSource, 'apiKeyListParams')
+    && has(databaseSource, 'this.setDefaultListParamsValues(listParams, apiKeyListParams)');
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
@@ -687,7 +692,9 @@ function hotspotRows(): HotspotRow[] {
             ? (hasCategoryManagementListLimits
               ? (hasUserUtilityListLimits
                 ? (hasInviteListLimits
-                  ? 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, operation queue lists, and invite lists below the global export ceiling'
+                  ? (hasApiKeyListLimits
+                    ? 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, operation queue lists, invite lists, and API-key lists below the global export ceiling'
+                    : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, operation queue lists, and invite lists below the global export ceiling')
                   : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, and operation queue lists below the global export ceiling')
                 : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, and category management lists below the global export ceiling')
               : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds plus file-catalog browsing below the global export ceiling')
@@ -700,7 +707,9 @@ function hotspotRows(): HotspotRow[] {
             ? (hasCategoryManagementListLimits
               ? (hasUserUtilityListLimits
                 ? (hasInviteListLimits
-                  ? 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, operation queue lists, and invite lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies'
+                  ? (hasApiKeyListLimits
+                    ? 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, operation queue lists, invite lists, and API-key lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies'
+                    : 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, operation queue lists, and invite lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
                   : 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, and operation queue lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
                 : 'group/category public post feeds, user file-catalog browsing, and category management lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
               : 'group/category public post feeds and user file-catalog browsing use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')

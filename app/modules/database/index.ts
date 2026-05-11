@@ -28,6 +28,11 @@ import {
 const {merge, isUndefined} = _;
 const SessionStore = expressSessionSequelize(expressSession.Store);
 const maxListLimit = 10000;
+const apiKeyListParams: IListParamsOptions = {
+  sortBy: 'createdAt',
+  allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],
+  maxLimit: 100
+};
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -116,7 +121,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getApiKeysByUser(userId, isDisabled?, search?, listParams: IListParams = {}) {
-    this.setDefaultListParamsValues(listParams);
+    this.setDefaultListParamsValues(listParams, apiKeyListParams);
 
     const {limit, offset, sortBy, sortDir} = listParams;
 
