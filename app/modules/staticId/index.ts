@@ -33,6 +33,22 @@ function getModule(app: IGeesomeApp, models) {
 			return models.StaticIdBinding.findOne({where: {staticId: bindingData.staticId}}) as IStaticIdHistoryItem;
 		}
 
+		getStaticIdHistoryOrder() {
+			return [['boundAt', 'DESC'], ['id', 'DESC']];
+		}
+
+		async setStaticIdBindingFromHistory(historyItem) {
+			if (!historyItem) {
+				return null;
+			}
+			try {
+				return await this.setStaticIdBinding(historyItem);
+			} catch (e) {
+				log('setStaticIdBindingFromHistory error', e);
+				return historyItem;
+			}
+		}
+
 		async addStaticIdHistoryItem(staticIdItem) {
 			const [historyItem] = await models.StaticIdHistory.findOrCreate({
 				where: {
@@ -50,7 +66,8 @@ function getModule(app: IGeesomeApp, models) {
 			if (binding) {
 				return binding;
 			}
-			return models.StaticIdHistory.findOne({where: {staticId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
+			const historyItem = await models.StaticIdHistory.findOne({where: {staticId}, order: this.getStaticIdHistoryOrder()}) as IStaticIdHistoryItem;
+			return this.setStaticIdBindingFromHistory(historyItem);
 		}
 
 		async destroyStaticIdHistory(staticId) {
@@ -59,7 +76,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getStaticIdItemByDynamicId(dynamicId) {
-			const binding = await models.StaticIdBinding.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]});
+			const binding = await models.StaticIdBinding.findOne({where: {dynamicId}, order: this.getStaticIdHistoryOrder()});
 			if (binding) {
 				return binding;
 			}
@@ -67,7 +84,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getStaticIdHistoryFallbackByDynamicId(dynamicId) {
-			const historyItem = await models.StaticIdHistory.findOne({where: {dynamicId}, order: [['boundAt', 'DESC']]}) as IStaticIdHistoryItem;
+			const historyItem = await models.StaticIdHistory.findOne({where: {dynamicId}, order: this.getStaticIdHistoryOrder()}) as IStaticIdHistoryItem;
 			if (!historyItem) {
 				return null;
 			}
@@ -75,7 +92,14 @@ function getModule(app: IGeesomeApp, models) {
 			if (binding && binding.dynamicId !== dynamicId) {
 				return null;
 			}
-			return binding || historyItem;
+			if (binding) {
+				return binding;
+			}
+			const latestHistoryItem = await models.StaticIdHistory.findOne({where: {staticId: historyItem.staticId}, order: this.getStaticIdHistoryOrder()}) as IStaticIdHistoryItem;
+			if (!latestHistoryItem || latestHistoryItem.dynamicId !== dynamicId) {
+				return null;
+			}
+			return this.setStaticIdBindingFromHistory(latestHistoryItem);
 		}
 
 		async bindToStaticIdByGroup(userId, groupId, dynamicId, staticId) {

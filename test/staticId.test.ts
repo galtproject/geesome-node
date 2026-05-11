@@ -46,6 +46,22 @@ describe("staticId", function () {
 		assert.equal(await StaticIdBinding.count({where: {staticId}}), 1);
 		assert.equal(await StaticIdHistory.count({where: {staticId}}), 2);
 
+		await StaticIdBinding.destroy({where: {staticId}});
+
+		const oldReverseMissingBindingItem = await app.ms.staticId.getStaticIdItemByDynamicId(oldDynamicId);
+		assert.equal(oldReverseMissingBindingItem, null);
+		assert.equal(await StaticIdBinding.count({where: {staticId}}), 0);
+
+		const lazyCurrentItem = await app.ms.staticId.getActualStaticIdItem(staticId);
+		assert.equal(lazyCurrentItem.dynamicId, newDynamicId);
+		assert.equal(await StaticIdBinding.count({where: {staticId}}), 1);
+
+		await StaticIdBinding.destroy({where: {staticId}});
+
+		const lazyReverseItem = await app.ms.staticId.getStaticIdItemByDynamicId(newDynamicId);
+		assert.equal(lazyReverseItem.staticId, staticId);
+		assert.equal(await StaticIdBinding.count({where: {staticId}}), 1);
+
 		await app.ms.staticId.destroyStaticIdHistory(staticId);
 
 		assert.equal(await StaticIdBinding.count({where: {staticId}}), 0);

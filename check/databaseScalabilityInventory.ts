@@ -244,7 +244,7 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         hasStaticIdCurrentBinding
-          ? 'hot static and dynamic resolution use compact current-binding rows; StaticIdHistory remains audit history and still needs retention/compaction policy'
+          ? 'hot static and dynamic resolution use compact current-binding rows created by model sync; StaticIdHistory remains audit history and still needs retention/compaction policy'
           : (has(staticIdSource, "fields: ['dynamicId'")
           ? 'group/static manifest churn can create long history; dynamicId lookup is indexed, latest-binding/retention still open'
           : 'group/static manifest churn can create long history; getStaticIdItemByDynamicId needs dynamicId-leading index or latest-binding table'
@@ -608,6 +608,7 @@ function hotspotRows(): HotspotRow[] {
   const hasCanonicalPostDbTransaction = hasPostWriteTransaction && hasPostDeleteTransaction;
   const hasStaticIdCurrentBinding = has(staticIdSource, 'models.StaticIdBinding.findOne({where: {dynamicId}')
     && has(staticIdSource, 'getStaticIdHistoryFallbackByDynamicId')
+    && has(staticIdSource, 'setStaticIdBindingFromHistory')
     && has(staticIdModelSource, 'static_id_bindings_static_unique')
     && has(staticIdModelSource, 'static_id_bindings_dynamic_bound_idx');
 
@@ -905,7 +906,7 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/staticId/index.ts',
       hotspot: 'getStaticIdItemByDynamicId',
       observedPattern: hasStaticIdCurrentBinding
-        ? 'current-binding lookup by dynamicId with a guarded history fallback for pre-backfill rows'
+        ? 'current-binding lookup by dynamicId with a guarded history fallback/lazy fill for model-sync upgrades'
         : (has(staticIdSource, 'findOne({where: {dynamicId}') ? 'dynamicId lookup ordered by boundAt' : 'review staticId dynamic lookup'),
       scalabilityRisk: hasStaticIdCurrentBinding
         ? 'hot static-ID resolution uses compact current rows; audit-history retention still needs policy'

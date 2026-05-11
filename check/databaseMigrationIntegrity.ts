@@ -136,11 +136,6 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['auto-action execution claim columns and index'],
   },
   {
-    module: 'database',
-    file: '20260511000004-add-static-id-current-bindings.cjs',
-    verifies: ['static-id current binding table, indexes, and history backfill'],
-  },
-  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
