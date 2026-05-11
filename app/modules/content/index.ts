@@ -430,7 +430,12 @@ function getModule(app: IGeesomeApp) {
 			contentData.userId = userId;
 			let content;
 			try {
-				content = await app.ms.database.addContent(contentData);
+				content = await app.ms.database.addContentWithUserContentAction(contentData, {
+					name: UserContentActionName.Upload,
+					userId: contentData.userId,
+					size: contentData.size,
+					userApiKeyId: options.userApiKeyId
+				}, UserLimitName.SaveContentSize);
 			} catch (e) {
 				if (!isUserStorageUniqueError(e, contentData)) {
 					throw e;
@@ -445,16 +450,7 @@ function getModule(app: IGeesomeApp) {
 			}
 			log('content');
 
-			await Promise.all([
-				app.callHook('content', 'afterContentAdding', [userId, content, options]),
-				app.ms.database.addUserContentAction({
-					name: UserContentActionName.Upload,
-					userId: content.userId,
-					size: content.size,
-					contentId: content.id,
-					userApiKeyId: options.userApiKeyId
-				})
-			]);
+			await app.callHook('content', 'afterContentAdding', [userId, content, options]);
 			log('addUserContentAction');
 			if (!contentData.manifestStorageId) {
 				log('updateContentManifest');

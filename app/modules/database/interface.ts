@@ -106,7 +106,9 @@ export interface IGeesomeDatabaseModule {
 
   addUserContentAction(userContentActionData): Promise<IUserContentAction>;
 
-  getUserContentActionsSizeSum(userId, name, periodTimestamp?): Promise<number>;
+  addContentWithUserContentAction(content: IContent, userContentActionData: IUserContentAction, limitName?: UserLimitName): Promise<IContent>;
+
+  getUserContentActionsSizeSum(userId, name, periodTimestamp?, options?): Promise<number>;
 
   addUserLimit(limitData): Promise<IUserLimit>;
 
