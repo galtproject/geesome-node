@@ -10,7 +10,7 @@
 import fs from "fs";
 import _ from 'lodash';
 import pIteration from 'p-iteration';
-import {Sequelize, Op} from "sequelize";
+import {Sequelize, Op, Transaction} from "sequelize";
 import expressSession from 'express-session';
 import expressSessionSequelize from 'express-session-sequelize';
 import {IGeesomeApp} from "../../interface.js";
@@ -23,7 +23,10 @@ import {
   IObject,
   IUser,
   IUserApiKey,
-  IUserLimit
+  IUserContentAction,
+  IUserLimit,
+  UserContentActionName,
+  UserLimitName
 } from "./interface.js";
 const {merge, isUndefined} = _;
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -476,7 +479,42 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.models.UserContentAction.create(userContentActionData);
   }
 
-  async getUserContentActionsSizeSum(userId, name, periodTimestamp?) {
+  async addContentWithUserContentAction(contentData: IContent, userContentActionData: IUserContentAction, limitName?: UserLimitName) {
+    return this.sequelize.transaction(async (transaction) => {
+      if (limitName) {
+        await this.checkUserContentActionLimit(userContentActionData.userId, limitName, userContentActionData.size, transaction);
+      }
+      const content = await this.models.Content.create(contentData, {transaction});
+      await this.models.UserContentAction.create({
+        ...userContentActionData,
+        contentId: content.id
+      }, {transaction});
+      return content;
+    });
+  }
+
+  async checkUserContentActionLimit(userId, limitName: UserLimitName, actionSize, transaction) {
+    const limit = await this.models.UserLimit.findOne({
+      where: {userId, name: limitName},
+      transaction,
+      lock: Transaction.LOCK.UPDATE
+    });
+    if (!limit || !limit.isActive) {
+      return;
+    }
+    if (limitName !== UserLimitName.SaveContentSize) {
+      throw new Error("Unknown limit");
+    }
+
+    const uploadSize = await this.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp, {transaction});
+    const pinSize = await this.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp, {transaction});
+    const remained = Number(limit.value) - Number(uploadSize) - Number(pinSize);
+    if (remained < Number(actionSize || 0)) {
+      throw new Error("limit_reached");
+    }
+  }
+
+  async getUserContentActionsSizeSum(userId, name, periodTimestamp?, options: any = {}) {
     const where: any = {userId, name};
 
     if (periodTimestamp) {
@@ -484,7 +522,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       where.createdAt = {[Op.gte]: from};
     }
 
-    return (await this.models.UserContentAction.sum('size', {where})) || 0;
+    return (await this.models.UserContentAction.sum('size', {where, transaction: options.transaction})) || 0;
   }
 
   async addUserLimit(userLimitData) {

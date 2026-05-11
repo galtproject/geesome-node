@@ -119,6 +119,10 @@ function modelRows(): ModelRow[] {
     && has(userLimitSource, 'unique: true');
   const hasUserLimitDuplicateRetry = has(appSource, 'isUserLimitUniqueError')
     && has(appSource, 'newExistLimit');
+  const hasUploadQuotaCommitLock = has(databaseModuleSource, 'addContentWithUserContentAction')
+    && has(databaseModuleSource, 'checkUserContentActionLimit')
+    && has(databaseModuleSource, 'Transaction.LOCK.UPDATE')
+    && has(read('app/modules/content/index.ts'), 'addContentWithUserContentAction');
   const hasPinUserNameUnique = has(pinSource, 'pin_accounts_user_name_unique')
     && has(pinSource, "fields: ['userId', 'name']")
     && has(pinSource, 'unique: true');
@@ -267,13 +271,15 @@ function modelRows(): ModelRow[] {
         hasUserLimitUnique ? 'user limit user,name unique' : (has(userLimitSource, "fields: ['userId', 'name'") ? 'user limit user,name index' : 'no explicit user limit user/name index'),
       ],
       notes: [
-        has(userContentActionSource, 'DataTypes.BIGINT') && hasUserLimitUnique && hasUserLimitDuplicateRetry
+        has(userContentActionSource, 'DataTypes.BIGINT') && hasUserLimitUnique && hasUserLimitDuplicateRetry && hasUploadQuotaCommitLock
+          ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads, then content/action commits re-check under a UserLimit row lock; ledger size is BIGINT and UserLimit is unique per user/name after duplicate-key retry'
+          : (has(userContentActionSource, 'DataTypes.BIGINT') && hasUserLimitUnique && hasUserLimitDuplicateRetry
           ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads; ledger size is BIGINT; UserLimit is unique per user/name after duplicate cleanup and duplicate-key retry'
           : (has(userContentActionSource, 'DataTypes.BIGINT') && hasUserLimitUnique
           ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads; ledger size is BIGINT; UserLimit is unique per user/name after duplicate cleanup'
           : (has(userContentActionSource, 'DataTypes.BIGINT')
           ? 'quota checks sum UserContentAction by userId/name/createdAt before uploads; ledger size is BIGINT; UserLimit lookup index is present but uniqueness is still separate'
-          : 'quota checks sum UserContentAction by userId/name/createdAt before uploads; size remains INTEGER')),
+          : 'quota checks sum UserContentAction by userId/name/createdAt before uploads; size remains INTEGER'))),
       ],
     },
     {
@@ -621,6 +627,10 @@ function hotspotRows(): HotspotRow[] {
   const hasStaticIdHistoryCompaction = has(staticIdSource, 'compactStaticIdHistory')
     && has(staticIdSource, 'STATIC_ID_HISTORY_RETAINED_ROWS')
     && has(staticIdModelSource, 'compactStaleHistory');
+  const hasUploadQuotaCommitLock = has(databaseSource, 'addContentWithUserContentAction')
+    && has(databaseSource, 'checkUserContentActionLimit')
+    && has(databaseSource, 'Transaction.LOCK.UPDATE')
+    && has(contentSource, 'addContentWithUserContentAction');
 
   return [
     {
@@ -820,9 +830,13 @@ function hotspotRows(): HotspotRow[] {
       area: 'Quota checks',
       source: 'app/modules/content/index.ts',
       hotspot: 'checkFileSizeAndSaveByStream',
-      observedPattern: has(contentSource, 'getUserLimitRemained') ? 'quota sum before upload stream, action recorded after content creation' : 'review quota path',
+      observedPattern: hasUploadQuotaCommitLock
+        ? 'quota sum before upload stream, then content row and upload action commit under a locked UserLimit re-check'
+        : (has(contentSource, 'getUserLimitRemained') ? 'quota sum before upload stream, action recorded after content creation' : 'review quota path'),
       scalabilityRisk: has(read('app/modules/database/models/userContentAction.ts'), 'user_content_actions_user_name_created_idx')
-        ? 'accounting SUM is indexed, but concurrent uploads can still pass before reservation/action recording'
+        ? (hasUploadQuotaCommitLock
+          ? 'visible content/action commits are serialized against the active limit; bytes can still be streamed before final commit rejection, so true pre-stream reservation remains future work'
+          : 'accounting SUM is indexed, but concurrent uploads can still pass before reservation/action recording')
         : 'unindexed accounting sums and concurrent uploads can make quota checks slow and race-prone',
     },
     {
