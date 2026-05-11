@@ -30,6 +30,11 @@ const adminGroupListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'title', 'type', 'isDeleted'],
 	maxLimit: 100
 };
+const userGroupListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'title', 'type'],
+	maxLimit: 100
+};
 
 function contentSize(content) {
 	return Number(content?.size) || 0;
@@ -1089,39 +1094,63 @@ function getModule(app: IGeesomeApp, models) {
 			};
 		}
 
-		async getMemberInGroups(userId, types) {
+		async getMemberInGroups(userId, types, listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, userGroupListParams);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			app.ms.database.setDefaultListParamsValues(listParams, userGroupListParams);
+
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = { type: {[Op.in]: types}, isDeleted: false };
+			const user = await app.ms.database.getUser(userId) as any;
 			// TODO: use query object instead of types
 			return {
-				list: await (await app.ms.database.getUser(userId) as any).getMemberInGroups({
-					where: { type: {[Op.in]: types}, isDeleted: false },
-					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
+				list: await user.getMemberInGroups({
+					where,
+					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ],
+					order: [[sortBy, sortDir.toUpperCase()]],
+					limit,
+					offset
 				}),
-				total: null
-				//TODO: total, limit, offset
+				total: await user.countMemberInGroups({where})
 			};
 		}
 
-		async getAdminInGroups(userId, types) {
+		async getAdminInGroups(userId, types, listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, userGroupListParams);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			app.ms.database.setDefaultListParamsValues(listParams, userGroupListParams);
+
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = { type: {[Op.in]: types}, isDeleted: false };
+			const user = await app.ms.database.getUser(userId) as any;
 			// TODO: use query object instead of types
 			return {
-				list: await (await app.ms.database.getUser(userId) as any).getAdministratorInGroups({
-					where: { type: {[Op.in]: types}, isDeleted: false },
-					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ]
+				list: await user.getAdministratorInGroups({
+					where,
+					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ],
+					order: [[sortBy, sortDir.toUpperCase()]],
+					limit,
+					offset
 				}),
-				total: null
-				//TODO: total, limit, offset
+				total: await user.countAdministratorInGroups({where})
 			};
 		}
 
-		async getPersonalChatGroups(userId) {
+		async getPersonalChatGroups(userId, listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, userGroupListParams);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			// TODO: use query object
+			app.ms.database.setDefaultListParamsValues(listParams, userGroupListParams);
+
+			const {limit, offset, sortBy, sortDir} = listParams;
+			const where = {creatorId: userId, type: GroupType.PersonalChat, isDeleted: false};
 			return {
-				list: await this.getCreatorInGroupsByType(userId, GroupType.PersonalChat),
-				total: -1
-				//TODO: total, limit, offset
+				list: await models.Group.findAll({
+					where,
+					order: [[sortBy, sortDir.toUpperCase()]],
+					limit,
+					offset
+				}) as IGroup[],
+				total: await models.Group.count({where})
 			};
 		}
 

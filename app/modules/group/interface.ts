@@ -12,11 +12,11 @@ export default interface IGeesomeGroupModule {
 
 	getAllGroupList(adminId, searchString, listParams?: IListParams): Promise<IGroupListResponse>;
 
-	getMemberInGroups(userId, types: GroupType[]): Promise<IGroupListResponse>;
+	getMemberInGroups(userId, types: GroupType[], listParams?: IListParams): Promise<IGroupListResponse>;
 
-	getAdminInGroups(userId, types: GroupType[]): Promise<IGroupListResponse>;
+	getAdminInGroups(userId, types: GroupType[], listParams?: IListParams): Promise<IGroupListResponse>;
 
-	getPersonalChatGroups(userId): Promise<IGroupListResponse>;
+	getPersonalChatGroups(userId, listParams?: IListParams): Promise<IGroupListResponse>;
 
 	addUserFriendById(userId, friendId): Promise<void>;
 

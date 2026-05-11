@@ -2,7 +2,20 @@ import assert from "assert";
 import {getModule as getAsyncOperationModule} from "../app/modules/asyncOperation/index.js";
 
 function createAsyncOperationModule({queues = [], operations = []}: {queues?: any[], operations?: any[]} = {}) {
-	return getAsyncOperationModule({} as any, {
+	const app = {
+		ms: {
+			database: {
+				setDefaultListParamsValues: (listParams) => {
+					listParams.sortBy ||= "createdAt";
+					listParams.sortDir ||= "DESC";
+					listParams.limit ||= 20;
+					listParams.offset ||= 0;
+				}
+			}
+		}
+	};
+
+	return getAsyncOperationModule(app as any, {
 		UserOperationQueue: {
 			findOne: async ({where}) => queues.find((queue) => queue.id === Number(where.id)) || null,
 			findAll: async ({where}) => queues.filter((queue) => {
