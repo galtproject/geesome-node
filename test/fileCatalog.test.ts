@@ -144,6 +144,24 @@ describe("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml);
 	});
 
+	it("publishes every child file beyond the default list page", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const folder = await fileCatalog.createUserFolder(testUser.id, null, 'bulk');
+		const fileCount = 25;
+
+		for (let i = 0; i < fileCount; i++) {
+			const name = `file-${i}.txt`;
+			await fileCatalog.saveDataToPath(testUser.id, `content-${i}`, `/bulk/${name}`);
+		}
+
+		const publishFolderResult = await fileCatalog.publishFolder(testUser.id, folder.id);
+
+		const firstFile = await app.ms.storage.getFileData(publishFolderResult.storageId + '/file-0.txt');
+		const lastFile = await app.ms.storage.getFileData(publishFolderResult.storageId + '/file-24.txt');
+		assert.equal(firstFile, 'content-0');
+		assert.equal(lastFile, 'content-24');
+	});
+
 	it("should file catalog working properly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 
