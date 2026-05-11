@@ -835,7 +835,7 @@ function getModule(app: IGeesomeApp) {
 
 		async createContentByRemoteStorageId(userId, manifestStorageId, options: { groupId?, userApiKeyId? } = {}) {
 			let dbContent = userId === null || isUndefined(userId)
-				? await app.ms.database.getContentByManifestId(manifestStorageId)
+				? await app.ms.database.getSharedContentByManifestId(manifestStorageId)
 				: await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId);
 			if (dbContent) {
 				return dbContent;
@@ -864,7 +864,7 @@ function getModule(app: IGeesomeApp) {
 			}
 			if (userId === null || isUndefined(userId)) {
 				if (contentObject.manifestStorageId) {
-					const dbContent = await app.ms.database.getContentByManifestId(contentObject.manifestStorageId);
+					const dbContent = await app.ms.database.getSharedContentByManifestId(contentObject.manifestStorageId);
 					if (dbContent) {
 						return dbContent;
 					}

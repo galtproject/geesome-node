@@ -8,7 +8,11 @@
  */
 
 import assert from "assert";
-import {IGeesomeDatabaseModule} from "../app/modules/database/interface.js";
+import {
+	ContentMimeType,
+	ContentStorageType,
+	IGeesomeDatabaseModule
+} from "../app/modules/database/interface.js";
 
 describe("databaseValues", function () {
 	let database: IGeesomeDatabaseModule;
@@ -62,6 +66,47 @@ describe("databaseValues", function () {
 		await assert.rejects(
 			database.addObject({storageId, resolveProp: true, data: 'duplicate'}),
 			/unique|duplicate/i
+		);
+	});
+
+	it("should resolve shared content lookups deterministically while preserving actor-owned rows", async () => {
+		const firstUser = await database.addUser({
+			name: 'shared-content-lookup-user-1',
+			email: 'shared-content-lookup-user-1@example.com',
+			passwordHash: 'hash'
+		});
+		const secondUser = await database.addUser({
+			name: 'shared-content-lookup-user-2',
+			email: 'shared-content-lookup-user-2@example.com',
+			passwordHash: 'hash'
+		});
+		const storageId = 'shared-content-lookup-storage';
+		const manifestStorageId = 'shared-content-lookup-manifest';
+
+		const firstContent = await database.addContent({
+			userId: firstUser.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: ContentMimeType.Text,
+			storageId,
+			manifestStorageId,
+			name: 'first shared row'
+		});
+		const secondContent = await database.addContent({
+			userId: secondUser.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: ContentMimeType.Text,
+			storageId,
+			manifestStorageId,
+			name: 'second shared row'
+		});
+
+		assert.strictEqual((await database.getSharedContentByStorageId(storageId)).id, firstContent.id);
+		assert.strictEqual((await database.getContentByStorageId(storageId)).id, firstContent.id);
+		assert.strictEqual((await database.getSharedContentByManifestId(manifestStorageId)).id, firstContent.id);
+		assert.strictEqual((await database.getContentByManifestId(manifestStorageId)).id, firstContent.id);
+		assert.strictEqual(
+			(await database.getContentByManifestAndUserId(manifestStorageId, secondUser.id)).id,
+			secondContent.id
 		);
 	});
 });
