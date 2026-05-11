@@ -93,7 +93,9 @@ export default async function (sequelize: Sequelize) {
 			// { fields: ['chainAccountAddress'] },
 			// { fields: ['tokensAddress'] },
 			{ fields: ['module', 'isWaiting'] },
-			{ fields: ['module', 'inputHash', 'isWaiting'] }
+			{ fields: ['module', 'inputHash', 'isWaiting'] },
+			{ name: 'user_operation_queues_async_operation_idx', fields: ['asyncOperationId'] },
+			{ name: 'user_operation_queues_waiting_async_updated_idx', fields: ['isWaiting', 'asyncOperationId', 'updatedAt', 'id'] }
 		]
 	} as any);
 

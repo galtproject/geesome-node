@@ -11,11 +11,18 @@ const operationQueueListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'updatedAt', 'id'],
 	maxLimit: 100
 };
+const finishedOperationRetentionDays = 30;
+const finishedOperationCleanupBatchLimit = 1000;
+
+function getFinishedOperationCleanupCutoff(retentionDays = finishedOperationRetentionDays) {
+	return new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+}
 
 export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	await module.closeAllAsyncOperation();
+	await module.cleanupFinishedAsyncOperations();
 	(await import('./api.js')).default(app, module);
 	return module;
 }
@@ -224,6 +231,46 @@ export function getModule(app: IGeesomeApp, models) {
 
 		async closeAllAsyncOperation() {
 			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true}});
+		}
+
+		async cleanupFinishedAsyncOperations(options: any = {}) {
+			const cutoff = options.cutoff ?? getFinishedOperationCleanupCutoff(options.retentionDays);
+			const limit = options.limit ?? finishedOperationCleanupBatchLimit;
+			let deletedOperations = 0;
+			let deletedQueues = 0;
+			const oldOperations = await models.UserAsyncOperation.findAll({
+				attributes: ['id'],
+				where: {
+					inProcess: false,
+					updatedAt: {[Op.lt]: cutoff}
+				},
+				order: [['updatedAt', 'ASC'], ['id', 'ASC']],
+				limit
+			});
+			const operationIds = oldOperations.map(operation => operation.id);
+
+			if (operationIds.length) {
+				deletedQueues += await models.UserOperationQueue.destroy({where: {asyncOperationId: {[Op.in]: operationIds}}});
+				deletedOperations += await models.UserAsyncOperation.destroy({where: {id: {[Op.in]: operationIds}}});
+			}
+
+			const oldOrphanQueues = await models.UserOperationQueue.findAll({
+				attributes: ['id'],
+				where: {
+					isWaiting: false,
+					asyncOperationId: null,
+					updatedAt: {[Op.lt]: cutoff}
+				},
+				order: [['updatedAt', 'ASC'], ['id', 'ASC']],
+				limit
+			});
+			const orphanQueueIds = oldOrphanQueues.map(operationQueue => operationQueue.id);
+
+			if (orphanQueueIds.length) {
+				deletedQueues += await models.UserOperationQueue.destroy({where: {id: {[Op.in]: orphanQueueIds}}});
+			}
+
+			return {deletedOperations, deletedQueues, cutoff};
 		}
 
 		async flushDatabase() {
