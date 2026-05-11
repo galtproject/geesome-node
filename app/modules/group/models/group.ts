@@ -125,6 +125,7 @@ export default async function (sequelize: Sequelize, models) {
       { fields: ['name', 'isRemote'], unique: true, where: {isRemote: false, isCollateral: false} },
       { fields: ['manifestStorageId'] },
       { fields: ['manifestStaticStorageId'] },
+      { name: 'groups_creator_type_deleted_created_idx', fields: ['creatorId', 'type', 'isDeleted', 'createdAt', 'id'] },
       { name: 'groups_static_rebind_idx', fields: ['isDeleted', 'staticStorageUpdatedAt'] }
     ]
   } as any);

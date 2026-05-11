@@ -45,6 +45,15 @@ function contentSize(content) {
 	return Number(content?.size) || 0;
 }
 
+function getStableGroupListOrder(sortBy, sortDir) {
+	const direction = sortDir.toUpperCase();
+	const order = [[sortBy, direction]];
+	if (sortBy !== 'id') {
+		order.push(['id', direction]);
+	}
+	return order;
+}
+
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
 	const {sequelize, models} = app.ms.database;
@@ -1112,7 +1121,7 @@ function getModule(app: IGeesomeApp, models) {
 				list: await user.getMemberInGroups({
 					where,
 					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ],
-					order: [[sortBy, sortDir.toUpperCase()]],
+					order: getStableGroupListOrder(sortBy, sortDir),
 					limit,
 					offset
 				}),
@@ -1133,7 +1142,7 @@ function getModule(app: IGeesomeApp, models) {
 				list: await user.getAdministratorInGroups({
 					where,
 					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ],
-					order: [[sortBy, sortDir.toUpperCase()]],
+					order: getStableGroupListOrder(sortBy, sortDir),
 					limit,
 					offset
 				}),
@@ -1151,7 +1160,7 @@ function getModule(app: IGeesomeApp, models) {
 			return {
 				list: await models.Group.findAll({
 					where,
-					order: [[sortBy, sortDir.toUpperCase()]],
+					order: getStableGroupListOrder(sortBy, sortDir),
 					limit,
 					offset
 				}) as IGroup[],
@@ -1168,7 +1177,7 @@ function getModule(app: IGeesomeApp, models) {
 			return {
 				list: await models.Group.findAll({
 					where: this.getAllGroupWhere(searchString),
-					order: [[sortBy, sortDir.toUpperCase()]],
+					order: getStableGroupListOrder(sortBy, sortDir),
 					limit,
 					offset
 				}),

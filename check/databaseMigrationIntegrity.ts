@@ -160,6 +160,11 @@ const coveredMigrations: CoveredMigration[] = [
     file: '20260510000002-enforce-post-source-identity-unique.cjs',
     verifies: ['social-import post source identity uniqueness'],
   },
+  {
+    module: 'group',
+    file: '20260511000000-add-group-creator-list-index.cjs',
+    verifies: ['creator-owned group listing index'],
+  },
 ];
 
 const expectedColumns: ExpectedColumn[] = [
@@ -193,6 +198,7 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'user_operation_queues_waiting_async_updated_idx', table: 'userOperationQueues', columns: ['isWaiting', 'asyncOperationId', 'updatedAt', 'id']},
   {name: 'auto_actions_active_execute_idx', table: 'autoActions', columns: ['isActive', 'executeOn']},
   {name: 'auto_actions_user_created_idx', table: 'autoActions', columns: ['userId', 'createdAt', 'id']},
+  {name: 'groups_creator_type_deleted_created_idx', table: 'groups', columns: ['creatorId', 'type', 'isDeleted', 'createdAt', 'id']},
   {name: 'groups_static_rebind_idx', table: 'groups', columns: ['isDeleted', 'staticStorageUpdatedAt']},
   {name: 'user_limits_user_name_unique', table: 'userLimits', columns: ['userId', 'name'], unique: true},
   {name: 'category_admins_user_category_idx', table: 'categoryAdministrators', columns: ['userId', 'categoryId']},
@@ -279,6 +285,7 @@ const countChecks: CountCheck[] = [
   relationCheck('soc-net import messages point to posts', 'socNetImport_messages', 'postId', 'posts'),
   relationCheck('groups avatar links point to contents', 'groups', 'avatarImageId', 'contents'),
   relationCheck('groups cover links point to contents', 'groups', 'coverImageId', 'contents'),
+  relationCheck('groups creators point to users', 'groups', 'creatorId', 'users'),
   relationCheck('users avatar links point to contents', 'users', 'avatarImageId', 'contents'),
   relationCheck('categories avatar links point to contents', 'categories', 'avatarImageId', 'contents'),
   relationCheck('categories cover links point to contents', 'categories', 'coverImageId', 'contents'),
