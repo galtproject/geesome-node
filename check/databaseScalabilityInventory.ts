@@ -37,6 +37,13 @@ function has(source: string, pattern: string | RegExp): boolean {
   return typeof pattern === 'string' ? source.includes(pattern) : pattern.test(source);
 }
 
+function joinList(items: string[]): string {
+  if (items.length <= 1) {
+    return items.join('');
+  }
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
   const groupSource = read('app/modules/group/models/group.ts');
@@ -438,6 +445,23 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'adminGroupListParams')
     && has(groupSource, 'helpers.prepareListParams(listParams, adminGroupListParams)')
     && has(groupSource, 'app.ms.database.setDefaultListParamsValues(listParams, adminGroupListParams)');
+  const hasUserGroupListLimits = has(groupSource, 'userGroupListParams')
+    && has(groupSource, 'helpers.prepareListParams(listParams, userGroupListParams)')
+    && has(groupSource, 'app.ms.database.setDefaultListParamsValues(listParams, userGroupListParams)')
+    && has(groupSource, 'countMemberInGroups({where})')
+    && has(groupSource, 'countAdministratorInGroups({where})')
+    && has(groupSource, 'models.Group.count({where})');
+  const cappedListSurfaces = [
+    hasPublicPostListLimits ? 'public post feeds' : null,
+    hasFileCatalogListLimits ? 'file-catalog browsing' : null,
+    hasCategoryManagementListLimits ? 'category management lists' : null,
+    hasUserUtilityListLimits ? 'static-site lists' : null,
+    hasUserUtilityListLimits ? 'operation queue lists' : null,
+    hasInviteListLimits ? 'invite lists' : null,
+    hasApiKeyListLimits ? 'API-key lists' : null,
+    hasAdminDirectoryListLimits ? 'admin directory lists' : null,
+    hasUserGroupListLimits ? 'user group membership/chat lists' : null,
+  ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
@@ -698,37 +722,13 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/helpers.ts',
       hotspot: 'prepareListParams',
       observedPattern: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
-        ? (hasPublicPostListLimits
-          ? (hasFileCatalogListLimits
-            ? (hasCategoryManagementListLimits
-              ? (hasUserUtilityListLimits
-                ? (hasInviteListLimits
-                  ? (hasApiKeyListLimits
-                    ? (hasAdminDirectoryListLimits
-                      ? 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, operation queue lists, invite lists, API-key lists, and admin directory lists below the global export ceiling'
-                      : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, operation queue lists, invite lists, and API-key lists below the global export ceiling')
-                    : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, operation queue lists, and invite lists below the global export ceiling')
-                  : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, category management lists, static-site lists, and operation queue lists below the global export ceiling')
-                : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds, file-catalog browsing, and category management lists below the global export ceiling')
-              : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds plus file-catalog browsing below the global export ceiling')
-            : 'normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps public post feeds below the global export ceiling')
+        ? (cappedListSurfaces.length
+          ? `normalizes limit/offset, clamps sort direction, enforces endpoint sort allowlists, and caps ${joinList(cappedListSurfaces)} below the global export ceiling`
           : 'normalizes limit/offset to non-negative integers, caps limit, allowlists simple sort columns, and clamps sort direction')
         : 'review list parameter normalization',
       scalabilityRisk: has(helpersSource, 'parseNonNegativeInteger') && has(helpersSource, 'sanitizeSortDir') && has(helpersSource, 'sanitizeSortBy')
-        ? (hasPublicPostListLimits
-          ? (hasFileCatalogListLimits
-            ? (hasCategoryManagementListLimits
-              ? (hasUserUtilityListLimits
-                ? (hasInviteListLimits
-                  ? (hasApiKeyListLimits
-                    ? (hasAdminDirectoryListLimits
-                      ? 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, operation queue lists, invite lists, API-key lists, and admin directory lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies'
-                      : 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, operation queue lists, invite lists, and API-key lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
-                    : 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, operation queue lists, and invite lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
-                  : 'group/category public post feeds, user file-catalog browsing, category management lists, static-site lists, and operation queue lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
-                : 'group/category public post feeds, user file-catalog browsing, and category management lists use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
-              : 'group/category public post feeds and user file-catalog browsing use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies')
-            : 'group and category public post feeds now use indexed sort allowlists and a lower browsing cap; remaining endpoints still need endpoint-specific policies')
+        ? (cappedListSurfaces.length
+          ? `${joinList(cappedListSurfaces)} use endpoint allowlists and lower caps; remaining endpoints still need endpoint-specific policies`
           : 'bad public list params are normalized before Sequelize; endpoint-specific sort allowlists and lower public max page sizes remain open')
         : 'negative offsets/limits and arbitrary sort params can reach large-list queries',
     },

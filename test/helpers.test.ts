@@ -140,5 +140,21 @@ describe('helpers', () => {
 			sortDir: 'ASC',
 			limit: 100
 		});
+
+		const userGroupOptions = {
+			sortBy: 'createdAt',
+			allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'title', 'type'],
+			maxLimit: 100
+		};
+
+		assert.deepEqual(helpers.prepareListParams({
+			sortBy: 'isDeleted',
+			sortDir: 'desc',
+			limit: '500' as any
+		}, userGroupOptions), {
+			sortBy: 'createdAt',
+			sortDir: 'DESC',
+			limit: 100
+		});
 	});
 });

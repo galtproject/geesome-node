@@ -101,10 +101,11 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse AuthErrors
      *
      * @apiQuery {String} types Comma-separated group types.
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/member-in-groups', async (req, res) => {
-        res.send(await groupModule.getMemberInGroups(req.user.id, req.query.types.split(',')));
+        res.send(await groupModule.getMemberInGroups(req.user.id, req.query.types.split(','), req.query));
     });
 
     /**
@@ -116,10 +117,11 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse AuthErrors
      *
      * @apiQuery {String} types Comma-separated group types.
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/admin-in-groups', async (req, res) => {
-        res.send(await groupModule.getAdminInGroups(req.user.id, req.query.types.split(',')));
+        res.send(await groupModule.getAdminInGroups(req.user.id, req.query.types.split(','), req.query));
     });
 
     /**
@@ -130,10 +132,11 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse ApiKey
      * @apiUse AuthErrors
      *
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (./interface.ts) {IGroupApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/personal-chat-groups', async (req, res) => {
-        res.send(await groupModule.getPersonalChatGroups(req.user.id));
+        res.send(await groupModule.getPersonalChatGroups(req.user.id, req.query));
     });
 
     /**
