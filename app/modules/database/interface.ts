@@ -46,6 +46,8 @@ export interface IGeesomeDatabaseModule {
 
   getSharedContentByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IContent>;
 
+  getSharedContentByManifestId(manifestId): Promise<IContent>;
+
   countStorageIdReferences(storageId, excludeContentId?): Promise<{otherContents: number; previewRefs: number}>;
 
   countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number}>;

@@ -28,7 +28,7 @@ import AbstractDriver from "../drivers/abstractDriver.js";
 import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
 import {rtrim} from "telegram/Utils";
-const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, isUndefined, merge, last, startsWith, trimStart} = _;
+const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
 const adminContentListParams: IListParamsOptions = {
@@ -834,9 +834,9 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async createContentByRemoteStorageId(userId, manifestStorageId, options: { groupId?, userApiKeyId? } = {}) {
-			let dbContent = userId === null || isUndefined(userId)
-				? await app.ms.database.getContentByManifestId(manifestStorageId)
-				: await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId);
+			let dbContent = helpers.hasId(userId)
+				? await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId)
+				: await app.ms.database.getSharedContentByManifestId(manifestStorageId);
 			if (dbContent) {
 				return dbContent;
 			}
@@ -848,7 +848,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }) {
-			if (userId !== null && !isUndefined(userId)) {
+			if (helpers.hasId(userId)) {
 				if (contentObject.manifestStorageId) {
 					const dbContent = await app.ms.database.getContentByManifestAndUserId(contentObject.manifestStorageId, userId);
 					if (dbContent) {
@@ -862,9 +862,9 @@ function getModule(app: IGeesomeApp) {
 					}
 				}
 			}
-			if (userId === null || isUndefined(userId)) {
+			if (!helpers.hasId(userId)) {
 				if (contentObject.manifestStorageId) {
-					const dbContent = await app.ms.database.getContentByManifestId(contentObject.manifestStorageId);
+					const dbContent = await app.ms.database.getSharedContentByManifestId(contentObject.manifestStorageId);
 					if (dbContent) {
 						return dbContent;
 					}

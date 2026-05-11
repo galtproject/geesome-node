@@ -2,6 +2,13 @@ import assert from 'assert';
 import helpers from '../app/helpers.js';
 
 describe('helpers', () => {
+	it('detects present ids separately from nullish ownerless paths', () => {
+		assert.strictEqual(helpers.hasId(1), true);
+		assert.strictEqual(helpers.hasId('1'), true);
+		assert.strictEqual(helpers.hasId(null), false);
+		assert.strictEqual(helpers.hasId(undefined), false);
+	});
+
 	it('sanitizes list params before they reach Sequelize queries', () => {
 		assert.deepEqual(helpers.prepareListParams({
 			sortBy: 'createdAt;DROP',

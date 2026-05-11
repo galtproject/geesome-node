@@ -216,19 +216,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getContentByStorageId(storageId, findByPreviews = false) {
-    let where;
-    if(findByPreviews) {
-      where = {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]};
-    } else {
-      where = {storageId};
-    }
-    return this.models.Content.findOne({ where }) as IContent;
+    return this.getSharedContentByStorageId(storageId, {includePreviews: findByPreviews});
   }
 
   // A1 shared-content seam (see docs/database-scalability-review.md). Returns a single Content row
   // for shared metadata reads (public file/preview headers, MIME type, size). Multiple users may own
-  // separate Content rows with the same storageId; pick the oldest by id for deterministic
-  // tie-breaking so the same physical object always resolves to the same metadata row across calls.
+  // separate Content rows with the same storageId or manifestStorageId; pick the oldest by id for
+  // deterministic tie-breaking so shared reads always resolve to the same metadata row across calls.
   // When the A2 carve-out lands, this helper switches to read from the canonical contentAssets
   // table without any caller change.
   async getSharedContentByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
@@ -236,6 +230,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       ? {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]}
       : {storageId};
     return this.models.Content.findOne({where, order: [['id', 'ASC']]}) as IContent;
+  }
+
+  async getSharedContentByManifestId(manifestStorageId) {
+    return this.models.Content.findOne({where: {manifestStorageId}, order: [['id', 'ASC']]}) as IContent;
   }
 
   // A1 reference-count helper for physical storage objects. Used by deleteFileCatalogItem before
@@ -283,7 +281,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getContentByManifestId(manifestStorageId) {
-    return this.models.Content.findOne({where: {manifestStorageId}}) as IContent;
+    return this.getSharedContentByManifestId(manifestStorageId);
   }
 
   async getContentByManifestAndUserId(manifestStorageId, userId) {

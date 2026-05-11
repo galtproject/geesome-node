@@ -58,6 +58,7 @@ function modelRows(): ModelRow[] {
   const groupCategorySource = read('app/modules/groupCategory/models/groupCategory.ts');
   const groupSectionSource = read('app/modules/groupCategory/models/groupSection.ts');
   const staticIdSource = read('app/modules/staticId/models.ts');
+  const databaseModuleSource = read('app/modules/database/index.ts');
   const appSource = read('app/index.ts');
   const userContentActionSource = read('app/modules/database/models/userContentAction.ts');
   const userLimitSource = read('app/modules/database/models/userLimit.ts');
@@ -84,6 +85,10 @@ function modelRows(): ModelRow[] {
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
+  const hasDeterministicSharedContentLookup = has(databaseModuleSource, 'async getSharedContentByStorageId')
+    && has(databaseModuleSource, 'async getSharedContentByManifestId')
+    && has(databaseModuleSource, "order: [['id', 'ASC']]")
+    && has(databaseModuleSource, 'return this.getSharedContentByManifestId(manifestStorageId)');
   const hasObjectResolvePropUnique = has(objectSource, 'objects_storage_resolve_prop_unique')
     && has(objectSource, "fields: ['storageId', 'resolveProp']")
     && has(objectSource, 'unique: true');
@@ -181,9 +186,11 @@ function modelRows(): ModelRow[] {
         has(contentSource, "fields: ['userId'") ? 'has user listing index' : 'missing user/created listing index',
         has(contentSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
         has(contentSource, "fields: ['mediumPreviewStorageId'") ? 'has preview lookup indexes' : 'missing preview lookup indexes for file/header serving',
-        hasContentUserStorageUnique
+        hasContentUserStorageUnique && hasDeterministicSharedContentLookup
+          ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'
+          : (hasContentUserStorageUnique
           ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
-          : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
+          : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics'),
       ],
     },
     {
@@ -558,6 +565,10 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'await models.Post.update({repostsCount}, {where: {id: repostOfId}, transaction})');
   const hasPostStatusCounterReconcile = has(groupSource, 'shouldReconcileReplyCounters')
     && has(groupSource, 'shouldReconcileRepostCounters');
+  const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
+    && has(databaseSource, 'async getSharedContentByManifestId')
+    && has(databaseSource, "order: [['id', 'ASC']]")
+    && has(databaseSource, 'return this.getSharedContentByManifestId(manifestStorageId)');
   const hasCanonicalPostDbTransaction = hasPostWriteTransaction && hasPostDeleteTransaction;
 
   return [
@@ -711,9 +722,13 @@ function hotspotRows(): HotspotRow[] {
       area: 'Content preview serving',
       source: 'app/modules/database/index.ts',
       hotspot: 'getContentByStorageId(findByPreviews)',
-      observedPattern: has(databaseSource, 'largePreviewStorageId') ? 'OR lookup across storageId and preview storage ids' : 'review preview lookup path',
+      observedPattern: hasDeterministicSharedContentLookup
+        ? 'legacy/global storage and manifest lookups delegate to deterministic shared helpers; preview mode still ORs across storageId and preview storage ids'
+        : (has(databaseSource, 'largePreviewStorageId') ? 'OR lookup across storageId and preview storage ids' : 'review preview lookup path'),
       scalabilityRisk: has(read('app/modules/database/models/content.ts'), 'contents_large_preview_storage_idx')
-        ? 'preview columns are indexed, but public/header serving still reads across user-owned rows instead of canonical asset metadata'
+        ? (hasDeterministicSharedContentLookup
+        ? 'shared reads are stable across duplicate user-owned rows, but they still read user-library metadata until canonical asset metadata exists'
+        : 'preview columns are indexed, but public/header serving still reads across user-owned rows instead of canonical asset metadata')
         : 'preview/header serving can scan contents without preview-column indexes or canonical asset metadata',
     },
     {

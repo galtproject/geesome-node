@@ -226,8 +226,14 @@ function getCurDir() {
 	return dirname(__filename);
 }
 
+function hasId(id) {
+	return id !== null && typeof id !== 'undefined';
+}
+
 export default {
 	getCurDir,
+
+	hasId,
 
 	validateEmail(email) {
 		return /^\w+([\+\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);

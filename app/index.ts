@@ -309,8 +309,13 @@ function getModule(config, appPass) {
     }
 
     async createUserByObject(userId, userObject) {
-      let dbAvatar = await this.ms.database.getContentByManifestId(userObject.avatarImage.manifestStorageId);
-      if (!dbAvatar) {
+      let dbAvatar;
+      if (userObject.avatarImage?.manifestStorageId) {
+        dbAvatar = helpers.hasId(userId)
+          ? await this.ms.database.getContentByManifestAndUserId(userObject.avatarImage.manifestStorageId, userId)
+          : await this.ms.database.getSharedContentByManifestId(userObject.avatarImage.manifestStorageId);
+      }
+      if (!dbAvatar && userObject.avatarImage) {
         dbAvatar = await this.ms.content.createContentByObject(userId, userObject.avatarImage);
       }
       const userFields = ['manifestStaticStorageId', 'manifestStorageId', 'name', 'title', 'email', 'isRemote', 'description'];
