@@ -61,6 +61,7 @@ function modelRows(): ModelRow[] {
   const userContentActionSource = read('app/modules/database/models/userContentAction.ts');
   const userLimitSource = read('app/modules/database/models/userLimit.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/models.ts');
+  const asyncOperationIndexSource = read('app/modules/asyncOperation/index.ts');
   const autoActionSource = read('app/modules/autoActions/models.ts');
   const autoActionIndexSource = read('app/modules/autoActions/index.ts');
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
@@ -100,6 +101,9 @@ function modelRows(): ModelRow[] {
   const hasPinGroupNameUnique = has(pinSource, 'pin_accounts_group_name_unique')
     && has(pinSource, "fields: ['groupId', 'name']")
     && has(pinSource, 'unique: true');
+  const hasAsyncOperationRetention = has(asyncOperationIndexSource, 'cleanupFinishedAsyncOperations')
+    && has(asyncOperationIndexSource, 'finishedOperationCleanupBatchLimit')
+    && has(asyncOperationIndexSource, 'asyncOperationId: null');
 
   return [
     {
@@ -239,11 +243,21 @@ function modelRows(): ModelRow[] {
         has(asyncOperationSource, "fields: ['module', 'isWaiting']")
           ? 'queue module,isWaiting picker index'
           : 'review queue picker index',
+        has(asyncOperationSource, 'user_operation_queues_async_operation_idx')
+          ? 'queue asyncOperationId lifecycle index'
+          : 'missing queue asyncOperationId lifecycle index',
+        has(asyncOperationSource, 'user_operation_queues_waiting_async_updated_idx')
+          ? 'queue isWaiting,asyncOperationId,updatedAt,id retention index'
+          : 'missing queue retention index',
       ],
       notes: [
         has(asyncOperationSource, 'user_async_operations_user_process_name_created_idx') && has(asyncOperationSource, 'user_async_operations_process_updated_idx')
-          ? 'operation-list and restart-sweep indexes are present; retention/cleanup policy remains open'
-          : 'operation ledger can grow and needs lookup/sweep indexes plus retention',
+          && has(asyncOperationSource, 'user_operation_queues_async_operation_idx')
+          && has(asyncOperationSource, 'user_operation_queues_waiting_async_updated_idx')
+          ? (hasAsyncOperationRetention
+            ? 'operation-list, restart-sweep, queue lifecycle, and queue retention indexes are present; finished-operation retention cleanup is bounded on startup'
+            : 'operation-list, restart-sweep, queue lifecycle, and queue retention indexes are present; retention/cleanup policy remains open')
+          : 'operation ledger can grow and needs lookup/sweep/queue indexes plus retention',
       ],
     },
     {
@@ -486,6 +500,9 @@ function hotspotRows(): HotspotRow[] {
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
     && has(autoActionCronSource, 'actionIdsInQueueOrProcess');
+  const hasAsyncOperationRetention = has(asyncOperationSource, 'cleanupFinishedAsyncOperations')
+    && has(asyncOperationSource, 'finishedOperationCleanupBatchLimit')
+    && has(asyncOperationSource, 'asyncOperationId: null');
   const hasGroupManifestPostRefs = has(groupSource, 'async getGroupManifestPostRefs')
     && (has(manifestSource, 'getGroupManifestPostRefs(groupData.id, filters')
       || has(manifestSource, 'getGroupManifestPostRefs(groupId, batchFilters'));
@@ -715,12 +732,18 @@ function hotspotRows(): HotspotRow[] {
     {
       area: 'Async operation ledger',
       source: 'app/modules/asyncOperation/index.ts',
-      hotspot: 'getUserAsyncOperationList / closeAllAsyncOperation',
+      hotspot: 'getUserAsyncOperationList / closeAllAsyncOperation / cleanupFinishedAsyncOperations',
       observedPattern: has(asyncOperationSource, "order: [['createdAt', 'DESC']]") && has(asyncOperationSource, 'where: {inProcess: true}')
-        ? 'lists by user/inProcess/name ordered by createdAt and closes all in-process rows on startup'
+        ? (hasAsyncOperationRetention
+          ? 'lists by user/inProcess/name ordered by createdAt, closes in-process rows on startup, and deletes old finished rows in a bounded batch'
+          : 'lists by user/inProcess/name ordered by createdAt and closes all in-process rows on startup')
         : 'review async operation list/sweep implementation',
       scalabilityRisk: has(read('app/modules/asyncOperation/models.ts'), 'user_async_operations_process_updated_idx')
-        ? 'lookup and startup sweep indexes are present; finished-operation retention remains open'
+        && has(read('app/modules/asyncOperation/models.ts'), 'user_operation_queues_async_operation_idx')
+        && has(read('app/modules/asyncOperation/models.ts'), 'user_operation_queues_waiting_async_updated_idx')
+        ? (hasAsyncOperationRetention
+          ? 'lookup, startup sweep, queue lifecycle, and finished-row retention cleanup are present; operation history beyond the latest window is intentionally temporary'
+          : 'lookup, startup sweep, and queue lifecycle indexes are present; finished-operation retention remains open')
         : 'operation list and restart sweep can scan a growing ledger',
     },
     {

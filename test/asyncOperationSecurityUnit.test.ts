@@ -1,5 +1,21 @@
 import assert from "assert";
+import {Op} from "sequelize";
 import {getModule as getAsyncOperationModule} from "../app/modules/asyncOperation/index.js";
+
+function isBeforeDate(value, cutoff) {
+	return new Date(value).getTime() < cutoff.getTime();
+}
+
+function removeMatching(rows, predicate) {
+	let deleted = 0;
+	for (let i = rows.length - 1; i >= 0; i--) {
+		if (predicate(rows[i])) {
+			rows.splice(i, 1);
+			deleted++;
+		}
+	}
+	return deleted;
+}
 
 function createAsyncOperationModule({queues = [], operations = []}: {queues?: any[], operations?: any[]} = {}) {
 	const app = {
@@ -18,12 +34,33 @@ function createAsyncOperationModule({queues = [], operations = []}: {queues?: an
 	return getAsyncOperationModule(app as any, {
 		UserOperationQueue: {
 			findOne: async ({where}) => queues.find((queue) => queue.id === Number(where.id)) || null,
-			findAll: async ({where}) => queues.filter((queue) => {
-				return queue.userId === where.userId && queue.module === where.module && queue.isWaiting === where.isWaiting;
-			}),
+			findAll: async ({where, limit}) => {
+				if (where.updatedAt?.[Op.lt]) {
+					return queues
+						.filter((queue) => {
+							return queue.isWaiting === where.isWaiting
+								&& queue.asyncOperationId === where.asyncOperationId
+								&& isBeforeDate(queue.updatedAt, where.updatedAt[Op.lt]);
+						})
+						.sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.id - b.id)
+						.slice(0, limit);
+				}
+				return queues.filter((queue) => {
+					return queue.userId === where.userId && queue.module === where.module && queue.isWaiting === where.isWaiting;
+				});
+			},
 			count: async ({where}) => queues.filter((queue) => {
 				return queue.userId === where.userId && queue.module === where.module && queue.isWaiting === where.isWaiting;
 			}).length,
+			destroy: async ({where}) => {
+				if (where.asyncOperationId?.[Op.in]) {
+					return removeMatching(queues, (queue) => where.asyncOperationId[Op.in].includes(queue.asyncOperationId));
+				}
+				if (where.id?.[Op.in]) {
+					return removeMatching(queues, (queue) => where.id[Op.in].includes(queue.id));
+				}
+				return 0;
+			},
 			update: async (updateData, {where}) => {
 				const queue = queues.find((item) => item.id === Number(where.id));
 				if (queue) {
@@ -34,7 +71,21 @@ function createAsyncOperationModule({queues = [], operations = []}: {queues?: an
 		},
 		UserAsyncOperation: {
 			findOne: async ({where}) => operations.find((operation) => operation.id === Number(where.id)) || null,
-			findAll: async ({where}) => operations.filter((operation) => operation.userId === where.userId),
+			findAll: async ({where, limit}) => {
+				if (where.updatedAt?.[Op.lt]) {
+					return operations
+						.filter((operation) => {
+							return operation.inProcess === where.inProcess
+								&& isBeforeDate(operation.updatedAt, where.updatedAt[Op.lt]);
+						})
+						.sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.id - b.id)
+						.slice(0, limit);
+				}
+				return operations.filter((operation) => operation.userId === where.userId);
+			},
+			destroy: async ({where}) => {
+				return removeMatching(operations, (operation) => where.id[Op.in].includes(operation.id));
+			},
 			update: async (updateData, {where}) => {
 				const operation = operations.find((item) => item.id === Number(where.id));
 				if (operation) {
@@ -112,5 +163,33 @@ describe("async operation ownership controls", function () {
 		await asyncOperations.cancelAsyncOperation(1, 1);
 		assert.equal(operations[0].cancel, true);
 		assert.equal(operations[1].cancel, false);
+	});
+
+	it("cleans up old finished operations and closed orphan queue rows in bounded batches", async () => {
+		const oldDate = new Date("2026-03-01T00:00:00.000Z");
+		const recentDate = new Date("2026-04-15T00:00:00.000Z");
+		const cutoff = new Date("2026-04-01T00:00:00.000Z");
+		const operations = [
+			{id: 1, userId: 1, name: "render", inProcess: false, updatedAt: oldDate},
+			{id: 2, userId: 1, name: "failed-render", inProcess: false, updatedAt: oldDate},
+			{id: 3, userId: 1, name: "running-render", inProcess: true, updatedAt: oldDate},
+			{id: 4, userId: 1, name: "recent-render", inProcess: false, updatedAt: recentDate}
+		];
+		const queues = [
+			{id: 1, userId: 1, module: "staticSiteGenerator", isWaiting: false, asyncOperationId: 1, updatedAt: oldDate},
+			{id: 2, userId: 1, module: "staticSiteGenerator", isWaiting: false, asyncOperationId: 2, updatedAt: oldDate},
+			{id: 3, userId: 1, module: "staticSiteGenerator", isWaiting: false, asyncOperationId: null, updatedAt: oldDate},
+			{id: 4, userId: 1, module: "staticSiteGenerator", isWaiting: false, asyncOperationId: 4, updatedAt: oldDate},
+			{id: 5, userId: 1, module: "staticSiteGenerator", isWaiting: true, asyncOperationId: null, updatedAt: oldDate},
+			{id: 6, userId: 1, module: "staticSiteGenerator", isWaiting: false, asyncOperationId: null, updatedAt: oldDate}
+		];
+		const asyncOperations = createAsyncOperationModule({operations, queues});
+
+		const result = await asyncOperations.cleanupFinishedAsyncOperations({cutoff, limit: 1});
+
+		assert.equal(result.deletedOperations, 1);
+		assert.equal(result.deletedQueues, 2);
+		assert.deepEqual(operations.map(operation => operation.id), [2, 3, 4]);
+		assert.deepEqual(queues.map(queue => queue.id), [2, 4, 5, 6]);
 	});
 });

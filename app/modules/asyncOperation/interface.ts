@@ -48,6 +48,8 @@ export default interface IGeesomeAsyncOperationModule {
 
 	closeAllAsyncOperation(): Promise<any>;
 
+	cleanupFinishedAsyncOperations(options?: any): Promise<any>;
+
 	updateUserOperationQueue(id, updateData): Promise<any>;
 
 	getWaitingOperationQueueByModule(module): Promise<IUserOperationQueue>;
