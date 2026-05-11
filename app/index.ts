@@ -48,6 +48,11 @@ const apiKeyListParams: IListParamsOptions = {
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],
   maxLimit: 100
 };
+const adminUserListParams: IListParamsOptions = {
+  sortBy: 'createdAt',
+  allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'email', 'storageAccountId'],
+  maxLimit: 100
+};
 
 export default async (extendConfig) => {
   const resConfig = merge(config, extendConfig || {});
@@ -546,7 +551,7 @@ function getModule(config, appPass) {
     }
 
     async getAllUserList(adminId, searchString?, listParams?: IListParams) {
-      listParams = helpers.prepareListParams(listParams);
+      listParams = helpers.prepareListParams(listParams, adminUserListParams);
       await this.checkUserCan(adminId, CorePermissionName.AdminRead);
       return {
         list: await this.ms.database.getAllUserList(searchString, listParams),

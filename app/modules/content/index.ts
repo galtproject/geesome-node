@@ -18,6 +18,7 @@ import {
 	CorePermissionName,
 	IContent,
 	IListParams,
+	IListParamsOptions,
 	UserContentActionName,
 	UserLimitName
 } from "../database/interface.js";
@@ -30,6 +31,11 @@ import {rtrim} from "telegram/Utils";
 const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, isUndefined, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
+const adminContentListParams: IListParamsOptions = {
+	sortBy: 'createdAt',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+	maxLimit: 100
+};
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
@@ -102,7 +108,7 @@ function getModule(app: IGeesomeApp) {
 	class ContentModule implements IGeesomeContentModule {
 
 		async getAllContentList(adminId, searchString?, listParams?: IListParams) {
-			listParams = helpers.prepareListParams(listParams);
+			listParams = helpers.prepareListParams(listParams, adminContentListParams);
 			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
 			return {
 				list: await app.ms.database.getAllContentList(searchString, listParams),
