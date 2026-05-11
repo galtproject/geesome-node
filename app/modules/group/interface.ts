@@ -163,6 +163,8 @@ export default interface IGeesomeGroupModule {
 
 	addPost(post: IPost): Promise<IPost>;
 
+	addPostEvent(postEvent, options?): Promise<any>;
+
 	getPostByManifestId(manifestStorageId): Promise<IPost>;
 
 	getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId): Promise<IPost>;
@@ -337,6 +339,16 @@ export enum PostStatus {
 	Queue = 'queue',
 	Published = 'published',
 	Draft = 'draft',
+	Deleted = 'deleted'
+}
+
+export enum PostEventType {
+	SourceImport = 'source_import'
+}
+
+export enum PostEventAction {
+	Created = 'created',
+	Updated = 'updated',
 	Deleted = 'deleted'
 }
 

@@ -7,6 +7,7 @@ import pgpHelper from "geesome-libs/src/pgpHelper.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
 import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface.js";
+import {buildSourceImportPostEvent, getPostEventState} from './postEventHelpers.js';
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import {
@@ -752,6 +753,11 @@ function getModule(app: IGeesomeApp, models) {
 				await models.Post.update({size}, {where: {id: post.id}, transaction});
 				log('updatePost');
 
+				const postEvent = buildSourceImportPostEvent(userId, null, {...getPostEventState(post), size});
+				if (postEvent) {
+					await this.addPostEvent(postEvent, {transaction});
+				}
+
 				if (post.status === PostStatus.Published && !post.isDeleted) {
 					await this.incrementGroupCounters(post.groupId, {sizeDelta: size || 0, availableDelta: 1}, {transaction});
 				}
@@ -934,11 +940,20 @@ function getModule(app: IGeesomeApp, models) {
 			const repostOfPostIds = helpers.normalizeUniqueIds([oldPost.repostOfId, newRepostOfId]);
 			const shouldReconcileReplyCounters = wasPublished !== isPublished || Number(oldPost.replyToId || 0) !== Number(newReplyToId || 0);
 			const shouldReconcileRepostCounters = wasPublished !== isPublished || Number(oldPost.repostOfId || 0) !== Number(newRepostOfId || 0);
+			const nextPostEventState = {
+				...getPostEventState(oldPost),
+				...postData,
+				id: oldPost.id,
+				groupId: oldPost.groupId,
+				userId: oldPost.userId
+			};
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
 				if (isPublished && !oldPost.localId) {
 					postData.localId = await this.allocatePostLocalId({...postData, groupId: oldPost.groupId}, transaction);
 					postData.publishedAt = postData.publishedAt || oldPost.publishedAt || new Date();
+					nextPostEventState.localId = postData.localId;
+					nextPostEventState.publishedAt = postData.publishedAt;
 				}
 
 				if(contentsData) {
@@ -946,6 +961,10 @@ function getModule(app: IGeesomeApp, models) {
 				}
 
 				await models.Post.update(postData, {where: {id: postId}, transaction});
+				const postEvent = buildSourceImportPostEvent(userId, oldPost, nextPostEventState);
+				if (postEvent) {
+					await this.addPostEvent(postEvent, {transaction});
+				}
 				if (isPublished && !wasPublished) {
 					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize, availableDelta: 1}, {transaction});
 				} else if (!isPublished && wasPublished) {
@@ -1002,6 +1021,17 @@ function getModule(app: IGeesomeApp, models) {
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
 				await this.updatePosts(postIds, {isDeleted: true}, {transaction});
+
+				await pIteration.forEach(posts, async (post) => {
+					const nextPostEventState = {
+						...getPostEventState(post),
+						isDeleted: true
+					};
+					const postEvent = buildSourceImportPostEvent(userId, post, nextPostEventState);
+					if (postEvent) {
+						await this.addPostEvent(postEvent, {transaction});
+					}
+				});
 
 				await pIteration.forEach(Object.entries(decrementsByGroup), async ([groupId, deltas]) => {
 					await this.incrementGroupCounters(Number(groupId), deltas, {transaction});
@@ -1523,6 +1553,10 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Post.create(post, {transaction: options.transaction});
 		}
 
+		async addPostEvent(postEvent, options: any = {}) {
+			return models.PostEvent.create(postEvent, {transaction: options.transaction});
+		}
+
 		async updatePosts(ids, updateData, options: any = {}) {
 			return models.Post.update(updateData, {where: {id: {[Op.in]: ids}}, transaction: options.transaction});
 		}
@@ -1633,7 +1667,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async flushDatabase() {
 			await pIteration.forEachSeries([
-				'AutoTag', 'Tag', 'GroupRead', 'PostsContents', 'Post', 'GroupPermission',
+				'AutoTag', 'Tag', 'GroupRead', 'PostEvent', 'PostsContents', 'Post', 'GroupPermission',
 				'GroupAdministrators', 'GroupMembers', 'Group'
 			], (modelName) => {
 				return models[modelName].destroy({where: {}});

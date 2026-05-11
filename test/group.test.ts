@@ -11,7 +11,7 @@ import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
 import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
-import {PostStatus} from "../app/modules/group/interface.js";
+import {PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
 describe("group", function () {
@@ -380,6 +380,7 @@ describe("group", function () {
 	it('reconciles social import source identity when a post is deleted', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
 		const socNetImport = (app.ms as any).socNetImport;
 		const parentContent = await app.ms.content.saveData(testUser.id, 'import delete parent', null, {
 			mimeType: 'text/markdown'
@@ -437,6 +438,21 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repostsCount, 0);
 		assert.equal(groupAfterDelete.availablePostsCount, 1);
 		assert.equal(Number(groupAfterDelete.size), Number(parentContent.size));
+
+		const importEvents = await models.PostEvent.findAll({
+			where: {postId: importedPost.id, type: PostEventType.SourceImport},
+			order: [['createdAt', 'ASC'], ['id', 'ASC']]
+		});
+		assert.equal(importEvents.length, 2);
+		assert.equal(importEvents[0].action, PostEventAction.Created);
+		assert.equal(importEvents[1].action, PostEventAction.Deleted);
+		assert.equal(importEvents[1].source, sourceIdentity.source);
+		assert.equal(importEvents[1].sourceChannelId, sourceIdentity.sourceChannelId);
+		assert.equal(importEvents[1].sourcePostId, sourceIdentity.sourcePostId);
+		assert.equal(importEvents[1].previousStatus, PostStatus.Published);
+		assert.equal(importEvents[1].nextStatus, PostStatus.Published);
+		assert.equal(importEvents[1].previousIsDeleted, false);
+		assert.equal(importEvents[1].nextIsDeleted, true);
 	});
 
 	it('does not use the local id high-water mark as unread count when availability is zero', async () => {
