@@ -330,6 +330,26 @@ function getModule(app: IGeesomeApp, models) {
 			return this.updateGroupPure(groupId, {size, availablePostsCount, publishedPostsCount: maxLocalId});
 		}
 
+		async reconcilePostRelationCounters(postIds, options: any = {}) {
+			const ids = uniqBy(
+				(postIds || []).filter(id => !isUndefined(id) && id !== null).map(id => ({id: Number(id)})),
+				'id'
+			).map(p => p.id).filter(id => Number.isFinite(id));
+			return pIteration.forEach(ids, async (postId) => {
+				const [repliesCount, repostsCount] = await Promise.all([
+					models.Post.count({
+						where: this.getPostsWhere({replyToId: postId}),
+						transaction: options.transaction
+					}),
+					models.Post.count({
+						where: this.getPostsWhere({repostOfId: postId}),
+						transaction: options.transaction
+					})
+				]);
+				await models.Post.update({repliesCount, repostsCount}, {where: {id: postId}, transaction: options.transaction});
+			});
+		}
+
 		async updatePostManifest(userId, postId) {
 			log('updatePostManifest');
 			const post = await this.getPostPure(postId);
@@ -723,13 +743,7 @@ function getModule(app: IGeesomeApp, models) {
 				post = await this.addPost(postData, {transaction});
 				log('addPost');
 
-				if (post.replyToId) {
-					const repliesCount = await models.Post.count({
-						where: this.getPostsWhere({replyToId: post.replyToId}),
-						transaction
-					});
-					await models.Post.update({repliesCount}, {where: {id: post.replyToId}, transaction});
-				}
+				await this.reconcilePostRelationCounters([post.replyToId, post.repostOfId], {transaction});
 				log('replyPostUpdate');
 
 				if (contents) {
@@ -946,24 +960,8 @@ function getModule(app: IGeesomeApp, models) {
 					await this.incrementGroupCounters(oldPost.groupId, {sizeDelta: newSize - oldSize}, {transaction});
 				}
 
-				if (shouldReconcileReplyCounters) {
-					await pIteration.forEach(replyToPostIds, async (replyToId) => {
-						const repliesCount = await models.Post.count({
-							where: this.getPostsWhere({replyToId}),
-							transaction
-						});
-						await models.Post.update({repliesCount}, {where: {id: replyToId}, transaction});
-					});
-				}
-
-				if (shouldReconcileRepostCounters) {
-					await pIteration.forEach(repostOfPostIds, async (repostOfId) => {
-						const repostsCount = await models.Post.count({
-							where: {repostOfId, isDeleted: false, status: PostStatus.Published},
-							transaction
-						});
-						await models.Post.update({repostsCount}, {where: {id: repostOfId}, transaction});
-					});
+				if (shouldReconcileReplyCounters || shouldReconcileRepostCounters) {
+					await this.reconcilePostRelationCounters([...replyToPostIds, ...repostOfPostIds], {transaction});
 				}
 			});
 			if (isPublished) {
@@ -1015,21 +1013,7 @@ function getModule(app: IGeesomeApp, models) {
 					await this.incrementGroupCounters(Number(groupId), deltas, {transaction});
 				});
 
-				await pIteration.forEach(replyToPostIds, async (replyToId) => {
-					const repliesCount = await models.Post.count({
-						where: this.getPostsWhere({replyToId}),
-						transaction
-					});
-					await models.Post.update({repliesCount}, {where: {id: replyToId}, transaction});
-				});
-
-				await pIteration.forEach(repostOfPostIds, async (repostOfId) => {
-					const repostsCount = await models.Post.count({
-						where: {repostOfId, isDeleted: false, status: PostStatus.Published},
-						transaction
-					});
-					await models.Post.update({repostsCount}, {where: {id: repostOfId}, transaction});
-				});
+				await this.reconcilePostRelationCounters([...replyToPostIds, ...repostOfPostIds], {transaction});
 			});
 
 			// Regenerate the affected group manifests so counters and deleted local-id tombstones land.
@@ -1270,7 +1254,7 @@ function getModule(app: IGeesomeApp, models) {
 				cursorIdFilter: 'publishedAfterCursorId',
 				direction: 'after'
 			});
-			['id', 'status', 'replyToId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
+			['id', 'status', 'replyToId', 'repostOfId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
 				if(filters[name] === 'null') {
 					filters[name] = null;
 				}

@@ -353,6 +353,60 @@ describe("group", function () {
 		assert.equal((await app.ms.group.getPostPure(parentPost.id)).repliesCount, 0);
 	});
 
+	it('repairs post reply and repost counters through one helper', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const parentContent = await app.ms.content.saveData(testUser.id, 'counter parent post', null, {
+			mimeType: 'text/markdown'
+		});
+		const replyContent = await app.ms.content.saveData(testUser.id, 'counter reply post', null, {
+			mimeType: 'text/markdown'
+		});
+		const repostContent = await app.ms.content.saveData(testUser.id, 'counter repost post', null, {
+			mimeType: 'text/markdown'
+		});
+
+		const parentPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: parentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const replyPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: replyContent.id, view: ContentView.Contents}],
+			replyToId: parentPost.id,
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const repostPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: repostContent.id, view: ContentView.Contents}],
+			repostOfId: parentPost.id,
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		let gotParent = await app.ms.group.getPostPure(parentPost.id);
+		assert.equal(gotParent.repliesCount, 1);
+		assert.equal(gotParent.repostsCount, 1);
+
+		await models.Post.update({repliesCount: 7, repostsCount: 9}, {where: {id: parentPost.id}});
+		await app.ms.group.reconcilePostRelationCounters([parentPost.id]);
+
+		gotParent = await app.ms.group.getPostPure(parentPost.id);
+		assert.equal(gotParent.repliesCount, 1);
+		assert.equal(gotParent.repostsCount, 1);
+
+		await app.ms.group.updatePost(testUser.id, replyPost.id, {status: PostStatus.Draft});
+		gotParent = await app.ms.group.getPostPure(parentPost.id);
+		assert.equal(gotParent.repliesCount, 0);
+		assert.equal(gotParent.repostsCount, 1);
+
+		await app.ms.group.deletePosts(testUser.id, [repostPost.id]);
+		gotParent = await app.ms.group.getPostPure(parentPost.id);
+		assert.equal(gotParent.repliesCount, 0);
+		assert.equal(gotParent.repostsCount, 0);
+	});
+
 	it('removes deleted posts from regenerated group manifest trie', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

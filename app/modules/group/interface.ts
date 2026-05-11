@@ -119,6 +119,10 @@ export default interface IGeesomeGroupModule {
 
 	getGroupSizeSum(id): Promise<number>;
 
+	reconcilePostRelationCounters(postIds, options?): Promise<void>;
+
+	reconcileGroupCounters(groupId): Promise<any>;
+
 	getGroupByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IGroup>;
 
 	getPostByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
