@@ -462,6 +462,7 @@ function modelRows(): ModelRow[] {
 function hotspotRows(): HotspotRow[] {
   const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
+  const groupTestSource = read('test/group.test.ts');
   const manifestSource = read('app/modules/entityJsonManifest/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/index.ts');
   const rssSource = read('app/modules/rss/index.ts');
@@ -618,6 +619,7 @@ function hotspotRows(): HotspotRow[] {
   const hasPostStatusCounterReconcile = has(groupSource, 'shouldReconcileReplyCounters')
     && has(groupSource, 'shouldReconcileRepostCounters')
     && hasPostRelationCounterRepair;
+  const hasSocialImportRelationCounterUpsertTest = has(groupTestSource, 'reconciles relation counters when social import upserts move targets');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
     && has(databaseSource, 'async getSharedContentByManifestId')
     && has(databaseSource, "order: [['id', 'ASC']]")
@@ -735,7 +737,9 @@ function hotspotRows(): HotspotRow[] {
           : 'post create/update run localId allocation, post rows, attachments, size, and counters as separate statements'),
       scalabilityRisk: hasCanonicalPostDbTransaction
         ? (hasPostStatusCounterReconcile
-          ? 'canonical post DB partial-state risk is reduced and relation counters have a reusable repair helper; import/upsert lifecycle semantics and manifest/static derived work still need transaction/job boundaries'
+          ? (hasSocialImportRelationCounterUpsertTest
+            ? 'canonical post DB partial-state risk is reduced; relation counters have reusable repair plus source-identity upsert coverage, while remote delete/edit tombstones and manifest/static derived work still need transaction/job boundaries'
+            : 'canonical post DB partial-state risk is reduced and relation counters have a reusable repair helper; import/upsert lifecycle semantics and manifest/static derived work still need transaction/job boundaries')
           : 'canonical post DB partial-state risk is reduced; status/import/upsert transitions and manifest/static derived work still need transaction/job boundaries')
         : (hasPostWriteTransaction
           ? 'create/update partial DB state risk is reduced; delete/import transitions and manifest/static derived work still need transaction/job boundaries'

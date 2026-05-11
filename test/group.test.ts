@@ -235,6 +235,81 @@ describe("group", function () {
 		assert.notEqual(otherPost.id, firstPost.id);
 	});
 
+	it('reconciles relation counters when social import upserts move targets', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const socNetImport = (app.ms as any).socNetImport;
+		const firstReplyParentContent = await app.ms.content.saveData(testUser.id, 'first reply parent', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondReplyParentContent = await app.ms.content.saveData(testUser.id, 'second reply parent', null, {
+			mimeType: 'text/markdown'
+		});
+		const firstRepostParentContent = await app.ms.content.saveData(testUser.id, 'first repost parent', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondRepostParentContent = await app.ms.content.saveData(testUser.id, 'second repost parent', null, {
+			mimeType: 'text/markdown'
+		});
+		const importContent = await app.ms.content.saveData(testUser.id, 'imported relation body', null, {
+			mimeType: 'text/markdown'
+		});
+		const firstReplyParent = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstReplyParentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondReplyParent = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondReplyParentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const firstRepostParent = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstRepostParentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondRepostParent = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondRepostParentContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const sourceIdentity = {
+			groupId: testGroup.id,
+			source: 'socNetImport:test',
+			sourceChannelId: 'counter-channel',
+			sourcePostId: 'counter-post'
+		};
+		const firstPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: importContent.id, view: ContentView.Contents}],
+			replyToId: firstReplyParent.id,
+			repostOfId: firstRepostParent.id,
+			propertiesJson: JSON.stringify({sourceLink: 'first-targets'}),
+			sourceDate: new Date('2026-01-02T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		assert.equal((await app.ms.group.getPostPure(firstReplyParent.id)).repliesCount, 1);
+		assert.equal((await app.ms.group.getPostPure(firstRepostParent.id)).repostsCount, 1);
+
+		const secondPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
+			...sourceIdentity,
+			contents: [{id: importContent.id, view: ContentView.Contents}],
+			replyToId: secondReplyParent.id,
+			repostOfId: secondRepostParent.id,
+			propertiesJson: JSON.stringify({sourceLink: 'second-targets'}),
+			sourceDate: new Date('2026-01-02T00:00:00.000Z'),
+			status: PostStatus.Published
+		});
+
+		assert.equal(secondPost.id, firstPost.id);
+		assert.equal((await app.ms.group.getPostPure(firstReplyParent.id)).repliesCount, 0);
+		assert.equal((await app.ms.group.getPostPure(secondReplyParent.id)).repliesCount, 1);
+		assert.equal((await app.ms.group.getPostPure(firstRepostParent.id)).repostsCount, 0);
+		assert.equal((await app.ms.group.getPostPure(secondRepostParent.id)).repostsCount, 1);
+	});
+
 	it('does not use the local id high-water mark as unread count when availability is zero', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
