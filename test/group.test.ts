@@ -190,6 +190,7 @@ describe("group", function () {
 		const secondContent = await app.ms.content.saveData(testUser.id, 'updated imported body', null, {
 			mimeType: 'text/markdown'
 		});
+		const groupBeforeImport = await app.ms.group.getGroup(testGroup.id);
 		const sourceIdentity = {
 			groupId: testGroup.id,
 			source: 'socNetImport:test',
@@ -203,6 +204,7 @@ describe("group", function () {
 			sourceDate: new Date('2026-01-01T00:00:00.000Z'),
 			status: PostStatus.Published
 		});
+		const groupAfterFirstImport = await app.ms.group.getGroup(testGroup.id);
 		const secondPost = await socNetImport.createPostOrUpdateSourceIdentity(testUser.id, {
 			...sourceIdentity,
 			contents: [{id: secondContent.id, view: ContentView.Contents}],
@@ -212,12 +214,17 @@ describe("group", function () {
 		});
 
 		const gotPost = await app.ms.group.getPostPure(firstPost.id);
+		const groupAfterSecondImport = await app.ms.group.getGroup(testGroup.id);
 		const sourceRowsCount = await models.Post.count({where: sourceIdentity});
 
 		assert.equal(secondPost.id, firstPost.id);
 		assert.equal(sourceRowsCount, 1);
 		assert.deepEqual(gotPost.contents.map(content => content.id), [secondContent.id]);
 		assert.equal(JSON.parse(gotPost.propertiesJson).sourceLink, 'updated');
+		assert.equal(groupAfterFirstImport.availablePostsCount, groupBeforeImport.availablePostsCount + 1);
+		assert.equal(groupAfterSecondImport.availablePostsCount, groupAfterFirstImport.availablePostsCount);
+		assert.equal(Number(groupAfterFirstImport.size), Number(groupBeforeImport.size) + Number(firstContent.size));
+		assert.equal(Number(groupAfterSecondImport.size), Number(groupBeforeImport.size) + Number(secondContent.size));
 
 		const otherGroup = await app.ms.group.createGroup(testUser.id, {
 			name: 'same-source-other-group',

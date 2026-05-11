@@ -620,6 +620,8 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'shouldReconcileRepostCounters')
     && hasPostRelationCounterRepair;
   const hasSocialImportRelationCounterUpsertTest = has(groupTestSource, 'reconciles relation counters when social import upserts move targets');
+  const hasSocialImportGroupCounterUpsertTest = has(groupTestSource, 'groupAfterSecondImport.availablePostsCount')
+    && has(groupTestSource, 'Number(groupAfterSecondImport.size)');
   const hasDeterministicSharedContentLookup = has(databaseSource, 'async getSharedContentByStorageId')
     && has(databaseSource, 'async getSharedContentByManifestId')
     && has(databaseSource, "order: [['id', 'ASC']]")
@@ -737,8 +739,8 @@ function hotspotRows(): HotspotRow[] {
           : 'post create/update run localId allocation, post rows, attachments, size, and counters as separate statements'),
       scalabilityRisk: hasCanonicalPostDbTransaction
         ? (hasPostStatusCounterReconcile
-          ? (hasSocialImportRelationCounterUpsertTest
-            ? 'canonical post DB partial-state risk is reduced; relation counters have reusable repair plus source-identity upsert coverage, while remote delete/edit tombstones and manifest/static derived work still need transaction/job boundaries'
+          ? (hasSocialImportRelationCounterUpsertTest && hasSocialImportGroupCounterUpsertTest
+            ? 'canonical post DB partial-state risk is reduced; relation and group counters have source-identity upsert coverage, while remote delete/edit tombstones and manifest/static derived work still need transaction/job boundaries'
             : 'canonical post DB partial-state risk is reduced and relation counters have a reusable repair helper; import/upsert lifecycle semantics and manifest/static derived work still need transaction/job boundaries')
           : 'canonical post DB partial-state risk is reduced; status/import/upsert transitions and manifest/static derived work still need transaction/job boundaries')
         : (hasPostWriteTransaction
