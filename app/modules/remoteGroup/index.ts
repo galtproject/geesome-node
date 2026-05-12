@@ -44,6 +44,18 @@ function getModule(app: IGeesomeApp) {
 		return refs.sort((a, b) => a.localId - b.localId);
 	}
 
+	function getPostRefsByLocalId(postRefs) {
+		const postRefsByLocalId = new Map<number, any>();
+		for (const postRef of postRefs || []) {
+			const localId = Number(postRef.localId);
+			if (!Number.isFinite(localId) || localId <= 0) {
+				continue;
+			}
+			postRefsByLocalId.set(localId, postRef);
+		}
+		return postRefsByLocalId;
+	}
+
 	class RemoteGroupModule implements IGeesomeRemoteGroupModule {
 		async getLocalOrRemoteGroup(userId, groupId) {
 			if (!userId) {
@@ -79,33 +91,113 @@ function getModule(app: IGeesomeApp) {
 			});
 		}
 
-		async isGroupManifestImportComplete(group, postRefs) {
-			const maxLocalId = postRefs.reduce((maxId, postRef) => Math.max(maxId, postRef.localId), 0);
-			const importedPostCount = await app.ms.group.getGroupPostsCount(group.id, {
-				isDeleted: false,
-				status: PostStatus.Published
+		async getActiveGroupPostRefsByLocalId(groupId) {
+			const postRefs: IPost[] = [];
+			await app.ms.group.forEachGroupPostRefBatch(groupId, {
+				attributes: ['id', 'localId', 'manifestStorageId', 'publishedAt'],
+				filters: {
+					isDeleted: false,
+					status: PostStatus.Published
+				}
+			}, async (batch) => {
+				postRefs.push(...batch.postRefs);
 			});
-			return importedPostCount === postRefs.length
-				&& Number(group.availablePostsCount) === postRefs.length
-				&& Number(group.publishedPostsCount) >= maxLocalId;
+			return getPostRefsByLocalId(postRefs);
+		}
+
+		async isGroupManifestImportComplete(group, postRefs, localPostRefsByLocalId) {
+			const maxLocalId = postRefs.reduce((maxId, postRef) => Math.max(maxId, postRef.localId), 0);
+			if (localPostRefsByLocalId.size !== postRefs.length) {
+				return false;
+			}
+			if (Number(group.availablePostsCount) !== postRefs.length) {
+				return false;
+			}
+			if (Number(group.publishedPostsCount) < maxLocalId) {
+				return false;
+			}
+			return postRefs.every((postRef) => {
+				const localPostRef = localPostRefsByLocalId.get(postRef.localId);
+				return localPostRef?.manifestStorageId === postRef.manifestStorageId;
+			});
+		}
+
+		getGroupManifestImportChanges(postRefs, localPostRefsByLocalId) {
+			const manifestPostRefsByLocalId = getPostRefsByLocalId(postRefs);
+			const stalePostIds = [];
+			const missingPostRefs = [];
+
+			for (const localPostRef of localPostRefsByLocalId.values()) {
+				const manifestPostRef = manifestPostRefsByLocalId.get(Number(localPostRef.localId));
+				if (!manifestPostRef) {
+					stalePostIds.push(localPostRef.id);
+					continue;
+				}
+				if (manifestPostRef.manifestStorageId !== localPostRef.manifestStorageId) {
+					stalePostIds.push(localPostRef.id);
+				}
+			}
+			for (const postRef of postRefs) {
+				const localPostRef = localPostRefsByLocalId.get(postRef.localId);
+				if (localPostRef?.manifestStorageId === postRef.manifestStorageId) {
+					continue;
+				}
+				missingPostRefs.push(postRef);
+			}
+
+			return {stalePostIds, missingPostRefs};
+		}
+
+		async clearMissingPostRefLocalIdBlockers(groupId, missingPostRefs) {
+			const blockingPostRefs = await app.ms.group.getGroupPostRefsByLocalIds(
+				groupId,
+				missingPostRefs.map(postRef => postRef.localId)
+			);
+			const blockingPostIds = blockingPostRefs
+				.filter(postRef => postRef.isDeleted || postRef.status !== PostStatus.Published)
+				.map(postRef => postRef.id);
+			await app.ms.group.clearPostLocalIds(blockingPostIds);
 		}
 
 		async importGroupManifestPosts(userId, group, groupManifest) {
 			const postRefs = getGroupManifestPostRefs(groupManifest.posts);
-			if (!postRefs.length) {
+			const localPostRefsByLocalId = await this.getActiveGroupPostRefsByLocalId(group.id);
+			if (await this.isGroupManifestImportComplete(group, postRefs, localPostRefsByLocalId)) {
 				return 0;
 			}
-			if (await this.isGroupManifestImportComplete(group, postRefs)) {
-				return 0;
+			const {stalePostIds, missingPostRefs} = this.getGroupManifestImportChanges(postRefs, localPostRefsByLocalId);
+			if (stalePostIds.length) {
+				await app.ms.group.deletePostsPure(userId, stalePostIds, {
+					clearLocalIds: true,
+					skipGroupManifestUpdate: true
+				});
 			}
-			await pIteration.forEachSeries(postRefs, async (postRef) => {
+			if (missingPostRefs.length) {
+				await this.clearMissingPostRefLocalIdBlockers(group.id, missingPostRefs);
+			}
+			await pIteration.forEachSeries(missingPostRefs, async (postRef) => {
 				await this.createPostByRemoteStorageId(userId, postRef.manifestStorageId, group.id, null, groupManifest.isEncrypted === true, {
 					localId: postRef.localId,
 					skipGroupManifestUpdate: true
 				});
 			});
 			await app.ms.group.reconcileGroupCounters(group.id);
-			return postRefs.length;
+			return stalePostIds.length + missingPostRefs.length;
+		}
+
+		async syncRemoteGroupManifestState(group, manifestStorageId, groupStaticStorageId) {
+			const updateData: any = {};
+			if (group.manifestStorageId !== manifestStorageId) {
+				updateData.manifestStorageId = manifestStorageId;
+			}
+			if (groupStaticStorageId && group.manifestStaticStorageId !== groupStaticStorageId) {
+				updateData.manifestStaticStorageId = groupStaticStorageId;
+			}
+			if (!Object.keys(updateData).length) {
+				return group;
+			}
+			await app.ms.group.updateGroupPure(group.id, updateData);
+			return app.ms.group.getGroup(group.id);
 		}
 
 		async createGroupByRemoteStorageId(userId, manifestStorageId) {
@@ -123,6 +215,8 @@ function getModule(app: IGeesomeApp) {
 				groupObject.isRemote = true;
 				groupObject.size = 0;
 				dbGroup = await app.ms.group.createGroupByObject(userId, groupObject);
+			} else if (dbGroup.isRemote) {
+				dbGroup = await this.syncRemoteGroupManifestState(dbGroup, manifestStorageId, groupStaticStorageId);
 			}
 			await this.importGroupManifestPosts(userId, dbGroup, groupManifest);
 			return app.ms.group.getGroup(dbGroup.id);

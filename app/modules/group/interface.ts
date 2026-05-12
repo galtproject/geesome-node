@@ -60,13 +60,17 @@ export default interface IGeesomeGroupModule {
 
 	updatePost(userId, postId, postData);
 
-	deletePosts(userId, postIds): Promise<any>;
+	deletePosts(userId, postIds, options?): Promise<any>;
+
+	deletePostsPure(userId, postIds, options?): Promise<any>;
 
 	createGroup(userId, groupData): Promise<IGroup>;
 
 	createGroupByObject(userId, groupObject): Promise<IGroup>;
 
 	updateGroup(userId, id, updateData): Promise<IGroup>;
+
+	updateGroupPure(id, updateData): Promise<any>;
 
 	getLocalGroup(userId, groupId): Promise<IGroup>;
 
@@ -87,6 +91,8 @@ export default interface IGeesomeGroupModule {
 	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
 
 	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
+
+	getGroupPostRefsByLocalIds(groupId, localIds, options?): Promise<IPost[]>;
 
 	forEachGroupPostRefBatch(groupId, options, onBatch): Promise<number>;
 
@@ -174,6 +180,8 @@ export default interface IGeesomeGroupModule {
 	getPostByGroupManifestIdAndLocalId(groupManifestStorageId, localId): Promise<IPost>;
 
 	updatePosts(ids, updateData): Promise<IPost>;
+
+	clearPostLocalIds(ids, options?): Promise<any>;
 
 	getPostsMetadata(ids): Promise<IPost[]>;
 

@@ -301,6 +301,95 @@ describe("group", function () {
 		]);
 	});
 
+	it('replays remote group manifest post edits and deletes', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'remote replay first post', 'remote-replay-first.md', {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'remote replay second post', 'remote-replay-second.md', {
+			mimeType: 'text/markdown'
+		});
+		const replacementContent = await app.ms.content.saveData(testUser.id, 'remote replay replacement post', 'remote-replay-replacement.md', {
+			mimeType: 'text/markdown'
+		});
+		const firstSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const secondSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Attachment}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const sourceGroupAfterPosts = await app.ms.group.getGroup(sourceGroup.id);
+		const sourceGroupManifest = await app.ms.storage.getObject(sourceGroupAfterPosts.manifestStorageId);
+		const remoteGroupManifest = {
+			...sourceGroupManifest,
+			name: 'remote-group-replay-import',
+			title: 'Remote group replay import',
+			staticId: 'remote-group-replay-import-static-id'
+		};
+		const remoteGroupManifestStorageId = await app.saveDataStructure(remoteGroupManifest, {waitForStorage: true});
+		const importer = await app.registerUser({
+			email: 'remote-group-replay@user.com',
+			name: 'remote-group-replay',
+			password: 'remote-group-replay',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const importedGroup = await (app.ms as any).remoteGroup.createGroupByRemoteStorageId(importer.id, remoteGroupManifestStorageId);
+
+		const replacementSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: replacementContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const replayPosts = {};
+		trieHelper.setNode(replayPosts, firstSourcePost.localId, replacementSourcePost.manifestStorageId);
+		const replayRemoteGroupManifest = {
+			...remoteGroupManifest,
+			title: 'Remote group replay import updated',
+			posts: replayPosts,
+			postsCount: firstSourcePost.localId,
+			updatedAt: new Date('2026-05-12T12:00:00.000Z')
+		};
+		const replayRemoteGroupManifestStorageId = await app.saveDataStructure(replayRemoteGroupManifest, {waitForStorage: true});
+		const replayedGroup = await (app.ms as any).remoteGroup.createGroupByRemoteStorageId(importer.id, replayRemoteGroupManifestStorageId);
+		const gotGroup = await app.ms.group.getGroup(importedGroup.id);
+		const models = (app.ms.database as any).models;
+		const importedPosts = await models.Post.findAll({
+			where: {groupId: importedGroup.id},
+			order: [['id', 'ASC']]
+		});
+		const activeImportedPosts = importedPosts.filter(post => !post.isDeleted);
+		const deletedImportedPosts = importedPosts.filter(post => post.isDeleted);
+		const lifecycleEvents = await models.PostEvent.findAll({
+			where: {
+				postId: importedPosts.map(post => post.id),
+				type: PostEventType.PostLifecycle
+			},
+			order: [['postId', 'ASC'], ['id', 'ASC']]
+		});
+
+		assert.equal(replayedGroup.id, importedGroup.id);
+		assert.equal(gotGroup.manifestStorageId, replayRemoteGroupManifestStorageId);
+		assert.deepEqual(activeImportedPosts.map(post => post.localId), [firstSourcePost.localId]);
+		assert.deepEqual(activeImportedPosts.map(post => post.manifestStorageId), [replacementSourcePost.manifestStorageId]);
+		assert.deepEqual(deletedImportedPosts.map(post => post.localId), [null, null]);
+		assert.deepEqual(deletedImportedPosts.map(post => post.manifestStorageId), [firstSourcePost.manifestStorageId, secondSourcePost.manifestStorageId]);
+		assert.equal(Number(gotGroup.availablePostsCount), 1);
+		assert.equal(Number(gotGroup.publishedPostsCount), firstSourcePost.localId);
+		assert.equal(Number(gotGroup.size), Number(replacementContent.size));
+		assert.deepEqual(lifecycleEvents.map(event => event.action), [
+			PostEventAction.Created,
+			PostEventAction.Deleted,
+			PostEventAction.Created,
+			PostEventAction.Deleted,
+			PostEventAction.Created
+		]);
+	});
+
 	it('allocates group local ids with a row lock under concurrency', async () => {
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
