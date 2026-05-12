@@ -232,6 +232,75 @@ describe("group", function () {
 		]);
 	});
 
+	it('imports remote group manifest post refs idempotently', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'remote group first post', 'remote-group-first.md', {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'remote group second post', 'remote-group-second.md', {
+			mimeType: 'text/markdown'
+		});
+		const firstSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const secondSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Attachment}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const sourceGroupAfterPosts = await app.ms.group.getGroup(sourceGroup.id);
+		const sourceGroupManifest = await app.ms.storage.getObject(sourceGroupAfterPosts.manifestStorageId);
+		const remoteGroupManifest = {
+			...sourceGroupManifest,
+			name: 'remote-group-posts-import',
+			title: 'Remote group posts import',
+			staticId: 'remote-group-posts-import-static-id'
+		};
+		const remoteGroupManifestStorageId = await app.saveDataStructure(remoteGroupManifest, {waitForStorage: true});
+		const importer = await app.registerUser({
+			email: 'remote-group-posts@user.com',
+			name: 'remote-group-posts',
+			password: 'remote-group-posts',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const models = (app.ms.database as any).models;
+
+		const importedGroup = await (app.ms as any).remoteGroup.createGroupByRemoteStorageId(importer.id, remoteGroupManifestStorageId);
+		const importedGroupAgain = await (app.ms as any).remoteGroup.createGroupByRemoteStorageId(importer.id, remoteGroupManifestStorageId);
+		const gotGroup = await app.ms.group.getGroup(importedGroup.id);
+		const groupManifest = await app.ms.storage.getObject(gotGroup.manifestStorageId);
+		const importedPosts = await models.Post.findAll({
+			where: {
+				groupId: importedGroup.id,
+				isDeleted: false,
+				status: PostStatus.Published
+			},
+			order: [['localId', 'ASC']]
+		});
+		const postEvents = await models.PostEvent.findAll({
+			where: {
+				postId: importedPosts.map(post => post.id)
+			},
+			order: [['postId', 'ASC'], ['id', 'ASC']]
+		});
+
+		assert.equal(importedGroup.id, importedGroupAgain.id);
+		assert.deepEqual(importedPosts.map(post => post.localId), [firstSourcePost.localId, secondSourcePost.localId]);
+		assert.deepEqual(importedPosts.map(post => post.manifestStorageId), [firstSourcePost.manifestStorageId, secondSourcePost.manifestStorageId]);
+		assert.equal(Number(gotGroup.availablePostsCount), 2);
+		assert.equal(Number(gotGroup.publishedPostsCount), secondSourcePost.localId);
+		assert.equal(Number(gotGroup.size), Number(firstContent.size) + Number(secondContent.size));
+		assert.equal(trieHelper.getNode(groupManifest.posts, firstSourcePost.localId), firstSourcePost.manifestStorageId);
+		assert.equal(trieHelper.getNode(groupManifest.posts, secondSourcePost.localId), secondSourcePost.manifestStorageId);
+		assert.deepEqual(postEvents.map(event => `${event.type}:${event.action}`), [
+			`${PostEventType.PostLifecycle}:${PostEventAction.Created}`,
+			`${PostEventType.PostLifecycle}:${PostEventAction.Created}`
+		]);
+	});
+
 	it('allocates group local ids with a row lock under concurrency', async () => {
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
 		const expectedLocalIds = Array.from({length: 8}, (_, index) => index + 1);
