@@ -502,6 +502,23 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IPost[];
 		}
 
+		async getGroupPostRefsByLocalIds(groupId, localIds, options: any = {}) {
+			groupId = await this.checkGroupId(groupId);
+			const ids = helpers.normalizeUniqueIds(localIds);
+			if (!ids.length) {
+				return [];
+			}
+			return models.Post.findAll({
+				attributes: options.attributes || ['id', 'localId', 'manifestStorageId', 'status', 'isDeleted'],
+				where: {
+					groupId,
+					localId: {[Op.in]: ids}
+				},
+				order: [['localId', 'ASC'], ['id', 'ASC']],
+				transaction: options.transaction
+			}) as IPost[];
+		}
+
 		async forEachGroupPostRefBatch(groupId, options: any = {}, onBatch) {
 			const maxRefs = isUndefined(options.maxRefs) ? Number.MAX_SAFE_INTEGER : options.maxRefs;
 			const batchLimit = isUndefined(options.batchLimit) ? 100 : options.batchLimit;
@@ -1039,7 +1056,7 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostPure(postId);
 		}
 
-		async deletePosts(userId, postIds) {
+		async deletePosts(userId, postIds, options: any = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			const posts = await this.getPostsMetadata(postIds);
 			const cantEditSomeOfPosts = await pIteration.some(posts, async (post) => {
@@ -1047,6 +1064,19 @@ function getModule(app: IGeesomeApp, models) {
 			})
 			if (cantEditSomeOfPosts) {
 				throw new Error("not_permitted");
+			}
+
+			return this.deletePostsByMetadata(userId, posts, options);
+		}
+
+		async deletePostsPure(userId, postIds, options: any = {}) {
+			const posts = await this.getPostsMetadata(postIds);
+			return this.deletePostsByMetadata(userId, posts, options);
+		}
+
+		async deletePostsByMetadata(userId, posts, options: any = {}) {
+			if (!posts.length) {
+				return true;
 			}
 
 			// Capture counter deltas before mutating state so we know which posts were currently
@@ -1071,14 +1101,19 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			const replyToPostIds = helpers.normalizeUniqueIds(posts.map(p => p.replyToId));
 			const repostOfPostIds = helpers.normalizeUniqueIds(posts.map(p => p.repostOfId));
+			const postIds = posts.map(p => p.id);
+			const updateData: any = {isDeleted: true};
+			if (options.clearLocalIds) {
+				updateData.localId = null;
+			}
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
-				await this.updatePosts(postIds, {isDeleted: true}, {transaction});
+				await this.updatePosts(postIds, updateData, {transaction});
 
 				await pIteration.forEach(posts, async (post) => {
 					const nextPostEventState = {
 						...getPostEventState(post),
-						isDeleted: true
+						...updateData
 					};
 					await this.addPostEvents([
 						buildPostLifecycleEvent(userId, post, nextPostEventState),
@@ -1093,12 +1128,14 @@ function getModule(app: IGeesomeApp, models) {
 				await this.reconcilePostRelationCounters([...replyToPostIds, ...repostOfPostIds], {transaction});
 			});
 
-			// Regenerate the affected group manifests so counters and deleted local-id tombstones land.
-			// The manifest is still monolithic; chunked post-index storage remains the follow-up P1.
-			const affectedGroupIds = Array.from(new Set(posts.map(p => p.groupId).filter((id): id is number => !!id)));
-			await pIteration.forEach(affectedGroupIds, async (groupId) => {
-				await this.updateGroupManifest(userId, groupId);
-			});
+			if (!options.skipGroupManifestUpdate) {
+				// Regenerate the affected group manifests so counters and deleted local-id tombstones land.
+				// The manifest is still monolithic; chunked post-index storage remains the follow-up P1.
+				const affectedGroupIds = Array.from(new Set(posts.map(p => p.groupId).filter((id): id is number => !!id)));
+				await pIteration.forEach(affectedGroupIds, async (groupId) => {
+					await this.updateGroupManifest(userId, groupId);
+				});
+			}
 
 			return true;
 		}
@@ -1643,6 +1680,17 @@ function getModule(app: IGeesomeApp, models) {
 
 		async updatePosts(ids, updateData, options: any = {}) {
 			return models.Post.update(updateData, {where: {id: {[Op.in]: ids}}, transaction: options.transaction});
+		}
+
+		async clearPostLocalIds(ids, options: any = {}) {
+			const postIds = helpers.normalizeUniqueIds(ids);
+			if (!postIds.length) {
+				return [0];
+			}
+			return models.Post.update({localId: null}, {
+				where: {id: {[Op.in]: postIds}},
+				transaction: options.transaction
+			});
 		}
 
 		async setPostContents(postId, contents, options: any = {}) {
