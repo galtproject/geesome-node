@@ -36,6 +36,36 @@ const adminContentListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
 	maxLimit: 100
 };
+const publicStorageMetadataFields = [
+	'storageType',
+	'mimeType',
+	'isRemote',
+	'extension',
+	'view',
+	'size',
+	'largePreviewSize',
+	'largePreviewStorageId',
+	'mediumPreviewSize',
+	'mediumPreviewStorageId',
+	'smallPreviewSize',
+	'smallPreviewStorageId',
+	'previewMimeType',
+	'previewExtension',
+	'storageId'
+];
+const publicLibraryMetadataFields = [
+	'id',
+	'name',
+	'description',
+	'isPublic',
+	'staticStorageId',
+	'manifestStorageId',
+	'manifestStaticStorageId'
+];
+const publicContentMetadataFields = [
+	...publicStorageMetadataFields,
+	...publicLibraryMetadataFields
+];
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
@@ -66,6 +96,39 @@ function getModule(app: IGeesomeApp) {
 		return error?.name === 'SequelizeUniqueConstraintError'
 			&& contentData?.userId
 			&& contentData?.storageId;
+	}
+
+	function isDatabaseContentId(contentId) {
+		return /^\d+$/.test(String(contentId));
+	}
+
+	function createContentNotFoundError() {
+		const error = new Error('content_not_found') as Error & {code?: number};
+		error.code = 404;
+		return error;
+	}
+
+	function toContentPlainObject(content) {
+		if (!content) {
+			return null;
+		}
+		if (content.toJSON) {
+			return content.toJSON();
+		}
+		return content;
+	}
+
+	function pickPublicContentMetadata(content) {
+		const contentData = toContentPlainObject(content);
+		if (!contentData) {
+			return null;
+		}
+
+		let fields = publicStorageMetadataFields;
+		if (contentData.isPublic) {
+			fields = publicContentMetadataFields;
+		}
+		return pick(contentData, fields);
 	}
 
 	function parseByteRange(rangeHeader: string, dataSize: number, defaultChunkSize: number): {start: number, end: number} | null {
@@ -122,6 +185,22 @@ function getModule(app: IGeesomeApp) {
 
 		getContent(contentId) {
 			return app.ms.database.getContent(contentId);
+		}
+
+		async getPublicContentMetadata(contentId) {
+			if (isDatabaseContentId(contentId)) {
+				const content = await app.ms.database.getContent(contentId);
+				if (!content || !content.isPublic) {
+					throw createContentNotFoundError();
+				}
+				return pickPublicContentMetadata(content);
+			}
+
+			const content = await app.ms.database.getSharedContentByStorageId(contentId, {includePreviews: true});
+			if (!content) {
+				throw createContentNotFoundError();
+			}
+			return pickPublicContentMetadata(content);
 		}
 
 		getContentByStorageId(storageId) {

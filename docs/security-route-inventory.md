@@ -40,7 +40,7 @@ Interpretation notes:
 | content | HEAD | `/v1/content-data/*` | public | - | content/storage boundary; public entrypoint | `app/modules/content/api.ts` |
 | content | POST | `/v1/content-list-by-storage-id` | authorized | - | content/storage boundary; token only; module/user ownership checks expected | `app/modules/content/api.ts` |
 | content | GET | `/v1/content-stats/*` | public | - | content/storage boundary; public entrypoint | `app/modules/content/api.ts` |
-| content | GET | `/v1/content/:contentId` | public | - | content/storage boundary; public entrypoint | `app/modules/content/api.ts` |
+| content | GET | `/v1/content/:contentId` | public | - | content/storage boundary; public entrypoint; public-safe metadata projection; private DB ids hidden | `app/modules/content/api.ts` |
 | content | GET | `/v1/node*` | public | - | public entrypoint | `app/modules/content/api.ts` |
 | content | POST | `/v1/user/save-data-by-url` | authorized | - | token only; module/user ownership checks expected | `app/modules/content/api.ts` |
 | content | POST | `/v1/user/save-data` | authorized | - | token only; module/user ownership checks expected | `app/modules/content/api.ts` |

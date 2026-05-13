@@ -138,16 +138,28 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     /**
-     * @api {get} /v1/content/:contentId Get content metadata
+     * @api {get} /v1/content/:contentId Get public-safe content metadata
+     * @apiDescription Numeric database ids are visible only for public content rows. Storage ids resolve through deterministic shared metadata and omit owner/library-only fields unless the selected row is public.
      * @apiName ContentGet
      * @apiGroup Content
      *
      * @apiParam {String} contentId Content database id or storage id.
-     * @apiInterface (../database/interface.ts) {IContent} apiSuccess
+     * @apiSuccess {String} storageId Physical storage id.
+     * @apiSuccess {String} [mimeType] MIME type.
+     * @apiSuccess {String} [extension] File extension.
+     * @apiSuccess {Number} [size] Content size in bytes.
+     * @apiSuccess {String} [previewMimeType] Preview MIME type.
+     * @apiSuccess {String} [largePreviewStorageId] Large preview storage id.
+     * @apiSuccess {String} [mediumPreviewStorageId] Medium preview storage id.
+     * @apiSuccess {String} [smallPreviewStorageId] Small preview storage id.
+     * @apiSuccess {Number} [id] Public content database id, only for public rows.
+     * @apiSuccess {String} [name] Public content name, only for public rows.
+     * @apiSuccess {String} [description] Public content description, only for public rows.
+     * @apiSuccess {String} [manifestStorageId] Public content manifest id, only for public rows.
      * @apiUse ValidationErrors
      */
     app.ms.api.onGet('content/:contentId', async (req, res) => {
-        res.send(await contentModule.getContent(req.params.contentId));
+        res.send(await contentModule.getPublicContentMetadata(req.params.contentId));
     });
 
     /**

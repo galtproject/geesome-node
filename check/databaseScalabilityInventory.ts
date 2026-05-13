@@ -835,6 +835,9 @@ function hotspotRows(): HotspotRow[] {
   const hasOwnerlessContentCreateGuard = has(contentSource, 'async getSharedContentByObject')
     && has(contentSource, 'async getActorContentByObject')
     && has(contentSource, "throw new Error('content_actor_required')");
+  const hasPublicContentMetadataPolicy = has(contentSource, 'async getPublicContentMetadata')
+    && has(contentSource, 'publicStorageMetadataFields')
+    && has(contentSource, "throw createContentNotFoundError()");
   const hasCanonicalPostDbTransaction = hasPostWriteTransaction && hasPostDeleteTransaction;
   const hasStaticIdCurrentBinding = has(staticIdSource, 'models.StaticIdBinding.findOne({where: {dynamicId}')
     && has(staticIdSource, 'getStaticIdHistoryFallbackByDynamicId')
@@ -1100,13 +1103,17 @@ function hotspotRows(): HotspotRow[] {
       hotspot: 'getContentByStorageId(findByPreviews)',
       observedPattern: hasDeterministicSharedContentLookup
         ? (hasOwnerlessContentCreateGuard
-          ? 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, and preview mode still ORs across storageId and preview storage ids'
+          ? (hasPublicContentMetadataPolicy
+            ? 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, and preview mode still ORs across storageId and preview storage ids'
+            : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, and preview mode still ORs across storageId and preview storage ids')
           : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers; preview mode still ORs across storageId and preview storage ids')
         : (has(databaseSource, 'largePreviewStorageId') ? 'OR lookup across storageId and preview storage ids' : 'review preview lookup path'),
       scalabilityRisk: has(read('app/modules/database/models/content.ts'), 'contents_large_preview_storage_idx')
         ? (hasDeterministicSharedContentLookup
         ? (hasOwnerlessContentCreateGuard
-          ? 'shared reads are stable across duplicate user-owned rows and no longer create new ownerless library rows, but they still read user-library metadata until canonical asset metadata exists'
+          ? (hasPublicContentMetadataPolicy
+            ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, and the public metadata route no longer exposes private rows by DB id; shared reads still rely on user-library metadata until canonical asset metadata exists'
+            : 'shared reads are stable across duplicate user-owned rows and no longer create new ownerless library rows, but they still read user-library metadata until canonical asset metadata exists')
           : 'shared reads are stable across duplicate user-owned rows, but they still read user-library metadata until canonical asset metadata exists')
         : 'preview columns are indexed, but public/header serving still reads across user-owned rows instead of canonical asset metadata')
         : 'preview/header serving can scan contents without preview-column indexes or canonical asset metadata',

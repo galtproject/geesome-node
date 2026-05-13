@@ -5,6 +5,19 @@ import {ContentMimeType} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
 describe("content headers", function () {
+	function getApiStub() {
+		return {
+			onGet: () => null,
+			onHead: () => null,
+			onUnversionGet: () => null,
+			onUnversionHead: () => null,
+			onAuthorizedGet: () => null,
+			onAuthorizedPost: () => null,
+			setDefaultHeaders: () => null,
+			setStorageHeaders: () => null
+		};
+	}
+
 	it("preserves content length on HEAD responses", async () => {
 		const headers = {};
 		let statusCode = 0;
@@ -55,6 +68,102 @@ describe("content headers", function () {
 		assert.equal(headers["x-ipfs-datasize"], contentSize);
 		assert.equal(headers["Content-Type"], ContentMimeType.Text);
 		assert.equal(ended, true);
+	});
+
+	it("does not expose private content rows by database id through public metadata", async () => {
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getContent: async () => ({
+						id: 7,
+						userId: 12,
+						name: "private-name.txt",
+						description: "private description",
+						storageId: "private-storage",
+						mimeType: ContentMimeType.Text,
+						isPublic: false
+					})
+				},
+				storage: {}
+			}
+		} as unknown as IGeesomeApp);
+
+		await assert.rejects(
+			() => content.getPublicContentMetadata("7"),
+			(error: Error & {code?: number}) => error.message === "content_not_found" && error.code === 404
+		);
+	});
+
+	it("returns public-safe storage metadata without private library fields", async () => {
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedContentByStorageId: async () => ({
+						id: 7,
+						userId: 12,
+						name: "private-name.txt",
+						description: "private description",
+						storageId: "shared-storage",
+						mimeType: ContentMimeType.Text,
+						size: 5,
+						manifestStorageId: "private-manifest",
+						propertiesJson: "{\"private\":true}",
+						mediumPreviewStorageId: "preview-storage",
+						previewMimeType: "image/png",
+						isPublic: false
+					})
+				},
+				storage: {}
+			}
+		} as unknown as IGeesomeApp);
+
+		const metadata: any = await content.getPublicContentMetadata("shared-storage");
+
+		assert.deepEqual(metadata, {
+			mimeType: ContentMimeType.Text,
+			size: 5,
+			mediumPreviewStorageId: "preview-storage",
+			previewMimeType: "image/png",
+			storageId: "shared-storage"
+		});
+	});
+
+	it("returns library metadata for public content database ids", async () => {
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getContent: async () => ({
+						id: 7,
+						userId: 12,
+						name: "public-name.txt",
+						description: "public description",
+						storageId: "public-storage",
+						mimeType: ContentMimeType.Text,
+						size: 5,
+						manifestStorageId: "public-manifest",
+						propertiesJson: "{\"private\":true}",
+						isPublic: true
+					})
+				},
+				storage: {}
+			}
+		} as unknown as IGeesomeApp);
+
+		const metadata: any = await content.getPublicContentMetadata("7");
+
+		assert.equal(metadata.id, 7);
+		assert.equal(metadata.name, "public-name.txt");
+		assert.equal(metadata.description, "public description");
+		assert.equal(metadata.storageId, "public-storage");
+		assert.equal(metadata.manifestStorageId, "public-manifest");
+		assert.equal(metadata.userId, undefined);
+		assert.equal(metadata.propertiesJson, undefined);
 	});
 
 	it("rejects unsatisfiable byte ranges before opening storage streams", async () => {
