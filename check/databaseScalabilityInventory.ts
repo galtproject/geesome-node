@@ -73,6 +73,8 @@ function modelRows(): ModelRow[] {
   const pinIndexSource = read('app/modules/pin/index.ts');
   const foreignAccountSource = read('app/modules/foreignAccounts/models.ts');
   const foreignAccountIndexSource = read('app/modules/foreignAccounts/index.ts');
+  const socNetAccountSource = read('app/modules/socNetAccount/models.ts');
+  const socNetAccountIndexSource = read('app/modules/socNetAccount/index.ts');
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
@@ -408,6 +410,24 @@ function modelRows(): ModelRow[] {
       ],
     },
     {
+      area: 'Social network accounts',
+      source: 'app/modules/socNetAccount/models.ts',
+      model: 'SocNetAccount',
+      indexes: [
+        has(socNetAccountSource, "fields: ['userId', 'socNet', 'phoneNumber']")
+          ? 'userId,socNet,phoneNumber lookup index'
+          : 'missing phone account lookup index',
+        has(socNetAccountSource, "fields: ['userId', 'socNet', 'username']")
+          ? 'userId,socNet,username lookup index'
+          : 'missing username account lookup index',
+      ],
+      notes: [
+        has(socNetAccountIndexSource, 'socNetAccountListParams')
+          ? 'user account lists are capped for the API and can filter by social network'
+          : 'social account API lists can return every row for a user',
+      ],
+    },
+    {
       area: 'Group permissions',
       source: 'app/modules/group/models/groupPermission.ts',
       model: 'GroupPermission',
@@ -533,6 +553,8 @@ function hotspotRows(): HotspotRow[] {
   const pinModelSource = read('app/modules/pin/models.ts');
   const foreignAccountSource = read('app/modules/foreignAccounts/index.ts');
   const foreignAccountModelSource = read('app/modules/foreignAccounts/models.ts');
+  const socNetAccountSource = read('app/modules/socNetAccount/index.ts');
+  const socNetAccountModelSource = read('app/modules/socNetAccount/models.ts');
   const helpersSource = read('app/helpers.ts');
   const packageSource = read('package.json');
   const scalabilityFixtureSource = read('check/databaseScalabilityFixture.ts');
@@ -621,6 +643,11 @@ function hotspotRows(): HotspotRow[] {
     && has(foreignAccountSource, 'getForeignAccountListOrder(sortBy, sortDir)')
     && has(foreignAccountSource, 'beforeEntityManifestStore')
     && has(foreignAccountSource, 'getUserAccountsList(userId)');
+  const hasSocNetAccountListLimits = has(socNetAccountSource, 'socNetAccountListParams')
+    && has(socNetAccountSource, 'helpers.prepareListParams(listParams, socNetAccountListParams)')
+    && has(socNetAccountSource, 'app.ms.database.setDefaultListParamsValues(listParams, socNetAccountListParams)')
+    && has(socNetAccountSource, 'getSocNetAccountListOrder(sortBy, sortDir)')
+    && has(socNetAccountSource, 'getAccountList(userId');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -635,6 +662,7 @@ function hotspotRows(): HotspotRow[] {
     hasAutoActionListLimits ? 'auto-action management lists' : null,
     hasPinAccountListLimits ? 'pin account lists' : null,
     hasForeignAccountListLimits ? 'foreign account API lists' : null,
+    hasSocNetAccountListLimits ? 'social account API lists' : null,
   ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
@@ -1114,6 +1142,19 @@ function hotspotRows(): HotspotRow[] {
           ? 'user account API pages are bounded and backed by the userId index while manifest generation remains complete'
           : 'userId lookup is indexed, but the API can still return every account for the user')
         : 'large per-user foreign account lists can scan without a userId index',
+    },
+    {
+      area: 'Social account list',
+      source: 'app/modules/socNetAccount/index.ts',
+      hotspot: 'getAccountList',
+      observedPattern: hasSocNetAccountListLimits
+        ? 'API calls list user social-network accounts with allowlisted sort fields, default pages, a lower cap, and backward-compatible socNet filters'
+        : 'lists every social-network account for the user',
+      scalabilityRisk: has(socNetAccountModelSource, "fields: ['userId', 'socNet', 'username']")
+        ? (hasSocNetAccountListLimits
+          ? 'user social-account API pages are bounded and user/socNet lookups keep their composite indexes'
+          : 'user/socNet lookups are indexed, but the API can still return every account for the user')
+        : 'large per-user social-account lists can scan without a userId-leading index',
     },
     {
       area: 'List parameter normalization',

@@ -10,6 +10,23 @@
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface.js";
+import {IListParams, IListParamsOptions} from "../database/interface.js";
+import helpers from "../../helpers.js";
+
+const socNetAccountListParams: IListParamsOptions = {
+	sortBy: 'socNet',
+	allowedSortBy: ['socNet', 'username', 'phoneNumber', 'accountId', 'fullName', 'createdAt', 'updatedAt', 'id'],
+	maxLimit: 100
+};
+
+function getSocNetAccountListOrder(sortBy, sortDir) {
+	const direction = sortDir.toUpperCase();
+	const order = [[sortBy, direction]];
+	if (sortBy !== 'id') {
+		order.push(['id', direction]);
+	}
+	return order;
+}
 
 export default async (app: IGeesomeApp) => {
 	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
@@ -20,7 +37,7 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+export function getModule(app: IGeesomeApp, models) {
 	// app.checkModules([]);
 
 	class SocNetAccountModule {
@@ -40,12 +57,30 @@ function getModule(app: IGeesomeApp, models) {
 		async getAccountByUsernameOrPhone(userId, socNet, username, phoneNumber) {
 			return models.Account.findOne({where: {userId, socNet, [Op.or]: [{username}, {phoneNumber}]}});
 		}
-		async getAccountList(userId, socNet = null) {
+
+		prepareAccountListParams(listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, socNetAccountListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, socNetAccountListParams);
+			return listParams;
+		}
+
+		async getAccountList(userId, socNet = null, listParams?: IListParams) {
+			if (socNet && typeof socNet === 'object') {
+				listParams = listParams || socNet;
+				socNet = socNet.socNet;
+			}
+			listParams = this.prepareAccountListParams(listParams);
+			const {limit, offset, sortBy, sortDir} = listParams;
 			let where = {userId};
 			if (socNet) {
 				where['socNet'] = socNet;
 			}
-			return models.Account.findAll({ where });
+			return models.Account.findAll({
+				where,
+				order: getSocNetAccountListOrder(sortBy, sortDir),
+				limit,
+				offset
+			});
 		}
 		async flushDatabase() {
 			await pIteration.forEachSeries(['Account'], (modelName) => {
