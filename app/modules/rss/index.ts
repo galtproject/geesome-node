@@ -3,8 +3,14 @@ import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface.js";
 import {ContentView} from "../database/interface.js";
 import {IPost} from "../group/interface.js";
+import helpers from "../../helpers.js";
+import type {IRssGroupOptions} from "./interface.js";
 const {chunk, find, filter, flatten} = _;
-const rssPostsLimit = 9999;
+const rssMaxPostsLimit = 9999;
+const rssDefaultPostsLimit = Math.min(
+    helpers.parsePositiveInteger(process.env.RSS_POSTS_LIMIT, 100),
+    rssMaxPostsLimit
+);
 const rssPostBatchLimit = 100;
 
 export default async (app: IGeesomeApp) => {
@@ -25,13 +31,20 @@ function getModule(app: IGeesomeApp, xml) {
             return groupId ? groupUrl.replace(':id', groupId) : groupUrl;
         }
 
-        async groupRss(groupId, host, forUserId?) {
+        getFeedPostsLimit(options: IRssGroupOptions = {}) {
+            return Math.min(
+                helpers.parsePositiveInteger(options.limit, rssDefaultPostsLimit),
+                rssMaxPostsLimit
+            );
+        }
+
+        async groupRss(groupId, host, forUserId?, options: IRssGroupOptions = {}) {
             const group = await app.ms.group.getLocalGroup(null, groupId);
             // TODO: check permission to read not public groups by user id
             if (!forUserId && !group.isPublic) {
                 throw new Error('group_not_public');
             }
-            const groupPosts = await this.getGroupPostsForFeed(groupId);
+            const groupPosts = await this.getGroupPostsForFeed(groupId, options);
 
             const feedObject = {
                 rss: [
@@ -125,10 +138,10 @@ function getModule(app: IGeesomeApp, xml) {
             }).then(chunks => flatten(chunks));
         }
 
-        async getGroupPostsForFeed(groupId) {
+        async getGroupPostsForFeed(groupId, options: IRssGroupOptions = {}) {
             const feedPosts = [];
             await app.ms.group.forEachHydratedGroupPostBatch(groupId, {
-                maxRefs: rssPostsLimit,
+                maxRefs: this.getFeedPostsLimit(options),
                 batchLimit: rssPostBatchLimit,
                 listParams: {
                     sortBy: 'publishedAt',
