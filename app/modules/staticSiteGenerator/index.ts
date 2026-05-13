@@ -72,6 +72,30 @@ function prepareStaticSiteUpdateData(updateData) {
     return prepared;
 }
 
+function getNonNegativeCount(value) {
+    if (value === null || value === undefined) {
+        return null;
+    }
+    const count = Number(value);
+    if (!Number.isFinite(count)) {
+        return null;
+    }
+    return Math.max(0, Math.floor(count));
+}
+
+function getGroupSitePostsCount(group) {
+    const availablePostsCount = getNonNegativeCount(group?.availablePostsCount);
+    if (availablePostsCount !== null) {
+        return availablePostsCount;
+    }
+    const localIdHighWater = getNonNegativeCount(group?.publishedPostsCount);
+    if (localIdHighWater !== null) {
+        return localIdHighWater;
+    }
+
+    return 0;
+}
+
 export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
     app.checkModules(['asyncOperation', 'group', 'content']);
@@ -245,7 +269,7 @@ async function getModule(app: IGeesomeApp, models) {
             const merged = merge(defaultOptions, options, {
                 site: {
                     avatarStorageId: group.avatarImage ? group.avatarImage.storageId : null,
-                    postsCount: group.publishedPostsCount,
+                    postsCount: getGroupSitePostsCount(group),
                 }
             });
             const normalized = normalizeStaticSiteOptions(merged);

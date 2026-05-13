@@ -163,16 +163,17 @@ async function seedUserContentActions(sequelize: Sequelize, userId: number, cont
 }
 
 async function updateFixtureGroupCounters(sequelize: Sequelize, groupId: number) {
-  const [{count}] = (await sequelize.query(
-    `SELECT COUNT(*)::int AS count
+  const [{count, maxLocalId}] = (await sequelize.query(
+    `SELECT COUNT(*) FILTER (WHERE "isDeleted" = false AND "status" = 'published')::int AS count,
+            COALESCE(MAX("localId"), 0)::int AS "maxLocalId"
        FROM posts
-       WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'`,
+       WHERE "groupId" = :groupId`,
     {replacements: {groupId}, type: QueryTypes.SELECT},
-  )) as Array<{ count: number }>;
+  )) as Array<{ count: number; maxLocalId: number }>;
 
   await sequelize.query(
     `UPDATE groups
-       SET "publishedPostsCount" = :count,
+       SET "publishedPostsCount" = :maxLocalId,
            "availablePostsCount" = :count,
            "size" = (
              SELECT COALESCE(SUM("size"), 0)
@@ -180,7 +181,7 @@ async function updateFixtureGroupCounters(sequelize: Sequelize, groupId: number)
              WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'
            )
        WHERE id = :groupId`,
-    {replacements: {groupId, count}},
+    {replacements: {groupId, count, maxLocalId}},
   );
 
   return count;

@@ -179,6 +179,50 @@ describe("staticSiteGenerator", function () {
 		assert.equal(faviconContent.toString('hex'), avatarStorageContent.toString('hex'));
 	});
 
+	it('should render the available post count instead of the local id high-water mark', async () => {
+		const firstContent = await app.ms.content.saveData(testUser.id, 'visible static post', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'deleted static post', null, {
+			mimeType: 'text/markdown'
+		});
+		const firstPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		await app.ms.group.deletePosts(testUser.id, [secondPost.id]);
+
+		const groupAfterDelete = await app.ms.group.getGroup(testGroup.id);
+		assert.equal(Number(groupAfterDelete.availablePostsCount), 1);
+		assert.equal(Number(groupAfterDelete.publishedPostsCount), Number(secondPost.localId));
+
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			postList: {
+				postsPerPage: 5,
+			},
+			site: {
+				title: 'MySite',
+				name: 'my_site',
+				description: 'My About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		assert.match(indexHtmlContent, /Posts: 1/);
+		assert.match(indexHtmlContent, /visible static post/);
+		assert.equal(indexHtmlContent.includes(`./post/${firstPost.localId}/`), true);
+		assert.equal(indexHtmlContent.includes('deleted static post'), false);
+	});
+
 	it('should normalize static site settings before render', async () => {
 		const stylesCss = '\n.static-site-settings-marker { color: rgb(1, 2, 3); }\n';
 		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
