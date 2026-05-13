@@ -189,6 +189,10 @@ export default interface IGeesomeGroupModule {
 
 	getPostSizeSum(id): Promise<number>;
 
+	resolveContentForPost(userId: number, content: IContent): Promise<IResolvedPostContent>;
+
+	getContentsForPost(userId: number, contents: IContent[]): Promise<IResolvedPostContent[] | null>;
+
 	setPostContents(postId, contentsIds): Promise<void>;
 
 	getGroupsWhere(filters): any;
@@ -284,6 +288,20 @@ export enum GroupView {
 	InstagramLike = 'instagram-like',
 	TumblrLike = 'tumblr-like',
 	TelegramLike = 'telegram-like'
+}
+
+export enum PostContentAttachmentReason {
+	Owner = 'owner',
+	Public = 'public',
+	ActorManifestImport = 'actor_manifest_import',
+	ActorStorage = 'actor_storage'
+}
+
+export interface IResolvedPostContent {
+	id: number;
+	view?: any;
+	size?: number;
+	permissionReason: PostContentAttachmentReason;
 }
 
 export interface IGroupRead {
