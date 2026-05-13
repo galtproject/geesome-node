@@ -23,6 +23,9 @@ export default {
       return this.store.postsPerPage;
     },
     postsList() {
+      if (this.store.currentPosts) {
+        return this.store.currentPosts;
+      }
       const curPageIndex = this.pagesCount - this.curPage;
       const startIndex = curPageIndex * this.postsPerPage;
       return this.store.posts.slice(startIndex, startIndex + this.postsPerPage);
