@@ -1,3 +1,5 @@
+import {IListParams} from "../database/interface.js";
+
 export default interface IGeesomeSocNetAccount {
 	createOrUpdateAccount(userId, accData): Promise<IAccount>;
 
@@ -5,7 +7,7 @@ export default interface IGeesomeSocNetAccount {
 
 	getAccountByUsernameOrPhone(userId, socNet, username, phoneNumber): Promise<IAccount>;
 
-	getAccountList(userId, accountData): Promise<IAccount[]>;
+	getAccountList(userId, socNet?, listParams?: IListParams): Promise<IAccount[]>;
 
 	flushDatabase(): Promise<any>;
 }
@@ -24,4 +26,15 @@ export interface IAccount {
 	accessToken: string;
 	sessionKey: string;
 	isEncrypted: boolean;
+}
+
+export interface ISocNetAccountListInput {
+	socNet?: string;
+	accountData?: string | {
+		socNet?: string;
+	};
+	limit?: number;
+	offset?: number;
+	sortBy?: string;
+	sortDir?: string;
 }
