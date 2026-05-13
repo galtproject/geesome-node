@@ -317,7 +317,7 @@ async function getModule(app: IGeesomeApp, models) {
             });
         }
 
-        async prepareGroupPostsForRender(userId, entityType, entityId, options: any = {}) {
+        async prepareGroupSiteRenderContext(userId, entityType, entityId, options: any = {}) {
             const group = await app.ms.group.getLocalGroup(userId, entityId);
             options = await this.getGroupResultOptions(group, options);
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
@@ -325,14 +325,60 @@ async function getModule(app: IGeesomeApp, models) {
             const siteStorageDir = `/${staticSite.staticId}-site`;
             await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
 
-            const posts = [];
+            const postsPerPage = options.postList.postsPerPage;
+            const renderPostCount = Math.min(await app.ms.group.getGroupPostsCount(entityId), generatedGroupPostsLimit);
+
+            return {
+                staticSite,
+                siteStorageDir,
+                manifestStorageId: group.manifestStorageId,
+                renderPostCount,
+                renderData: {
+                    options, //TODO: vulnerability?
+                    posts: [],
+                    currentPosts: [],
+                    currentPost: null,
+                    pagesCount: Math.ceil(renderPostCount / postsPerPage),
+                    postsPerPage,
+                    indexById: {}
+                }
+            }
+        }
+
+        async renderGroupPostListPage(renderPage, renderOptions, siteStorageDir, renderData, pagePosts, pageIndex) {
+            renderData.currentPosts = pagePosts;
+            renderData.currentPost = null;
+            const pageNumber = renderData.pagesCount - pageIndex;
+            const routePath = pageIndex === 0 ? `` : `/page/${pageNumber}`;
+            const type = pageIndex === 0 ? 'main' : 'page';
+            await this.renderAndSave(renderPage, renderOptions, siteStorageDir, routePath, type);
+        }
+
+        async renderGroupPostPage(renderPage, renderOptions, siteStorageDir, renderData, postObject) {
+            renderData.currentPosts = [];
+            renderData.currentPost = postObject;
+            await this.renderAndSave(renderPage, renderOptions, siteStorageDir, `/post/${postObject.id}`, 'post', postObject);
+        }
+
+        async renderGroupPostBatchPages(userId, entityId, renderPage, renderOptions, siteStorageDir, renderData, renderPostCount) {
+            if (renderPostCount === 0) {
+                await this.renderGroupPostListPage(renderPage, renderOptions, siteStorageDir, renderData, [], 0);
+                return;
+            }
+
             const renderedCount = {count: 0};
-            const renderProgressTotal = Math.max(
-                1,
-                Math.min(options.site.postsCount || generatedGroupPostsLimit, generatedGroupPostsLimit)
-            );
+            const renderProgressTotal = Math.max(1, renderPostCount);
+            let pagePosts = [];
+            let pageIndex = 0;
+
+            const flushPage = async () => {
+                await this.renderGroupPostListPage(renderPage, renderOptions, siteStorageDir, renderData, pagePosts, pageIndex);
+                pagePosts = [];
+                pageIndex += 1;
+            };
+
             await app.ms.group.forEachHydratedGroupPostBatch(entityId, {
-                maxRefs: generatedGroupPostsLimit,
+                maxRefs: renderPostCount,
                 batchLimit: generatedGroupPostBatchLimit,
                 listParams: {
                     sortBy: 'publishedAt',
@@ -342,29 +388,18 @@ async function getModule(app: IGeesomeApp, models) {
                     includeRepostOf: true
                 }
             }, async ({groupPosts}) => {
-                const postObjects = await this.preparePostObjectsForRender(userId, options, siteStorageDir, groupPosts, renderedCount, renderProgressTotal);
-                posts.push(...postObjects);
+                const postObjects = await this.preparePostObjectsForRender(userId, renderOptions, siteStorageDir, groupPosts, renderedCount, renderProgressTotal);
+                await pIteration.forEachSeries(postObjects, async (postObject) => {
+                    await this.renderGroupPostPage(renderPage, renderOptions, siteStorageDir, renderData, postObject);
+                    pagePosts.push(postObject);
+                    if (pagePosts.length >= renderData.postsPerPage) {
+                        await flushPage();
+                    }
+                });
             });
 
-            const postsPerPage = options.postList.postsPerPage;
-            const pagesCount = Math.ceil(posts.length / postsPerPage);
-
-            const indexById = {};
-            posts.forEach((p, i) => {
-                indexById[p.id] = i;
-            });
-
-            return {
-                staticSite,
-                siteStorageDir,
-                manifestStorageId: group.manifestStorageId,
-                renderData: {
-                    options, //TODO: vulnerability?
-                    posts,
-                    pagesCount,
-                    postsPerPage,
-                    indexById
-                }
+            if (pagePosts.length) {
+                await flushPage();
             }
         }
 
@@ -389,8 +424,9 @@ async function getModule(app: IGeesomeApp, models) {
                 staticSite,
                 siteStorageDir,
                 renderData,
-                manifestStorageId
-            } = await this.prepareGroupPostsForRender(userId, entityType, entityId, options);
+                manifestStorageId,
+                renderPostCount
+            } = await this.prepareGroupSiteRenderContext(userId, entityType, entityId, options);
             const renderOptions = renderData.options;
 
             // VueSSR: initialize app
@@ -407,14 +443,7 @@ async function getModule(app: IGeesomeApp, models) {
              */
             await this.copySiteAssets(siteStorageDir, renderData.options.site.avatarStorageId);
 
-            await this.renderAndSave(renderPage, renderOptions, siteStorageDir, ``, 'main');
-            for (let i = 1; i <= renderData.pagesCount - 1; i++) {
-                // VueSSR: render other pages by url
-                await this.renderAndSave(renderPage, renderOptions, siteStorageDir, `/page/${i}`, 'page');
-            }
-            await pIteration.forEachSeries(renderData.posts, (p) => {
-                return this.renderAndSave(renderPage, renderOptions, siteStorageDir, `/post/${p.id}`, 'post', p);
-            });
+            await this.renderGroupPostBatchPages(userId, entityId, renderPage, renderOptions, siteStorageDir, renderData, renderPostCount);
 
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
             const baseData = {storageId, lastEntityManifestStorageId: manifestStorageId, options: JSON.stringify(renderOptions)};

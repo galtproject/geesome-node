@@ -14,6 +14,9 @@ export default {
     },
     computed: {
         post() {
+            if (this.store.currentPost) {
+                return this.store.currentPost;
+            }
             return this.store.posts[this.store.indexById[this.$route.params.postId]];
         },
         contentRoot() {
