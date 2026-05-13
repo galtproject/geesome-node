@@ -113,7 +113,8 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 87 | Ownerless remote content import is read-only against existing shared rows and requires an actor before creating new library rows | `bc8d88c` |
 | 88 | Public content metadata uses a safe projection and hides private content rows when looked up by numeric DB id | `5a35f1f` |
 | 89 | Post attachment resolution returns explicit owner/public/actor import reasons for future share/group/admin policy | `221a545` |
-| 90 | RSS feeds default to a smaller item window while explicit archive reads stay capped at the legacy maximum | this PR |
+| 90 | RSS feeds default to a smaller item window while explicit archive reads stay capped at the legacy maximum | `71660e8` |
+| 91 | Restored-backup migration rehearsal has a guarded command that runs migrations, model sync, and the integrity audit | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 
@@ -280,7 +281,7 @@ The current schema should not be thrown away. It should be completed with these 
 
 The core scalability pass should now stay finite. Treat the following as the remaining near-term PR queue; everything after it belongs to feature-driven backlog work unless a production rehearsal exposes a correctness bug:
 
-1. Rehearse the May 2026 migration chain on a restored Postgres backup and run `npm run database:migration-integrity`; fix only audit/migration issues found there.
+1. Rehearse the May 2026 migration chain on a restored Postgres backup with `npm run database:migration-rehearsal`; fix only audit/migration issues found there.
 2. Continue body-projection cleanup after the RSS and static-site streaming slices: cached text/json snippets if large-fixture or real-site runs show storage-read pressure.
 3. Shared content lookup policy is locked for A1: public metadata is projected, attachment resolver reasons are explicit, and new ownerless library-row creation is blocked until the A2 canonical asset table exists. Future share/group/admin attachment reasons belong to feature-driven policy work.
 4. RSS now defaults to a smaller feed window while preserving the legacy 9999-item maximum for explicit archive reads. Further feed-size changes are product policy, not core scalability blockers.
@@ -373,16 +374,25 @@ Recent migration slices now have a DB-backed verification command:
 npm run database:migration-integrity
 ```
 
-Run it after taking a database backup and applying migrations to the restored/test target. The command connects to the configured Postgres database, verifies that every recent `202605...` database/group migration is listed in the audit, checks that those migrations are recorded in `SequelizeMeta`, then validates the resulting schema and data state. It fails if a required index is missing or invalid, a widened size column is not `BIGINT`, a cleanup-backed uniqueness invariant still has duplicates, a static-ID current binding is present but diverges from matching/latest history state, a post local-ID high-water counter regressed, or a relation touched by the dedupe/backfill migrations points at a missing row.
+For the full restored-backup rehearsal, use the guarded wrapper:
+
+```bash
+CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> npm run database:migration-rehearsal
+```
+
+The wrapper refuses to run without explicit restored-backup confirmation and an explicit database name; it also refuses `DATABASE_NAME=geesome_node` unless `ALLOW_DEFAULT_DATABASE=1` is set. It runs `npm run migrate-all-database`, then `npm run database:sync-models` so model-sync-only tables such as current static-ID bindings exist in the rehearsal target, and finally `npm run database:migration-integrity`.
+
+Run the integrity audit after taking a database backup and applying migrations to the restored/test target. The command connects to the configured Postgres database, verifies that every recent `202605...` migration from known migration-capable modules is listed in the audit, checks that covered migrations are recorded in `SequelizeMeta`, then validates the resulting schema and data state. It fails if a required index is missing or invalid, a widened size column is not `BIGINT`, a cleanup-backed uniqueness invariant still has duplicates, a static-ID current binding is present but diverges from matching/latest history state, a post local-ID high-water counter regressed, or a relation touched by the dedupe/backfill migrations points at a missing row.
 
 When a migration fails the audit, restore the backup, adjust the migration or follow-up repair, rerun migrations, and rerun the audit before exposing the upgraded database to users. For model-sync test databases that did not run Sequelize migrations, use `npm run database:migration-integrity -- --skip-migration-meta`; production/upgrade rehearsals should not skip migration metadata. To validate brand-new model-sync tables, start the app or otherwise run model sync before the final-state audit.
 
-Any new database/group migration at or after the May 2026 scalability migration floor must extend `check/databaseMigrationIntegrity.ts` with its expected indexes, columns, duplicate cleanup checks, relation checks, or explicit rationale. The coverage check intentionally fails when a new recent migration file appears without corresponding audit coverage. New tables created only by Sequelize sync should not be listed as covered migrations unless a real migration file exists; add model-sync final-state checks separately when useful.
+Any new migration in a known migration-capable module at or after the May 2026 scalability migration floor must extend `check/databaseMigrationIntegrity.ts` with its expected indexes, columns, duplicate cleanup checks, relation checks, or explicit rationale. The coverage check intentionally fails when a new recent migration file appears without corresponding audit coverage. New tables created only by Sequelize sync should not be listed as covered migrations unless a real migration file exists; add model-sync final-state checks separately when useful.
 
 ## Verification
 
 - `npm run database:scalability:update`
 - `npm run database:scalability`
+- `npm run database:sync-models`
 - `npm run database:migration-integrity`
 
 This review now tracks both the inventory and the shipped first index/query slices. Remaining implementation should still be measured against the large Docker-backed fixture instead of guessed from small local data.

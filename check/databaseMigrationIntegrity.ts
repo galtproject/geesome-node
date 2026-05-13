@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {QueryTypes, Sequelize} from 'sequelize';
 import databaseConfig from '../app/modules/database/config.js';
 
-type MigrationModule = 'database' | 'group';
+type MigrationModule = 'database' | 'group' | 'staticSiteGenerator' | 'socNetImport';
 
 type CoveredMigration = {
   module: MigrationModule;
@@ -72,6 +72,8 @@ const recentMigrationFloor = '20260500000000';
 const migrationDirs: Record<MigrationModule, string> = {
   database: 'app/modules/database/migrations',
   group: 'app/modules/group/migrations',
+  staticSiteGenerator: 'app/modules/staticSiteGenerator/migrations',
+  socNetImport: 'app/modules/socNetImport/migrations',
 };
 
 const coveredMigrations: CoveredMigration[] = [
@@ -648,6 +650,11 @@ export function getMigrationCoverageProblems(baseDir = rootDir): MigrationCovera
 
   for (const moduleName of Object.keys(migrationDirs) as MigrationModule[]) {
     const directory = path.join(baseDir, migrationDirs[moduleName]);
+
+    if (!fs.existsSync(directory)) {
+      continue;
+    }
+
     const files = fs.readdirSync(directory)
       .filter((file) => file.endsWith('.cjs'))
       .filter((file) => file >= recentMigrationFloor);
