@@ -75,6 +75,8 @@ function modelRows(): ModelRow[] {
   const foreignAccountIndexSource = read('app/modules/foreignAccounts/index.ts');
   const socNetAccountSource = read('app/modules/socNetAccount/models.ts');
   const socNetAccountIndexSource = read('app/modules/socNetAccount/index.ts');
+  const tgContentBotSource = read('app/modules/tgContentBot/models.ts');
+  const tgContentBotApiSource = read('app/modules/tgContentBot/api.ts');
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
@@ -428,6 +430,21 @@ function modelRows(): ModelRow[] {
       ],
     },
     {
+      area: 'Telegram content bots',
+      source: 'app/modules/tgContentBot/models.ts',
+      model: 'ContentBots',
+      indexes: [
+        has(tgContentBotSource, "fields: ['userId']")
+          ? 'userId bot-list index'
+          : 'missing user content-bot list index',
+      ],
+      notes: [
+        has(tgContentBotApiSource, 'contentBotListParams')
+          ? 'user content-bot lists are capped for the API; add a userId index before this table grows materially'
+          : 'content-bot API lists can return every row for a user',
+      ],
+    },
+    {
       area: 'Group permissions',
       source: 'app/modules/group/models/groupPermission.ts',
       model: 'GroupPermission',
@@ -555,6 +572,8 @@ function hotspotRows(): HotspotRow[] {
   const foreignAccountModelSource = read('app/modules/foreignAccounts/models.ts');
   const socNetAccountSource = read('app/modules/socNetAccount/index.ts');
   const socNetAccountModelSource = read('app/modules/socNetAccount/models.ts');
+  const tgContentBotSource = read('app/modules/tgContentBot/api.ts');
+  const tgContentBotModelSource = read('app/modules/tgContentBot/models.ts');
   const helpersSource = read('app/helpers.ts');
   const packageSource = read('package.json');
   const scalabilityFixtureSource = read('check/databaseScalabilityFixture.ts');
@@ -648,6 +667,12 @@ function hotspotRows(): HotspotRow[] {
     && has(socNetAccountSource, 'app.ms.database.setDefaultListParamsValues(listParams, socNetAccountListParams)')
     && has(socNetAccountSource, 'getSocNetAccountListOrder(sortBy, sortDir)')
     && has(socNetAccountSource, 'getAccountList(userId');
+  const hasContentBotListLimits = has(tgContentBotSource, 'contentBotListParams')
+    && has(tgContentBotSource, 'helpers.prepareListParams(req.body, contentBotListParams)')
+    && has(tgContentBotSource, 'app.ms.database.setDefaultListParamsValues(listParams, contentBotListParams)')
+    && has(tgContentBotSource, 'getContentBotListOrder(sortBy, sortDir)')
+    && has(tgContentBotSource, 'limit')
+    && has(tgContentBotSource, 'offset');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -663,6 +688,7 @@ function hotspotRows(): HotspotRow[] {
     hasPinAccountListLimits ? 'pin account lists' : null,
     hasForeignAccountListLimits ? 'foreign account API lists' : null,
     hasSocNetAccountListLimits ? 'social account API lists' : null,
+    hasContentBotListLimits ? 'content-bot API lists' : null,
   ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
@@ -1155,6 +1181,21 @@ function hotspotRows(): HotspotRow[] {
           ? 'user social-account API pages are bounded and user/socNet lookups keep their composite indexes'
           : 'user/socNet lookups are indexed, but the API can still return every account for the user')
         : 'large per-user social-account lists can scan without a userId-leading index',
+    },
+    {
+      area: 'Content bot list',
+      source: 'app/modules/tgContentBot/api.ts',
+      hotspot: 'content-bot/list',
+      observedPattern: hasContentBotListLimits
+        ? 'API calls list current-user content bots with allowlisted sort fields, default pages, and a lower cap'
+        : 'lists every content bot for the user',
+      scalabilityRisk: has(tgContentBotModelSource, "fields: ['userId']")
+        ? (hasContentBotListLimits
+          ? 'user content-bot API pages are bounded and backed by the userId index'
+          : 'userId lookup is indexed, but the API can still return every content bot for the user')
+        : (hasContentBotListLimits
+          ? 'API pages are bounded, but a userId-leading index should be added before this table grows materially'
+          : 'large per-user content-bot lists can scan without a userId-leading index'),
     },
     {
       area: 'List parameter normalization',

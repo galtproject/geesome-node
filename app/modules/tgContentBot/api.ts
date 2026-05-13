@@ -3,7 +3,24 @@ import TelegramBot from "node-telegram-bot-api";
 import commonHelper from "geesome-libs/src/common.js";
 import MultiTelegramBot from "./multiTelegramBot.js";
 import {IGeesomeApp} from "../../interface.js";
+import {IListParamsOptions} from "../database/interface.js";
+import helpers from "../../helpers.js";
 const {pick} = _;
+
+const contentBotListParams: IListParamsOptions = {
+    sortBy: 'createdAt',
+    allowedSortBy: ['createdAt', 'updatedAt', 'botUsername', 'socNet', 'id'],
+    maxLimit: 100
+};
+
+function getContentBotListOrder(sortBy, sortDir) {
+    const direction = sortDir.toUpperCase();
+    const order = [[sortBy, direction]];
+    if (sortBy !== 'id') {
+        order.push(['id', direction]);
+    }
+    return order;
+}
 
 export default (app: IGeesomeApp, models: any, multitelegrambot: MultiTelegramBot) => {
     const api = app.ms.api.prefix('content-bot/');
@@ -25,8 +42,28 @@ export default (app: IGeesomeApp, models: any, multitelegrambot: MultiTelegramBo
         res.send("ok", 200);
     });
 
+    /**
+     * @api {post} /v1/content-bot/list List content bots
+     * @apiName UserContentBotList
+     * @apiGroup ContentBot
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     *
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+     * @apiSuccess {Object[]} list Content bots.
+     */
     api.onAuthorizedPost('list', async (req, res) => {
-        res.send(await models.ContentBots.findAll({where: {userId: req.user.id}}), 200);
+        const listParams = helpers.prepareListParams(req.body, contentBotListParams);
+        app.ms.database.setDefaultListParamsValues(listParams, contentBotListParams);
+        const {limit, offset, sortBy, sortDir} = listParams;
+        const list = await models.ContentBots.findAll({
+            where: {userId: req.user.id},
+            order: getContentBotListOrder(sortBy, sortDir),
+            limit,
+            offset
+        });
+        res.send(list, 200);
     });
 
     api.onAuthorizedPost('addUser', async (req, res) => {
