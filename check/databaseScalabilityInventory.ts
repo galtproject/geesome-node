@@ -70,6 +70,7 @@ function modelRows(): ModelRow[] {
   const autoActionIndexSource = read('app/modules/autoActions/index.ts');
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/models.ts');
+  const pinIndexSource = read('app/modules/pin/index.ts');
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
@@ -374,7 +375,9 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         hasPinUserNameUnique && hasPinGroupNameUnique
-          ? 'runtime owner/name lookups are deterministic after duplicate-name cleanup'
+          ? (has(pinIndexSource, 'pinAccountListParams')
+            ? 'runtime owner/name lookups are deterministic after duplicate-name cleanup; owner-scoped account lists are capped and ordered by allowlisted fields'
+            : 'runtime owner/name lookups are deterministic after duplicate-name cleanup')
           : 'pin account lookup should start with owner id before name',
       ],
     },
@@ -578,6 +581,12 @@ function hotspotRows(): HotspotRow[] {
     && has(autoActionSource, 'getAutoActionListWhere(userId, params)')
     && has(autoActionSource, 'helpers.prepareWhereParams(params, autoActionListFilterTypes)')
     && has(autoActionSource, 'models.AutoAction.count({where})');
+  const hasPinAccountListLimits = has(pinSource, 'pinAccountListParams')
+    && has(pinSource, 'helpers.prepareListParams(listParams, pinAccountListParams)')
+    && has(pinSource, 'app.ms.database.setDefaultListParamsValues(listParams, pinAccountListParams)')
+    && has(pinSource, 'getPinAccountListOrder(sortBy, sortDir)')
+    && has(pinSource, 'limit')
+    && has(pinSource, 'offset');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -590,6 +599,7 @@ function hotspotRows(): HotspotRow[] {
     hasUserGroupListLimits ? 'user group membership/chat lists' : null,
     hasUserFriendListLimits ? 'user friend lists' : null,
     hasAutoActionListLimits ? 'auto-action management lists' : null,
+    hasPinAccountListLimits ? 'pin account lists' : null,
   ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
@@ -1043,14 +1053,18 @@ function hotspotRows(): HotspotRow[] {
         : 'large per-user auto-action histories can scan and sort without a user/default-order index',
     },
     {
-      area: 'Pin account lookup',
+      area: 'Pin account lookup/list',
       source: 'app/modules/pin/index.ts',
-      hotspot: 'getUserAccount / getGroupAccount',
+      hotspot: 'getUserAccount / getGroupAccount / getUserAccountsList / getGroupAccountsList',
       observedPattern: has(pinSource, 'findOne({where: {userId, name}}') && has(pinSource, 'findOne({where: {groupId, name}}')
-        ? 'looks up pin accounts by owner id plus name'
+        ? (hasPinAccountListLimits
+          ? 'looks up pin accounts by owner id plus name and lists owner-scoped accounts with allowlisted sort fields, default pages, and a lower cap'
+          : 'looks up pin accounts by owner id plus name')
         : 'review pin account lookup implementation',
       scalabilityRisk: has(pinModelSource, 'pin_accounts_user_name_unique') && has(pinModelSource, 'pin_accounts_group_name_unique')
-        ? 'owner/name lookups are indexed and uniqueness-backed'
+        ? (hasPinAccountListLimits
+          ? 'owner/name lookups and bounded owner-scoped lists are backed by the owner/name indexes'
+          : 'owner/name lookups are indexed and uniqueness-backed')
         : 'owner/name lookup cannot use the legacy name-leading uniqueness well',
     },
     {

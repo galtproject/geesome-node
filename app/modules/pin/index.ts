@@ -1,10 +1,27 @@
 import axios from "axios";
 import pIteration from 'p-iteration';
 import IGeesomePinModule, {IPinAccount} from "./interface.js";
+import {IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
+
+const pinAccountListParams: IListParamsOptions = {
+	sortBy: 'name',
+	allowedSortBy: ['name', 'service', 'createdAt', 'updatedAt', 'id'],
+	maxLimit: 100
+};
+
+function getPinAccountListOrder(sortBy, sortDir) {
+	const direction = sortDir.toUpperCase();
+	const order = [[sortBy, direction]];
+	if (sortBy !== 'id') {
+		order.push(['id', direction]);
+	}
+	return order;
+}
 
 export default async (app: IGeesomeApp) => {
-	app.checkModules(['group', 'content', 'storage']);
+	app.checkModules(['database', 'group', 'content', 'storage']);
 
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	(await import('./api.js')).default(app, module);
@@ -58,15 +75,35 @@ export function getModule(app: IGeesomeApp, models) {
 			return models.PinAccount.findOne({where: {userId, name}}).then(acc => this.decryptPinAccountIfNecessary(acc));
 		}
 
-		async getUserAccountsList(userId: number): Promise<IPinAccount[]> {
-			return models.PinAccount.findAll({where: {userId}});
+		prepareAccountListParams(listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, pinAccountListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, pinAccountListParams);
+			return listParams;
 		}
 
-		async getGroupAccountsList(userId: number, groupId: number): Promise<IPinAccount[]> {
+		async getUserAccountsList(userId: number, listParams?: IListParams): Promise<IPinAccount[]> {
+			listParams = this.prepareAccountListParams(listParams);
+			const {limit, offset, sortBy, sortDir} = listParams;
+			return models.PinAccount.findAll({
+				where: {userId},
+				order: getPinAccountListOrder(sortBy, sortDir),
+				limit,
+				offset
+			});
+		}
+
+		async getGroupAccountsList(userId: number, groupId: number, listParams?: IListParams): Promise<IPinAccount[]> {
 			if (!await app.ms.group.canEditGroup(userId, groupId)) {
 				throw new Error("not_permitted");
 			}
-			return models.PinAccount.findAll({where: {groupId}});
+			listParams = this.prepareAccountListParams(listParams);
+			const {limit, offset, sortBy, sortDir} = listParams;
+			return models.PinAccount.findAll({
+				where: {groupId},
+				order: getPinAccountListOrder(sortBy, sortDir),
+				limit,
+				offset
+			});
 		}
 
 		async getGroupAccount(userId: number, groupId: number, name: string): Promise<IPinAccount> {
