@@ -124,7 +124,8 @@
     "chai": "^4.2.0",
     "chai-http": "^4.2.1",
     "geesome-apidoc-template": "git+https://github.com/MicrowaveDev/apidoc-template.git",
-    "mocha": "^11.7.5"
+    "mocha": "^11.7.5",
+    "ethers-common": "^1.0.0"
   },
   "size": "",
   "deploymentStrategy": "",
