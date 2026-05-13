@@ -136,6 +136,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['auto-action execution claim columns and index'],
   },
   {
+    module: 'database',
+    file: '20260513000000-add-content-bot-user-index.cjs',
+    verifies: ['content-bot user list index'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -198,6 +203,7 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'contents_user_manifest_storage_idx', table: 'contents', columns: ['userId', 'manifestStorageId']},
   {name: 'contents_user_storage_unique', table: 'contents', columns: ['userId', 'storageId'], unique: true},
   {name: 'objects_storage_resolve_prop_unique', table: 'objects', columns: ['storageId', 'resolveProp'], unique: true},
+  {name: 'content_bots_user_id_idx', table: 'contentBots', columns: ['userId']},
   {name: 'file_catalog_items_content_idx', table: 'fileCatalogItems', columns: ['contentId']},
   {name: 'file_catalog_items_user_parent_list_idx', table: 'fileCatalogItems', columns: ['userId', 'parentItemId', 'isDeleted', 'type', 'createdAt', 'id']},
   {name: 'file_catalog_items_child_path_unique', table: 'fileCatalogItems', columns: ['parentItemId', 'userId', 'name'], unique: true},

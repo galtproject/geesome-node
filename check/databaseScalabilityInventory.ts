@@ -37,6 +37,14 @@ function has(source: string, pattern: string | RegExp): boolean {
   return typeof pattern === 'string' ? source.includes(pattern) : pattern.test(source);
 }
 
+function hasSequelizeModelIndex(source: string, modelName: string, indexName: string, fieldsPattern: string): boolean {
+  const modelPattern = new RegExp(`sequelize\\.define\\('${modelName}'[\\s\\S]*?\\}\\s*,\\s*\\{([\\s\\S]*?)\\}\\s*\\);`);
+  const match = source.match(modelPattern);
+  const options = match?.[1] || '';
+
+  return has(options, indexName) && has(options, fieldsPattern);
+}
+
 function joinList(items: string[]): string {
   if (items.length <= 1) {
     return items.join('');
@@ -139,6 +147,12 @@ function modelRows(): ModelRow[] {
   const hasPinGroupNameUnique = has(pinSource, 'pin_accounts_group_name_unique')
     && has(pinSource, "fields: ['groupId', 'name']")
     && has(pinSource, 'unique: true');
+  const hasContentBotUserIndex = hasSequelizeModelIndex(
+    tgContentBotSource,
+    'contentBot',
+    'content_bots_user_id_idx',
+    "fields: ['userId']",
+  );
   const hasAsyncOperationRetention = has(asyncOperationIndexSource, 'cleanupFinishedAsyncOperations')
     && has(asyncOperationIndexSource, 'finishedOperationCleanupBatchLimit')
     && has(asyncOperationIndexSource, 'asyncOperationId: null');
@@ -434,13 +448,15 @@ function modelRows(): ModelRow[] {
       source: 'app/modules/tgContentBot/models.ts',
       model: 'ContentBots',
       indexes: [
-        has(tgContentBotSource, "fields: ['userId']")
+        hasContentBotUserIndex
           ? 'userId bot-list index'
           : 'missing user content-bot list index',
       ],
       notes: [
         has(tgContentBotApiSource, 'contentBotListParams')
-          ? 'user content-bot lists are capped for the API; add a userId index before this table grows materially'
+          ? (hasContentBotUserIndex
+            ? 'user content-bot lists are capped for the API and backed by the userId index'
+            : 'user content-bot lists are capped for the API; add a userId index before this table grows materially')
           : 'content-bot API lists can return every row for a user',
       ],
     },
@@ -673,6 +689,12 @@ function hotspotRows(): HotspotRow[] {
     && has(tgContentBotSource, 'getContentBotListOrder(sortBy, sortDir)')
     && has(tgContentBotSource, 'limit')
     && has(tgContentBotSource, 'offset');
+  const hasContentBotUserIndex = hasSequelizeModelIndex(
+    tgContentBotModelSource,
+    'contentBot',
+    'content_bots_user_id_idx',
+    "fields: ['userId']",
+  );
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -1189,7 +1211,7 @@ function hotspotRows(): HotspotRow[] {
       observedPattern: hasContentBotListLimits
         ? 'API calls list current-user content bots with allowlisted sort fields, default pages, and a lower cap'
         : 'lists every content bot for the user',
-      scalabilityRisk: has(tgContentBotModelSource, "fields: ['userId']")
+      scalabilityRisk: hasContentBotUserIndex
         ? (hasContentBotListLimits
           ? 'user content-bot API pages are bounded and backed by the userId index'
           : 'userId lookup is indexed, but the API can still return every content bot for the user')
