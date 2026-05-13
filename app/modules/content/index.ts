@@ -829,8 +829,43 @@ function getModule(app: IGeesomeApp) {
 			return uploadDriver.processBySource(sourceLink, params);
 		}
 
+		async getActorContentByObject(userId, contentObject) {
+			if (!helpers.hasId(userId)) {
+				return null;
+			}
+			if (contentObject.manifestStorageId) {
+				const dbContent = await app.ms.database.getContentByManifestAndUserId(contentObject.manifestStorageId, userId);
+				if (dbContent) {
+					return dbContent;
+				}
+			}
+			if (contentObject.storageId) {
+				const dbContent = await app.ms.database.getContentByStorageAndUserId(contentObject.storageId, userId);
+				if (dbContent) {
+					return dbContent;
+				}
+			}
+			return null;
+		}
+
+		async getSharedContentByObject(contentObject) {
+			if (contentObject.manifestStorageId) {
+				const dbContent = await app.ms.database.getSharedContentByManifestId(contentObject.manifestStorageId);
+				if (dbContent) {
+					return dbContent;
+				}
+			}
+			if (contentObject.storageId) {
+				const dbContent = await app.ms.database.getSharedContentByStorageId(contentObject.storageId);
+				if (dbContent) {
+					return dbContent;
+				}
+			}
+			return null;
+		}
+
 		async createContentByRemoteStorageId(userId, manifestStorageId, options: { groupId?, userApiKeyId? } = {}) {
-			let dbContent = helpers.hasId(userId)
+			const dbContent = helpers.hasId(userId)
 				? await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId)
 				: await app.ms.database.getSharedContentByManifestId(manifestStorageId);
 			if (dbContent) {
@@ -844,33 +879,14 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async createContentByObject(userId, contentObject, options?: { groupId?, userApiKeyId? }) {
-			if (helpers.hasId(userId)) {
-				if (contentObject.manifestStorageId) {
-					const dbContent = await app.ms.database.getContentByManifestAndUserId(contentObject.manifestStorageId, userId);
-					if (dbContent) {
-						return dbContent;
-					}
-				}
-				if (contentObject.storageId) {
-					const dbContent = await app.ms.database.getContentByStorageAndUserId(contentObject.storageId, userId);
-					if (dbContent) {
-						return dbContent;
-					}
-				}
+			const dbContent = helpers.hasId(userId)
+				? await this.getActorContentByObject(userId, contentObject)
+				: await this.getSharedContentByObject(contentObject);
+			if (dbContent) {
+				return dbContent;
 			}
 			if (!helpers.hasId(userId)) {
-				if (contentObject.manifestStorageId) {
-					const dbContent = await app.ms.database.getSharedContentByManifestId(contentObject.manifestStorageId);
-					if (dbContent) {
-						return dbContent;
-					}
-				}
-				if (contentObject.storageId) {
-					const dbContent = await app.ms.database.getSharedContentByStorageId(contentObject.storageId);
-					if (dbContent) {
-						return dbContent;
-					}
-				}
+				throw new Error('content_actor_required');
 			}
 			return this.addContent(userId, contentObject, options);
 		}
