@@ -10,7 +10,7 @@
 import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
 import trieHelper from "geesome-libs/src/base36Trie.js";
-import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
@@ -59,6 +59,11 @@ describe("group", function () {
 			permissions: [CorePermissionName.UserAll]
 		});
 		const newGroup = await app.ms.group.createGroup(newUser.id, {name: 'new-group', title: 'New group'});
+		const actorContent = await app.ms.content.saveData(newUser.id, 'private attachment', 'actor-private-attachment.md', {
+			mimeType: 'text/markdown'
+		});
+
+		assert.equal(actorContent.storageId, ownerContent.storageId);
 
 		await assert.rejects(
 			() => app.ms.group.createPost(newUser.id, {
@@ -75,10 +80,53 @@ describe("group", function () {
 			status: PostStatus.Published
 		});
 		const gotPost = await app.ms.group.getPostPure(post.id);
+		const actorContentRows = await app.ms.database.getContentByStorageIdListAndUserId([ownerContent.storageId], newUser.id);
+
 		assert.equal(gotPost.contents.length, 1);
 		assert.equal(gotPost.contents[0].userId, newUser.id);
 		assert.equal(gotPost.contents[0].storageId, ownerContent.storageId);
+		assert.equal(gotPost.contents[0].id, actorContent.id);
+		assert.equal(actorContentRows.length, 1);
 		assert.notEqual(gotPost.contents[0].id, ownerContent.id);
+	});
+
+	it('requires an actor before creating missing remote content rows', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const ownerContent = await app.ms.content.saveData(testUser.id, 'shared ownerless import body', 'ownerless-source.md', {
+			mimeType: 'text/markdown'
+		});
+		const sharedContent = await app.ms.content.createContentByRemoteStorageId(null, ownerContent.manifestStorageId);
+		const missingBody = 'missing ownerless import body';
+		const storageFile = await app.ms.storage.saveFileByData(missingBody);
+		const manifestStorageId = await app.ms.storage.saveObject({
+			_version: '0.1',
+			_source: 'geesome-node',
+			_protocol: 'geesome-ipsp',
+			_type: 'manifest',
+			_entityName: 'content',
+			name: 'ownerless missing row',
+			mimeType: 'text/plain',
+			storageType: ContentStorageType.IPFS,
+			size: Buffer.byteLength(missingBody),
+			extension: 'txt',
+			storageId: storageFile.id,
+			preview: {
+				medium: {
+					storageId: null,
+					mimeType: null,
+					extension: null,
+					size: null
+				}
+			}
+		});
+		const nullUserRowsBefore = await (app.ms.database as any).models.Content.count({where: {userId: null}});
+
+		assert.equal(sharedContent.id, ownerContent.id);
+		await assert.rejects(
+			() => app.ms.content.createContentByRemoteStorageId(null, manifestStorageId),
+			(error: Error) => error.message === 'content_actor_required'
+		);
+		assert.equal(await (app.ms.database as any).models.Content.count({where: {userId: null}}), nullUserRowsBefore);
 	});
 
 	it('imports remote group media into actor-scoped content rows', async () => {
