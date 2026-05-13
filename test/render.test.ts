@@ -123,19 +123,41 @@ describe("renders", function () {
 		const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
 			groupId: testGroup.id
 		});
+		const jsonContent = await app.ms.content.saveData(testUser.id, JSON.stringify({unused: true}), null, {
+			mimeType: 'application/json'
+		});
 
 		await app.ms.group.createPost(testUser.id, {
 			contents: [{
 				manifestStorageId: post1Content.manifestStorageId,
 				view: ContentView.Attachment
-			}, {manifestStorageId: imageContent.manifestStorageId, view: ContentView.Attachment}],
+			}, {
+				manifestStorageId: imageContent.manifestStorageId,
+				view: ContentView.Attachment
+			}, {
+				manifestStorageId: jsonContent.manifestStorageId,
+				view: ContentView.Attachment
+			}],
 			groupId: testGroup.id,
 			status: PostStatus.Published
 		});
 
-		const resultXml = await rssRender.groupRss(testGroup.id, 'http://localhost:1234');
+		const getFileDataText = app.ms.storage.getFileDataText.bind(app.ms.storage);
+		const textReadStorageIds: string[] = [];
+		app.ms.storage.getFileDataText = async (storageId) => {
+			textReadStorageIds.push(storageId);
+			return getFileDataText(storageId);
+		};
+		let resultXml;
+		try {
+			resultXml = await rssRender.groupRss(testGroup.id, 'http://localhost:1234');
+		} finally {
+			app.ms.storage.getFileDataText = getFileDataText;
+		}
 		assert.equal(resultXml.includes("Test 1 group"), true);
 		assert.equal(resultXml.includes("Test 1 post"), true);
 		assert.equal(resultXml.includes(imageContent.storageId), true);
+		assert.equal(textReadStorageIds.includes(post1Content.storageId), true);
+		assert.equal(textReadStorageIds.includes(jsonContent.storageId), false);
 	});
 });

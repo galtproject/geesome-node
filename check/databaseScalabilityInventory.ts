@@ -59,6 +59,7 @@ function modelRows(): ModelRow[] {
   const contentSource = read('app/modules/database/models/content.ts');
   const objectSource = read('app/modules/database/models/object.ts');
   const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
+  const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
   const groupReadSource = read('app/modules/group/models/groupRead.ts');
   const socNetImportSource = read('app/modules/socNetImport/models.ts');
@@ -130,6 +131,9 @@ function modelRows(): ModelRow[] {
     && has(fileCatalogModelSource, "fields: ['parentItemId', 'userId', 'name']")
     && has(fileCatalogModelSource, "fields: ['userId', 'name']")
     && has(fileCatalogModelSource, 'unique: true');
+  const hasFileCatalogDefaultFolderRetry = has(fileCatalogSource, 'getOrCreateDefaultFolderFor')
+    && has(fileCatalogSource, 'getAvailableFileCatalogItemName(userId, null, folderName)')
+    && has(fileCatalogSource, 'isFileCatalogPathUniqueError(e)');
   const hasFileCatalogParentListIndex = has(fileCatalogModelSource, 'file_catalog_items_user_parent_list_idx')
     && has(fileCatalogModelSource, "fields: ['userId', 'parentItemId', 'isDeleted', 'type', 'createdAt', 'id']");
   const hasUserLimitUnique = has(userLimitSource, 'user_limits_user_name_unique')
@@ -276,7 +280,9 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         has(fileCatalogModelSource, 'file_catalog_items_content_idx') && hasFileCatalogParentListIndex && hasFileCatalogPathUnique
-          ? 'content reference checks, large folder listings, and exact active path writes are covered'
+          ? (hasFileCatalogDefaultFolderRetry
+            ? 'content reference checks, large folder listings, exact active path writes, and concurrent default upload folder creation are covered'
+            : 'content reference checks, large folder listings, and exact active path writes are covered')
           : 'content delete/reference checks need a reverse content lookup index before large libraries',
       ],
     },
@@ -751,6 +757,9 @@ function hotspotRows(): HotspotRow[] {
   const hasRssPostRefs = hasGeneratedOutputPostBatchHelper
     && has(rssSource, 'forEachHydratedGroupPostBatch(groupId')
     && has(rssSource, 'rssPostBatchLimit');
+  const hasRssContentProjection = has(rssSource, 'getPostFeedContents')
+    && has(rssSource, 'includeText: false')
+    && has(rssSource, 'includeJson: false');
   const hasGroupManifestDeleteUnset = has(manifestSource, 'unsetTreeNode(groupManifest.posts, post.localId)');
   const hasGroupManifestStatusUnset = has(manifestSource, 'statusNe: PostStatus.Published')
     && has(groupSource, 'this.updateGroupManifest(userId, oldPost.groupId)');
@@ -1004,7 +1013,9 @@ function hotspotRows(): HotspotRow[] {
         ? 'scans lightweight post refs in cursor batches, then hydrates selected feed batches'
         : (has(rssSource, 'limit: 9999') ? 'loads up to 9999 posts with contents for feed generation' : 'review implementation'),
       scalabilityRisk: hasRssPostRefs
-        ? 'feed generation avoids total counts and the previous 9999-row hydration query; body extraction still reads selected content files'
+        ? (hasRssContentProjection
+          ? 'feed generation avoids totals, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata'
+          : 'feed generation avoids total counts and the previous 9999-row hydration query; body extraction still reads selected content files')
         : 'feeds should cap lower or use a feed-specific projection',
     },
     {

@@ -16,6 +16,7 @@ import {
 	GroupPermissionName,
 	IContent,
 	IContentData,
+	IContentDataProjectionOptions,
 	IListParams,
 	IListParamsOptions
 } from "../database/interface.js";
@@ -899,7 +900,7 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
-		async prepareContentData(c: IContent): Promise<IContentData> {
+		async prepareContentData(c: IContent, options: IContentDataProjectionOptions = {}): Promise<IContentData> {
 			// Prefer the PostsContents join-row view when this Content arrives via post.contents
 			// hydration; the Content row's default view is the fallback. P2: "Per-post attachment
 			// metadata is not consistently read from the join row" — same fix as the post manifest
@@ -917,11 +918,14 @@ function getModule(app: IGeesomeApp, models) {
 				mimeType: c.mimeType,
 			}
 			if (c.mimeType.startsWith('text/')) {
-				return {
+				const contentData: IContentData = {
 					type: 'text',
-					text: await app.ms.storage.getFileDataText(c.storageId),
 					...baseData
+				};
+				if (options.includeText !== false) {
+					contentData.text = await app.ms.storage.getFileDataText(c.storageId);
 				}
+				return contentData;
 			} else if (c.mimeType.includes('image')) {
 				return {
 					type: 'image',
@@ -933,17 +937,23 @@ function getModule(app: IGeesomeApp, models) {
 					...baseData
 				};
 			} else if (c.mimeType.includes('json')) {
-				return {
+				const contentData: IContentData = {
 					type: 'json',
-					json: JSON.parse(await app.ms.storage.getFileDataText(c.storageId)),
 					...baseData
 				};
+				if (options.includeJson !== false) {
+					contentData.json = JSON.parse(await app.ms.storage.getFileDataText(c.storageId));
+				}
+				return contentData;
 			}
 			return null;
 		}
 
-		async prepareContentDataWithUrl(c: IContent, baseStorageUri: string): Promise<IContentData> {
-			return this.prepareContentData(c).then(contentData => {
+		async prepareContentDataWithUrl(c: IContent, baseStorageUri: string, options: IContentDataProjectionOptions = {}): Promise<IContentData> {
+			return this.prepareContentData(c, options).then(contentData => {
+				if (!contentData) {
+					return contentData;
+				}
 				if (contentData.storageId) {
 					contentData['url'] = baseStorageUri + contentData.storageId;
 				}
@@ -954,15 +964,15 @@ function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
-		async getPostContentData(post: IPost, baseStorageUri: string): Promise<IContentData[]> {
+		async getPostContentData(post: IPost, baseStorageUri: string, options: IContentDataProjectionOptions = {}): Promise<IContentData[]> {
 			return pIteration.map(
 				orderBy(post.contents, [(c: any) => c.postsContents.position], ['asc']),
-				c => this.prepareContentDataWithUrl(c, baseStorageUri),
+				c => this.prepareContentDataWithUrl(c, baseStorageUri, options),
 			).then((contents: any[]) => contents.filter(c => !!c));
 		}
 
-		async getPostContentDataWithUrl(post: IPost, baseStorageUri: string): Promise<IContentData[]> {
-			return this.getPostContentData(post, baseStorageUri).then(contents => contents.map(c => {
+		async getPostContentDataWithUrl(post: IPost, baseStorageUri: string, options: IContentDataProjectionOptions = {}): Promise<IContentData[]> {
+			return this.getPostContentData(post, baseStorageUri, options).then(contents => contents.map(c => {
 				if (c.storageId) {
 					c['url'] = baseStorageUri + c.storageId;
 				}
