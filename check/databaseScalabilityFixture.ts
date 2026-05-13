@@ -8,8 +8,10 @@
  * Default fixture shape (all parameters can be overridden by env vars):
  * - 1 user (idempotent)
  * - 1 group (`scalability-fixture` by name)
+ * - 1 category containing that group
  * - 1k content rows
  * - 100k posts in the fixture group, ~30% with attached content
+ * - quota/static-ID side rows so EXPLAIN probes hit realistic data
  *
  * Env overrides:
  *   FIXTURE_POSTS=100000
@@ -35,11 +37,153 @@ const POST_COUNT = parseInt(process.env.FIXTURE_POSTS || '100000', 10);
 const CONTENT_COUNT = parseInt(process.env.FIXTURE_CONTENTS || '1000', 10);
 const ATTACH_RATIO = parseFloat(process.env.FIXTURE_ATTACH_RATIO || '0.3');
 const GROUP_NAME = process.env.FIXTURE_GROUP_NAME || 'scalability-fixture';
+const CATEGORY_NAME = process.env.FIXTURE_CATEGORY_NAME || `${GROUP_NAME}-category`;
 const RESET = (process.env.FIXTURE_RESET || '').toLowerCase() === 'true';
 const BATCH = 5000;
 
 function nowMinus(seconds: number): Date {
   return new Date(Date.now() - seconds * 1000);
+}
+
+async function seedFixtureCategory(sequelize: Sequelize, groupId: number) {
+  const [existingCategory] = (await sequelize.query(
+    `SELECT id FROM categories WHERE name = :name LIMIT 1`,
+    {replacements: {name: CATEGORY_NAME}, type: QueryTypes.SELECT},
+  )) as Array<{ id: number }>;
+  let categoryId = existingCategory?.id;
+  if (!categoryId) {
+    const [created] = (await sequelize.query(
+      `INSERT INTO categories (name, title, "isGlobal", "createdAt", "updatedAt")
+         VALUES (:name, :title, true, NOW(), NOW())
+       RETURNING id`,
+      {replacements: {name: CATEGORY_NAME, title: 'Scalability fixture category'}, type: QueryTypes.INSERT},
+    )) as any;
+    categoryId = (created[0] as any).id;
+  }
+  await sequelize.query(
+    `INSERT INTO "categoryGroups" ("categoryId", "groupId", "createdAt", "updatedAt")
+       SELECT :categoryId, :groupId, NOW(), NOW()
+       WHERE NOT EXISTS (
+         SELECT 1 FROM "categoryGroups"
+         WHERE "categoryId" = :categoryId AND "groupId" = :groupId
+       )`,
+    {replacements: {categoryId, groupId}},
+  );
+  console.log(`fixture category id=${categoryId} includes group id=${groupId}`);
+  return categoryId;
+}
+
+async function seedStaticIdState(sequelize: Sequelize, groupId: number) {
+  const staticId = `fixture-static-${GROUP_NAME}`;
+  const dynamicId = `fixture-dynamic-${GROUP_NAME}`;
+  await sequelize.query(
+    `UPDATE groups
+       SET "manifestStorageId" = :manifestStorageId,
+           "manifestStaticStorageId" = :staticId,
+           "staticStorageId" = :staticId,
+           "staticStorageUpdatedAt" = NOW(),
+           "updatedAt" = NOW()
+       WHERE id = :groupId`,
+    {replacements: {groupId, staticId, manifestStorageId: dynamicId}},
+  );
+  await sequelize.query(
+    `INSERT INTO "staticIdHistories" ("staticId", "dynamicId", "isActive", "boundAt", "createdAt", "updatedAt")
+       VALUES (:staticId, :dynamicId, true, NOW(), NOW(), NOW())
+       ON CONFLICT ("staticId", "dynamicId") DO UPDATE
+       SET "isActive" = true,
+           "boundAt" = EXCLUDED."boundAt",
+           "updatedAt" = NOW()`,
+    {replacements: {staticId, dynamicId}},
+  );
+  await sequelize.query(
+    `INSERT INTO "staticIdBindings" ("staticId", "dynamicId", "isActive", "boundAt", "createdAt", "updatedAt")
+       VALUES (:staticId, :dynamicId, true, NOW(), NOW(), NOW())
+       ON CONFLICT ("staticId") DO UPDATE
+       SET "dynamicId" = EXCLUDED."dynamicId",
+           "isActive" = true,
+           "boundAt" = EXCLUDED."boundAt",
+           "updatedAt" = NOW()`,
+    {replacements: {staticId, dynamicId}},
+  );
+  console.log(`fixture static id ${staticId} -> ${dynamicId}`);
+}
+
+async function normalizeFixturePreviewIds(sequelize: Sequelize, userId: number) {
+  await sequelize.query(
+    `UPDATE contents
+       SET "largePreviewStorageId" = COALESCE("largePreviewStorageId", 'fx-large-preview-' || id::text),
+           "mediumPreviewStorageId" = COALESCE("mediumPreviewStorageId", 'fx-medium-preview-' || id::text),
+           "smallPreviewStorageId" = COALESCE("smallPreviewStorageId", 'fx-small-preview-' || id::text),
+           "previewMimeType" = COALESCE("previewMimeType", "mimeType"),
+           "previewExtension" = COALESCE("previewExtension", "extension"),
+           "updatedAt" = NOW()
+       WHERE "userId" = :userId AND name LIKE 'fx-content-%'`,
+    {replacements: {userId}},
+  );
+}
+
+async function seedUserContentActions(sequelize: Sequelize, userId: number, contentRows: Array<{id: number; size: string | number}>) {
+  if (!contentRows.length) {
+    console.log('no fixture content rows available for upload actions');
+    return;
+  }
+
+  const existingRows = (await sequelize.query(
+    `SELECT "contentId" FROM "userContentActions"
+       WHERE "userId" = :userId AND name = 'upload' AND "contentId" IN (:contentIds)`,
+    {replacements: {userId, contentIds: contentRows.map(row => row.id)}, type: QueryTypes.SELECT},
+  )) as Array<{ contentId: number }>;
+  const existingContentIds = new Set(existingRows.map(row => row.contentId));
+  const missingRows = contentRows.filter(row => !existingContentIds.has(row.id));
+  if (!missingRows.length) {
+    console.log(`reusing ${existingRows.length} upload action rows`);
+    return;
+  }
+
+  console.log(`creating ${missingRows.length} upload action rows`);
+  let created = 0;
+  while (created < missingRows.length) {
+    const batchRows = missingRows.slice(created, created + BATCH);
+    const values: string[] = [];
+    const replacements: any = {userId};
+    for (let i = 0; i < batchRows.length; i++) {
+      replacements[`contentId${i}`] = batchRows[i].id;
+      replacements[`size${i}`] = Number(batchRows[i].size) || 0;
+      values.push(`('upload', :size${i}, :userId, :contentId${i}, NOW(), NOW())`);
+    }
+    await sequelize.query(
+      `INSERT INTO "userContentActions" (name, size, "userId", "contentId", "createdAt", "updatedAt")
+         VALUES ${values.join(', ')}`,
+      {replacements},
+    );
+    created += batchRows.length;
+    process.stdout.write(`\r  upload actions: ${created}/${missingRows.length}`);
+  }
+  process.stdout.write('\n');
+}
+
+async function updateFixtureGroupCounters(sequelize: Sequelize, groupId: number) {
+  const [{count}] = (await sequelize.query(
+    `SELECT COUNT(*)::int AS count
+       FROM posts
+       WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'`,
+    {replacements: {groupId}, type: QueryTypes.SELECT},
+  )) as Array<{ count: number }>;
+
+  await sequelize.query(
+    `UPDATE groups
+       SET "publishedPostsCount" = :count,
+           "availablePostsCount" = :count,
+           "size" = (
+             SELECT COALESCE(SUM("size"), 0)
+             FROM posts
+             WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'
+           )
+       WHERE id = :groupId`,
+    {replacements: {groupId, count}},
+  );
+
+  return count;
 }
 
 async function main() {
@@ -81,11 +225,10 @@ async function main() {
       {replacements: {groupId}, type: QueryTypes.SELECT},
     )) as Array<{ count: number }>;
     if (count >= POST_COUNT) {
-      console.log(`fixture group ${GROUP_NAME} already has ${count} posts (>= ${POST_COUNT}); nothing to do. Use FIXTURE_RESET=true to rebuild.`);
-      await sequelize.close();
-      return;
+      console.log(`fixture group ${GROUP_NAME} already has ${count} posts (>= ${POST_COUNT}); checking side fixture rows`);
+    } else {
+      console.log(`fixture group exists with ${count} posts; topping up to ${POST_COUNT}`);
     }
-    console.log(`fixture group exists with ${count} posts; topping up to ${POST_COUNT}`);
   } else {
     if (existingGroup && RESET) {
       console.log(`FIXTURE_RESET=true: clearing existing fixture group ${GROUP_NAME} (id=${existingGroup.id})`);
@@ -93,6 +236,7 @@ async function main() {
         `DELETE FROM "postsContents" WHERE "postId" IN (SELECT id FROM posts WHERE "groupId" = :groupId)`,
         {replacements: {groupId: existingGroup.id}},
       );
+      await sequelize.query(`DELETE FROM "categoryGroups" WHERE "groupId" = :groupId`, {replacements: {groupId: existingGroup.id}});
       await sequelize.query(`DELETE FROM posts WHERE "groupId" = :groupId`, {replacements: {groupId: existingGroup.id}});
       await sequelize.query(`DELETE FROM groups WHERE id = :id`, {replacements: {id: existingGroup.id}});
     }
@@ -105,6 +249,9 @@ async function main() {
     groupId = (created[0] as any).id;
     console.log(`created fixture group id=${groupId}`);
   }
+
+  await seedStaticIdState(sequelize, groupId);
+  await seedFixtureCategory(sequelize, groupId);
 
   // Bulk-create CONTENT_COUNT contents owned by the fixture user.
   const [{ count: existingContents }] = (await sequelize.query(
@@ -125,13 +272,16 @@ async function main() {
         replacements[`name${i}`] = `fx-content-${idx}`;
         replacements[`storageId${i}`] = `fx-storage-${idx}`;
         replacements[`manifestStorageId${i}`] = `fx-content-manifest-${idx}`;
+        replacements[`largePreviewStorageId${i}`] = `fx-large-preview-${idx}`;
+        replacements[`mediumPreviewStorageId${i}`] = `fx-medium-preview-${idx}`;
+        replacements[`smallPreviewStorageId${i}`] = `fx-small-preview-${idx}`;
         replacements[`size${i}`] = ((idx % 100) + 1) * 1024;
         values.push(
-          `(:name${i}, 'image/jpeg', 'jpg', 'image', :storageId${i}, :manifestStorageId${i}, :size${i}, :userId, NOW(), NOW())`,
+          `(:name${i}, 'image/jpeg', 'jpg', 'image', :storageId${i}, :largePreviewStorageId${i}, :mediumPreviewStorageId${i}, :smallPreviewStorageId${i}, 'image/jpeg', 'jpg', :manifestStorageId${i}, :size${i}, :userId, NOW(), NOW())`,
         );
       }
       await sequelize.query(
-        `INSERT INTO contents (name, "mimeType", "extension", "view", "storageId", "manifestStorageId", "size", "userId", "createdAt", "updatedAt")
+        `INSERT INTO contents (name, "mimeType", "extension", "view", "storageId", "largePreviewStorageId", "mediumPreviewStorageId", "smallPreviewStorageId", "previewMimeType", "previewExtension", "manifestStorageId", "size", "userId", "createdAt", "updatedAt")
            VALUES ${values.join(', ')}`,
         {replacements},
       );
@@ -143,13 +293,16 @@ async function main() {
     console.log(`reusing ${existingContents} existing content rows`);
   }
 
+  await normalizeFixturePreviewIds(sequelize, actualUserId);
+
   // Pull all fixture content ids for attachment.
   const contentRows = (await sequelize.query(
-    `SELECT id FROM contents WHERE "userId" = :userId AND name LIKE 'fx-content-%' ORDER BY id`,
+    `SELECT id, size FROM contents WHERE "userId" = :userId AND name LIKE 'fx-content-%' ORDER BY id`,
     {replacements: {userId: actualUserId}, type: QueryTypes.SELECT},
-  )) as Array<{ id: number }>;
+  )) as Array<{ id: number; size: string | number }>;
   const contentIds = contentRows.map((r) => r.id);
   console.log(`have ${contentIds.length} content ids available for attachment`);
+  await seedUserContentActions(sequelize, actualUserId, contentRows);
 
   // Find existing fixture post count to top-up rather than duplicate.
   const [{ count: existingPosts }] = (await sequelize.query(
@@ -158,7 +311,8 @@ async function main() {
   )) as Array<{ count: number }>;
   const need = POST_COUNT - existingPosts;
   if (need <= 0) {
-    console.log(`fixture group already has ${existingPosts} posts (>= ${POST_COUNT})`);
+    const actualCount = await updateFixtureGroupCounters(sequelize, groupId);
+    console.log(`fixture group already has ${actualCount} published posts (>= ${POST_COUNT})`);
     await sequelize.close();
     return;
   }
@@ -225,14 +379,9 @@ async function main() {
   process.stdout.write('\n');
 
   // Sync the published-counter on the fixture group so reads have realistic values.
-  await sequelize.query(
-    `UPDATE groups SET "publishedPostsCount" = :count, "availablePostsCount" = :count, "size" = (
-        SELECT COALESCE(SUM("size"), 0) FROM posts WHERE "groupId" = :groupId
-     ) WHERE id = :groupId`,
-    {replacements: {groupId, count: POST_COUNT}},
-  );
+  const actualCount = await updateFixtureGroupCounters(sequelize, groupId);
 
-  console.log(`done. fixture group id=${groupId} has ${POST_COUNT} posts`);
+  console.log(`done. fixture group id=${groupId} has ${actualCount} published posts`);
   await sequelize.close();
 }
 

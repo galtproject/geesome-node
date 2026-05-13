@@ -503,6 +503,9 @@ function hotspotRows(): HotspotRow[] {
   const pinSource = read('app/modules/pin/index.ts');
   const pinModelSource = read('app/modules/pin/models.ts');
   const helpersSource = read('app/helpers.ts');
+  const packageSource = read('package.json');
+  const scalabilityFixtureSource = read('check/databaseScalabilityFixture.ts');
+  const scalabilityExplainSource = read('check/databaseScalabilityExplain.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
@@ -703,8 +706,30 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'staticRebindBatchLimit')
     && has(groupSource, "order: [['staticStorageUpdatedAt', 'ASC'], ['id', 'ASC']]")
     && has(groupSource, 'limit');
+  const hasLargeFixtureExplainHarness = has(packageSource, '"database:scalability:fixture"')
+    && has(packageSource, '"database:scalability:explain"')
+    && has(scalabilityFixtureSource, "FIXTURE_POSTS || '100000'")
+    && has(scalabilityFixtureSource, 'seedFixtureCategory')
+    && has(scalabilityFixtureSource, 'seedStaticIdState')
+    && has(scalabilityFixtureSource, 'seedUserContentActions')
+    && has(scalabilityFixtureSource, 'normalizeFixturePreviewIds')
+    && has(scalabilityExplainSource, 'Category feed page')
+    && has(scalabilityExplainSource, 'Static-site/RSS newest post-ref scan')
+    && has(scalabilityExplainSource, 'Content preview/header lookup by preview storage ID')
+    && has(scalabilityExplainSource, 'Timeline page (Published, cursor pagination)');
 
   return [
+    {
+      area: 'Large fixture benchmark',
+      source: 'check/databaseScalabilityFixture.ts',
+      hotspot: 'database:scalability:fixture / database:scalability:explain',
+      observedPattern: hasLargeFixtureExplainHarness
+        ? 'seeds a 100k-post group fixture plus category, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes for timeline, unread, category, static/RSS, manifest, content-preview, quota, and static-ID hot paths'
+        : 'large fixture or EXPLAIN coverage is missing one or more documented hot-path probes',
+      scalabilityRisk: hasLargeFixtureExplainHarness
+        ? 'future index/query changes can be measured against production-scale fixture data instead of small test datasets; generated plan output remains intentionally uncommitted'
+        : 'review conclusions can drift because large-table plans are not reproducible from repo-local commands',
+    },
     {
       area: 'Timeline API',
       source: 'app/modules/group/index.ts',
