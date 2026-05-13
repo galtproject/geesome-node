@@ -3,7 +3,7 @@ import _ from 'lodash';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite, IStaticSiteRenderArgs} from "./interface.js";
-import {IContentData, IListParams, IListParamsOptions} from "../database/interface.js";
+import {IContentData, IContentDataProjectionOptions, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
@@ -17,11 +17,59 @@ let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
 const customStylesCssMaxLength = 128 * 1024;
 const generatedGroupPostsLimit = 9999;
 const generatedGroupPostBatchLimit = 100;
+const generatedOutputCacheLimit = helpers.parsePositiveInteger(process.env.GENERATED_OUTPUT_CACHE_LIMIT, 500);
 const staticSiteListParams: IListParamsOptions = {
     sortBy: 'createdAt',
     allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'entityType', 'entityId'],
     maxLimit: 100
 };
+
+type StaticSiteRenderCache = {
+    bodyTextCache: Map<string, string>;
+    postObjects: Map<number, any>;
+    maxEntries: number;
+};
+
+export function createStaticSiteRenderCache(): StaticSiteRenderCache {
+    return {
+        bodyTextCache: new Map(),
+        postObjects: new Map(),
+        maxEntries: generatedOutputCacheLimit
+    };
+}
+
+function getContentProjectionOptions(renderCache: StaticSiteRenderCache): IContentDataProjectionOptions {
+    return {
+        bodyTextCache: renderCache.bodyTextCache,
+        bodyTextCacheMaxEntries: renderCache.maxEntries
+    };
+}
+
+function getCachedPostObject(renderCache: StaticSiteRenderCache, postId) {
+    const postObject = renderCache.postObjects.get(postId);
+    if (postObject) {
+        renderCache.postObjects.delete(postId);
+        renderCache.postObjects.set(postId, postObject);
+    }
+    return postObject;
+}
+
+function setCachedPostObject(renderCache: StaticSiteRenderCache, postId, postObject) {
+    if (renderCache.maxEntries <= 0) {
+        return;
+    }
+    if (renderCache.postObjects.has(postId)) {
+        renderCache.postObjects.delete(postId);
+    }
+    while (renderCache.postObjects.size >= renderCache.maxEntries) {
+        const oldestKey = renderCache.postObjects.keys().next().value;
+        if (oldestKey === undefined) {
+            break;
+        }
+        renderCache.postObjects.delete(oldestKey);
+    }
+    renderCache.postObjects.set(postId, postObject);
+}
 
 function parsePositiveInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
     const parsed = parseInt(value, 10);
@@ -104,7 +152,7 @@ export default async (app: IGeesomeApp) => {
     return module;
 }
 
-async function getModule(app: IGeesomeApp, models) {
+export async function getModule(app: IGeesomeApp, models) {
     let finishCallbacks = {
 
     };
@@ -282,9 +330,12 @@ async function getModule(app: IGeesomeApp, models) {
         async prepareContentListForRender(userId, entityType, entityIds, options: any = {}) {
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, this.entityIdsToKey(entityIds), options);
 
+            const renderCache = createStaticSiteRenderCache();
             let contents = await app.ms.database
                 .getUserContentListByIds(userId, uniq(entityIds))
-                .then(list => Promise.all(list.map(c => app.ms.group.prepareContentDataWithUrl(c, ''))));
+                .then(list => Promise.all(list.map(c => {
+                    return app.ms.group.prepareContentDataWithUrl(c, '', getContentProjectionOptions(renderCache));
+                })));
             const contentById = {};
             contents.forEach(c => contentById[c.id] = c);
             contents = entityIds.map(entityId => contentById[entityId]);
@@ -303,7 +354,7 @@ async function getModule(app: IGeesomeApp, models) {
             }
         }
 
-        async preparePostObjectsForRender(userId, options, siteStorageDir, groupPosts, renderedCount, renderProgressTotal) {
+        async preparePostObjectsForRender(userId, options, siteStorageDir, groupPosts, renderedCount, renderProgressTotal, renderCache: StaticSiteRenderCache) {
             return pIteration.mapSeries(groupPosts, async (post) => {
                 renderedCount.count += 1;
                 if (options.asyncOperationId && renderedCount.count % 10 === 0) {
@@ -313,7 +364,7 @@ async function getModule(app: IGeesomeApp, models) {
                         Math.min(50, renderedCount.count * 50 / renderProgressTotal)
                     );
                 }
-                return this.postToObj(options, siteStorageDir, post);
+                return this.postToObj(options, siteStorageDir, post, renderCache);
             });
         }
 
@@ -368,6 +419,7 @@ async function getModule(app: IGeesomeApp, models) {
 
             const renderedCount = {count: 0};
             const renderProgressTotal = Math.max(1, renderPostCount);
+            const renderCache = createStaticSiteRenderCache();
             let pagePosts = [];
             let pageIndex = 0;
 
@@ -388,7 +440,7 @@ async function getModule(app: IGeesomeApp, models) {
                     includeRepostOf: true
                 }
             }, async ({groupPosts}) => {
-                const postObjects = await this.preparePostObjectsForRender(userId, renderOptions, siteStorageDir, groupPosts, renderedCount, renderProgressTotal);
+                const postObjects = await this.preparePostObjectsForRender(userId, renderOptions, siteStorageDir, groupPosts, renderedCount, renderProgressTotal, renderCache);
                 await pIteration.forEachSeries(postObjects, async (postObject) => {
                     await this.renderGroupPostPage(renderPage, renderOptions, siteStorageDir, renderData, postObject);
                     pagePosts.push(postObject);
@@ -531,22 +583,35 @@ async function getModule(app: IGeesomeApp, models) {
             return {storageId, staticSiteId: staticSite.id};
         }
 
-        async postToObj(options, siteStorageDir, gp) {
+        async postToObj(options, siteStorageDir, gp, renderCache: StaticSiteRenderCache = createStaticSiteRenderCache()) {
             if (!gp) {
                 return null;
             }
-            const contents = await app.ms.group.getPostContentDataWithUrl(gp, '');
+            if (gp.id) {
+                const cachedPostObject = getCachedPostObject(renderCache, gp.id);
+                if (cachedPostObject) {
+                    return cachedPostObject;
+                }
+            }
+
+            const contents = await app.ms.group.getPostContentDataWithUrl(gp, '', getContentProjectionOptions(renderCache));
             await this.copyContentsToSite(siteStorageDir, contents);
-            return {
+            const postObject = {
                 id: gp.localId,
                 lang: options.lang,
                 contents,
                 group: gp.group ? pick(gp.group, ['name', 'title', 'manifestStorageId', 'manifestStaticStorageId', 'propertiesJson']) : null,
-                replyTo: await this.postToObj(options, siteStorageDir, gp.replyTo),
-                repostOf: await this.postToObj(options, siteStorageDir, gp.repostOf),
+                replyTo: null,
+                repostOf: null,
                 date: gp.publishedAt.getTime(),
                 ...getPostTitleAndDescription(gp, contents, options.post)
+            };
+            if (gp.id) {
+                setCachedPostObject(renderCache, gp.id, postObject);
             }
+            postObject.replyTo = await this.postToObj(options, siteStorageDir, gp.replyTo, renderCache);
+            postObject.repostOf = await this.postToObj(options, siteStorageDir, gp.repostOf, renderCache);
+            return postObject;
         }
 
         async copyContentsToSite(siteStorageDir, contents: IContentData[], numericNames = false) {

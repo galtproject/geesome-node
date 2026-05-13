@@ -29,6 +29,7 @@ import {
 	IListParams,
 	IListParamsOptions
 } from "../database/interface.js";
+import {getProjectedContentText} from './contentProjectionHelpers.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const publicPostListParams = {
@@ -944,7 +945,7 @@ function getModule(app: IGeesomeApp, models) {
 					...baseData
 				};
 				if (options.includeText !== false) {
-					contentData.text = await app.ms.storage.getFileDataText(c.storageId);
+					contentData.text = await getProjectedContentText(app.ms.storage, c, options);
 				}
 				return contentData;
 			} else if (c.mimeType.includes('image')) {
@@ -963,7 +964,7 @@ function getModule(app: IGeesomeApp, models) {
 					...baseData
 				};
 				if (options.includeJson !== false) {
-					contentData.json = JSON.parse(await app.ms.storage.getFileDataText(c.storageId));
+					contentData.json = JSON.parse(await getProjectedContentText(app.ms.storage, c, options));
 				}
 				return contentData;
 			}
