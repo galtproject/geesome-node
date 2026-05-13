@@ -777,6 +777,10 @@ function hotspotRows(): HotspotRow[] {
   const hasRssContentProjection = has(rssSource, 'getPostFeedContents')
     && has(rssSource, 'includeText: false')
     && has(rssSource, 'includeJson: false');
+  const hasRssFeedWindowPolicy = has(rssSource, 'rssDefaultPostsLimit')
+    && has(rssSource, 'rssMaxPostsLimit')
+    && has(rssSource, 'getFeedPostsLimit')
+    && has(rssSource, 'options.limit');
   const hasGroupManifestDeleteUnset = has(manifestSource, 'unsetTreeNode(groupManifest.posts, post.localId)');
   const hasGroupManifestStatusUnset = has(manifestSource, 'statusNe: PostStatus.Published')
     && has(groupSource, 'this.updateGroupManifest(userId, oldPost.groupId)');
@@ -1037,11 +1041,15 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/rss/index.ts',
       hotspot: 'groupRss',
       observedPattern: hasRssPostRefs
-        ? 'scans lightweight post refs in cursor batches, then hydrates selected feed batches'
+        ? (hasRssFeedWindowPolicy
+          ? 'defaults RSS to a smaller feed window, caps explicit archive reads at the legacy maximum, scans lightweight post refs in cursor batches, then hydrates selected feed batches'
+          : 'scans lightweight post refs in cursor batches, then hydrates selected feed batches')
         : (has(rssSource, 'limit: 9999') ? 'loads up to 9999 posts with contents for feed generation' : 'review implementation'),
       scalabilityRisk: hasRssPostRefs
         ? (hasRssContentProjection
-          ? 'feed generation avoids totals, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata'
+          ? (hasRssFeedWindowPolicy
+            ? 'default feed generation avoids totals, avoids the old 9999-item window, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata'
+            : 'feed generation avoids totals, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata')
           : 'feed generation avoids total counts and the previous 9999-row hydration query; body extraction still reads selected content files')
         : 'feeds should cap lower or use a feed-specific projection',
     },

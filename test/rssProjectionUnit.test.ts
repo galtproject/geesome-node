@@ -28,6 +28,7 @@ describe('rss projection', () => {
 		};
 		const projectionCalls = [];
 		const textHydrationCalls = [];
+		const feedBatchCalls = [];
 		const app: any = {
 			checkModules() {},
 			ms: {
@@ -44,6 +45,7 @@ describe('rss projection', () => {
 						};
 					},
 					async forEachHydratedGroupPostBatch(groupId, options, onBatch) {
+						feedBatchCalls.push(options);
 						await onBatch({
 							groupPosts: [{
 								id: 10,
@@ -90,7 +92,44 @@ describe('rss projection', () => {
 		assert.equal(textHydrationCalls.length, 1);
 		assert.equal(textHydrationCalls[0].content.id, textContent.id);
 		assert.deepEqual(textHydrationCalls[0].options, {includeJson: false});
+		assert.equal(feedBatchCalls[0].maxRefs, 100);
+		assert.equal(feedBatchCalls[0].batchLimit, 100);
 		assert.equal(resultXml.includes('Feed text body'), true);
 		assert.equal(resultXml.includes('image-storage'), true);
+	});
+
+	it('uses explicit feed limits without restoring the old default window', async () => {
+		const feedBatchCalls = [];
+		const app: any = {
+			checkModules() {},
+			ms: {
+				api: {
+					onGet() {}
+				},
+				group: {
+					async getLocalGroup() {
+						return {
+							isPublic: true,
+							title: 'Feed group',
+							homePage: 'https://example.test',
+							description: 'Feed description'
+						};
+					},
+					async forEachHydratedGroupPostBatch(groupId, options, onBatch) {
+						feedBatchCalls.push(options);
+						await onBatch({groupPosts: []});
+					}
+				}
+			}
+		};
+		const rssRender = await (await import('../app/modules/rss/index.js')).default(app);
+
+		await rssRender.groupRss(1, 'https://node.test', null, {limit: '5'});
+		await rssRender.groupRss(1, 'https://node.test', null, {limit: '20000'});
+		await rssRender.groupRss(1, 'https://node.test');
+
+		assert.equal(feedBatchCalls[0].maxRefs, 5);
+		assert.equal(feedBatchCalls[1].maxRefs, 9999);
+		assert.equal(feedBatchCalls[2].maxRefs, 100);
 	});
 });
