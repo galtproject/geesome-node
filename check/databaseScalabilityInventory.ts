@@ -624,6 +624,9 @@ function hotspotRows(): HotspotRow[] {
   const hasStaticSitePostRefBatches = hasGeneratedOutputPostBatchHelper
     && has(staticSiteSource, 'forEachHydratedGroupPostBatch(entityId')
     && has(staticSiteSource, 'generatedGroupPostBatchLimit');
+  const hasStaticSiteAvailableCount = has(staticSiteSource, 'getGroupSitePostsCount')
+    && has(staticSiteSource, 'availablePostsCount')
+    && has(staticSiteSource, 'publishedPostsCount');
   const hasRssPostRefs = hasGeneratedOutputPostBatchHelper
     && has(rssSource, 'forEachHydratedGroupPostBatch(groupId')
     && has(rssSource, 'rssPostBatchLimit');
@@ -862,10 +865,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/staticSiteGenerator/index.ts',
       hotspot: 'prepareGroupPostsForRender',
       observedPattern: hasStaticSitePostRefBatches
-        ? 'scans lightweight post refs in cursor batches, then hydrates and renders each bounded batch'
+        ? (hasStaticSiteAvailableCount
+          ? 'scans lightweight post refs in cursor batches, uses availablePostsCount for rendered totals, then hydrates and renders each bounded batch'
+          : 'scans lightweight post refs in cursor batches, then hydrates and renders each bounded batch')
         : (has(staticSiteSource, 'limit: 9999') ? 'loads up to 9999 posts with contents before rendering pages' : 'review implementation'),
       scalabilityRisk: hasStaticSitePostRefBatches
-        ? 'large exports still materialize final render data and copy content, but DB hydration is page-scoped'
+        ? (hasStaticSiteAvailableCount
+          ? 'large exports still materialize final render data and copy content, but DB hydration is page-scoped and public totals no longer expose the local-ID high-water mark'
+          : 'large exports still materialize final render data and copy content, but DB hydration is page-scoped')
         : 'bounded but still heavy for media-rich groups; should batch IDs and contents',
     },
     {
