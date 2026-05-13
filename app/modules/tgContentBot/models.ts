@@ -54,7 +54,14 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.STRING,
 			allowNull: true
 		}
-	}, {});
+	}, {
+		indexes: [
+			{
+				name: 'content_bots_user_id_idx',
+				fields: ['userId']
+			}
+		]
+	});
 
 	await ContentBots.sync({})
 
