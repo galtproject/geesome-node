@@ -146,8 +146,9 @@ export function getModule(app: IGeesomeApp, models) {
 				throw new Error("content_not_found");
 			}
 			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
+			let result;
 			try {
-				return await axios.post(account.endpoint || `https://api.pinata.cloud/pinning/pinByHash`, {
+				result = await axios.post(account.endpoint || `https://api.pinata.cloud/pinning/pinByHash`, {
 					hostNodes,
 					hashToPin: storageId,
 					pinataMetadata: {
@@ -163,6 +164,10 @@ export function getModule(app: IGeesomeApp, models) {
 				normalizedError.details = error?.response?.data || error?.message;
 				throw normalizedError;
 			}
+			if (content.id) {
+				await app.ms.database.updateContent(content.id, {isPinned: true});
+			}
+			return result;
 		}
 
 		async encryptPinAccountIfNecessary(pinAccount: IPinAccount) {

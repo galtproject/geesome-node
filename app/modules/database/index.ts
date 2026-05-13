@@ -265,14 +265,15 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
   // attachments/avatars/covers/file-catalog references that would orphan if the row is destroyed.
   async countContentReferences(contentId) {
-    const [posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars] = await Promise.all([
+    const [posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
       this.models.PostsContents.count({where: {contentId}}),
       this.models.FileCatalogItem.count({where: {contentId}}),
       this.models.Group.count({where: {avatarImageId: contentId}}),
       this.models.Group.count({where: {coverImageId: contentId}}),
       this.models.User.count({where: {avatarImageId: contentId}}),
+      this.models.Content.count({where: {id: contentId, isPinned: true}}),
     ]);
-    return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars};
+    return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
   }
 
   async getContentByStorageAndUserId(storageId, userId) {

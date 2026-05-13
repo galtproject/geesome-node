@@ -468,7 +468,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			// A1 reference-count check (P1 finding): one file-catalog delete must not break
-			// other rows that still point at this Content row or the same physical storage object.
+			// other rows or durable pins that still point at this Content row or the same physical storage object.
 			const [storageRefs, contentRefs] = await Promise.all([
 				app.ms.database.countStorageIdReferences(content.storageId, content.id),
 				app.ms.database.countContentReferences(content.id),
@@ -478,7 +478,8 @@ function getModule(app: IGeesomeApp, models) {
 				contentRefs.fileCatalogItems <= 1 && // the catalog item being deleted itself
 				contentRefs.groupAvatars === 0 &&
 				contentRefs.groupCovers === 0 &&
-				contentRefs.userAvatars === 0;
+				contentRefs.userAvatars === 0 &&
+				contentRefs.pinnedContents === 0;
 			const safeToRemovePhysical =
 				safeToDestroyContent &&
 				storageRefs.otherContents === 0 &&

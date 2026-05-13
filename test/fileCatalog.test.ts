@@ -126,6 +126,22 @@ describe("app", function () {
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 	});
 
+	it("keeps pinned content rows and physical storage when deleting a catalog item", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'Pinned body', 'pinned.txt', {
+			mimeType: 'text/plain'
+		});
+		const fileItem = await fileCatalog.saveContentByPath(testUser.id, '/pinned.txt', content.id);
+
+		await app.ms.database.updateContent(content.id, {isPinned: true});
+		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
+
+		const gotContent = await app.ms.database.getContent(content.id);
+		assert.equal(!!gotContent, true);
+		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Pinned body');
+		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
+	});
+
 	it("should create directory by files manifests correctly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 

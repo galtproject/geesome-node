@@ -647,6 +647,9 @@ function hotspotRows(): HotspotRow[] {
     && has(fileCatalogSource, 'fileCatalogPublishBatchLimit')
     && has(fileCatalogSource, "order: [['id', 'ASC']]")
     && has(fileCatalogSource, 'id: {[Op.gt]: lastId}');
+  const hasPinnedContentDeleteGuard = has(databaseSource, 'pinnedContents')
+    && has(fileCatalogSource, 'contentRefs.pinnedContents === 0')
+    && has(pinSource, 'isPinned: true');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -1164,10 +1167,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/fileCatalog/index.ts',
       hotspot: 'deleteFileCatalogItem deleteContent',
       observedPattern: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
-        ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks'
+        ? (hasPinnedContentDeleteGuard
+          ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including successful remote pins marked on Content.isPinned'
+          : 'destroys catalog item first; only destroys content/physical storage after DB reference checks')
         : (has(fileCatalogSource, 'storage.remove(content.storageId)') ? 'unpin/remove physical storage and destroy content row' : 'review deleteContent path'),
       scalabilityRisk: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
-        ? 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle'
+        ? (hasPinnedContentDeleteGuard
+          ? 'DB row references and locally recorded pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'
+          : 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle')
         : 'same storageId rows, post attachments, generated output, and pins need reference checks before physical deletion',
     },
     {
