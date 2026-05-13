@@ -1,3 +1,5 @@
+import {IListParams} from "../database/interface.js";
+
 export default interface IGeesomeForeignAccountsModule {
 	setUserAccounts(userId: number, accounts: IForeignAccount[]): Promise<IForeignAccount[]>;
 
@@ -11,7 +13,7 @@ export default interface IGeesomeForeignAccountsModule {
 
 	getUserAccountByAddress(provider, address): Promise<IForeignAccount>;
 
-	getUserAccountsList(userId: number): Promise<IForeignAccount[]>;
+	getUserAccountsList(userId: number, listParams?: IListParams): Promise<IForeignAccount[]>;
 
 	getAuthMessage(id): Promise<IAuthMessage>;
 
