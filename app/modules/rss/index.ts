@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface.js";
-import {ContentView} from "../database/interface.js";
+import {ContentView, IContentDataProjectionOptions} from "../database/interface.js";
 import {IPost} from "../group/interface.js";
 import helpers from "../../helpers.js";
 import type {IRssGroupOptions} from "./interface.js";
@@ -12,6 +12,7 @@ const rssDefaultPostsLimit = Math.min(
     rssMaxPostsLimit
 );
 const rssPostBatchLimit = 100;
+const rssBodyCacheMaxEntries = helpers.parsePositiveInteger(process.env.RSS_BODY_CACHE_LIMIT, 500);
 
 export default async (app: IGeesomeApp) => {
     const xml = await import('xml');
@@ -93,10 +94,12 @@ function getModule(app: IGeesomeApp, xml) {
             });
         }
 
-        async getPostFeedContents(post: IPost, baseStorageUri: string) {
+        async getPostFeedContents(post: IPost, baseStorageUri: string, projectionOptions: IContentDataProjectionOptions = {}) {
             const contents = await app.ms.group.getPostContentDataWithUrl(post, baseStorageUri, {
                 includeText: false,
-                includeJson: false
+                includeJson: false,
+                bodyTextCache: projectionOptions.bodyTextCache,
+                bodyTextCacheMaxEntries: projectionOptions.bodyTextCacheMaxEntries
             });
             const textContent = this.getPostFeedTextContent(post);
             if (!textContent) {
@@ -104,7 +107,9 @@ function getModule(app: IGeesomeApp, xml) {
             }
 
             const hydratedTextContent = await app.ms.group.prepareContentDataWithUrl(textContent, baseStorageUri, {
-                includeJson: false
+                includeJson: false,
+                bodyTextCache: projectionOptions.bodyTextCache,
+                bodyTextCacheMaxEntries: projectionOptions.bodyTextCacheMaxEntries
             });
             return contents.map(content => {
                 if (content.id !== hydratedTextContent.id) {
@@ -114,8 +119,8 @@ function getModule(app: IGeesomeApp, xml) {
             });
         }
 
-        async postToFeedItem(homePage, host, post) {
-            const contents = await this.getPostFeedContents(post, host + '/ipfs/');
+        async postToFeedItem(homePage, host, post, projectionOptions: IContentDataProjectionOptions = {}) {
+            const contents = await this.getPostFeedContents(post, host + '/ipfs/', projectionOptions);
             const text = this.getPostFeedText(contents);
             const images = filter(contents, (c) => c.type === 'image');
             return {
@@ -133,8 +138,12 @@ function getModule(app: IGeesomeApp, xml) {
             host,
             posts: IPost[]
         ) {
+            const projectionOptions = {
+                bodyTextCache: new Map<string, string>(),
+                bodyTextCacheMaxEntries: rssBodyCacheMaxEntries
+            };
             return pIteration.mapSeries(chunk(posts, 10), (postsChunk) => {
-                return pIteration.map(postsChunk, post => this.postToFeedItem(homePage, host, post));
+                return pIteration.map(postsChunk, post => this.postToFeedItem(homePage, host, post, projectionOptions));
             }).then(chunks => flatten(chunks));
         }
 

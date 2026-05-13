@@ -216,6 +216,8 @@ export interface IContentData {
 export interface IContentDataProjectionOptions {
   includeText?: boolean;
   includeJson?: boolean;
+  bodyTextCache?: Map<string, string>;
+  bodyTextCacheMaxEntries?: number;
 }
 
 export interface IObject {

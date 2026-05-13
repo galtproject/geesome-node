@@ -88,10 +88,16 @@ describe('rss projection', () => {
 		const rssRender = await (await import('../app/modules/rss/index.js')).default(app);
 		const resultXml = await rssRender.groupRss(1, 'https://node.test');
 
-		assert.deepEqual(projectionCalls, [{includeText: false, includeJson: false}]);
+		assert.equal(projectionCalls.length, 1);
+		assert.equal(projectionCalls[0].includeText, false);
+		assert.equal(projectionCalls[0].includeJson, false);
+		assert.equal(projectionCalls[0].bodyTextCache instanceof Map, true);
+		assert.equal(projectionCalls[0].bodyTextCacheMaxEntries, 500);
 		assert.equal(textHydrationCalls.length, 1);
 		assert.equal(textHydrationCalls[0].content.id, textContent.id);
-		assert.deepEqual(textHydrationCalls[0].options, {includeJson: false});
+		assert.equal(textHydrationCalls[0].options.includeJson, false);
+		assert.equal(textHydrationCalls[0].options.bodyTextCache, projectionCalls[0].bodyTextCache);
+		assert.equal(textHydrationCalls[0].options.bodyTextCacheMaxEntries, 500);
 		assert.equal(feedBatchCalls[0].maxRefs, 100);
 		assert.equal(feedBatchCalls[0].batchLimit, 100);
 		assert.equal(resultXml.includes('Feed text body'), true);

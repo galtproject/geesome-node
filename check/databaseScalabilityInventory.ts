@@ -57,6 +57,7 @@ function modelRows(): ModelRow[] {
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const groupModuleSource = read('app/modules/group/index.ts');
+  const contentProjectionHelperSource = read('app/modules/group/contentProjectionHelpers.ts');
   const contentSource = read('app/modules/database/models/content.ts');
   const contentModuleSource = read('app/modules/content/index.ts');
   const objectSource = read('app/modules/database/models/object.ts');
@@ -112,6 +113,9 @@ function modelRows(): ModelRow[] {
     && has(groupModuleSource, 'permissionReason')
     && has(groupModuleSource, 'ActorManifestImport')
     && has(groupModuleSource, 'ActorStorage');
+  const hasContentBodyProjectionCache = has(groupModuleSource, 'getProjectedContentText(app.ms.storage')
+    && has(contentProjectionHelperSource, 'bodyTextCache')
+    && has(contentProjectionHelperSource, 'bodyTextCacheMaxEntries');
   const hasPostEventSourceIdentityIndex = has(postEventSource, 'post_events_source_identity_idx')
     && has(postEventSource, "fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId', 'createdAt', 'id']");
   const hasBoundedAutoActionExecutor = has(autoActionIndexSource, 'limit: autoActionExecuteBatchLimit')
@@ -204,8 +208,12 @@ function modelRows(): ModelRow[] {
       notes: [
         hasPostContentPositionUnique && has(postSource, 'posts_contents_content_idx')
           ? (hasPostContentAttachmentReasons
-            ? 'join lookup indexes present; attachment positions are unique per post; attachment authorization reasons are explicit; API timeline hydration is page-scoped; remaining work is body projection'
-            : 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; remaining work is body projection')
+            ? (hasContentBodyProjectionCache
+              ? 'join lookup indexes present; attachment positions are unique per post; attachment authorization reasons are explicit; API timeline hydration is page-scoped; text/json body projection can reuse a bounded per-render cache'
+              : 'join lookup indexes present; attachment positions are unique per post; attachment authorization reasons are explicit; API timeline hydration is page-scoped; remaining work is body projection')
+            : (hasContentBodyProjectionCache
+              ? 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; text/json body projection can reuse a bounded per-render cache'
+              : 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; remaining work is body projection'))
           : (has(postSource, 'posts_contents_post_position_idx') && has(postSource, 'posts_contents_content_idx')
           ? 'join lookup indexes present; API timeline hydration is page-scoped; remaining work is attachment constraints and body projection'
         : 'review through indexes'),
@@ -589,6 +597,7 @@ function hotspotRows(): HotspotRow[] {
   const remoteGroupSource = read('app/modules/remoteGroup/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/index.ts');
   const rssSource = read('app/modules/rss/index.ts');
+  const contentProjectionHelperSource = read('app/modules/group/contentProjectionHelpers.ts');
   const importSource = read('app/modules/socNetImport/index.ts');
   const categorySource = read('app/modules/groupCategory/index.ts');
   const contentSource = read('app/modules/content/index.ts');
@@ -771,12 +780,21 @@ function hotspotRows(): HotspotRow[] {
     && has(staticSiteSource, 'renderGroupPostBatchPages')
     && has(staticSiteSource, 'currentPosts')
     && has(staticSiteSource, 'currentPost');
+  const hasStaticSiteBodyCache = has(staticSiteSource, 'createStaticSiteRenderCache')
+    && has(staticSiteSource, 'bodyTextCache')
+    && has(staticSiteSource, 'generatedOutputCacheLimit')
+    && has(staticSiteSource, 'postObjects')
+    && has(contentProjectionHelperSource, 'getProjectedContentText');
   const hasRssPostRefs = hasGeneratedOutputPostBatchHelper
     && has(rssSource, 'forEachHydratedGroupPostBatch(groupId')
     && has(rssSource, 'rssPostBatchLimit');
   const hasRssContentProjection = has(rssSource, 'getPostFeedContents')
     && has(rssSource, 'includeText: false')
     && has(rssSource, 'includeJson: false');
+  const hasRssBodyCache = has(rssSource, 'bodyTextCache: new Map')
+    && has(rssSource, 'bodyTextCache: projectionOptions.bodyTextCache')
+    && has(rssSource, 'rssBodyCacheMaxEntries')
+    && has(contentProjectionHelperSource, 'getProjectedContentText');
   const hasRssFeedWindowPolicy = has(rssSource, 'rssDefaultPostsLimit')
     && has(rssSource, 'rssMaxPostsLimit')
     && has(rssSource, 'getFeedPostsLimit')
@@ -1023,14 +1041,18 @@ function hotspotRows(): HotspotRow[] {
       hotspot: hasStaticSiteStreamingRender ? 'renderGroupPostBatchPages' : 'prepareGroupPostsForRender',
       observedPattern: hasStaticSitePostRefBatches
         ? (hasStaticSiteStreamingRender
-          ? 'scans lightweight post refs in cursor batches, uses an exact capped render count for pages, and streams SSR through current page/post state instead of materializing one final posts array'
+          ? (hasStaticSiteBodyCache
+            ? 'scans lightweight post refs in cursor batches, uses an exact capped render count for pages, streams SSR through current page/post state, and reuses bounded per-render text/json body and post-object caches'
+            : 'scans lightweight post refs in cursor batches, uses an exact capped render count for pages, and streams SSR through current page/post state instead of materializing one final posts array')
           : (hasStaticSiteAvailableCount
             ? 'scans lightweight post refs in cursor batches, uses availablePostsCount for rendered totals, then hydrates and renders each bounded batch'
             : 'scans lightweight post refs in cursor batches, then hydrates and renders each bounded batch'))
         : (has(staticSiteSource, 'limit: 9999') ? 'loads up to 9999 posts with contents before rendering pages' : 'review implementation'),
       scalabilityRisk: hasStaticSitePostRefBatches
         ? (hasStaticSiteStreamingRender
-          ? 'DB hydration and final SSR post data are page-scoped; remaining large-output pressure is storage body reads and media copy work'
+          ? (hasStaticSiteBodyCache
+            ? 'DB hydration and final SSR post data are page-scoped; repeated text/json body reads and repeated reply/repost object conversion are cached within one render without retaining the whole site; remaining large-output pressure is media copy work and genuinely unique post bodies'
+            : 'DB hydration and final SSR post data are page-scoped; remaining large-output pressure is storage body reads and media copy work')
           : (hasStaticSiteAvailableCount
             ? 'large exports still materialize final render data and copy content, but DB hydration is page-scoped and public totals no longer expose the local-ID high-water mark'
             : 'large exports still materialize final render data and copy content, but DB hydration is page-scoped'))
@@ -1048,8 +1070,12 @@ function hotspotRows(): HotspotRow[] {
       scalabilityRisk: hasRssPostRefs
         ? (hasRssContentProjection
           ? (hasRssFeedWindowPolicy
-            ? 'default feed generation avoids totals, avoids the old 9999-item window, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata'
-            : 'feed generation avoids totals, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata')
+            ? (hasRssBodyCache
+              ? 'default feed generation avoids totals, avoids the old 9999-item window, uses feed batches, reads only the selected feed text body, leaves JSON/non-feed text as metadata, and reuses a bounded feed-local body cache'
+              : 'default feed generation avoids totals, avoids the old 9999-item window, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata')
+            : (hasRssBodyCache
+              ? 'feed generation avoids totals, uses feed batches, reads only the selected feed text body, leaves JSON/non-feed text as metadata, and reuses a bounded feed-local body cache'
+              : 'feed generation avoids totals, uses feed batches, and reads only the selected feed text body while leaving JSON/non-feed text as metadata'))
           : 'feed generation avoids total counts and the previous 9999-row hydration query; body extraction still reads selected content files')
         : 'feeds should cap lower or use a feed-specific projection',
     },
