@@ -1,17 +1,33 @@
 import pIteration from 'p-iteration';
 import IGeesomeForeignAccountsModule, {IAuthMessage, IForeignAccount} from "./interface.js";
-import {CorePermissionName} from "../database/interface.js";
+import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
+
+const foreignAccountListParams: IListParamsOptions = {
+	sortBy: 'provider',
+	allowedSortBy: ['provider', 'address', 'createdAt', 'updatedAt', 'id'],
+	maxLimit: 100
+};
+
+function getForeignAccountListOrder(sortBy, sortDir) {
+	const direction = sortDir.toUpperCase();
+	const order = [[sortBy, direction]];
+	if (sortBy !== 'id') {
+		order.push(['id', direction]);
+	}
+	return order;
+}
 
 export default async (app: IGeesomeApp) => {
-	app.checkModules([]);
+	app.checkModules(['database']);
 
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	(await import('./api.js')).default(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+export function getModule(app: IGeesomeApp, models) {
 	class ForeignAccountsModule implements IGeesomeForeignAccountsModule {
 
 		async setUserAccounts(userId: number, accounts: IForeignAccount[]): Promise<IForeignAccount[]> {
@@ -54,8 +70,24 @@ function getModule(app: IGeesomeApp, models) {
 			return models.ForeignAccount.findOne({where: {address, provider}});
 		}
 
-		async getUserAccountsList(userId: number): Promise<IForeignAccount[]> {
-			return models.ForeignAccount.findAll({where: {userId}});
+		prepareAccountListParams(listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, foreignAccountListParams);
+			app.ms.database.setDefaultListParamsValues(listParams, foreignAccountListParams);
+			return listParams;
+		}
+
+		async getUserAccountsList(userId: number, listParams?: IListParams): Promise<IForeignAccount[]> {
+			if (!listParams) {
+				return models.ForeignAccount.findAll({where: {userId}});
+			}
+			listParams = this.prepareAccountListParams(listParams);
+			const {limit, offset, sortBy, sortDir} = listParams;
+			return models.ForeignAccount.findAll({
+				where: {userId},
+				order: getForeignAccountListOrder(sortBy, sortDir),
+				limit,
+				offset
+			});
 		}
 
 		async createAuthMessage(authMessageData) {

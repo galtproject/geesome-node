@@ -27,10 +27,11 @@ export default (app: IGeesomeApp, foreignAccountsModule: IGeesomeForeignAccounts
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiSuccess {Object[]} list Foreign accounts.
 	 */
 	app.ms.api.onAuthorizedGet('user/get-accounts', async (req, res) => {
-		res.send(await foreignAccountsModule.getUserAccountsList(req.user.id));
+		res.send(await foreignAccountsModule.getUserAccountsList(req.user.id, req.query));
 	});
 
 	/**

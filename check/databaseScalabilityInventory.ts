@@ -71,6 +71,8 @@ function modelRows(): ModelRow[] {
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/models.ts');
   const pinIndexSource = read('app/modules/pin/index.ts');
+  const foreignAccountSource = read('app/modules/foreignAccounts/models.ts');
+  const foreignAccountIndexSource = read('app/modules/foreignAccounts/index.ts');
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
@@ -382,6 +384,30 @@ function modelRows(): ModelRow[] {
       ],
     },
     {
+      area: 'Foreign accounts',
+      source: 'app/modules/foreignAccounts/models.ts',
+      model: 'ForeignAccount / AuthMessage',
+      indexes: [
+        has(foreignAccountSource, "fields: ['userId']")
+          ? 'userId account-list index'
+          : 'missing user account-list index',
+        has(foreignAccountSource, "fields: ['userId', 'provider']")
+          ? 'userId,provider lookup index'
+          : 'missing user/provider lookup index',
+        has(foreignAccountSource, "fields: ['provider', 'address']")
+          ? 'provider,address lookup index'
+          : 'missing provider/address lookup index',
+        has(foreignAccountSource, "fields: ['foreignAccountId']")
+          ? 'authMessage foreignAccountId index'
+          : 'missing auth-message account index',
+      ],
+      notes: [
+        has(foreignAccountIndexSource, 'foreignAccountListParams')
+          ? 'user account lists are capped for the API while manifest export keeps the full internal list'
+          : 'user account API lists can return every row for a user',
+      ],
+    },
+    {
       area: 'Group permissions',
       source: 'app/modules/group/models/groupPermission.ts',
       model: 'GroupPermission',
@@ -505,6 +531,8 @@ function hotspotRows(): HotspotRow[] {
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/index.ts');
   const pinModelSource = read('app/modules/pin/models.ts');
+  const foreignAccountSource = read('app/modules/foreignAccounts/index.ts');
+  const foreignAccountModelSource = read('app/modules/foreignAccounts/models.ts');
   const helpersSource = read('app/helpers.ts');
   const packageSource = read('package.json');
   const scalabilityFixtureSource = read('check/databaseScalabilityFixture.ts');
@@ -587,6 +615,12 @@ function hotspotRows(): HotspotRow[] {
     && has(pinSource, 'getPinAccountListOrder(sortBy, sortDir)')
     && has(pinSource, 'limit')
     && has(pinSource, 'offset');
+  const hasForeignAccountListLimits = has(foreignAccountSource, 'foreignAccountListParams')
+    && has(foreignAccountSource, 'helpers.prepareListParams(listParams, foreignAccountListParams)')
+    && has(foreignAccountSource, 'app.ms.database.setDefaultListParamsValues(listParams, foreignAccountListParams)')
+    && has(foreignAccountSource, 'getForeignAccountListOrder(sortBy, sortDir)')
+    && has(foreignAccountSource, 'beforeEntityManifestStore')
+    && has(foreignAccountSource, 'getUserAccountsList(userId)');
   const cappedListSurfaces = [
     hasPublicPostListLimits ? 'public post feeds' : null,
     hasFileCatalogListLimits ? 'file-catalog browsing' : null,
@@ -600,6 +634,7 @@ function hotspotRows(): HotspotRow[] {
     hasUserFriendListLimits ? 'user friend lists' : null,
     hasAutoActionListLimits ? 'auto-action management lists' : null,
     hasPinAccountListLimits ? 'pin account lists' : null,
+    hasForeignAccountListLimits ? 'foreign account API lists' : null,
   ].filter((value): value is string => Boolean(value));
   const hasBoundedAutoActionExecutor = has(autoActionSource, 'limit: autoActionExecuteBatchLimit')
     && has(autoActionSource, "order: [['executeOn', 'ASC'], ['id', 'ASC']]")
@@ -1066,6 +1101,19 @@ function hotspotRows(): HotspotRow[] {
           ? 'owner/name lookups and bounded owner-scoped lists are backed by the owner/name indexes'
           : 'owner/name lookups are indexed and uniqueness-backed')
         : 'owner/name lookup cannot use the legacy name-leading uniqueness well',
+    },
+    {
+      area: 'Foreign account list',
+      source: 'app/modules/foreignAccounts/index.ts',
+      hotspot: 'getUserAccountsList',
+      observedPattern: hasForeignAccountListLimits
+        ? 'API calls list user foreign accounts with allowlisted sort fields, default pages, and a lower cap; manifest export calls the same helper without list params to keep the full account set'
+        : 'lists every foreign account for the user',
+      scalabilityRisk: has(foreignAccountModelSource, "fields: ['userId']")
+        ? (hasForeignAccountListLimits
+          ? 'user account API pages are bounded and backed by the userId index while manifest generation remains complete'
+          : 'userId lookup is indexed, but the API can still return every account for the user')
+        : 'large per-user foreign account lists can scan without a userId index',
     },
     {
       area: 'List parameter normalization',
