@@ -84,6 +84,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('content') || routeLower.includes('file') || routeLower.includes('ipfs')) {
     notes.add('content/storage boundary');
   }
+  if (routeLower === '/v1/content/:contentid' && blockLower.includes('getpubliccontentmetadata')) {
+    notes.add('public-safe metadata projection; private DB ids hidden');
+  }
   if (routeLower.includes('telegram') || routeLower.includes('twitter') || routeLower.includes('soc-net')) {
     notes.add('social account credential boundary');
   }
