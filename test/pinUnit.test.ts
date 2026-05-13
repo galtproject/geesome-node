@@ -18,6 +18,12 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 				remoteNodeAddressList: async () => ["node-address"]
 			},
 			database: {
+				updateContent: async (id, updateData) => {
+					const content = Object.values(contentByStorageId).find((item: any) => item.id === id);
+					if (content) {
+						Object.assign(content, updateData);
+					}
+				},
 				setDefaultListParamsValues: (listParams, defaults = {}) => {
 					listParams.sortBy = listParams.sortBy || defaults.sortBy || "createdAt";
 					listParams.sortDir = listParams.sortDir || defaults.sortDir || "DESC";
@@ -223,7 +229,7 @@ describe("pin negative paths", function () {
 				apiKey: "pinata-key",
 				secretApiKey: "pinata-secret"
 			}],
-			{"storage-id": {userId: 1, name: "content-name"}}
+			{"storage-id": {id: 10, userId: 1, name: "content-name"}}
 		);
 
 		await pins.pinByUserAccount(1, "pinata", "storage-id", {source: "auto-action"});
@@ -238,6 +244,27 @@ describe("pin negative paths", function () {
 		});
 		assert.equal(pinataRequest.config.headers.pinata_api_key, "pinata-key");
 		assert.equal(pinataRequest.config.headers.pinata_secret_api_key, "pinata-secret");
+	});
+
+	it("marks content pinned after a successful remote pin", async () => {
+		axios.post = async () => {
+			return {data: {ok: true}};
+		};
+		const content = {id: 12, userId: 1, name: "content-name", isPinned: false};
+		const pins = createPinModule(
+			[{
+				userId: 1,
+				name: "pinata",
+				service: "pinata",
+				apiKey: "pinata-key",
+				secretApiKey: "pinata-secret"
+			}],
+			{"storage-id": content}
+		);
+
+		await pins.pinByUserAccount(1, "pinata", "storage-id");
+
+		assert.equal(content.isPinned, true);
 	});
 
 	it("caps and orders pin account lists", async () => {

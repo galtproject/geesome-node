@@ -50,7 +50,7 @@ export interface IGeesomeDatabaseModule {
 
   countStorageIdReferences(storageId, excludeContentId?): Promise<{otherContents: number; previewRefs: number}>;
 
-  countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number}>;
+  countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number; pinnedContents: number}>;
 
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
