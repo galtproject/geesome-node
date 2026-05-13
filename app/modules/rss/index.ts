@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface.js";
+import {ContentView} from "../database/interface.js";
 import {IPost} from "../group/interface.js";
 const {chunk, find, filter, flatten} = _;
 const rssPostsLimit = 9999;
@@ -65,8 +66,43 @@ function getModule(app: IGeesomeApp, xml) {
                 || '';
         }
 
+        getPostFeedTextContent(post: IPost) {
+            const contents = post.contents || [];
+            const contentsViewText = find(contents, (content) => {
+                return content.mimeType?.startsWith('text/')
+                    && (content.postsContents?.view || content.view || ContentView.Contents) === ContentView.Contents;
+            });
+            if (contentsViewText) {
+                return contentsViewText;
+            }
+            return find(contents, (content) => {
+                return content.mimeType?.startsWith('text/');
+            });
+        }
+
+        async getPostFeedContents(post: IPost, baseStorageUri: string) {
+            const contents = await app.ms.group.getPostContentDataWithUrl(post, baseStorageUri, {
+                includeText: false,
+                includeJson: false
+            });
+            const textContent = this.getPostFeedTextContent(post);
+            if (!textContent) {
+                return contents;
+            }
+
+            const hydratedTextContent = await app.ms.group.prepareContentDataWithUrl(textContent, baseStorageUri, {
+                includeJson: false
+            });
+            return contents.map(content => {
+                if (content.id !== hydratedTextContent.id) {
+                    return content;
+                }
+                return hydratedTextContent;
+            });
+        }
+
         async postToFeedItem(homePage, host, post) {
-            const contents = await app.ms.group.getPostContentDataWithUrl(post, host + '/ipfs/');
+            const contents = await this.getPostFeedContents(post, host + '/ipfs/');
             const text = this.getPostFeedText(contents);
             const images = filter(contents, (c) => c.type === 'image');
             return {

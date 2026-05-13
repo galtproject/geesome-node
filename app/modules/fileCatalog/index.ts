@@ -106,6 +106,32 @@ function getModule(app: IGeesomeApp, models) {
 			return this.addContentToUserFileCatalog(userId, content, {folderId})
 		}
 
+		async getOrCreateDefaultFolderFor(userId, baseType) {
+			const folderName = upperFirst(baseType) + " Uploads";
+			while (true) {
+				const folder = await this.getFileCatalogItemByDefaultFolderFor(userId, baseType);
+				if (folder) {
+					return folder;
+				}
+
+				const name = await this.getAvailableFileCatalogItemName(userId, null, folderName);
+				try {
+					return await this.addFileCatalogItem({
+						name,
+						type: FileCatalogItemType.Folder,
+						position: (await this.getFileCatalogItemsCount(userId, null)) + 1,
+						defaultFolderFor: baseType,
+						parentItemId: null,
+						userId
+					});
+				} catch (e) {
+					if (!isFileCatalogPathUniqueError(e)) {
+						throw e;
+					}
+				}
+			}
+		}
+
 		async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const baseType = content.mimeType ? first(content.mimeType['split']('/')) : 'other';
@@ -126,17 +152,7 @@ function getModule(app: IGeesomeApp, models) {
 					return content;
 				}
 
-				let folder = await this.getFileCatalogItemByDefaultFolderFor(userId, baseType);
-
-				if (!folder) {
-					folder = await this.addFileCatalogItem({
-						name: upperFirst(baseType) + " Uploads",
-						type: FileCatalogItemType.Folder,
-						position: (await this.getFileCatalogItemsCount(userId, null)) + 1,
-						defaultFolderFor: baseType,
-						userId
-					});
-				}
+				const folder = await this.getOrCreateDefaultFolderFor(userId, baseType);
 				parentItemId = folder.id;
 			}
 

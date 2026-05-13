@@ -213,6 +213,11 @@ export interface IContentData {
   previewUrl?;
 }
 
+export interface IContentDataProjectionOptions {
+  includeText?: boolean;
+  includeJson?: boolean;
+}
+
 export interface IObject {
   id?: number;
 
