@@ -119,6 +119,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiUse ApiKey
      * @apiUse AuthErrors
      *
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (../../interface.ts) {IPinAccountListResponse} apiSuccess
      *
      * @apiExample {curl} List current user's pin accounts
@@ -127,7 +128,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      */
     app.ms.api.onAuthorizedGet('user/pin/user-accounts', async (req, res) => {
         res.send({
-            list: sanitizePinAccounts(await pinModule.getUserAccountsList(req.user.id))
+            list: sanitizePinAccounts(await pinModule.getUserAccountsList(req.user.id, req.query))
         });
     });
 
@@ -142,6 +143,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiUse PinErrors
      *
      * @apiParam {String} groupId Group id.
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
      * @apiInterface (../../interface.ts) {IPinAccountListResponse} apiSuccess
      *
      * @apiExample {curl} List group pin accounts
@@ -150,7 +152,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      */
     app.ms.api.onAuthorizedGet('user/pin/group-accounts/:groupId', async (req, res) => {
         res.send({
-            list: sanitizePinAccounts(await pinModule.getGroupAccountsList(req.user.id, req.params.groupId))
+            list: sanitizePinAccounts(await pinModule.getGroupAccountsList(req.user.id, req.params.groupId, req.query))
         });
     });
 

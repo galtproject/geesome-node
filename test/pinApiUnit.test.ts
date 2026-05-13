@@ -40,6 +40,8 @@ function createPinApiHarness(pinModule: Partial<IGeesomePinModule>) {
 
 describe("pin api", function () {
 	it("keeps pin account secrets write-only in API responses", async () => {
+		let userAccountListParams;
+		let groupAccountListParams;
 		const secretAccount = {
 			id: 1,
 			userId: 1,
@@ -53,8 +55,14 @@ describe("pin api", function () {
 		const {call} = createPinApiHarness({
 			createAccount: async () => ({...secretAccount}),
 			updateAccount: async () => ({...secretAccount, apiKey: "updated-key"}),
-			getUserAccountsList: async () => [{...secretAccount}],
-			getGroupAccountsList: async () => [{...secretAccount, groupId: 10}],
+			getUserAccountsList: async (userId, listParams) => {
+				userAccountListParams = listParams;
+				return [{...secretAccount}];
+			},
+			getGroupAccountsList: async (userId, groupId, listParams) => {
+				groupAccountListParams = listParams;
+				return [{...secretAccount, groupId: 10}];
+			},
 			deleteAccount: async () => ({success: true})
 		});
 
@@ -68,13 +76,20 @@ describe("pin api", function () {
 		assert.equal(updated.secretApiKeyEncrypted, undefined);
 		assert.equal(updated.apiKey, "updated-key");
 
-		const userAccounts = await call("GET", "user/pin/user-accounts");
+		const userAccounts = await call("GET", "user/pin/user-accounts", {
+			query: {limit: "7", sortBy: "name"}
+		});
 		assert.equal(userAccounts.list[0].secretApiKey, undefined);
 		assert.equal(userAccounts.list[0].secretApiKeyEncrypted, undefined);
+		assert.deepEqual(userAccountListParams, {limit: "7", sortBy: "name"});
 
-		const groupAccounts = await call("GET", "user/pin/group-accounts/:groupId", {params: {groupId: 10}});
+		const groupAccounts = await call("GET", "user/pin/group-accounts/:groupId", {
+			params: {groupId: 10},
+			query: {offset: "3", sortDir: "ASC"}
+		});
 		assert.equal(groupAccounts.list[0].secretApiKey, undefined);
 		assert.equal(groupAccounts.list[0].secretApiKeyEncrypted, undefined);
+		assert.deepEqual(groupAccountListParams, {offset: "3", sortDir: "ASC"});
 
 		assert.deepEqual(await call("POST", "user/pin/delete-account/:id", {params: {id: 1}}), {success: true});
 	});

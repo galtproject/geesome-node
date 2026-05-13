@@ -1,3 +1,4 @@
+import {IListParams} from "../database/interface.js";
 
 export default interface IGeesomePinModule {
 	createAccount(userId: number, account: IPinAccount): Promise<IPinAccount>;
@@ -10,9 +11,9 @@ export default interface IGeesomePinModule {
 
 	getGroupAccount(userId: number, groupId: number, name: string): Promise<IPinAccount>;
 
-	getUserAccountsList(userId: number): Promise<IPinAccount[]>;
+	getUserAccountsList(userId: number, listParams?: IListParams): Promise<IPinAccount[]>;
 
-	getGroupAccountsList(userId: number, groupId: number): Promise<IPinAccount[]>;
+	getGroupAccountsList(userId: number, groupId: number, listParams?: IListParams): Promise<IPinAccount[]>;
 
 	pinByUserAccount(userId: number, name: string, storageId: string, options?): Promise<any>;
 

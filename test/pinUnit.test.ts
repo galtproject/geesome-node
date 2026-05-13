@@ -17,6 +17,14 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 			storage: {
 				remoteNodeAddressList: async () => ["node-address"]
 			},
+			database: {
+				setDefaultListParamsValues: (listParams, defaults = {}) => {
+					listParams.sortBy = listParams.sortBy || defaults.sortBy || "createdAt";
+					listParams.sortDir = listParams.sortDir || defaults.sortDir || "DESC";
+					listParams.limit = typeof listParams.limit === "number" ? listParams.limit : defaults.limit || 20;
+					listParams.offset = typeof listParams.offset === "number" ? listParams.offset : defaults.offset || 0;
+				}
+			},
 			group: {
 				canEditGroup: async (userId, groupId) => editableGroupIds.includes(Number(groupId))
 			}
@@ -34,6 +42,24 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 			findOne: async ({where}) => accounts.find((account) => {
 				return Object.keys(where).every((key) => account[key] === where[key]);
 			}) || null,
+			findAll: async ({where = {}, order = [], limit, offset = 0} = {}) => {
+				const result = accounts.filter((account) => {
+					return Object.keys(where).every((key) => account[key] === where[key]);
+				});
+				result.sort((left, right) => {
+					for (const [field, direction] of order) {
+						if (left[field] === right[field]) {
+							continue;
+						}
+						const value = left[field] > right[field] ? 1 : -1;
+						return direction === "DESC" ? -value : value;
+					}
+					return 0;
+				});
+				const start = offset || 0;
+				const end = typeof limit === "number" ? start + limit : undefined;
+				return result.slice(start, end);
+			},
 			update: async (updateData, {where}) => {
 				const account = accounts.find((item) => {
 					return Object.keys(where).every((key) => item[key] === where[key]);
@@ -212,6 +238,35 @@ describe("pin negative paths", function () {
 		});
 		assert.equal(pinataRequest.config.headers.pinata_api_key, "pinata-key");
 		assert.equal(pinataRequest.config.headers.pinata_secret_api_key, "pinata-secret");
+	});
+
+	it("caps and orders pin account lists", async () => {
+		const accounts = Array.from({length: 105}, (_, index) => {
+			const suffix = String(105 - index).padStart(3, "0");
+			return {
+				id: index + 1,
+				userId: 1,
+				name: `pin-${suffix}`,
+				service: "pinata"
+			};
+		});
+		accounts.push({
+			id: 106,
+			userId: 2,
+			name: "pin-000",
+			service: "pinata"
+		});
+		const pins = createPinModule(accounts);
+
+		const gotAccounts = await pins.getUserAccountsList(1, {
+			limit: 1000,
+			sortBy: "name",
+			sortDir: "ASC"
+		});
+
+		assert.equal(gotAccounts.length, 100);
+		assert.equal(gotAccounts[0].name, "pin-001");
+		assert.equal(gotAccounts[99].name, "pin-100");
 	});
 
 	it("normalizes remote Pinata request failures", async () => {
