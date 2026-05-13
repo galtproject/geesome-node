@@ -6,7 +6,16 @@ import commonHelper from "geesome-libs/src/common.js";
 import pgpHelper from "geesome-libs/src/pgpHelper.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import peerIdHelper from "geesome-libs/src/peerIdHelper.js";
-import IGeesomeGroupModule, {GroupType, GroupView, IGroup, IGroupRead, IPost, PostStatus} from "./interface.js";
+import IGeesomeGroupModule, {
+	GroupType,
+	GroupView,
+	IGroup,
+	IGroupRead,
+	IPost,
+	IResolvedPostContent,
+	PostContentAttachmentReason,
+	PostStatus
+} from "./interface.js";
 import {buildPostLifecycleEvent, buildSourceImportPostEvent, getPostEventState} from './postEventHelpers.js';
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
@@ -677,14 +686,26 @@ function getModule(app: IGeesomeApp, models) {
 			return some(responses) && post.userId === userId;
 		}
 
-		async resolveContentForPost(userId: number, content: IContent) {
+		resolveContentForPostData(content: IContent, dbContent: IContent, permissionReason: PostContentAttachmentReason): IResolvedPostContent {
+			return {
+				id: dbContent.id,
+				view: content.view || dbContent.view,
+				size: dbContent.size,
+				permissionReason
+			};
+		}
+
+		async resolveContentForPost(userId: number, content: IContent): Promise<IResolvedPostContent> {
 			if (content.id) {
 				const dbContent: IContent = await app.ms.database.getContent(content.id);
 				if (!dbContent) {
 					throw new Error("content_not_found");
 				}
-				if (dbContent.userId === userId || dbContent.isPublic) {
-					return {id: dbContent.id, view: content.view || dbContent.view, size: dbContent.size};
+				if (dbContent.userId === userId) {
+					return this.resolveContentForPostData(content, dbContent, PostContentAttachmentReason.Owner);
+				}
+				if (dbContent.isPublic) {
+					return this.resolveContentForPostData(content, dbContent, PostContentAttachmentReason.Public);
 				}
 				throw new Error("content_not_permitted");
 			}
@@ -693,19 +714,19 @@ function getModule(app: IGeesomeApp, models) {
 				if (!dbContent) {
 					throw new Error("content_not_found");
 				}
-				return {id: dbContent.id, view: content.view || dbContent.view, size: dbContent.size};
+				return this.resolveContentForPostData(content, dbContent, PostContentAttachmentReason.ActorManifestImport);
 			}
 			if (content.storageId) {
 				const dbContent: IContent = await app.ms.database.getContentByStorageAndUserId(content.storageId, userId);
 				if (!dbContent) {
 					throw new Error("content_not_found");
 				}
-				return {id: dbContent.id, view: content.view || dbContent.view, size: dbContent.size};
+				return this.resolveContentForPostData(content, dbContent, PostContentAttachmentReason.ActorStorage);
 			}
 			throw new Error("content_not_found");
 		}
 
-		async getContentsForPost(userId: number, contents: IContent[]) {
+		async getContentsForPost(userId: number, contents: IContent[]): Promise<IResolvedPostContent[] | null> {
 			if(!contents) {
 				return null;
 			}

@@ -56,6 +56,7 @@ function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupSource = read('app/modules/group/models/group.ts');
+  const groupModuleSource = read('app/modules/group/index.ts');
   const contentSource = read('app/modules/database/models/content.ts');
   const contentModuleSource = read('app/modules/content/index.ts');
   const objectSource = read('app/modules/database/models/object.ts');
@@ -107,6 +108,10 @@ function modelRows(): ModelRow[] {
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
+  const hasPostContentAttachmentReasons = has(groupModuleSource, 'PostContentAttachmentReason')
+    && has(groupModuleSource, 'permissionReason')
+    && has(groupModuleSource, 'ActorManifestImport')
+    && has(groupModuleSource, 'ActorStorage');
   const hasPostEventSourceIdentityIndex = has(postEventSource, 'post_events_source_identity_idx')
     && has(postEventSource, "fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId', 'createdAt', 'id']");
   const hasBoundedAutoActionExecutor = has(autoActionIndexSource, 'limit: autoActionExecuteBatchLimit')
@@ -198,7 +203,9 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         hasPostContentPositionUnique && has(postSource, 'posts_contents_content_idx')
-          ? 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; remaining work is body projection'
+          ? (hasPostContentAttachmentReasons
+            ? 'join lookup indexes present; attachment positions are unique per post; attachment authorization reasons are explicit; API timeline hydration is page-scoped; remaining work is body projection'
+            : 'join lookup indexes present; attachment positions are unique per post; API timeline hydration is page-scoped; remaining work is body projection')
           : (has(postSource, 'posts_contents_post_position_idx') && has(postSource, 'posts_contents_content_idx')
           ? 'join lookup indexes present; API timeline hydration is page-scoped; remaining work is attachment constraints and body projection'
         : 'review through indexes'),

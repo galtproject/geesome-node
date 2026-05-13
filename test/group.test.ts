@@ -11,7 +11,7 @@ import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
 import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
-import {PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
+import {PostContentAttachmentReason, PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
 describe("group", function () {
@@ -65,6 +65,13 @@ describe("group", function () {
 
 		assert.equal(actorContent.storageId, ownerContent.storageId);
 
+		const ownerResolved = await app.ms.group.resolveContentForPost(testUser.id, {
+			id: ownerContent.id,
+			view: ContentView.Attachment
+		} as any);
+		assert.equal(ownerResolved.id, ownerContent.id);
+		assert.equal(ownerResolved.permissionReason, PostContentAttachmentReason.Owner);
+
 		await assert.rejects(
 			() => app.ms.group.createPost(newUser.id, {
 				contents: [{id: ownerContent.id, view: ContentView.Attachment}],
@@ -73,6 +80,28 @@ describe("group", function () {
 			}),
 			(error: Error) => error.message === 'content_not_permitted'
 		);
+
+		await app.ms.database.updateContent(ownerContent.id, {isPublic: true});
+		const publicResolved = await app.ms.group.resolveContentForPost(newUser.id, {
+			id: ownerContent.id,
+			view: ContentView.Attachment
+		} as any);
+		assert.equal(publicResolved.id, ownerContent.id);
+		assert.equal(publicResolved.permissionReason, PostContentAttachmentReason.Public);
+
+		const manifestResolved = await app.ms.group.resolveContentForPost(newUser.id, {
+			manifestStorageId: ownerContent.manifestStorageId,
+			view: ContentView.Attachment
+		} as any);
+		assert.equal(manifestResolved.id, actorContent.id);
+		assert.equal(manifestResolved.permissionReason, PostContentAttachmentReason.ActorManifestImport);
+
+		const storageResolved = await app.ms.group.resolveContentForPost(newUser.id, {
+			storageId: ownerContent.storageId,
+			view: ContentView.Attachment
+		} as any);
+		assert.equal(storageResolved.id, actorContent.id);
+		assert.equal(storageResolved.permissionReason, PostContentAttachmentReason.ActorStorage);
 
 		const post = await app.ms.group.createPost(newUser.id, {
 			contents: [{manifestStorageId: ownerContent.manifestStorageId, view: ContentView.Attachment}],
