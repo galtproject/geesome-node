@@ -23,6 +23,7 @@ import {Sequelize, QueryTypes} from 'sequelize';
 import config from '../app/modules/database/config.js';
 
 const GROUP_NAME = process.env.FIXTURE_GROUP_NAME || 'scalability-fixture';
+const CATEGORY_NAME = process.env.FIXTURE_CATEGORY_NAME || `${GROUP_NAME}-category`;
 const PAGE_LIMIT = 20;
 const PAGE_OFFSET = 50000;
 
@@ -42,14 +43,62 @@ async function main() {
   }
   const groupId = group.id;
   const userId = group.creatorId;
-
-  // Sample a real localId / manifestStorageId / publishedAt cursor from the fixture.
-  const [sample] = (await sequelize.query(
-    `SELECT "localId", "manifestStorageId", "publishedAt" FROM posts
-       WHERE "groupId" = :groupId AND "status" = 'published'
-       ORDER BY "publishedAt" DESC LIMIT 1 OFFSET 1000`,
+  const [{count: publishedPostCount}] = (await sequelize.query(
+    `SELECT COUNT(*)::int AS count
+       FROM posts
+       WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'`,
     {replacements: {groupId}, type: QueryTypes.SELECT},
-  )) as Array<{ localId: number; manifestStorageId: string; publishedAt: Date }>;
+  )) as Array<{ count: number }>;
+  const cursorOffset = Math.min(1000, Math.max(0, publishedPostCount - 1));
+
+  const [category] = (await sequelize.query(
+    `SELECT category.id FROM categories AS category
+       INNER JOIN "categoryGroups" pivot
+         ON pivot."categoryId" = category.id AND pivot."groupId" = :groupId
+       WHERE category.name = :name
+       LIMIT 1`,
+    {replacements: {groupId, name: CATEGORY_NAME}, type: QueryTypes.SELECT},
+  )) as Array<{ id: number }>;
+  if (!category) {
+    console.error(`fixture category "${CATEGORY_NAME}" not found for group "${GROUP_NAME}". Run 'npm run database:scalability:fixture' first.`);
+    process.exit(1);
+  }
+
+  // Sample real fixture rows so attachment, preview, quota, and manifest probes hit representative data.
+  const [samplePost] = (await sequelize.query(
+    `SELECT id, "localId", "manifestStorageId", "publishedAt" FROM posts
+       WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'
+       ORDER BY "publishedAt" DESC LIMIT 1 OFFSET :cursorOffset`,
+    {replacements: {groupId, cursorOffset}, type: QueryTypes.SELECT},
+  )) as Array<{ id: number; localId: number; manifestStorageId: string; publishedAt: Date }>;
+  const [sampleAttachment] = (await sequelize.query(
+    `SELECT pc."postId", pc."contentId"
+       FROM "postsContents" pc
+       INNER JOIN posts post ON post.id = pc."postId"
+       WHERE post."groupId" = :groupId
+       ORDER BY post."publishedAt" DESC, post.id DESC, pc.position ASC
+       LIMIT 1`,
+    {replacements: {groupId}, type: QueryTypes.SELECT},
+  )) as Array<{ postId: number; contentId: number }>;
+  const [sampleContent] = (await sequelize.query(
+    `SELECT id, "storageId", "largePreviewStorageId"
+       FROM contents
+       WHERE "userId" = :userId AND name LIKE 'fx-content-%'
+       ORDER BY id ASC
+       LIMIT 1`,
+    {replacements: {userId}, type: QueryTypes.SELECT},
+  )) as Array<{ id: number; storageId: string; largePreviewStorageId: string }>;
+  const [sampleStaticId] = (await sequelize.query(
+    `SELECT "staticId", "dynamicId"
+       FROM "staticIdBindings"
+       WHERE "staticId" = :staticId
+       LIMIT 1`,
+    {replacements: {staticId: `fixture-static-${GROUP_NAME}`}, type: QueryTypes.SELECT},
+  )) as Array<{ staticId: string; dynamicId: string }>;
+  if (!samplePost || !sampleAttachment || !sampleContent || !sampleStaticId) {
+    console.error(`fixture "${GROUP_NAME}" is incomplete. Run 'npm run database:scalability:fixture' first.`);
+    process.exit(1);
+  }
 
   const probes: Probe[] = [
     {
@@ -61,12 +110,42 @@ async function main() {
       replacements: {groupId, limit: PAGE_LIMIT, offset: PAGE_OFFSET},
     },
     {
+      name: 'Timeline page (Published, cursor pagination)',
+      notes: 'public group/:groupId/posts cursor path; expected to use posts_group_timeline_idx without a large OFFSET walk.',
+      sql: `SELECT id, "publishedAt", "manifestStorageId" FROM posts
+              WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'
+                AND ("publishedAt", id) < (:cursorPublishedAt, :cursorId)
+              ORDER BY "publishedAt" DESC, "id" DESC LIMIT :limit`,
+      replacements: {groupId, limit: PAGE_LIMIT, cursorPublishedAt: samplePost.publishedAt, cursorId: samplePost.id},
+    },
+    {
       name: 'Unread count (publishedAtGt + group/timeline)',
       notes: 'getGroupUnreadPostsData; uses a publishedAt cursor and should hit posts_group_timeline_idx for the count.',
       sql: `SELECT COUNT(*)::int AS unread FROM posts
               WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'
                 AND "publishedAt" > :readAt`,
-      replacements: {groupId, readAt: sample ? sample.publishedAt : new Date(0)},
+      replacements: {groupId, readAt: samplePost.publishedAt},
+    },
+    {
+      name: 'Category feed page (category -> group -> published posts)',
+      notes: 'groupCategory.getCategoryPosts page selection; expected to use category_groups_category_group_idx plus posts_group_timeline_idx before bounded hydration.',
+      sql: `SELECT post.id, post."publishedAt", post."groupId"
+              FROM posts post
+              INNER JOIN "categoryGroups" pivot ON pivot."groupId" = post."groupId"
+              WHERE pivot."categoryId" = :categoryId
+                AND post."isDeleted" = false
+                AND post."status" = 'published'
+              ORDER BY post."publishedAt" DESC, post.id DESC LIMIT :limit`,
+      replacements: {categoryId: category.id, limit: PAGE_LIMIT},
+    },
+    {
+      name: 'Static-site/RSS newest post-ref scan',
+      notes: 'staticSiteGenerator/RSS batch ref selection; expected to use posts_group_timeline_idx and avoid attachment joins before hydration.',
+      sql: `SELECT id, "localId", "publishedAt"
+              FROM posts
+              WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'
+              ORDER BY "publishedAt" DESC, id DESC LIMIT 500`,
+      replacements: {groupId},
     },
     {
       name: 'Manifest differential rebuild (updatedAtGte cursor)',
@@ -80,13 +159,13 @@ async function main() {
       name: 'Group local-post lookup (groupId, localId)',
       notes: 'getPostByGroupManifestIdAndLocalId; expected to use posts_group_local_idx.',
       sql: `SELECT id FROM posts WHERE "groupId" = :groupId AND "localId" = :localId LIMIT 1`,
-      replacements: {groupId, localId: sample ? sample.localId : 1},
+      replacements: {groupId, localId: samplePost.localId},
     },
     {
       name: 'Post-by-manifest lookup',
       notes: 'getPostByParams({manifestStorageId}); expected to use posts_manifest_storage_id_idx.',
       sql: `SELECT id FROM posts WHERE "manifestStorageId" = :manifestStorageId LIMIT 1`,
-      replacements: {manifestStorageId: sample ? sample.manifestStorageId : 'fx-post-manifest-missing'},
+      replacements: {manifestStorageId: samplePost.manifestStorageId},
     },
     {
       name: 'Group counters scan (sum size, count by groupId)',
@@ -107,20 +186,32 @@ async function main() {
       name: 'Post-content hydration (postId, position)',
       notes: 'getPostPure / setPostContents; expected to use posts_contents_post_position_idx.',
       sql: `SELECT "postId", "contentId", "position" FROM "postsContents" WHERE "postId" = :postId ORDER BY "position"`,
-      replacements: {postId: 1},
+      replacements: {postId: sampleAttachment.postId},
     },
     {
       name: 'Reverse content-to-post lookup',
       notes: 'reference-counted delete / cross-post listing; expected to use posts_contents_content_idx.',
       sql: `SELECT "postId" FROM "postsContents" WHERE "contentId" = :contentId LIMIT 100`,
-      replacements: {contentId: 1},
+      replacements: {contentId: sampleAttachment.contentId},
+    },
+    {
+      name: 'Content preview/header lookup by preview storage ID',
+      notes: 'public file/preview metadata path; expected to use the preview storage indexes while shared lookup semantics remain deterministic.',
+      sql: `SELECT id, "storageId", "largePreviewStorageId", "mediumPreviewStorageId", "smallPreviewStorageId"
+              FROM contents
+              WHERE "storageId" = :storageId
+                 OR "largePreviewStorageId" = :storageId
+                 OR "mediumPreviewStorageId" = :storageId
+                 OR "smallPreviewStorageId" = :storageId
+              ORDER BY id ASC LIMIT 1`,
+      replacements: {storageId: sampleContent.largePreviewStorageId || sampleContent.storageId},
     },
     {
       name: 'Static-ID resolution by dynamicId',
       notes: 'getStaticIdItemByDynamicId; flagged in the review as missing a dynamicId-leading index.',
       sql: `SELECT "staticId", "dynamicId", "boundAt" FROM "staticIdHistories"
               WHERE "dynamicId" = :dynamicId ORDER BY "boundAt" DESC LIMIT 1`,
-      replacements: {dynamicId: 'fx-dynamic-missing'},
+      replacements: {dynamicId: sampleStaticId.dynamicId},
     },
     {
       name: 'Quota sum (userContentActions)',
