@@ -35,6 +35,7 @@
     "database:sync-models": "node --import tsx check/databaseSyncModels.ts",
     "database:migration-integrity": "node --import tsx check/databaseMigrationIntegrity.ts",
     "database:migration-rehearsal": "bash bash/database-migration-rehearsal",
+    "database:restored-pressure": "bash bash/database-restored-pressure",
     "serve-docs": "tsx check/serveDocs.ts",
     "test:prepare-resources": "bash bash/prepare-test-resources.sh",
     "test": "yarn -W && GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",

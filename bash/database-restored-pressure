@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+	cat <<'USAGE'
+Usage:
+  CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_NAME=<group-name> bash/database-restored-pressure
+
+Runs the scalability EXPLAIN and generated-output pressure reports against a
+restored Postgres backup group after migration rehearsal.
+
+Safety:
+  - Refuses to run unless CONFIRM_RESTORED_BACKUP=1.
+  - Refuses to use the implicit default DATABASE_NAME.
+  - Refuses DATABASE_NAME=geesome_node unless ALLOW_DEFAULT_DATABASE=1.
+  - Requires RESTORED_GROUP_NAME, or FIXTURE_GROUP_NAME for compatibility with
+    the underlying report scripts.
+
+Expected target:
+  A disposable database restored from backup and already migrated/rehearsed,
+  not a live user-facing database.
+USAGE
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	usage
+	exit 0
+fi
+
+if [[ "${CONFIRM_RESTORED_BACKUP:-}" != "1" ]]; then
+	echo "Refusing to run: set CONFIRM_RESTORED_BACKUP=1 after restoring a disposable backup target." >&2
+	usage >&2
+	exit 2
+fi
+
+if [[ -z "${DATABASE_NAME:-}" ]]; then
+	echo "Refusing to run: set DATABASE_NAME to the restored backup database name." >&2
+	exit 2
+fi
+
+if [[ "${DATABASE_NAME}" == "geesome_node" && "${ALLOW_DEFAULT_DATABASE:-}" != "1" ]]; then
+	echo "Refusing to run against DATABASE_NAME=geesome_node without ALLOW_DEFAULT_DATABASE=1." >&2
+	echo "Use a disposable restored database name for pressure checks whenever possible." >&2
+	exit 2
+fi
+
+export FIXTURE_GROUP_NAME="${RESTORED_GROUP_NAME:-${FIXTURE_GROUP_NAME:-}}"
+if [[ -z "${FIXTURE_GROUP_NAME}" ]]; then
+	echo "Refusing to run: set RESTORED_GROUP_NAME to the restored group name to measure." >&2
+	exit 2
+fi
+
+echo "Restored database pressure target:"
+echo "  DATABASE_HOST=${DATABASE_HOST:-localhost}"
+echo "  DATABASE_PORT=${DATABASE_PORT:-5432}"
+echo "  DATABASE_USER=${DATABASE_USER:-geesome}"
+echo "  DATABASE_NAME=${DATABASE_NAME}"
+echo "  GROUP_NAME=${FIXTURE_GROUP_NAME}"
+echo
+
+npm run database:scalability:explain
+npm run database:scalability:generated-output

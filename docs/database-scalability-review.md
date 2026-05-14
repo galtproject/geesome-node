@@ -123,7 +123,8 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 97 | Category and section aggregate size columns are BIGINT and covered by migration integrity checks | `fe6227c` |
 | 98 | Compatibility group-manifest scans persist and reuse a durable `(updatedAt,id)` post cursor with same-timestamp overlap | `0250677` |
 | 99 | Scalability EXPLAIN probes measure the current manifest cursor, static-ID binding, and repair/fallback paths | `e628cfb` |
-| 100 | Docker 100k-post synthetic fixture, EXPLAIN, and generated-output pressure pass completed against current probes | this PR |
+| 100 | Docker 100k-post synthetic fixture, EXPLAIN, and generated-output pressure pass completed against current probes | `bc70761` |
+| 101 | Restored-backup pressure checks have a guarded command mirroring the migration rehearsal safety rails | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 
@@ -292,7 +293,7 @@ The current schema should not be thrown away. It should be completed with these 
 The core scalability pass should now stay finite. Treat the following as the remaining near-term PR queue; everything after it belongs to feature-driven backlog work unless a production rehearsal exposes a correctness bug:
 
 1. Rehearse the May 2026 migration chain on a restored Postgres backup with `npm run database:migration-rehearsal`; fix only audit/migration issues found there.
-2. Run the generated-output pressure pass against the restored group after the migration rehearsal: `FIXTURE_GROUP_NAME=<restored-group-name> npm run database:scalability:explain`, then `FIXTURE_GROUP_NAME=<restored-group-name> npm run database:scalability:generated-output`. The EXPLAIN probes distinguish hot paths from explicit repair/fallback paths, including durable manifest cursor scans, current static-ID binding lookup, static-ID history fallback, and group counter reconciliation. Body projection now has bounded per-render/feed caches, and the report includes group-manifest inline/index pressure; add persisted text/json snippets only if measured pressure is from many unique body reads rather than repeated reads or non-text copy work, and choose a chunked-only manifest cutoff from restored-data manifest pressure rather than guessing.
+2. Run the generated-output pressure pass against the restored group after the migration rehearsal: `CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_NAME=<restored-group-name> npm run database:restored-pressure`. The EXPLAIN probes distinguish hot paths from explicit repair/fallback paths, including durable manifest cursor scans, current static-ID binding lookup, static-ID history fallback, and group counter reconciliation. Body projection now has bounded per-render/feed caches, and the report includes group-manifest inline/index pressure; add persisted text/json snippets only if measured pressure is from many unique body reads rather than repeated reads or non-text copy work, and choose a chunked-only manifest cutoff from restored-data manifest pressure rather than guessing.
 3. Shared content lookup policy is locked for A1: public metadata is projected, attachment resolver reasons are explicit, and new ownerless library-row creation is blocked until the A2 canonical asset table exists. Future share/group/admin attachment reasons belong to feature-driven policy work.
 4. RSS now defaults to a smaller feed window while preserving the legacy 9999-item maximum for explicit archive reads. Further feed-size changes are product policy, not core scalability blockers.
 
@@ -392,7 +393,13 @@ For the full restored-backup rehearsal, use the guarded wrapper:
 CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> npm run database:migration-rehearsal
 ```
 
-The wrapper refuses to run without explicit restored-backup confirmation and an explicit database name; it also refuses `DATABASE_NAME=geesome_node` unless `ALLOW_DEFAULT_DATABASE=1` is set. It runs `npm run migrate-all-database`, then `npm run database:sync-models` so model-sync-only tables such as current static-ID bindings exist in the rehearsal target, and finally `npm run database:migration-integrity`.
+After the migration rehearsal succeeds, run the guarded restored-group pressure wrapper:
+
+```bash
+CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_NAME=<restored-group-name> npm run database:restored-pressure
+```
+
+The migration rehearsal wrapper refuses to run without explicit restored-backup confirmation and an explicit database name; it also refuses `DATABASE_NAME=geesome_node` unless `ALLOW_DEFAULT_DATABASE=1` is set. It runs `npm run migrate-all-database`, then `npm run database:sync-models` so model-sync-only tables such as current static-ID bindings exist in the rehearsal target, and finally `npm run database:migration-integrity`. The restored-pressure wrapper uses the same database safety checks and additionally requires a group name before writing the ignored EXPLAIN and generated-output reports.
 
 Run the integrity audit after taking a database backup and applying migrations to the restored/test target. The command connects to the configured Postgres database, verifies that every recent `202605...` migration from known migration-capable modules is listed in the audit, checks that covered migrations are recorded in `SequelizeMeta`, then validates the resulting schema and data state. It fails if a required index is missing or invalid, a widened size column (including category/section aggregate sizes) is not `BIGINT`, a cleanup-backed uniqueness invariant still has duplicates, a static-ID current binding is present but diverges from matching/latest history state, a post local-ID high-water counter regressed, or a relation touched by the dedupe/backfill migrations points at a missing row.
 
