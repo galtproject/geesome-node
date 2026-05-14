@@ -143,6 +143,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['content-bot user list index'],
   },
   {
+    module: 'database',
+    file: '20260514000000-widen-category-section-size-columns.cjs',
+    verifies: ['category/section size columns are bigint'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -191,6 +196,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'contents', columns: ['largePreviewSize'], type: 'bigint'},
   {table: 'contents', columns: ['mediumPreviewSize'], type: 'bigint'},
   {table: 'contents', columns: ['smallPreviewSize'], type: 'bigint'},
+  {table: 'categories', columns: ['size'], type: 'bigint'},
+  {table: 'groupSections', columns: ['size'], type: 'bigint'},
   {table: 'groupReads', columns: ['readPostId'], type: 'integer'},
   {table: 'autoActions', columns: ['executeClaimedAt'], type: 'timestamp with time zone'},
   {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},

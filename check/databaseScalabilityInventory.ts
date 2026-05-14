@@ -558,6 +558,9 @@ function modelRows(): ModelRow[] {
         has(groupSectionSource, 'group_sections_pivot_group_idx') ? 'groupSections groupId' : 'missing group section pivot index',
       ],
       notes: [
+        has(groupCategorySource, 'DataTypes.BIGINT') && has(groupSectionSource, 'DataTypes.BIGINT')
+          ? 'category and section aggregate size fields are BIGINT'
+          : 'category/section size fields still need BIGINT review',
         has(groupCategorySource, 'category_admins_user_category_idx') && has(groupCategorySource, 'category_members_user_category_idx') && has(groupCategorySource, 'category_groups_category_group_idx')
           ? 'category admin/member/group through indexes are present'
           : 'review category pivot indexes',
