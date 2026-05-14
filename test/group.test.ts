@@ -399,20 +399,36 @@ describe("group", function () {
 		});
 		const sourceGroupAfterPosts = await app.ms.group.getGroup(sourceGroup.id);
 		const sourceGroupManifest = await app.ms.entityJsonManifest.generateManifest('group', sourceGroupAfterPosts, {
-			postIndexPageSize: 1
+			postIndexPageSize: 1,
+			includeInlinePosts: false
+		});
+		const limitedGroupManifest = await app.ms.entityJsonManifest.generateManifest('group', sourceGroupAfterPosts, {
+			postIndexPageSize: 1,
+			inlinePostsLimit: 1
+		});
+		const forcedInlineGroupManifest = await app.ms.entityJsonManifest.generateManifest('group', sourceGroupAfterPosts, {
+			postIndexPageSize: 1,
+			inlinePostsLimit: 0,
+			includeInlinePosts: true
 		});
 		const firstPostIndexPage = await app.ms.storage.getObject(sourceGroupManifest.postsIndex.pages['1'].storageId);
+		const manifestPostRefs = await app.ms.entityJsonManifest.getGroupManifestPostRefs(sourceGroupManifest);
 		const remoteGroupManifest = {
 			...sourceGroupManifest,
 			name: 'remote-group-chunked-post-index',
 			title: 'Remote group chunked post index',
 			staticId: 'remote-group-chunked-post-index-static-id'
 		};
-		delete remoteGroupManifest.posts;
 
+		assert.equal(sourceGroupManifest.posts, undefined);
+		assert.equal(limitedGroupManifest.posts, undefined);
+		assert.notEqual(forcedInlineGroupManifest.posts, undefined);
 		assert.equal(sourceGroupManifest.postsIndex.postCount >= 2, true);
+		assert.equal(limitedGroupManifest.postsIndex.postCount, sourceGroupManifest.postsIndex.postCount);
 		assert.equal(sourceGroupManifest.postsIndex.pageSize, 1);
 		assert.equal(firstPostIndexPage.refs.length, 1);
+		assert.deepEqual(manifestPostRefs.map(ref => ref.localId), [firstSourcePost.localId, secondSourcePost.localId]);
+		assert.deepEqual(manifestPostRefs.map(ref => ref.manifestStorageId), [firstSourcePost.manifestStorageId, secondSourcePost.manifestStorageId]);
 
 		const remoteGroupManifestStorageId = await app.saveDataStructure(remoteGroupManifest, {waitForStorage: true});
 		const importer = await app.registerUser({

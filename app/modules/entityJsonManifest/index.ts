@@ -22,6 +22,19 @@ const defaultGroupManifestPostRefsBatchSize = 1000;
 const defaultGroupManifestPostIndexPageSize = 1000;
 const groupManifestPostIndexType = 'geesome-group-post-index-v1';
 
+function parseInlinePostsLimit(value: any): number {
+  if (value === undefined || value === null || value === '') {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    return Math.floor(parsed);
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
+const groupManifestInlinePostsLimit = parseInlinePostsLimit(process.env.GROUP_MANIFEST_INLINE_POSTS_LIMIT);
+
 export default async (app: IGeesomeApp) => {
   return getModule(app);
 };
@@ -76,6 +89,27 @@ function getModule(app: IGeesomeApp) {
     return String(Math.floor((localId - 1) / pageSize));
   }
 
+  function getGroupManifestInlinePostsLimit(options: any = {}): number {
+    if (options.inlinePostsLimit !== undefined) {
+      return parseInlinePostsLimit(options.inlinePostsLimit);
+    }
+    return groupManifestInlinePostsLimit;
+  }
+
+  function shouldIncludeInlineGroupManifestPosts(groupData: IGroup, options: any = {}): boolean {
+    if (options.includeInlinePosts === false) {
+      return false;
+    }
+    if (options.includeInlinePosts === true) {
+      return true;
+    }
+    const availablePostsCount = Number(groupData.availablePostsCount);
+    if (!Number.isFinite(availablePostsCount)) {
+      return true;
+    }
+    return availablePostsCount <= getGroupManifestInlinePostsLimit(options);
+  }
+
   function getPostManifestStorageId(postRef) {
     if (!postRef) {
       return null;
@@ -108,6 +142,16 @@ function getModule(app: IGeesomeApp) {
     const refs: Array<{localId: number; manifestStorageId: string}> = [];
     appendInlineGroupManifestPostRefs(postsTree, refs);
     return refs.sort((a, b) => a.localId - b.localId);
+  }
+
+  function getManifestStorageIdForPostRef(post: IPost): string | null {
+    if (!post || !post.localId) {
+      return null;
+    }
+    if (post.isEncrypted) {
+      return getPostManifestStorageId(post.encryptedManifestStorageId);
+    }
+    return getPostManifestStorageId(post.manifestStorageId);
   }
 
   function normalizeManifestDate(value) {
@@ -158,8 +202,21 @@ function getModule(app: IGeesomeApp) {
       }
     }
 
+    async getCurrentGroupManifestPostRefs(groupId, options: any = {}): Promise<Array<{localId: number; manifestStorageId: string}>> {
+      const refs: Array<{localId: number; manifestStorageId: string}> = [];
+      await this.forEachGroupManifestPostRef(groupId, {status: PostStatus.Published, isDeleted: false}, options, (post: IPost) => {
+        const localId = Number(post.localId);
+        const manifestStorageId = getManifestStorageIdForPostRef(post);
+        if (!Number.isFinite(localId) || localId <= 0 || !manifestStorageId) {
+          return;
+        }
+        refs.push({localId, manifestStorageId});
+      });
+      return refs.sort((a, b) => a.localId - b.localId);
+    }
+
     async attachGroupManifestPostIndex(groupManifest, groupData: IGroup, options: any = {}) {
-      const refs = getInlineGroupManifestPostRefs(groupManifest.posts);
+      const refs = Array.isArray(options.postRefs) ? options.postRefs : getInlineGroupManifestPostRefs(groupManifest.posts);
       const pageSize = getGroupManifestPostIndexPageSize(options);
       const refsByPage = new Map<string, Array<{localId: number; manifestStorageId: string}>>();
 
@@ -247,13 +304,16 @@ function getModule(app: IGeesomeApp) {
     async generateGroupManifest(groupData: IGroup, options: any = {}) {
       //TODO: size => postsSize
       const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
+      const includeInlinePosts = shouldIncludeInlineGroupManifestPosts(groupData, options);
 
-      groupManifest.posts = {};
+      if (includeInlinePosts) {
+        groupManifest.posts = {};
+      }
 
       const filters: any = {status: PostStatus.Published, isDeleted: false};
       const deletedFilters: any = {status: PostStatus.Published, isDeleted: true};
       const unpublishedFilters: any = {statusNe: PostStatus.Published};
-      if (groupData.manifestStorageId) {
+      if (includeInlinePosts && groupData.manifestStorageId) {
         const lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
         filters['updatedAtGte'] = new Date(lastGroupManifest.updatedAt);
         deletedFilters['updatedAtGte'] = filters['updatedAtGte'];
@@ -289,7 +349,7 @@ function getModule(app: IGeesomeApp) {
         groupManifest.members = [groupData.staticStorageId, creator.manifestStaticStorageId];
       }
 
-      if (groupData.manifestStorageId) {
+      if (includeInlinePosts && groupData.manifestStorageId) {
         await this.forEachGroupManifestPostRef(groupData.id, deletedFilters, options, (post: IPost) => {
           unsetTreeNode(groupManifest.posts, post.localId);
         });
@@ -298,10 +358,15 @@ function getModule(app: IGeesomeApp) {
         });
       }
       //TODO: remove deprecated
-      await this.forEachGroupManifestPostRef(groupData.id, filters, options, (post: IPost) => {
-        treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
-      });
-      await this.attachGroupManifestPostIndex(groupManifest, groupData, options);
+      if (includeInlinePosts) {
+        await this.forEachGroupManifestPostRef(groupData.id, filters, options, (post: IPost) => {
+          treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
+        });
+        await this.attachGroupManifestPostIndex(groupManifest, groupData, options);
+      } else {
+        const postRefs = await this.getCurrentGroupManifestPostRefs(groupData.id, options);
+        await this.attachGroupManifestPostIndex(groupManifest, groupData, {...options, postRefs});
+      }
       this.setManifestMeta(groupManifest, 'group');
       return groupManifest;
     }
