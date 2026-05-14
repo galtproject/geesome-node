@@ -2,8 +2,8 @@
  * Database scalability review — Slice 5 (J20 EXPLAIN ANALYZE harness).
  *
  * Runs EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) against the canonical
- * timeline/unread/manifest/category/quota/static-ID queries that the
- * scalability review flags as hot paths, using the fixture seeded by
+ * timeline/unread/manifest/category/quota/static-ID queries and explicit
+ * repair/fallback scans that the scalability review tracks, using the fixture seeded by
  * `database:scalability:fixture`.
  *
  * Output: writes a human-readable report to
@@ -148,8 +148,8 @@ async function main() {
       replacements: {groupId},
     },
     {
-      name: 'Manifest differential rebuild (updatedAtGte cursor)',
-      notes: 'generateGroupManifest filter; expected to use posts_group_manifest_cursor_idx.',
+      name: 'Manifest differential rebuild (durable updatedAt cursor overlap)',
+      notes: 'generateGroupManifest compatibility scan; the stored group cursor overlaps the updatedAt bucket, while batched progress uses (updatedAt,id). Expected to use posts_group_manifest_cursor_idx.',
       sql: `SELECT id, "localId", "manifestStorageId" FROM posts
               WHERE "groupId" = :groupId AND "status" = 'published' AND "updatedAt" >= :since
               ORDER BY "updatedAt", "id" LIMIT 1000`,
@@ -157,7 +157,7 @@ async function main() {
     },
     {
       name: 'Group local-post lookup (groupId, localId)',
-      notes: 'getPostByGroupManifestIdAndLocalId; expected to use posts_group_local_idx.',
+      notes: 'getPostByGroupManifestIdAndLocalId; expected to use posts_group_local_unique.',
       sql: `SELECT id FROM posts WHERE "groupId" = :groupId AND "localId" = :localId LIMIT 1`,
       replacements: {groupId, localId: samplePost.localId},
     },
@@ -168,8 +168,8 @@ async function main() {
       replacements: {manifestStorageId: samplePost.manifestStorageId},
     },
     {
-      name: 'Group counters scan (sum size, count by groupId)',
-      notes: 'updateGroupManifest currently runs SUM(size) and COUNT for every post write; needs incremental counters per the P1 finding. With C1 the COUNT now also filters status=Published.',
+      name: 'Group counter reconciliation scan (repair-only)',
+      notes: 'reconcileGroupCounters repair path; normal post writes maintain group counters incrementally, so this full scan should stay an explicit audit/repair operation.',
       sql: `SELECT COUNT(*)::int AS posts, COALESCE(SUM("size"), 0)::bigint AS bytes FROM posts
               WHERE "groupId" = :groupId AND "isDeleted" = false AND "status" = 'published'`,
       replacements: {groupId},
@@ -184,7 +184,7 @@ async function main() {
     },
     {
       name: 'Post-content hydration (postId, position)',
-      notes: 'getPostPure / setPostContents; expected to use posts_contents_post_position_idx.',
+      notes: 'getPostPure / setPostContents; expected to use posts_contents_post_position_unique.',
       sql: `SELECT "postId", "contentId", "position" FROM "postsContents" WHERE "postId" = :postId ORDER BY "position"`,
       replacements: {postId: sampleAttachment.postId},
     },
@@ -207,8 +207,15 @@ async function main() {
       replacements: {storageId: sampleContent.largePreviewStorageId || sampleContent.storageId},
     },
     {
-      name: 'Static-ID resolution by dynamicId',
-      notes: 'getStaticIdItemByDynamicId; flagged in the review as missing a dynamicId-leading index.',
+      name: 'Static-ID current binding by dynamicId',
+      notes: 'getStaticIdItemByDynamicId hot path; expected to use static_id_bindings_dynamic_bound_idx before falling back to history.',
+      sql: `SELECT "staticId", "dynamicId", "boundAt" FROM "staticIdBindings"
+              WHERE "dynamicId" = :dynamicId ORDER BY "boundAt" DESC LIMIT 1`,
+      replacements: {dynamicId: sampleStaticId.dynamicId},
+    },
+    {
+      name: 'Static-ID history fallback by dynamicId',
+      notes: 'upgraded-row fallback when a current binding has not been lazily created yet; expected to use static_id_histories_dynamic_bound_idx.',
       sql: `SELECT "staticId", "dynamicId", "boundAt" FROM "staticIdHistories"
               WHERE "dynamicId" = :dynamicId ORDER BY "boundAt" DESC LIMIT 1`,
       replacements: {dynamicId: sampleStaticId.dynamicId},
@@ -263,6 +270,7 @@ async function main() {
   }
 
   const outPath = path.join(process.cwd(), 'docs/database-scalability-explain.md');
+  fs.mkdirSync(path.dirname(outPath), {recursive: true});
   fs.writeFileSync(outPath, lines.join('\n') + '\n');
   console.log(`wrote ${path.relative(process.cwd(), outPath)}`);
 

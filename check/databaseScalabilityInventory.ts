@@ -923,7 +923,9 @@ function hotspotRows(): HotspotRow[] {
     && has(scalabilityExplainSource, 'Category feed page')
     && has(scalabilityExplainSource, 'Static-site/RSS newest post-ref scan')
     && has(scalabilityExplainSource, 'Content preview/header lookup by preview storage ID')
-    && has(scalabilityExplainSource, 'Timeline page (Published, cursor pagination)');
+    && has(scalabilityExplainSource, 'Timeline page (Published, cursor pagination)')
+    && has(scalabilityExplainSource, 'Static-ID current binding by dynamicId')
+    && has(scalabilityExplainSource, 'Group counter reconciliation scan (repair-only)');
   const hasGeneratedOutputPressureReport = has(packageSource, '"database:scalability:generated-output"')
     && has(generatedOutputPressureSource, 'static_body_read_candidates')
     && has(generatedOutputPressureSource, 'rss_text_read_candidates')
@@ -942,8 +944,8 @@ function hotspotRows(): HotspotRow[] {
       hotspot: hasGeneratedOutputPressureReport ? 'database:scalability:fixture / explain / generated-output' : 'database:scalability:fixture / database:scalability:explain',
       observedPattern: hasLargeFixtureExplainHarness
         ? (hasGeneratedOutputPressureReport
-          ? 'seeds a 100k-post group fixture plus category, mixed image/text/json content metadata, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes and generated-output pressure signals'
-          : 'seeds a 100k-post group fixture plus category, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes for timeline, unread, category, static/RSS, manifest, content-preview, quota, and static-ID hot paths')
+          ? 'seeds a 100k-post group fixture plus category, mixed image/text/json content metadata, attachment, quota, preview, and static-ID side rows, then emits current EXPLAIN ANALYZE probes and generated-output pressure signals'
+          : 'seeds a 100k-post group fixture plus category, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes for timeline, unread, category, static/RSS, manifest, content-preview, quota, hot static-ID binding, and repair/fallback paths')
         : 'large fixture or EXPLAIN coverage is missing one or more documented hot-path probes',
       scalabilityRisk: hasLargeFixtureExplainHarness
         ? (hasGeneratedOutputPressureReport
