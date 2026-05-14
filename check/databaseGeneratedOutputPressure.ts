@@ -9,6 +9,7 @@
  * Run with:
  *   npm run database:scalability:fixture
  *   npm run database:scalability:generated-output
+ *   FIXTURE_GROUP_ID=123 npm run database:scalability:generated-output
  *   FIXTURE_GROUP_NAME=my-group GENERATED_OUTPUT_POST_LIMIT=5000 npm run database:scalability:generated-output
  *   GROUP_MANIFEST_INLINE_POSTS_LIMIT=50000 npm run database:scalability:generated-output
  */
@@ -17,8 +18,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {Sequelize, QueryTypes} from 'sequelize';
 import config from '../app/modules/database/config.js';
+import {
+  getScalabilityTargetGroup,
+  getScalabilityTargetGroupSelector,
+  renderScalabilityTargetGroupEnv,
+} from './databaseScalabilityTarget.js';
 
-const GROUP_NAME = process.env.FIXTURE_GROUP_NAME || 'scalability-fixture';
 const POST_LIMIT = parsePositiveInteger(process.env.GENERATED_OUTPUT_POST_LIMIT, 9999);
 const TOP_DUPLICATES_LIMIT = parsePositiveInteger(process.env.GENERATED_OUTPUT_TOP_DUPLICATES, 10);
 const MANIFEST_POST_INDEX_PAGE_SIZE = parsePositiveInteger(process.env.GENERATED_OUTPUT_MANIFEST_POST_INDEX_PAGE_SIZE, 1000);
@@ -277,7 +282,14 @@ function renderManifestPressureRows(manifestPressure: ManifestPressureRow): stri
   ];
 }
 
-function renderReport(group: {id: number; name: string}, summary: SummaryRow, manifestPressure: ManifestPressureRow, breakdownRows: BreakdownRow[], duplicateBodyRows: DuplicateBodyRow[]): string {
+function renderReport(
+  group: {id: number; name: string},
+  targetEnv: string,
+  summary: SummaryRow,
+  manifestPressure: ManifestPressureRow,
+  breakdownRows: BreakdownRow[],
+  duplicateBodyRows: DuplicateBodyRow[],
+): string {
   const selectedPosts = toNumber(summary.selected_posts);
   const totalAttachments = toNumber(summary.total_attachments);
   const uniqueAttachments = toNumber(summary.unique_attachment_storage_ids);
@@ -301,7 +313,7 @@ function renderReport(group: {id: number; name: string}, summary: SummaryRow, ma
     '',
     '```',
     'npm run database:scalability:fixture',
-    'npm run database:scalability:generated-output',
+    `${targetEnv} npm run database:scalability:generated-output`,
     '```',
     '',
     'This report is intentionally not committed. It uses database rows only, so it can run against the synthetic fixture or a restored production copy before deciding whether generated-output work needs persisted snippets, larger caches, storage-copy changes, or a chunked-only group-manifest cutoff.',
@@ -356,24 +368,25 @@ function renderReport(group: {id: number; name: string}, summary: SummaryRow, ma
 }
 
 async function main() {
+  const targetSelector = getScalabilityTargetGroupSelector();
   const sequelize = new Sequelize({...(config as any), logging: false});
   try {
     await sequelize.authenticate();
 
-    const [group] = (await sequelize.query(
-      `SELECT id, name FROM groups WHERE name = :name LIMIT 1`,
-      {replacements: {name: GROUP_NAME}, type: QueryTypes.SELECT},
-    )) as Array<{id: number; name: string}>;
-
-    if (!group) {
-      throw new Error(`fixture group "${GROUP_NAME}" not found. Run 'npm run database:scalability:fixture' first or set FIXTURE_GROUP_NAME.`);
-    }
+    const group = await getScalabilityTargetGroup(sequelize, targetSelector);
 
     const summary = await getSummary(sequelize, group.id);
     const manifestPressure = await getManifestPressure(sequelize, group.id);
     const breakdownRows = await getMimeBreakdown(sequelize, group.id);
     const duplicateBodyRows = await getDuplicateBodies(sequelize, group.id);
-    const report = renderReport(group, summary, manifestPressure, breakdownRows, duplicateBodyRows);
+    const report = renderReport(
+      group,
+      renderScalabilityTargetGroupEnv(targetSelector),
+      summary,
+      manifestPressure,
+      breakdownRows,
+      duplicateBodyRows,
+    );
     const outPath = path.join(process.cwd(), REPORT_PATH);
 
     fs.mkdirSync(path.dirname(outPath), {recursive: true});
