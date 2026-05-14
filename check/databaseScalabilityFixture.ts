@@ -9,7 +9,7 @@
  * - 1 user (idempotent)
  * - 1 group (`scalability-fixture` by name)
  * - 1 category containing that group
- * - 1k content rows
+ * - 1k content rows, with deterministic image/text/json metadata
  * - 100k posts in the fixture group, ~30% with attached content
  * - quota/static-ID side rows so EXPLAIN probes hit realistic data
  *
@@ -41,8 +41,32 @@ const CATEGORY_NAME = process.env.FIXTURE_CATEGORY_NAME || `${GROUP_NAME}-catego
 const RESET = (process.env.FIXTURE_RESET || '').toLowerCase() === 'true';
 const BATCH = 5000;
 
+type FixtureContentShape = {
+  mimeType: string;
+  extension: string;
+  view: string;
+};
+
 function nowMinus(seconds: number): Date {
   return new Date(Date.now() - seconds * 1000);
+}
+
+function getFixtureContentShape(index: number): FixtureContentShape {
+  if (index % 17 === 0) {
+    return {mimeType: 'application/json', extension: 'json', view: 'json'};
+  }
+  if (index % 5 === 0) {
+    return {mimeType: 'text/plain', extension: 'txt', view: 'text'};
+  }
+  return {mimeType: 'image/jpeg', extension: 'jpg', view: 'image'};
+}
+
+function getFixtureContentIndex(name: string): number | null {
+  const match = /^fx-content-(\d+)$/.exec(name);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]);
 }
 
 async function seedFixtureCategory(sequelize: Sequelize, groupId: number) {
@@ -120,6 +144,46 @@ async function normalizeFixturePreviewIds(sequelize: Sequelize, userId: number) 
        WHERE "userId" = :userId AND name LIKE 'fx-content-%'`,
     {replacements: {userId}},
   );
+}
+
+async function normalizeFixtureContentMetadata(sequelize: Sequelize, userId: number) {
+  const contentRows = (await sequelize.query(
+    `SELECT id, name FROM contents WHERE "userId" = :userId AND name LIKE 'fx-content-%' ORDER BY id`,
+    {replacements: {userId}, type: QueryTypes.SELECT},
+  )) as Array<{id: number; name: string}>;
+
+  let normalized = 0;
+  while (normalized < contentRows.length) {
+    const batchRows = contentRows.slice(normalized, normalized + BATCH);
+    const values: string[] = [];
+    const replacements: any = {};
+    for (let i = 0; i < batchRows.length; i++) {
+      const contentIndex = getFixtureContentIndex(batchRows[i].name);
+      if (contentIndex === null) {
+        continue;
+      }
+      const shape = getFixtureContentShape(contentIndex);
+      replacements[`id${i}`] = batchRows[i].id;
+      replacements[`mimeType${i}`] = shape.mimeType;
+      replacements[`extension${i}`] = shape.extension;
+      replacements[`view${i}`] = shape.view;
+      values.push(`(:id${i}, :mimeType${i}, :extension${i}, :view${i})`);
+    }
+    if (values.length > 0) {
+      await sequelize.query(
+        `UPDATE contents AS content
+           SET "mimeType" = fixture."mimeType",
+               extension = fixture.extension,
+               view = fixture.view,
+               "updatedAt" = NOW()
+         FROM (VALUES ${values.join(', ')}) AS fixture(id, "mimeType", extension, view)
+         WHERE content.id = fixture.id`,
+        {replacements},
+      );
+    }
+    normalized += batchRows.length;
+  }
+  console.log(`normalized ${contentRows.length} fixture content metadata rows`);
 }
 
 async function seedUserContentActions(sequelize: Sequelize, userId: number, contentRows: Array<{id: number; size: string | number}>) {
@@ -270,15 +334,19 @@ async function main() {
       const replacements: any = {userId: actualUserId};
       for (let i = 0; i < batch; i++) {
         const idx = existingContents + created + i;
+        const shape = getFixtureContentShape(idx);
         replacements[`name${i}`] = `fx-content-${idx}`;
         replacements[`storageId${i}`] = `fx-storage-${idx}`;
         replacements[`manifestStorageId${i}`] = `fx-content-manifest-${idx}`;
         replacements[`largePreviewStorageId${i}`] = `fx-large-preview-${idx}`;
         replacements[`mediumPreviewStorageId${i}`] = `fx-medium-preview-${idx}`;
         replacements[`smallPreviewStorageId${i}`] = `fx-small-preview-${idx}`;
+        replacements[`mimeType${i}`] = shape.mimeType;
+        replacements[`extension${i}`] = shape.extension;
+        replacements[`view${i}`] = shape.view;
         replacements[`size${i}`] = ((idx % 100) + 1) * 1024;
         values.push(
-          `(:name${i}, 'image/jpeg', 'jpg', 'image', :storageId${i}, :largePreviewStorageId${i}, :mediumPreviewStorageId${i}, :smallPreviewStorageId${i}, 'image/jpeg', 'jpg', :manifestStorageId${i}, :size${i}, :userId, NOW(), NOW())`,
+          `(:name${i}, :mimeType${i}, :extension${i}, :view${i}, :storageId${i}, :largePreviewStorageId${i}, :mediumPreviewStorageId${i}, :smallPreviewStorageId${i}, :mimeType${i}, :extension${i}, :manifestStorageId${i}, :size${i}, :userId, NOW(), NOW())`,
         );
       }
       await sequelize.query(
@@ -294,6 +362,7 @@ async function main() {
     console.log(`reusing ${existingContents} existing content rows`);
   }
 
+  await normalizeFixtureContentMetadata(sequelize, actualUserId);
   await normalizeFixturePreviewIds(sequelize, actualUserId);
 
   // Pull all fixture content ids for attachment.

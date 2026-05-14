@@ -622,6 +622,7 @@ function hotspotRows(): HotspotRow[] {
   const packageSource = read('package.json');
   const scalabilityFixtureSource = read('check/databaseScalabilityFixture.ts');
   const scalabilityExplainSource = read('check/databaseScalabilityExplain.ts');
+  const generatedOutputPressureSource = read('check/databaseGeneratedOutputPressure.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
@@ -890,6 +891,8 @@ function hotspotRows(): HotspotRow[] {
   const hasLargeFixtureExplainHarness = has(packageSource, '"database:scalability:fixture"')
     && has(packageSource, '"database:scalability:explain"')
     && has(scalabilityFixtureSource, "FIXTURE_POSTS || '100000'")
+    && has(scalabilityFixtureSource, 'getFixtureContentShape')
+    && has(scalabilityFixtureSource, 'normalizeFixtureContentMetadata')
     && has(scalabilityFixtureSource, 'seedFixtureCategory')
     && has(scalabilityFixtureSource, 'seedStaticIdState')
     && has(scalabilityFixtureSource, 'seedUserContentActions')
@@ -898,18 +901,38 @@ function hotspotRows(): HotspotRow[] {
     && has(scalabilityExplainSource, 'Static-site/RSS newest post-ref scan')
     && has(scalabilityExplainSource, 'Content preview/header lookup by preview storage ID')
     && has(scalabilityExplainSource, 'Timeline page (Published, cursor pagination)');
+  const hasGeneratedOutputPressureReport = has(packageSource, '"database:scalability:generated-output"')
+    && has(generatedOutputPressureSource, 'static_body_read_candidates')
+    && has(generatedOutputPressureSource, 'rss_text_read_candidates')
+    && has(generatedOutputPressureSource, 'static_copy_candidates')
+    && has(generatedOutputPressureSource, 'Repeated Text/JSON Bodies');
 
   return [
     {
       area: 'Large fixture benchmark',
       source: 'check/databaseScalabilityFixture.ts',
-      hotspot: 'database:scalability:fixture / database:scalability:explain',
+      hotspot: hasGeneratedOutputPressureReport ? 'database:scalability:fixture / explain / generated-output' : 'database:scalability:fixture / database:scalability:explain',
       observedPattern: hasLargeFixtureExplainHarness
-        ? 'seeds a 100k-post group fixture plus category, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes for timeline, unread, category, static/RSS, manifest, content-preview, quota, and static-ID hot paths'
+        ? (hasGeneratedOutputPressureReport
+          ? 'seeds a 100k-post group fixture plus category, mixed image/text/json content metadata, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes and generated-output pressure signals'
+          : 'seeds a 100k-post group fixture plus category, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes for timeline, unread, category, static/RSS, manifest, content-preview, quota, and static-ID hot paths')
         : 'large fixture or EXPLAIN coverage is missing one or more documented hot-path probes',
       scalabilityRisk: hasLargeFixtureExplainHarness
-        ? 'future index/query changes can be measured against production-scale fixture data instead of small test datasets; generated plan output remains intentionally uncommitted'
+        ? (hasGeneratedOutputPressureReport
+          ? 'future index/query changes and generated-output body/copy pressure can be measured against production-scale fixture or restored data; generated reports remain intentionally uncommitted'
+          : 'future index/query changes can be measured against production-scale fixture data instead of small test datasets; generated plan output remains intentionally uncommitted')
         : 'review conclusions can drift because large-table plans are not reproducible from repo-local commands',
+    },
+    {
+      area: 'Generated output pressure',
+      source: 'check/databaseGeneratedOutputPressure.ts',
+      hotspot: 'database:scalability:generated-output',
+      observedPattern: hasGeneratedOutputPressureReport
+        ? 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, and non-text storage copy candidates from the fixture or a restored group'
+        : 'generated-output pressure measurement is missing',
+      scalabilityRisk: hasGeneratedOutputPressureReport
+        ? 'the large-output follow-up can distinguish persisted-snippet pressure from cache tuning and storage-copy pressure before adding new schema'
+        : 'persisted snippets or cache changes could be chosen without measuring whether repeated bodies, unique bodies, or media copies dominate',
     },
     {
       area: 'Timeline API',
