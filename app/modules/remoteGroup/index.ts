@@ -1,6 +1,5 @@
 import commonHelper from "geesome-libs/src/common.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
-import base36 from "geesome-libs/src/base36.js";
 import pIteration from 'p-iteration';
 import {IGroup, IPost, PostStatus} from "../group/interface.js";
 import IGeesomeRemoteGroupModule from "./interface.js";
@@ -14,35 +13,6 @@ export default async (app: IGeesomeApp) => {
 
 function getModule(app: IGeesomeApp) {
 	app.checkModules(['entityJsonManifest', 'group']);
-
-	function getPostManifestStorageId(postRef) {
-		if (!postRef) {
-			return null;
-		}
-		if (typeof postRef === 'string') {
-			return postRef;
-		}
-		if (postRef['/']) {
-			return postRef['/'];
-		}
-		return null;
-	}
-
-	function getGroupManifestPostRefs(postsTree, refs: Array<{localId: number; manifestStorageId: string}> = []) {
-		for (const [key, value] of Object.entries(postsTree || {})) {
-			if (key.endsWith('_')) {
-				getGroupManifestPostRefs(value, refs);
-				continue;
-			}
-			const localId = base36.decode(key);
-			const manifestStorageId = getPostManifestStorageId(value);
-			if (!Number.isFinite(localId) || localId <= 0 || !manifestStorageId) {
-				continue;
-			}
-			refs.push({localId, manifestStorageId});
-		}
-		return refs.sort((a, b) => a.localId - b.localId);
-	}
 
 	function getPostRefsByLocalId(postRefs) {
 		const postRefsByLocalId = new Map<number, any>();
@@ -160,7 +130,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async importGroupManifestPosts(userId, group, groupManifest) {
-			const postRefs = getGroupManifestPostRefs(groupManifest.posts);
+			const postRefs = await app.ms.entityJsonManifest.getGroupManifestPostRefs(groupManifest);
 			const localPostRefsByLocalId = await this.getActiveGroupPostRefsByLocalId(group.id);
 			if (await this.isGroupManifestImportComplete(group, postRefs, localPostRefsByLocalId)) {
 				return 0;

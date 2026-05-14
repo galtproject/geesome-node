@@ -770,6 +770,11 @@ function hotspotRows(): HotspotRow[] {
     && has(manifestSource, 'forEachGroupManifestPostRef')
     && has(groupSource, 'cursorUpdatedAt')
     && !has(manifestSource, 'limit: 9999999');
+  const hasGroupManifestPostIndexSidecar = has(manifestSource, 'attachGroupManifestPostIndex')
+    && has(manifestSource, 'group-post-index-page')
+    && has(manifestSource, 'getGroupManifestPostRefsFromIndex')
+    && has(remoteGroupSource, 'entityJsonManifest.getGroupManifestPostRefs(groupManifest)')
+    && has(groupTestSource, 'chunked post index');
   const hasGeneratedOutputPostBatchHelper = has(groupSource, 'forEachHydratedGroupPostBatch')
     && has(groupSource, 'getHydratedGroupPostBatch')
     && has(groupSource, 'getGroupPostRefs(groupId')
@@ -987,7 +992,9 @@ function hotspotRows(): HotspotRow[] {
       hotspot: 'generateGroupManifest',
       observedPattern: hasGroupManifestRefBatches
         ? (hasGroupManifestDeleteUnset && hasGroupManifestStatusUnset
-          ? 'loads the previous posts trie, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, then unsets removed local IDs'
+          ? (hasGroupManifestPostIndexSidecar
+            ? 'loads the previous posts trie, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, unsets removed local IDs, and dual-writes a paged post-index sidecar'
+            : 'loads the previous posts trie, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, then unsets removed local IDs')
           : (hasGroupManifestDeleteUnset
             ? 'loads the previous posts trie, scans changed/deleted lightweight post refs in (updatedAt,id) cursor batches, then unsets deleted local IDs'
             : 'loads the previous posts trie and scans changed lightweight post refs in (updatedAt,id) cursor batches'))
@@ -997,7 +1004,9 @@ function hotspotRows(): HotspotRow[] {
             : 'loads the previous posts trie and scans changed lightweight post refs')
           : (has(manifestSource, 'limit: 9999999') ? 'loads effectively all matching group posts' : 'review implementation')),
       scalabilityRisk: hasGroupManifestRefBatches
-        ? 'content/repost hydration and large changed-ref windows are avoided; rebuild still loads/copies the previous posts trie and rewrites a monolithic manifest'
+        ? (hasGroupManifestPostIndexSidecar
+          ? 'content/repost hydration and large changed-ref windows are avoided; remote import can consume paged post indexes, but generation still keeps the legacy inline trie until old consumers can tolerate chunked-only manifests'
+          : 'content/repost hydration and large changed-ref windows are avoided; rebuild still loads/copies the previous posts trie and rewrites a monolithic manifest')
         : (hasGroupManifestPostRefs
           ? 'content/repost hydration is avoided for manifest refs, but rebuild still materializes large ref windows and rewrites a monolithic manifest'
           : (has(read('app/modules/group/models/post.ts'), 'posts_group_manifest_cursor_idx')
@@ -1139,7 +1148,9 @@ function hotspotRows(): HotspotRow[] {
         ? (hasRemotePostManifestIdempotency
           ? (hasRemoteGroupManifestPostImport
             ? (hasRemoteGroupManifestReplay
-              ? 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and chunked manifest indexes'
+              ? (hasGroupManifestPostIndexSidecar
+                ? 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked post-index fallback, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and retiring the legacy inline trie for large groups'
+                : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and chunked manifest indexes')
               : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, and group-manifest post iteration state consistently; remote edit/delete replay remains future work')
             : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, and same-manifest retry state consistently; remote edit/delete replay remains future work')
           : 'remote manifest imports now get localId, attachment, counter, group-manifest, and post-event state consistently; duplicate manifest idempotency and remote edit/delete replay remain future work')
