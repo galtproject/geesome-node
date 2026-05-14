@@ -9,6 +9,7 @@
 
 import debug from 'debug';
 import pIteration from 'p-iteration';
+import base36 from "geesome-libs/src/base36.js";
 import treeLib from "geesome-libs/src/base36Trie.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import {GroupType, IGroup, IPost, PostStatus} from "../group/interface.js";
@@ -18,6 +19,8 @@ import {IContent, IUser} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 const log = debug('geesome:app');
 const defaultGroupManifestPostRefsBatchSize = 1000;
+const defaultGroupManifestPostIndexPageSize = 1000;
+const groupManifestPostIndexType = 'geesome-group-post-index-v1';
 
 export default async (app: IGeesomeApp) => {
   return getModule(app);
@@ -59,6 +62,52 @@ function getModule(app: IGeesomeApp) {
       return Math.floor(batchSize);
     }
     return defaultGroupManifestPostRefsBatchSize;
+  }
+
+  function getGroupManifestPostIndexPageSize(options: any = {}) {
+    const pageSize = Number(options.postIndexPageSize || defaultGroupManifestPostIndexPageSize);
+    if (Number.isFinite(pageSize) && pageSize > 0) {
+      return Math.floor(pageSize);
+    }
+    return defaultGroupManifestPostIndexPageSize;
+  }
+
+  function getGroupManifestPostIndexPageKey(localId: number, pageSize: number): string {
+    return String(Math.floor((localId - 1) / pageSize));
+  }
+
+  function getPostManifestStorageId(postRef) {
+    if (!postRef) {
+      return null;
+    }
+    if (typeof postRef === 'string') {
+      return postRef;
+    }
+    if (postRef['/']) {
+      return postRef['/'];
+    }
+    return null;
+  }
+
+  function appendInlineGroupManifestPostRefs(postsTree, refs: Array<{localId: number; manifestStorageId: string}>) {
+    for (const [key, value] of Object.entries(postsTree || {})) {
+      if (key.endsWith('_')) {
+        appendInlineGroupManifestPostRefs(value, refs);
+        continue;
+      }
+      const localId = base36.decode(key);
+      const manifestStorageId = getPostManifestStorageId(value);
+      if (!Number.isFinite(localId) || localId <= 0 || !manifestStorageId) {
+        continue;
+      }
+      refs.push({localId, manifestStorageId});
+    }
+  }
+
+  function getInlineGroupManifestPostRefs(postsTree): Array<{localId: number; manifestStorageId: string}> {
+    const refs: Array<{localId: number; manifestStorageId: string}> = [];
+    appendInlineGroupManifestPostRefs(postsTree, refs);
+    return refs.sort((a, b) => a.localId - b.localId);
   }
 
   function normalizeManifestDate(value) {
@@ -109,6 +158,92 @@ function getModule(app: IGeesomeApp) {
       }
     }
 
+    async attachGroupManifestPostIndex(groupManifest, groupData: IGroup, options: any = {}) {
+      const refs = getInlineGroupManifestPostRefs(groupManifest.posts);
+      const pageSize = getGroupManifestPostIndexPageSize(options);
+      const refsByPage = new Map<string, Array<{localId: number; manifestStorageId: string}>>();
+
+      for (const ref of refs) {
+        const pageKey = getGroupManifestPostIndexPageKey(ref.localId, pageSize);
+        if (!refsByPage.has(pageKey)) {
+          refsByPage.set(pageKey, []);
+        }
+        refsByPage.get(pageKey).push(ref);
+      }
+
+      const pages = {};
+      const sortedPageKeys = Array.from(refsByPage.keys()).sort((a, b) => Number(a) - Number(b));
+      for (const pageKey of sortedPageKeys) {
+        const pageRefs = refsByPage.get(pageKey) || [];
+        if (!pageRefs.length) {
+          continue;
+        }
+        const pageManifest: any = {
+          indexType: groupManifestPostIndexType,
+          groupStaticId: groupData.manifestStaticStorageId,
+          groupManifestUpdatedAt: groupManifest.updatedAt,
+          pageSize,
+          pageKey,
+          fromLocalId: pageRefs[0].localId,
+          toLocalId: pageRefs[pageRefs.length - 1].localId,
+          count: pageRefs.length,
+          refs: pageRefs
+        };
+        this.setManifestMeta(pageManifest, 'group-post-index-page');
+        pages[pageKey] = {
+          storageId: await app.saveDataStructure(pageManifest, {waitForStorage: true}),
+          count: pageManifest.count,
+          fromLocalId: pageManifest.fromLocalId,
+          toLocalId: pageManifest.toLocalId
+        };
+      }
+
+      groupManifest.postsIndex = {
+        indexType: groupManifestPostIndexType,
+        pageSize,
+        postCount: refs.length,
+        pageCount: sortedPageKeys.length,
+        pages
+      };
+    }
+
+    async getGroupManifestPostRefsFromIndex(postsIndex): Promise<Array<{localId: number; manifestStorageId: string}>> {
+      if (!postsIndex || postsIndex.indexType !== groupManifestPostIndexType) {
+        return [];
+      }
+
+      const pageEntries = Object.entries(postsIndex.pages || {})
+        .map(([pageKey, pageData]: [string, any]) => ({
+          pageKey,
+          storageId: pageData.storageId || getPostManifestStorageId(pageData)
+        }))
+        .filter(pageData => pageData.storageId)
+        .sort((a, b) => Number(a.pageKey) - Number(b.pageKey));
+      const refs: Array<{localId: number; manifestStorageId: string}> = [];
+
+      await pIteration.forEachSeries(pageEntries, async (pageData) => {
+        const page = await app.ms.storage.getObject(pageData.storageId);
+        for (const ref of page.refs || []) {
+          const localId = Number(ref.localId);
+          const manifestStorageId = getPostManifestStorageId(ref.manifestStorageId);
+          if (!Number.isFinite(localId) || localId <= 0 || !manifestStorageId) {
+            continue;
+          }
+          refs.push({localId, manifestStorageId});
+        }
+      });
+
+      return refs.sort((a, b) => a.localId - b.localId);
+    }
+
+    async getGroupManifestPostRefs(groupManifest): Promise<Array<{localId: number; manifestStorageId: string}>> {
+      const inlineRefs = getInlineGroupManifestPostRefs(groupManifest.posts);
+      if (inlineRefs.length || !groupManifest.postsIndex) {
+        return inlineRefs;
+      }
+      return this.getGroupManifestPostRefsFromIndex(groupManifest.postsIndex);
+    }
+
     async generateGroupManifest(groupData: IGroup, options: any = {}) {
       //TODO: size => postsSize
       const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
@@ -124,6 +259,12 @@ function getModule(app: IGeesomeApp) {
         deletedFilters['updatedAtGte'] = filters['updatedAtGte'];
         unpublishedFilters['updatedAtGte'] = filters['updatedAtGte'];
         groupManifest.posts = lastGroupManifest.posts || {};
+        if (!lastGroupManifest.posts && lastGroupManifest.postsIndex) {
+          const previousRefs = await this.getGroupManifestPostRefsFromIndex(lastGroupManifest.postsIndex);
+          previousRefs.forEach((postRef) => {
+            treeLib.setNode(groupManifest.posts, postRef.localId, this.getStorageRef(postRef.manifestStorageId));
+          });
+        }
       }
 
       if (groupData.isEncrypted) {
@@ -160,6 +301,7 @@ function getModule(app: IGeesomeApp) {
       await this.forEachGroupManifestPostRef(groupData.id, filters, options, (post: IPost) => {
         treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
       });
+      await this.attachGroupManifestPostIndex(groupManifest, groupData, options);
       this.setManifestMeta(groupManifest, 'group');
       return groupManifest;
     }

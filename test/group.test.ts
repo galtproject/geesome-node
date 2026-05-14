@@ -378,6 +378,65 @@ describe("group", function () {
 		]);
 	});
 
+	it('imports remote group manifest post refs from the chunked post index', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const firstContent = await app.ms.content.saveData(testUser.id, 'chunked group first post', 'chunked-group-first.md', {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'chunked group second post', 'chunked-group-second.md', {
+			mimeType: 'text/markdown'
+		});
+		const firstSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const secondSourcePost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Attachment}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const sourceGroupAfterPosts = await app.ms.group.getGroup(sourceGroup.id);
+		const sourceGroupManifest = await app.ms.entityJsonManifest.generateManifest('group', sourceGroupAfterPosts, {
+			postIndexPageSize: 1
+		});
+		const firstPostIndexPage = await app.ms.storage.getObject(sourceGroupManifest.postsIndex.pages['1'].storageId);
+		const remoteGroupManifest = {
+			...sourceGroupManifest,
+			name: 'remote-group-chunked-post-index',
+			title: 'Remote group chunked post index',
+			staticId: 'remote-group-chunked-post-index-static-id'
+		};
+		delete remoteGroupManifest.posts;
+
+		assert.equal(sourceGroupManifest.postsIndex.postCount >= 2, true);
+		assert.equal(sourceGroupManifest.postsIndex.pageSize, 1);
+		assert.equal(firstPostIndexPage.refs.length, 1);
+
+		const remoteGroupManifestStorageId = await app.saveDataStructure(remoteGroupManifest, {waitForStorage: true});
+		const importer = await app.registerUser({
+			email: 'remote-group-chunked@user.com',
+			name: 'remote-group-chunked',
+			password: 'remote-group-chunked',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const models = (app.ms.database as any).models;
+
+		const importedGroup = await (app.ms as any).remoteGroup.createGroupByRemoteStorageId(importer.id, remoteGroupManifestStorageId);
+		const importedPosts = await models.Post.findAll({
+			where: {
+				groupId: importedGroup.id,
+				isDeleted: false,
+				status: PostStatus.Published
+			},
+			order: [['localId', 'ASC']]
+		});
+
+		assert.deepEqual(importedPosts.map(post => post.localId), [firstSourcePost.localId, secondSourcePost.localId]);
+		assert.deepEqual(importedPosts.map(post => post.manifestStorageId), [firstSourcePost.manifestStorageId, secondSourcePost.manifestStorageId]);
+	});
+
 	it('replays remote group manifest post edits and deletes', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

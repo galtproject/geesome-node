@@ -11,4 +11,6 @@ export default interface IGeesomeEntityJsonManifestModule {
   generateManifest(name, data, options?): Promise<any>;
 
   manifestIdToDbObject(manifest, type?, options?: any): Promise<any>;
+
+  getGroupManifestPostRefs(groupManifest): Promise<Array<{localId: number; manifestStorageId: string}>>;
 }
