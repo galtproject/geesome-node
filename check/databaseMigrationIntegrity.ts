@@ -192,6 +192,11 @@ const coveredMigrations: CoveredMigration[] = [
     file: '20260514000001-add-group-manifest-post-cursor.cjs',
     verifies: ['group manifest post cursor columns and consistency checks'],
   },
+  {
+    module: 'group',
+    file: '20260515000000-backfill-post-and-group-size-counters.cjs',
+    verifies: ['post attachment size backfill', 'group size and availability counter backfill'],
+  },
 ];
 
 const expectedColumns: ExpectedColumn[] = [
@@ -487,6 +492,54 @@ const countChecks: CountCheck[] = [
         GROUP BY "groupId"
       ) post_high_water ON post_high_water."groupId" = g.id
       WHERE COALESCE(g."publishedPostsCount", 0) < post_high_water.max_local_id
+    `,
+  },
+  {
+    name: 'post size matches attached content size',
+    requirements: [
+      {table: 'posts', columns: ['size']},
+      {table: 'postsContents', columns: ['postId', 'contentId']},
+      {table: 'contents', columns: ['id', 'size']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM posts post
+      LEFT JOIN (
+        SELECT
+          post_content."postId",
+          COALESCE(SUM(COALESCE(content.size, 0)), 0)::bigint AS expected_size
+        FROM "postsContents" post_content
+        LEFT JOIN contents content
+          ON content.id = post_content."contentId"
+        GROUP BY post_content."postId"
+      ) content_size
+        ON content_size."postId" = post.id
+      WHERE post.size IS DISTINCT FROM COALESCE(content_size.expected_size, 0)::bigint
+    `,
+  },
+  {
+    name: 'group size and availability counters match active published posts',
+    requirements: [
+      {table: 'groups', columns: ['size', 'availablePostsCount']},
+      {table: 'posts', columns: ['groupId', 'isDeleted', 'status', 'size']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM groups group_row
+      LEFT JOIN (
+        SELECT
+          "groupId",
+          COALESCE(SUM(COALESCE(size, 0)), 0)::bigint AS expected_size,
+          COUNT(*)::integer AS expected_available_posts_count
+        FROM posts
+        WHERE "groupId" IS NOT NULL
+          AND "isDeleted" IS FALSE
+          AND status = 'published'
+        GROUP BY "groupId"
+      ) post_counters
+        ON post_counters."groupId" = group_row.id
+      WHERE COALESCE(group_row.size, 0)::bigint IS DISTINCT FROM COALESCE(post_counters.expected_size, 0)::bigint
+        OR COALESCE(group_row."availablePostsCount", 0) IS DISTINCT FROM COALESCE(post_counters.expected_available_posts_count, 0)
     `,
   },
 ];
