@@ -363,7 +363,7 @@ Verification:
 
 ### 11. Database Scalability For Large Groups
 
-Status: in progress in [#880](https://github.com/galtproject/geesome-node/issues/880). The living implementation record is `docs/database-scalability-review.md`; recent slices cover deterministic inventory checks, Postgres index/constraint migrations, cursor/page-scoped hydration, static-site/RSS batching, guarded migration rehearsal/integrity auditing, A1 content ownership rules, the smaller RSS default feed window, and bounded per-render/feed text body caching for generated output.
+Status: in progress in [#880](https://github.com/galtproject/geesome-node/issues/880). The living implementation record is `docs/database-scalability-review.md`; recent slices cover deterministic inventory checks, Postgres index/constraint migrations, cursor/page-scoped hydration, static-site/RSS batching, guarded migration rehearsal/integrity auditing, A1 content ownership rules, the smaller RSS default feed window, bounded per-render/feed text body caching for generated output, and a fixture/restored-data generated-output pressure report.
 
 Goal: verify whether the current database schema, indexes, query patterns, and content/post associations can support groups with hundreds of thousands of posts and attached content records.
 
