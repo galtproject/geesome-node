@@ -37,7 +37,7 @@ export default async function (sequelize: Sequelize, models) {
       type: DataTypes.STRING(200)
     },
     size: {
-      type: DataTypes.INTEGER
+      type: DataTypes.BIGINT
     },
     storageId: {
       type: DataTypes.STRING(200)
