@@ -172,6 +172,71 @@ function getModule(app: IGeesomeApp) {
     return date;
   }
 
+  function getPostCursorFromValues(updatedAt, id): {updatedAt: Date; id: number} | null {
+    const date = normalizeManifestDate(updatedAt);
+    const numericId = Number(id);
+    if (!(date instanceof Date) || Number.isNaN(date.getTime()) || !Number.isFinite(numericId)) {
+      return null;
+    }
+    return {updatedAt: date, id: numericId};
+  }
+
+  function getPostCursorFromPost(post): {updatedAt: Date; id: number} | null {
+    if (!post) {
+      return null;
+    }
+    return getPostCursorFromValues(post.updatedAt, post.id);
+  }
+
+  function isPostCursorAfter(candidate, current) {
+    if (!candidate) {
+      return false;
+    }
+    if (!current) {
+      return true;
+    }
+    const candidateTime = candidate.updatedAt.getTime();
+    const currentTime = current.updatedAt.getTime();
+    if (candidateTime !== currentTime) {
+      return candidateTime > currentTime;
+    }
+    return candidate.id > current.id;
+  }
+
+  function updateGenerationStateCursor(options, post) {
+    if (!options.generationState) {
+      return;
+    }
+    const cursor = getPostCursorFromPost(post);
+    if (!isPostCursorAfter(cursor, options.generationState.postCursor)) {
+      return;
+    }
+    options.generationState.postCursor = cursor;
+  }
+
+  function getGroupManifestGenerationCursor(groupData: IGroup) {
+    return getPostCursorFromValues(groupData.manifestPostsCursorUpdatedAt, groupData.manifestPostsCursorId);
+  }
+
+  function setPostUpdatedAtGteFilters(filtersList, updatedAt) {
+    filtersList.forEach((filters) => {
+      filters.updatedAtGte = updatedAt;
+    });
+  }
+
+  function applyGroupManifestGenerationCursor(groupData: IGroup, lastGroupManifest, filtersList) {
+    const cursor = getGroupManifestGenerationCursor(groupData);
+    if (cursor) {
+      setPostUpdatedAtGteFilters(filtersList, cursor.updatedAt);
+      return cursor;
+    }
+    if (!lastGroupManifest?.updatedAt) {
+      return null;
+    }
+    setPostUpdatedAtGteFilters(filtersList, normalizeManifestDate(lastGroupManifest.updatedAt));
+    return null;
+  }
+
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
     constructor() {
 
@@ -180,6 +245,7 @@ function getModule(app: IGeesomeApp) {
     async forEachGroupManifestPostRef(groupId, filters, options, callback: (post: IPost) => void) {
       const batchSize = getGroupManifestPostRefsBatchSize(options);
       let cursor: {updatedAt: any; id: any} | null = null;
+      let latestCursor: {updatedAt: Date; id: number} | null = null;
       while (true) {
         const batchFilters: any = {...filters};
         if (cursor) {
@@ -192,7 +258,14 @@ function getModule(app: IGeesomeApp) {
           sortBy: 'updatedAt',
           sortDir: 'ASC'
         });
-        posts.forEach(callback);
+        posts.forEach((post) => {
+          callback(post);
+          const postCursor = getPostCursorFromPost(post);
+          if (isPostCursorAfter(postCursor, latestCursor)) {
+            latestCursor = postCursor;
+          }
+          updateGenerationStateCursor(options, post);
+        });
         if (posts.length < batchSize) {
           break;
         }
@@ -200,6 +273,7 @@ function getModule(app: IGeesomeApp) {
         const lastPost = posts[posts.length - 1];
         cursor = {updatedAt: lastPost.updatedAt, id: lastPost.id};
       }
+      return latestCursor;
     }
 
     async getCurrentGroupManifestPostRefs(groupId, options: any = {}): Promise<Array<{localId: number; manifestStorageId: string}>> {
@@ -305,6 +379,9 @@ function getModule(app: IGeesomeApp) {
       //TODO: size => postsSize
       const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
       const includeInlinePosts = shouldIncludeInlineGroupManifestPosts(groupData, options);
+      if (options.generationState && !options.generationState.postCursor) {
+        options.generationState.postCursor = getGroupManifestGenerationCursor(groupData);
+      }
 
       if (includeInlinePosts) {
         groupManifest.posts = {};
@@ -315,9 +392,7 @@ function getModule(app: IGeesomeApp) {
       const unpublishedFilters: any = {statusNe: PostStatus.Published};
       if (includeInlinePosts && groupData.manifestStorageId) {
         const lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
-        filters['updatedAtGte'] = new Date(lastGroupManifest.updatedAt);
-        deletedFilters['updatedAtGte'] = filters['updatedAtGte'];
-        unpublishedFilters['updatedAtGte'] = filters['updatedAtGte'];
+        applyGroupManifestGenerationCursor(groupData, lastGroupManifest, [filters, deletedFilters, unpublishedFilters]);
         groupManifest.posts = lastGroupManifest.posts || {};
         if (!lastGroupManifest.posts && lastGroupManifest.postsIndex) {
           const previousRefs = await this.getGroupManifestPostRefsFromIndex(lastGroupManifest.postsIndex);
@@ -369,6 +444,12 @@ function getModule(app: IGeesomeApp) {
       }
       this.setManifestMeta(groupManifest, 'group');
       return groupManifest;
+    }
+
+    async generateGroupManifestWithState(groupData: IGroup, options: any = {}) {
+      const state = options.generationState || {};
+      const manifest = await this.generateGroupManifest(groupData, {...options, generationState: state});
+      return {manifest, state};
     }
 
     async generateManifest(name, data, options?) {

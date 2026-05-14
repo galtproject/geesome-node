@@ -292,7 +292,8 @@ function getModule(app: IGeesomeApp, models) {
 			// rebuild is available via reconcileGroupCounters() for ops use only.
 			const group = await this.getGroup(groupId);
 
-			const manifestStorageId = await app.generateAndSaveManifest('group', group);
+			const {manifest, state} = await app.ms.entityJsonManifest.generateGroupManifestWithState(group);
+			const manifestStorageId = await app.saveDataStructure(manifest, {waitForStorage: true});
 			log('generateAndSaveManifest');
 			let storageUpdatedAt = group.storageUpdatedAt;
 			let staticStorageUpdatedAt = group.staticStorageUpdatedAt;
@@ -305,11 +306,17 @@ function getModule(app: IGeesomeApp, models) {
 				promises.push(app.ms.staticId.bindToStaticId(group.creatorId, manifestStorageId, group.manifestStaticStorageId))
 			}
 
-			promises.push(this.updateGroupPure(groupId, {
+			const updateData: any = {
 				manifestStorageId,
 				storageUpdatedAt,
 				staticStorageUpdatedAt
-			}));
+			};
+			if (state.postCursor) {
+				updateData.manifestPostsCursorUpdatedAt = state.postCursor.updatedAt;
+				updateData.manifestPostsCursorId = state.postCursor.id;
+			}
+
+			promises.push(this.updateGroupPure(groupId, updateData));
 			return Promise.all(promises);
 		}
 

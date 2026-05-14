@@ -10,6 +10,8 @@
 export default interface IGeesomeEntityJsonManifestModule {
   generateManifest(name, data, options?): Promise<any>;
 
+  generateGroupManifestWithState(groupData, options?): Promise<{manifest: any; state: any}>;
+
   manifestIdToDbObject(manifest, type?, options?: any): Promise<any>;
 
   getGroupManifestPostRefs(groupManifest): Promise<Array<{localId: number; manifestStorageId: string}>>;
