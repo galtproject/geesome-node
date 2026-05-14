@@ -118,6 +118,12 @@ export default async function (sequelize: Sequelize, models) {
       type: DataTypes.INTEGER,
       defaultValue: 0
     },
+    manifestPostsCursorUpdatedAt: {
+      type: DataTypes.DATE
+    },
+    manifestPostsCursorId: {
+      type: DataTypes.INTEGER
+    },
   } as any, {
     indexes: [
       // http://docs.sequelizejs.com/manual/tutorial/models-definition.html#indexes

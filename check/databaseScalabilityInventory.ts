@@ -593,6 +593,7 @@ function modelRows(): ModelRow[] {
 function hotspotRows(): HotspotRow[] {
   const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
+  const groupModelSource = read('app/modules/group/models/group.ts');
   const postEventHelperSource = read('app/modules/group/postEventHelpers.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupTestSource = read('test/group.test.ts');
@@ -784,6 +785,14 @@ function hotspotRows(): HotspotRow[] {
     && has(manifestSource, 'getCurrentGroupManifestPostRefs')
     && has(groupTestSource, 'includeInlinePosts: false')
     && has(groupTestSource, 'inlinePostsLimit: 1');
+  const hasGroupManifestDurableCursor = hasGroupManifestRefBatches
+    && has(groupModelSource, 'manifestPostsCursorUpdatedAt')
+    && has(groupModelSource, 'manifestPostsCursorId')
+    && has(groupSource, 'manifestPostsCursorUpdatedAt')
+    && has(groupSource, 'manifestPostsCursorId')
+    && has(manifestSource, 'generateGroupManifestWithState')
+    && has(manifestSource, 'getGroupManifestGenerationCursor')
+    && has(groupTestSource, 'stores and reuses the group manifest post cursor');
   const hasGeneratedOutputPostBatchHelper = has(groupSource, 'forEachHydratedGroupPostBatch')
     && has(groupSource, 'getHydratedGroupPostBatch')
     && has(groupSource, 'getGroupPostRefs(groupId')
@@ -1012,7 +1021,9 @@ function hotspotRows(): HotspotRow[] {
         ? (hasGroupManifestDeleteUnset && hasGroupManifestStatusUnset
           ? (hasGroupManifestPostIndexSidecar
             ? (hasGroupManifestChunkedOnlyOption
-              ? 'loads the previous posts trie for compatibility manifests, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, unsets removed local IDs, dual-writes a paged post-index sidecar, and can publish chunked-only manifests through an explicit option or count limit'
+              ? (hasGroupManifestDurableCursor
+                ? 'loads the previous posts trie for compatibility manifests, resumes changed/deleted/unpublished lightweight post refs from a durable group (updatedAt,id) cursor with same-timestamp overlap, unsets removed local IDs, dual-writes a paged post-index sidecar, and can publish chunked-only manifests through an explicit option or count limit'
+                : 'loads the previous posts trie for compatibility manifests, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, unsets removed local IDs, dual-writes a paged post-index sidecar, and can publish chunked-only manifests through an explicit option or count limit')
               : 'loads the previous posts trie, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, unsets removed local IDs, and dual-writes a paged post-index sidecar')
             : 'loads the previous posts trie, scans changed/deleted/unpublished lightweight post refs in (updatedAt,id) cursor batches, then unsets removed local IDs')
           : (hasGroupManifestDeleteUnset
@@ -1026,7 +1037,9 @@ function hotspotRows(): HotspotRow[] {
       scalabilityRisk: hasGroupManifestRefBatches
         ? (hasGroupManifestPostIndexSidecar
           ? (hasGroupManifestChunkedOnlyOption
-            ? 'content/repost hydration and large changed-ref windows are avoided; large groups can avoid the legacy inline trie when enabled, while default compatibility manifests and durable generation cursors still need follow-up'
+            ? (hasGroupManifestDurableCursor
+              ? 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups can avoid the legacy inline trie when enabled, while default chunked-only rollout and page-level incremental updates still need follow-up'
+              : 'content/repost hydration and large changed-ref windows are avoided; large groups can avoid the legacy inline trie when enabled, while default compatibility manifests and durable generation cursors still need follow-up')
             : 'content/repost hydration and large changed-ref windows are avoided; remote import can consume paged post indexes, but generation still keeps the legacy inline trie until old consumers can tolerate chunked-only manifests')
           : 'content/repost hydration and large changed-ref windows are avoided; rebuild still loads/copies the previous posts trie and rewrites a monolithic manifest')
         : (hasGroupManifestPostRefs

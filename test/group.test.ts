@@ -1243,6 +1243,71 @@ describe("group", function () {
 		assert.equal(trieHelper.getNode(manifest.posts, posts[3].localId), undefined);
 	});
 
+	it('stores and reuses the group manifest post cursor with id tie-breaker', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const firstContent = await app.ms.content.saveData(testUser.id, 'first cursor manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'second cursor manifest post', null, {
+			mimeType: 'text/markdown'
+		});
+		const firstPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const secondPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const cursorUpdatedAt = new Date('2026-05-14T00:00:00.000Z');
+		await app.ms.database.sequelize.query(
+			'UPDATE "posts" SET "updatedAt" = :updatedAt WHERE id IN (:postIds)',
+			{replacements: {updatedAt: cursorUpdatedAt, postIds: [firstPost.id, secondPost.id]}}
+		);
+
+		const groupBefore = await app.ms.group.getGroup(testGroup.id);
+		const previousManifest = await app.ms.storage.getObject(groupBefore.manifestStorageId);
+		previousManifest.posts = {};
+		trieHelper.setNode(previousManifest.posts, firstPost.localId, firstPost.manifestStorageId);
+		const previousManifestStorageId = await app.saveDataStructure(previousManifest, {waitForStorage: true});
+		await models.Group.update({
+			manifestStorageId: previousManifestStorageId,
+			manifestPostsCursorUpdatedAt: cursorUpdatedAt,
+			manifestPostsCursorId: firstPost.id
+		}, {where: {id: testGroup.id}, silent: true});
+
+		const groupWithCursor = await app.ms.group.getGroup(testGroup.id);
+		const generatedManifest = await app.ms.entityJsonManifest.generateManifest('group', groupWithCursor, {
+			postRefsBatchSize: 1
+		});
+		assert.equal(trieHelper.getNode(generatedManifest.posts, firstPost.localId), firstPost.manifestStorageId);
+		assert.equal(trieHelper.getNode(generatedManifest.posts, secondPost.localId), secondPost.manifestStorageId);
+
+		await app.ms.group.updateGroupManifest(testUser.id, testGroup.id);
+
+		const groupAfter = await app.ms.group.getGroup(testGroup.id);
+		assert.equal(groupAfter.manifestPostsCursorId, secondPost.id);
+		assert.equal(new Date(groupAfter.manifestPostsCursorUpdatedAt).getTime(), cursorUpdatedAt.getTime());
+
+		const manifestAfter = await app.ms.storage.getObject(groupAfter.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfter.posts, firstPost.localId), firstPost.manifestStorageId);
+		assert.equal(trieHelper.getNode(manifestAfter.posts, secondPost.localId), secondPost.manifestStorageId);
+
+		await app.ms.database.sequelize.query(
+			'UPDATE "posts" SET status = :status, "updatedAt" = :updatedAt WHERE id = :postId',
+			{replacements: {status: PostStatus.Draft, updatedAt: cursorUpdatedAt, postId: firstPost.id}}
+		);
+		const overlapManifest = await app.ms.entityJsonManifest.generateManifest('group', groupAfter, {
+			postRefsBatchSize: 1
+		});
+		assert.equal(trieHelper.getNode(overlapManifest.posts, firstPost.localId), undefined);
+		assert.equal(trieHelper.getNode(overlapManifest.posts, secondPost.localId), secondPost.manifestStorageId);
+	});
+
 	it('hydrates timeline pages after id-only page selection', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

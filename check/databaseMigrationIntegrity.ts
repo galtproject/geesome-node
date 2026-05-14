@@ -187,6 +187,11 @@ const coveredMigrations: CoveredMigration[] = [
     file: '20260511000000-add-group-creator-list-index.cjs',
     verifies: ['creator-owned group listing index'],
   },
+  {
+    module: 'group',
+    file: '20260514000001-add-group-manifest-post-cursor.cjs',
+    verifies: ['group manifest post cursor columns and consistency checks'],
+  },
 ];
 
 const expectedColumns: ExpectedColumn[] = [
@@ -199,6 +204,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'categories', columns: ['size'], type: 'bigint'},
   {table: 'groupSections', columns: ['size'], type: 'bigint'},
   {table: 'groupReads', columns: ['readPostId'], type: 'integer'},
+  {table: 'groups', columns: ['manifestPostsCursorUpdatedAt'], type: 'timestamp with time zone'},
+  {table: 'groups', columns: ['manifestPostsCursorId'], type: 'integer'},
   {table: 'autoActions', columns: ['executeClaimedAt'], type: 'timestamp with time zone'},
   {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},
 ];
@@ -385,6 +392,22 @@ const countChecks: CountCheck[] = [
   relationCheck('groups avatar links point to contents', 'groups', 'avatarImageId', 'contents'),
   relationCheck('groups cover links point to contents', 'groups', 'coverImageId', 'contents'),
   relationCheck('groups creators point to users', 'groups', 'creatorId', 'users'),
+  {
+    name: 'groups manifest post cursors point to same-group posts',
+    requirements: [
+      {table: 'groups', columns: ['manifestPostsCursorId']},
+      {table: 'posts', columns: ['id', 'groupId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM groups
+      LEFT JOIN posts
+        ON posts.id = groups."manifestPostsCursorId"
+        AND posts."groupId" = groups.id
+      WHERE groups."manifestPostsCursorId" IS NOT NULL
+        AND posts.id IS NULL
+    `,
+  },
   relationCheck('users avatar links point to contents', 'users', 'avatarImageId', 'contents'),
   relationCheck('categories avatar links point to contents', 'categories', 'avatarImageId', 'contents'),
   relationCheck('categories cover links point to contents', 'categories', 'coverImageId', 'contents'),
@@ -436,6 +459,17 @@ const countChecks: CountCheck[] = [
   relationCheck('pin accounts point to groups', 'pinAccounts', 'groupId', 'groups'),
   relationCheck('user limits point to users', 'userLimits', 'userId', 'users'),
   relationCheck('user limits point to admins', 'userLimits', 'adminId', 'users'),
+  {
+    name: 'group manifest post cursors are stored as complete pairs',
+    requirements: [
+      {table: 'groups', columns: ['manifestPostsCursorUpdatedAt', 'manifestPostsCursorId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM groups
+      WHERE ("manifestPostsCursorUpdatedAt" IS NULL) != ("manifestPostsCursorId" IS NULL)
+    `,
+  },
   {
     name: 'group publishedPostsCount keeps the post localId high-water mark',
     requirements: [
