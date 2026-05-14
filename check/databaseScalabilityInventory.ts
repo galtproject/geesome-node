@@ -917,6 +917,11 @@ function hotspotRows(): HotspotRow[] {
     && has(generatedOutputPressureSource, 'rss_text_read_candidates')
     && has(generatedOutputPressureSource, 'static_copy_candidates')
     && has(generatedOutputPressureSource, 'Repeated Text/JSON Bodies');
+  const hasGeneratedOutputManifestPressure = hasGeneratedOutputPressureReport
+    && has(generatedOutputPressureSource, 'Group Manifest Pressure')
+    && has(generatedOutputPressureSource, 'GROUP_MANIFEST_INLINE_POSTS_LIMIT')
+    && has(generatedOutputPressureSource, 'active_manifest_refs')
+    && has(generatedOutputPressureSource, 'inlineReferenceLowerBoundBytes');
 
   return [
     {
@@ -939,10 +944,14 @@ function hotspotRows(): HotspotRow[] {
       source: 'check/databaseGeneratedOutputPressure.ts',
       hotspot: 'database:scalability:generated-output',
       observedPattern: hasGeneratedOutputPressureReport
-        ? 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, and non-text storage copy candidates from the fixture or a restored group'
+        ? (hasGeneratedOutputManifestPressure
+          ? 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, non-text storage copy candidates, and group-manifest inline/index pressure from the fixture or a restored group'
+          : 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, and non-text storage copy candidates from the fixture or a restored group')
         : 'generated-output pressure measurement is missing',
       scalabilityRisk: hasGeneratedOutputPressureReport
-        ? 'the large-output follow-up can distinguish persisted-snippet pressure from cache tuning and storage-copy pressure before adding new schema'
+        ? (hasGeneratedOutputManifestPressure
+          ? 'the large-output follow-up can distinguish persisted-snippet pressure from cache tuning, storage-copy pressure, and large-manifest cutoff pressure before changing runtime defaults or adding schema'
+          : 'the large-output follow-up can distinguish persisted-snippet pressure from cache tuning and storage-copy pressure before adding new schema')
         : 'persisted snippets or cache changes could be chosen without measuring whether repeated bodies, unique bodies, or media copies dominate',
     },
     {
