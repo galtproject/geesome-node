@@ -624,8 +624,10 @@ function hotspotRows(): HotspotRow[] {
   const tgContentBotModelSource = read('app/modules/tgContentBot/models.ts');
   const helpersSource = read('app/helpers.ts');
   const packageSource = read('package.json');
+  const restoredPressureSource = read('bash/database-restored-pressure');
   const scalabilityFixtureSource = read('check/databaseScalabilityFixture.ts');
   const scalabilityExplainSource = read('check/databaseScalabilityExplain.ts');
+  const scalabilityTargetSource = read('check/databaseScalabilityTarget.ts');
   const generatedOutputPressureSource = read('check/databaseGeneratedOutputPressure.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
@@ -936,6 +938,14 @@ function hotspotRows(): HotspotRow[] {
     && has(generatedOutputPressureSource, 'GROUP_MANIFEST_INLINE_POSTS_LIMIT')
     && has(generatedOutputPressureSource, 'active_manifest_refs')
     && has(generatedOutputPressureSource, 'inlineReferenceLowerBoundBytes');
+  const hasRestoredPressureGroupIdTarget = has(restoredPressureSource, 'RESTORED_GROUP_ID')
+    && has(scalabilityTargetSource, 'FIXTURE_GROUP_ID')
+    && has(scalabilityExplainSource, 'FIXTURE_GROUP_ID')
+    && has(generatedOutputPressureSource, 'FIXTURE_GROUP_ID');
+  const hasRestoredExplainOptionalProbes = has(scalabilityExplainSource, 'Skipped Probes')
+    && has(scalabilityExplainSource, 'findTargetCategory')
+    && has(scalabilityExplainSource, 'findSampleStaticBinding')
+    && has(scalabilityExplainSource, 'findSampleContent');
 
   return [
     {
@@ -944,12 +954,16 @@ function hotspotRows(): HotspotRow[] {
       hotspot: hasGeneratedOutputPressureReport ? 'database:scalability:fixture / explain / generated-output' : 'database:scalability:fixture / database:scalability:explain',
       observedPattern: hasLargeFixtureExplainHarness
         ? (hasGeneratedOutputPressureReport
-          ? 'seeds a 100k-post group fixture plus category, mixed image/text/json content metadata, attachment, quota, preview, and static-ID side rows, then emits current EXPLAIN ANALYZE probes and generated-output pressure signals'
+          ? (hasRestoredPressureGroupIdTarget && hasRestoredExplainOptionalProbes
+            ? 'seeds a 100k-post group fixture plus category, mixed image/text/json content metadata, attachment, quota, preview, and static-ID side rows, then emits current EXPLAIN ANALYZE probes and generated-output pressure signals against fixture/restored groups selected by name or id; optional category/content/static-ID probes are skipped when restored data lacks sample rows'
+            : 'seeds a 100k-post group fixture plus category, mixed image/text/json content metadata, attachment, quota, preview, and static-ID side rows, then emits current EXPLAIN ANALYZE probes and generated-output pressure signals')
           : 'seeds a 100k-post group fixture plus category, attachment, quota, preview, and static-ID side rows, then emits EXPLAIN ANALYZE probes for timeline, unread, category, static/RSS, manifest, content-preview, quota, hot static-ID binding, and repair/fallback paths')
         : 'large fixture or EXPLAIN coverage is missing one or more documented hot-path probes',
       scalabilityRisk: hasLargeFixtureExplainHarness
         ? (hasGeneratedOutputPressureReport
-          ? 'future index/query changes and generated-output body/copy pressure can be measured against production-scale fixture or restored data; generated reports remain intentionally uncommitted'
+          ? (hasRestoredPressureGroupIdTarget
+            ? 'future index/query changes and generated-output body/copy pressure can be measured against production-scale fixture or a specific restored group id; generated reports remain intentionally uncommitted'
+            : 'future index/query changes and generated-output body/copy pressure can be measured against production-scale fixture or restored data; generated reports remain intentionally uncommitted')
           : 'future index/query changes can be measured against production-scale fixture data instead of small test datasets; generated plan output remains intentionally uncommitted')
         : 'review conclusions can drift because large-table plans are not reproducible from repo-local commands',
     },
@@ -959,7 +973,9 @@ function hotspotRows(): HotspotRow[] {
       hotspot: 'database:scalability:generated-output',
       observedPattern: hasGeneratedOutputPressureReport
         ? (hasGeneratedOutputManifestPressure
-          ? 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, non-text storage copy candidates, and group-manifest inline/index pressure from the fixture or a restored group'
+          ? (hasRestoredPressureGroupIdTarget
+            ? 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, non-text storage copy candidates, and group-manifest inline/index pressure from a fixture/restored group selected by name or id'
+            : 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, non-text storage copy candidates, and group-manifest inline/index pressure from the fixture or a restored group')
           : 'reports selected-post attachment rows, unique text/json body read candidates, RSS selected text reads, and non-text storage copy candidates from the fixture or a restored group')
         : 'generated-output pressure measurement is missing',
       scalabilityRisk: hasGeneratedOutputPressureReport

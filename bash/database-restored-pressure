@@ -4,6 +4,7 @@ set -euo pipefail
 usage() {
 	cat <<'USAGE'
 Usage:
+  CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_ID=<group-id> bash/database-restored-pressure
   CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_NAME=<group-name> bash/database-restored-pressure
 
 Runs the scalability EXPLAIN and generated-output pressure reports against a
@@ -13,8 +14,9 @@ Safety:
   - Refuses to run unless CONFIRM_RESTORED_BACKUP=1.
   - Refuses to use the implicit default DATABASE_NAME.
   - Refuses DATABASE_NAME=geesome_node unless ALLOW_DEFAULT_DATABASE=1.
-  - Requires RESTORED_GROUP_NAME, or FIXTURE_GROUP_NAME for compatibility with
-    the underlying report scripts.
+  - Requires RESTORED_GROUP_ID / FIXTURE_GROUP_ID, or RESTORED_GROUP_NAME /
+    FIXTURE_GROUP_NAME for compatibility with the underlying report scripts.
+  - Prefers the explicit group ID when both ID and name are provided.
 
 Expected target:
   A disposable database restored from backup and already migrated/rehearsed,
@@ -44,9 +46,10 @@ if [[ "${DATABASE_NAME}" == "geesome_node" && "${ALLOW_DEFAULT_DATABASE:-}" != "
 	exit 2
 fi
 
+export FIXTURE_GROUP_ID="${RESTORED_GROUP_ID:-${FIXTURE_GROUP_ID:-}}"
 export FIXTURE_GROUP_NAME="${RESTORED_GROUP_NAME:-${FIXTURE_GROUP_NAME:-}}"
-if [[ -z "${FIXTURE_GROUP_NAME}" ]]; then
-	echo "Refusing to run: set RESTORED_GROUP_NAME to the restored group name to measure." >&2
+if [[ -z "${FIXTURE_GROUP_ID}" && -z "${FIXTURE_GROUP_NAME}" ]]; then
+	echo "Refusing to run: set RESTORED_GROUP_ID or RESTORED_GROUP_NAME to the restored group to measure." >&2
 	exit 2
 fi
 
@@ -55,7 +58,12 @@ echo "  DATABASE_HOST=${DATABASE_HOST:-localhost}"
 echo "  DATABASE_PORT=${DATABASE_PORT:-5432}"
 echo "  DATABASE_USER=${DATABASE_USER:-geesome}"
 echo "  DATABASE_NAME=${DATABASE_NAME}"
-echo "  GROUP_NAME=${FIXTURE_GROUP_NAME}"
+if [[ -n "${FIXTURE_GROUP_ID}" ]]; then
+	echo "  GROUP_ID=${FIXTURE_GROUP_ID}"
+fi
+if [[ -n "${FIXTURE_GROUP_NAME}" ]]; then
+	echo "  GROUP_NAME=${FIXTURE_GROUP_NAME}"
+fi
 echo
 
 npm run database:scalability:explain
