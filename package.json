@@ -96,7 +96,7 @@
     "node-cron": "^2.0.3",
     "node-mediainfo": "^1.0.3",
     "node-telegram-bot-api": "^0.67.0",
-    "p-iteration": "^1.1.8",
+    "p-iteration": "^1.1.9",
     "passport": "^0.6.0",
     "passport-local": "^1.0.0",
     "pg": "^8.11.3",
