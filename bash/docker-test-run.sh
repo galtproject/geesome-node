@@ -18,4 +18,7 @@ done
 
 bash bash/prepare-test-resources.sh
 
+npm run database:sync-models
+npm run migrate-all-database
+
 exec yarn test

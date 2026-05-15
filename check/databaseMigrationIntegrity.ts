@@ -148,6 +148,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['category/section size columns are bigint'],
   },
   {
+    module: 'database',
+    file: '20260515000001-widen-async-operation-output-text.cjs',
+    verifies: ['async-operation output can store derived-state JSON'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -213,6 +218,7 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'groups', columns: ['manifestPostsCursorId'], type: 'integer'},
   {table: 'autoActions', columns: ['executeClaimedAt'], type: 'timestamp with time zone'},
   {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},
+  {table: 'userAsyncOperations', columns: ['output'], type: 'text'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [

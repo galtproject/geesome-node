@@ -105,6 +105,59 @@ function getGroupDerivedStateJobChannel(job) {
 	return `${groupDerivedStateQueueModuleName}:${job.type}:${entityId}`;
 }
 
+function getGroupDerivedStateStorageStatus(storageId) {
+	return {
+		ok: !!storageId,
+		storageId: storageId || null
+	};
+}
+
+function getPostManifestJobResult(job, post, group) {
+	return {
+		type: job.type,
+		attempts: getGroupDerivedStateJobAttempts(job),
+		postId: post.id,
+		groupId: post.groupId,
+		postManifest: getGroupDerivedStateStorageStatus(post.manifestStorageId),
+		postDirectory: getGroupDerivedStateStorageStatus(post.directoryStorageId),
+		groupDirectory: getGroupDerivedStateStorageStatus(group.directoryStorageId),
+		groupManifest: getGroupManifestJobStatus(group)
+	};
+}
+
+function getGroupManifestJobResult(job, group) {
+	return {
+		type: job.type,
+		attempts: getGroupDerivedStateJobAttempts(job),
+		groupId: group.id,
+		groupDirectory: getGroupDerivedStateStorageStatus(group.directoryStorageId),
+		groupManifest: getGroupManifestJobStatus(group)
+	};
+}
+
+function getGroupManifestJobStatus(group) {
+	return {
+		ok: !!group.manifestStorageId && !!group.manifestStaticStorageId,
+		storageId: group.manifestStorageId || null,
+		staticStorageId: group.manifestStaticStorageId || null,
+		storageUpdatedAt: group.storageUpdatedAt || null,
+		staticStorageUpdatedAt: group.staticStorageUpdatedAt || null
+	};
+}
+
+function getGroupDerivedStateJobFailureMessage(job, errorMessage) {
+	return `${groupDerivedStateQueueModuleName} ${job.type} attempt ${getGroupDerivedStateJobAttempts(job)} of ${groupDerivedStateJobMaxAttempts} failed: ${errorMessage}`;
+}
+
+function getGroupDerivedStateJobFailureResult(job, errorMessage) {
+	return {
+		...job,
+		maxAttempts: groupDerivedStateJobMaxAttempts,
+		retryExhausted: getGroupDerivedStateJobAttempts(job) >= groupDerivedStateJobMaxAttempts,
+		errorMessage
+	};
+}
+
 function parseGroupDerivedStateJob(inputJson) {
 	const job = JSON.parse(inputJson);
 	if (!job || typeof job !== 'object') {
@@ -590,11 +643,12 @@ function getModule(app: IGeesomeApp, models) {
 				await app.ms.asyncOperation.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, JSON.stringify(result));
 				return result;
 			} catch (e) {
-				const errorMessage = getErrorMessage(e);
+				const rawErrorMessage = getErrorMessage(e);
+				const errorMessage = getGroupDerivedStateJobFailureMessage(job, rawErrorMessage);
 				await app.ms.asyncOperation.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, errorMessage);
 				if (getGroupDerivedStateJobAttempts(job) >= groupDerivedStateJobMaxAttempts) {
 					await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-					return {...job, errorMessage};
+					return getGroupDerivedStateJobFailureResult(job, rawErrorMessage);
 				}
 				await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {asyncOperationId: null});
 				return null;
@@ -604,11 +658,14 @@ function getModule(app: IGeesomeApp, models) {
 		async runDerivedStateJob(userId, job) {
 			if (job.type === 'post-manifest') {
 				const post = await this.updatePostManifest(userId, job.postId);
-				return {type: job.type, postId: post.id, groupId: post.groupId};
+				const repairedPost = await this.getPostPure(post.id);
+				const repairedGroup = await this.getGroup(repairedPost.groupId);
+				return getPostManifestJobResult(job, repairedPost, repairedGroup);
 			}
 			if (job.type === 'group-manifest') {
 				await this.updateGroupManifest(userId, job.groupId);
-				return {type: job.type, groupId: job.groupId};
+				const repairedGroup = await this.getGroup(job.groupId);
+				return getGroupManifestJobResult(job, repairedGroup);
 			}
 			throw new Error('invalid_derived_state_job_type');
 		}

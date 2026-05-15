@@ -46,7 +46,7 @@ export default interface IGeesomeAsyncOperationModule {
 
 	getUserAsyncOperation(operationId): Promise<IUserAsyncOperation>;
 
-	getUserAsyncOperationList(userId, name?, channelLike?): Promise<IUserAsyncOperation[]>;
+	getUserAsyncOperationList(userId, name?, channelLike?, inProcess?): Promise<IUserAsyncOperation[]>;
 
 	closeAllAsyncOperation(): Promise<any>;
 
@@ -69,6 +69,7 @@ export interface IUserAsyncOperation {
 	errorMessage: string;
 	inProcess: boolean;
 	cancel: boolean;
+	output?: string;
 
 	userId: number;
 	contentId?: number;
