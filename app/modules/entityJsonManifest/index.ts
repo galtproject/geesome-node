@@ -24,6 +24,20 @@ const groupManifestPostIndexType = 'geesome-group-post-index-v1';
 
 type GroupManifestPostRef = {localId: number; manifestStorageId: string};
 type GroupManifestPostIndexPages = Record<string, any>;
+type GroupManifestPostFilters = {
+  activeFilters: any;
+  deletedFilters: any;
+  unpublishedFilters: any;
+};
+type GroupManifestPostIndexChanges = {
+  changedPostRefs: GroupManifestPostRef[];
+  removedLocalIds: number[];
+};
+type GroupManifestPostIndexPageChanges = {
+  touchedPageKeys: Set<string>;
+  changedRefsByPage: Map<string, GroupManifestPostRef[]>;
+  removedIdsByPage: Map<string, number[]>;
+};
 
 function parseInlinePostsLimit(value: any): number {
   if (value === undefined || value === null || value === '') {
@@ -90,6 +104,21 @@ function getModule(app: IGeesomeApp) {
 
   function getGroupManifestPostIndexPageKey(localId: number, pageSize: number): string {
     return String(Math.floor((localId - 1) / pageSize));
+  }
+
+  function createGroupManifestPostFilters(): GroupManifestPostFilters {
+    return {
+      activeFilters: {status: PostStatus.Published, isDeleted: false},
+      deletedFilters: {status: PostStatus.Published, isDeleted: true},
+      unpublishedFilters: {statusNe: PostStatus.Published}
+    };
+  }
+
+  function createEmptyGroupManifestPostIndexChanges(): GroupManifestPostIndexChanges {
+    return {
+      changedPostRefs: [],
+      removedLocalIds: []
+    };
   }
 
   function sortGroupManifestPostRefs(refs: GroupManifestPostRef[]): GroupManifestPostRef[] {
@@ -242,6 +271,84 @@ function getModule(app: IGeesomeApp) {
       refsByPage.set(pageKey, []);
     }
     refsByPage.get(pageKey).push(postRef);
+  }
+
+  function addLocalIdToPageMap(localId: number, pageSize: number, idsByPage: Map<string, number[]>) {
+    const pageKey = getGroupManifestPostIndexPageKey(localId, pageSize);
+    if (!idsByPage.has(pageKey)) {
+      idsByPage.set(pageKey, []);
+    }
+    idsByPage.get(pageKey).push(localId);
+  }
+
+  function addPostLocalIdToRemovedChanges(changes: GroupManifestPostIndexChanges, post: IPost) {
+    const localId = Number(post.localId);
+    if (!Number.isFinite(localId) || localId <= 0) {
+      return;
+    }
+    changes.removedLocalIds.push(localId);
+  }
+
+  function addPostManifestRefToChangedChanges(changes: GroupManifestPostIndexChanges, post: IPost) {
+    const localId = Number(post.localId);
+    const manifestStorageId = getManifestStorageIdForPostRef(post);
+    if (!Number.isFinite(localId) || localId <= 0 || !manifestStorageId) {
+      return;
+    }
+    changes.changedPostRefs.push({localId, manifestStorageId});
+  }
+
+  function canReuseGroupManifestPostIndex(postsIndex, pageSize: number): boolean {
+    if (!postsIndex || postsIndex.indexType !== groupManifestPostIndexType) {
+      return false;
+    }
+    return Number(postsIndex.pageSize) === pageSize;
+  }
+
+  function createPostRefsByLocalId(refs: GroupManifestPostRef[]): Map<number, GroupManifestPostRef> {
+    const refsByLocalId = new Map<number, GroupManifestPostRef>();
+    refs.forEach((ref) => {
+      refsByLocalId.set(ref.localId, ref);
+    });
+    return refsByLocalId;
+  }
+
+  function applyPostIndexPageRefChanges(existingRefs: GroupManifestPostRef[], changedRefs: GroupManifestPostRef[], removedLocalIds: number[]): GroupManifestPostRef[] {
+    const refsByLocalId = createPostRefsByLocalId(existingRefs);
+    removedLocalIds.forEach((localId) => {
+      refsByLocalId.delete(localId);
+    });
+    changedRefs.forEach((ref) => {
+      refsByLocalId.set(ref.localId, ref);
+    });
+    return sortGroupManifestPostRefs(Array.from(refsByLocalId.values()));
+  }
+
+  function buildGroupManifestPostIndexPageChanges(pageSize: number, changedRefs: GroupManifestPostRef[], removedLocalIds: number[]): GroupManifestPostIndexPageChanges {
+    const touchedPageKeys = new Set<string>();
+    const changedRefsByPage = new Map<string, GroupManifestPostRef[]>();
+    const removedIdsByPage = new Map<string, number[]>();
+
+    changedRefs.forEach((ref) => {
+      const pageKey = getGroupManifestPostIndexPageKey(ref.localId, pageSize);
+      touchedPageKeys.add(pageKey);
+      addPostRefToPageMap(ref, pageSize, changedRefsByPage);
+    });
+    removedLocalIds.forEach((localId) => {
+      const pageKey = getGroupManifestPostIndexPageKey(localId, pageSize);
+      touchedPageKeys.add(pageKey);
+      addLocalIdToPageMap(localId, pageSize, removedIdsByPage);
+    });
+
+    return {
+      touchedPageKeys,
+      changedRefsByPage,
+      removedIdsByPage
+    };
+  }
+
+  function getSortedTouchedPostIndexPageKeys(pageChanges: GroupManifestPostIndexPageChanges): string[] {
+    return sortGroupManifestPostIndexPageKeys(Array.from(pageChanges.touchedPageKeys.values()));
   }
 
   function normalizeManifestDate(value) {
@@ -435,7 +542,7 @@ function getModule(app: IGeesomeApp) {
     async attachIncrementalGroupManifestPostIndex(groupManifest, groupData: IGroup, options: any = {}) {
       const previousPostsIndex = options.previousPostsIndex;
       const pageSize = getGroupManifestPostIndexPageSize(options);
-      if (!previousPostsIndex || previousPostsIndex.indexType !== groupManifestPostIndexType || Number(previousPostsIndex.pageSize) !== pageSize) {
+      if (!canReuseGroupManifestPostIndex(previousPostsIndex, pageSize)) {
         const postRefs = await this.getCurrentGroupManifestPostRefs(groupData.id, options);
         return this.attachGroupManifestPostIndex(groupManifest, groupData, {...options, postRefs});
       }
@@ -443,51 +550,31 @@ function getModule(app: IGeesomeApp) {
       const pages = cloneGroupManifestPostIndexPages(previousPostsIndex);
       const changedRefs = normalizeGroupManifestPostRefs(options.changedPostRefs || []);
       const removedLocalIds = normalizeGroupManifestRemovedLocalIds(options.removedLocalIds || []);
-      const touchedPageKeys = new Set<string>();
-      const changedRefsByPage = new Map<string, GroupManifestPostRef[]>();
-      const removedIdsByPage = new Map<string, number[]>();
+      const pageChanges = buildGroupManifestPostIndexPageChanges(pageSize, changedRefs, removedLocalIds);
 
-      changedRefs.forEach((ref) => {
-        const pageKey = getGroupManifestPostIndexPageKey(ref.localId, pageSize);
-        touchedPageKeys.add(pageKey);
-        addPostRefToPageMap(ref, pageSize, changedRefsByPage);
-      });
-      removedLocalIds.forEach((localId) => {
-        const pageKey = getGroupManifestPostIndexPageKey(localId, pageSize);
-        touchedPageKeys.add(pageKey);
-        if (!removedIdsByPage.has(pageKey)) {
-          removedIdsByPage.set(pageKey, []);
-        }
-        removedIdsByPage.get(pageKey).push(localId);
-      });
-
-      if (!touchedPageKeys.size) {
+      if (!pageChanges.touchedPageKeys.size) {
         setGroupManifestPostIndex(groupManifest, groupData, pageSize, pages);
         return;
       }
 
-      await pIteration.forEachSeries(sortGroupManifestPostIndexPageKeys(Array.from(touchedPageKeys.values())), async (pageKey) => {
-        const existingRefs = await this.getGroupManifestPostIndexPageRefs(pages[pageKey]);
-        const refsByLocalId = new Map<number, GroupManifestPostRef>();
-        existingRefs.forEach((ref) => {
-          refsByLocalId.set(ref.localId, ref);
-        });
-        (removedIdsByPage.get(pageKey) || []).forEach((localId) => {
-          refsByLocalId.delete(localId);
-        });
-        (changedRefsByPage.get(pageKey) || []).forEach((ref) => {
-          refsByLocalId.set(ref.localId, ref);
-        });
+      await this.rewriteTouchedGroupManifestPostIndexPages(groupManifest, groupData, pageSize, pages, pageChanges);
+      setGroupManifestPostIndex(groupManifest, groupData, pageSize, pages);
+    }
 
-        const pageRefs = sortGroupManifestPostRefs(Array.from(refsByLocalId.values()));
+    async rewriteTouchedGroupManifestPostIndexPages(groupManifest, groupData: IGroup, pageSize: number, pages: GroupManifestPostIndexPages, pageChanges: GroupManifestPostIndexPageChanges) {
+      await pIteration.forEachSeries(getSortedTouchedPostIndexPageKeys(pageChanges), async (pageKey) => {
+        const existingRefs = await this.getGroupManifestPostIndexPageRefs(pages[pageKey]);
+        const pageRefs = applyPostIndexPageRefChanges(
+          existingRefs,
+          pageChanges.changedRefsByPage.get(pageKey) || [],
+          pageChanges.removedIdsByPage.get(pageKey) || []
+        );
         if (!pageRefs.length) {
           delete pages[pageKey];
           return;
         }
         pages[pageKey] = await this.saveGroupManifestPostIndexPage(groupManifest, groupData, pageSize, pageKey, pageRefs);
       });
-
-      setGroupManifestPostIndex(groupManifest, groupData, pageSize, pages);
     }
 
     async getGroupManifestPostRefsFromIndex(postsIndex): Promise<GroupManifestPostRef[]> {
@@ -519,38 +606,56 @@ function getModule(app: IGeesomeApp) {
       return this.getGroupManifestPostRefsFromIndex(groupManifest.postsIndex);
     }
 
-    async generateGroupManifest(groupData: IGroup, options: any = {}) {
+    createGroupManifestShell(groupData: IGroup, includeInlinePosts: boolean) {
       //TODO: size => postsSize
       const groupManifest = ipfsHelper.pickObjectFields(groupData, ['name', 'homePage', 'title', 'type', 'view', 'theme', 'isPublic', 'description', 'size', 'directoryStorageId', 'createdAt', 'updatedAt']);
-      const includeInlinePosts = shouldIncludeInlineGroupManifestPosts(groupData, options);
-      if (options.generationState && !options.generationState.postCursor) {
-        options.generationState.postCursor = getGroupManifestGenerationCursor(groupData);
-      }
-
       if (includeInlinePosts) {
         groupManifest.posts = {};
       }
+      return groupManifest;
+    }
 
-      const filters: any = {status: PostStatus.Published, isDeleted: false};
-      const deletedFilters: any = {status: PostStatus.Published, isDeleted: true};
-      const unpublishedFilters: any = {statusNe: PostStatus.Published};
-      let lastGroupManifest: any = null;
-      let previousPostsIndex = null;
-      if (groupData.manifestStorageId) {
-        lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
-        previousPostsIndex = lastGroupManifest.postsIndex || null;
-        applyGroupManifestGenerationCursor(groupData, lastGroupManifest, [filters, deletedFilters, unpublishedFilters]);
+    initializeGroupManifestGenerationState(groupData: IGroup, options: any = {}) {
+      if (!options.generationState || options.generationState.postCursor) {
+        return;
       }
-      if (includeInlinePosts && lastGroupManifest) {
-        groupManifest.posts = lastGroupManifest.posts || {};
-        if (!lastGroupManifest.posts && lastGroupManifest.postsIndex) {
-          const previousRefs = await this.getGroupManifestPostRefsFromIndex(lastGroupManifest.postsIndex);
-          previousRefs.forEach((postRef) => {
-            treeLib.setNode(groupManifest.posts, postRef.localId, this.getStorageRef(postRef.manifestStorageId));
-          });
-        }
-      }
+      options.generationState.postCursor = getGroupManifestGenerationCursor(groupData);
+    }
 
+    async loadPreviousGroupManifestState(groupData: IGroup, postFilters: GroupManifestPostFilters) {
+      if (!groupData.manifestStorageId) {
+        return {
+          lastGroupManifest: null,
+          previousPostsIndex: null
+        };
+      }
+      const lastGroupManifest = await app.ms.storage.getObject(groupData.manifestStorageId);
+      applyGroupManifestGenerationCursor(groupData, lastGroupManifest, [
+        postFilters.activeFilters,
+        postFilters.deletedFilters,
+        postFilters.unpublishedFilters
+      ]);
+      return {
+        lastGroupManifest,
+        previousPostsIndex: lastGroupManifest.postsIndex || null
+      };
+    }
+
+    async inheritInlineGroupManifestPosts(groupManifest, lastGroupManifest) {
+      if (!lastGroupManifest) {
+        return;
+      }
+      groupManifest.posts = lastGroupManifest.posts || {};
+      if (lastGroupManifest.posts || !lastGroupManifest.postsIndex) {
+        return;
+      }
+      const previousRefs = await this.getGroupManifestPostRefsFromIndex(lastGroupManifest.postsIndex);
+      previousRefs.forEach((postRef) => {
+        treeLib.setNode(groupManifest.posts, postRef.localId, this.getStorageRef(postRef.manifestStorageId));
+      });
+    }
+
+    async attachGroupManifestEntityRefs(groupManifest, groupData: IGroup) {
       if (groupData.isEncrypted) {
         groupManifest.isEncrypted = true;
       }
@@ -572,65 +677,81 @@ function getModule(app: IGeesomeApp) {
         const creator = await app.ms.database.getUser(groupData.creatorId);
         groupManifest.members = [groupData.staticStorageId, creator.manifestStaticStorageId];
       }
+    }
 
-      const changedPostRefs: GroupManifestPostRef[] = [];
-      const removedLocalIds: number[] = [];
-      if (includeInlinePosts && groupData.manifestStorageId) {
-        await this.forEachGroupManifestPostRef(groupData.id, deletedFilters, options, (post: IPost) => {
+    async collectRemovedGroupManifestPostRefs(groupManifest, groupId, filters, options, changes: GroupManifestPostIndexChanges, shouldUnsetInlinePosts: boolean) {
+      await this.forEachGroupManifestPostRef(groupId, filters, options, (post: IPost) => {
+        if (shouldUnsetInlinePosts) {
           unsetTreeNode(groupManifest.posts, post.localId);
-          removedLocalIds.push(Number(post.localId));
-        });
-        await this.forEachGroupManifestPostRef(groupData.id, unpublishedFilters, options, (post: IPost) => {
-          unsetTreeNode(groupManifest.posts, post.localId);
-          removedLocalIds.push(Number(post.localId));
-        });
+        }
+        addPostLocalIdToRemovedChanges(changes, post);
+      });
+    }
+
+    async collectChangedGroupManifestPostRefs(groupManifest, groupId, filters, options, changes: GroupManifestPostIndexChanges, shouldSetInlinePosts: boolean) {
+      await this.forEachGroupManifestPostRef(groupId, filters, options, (post: IPost) => {
+        if (shouldSetInlinePosts) {
+          treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
+        }
+        addPostManifestRefToChangedChanges(changes, post);
+      });
+    }
+
+    async collectInlineGroupManifestPostChanges(groupManifest, groupData: IGroup, postFilters: GroupManifestPostFilters, options: any = {}): Promise<GroupManifestPostIndexChanges> {
+      const changes = createEmptyGroupManifestPostIndexChanges();
+      if (groupData.manifestStorageId) {
+        await this.collectRemovedGroupManifestPostRefs(groupManifest, groupData.id, postFilters.deletedFilters, options, changes, true);
+        await this.collectRemovedGroupManifestPostRefs(groupManifest, groupData.id, postFilters.unpublishedFilters, options, changes, true);
       }
       //TODO: remove deprecated
-      if (includeInlinePosts) {
-        await this.forEachGroupManifestPostRef(groupData.id, filters, options, (post: IPost) => {
-          treeLib.setNode(groupManifest.posts, post.localId, post.isEncrypted ? post.encryptedManifestStorageId : this.getStorageRef(post.manifestStorageId));
-          const manifestStorageId = getManifestStorageIdForPostRef(post);
-          if (!manifestStorageId) {
-            return;
-          }
-          changedPostRefs.push({localId: Number(post.localId), manifestStorageId});
-        });
-        if (previousPostsIndex) {
-          await this.attachIncrementalGroupManifestPostIndex(groupManifest, groupData, {
-            ...options,
-            previousPostsIndex,
-            changedPostRefs,
-            removedLocalIds
-          });
-        } else {
-          await this.attachGroupManifestPostIndex(groupManifest, groupData, options);
-        }
-      } else {
-        if (previousPostsIndex) {
-          await this.forEachGroupManifestPostRef(groupData.id, deletedFilters, options, (post: IPost) => {
-            removedLocalIds.push(Number(post.localId));
-          });
-          await this.forEachGroupManifestPostRef(groupData.id, unpublishedFilters, options, (post: IPost) => {
-            removedLocalIds.push(Number(post.localId));
-          });
-          await this.forEachGroupManifestPostRef(groupData.id, filters, options, (post: IPost) => {
-            const manifestStorageId = getManifestStorageIdForPostRef(post);
-            if (!manifestStorageId) {
-              return;
-            }
-            changedPostRefs.push({localId: Number(post.localId), manifestStorageId});
-          });
-          await this.attachIncrementalGroupManifestPostIndex(groupManifest, groupData, {
-            ...options,
-            previousPostsIndex,
-            changedPostRefs,
-            removedLocalIds
-          });
-        } else {
-          const postRefs = await this.getCurrentGroupManifestPostRefs(groupData.id, options);
-          await this.attachGroupManifestPostIndex(groupManifest, groupData, {...options, postRefs});
-        }
+      await this.collectChangedGroupManifestPostRefs(groupManifest, groupData.id, postFilters.activeFilters, options, changes, true);
+      return changes;
+    }
+
+    async collectChunkedGroupManifestPostChanges(groupManifest, groupData: IGroup, postFilters: GroupManifestPostFilters, previousPostsIndex, options: any = {}): Promise<GroupManifestPostIndexChanges> {
+      const changes = createEmptyGroupManifestPostIndexChanges();
+      if (!previousPostsIndex) {
+        return changes;
       }
+      await this.collectRemovedGroupManifestPostRefs(groupManifest, groupData.id, postFilters.deletedFilters, options, changes, false);
+      await this.collectRemovedGroupManifestPostRefs(groupManifest, groupData.id, postFilters.unpublishedFilters, options, changes, false);
+      await this.collectChangedGroupManifestPostRefs(groupManifest, groupData.id, postFilters.activeFilters, options, changes, false);
+      return changes;
+    }
+
+    async attachGeneratedGroupManifestPostIndex(groupManifest, groupData: IGroup, includeInlinePosts: boolean, previousPostsIndex, changes: GroupManifestPostIndexChanges, options: any = {}) {
+      if (previousPostsIndex) {
+        return this.attachIncrementalGroupManifestPostIndex(groupManifest, groupData, {
+          ...options,
+          previousPostsIndex,
+          changedPostRefs: changes.changedPostRefs,
+          removedLocalIds: changes.removedLocalIds
+        });
+      }
+      if (includeInlinePosts) {
+        return this.attachGroupManifestPostIndex(groupManifest, groupData, options);
+      }
+      const postRefs = await this.getCurrentGroupManifestPostRefs(groupData.id, options);
+      return this.attachGroupManifestPostIndex(groupManifest, groupData, {...options, postRefs});
+    }
+
+    async generateGroupManifest(groupData: IGroup, options: any = {}) {
+      const includeInlinePosts = shouldIncludeInlineGroupManifestPosts(groupData, options);
+      this.initializeGroupManifestGenerationState(groupData, options);
+
+      const groupManifest = this.createGroupManifestShell(groupData, includeInlinePosts);
+      const postFilters = createGroupManifestPostFilters();
+      const {lastGroupManifest, previousPostsIndex} = await this.loadPreviousGroupManifestState(groupData, postFilters);
+      if (includeInlinePosts) {
+        await this.inheritInlineGroupManifestPosts(groupManifest, lastGroupManifest);
+      }
+
+      await this.attachGroupManifestEntityRefs(groupManifest, groupData);
+      const postIndexChanges = includeInlinePosts
+        ? await this.collectInlineGroupManifestPostChanges(groupManifest, groupData, postFilters, options)
+        : await this.collectChunkedGroupManifestPostChanges(groupManifest, groupData, postFilters, previousPostsIndex, options);
+
+      await this.attachGeneratedGroupManifestPostIndex(groupManifest, groupData, includeInlinePosts, previousPostsIndex, postIndexChanges, options);
       this.setManifestMeta(groupManifest, 'group');
       return groupManifest;
     }
