@@ -597,7 +597,9 @@ function hotspotRows(): HotspotRow[] {
   const postEventHelperSource = read('app/modules/group/postEventHelpers.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupTestSource = read('test/group.test.ts');
-  const manifestSource = read('app/modules/entityJsonManifest/index.ts');
+  const manifestModuleSource = read('app/modules/entityJsonManifest/index.ts');
+  const manifestHelperSource = read('app/modules/entityJsonManifest/helpers.ts');
+  const manifestSource = `${manifestModuleSource}\n${manifestHelperSource}`;
   const remoteGroupSource = read('app/modules/remoteGroup/index.ts');
   const staticSiteSource = read('app/modules/staticSiteGenerator/index.ts');
   const rssSource = read('app/modules/rss/index.ts');
