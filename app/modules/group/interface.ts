@@ -131,6 +131,12 @@ export default interface IGeesomeGroupModule {
 
 	reconcileGroupCounters(groupId): Promise<any>;
 
+	getPostManifestDerivedStateRepairCandidates(options?): Promise<IPost[]>;
+
+	getGroupManifestDerivedStateRepairCandidates(options?): Promise<IGroup[]>;
+
+	repairPostManifestDerivedState(options?): Promise<IPostManifestDerivedStateRepairResult>;
+
 	getGroupByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IGroup>;
 
 	getPostByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
@@ -219,6 +225,14 @@ export interface IGroupPostRefBatch {
 
 export interface IHydratedGroupPostBatch extends IGroupPostRefBatch {
 	groupPosts: IPost[];
+}
+
+export interface IPostManifestDerivedStateRepairResult {
+	checkedPostIds: number[];
+	repairedPostIds: number[];
+	checkedGroupIds: number[];
+	repairedGroupIds: number[];
+	failures: Array<{entityType: string; entityId: number; message: string}>;
 }
 
 

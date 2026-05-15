@@ -34,6 +34,7 @@
     "database:scalability:generated-output": "node --import tsx check/databaseGeneratedOutputPressure.ts",
     "database:sync-models": "node --import tsx check/databaseSyncModels.ts",
     "database:migration-integrity": "node --import tsx check/databaseMigrationIntegrity.ts",
+    "database:derived-state-integrity": "node --import tsx check/databaseDerivedStateIntegrity.ts",
     "database:migration-rehearsal": "bash bash/database-migration-rehearsal",
     "database:restored-pressure": "bash bash/database-restored-pressure",
     "serve-docs": "tsx check/serveDocs.ts",
