@@ -36,14 +36,13 @@ Keep `postsIndex` as the production path for large groups now:
 - Root group manifest stores group metadata and a compact page directory.
 - Each post-index page stores a contiguous `localId` range.
 - Regeneration rewrites only touched pages when a previous `postsIndex` exists.
-- Inline `posts` remains a compatibility layer for small groups and explicit callers.
+- Inline `posts` remains a compatibility layer for small groups up to the 1,000-post default cutoff, explicit callers, or operators that raise `GROUP_MANIFEST_INLINE_POSTS_LIMIT`.
 
 Near-term backlog:
 
-1. Keep measuring restored large groups with `database:restored-pressure`.
-2. Pick a default inline cutoff from restored-data pressure, then keep `GROUP_MANIFEST_INLINE_POSTS_LIMIT` as the override.
-3. Move post/group manifest generation into durable derived-state jobs so page updates retry outside user-facing writes.
-4. Keep the manual `database:derived-state-integrity` verifier as the operator safety net.
+1. Keep measuring restored large groups with `database:restored-pressure` and tune `GROUP_MANIFEST_INLINE_POSTS_LIMIT` only when restored pressure shows the 1,000-post default is too low or too high.
+2. Move post/group manifest generation into durable derived-state jobs so page updates retry outside user-facing writes.
+3. Keep the manual `database:derived-state-integrity` verifier as the operator safety net.
 
 Later protocol work:
 

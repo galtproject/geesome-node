@@ -3,6 +3,7 @@ import {
 	applyGroupManifestGenerationCursor,
 	applyPostIndexPageRefChanges,
 	buildGroupManifestPostIndexPageChanges,
+	defaultGroupManifestInlinePostsLimit,
 	getInlineGroupManifestPostRefs,
 	getManifestStorageIdForPostRef,
 	getPostCursorFromValues,
@@ -119,6 +120,8 @@ describe('entityJsonManifest helpers', () => {
 	});
 
 	it('uses inline post limits unless caller forces a mode', () => {
+		assert.equal(shouldIncludeInlineGroupManifestPosts({availablePostsCount: defaultGroupManifestInlinePostsLimit} as any), true);
+		assert.equal(shouldIncludeInlineGroupManifestPosts({availablePostsCount: defaultGroupManifestInlinePostsLimit + 1} as any), false);
 		assert.equal(shouldIncludeInlineGroupManifestPosts({availablePostsCount: 2} as any, {inlinePostsLimit: 2}), true);
 		assert.equal(shouldIncludeInlineGroupManifestPosts({availablePostsCount: 3} as any, {inlinePostsLimit: 2}), false);
 		assert.equal(shouldIncludeInlineGroupManifestPosts({availablePostsCount: 3000} as any, {includeInlinePosts: true}), true);
