@@ -1471,15 +1471,60 @@ describe("group", function () {
 
 		const result = await app.ms.group.processDerivedStateQueue({limit: 1});
 		const repairedPost = await app.ms.group.getPostPure(post.id);
+		const repairedGroup = await app.ms.group.getGroup(testGroup.id);
 		const waitingAfter = await app.ms.asyncOperation.getWaitingOperationQueueListByModule(testUser.id, 'group-derived-state', {
 			limit: 10,
 			offset: 0
 		});
+		const processedQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, firstQueue.id);
+		const output = JSON.parse(processedQueue.asyncOperation.output);
 
 		assert.equal(result.processed, 1);
 		assert.ok(repairedPost.manifestStorageId);
 		assert.ok(repairedPost.directoryStorageId);
 		assert.equal(waitingAfter.total, 0);
+		assert.equal(output.type, 'post-manifest');
+		assert.equal(output.attempts, 1);
+		assert.equal(output.postId, post.id);
+		assert.equal(output.groupId, testGroup.id);
+		assert.equal(output.postManifest.storageId, repairedPost.manifestStorageId);
+		assert.equal(output.postManifest.ok, true);
+		assert.equal(output.postDirectory.storageId, repairedPost.directoryStorageId);
+		assert.equal(output.postDirectory.ok, true);
+		assert.equal(output.groupDirectory.storageId, repairedGroup.directoryStorageId);
+		assert.equal(output.groupDirectory.ok, true);
+		assert.equal(output.groupManifest.storageId, repairedGroup.manifestStorageId);
+		assert.equal(output.groupManifest.staticStorageId, repairedGroup.manifestStaticStorageId);
+		assert.equal(output.groupManifest.ok, true);
+	});
+
+	it('records retry context for failed derived-state jobs', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const missingPostId = 999999999;
+		const queue = await app.ms.group.queuePostManifestUpdate(testUser.id, missingPostId, {process: false});
+
+		const firstResult = await app.ms.group.processDerivedStateQueue({limit: 1});
+		const retryQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, queue.id);
+		const firstOperations = await app.ms.asyncOperation.findAsyncOperations(
+			testUser.id,
+			'run-group-derived-state-post-manifest',
+			`group-derived-state:post-manifest:${missingPostId}`,
+			false
+		);
+		const firstError = firstOperations[0].errorMessage;
+		const maxAttempts = Number(firstError.match(/attempt 1 of (\d+) failed/)[1]);
+
+		assert.equal(firstResult.processed, 1);
+		assert.equal(retryQueue.isWaiting, true);
+		assert.equal(retryQueue.asyncOperationId, null);
+		assert.match(firstError, /attempt 1 of \d+ failed/);
+
+		const retryResult = await app.ms.group.processDerivedStateQueue({limit: maxAttempts});
+		const finalQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, queue.id);
+
+		assert.equal(retryResult.processed, maxAttempts - 1);
+		assert.equal(finalQueue.isWaiting, false);
+		assert.equal(finalQueue.asyncOperation.errorMessage.includes(`attempt ${maxAttempts} of ${maxAttempts} failed`), true);
 	});
 
 	it('hydrates timeline pages after id-only page selection', async () => {

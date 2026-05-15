@@ -41,7 +41,7 @@ Keep `postsIndex` as the production path for large groups now:
 Near-term backlog:
 
 1. Keep measuring restored large groups with `database:restored-pressure` and tune `GROUP_MANIFEST_INLINE_POSTS_LIMIT` only when restored pressure shows the 1,000-post default is too low or too high.
-2. Promote the opt-in `group-derived-state` queue into the default worker path once static directory/group directory job status, poison-job observability, and restored-data rehearsal are covered.
+2. Promote the opt-in `group-derived-state` queue into the default worker path once restored-data rehearsal and the default worker policy are covered. The queue already records post/group manifest and static-directory checkpoint status plus attempt-aware failure messages.
 3. Keep the manual `database:derived-state-integrity` verifier as the operator safety net.
 
 Later protocol work:

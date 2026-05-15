@@ -22,7 +22,7 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.STRING(200)
 		},
 		output: {
-			type: DataTypes.STRING(200)
+			type: DataTypes.TEXT
 		},
 		size: {
 			type: DataTypes.INTEGER

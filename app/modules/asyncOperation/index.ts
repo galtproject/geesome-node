@@ -125,8 +125,8 @@ export function getModule(app: IGeesomeApp, models) {
 			return asyncOperation;
 		}
 
-		async findAsyncOperations(userId, name, channelLike) {
-			return this.getUserAsyncOperationList(userId, name, channelLike);
+		async findAsyncOperations(userId, name, channelLike, inProcess) {
+			return this.getUserAsyncOperationList(userId, name, channelLike, inProcess);
 		}
 
 		async addAsyncOperation(userId, asyncOperationData) {
