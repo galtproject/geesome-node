@@ -221,7 +221,6 @@ export interface IHydratedGroupPostBatch extends IGroupPostRefBatch {
 	groupPosts: IPost[];
 }
 
-
 export interface IGroup {
 	id: number;
 

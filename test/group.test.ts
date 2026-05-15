@@ -13,6 +13,10 @@ import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {PostContentAttachmentReason, PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
+import {
+	collectDatabaseDerivedStateIntegrity,
+	repairDatabaseDerivedState
+} from "../check/databaseDerivedStateIntegrity.js";
 
 describe("group", function () {
 	this.timeout(60000);
@@ -951,6 +955,59 @@ describe("group", function () {
 		assert.equal(repairedGroup.availablePostsCount, 1);
 		assert.equal(Number(repairedGroup.size), Number(activeContent.size));
 		assert.equal(repairedGroup.publishedPostsCount, highWaterLocalId);
+	});
+
+	it('repairs missing local post manifest derived state', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const postContent = await app.ms.content.saveData(testUser.id, 'derived manifest repair post', null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: postContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		await models.Post.update({
+			manifestStorageId: null,
+			directoryStorageId: null
+		}, {where: {id: post.id}});
+
+		const beforeReport = await collectDatabaseDerivedStateIntegrity(app.ms.database.sequelize, {groupId: testGroup.id});
+		const beforeIssueByName = new Map(beforeReport.issues.map(issue => [issue.name, issue]));
+		assert.equal(beforeIssueByName.get('published_posts_missing_public_manifest').count, 1);
+		assert.equal(beforeIssueByName.get('local_published_posts_missing_directory').count, 1);
+
+		const repairResult = await repairDatabaseDerivedState(app, {groupId: testGroup.id, limit: 10});
+		assert.deepEqual(repairResult.checkedPostIds, [post.id]);
+		assert.deepEqual(repairResult.repairedPostIds, [post.id]);
+		assert.deepEqual(repairResult.checkedGroupIds, []);
+		assert.deepEqual(repairResult.repairedGroupIds, []);
+		assert.deepEqual(repairResult.failures, []);
+
+		const repairedPost = await app.ms.group.getPostPure(post.id);
+		assert.ok(repairedPost.manifestStorageId);
+		assert.ok(repairedPost.directoryStorageId);
+
+		await models.Group.update({manifestStorageId: null}, {where: {id: testGroup.id}});
+		const missingGroupReport = await collectDatabaseDerivedStateIntegrity(app.ms.database.sequelize, {groupId: testGroup.id});
+		const missingGroupIssueByName = new Map(missingGroupReport.issues.map(issue => [issue.name, issue]));
+		assert.equal(missingGroupIssueByName.get('groups_with_published_posts_missing_manifest').count, 1);
+
+		const groupRepairResult = await repairDatabaseDerivedState(app, {groupId: testGroup.id, limit: 10});
+		assert.deepEqual(groupRepairResult.checkedPostIds, []);
+		assert.deepEqual(groupRepairResult.repairedPostIds, []);
+		assert.deepEqual(groupRepairResult.checkedGroupIds, [testGroup.id]);
+		assert.deepEqual(groupRepairResult.repairedGroupIds, [testGroup.id]);
+		assert.deepEqual(groupRepairResult.failures, []);
+
+		const afterReport = await collectDatabaseDerivedStateIntegrity(app.ms.database.sequelize, {groupId: testGroup.id});
+		assert.equal(afterReport.issues.every(issue => issue.count === 0), true);
+
+		const groupAfterRepair = await app.ms.group.getGroup(testGroup.id);
+		const groupManifest = await app.ms.storage.getObject(groupAfterRepair.manifestStorageId);
+		assert.equal(trieHelper.getNode(groupManifest.posts, repairedPost.localId), repairedPost.manifestStorageId);
 	});
 
 	it('replaces post content at an existing position without duplicate join rows', async () => {
