@@ -78,6 +78,14 @@ export default interface IGeesomeGroupModule {
 
 	updateGroupManifest(userId, groupId): Promise<any>;
 
+	updatePostManifest(userId, postId): Promise<any>;
+
+	queuePostManifestUpdate(userId, postId, options?): Promise<any>;
+
+	queueGroupManifestUpdate(userId, groupId, options?): Promise<any>;
+
+	processDerivedStateQueue(options?): Promise<any>;
+
 	getGroupByParams(params): Promise<IGroup>;
 
 	getPostByParams(params): Promise<IPost>;

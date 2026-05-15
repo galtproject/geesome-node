@@ -32,6 +32,9 @@ import {
 import {getProjectedContentText} from './contentProjectionHelpers.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
+const groupDerivedStateQueueModuleName = 'group-derived-state';
+const groupDerivedStateJobMaxAttempts = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_JOB_MAX_ATTEMPTS, 3);
+const groupDerivedStateAsyncEnabled = ['1', 'true', 'yes'].includes(String(process.env.GROUP_DERIVED_STATE_ASYNC || '').toLowerCase());
 const publicPostListParams = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
@@ -71,8 +74,76 @@ function getStableGroupListOrder(sortBy, sortDir) {
 	return order;
 }
 
+function shouldUseAsyncDerivedState(options: any = {}) {
+	if (options.asyncDerivedState !== undefined) {
+		return options.asyncDerivedState === true;
+	}
+	return groupDerivedStateAsyncEnabled;
+}
+
+function getGroupDerivedStateJobAttempts(job) {
+	const attempts = Number(job.attempts);
+	if (!Number.isFinite(attempts) || attempts < 0) {
+		return 0;
+	}
+	return Math.floor(attempts);
+}
+
+function getNextGroupDerivedStateJobAttempt(job) {
+	return {
+		...job,
+		attempts: getGroupDerivedStateJobAttempts(job) + 1
+	};
+}
+
+function getGroupDerivedStateJobName(job) {
+	return `run-${groupDerivedStateQueueModuleName}-${job.type}`;
+}
+
+function getGroupDerivedStateJobChannel(job) {
+	const entityId = job.type === 'post-manifest' ? job.postId : job.groupId;
+	return `${groupDerivedStateQueueModuleName}:${job.type}:${entityId}`;
+}
+
+function parseGroupDerivedStateJob(inputJson) {
+	const job = JSON.parse(inputJson);
+	if (!job || typeof job !== 'object') {
+		throw new Error('invalid_derived_state_job');
+	}
+	if (job.type === 'post-manifest') {
+		const postId = Number(job.postId);
+		if (!Number.isFinite(postId)) {
+			throw new Error('invalid_derived_state_post_id');
+		}
+		return {...job, type: 'post-manifest', postId: Math.floor(postId)};
+	}
+	if (job.type === 'group-manifest') {
+		const groupId = Number(job.groupId);
+		if (!Number.isFinite(groupId)) {
+			throw new Error('invalid_derived_state_group_id');
+		}
+		return {...job, type: 'group-manifest', groupId: Math.floor(groupId)};
+	}
+	throw new Error('invalid_derived_state_job_type');
+}
+
+function getPostManifestJobInput(postId) {
+	return {type: 'post-manifest', postId: Number(postId)};
+}
+
+function getGroupManifestJobInput(groupId) {
+	return {type: 'group-manifest', groupId: Number(groupId)};
+}
+
+function getErrorMessage(error) {
+	if (error && error.message) {
+		return error.message;
+	}
+	return String(error);
+}
+
 export default async (app: IGeesomeApp) => {
-	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content']);
+	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content', 'asyncOperation']);
 	const {sequelize, models} = app.ms.database;
 	const module = getModule(app, await (await import('./models/index.js')).default(sequelize, models));
 	(await import('./api.js')).default(app, module);
@@ -81,6 +152,7 @@ export default async (app: IGeesomeApp) => {
 
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
+	let derivedStateQueueInProcess = false;
 
 	async function createActorContentFromGroupObject(userId, contentObject) {
 		if (!contentObject) {
@@ -380,6 +452,165 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			await this.updateGroupManifest(userId, post.groupId);
 			return post;
+		}
+
+		async queuePostManifestUpdate(userId, postId, options: any = {}) {
+			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				groupDerivedStateQueueModuleName,
+				options.userApiKeyId || null,
+				getPostManifestJobInput(postId)
+			);
+			if (options.process !== false) {
+				this.startDerivedStateQueueProcessing();
+			}
+			return queue;
+		}
+
+		async queueGroupManifestUpdate(userId, groupId, options: any = {}) {
+			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				groupDerivedStateQueueModuleName,
+				options.userApiKeyId || null,
+				getGroupManifestJobInput(groupId)
+			);
+			if (options.process !== false) {
+				this.startDerivedStateQueueProcessing();
+			}
+			return queue;
+		}
+
+		startDerivedStateQueueProcessing() {
+			void this.processDerivedStateQueue().catch((e) => {
+				log('processDerivedStateQueue error', e);
+			});
+		}
+
+		async applyPostManifestUpdate(userId, post, group = null, options: any = {}) {
+			if (!shouldUseAsyncDerivedState(options)) {
+				return this.updatePostManifest(userId, post.id);
+			}
+
+			const postGroup = group || post.group || await this.getGroup(post.groupId);
+			if (postGroup.isEncrypted && postGroup.type === GroupType.PersonalChat) {
+				return this.updatePostManifest(userId, post.id);
+			}
+
+			await this.queuePostManifestUpdate(userId, post.id, options);
+			return this.getPostPure(post.id);
+		}
+
+		async applyGroupManifestUpdate(userId, groupId, options: any = {}) {
+			if (!shouldUseAsyncDerivedState(options)) {
+				return this.updateGroupManifest(userId, groupId);
+			}
+
+			return this.queueGroupManifestUpdate(userId, groupId, options);
+		}
+
+		async processDerivedStateQueue(options: any = {}) {
+			if (derivedStateQueueInProcess) {
+				return {processed: 0};
+			}
+
+			derivedStateQueueInProcess = true;
+			let processed = 0;
+			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+
+			try {
+				while (processed < limit) {
+					const waitingQueue = await this.prepareNextDerivedStateQueue();
+					if (!waitingQueue) {
+						return {processed};
+					}
+
+					await this.processDerivedStateQueueItem(waitingQueue);
+					processed += 1;
+				}
+				return {processed};
+			} finally {
+				derivedStateQueueInProcess = false;
+			}
+		}
+
+		async prepareNextDerivedStateQueue() {
+			while (true) {
+				const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(groupDerivedStateQueueModuleName);
+				if (!waitingQueue) {
+					return null;
+				}
+				if (!waitingQueue.asyncOperation) {
+					return waitingQueue;
+				}
+				if (waitingQueue.asyncOperation.inProcess) {
+					return null;
+				}
+
+				let job;
+				try {
+					job = parseGroupDerivedStateJob(waitingQueue.inputJson);
+				} catch (e) {
+					await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+					continue;
+				}
+				const hasFailure = waitingQueue.asyncOperation.errorType || waitingQueue.asyncOperation.errorMessage;
+				if (!hasFailure) {
+					await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+					continue;
+				}
+				if (getGroupDerivedStateJobAttempts(job) >= groupDerivedStateJobMaxAttempts) {
+					await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+					continue;
+				}
+
+				await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {asyncOperationId: null});
+				return waitingQueue;
+			}
+		}
+
+		async processDerivedStateQueueItem(waitingQueue) {
+			const job = getNextGroupDerivedStateJobAttempt(parseGroupDerivedStateJob(waitingQueue.inputJson));
+			await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {
+				inputJson: JSON.stringify(job),
+				startedAt: new Date()
+			});
+
+			const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(waitingQueue.userId, {
+				userApiKeyId: waitingQueue.userApiKeyId,
+				module: groupDerivedStateQueueModuleName,
+				name: getGroupDerivedStateJobName(job),
+				channel: getGroupDerivedStateJobChannel(job)
+			});
+
+			await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+			try {
+				const result = await this.runDerivedStateJob(waitingQueue.userId, job);
+				await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await app.ms.asyncOperation.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, JSON.stringify(result));
+				return result;
+			} catch (e) {
+				const errorMessage = getErrorMessage(e);
+				await app.ms.asyncOperation.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, errorMessage);
+				if (getGroupDerivedStateJobAttempts(job) >= groupDerivedStateJobMaxAttempts) {
+					await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+					return {...job, errorMessage};
+				}
+				await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {asyncOperationId: null});
+				return null;
+			}
+		}
+
+		async runDerivedStateJob(userId, job) {
+			if (job.type === 'post-manifest') {
+				const post = await this.updatePostManifest(userId, job.postId);
+				return {type: job.type, postId: post.id, groupId: post.groupId};
+			}
+			if (job.type === 'group-manifest') {
+				await this.updateGroupManifest(userId, job.groupId);
+				return {type: job.type, groupId: job.groupId};
+			}
+			throw new Error('invalid_derived_state_job_type');
 		}
 
 		async getGroupUnreadPostsData(userId, groupId) {
@@ -816,7 +1047,7 @@ function getModule(app: IGeesomeApp, models) {
 			// static directory, and the personal-chat encryption handshake unless the row
 			// was created as an active published post.
 			if (post.status === PostStatus.Published && !post.isDeleted) {
-				post = await this.updatePostManifest(userId, post.id);
+				post = await this.applyPostManifestUpdate(userId, post, group);
 				log('updatePostManifest');
 
 				if (group.isEncrypted && group.type === GroupType.PersonalChat) {
@@ -906,7 +1137,7 @@ function getModule(app: IGeesomeApp, models) {
 			});
 
 			if (!options.skipGroupManifestUpdate) {
-				await this.updateGroupManifest(userId, post.groupId);
+				await this.applyGroupManifestUpdate(userId, post.groupId, options);
 			}
 			return this.getPostPure(post.id);
 		}
@@ -1087,10 +1318,11 @@ function getModule(app: IGeesomeApp, models) {
 				}
 			});
 			if (isPublished) {
-				return this.updatePostManifest(userId, postId);
+				const updatedPost = await this.getPostPure(postId);
+				return this.applyPostManifestUpdate(userId, updatedPost, oldPost.group);
 			}
 			if (wasPublished) {
-				await this.updateGroupManifest(userId, oldPost.groupId);
+				await this.applyGroupManifestUpdate(userId, oldPost.groupId);
 			}
 			return this.getPostPure(postId);
 		}
@@ -1172,7 +1404,7 @@ function getModule(app: IGeesomeApp, models) {
 				// The manifest is still monolithic; chunked post-index storage remains the follow-up P1.
 				const affectedGroupIds = Array.from(new Set(posts.map(p => p.groupId).filter((id): id is number => !!id)));
 				await pIteration.forEach(affectedGroupIds, async (groupId) => {
-					await this.updateGroupManifest(userId, groupId);
+					await this.applyGroupManifestUpdate(userId, groupId, options);
 				});
 			}
 

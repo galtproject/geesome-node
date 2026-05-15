@@ -1441,6 +1441,47 @@ describe("group", function () {
 		assert.equal(trieHelper.getNode(overlapManifest.posts, secondPost.localId), secondPost.manifestStorageId);
 	});
 
+	it('dedupes and processes queued post manifest derived-state jobs', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const models = (app.ms.database as any).models;
+		const content = await app.ms.content.saveData(testUser.id, 'queued derived-state content', null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: content.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+
+		await models.Post.update({
+			manifestStorageId: null,
+			directoryStorageId: null
+		}, {where: {id: post.id}});
+
+		const firstQueue = await app.ms.group.queuePostManifestUpdate(testUser.id, post.id, {process: false});
+		const secondQueue = await app.ms.group.queuePostManifestUpdate(testUser.id, post.id, {process: false});
+		const waitingBefore = await app.ms.asyncOperation.getWaitingOperationQueueListByModule(testUser.id, 'group-derived-state', {
+			limit: 10,
+			offset: 0
+		});
+
+		assert.equal(firstQueue.id, secondQueue.id);
+		assert.equal(waitingBefore.total, 1);
+
+		const result = await app.ms.group.processDerivedStateQueue({limit: 1});
+		const repairedPost = await app.ms.group.getPostPure(post.id);
+		const waitingAfter = await app.ms.asyncOperation.getWaitingOperationQueueListByModule(testUser.id, 'group-derived-state', {
+			limit: 10,
+			offset: 0
+		});
+
+		assert.equal(result.processed, 1);
+		assert.ok(repairedPost.manifestStorageId);
+		assert.ok(repairedPost.directoryStorageId);
+		assert.equal(waitingAfter.total, 0);
+	});
+
 	it('hydrates timeline pages after id-only page selection', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
