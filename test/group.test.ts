@@ -13,7 +13,10 @@ import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {PostContentAttachmentReason, PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
-import {collectDatabaseDerivedStateIntegrity} from "../check/databaseDerivedStateIntegrity.js";
+import {
+	collectDatabaseDerivedStateIntegrity,
+	repairDatabaseDerivedState
+} from "../check/databaseDerivedStateIntegrity.js";
 
 describe("group", function () {
 	this.timeout(60000);
@@ -976,7 +979,7 @@ describe("group", function () {
 		assert.equal(beforeIssueByName.get('published_posts_missing_public_manifest').count, 1);
 		assert.equal(beforeIssueByName.get('local_published_posts_missing_directory').count, 1);
 
-		const repairResult = await app.ms.group.repairPostManifestDerivedState({groupId: testGroup.id, limit: 10});
+		const repairResult = await repairDatabaseDerivedState(app, {groupId: testGroup.id, limit: 10});
 		assert.deepEqual(repairResult.checkedPostIds, [post.id]);
 		assert.deepEqual(repairResult.repairedPostIds, [post.id]);
 		assert.deepEqual(repairResult.checkedGroupIds, []);
@@ -992,7 +995,7 @@ describe("group", function () {
 		const missingGroupIssueByName = new Map(missingGroupReport.issues.map(issue => [issue.name, issue]));
 		assert.equal(missingGroupIssueByName.get('groups_with_published_posts_missing_manifest').count, 1);
 
-		const groupRepairResult = await app.ms.group.repairPostManifestDerivedState({groupId: testGroup.id, limit: 10});
+		const groupRepairResult = await repairDatabaseDerivedState(app, {groupId: testGroup.id, limit: 10});
 		assert.deepEqual(groupRepairResult.checkedPostIds, []);
 		assert.deepEqual(groupRepairResult.repairedPostIds, []);
 		assert.deepEqual(groupRepairResult.checkedGroupIds, [testGroup.id]);

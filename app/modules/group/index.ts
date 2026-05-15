@@ -57,50 +57,9 @@ const userFriendListParams: IListParamsOptions = {
 	maxLimit: 100
 };
 const staticRebindBatchLimit = helpers.parsePositiveInteger(process.env.STATIC_REBIND_BATCH_LIMIT, 100);
-const derivedStateRepairBatchLimit = helpers.parsePositiveInteger(process.env.DERIVED_STATE_REPAIR_LIMIT, 50);
 
 function contentSize(content) {
 	return Number(content?.size) || 0;
-}
-
-function setOptionalNumericWhere(where, field, value) {
-	if (isUndefined(value) || value === null || value === '') {
-		return;
-	}
-	const id = Number(value);
-	if (!Number.isFinite(id)) {
-		throw new Error(`invalid_${field}`);
-	}
-	where[field] = id;
-}
-
-function getPublishedPostDerivedStateWhere(options: any = {}) {
-	const where: any = {
-		status: PostStatus.Published,
-		isDeleted: false
-	};
-	setOptionalNumericWhere(where, 'groupId', options.groupId);
-	setOptionalNumericWhere(where, 'id', options.postId);
-	return where;
-}
-
-function getPostManifestDerivedStateRepairWhere(options: any = {}) {
-	const where = getPublishedPostDerivedStateWhere(options);
-	where[Op.or] = [
-		{manifestStorageId: {[Op.is]: null}},
-		{directoryStorageId: {[Op.is]: null}}
-	];
-	where[Op.and] = [
-		{[Op.or]: [{isRemote: false}, {isRemote: null}]}
-	];
-	return where;
-}
-
-function getGroupManifestDerivedStateRepairWhere() {
-	return {
-		isDeleted: false,
-		manifestStorageId: {[Op.is]: null}
-	};
 }
 
 function getStableGroupListOrder(sortBy, sortDir) {
@@ -388,86 +347,6 @@ function getModule(app: IGeesomeApp, models) {
 				models.Post.max('localId', {where: {groupId}}).then(m => m || 0),
 			]);
 			return this.updateGroupPure(groupId, {size, availablePostsCount, publishedPostsCount: maxLocalId});
-		}
-
-		async getPostManifestDerivedStateRepairCandidates(options: any = {}) {
-			const limit = helpers.parsePositiveInteger(options.limit, derivedStateRepairBatchLimit);
-			return models.Post.findAll({
-				attributes: ['id', 'userId', 'groupId', 'manifestStorageId', 'directoryStorageId'],
-				where: getPostManifestDerivedStateRepairWhere(options),
-				order: [['id', 'ASC']],
-				limit
-			}) as IPost[];
-		}
-
-		async getGroupManifestDerivedStateRepairCandidates(options: any = {}) {
-			const limit = helpers.parsePositiveInteger(options.limit, derivedStateRepairBatchLimit);
-			const postGroups = await models.Post.findAll({
-				attributes: ['groupId'],
-				where: getPublishedPostDerivedStateWhere(options),
-				group: ['groupId'],
-				order: [['groupId', 'ASC']],
-				limit,
-				raw: true
-			});
-			const groupIds = postGroups.map(row => row.groupId).filter(id => id !== null && id !== undefined);
-			if (groupIds.length === 0) {
-				return [];
-			}
-			return models.Group.findAll({
-				attributes: ['id', 'creatorId', 'manifestStorageId'],
-				where: {
-					...getGroupManifestDerivedStateRepairWhere(),
-					id: {[Op.in]: groupIds}
-				},
-				order: [['id', 'ASC']],
-				limit
-			}) as IGroup[];
-		}
-
-		async repairPostManifestDerivedState(options: any = {}) {
-			const candidates = await this.getPostManifestDerivedStateRepairCandidates(options);
-			const checkedPostIds = candidates.map(post => post.id);
-			const repairedPostIds = [];
-			const failures: Array<{entityType: string; entityId: number; message: string}> = [];
-
-			await pIteration.forEachSeries(candidates, async (post) => {
-				try {
-					await this.updatePostManifest(post.userId, post.id);
-					repairedPostIds.push(post.id);
-				} catch (e) {
-					failures.push({
-						entityType: 'post',
-						entityId: post.id,
-						message: e?.message || String(e)
-					});
-				}
-			});
-
-			const groupCandidates = await this.getGroupManifestDerivedStateRepairCandidates(options);
-			const checkedGroupIds = groupCandidates.map(group => group.id);
-			const repairedGroupIds = [];
-
-			await pIteration.forEachSeries(groupCandidates, async (group) => {
-				try {
-					await this.updateGroupManifest(group.creatorId, group.id);
-					repairedGroupIds.push(group.id);
-				} catch (e) {
-					failures.push({
-						entityType: 'group',
-						entityId: group.id,
-						message: e?.message || String(e)
-					});
-				}
-			});
-
-			return {
-				checkedPostIds,
-				repairedPostIds,
-				checkedGroupIds,
-				repairedGroupIds,
-				failures
-			};
 		}
 
 		async reconcilePostRelationCounters(postIds, options: any = {}) {

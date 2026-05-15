@@ -33,6 +33,29 @@ type CountRow = {
   count: string | number;
 };
 
+type DerivedStateRepairOptions = DerivedStateIntegrityOptions & {
+  limit?: number;
+};
+
+type PostManifestDerivedStateRepairCandidate = {
+  id: number;
+  userId: number;
+  groupId: number;
+};
+
+type GroupManifestDerivedStateRepairCandidate = {
+  id: number;
+  creatorId: number;
+};
+
+export type DerivedStateRepairResult = {
+  checkedPostIds: number[];
+  repairedPostIds: number[];
+  checkedGroupIds: number[];
+  repairedGroupIds: number[];
+  failures: Array<{entityType: string; entityId: number; message: string}>;
+};
+
 const defaultSampleLimit = 10;
 const defaultRepairLimit = 50;
 const defaultStorageRepo = process.env.STORAGE_REPO;
@@ -281,6 +304,101 @@ function getStorageConfigOverride() {
   };
 }
 
+async function getPostManifestDerivedStateRepairCandidates(app: any, options: DerivedStateRepairOptions) {
+  const limit = parsePositiveInteger(options.limit, defaultRepairLimit);
+  const scope = getPostScope(options);
+  return app.ms.database.sequelize.query(`
+    SELECT
+      p.id,
+      p."userId",
+      p."groupId"
+    FROM posts p
+    WHERE ${scope.sql}
+      AND COALESCE(p."isRemote", false) = false
+      AND (p."manifestStorageId" IS NULL OR p."directoryStorageId" IS NULL)
+    ORDER BY p.id ASC
+    LIMIT :limit
+  `, {
+    replacements: {
+      ...scope.replacements,
+      limit,
+    },
+    type: QueryTypes.SELECT,
+  }) as Promise<PostManifestDerivedStateRepairCandidate[]>;
+}
+
+async function getGroupManifestDerivedStateRepairCandidates(app: any, options: DerivedStateRepairOptions) {
+  const limit = parsePositiveInteger(options.limit, defaultRepairLimit);
+  const postScope = getPostScope(options);
+  return app.ms.database.sequelize.query(`
+    SELECT DISTINCT
+      g.id,
+      g."creatorId"
+    FROM groups g
+    JOIN posts p
+      ON p."groupId" = g.id
+      AND ${postScope.sql}
+    WHERE COALESCE(g."isDeleted", false) = false
+      AND g."manifestStorageId" IS NULL
+    ORDER BY g.id ASC
+    LIMIT :limit
+  `, {
+    replacements: {
+      ...postScope.replacements,
+      limit,
+    },
+    type: QueryTypes.SELECT,
+  }) as Promise<GroupManifestDerivedStateRepairCandidate[]>;
+}
+
+export async function repairDatabaseDerivedState(
+  app: any,
+  options: DerivedStateRepairOptions = {},
+): Promise<DerivedStateRepairResult> {
+  const postCandidates = await getPostManifestDerivedStateRepairCandidates(app, options);
+  const checkedPostIds = postCandidates.map(post => post.id);
+  const repairedPostIds = [];
+  const failures: Array<{entityType: string; entityId: number; message: string}> = [];
+
+  for (const post of postCandidates) {
+    try {
+      await app.ms.group.updatePostManifest(post.userId, post.id);
+      repairedPostIds.push(post.id);
+    } catch (e) {
+      failures.push({
+        entityType: 'post',
+        entityId: post.id,
+        message: e?.message || String(e),
+      });
+    }
+  }
+
+  const groupCandidates = await getGroupManifestDerivedStateRepairCandidates(app, options);
+  const checkedGroupIds = groupCandidates.map(group => group.id);
+  const repairedGroupIds = [];
+
+  for (const group of groupCandidates) {
+    try {
+      await app.ms.group.updateGroupManifest(group.creatorId, group.id);
+      repairedGroupIds.push(group.id);
+    } catch (e) {
+      failures.push({
+        entityType: 'group',
+        entityId: group.id,
+        message: e?.message || String(e),
+      });
+    }
+  }
+
+  return {
+    checkedPostIds,
+    repairedPostIds,
+    checkedGroupIds,
+    repairedGroupIds,
+    failures,
+  };
+}
+
 async function repairDerivedState(options: DerivedStateIntegrityOptions) {
   assertRepairSafety();
   const repairLimit = parsePositiveInteger(process.env.DERIVED_STATE_REPAIR_LIMIT, defaultRepairLimit);
@@ -291,7 +409,7 @@ async function repairDerivedState(options: DerivedStateIntegrityOptions) {
   };
   const app = await (await import('../app/index.js')).default(appConfig);
   try {
-    return await app.ms.group.repairPostManifestDerivedState({
+    return await repairDatabaseDerivedState(app, {
       groupId: options.groupId,
       postId: options.postId,
       limit: repairLimit,
