@@ -18,6 +18,17 @@ describe('helpers', () => {
 		assert.deepEqual(helpers.normalizeUniqueIds(null), []);
 	});
 
+	it('parses boolean-like configuration values', () => {
+		assert.strictEqual(helpers.parseBoolean('1'), true);
+		assert.strictEqual(helpers.parseBoolean('yes'), true);
+		assert.strictEqual(helpers.parseBoolean('true'), true);
+		assert.strictEqual(helpers.parseBoolean('0', true), false);
+		assert.strictEqual(helpers.parseBoolean('no', true), false);
+		assert.strictEqual(helpers.parseBoolean('false', true), false);
+		assert.strictEqual(helpers.parseBoolean('maybe', true), true);
+		assert.strictEqual(helpers.parseBoolean(undefined, false), false);
+	});
+
 	it('sanitizes list params before they reach Sequelize queries', () => {
 		assert.deepEqual(helpers.prepareListParams({
 			sortBy: 'createdAt;DROP',

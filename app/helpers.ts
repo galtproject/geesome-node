@@ -52,6 +52,17 @@ function parsePositiveInteger(value, fallback) {
 	return parsed;
 }
 
+function parseBoolean(value, fallback = false) {
+	const normalized = String(value ?? '').toLowerCase();
+	if (['1', 'true', 'yes'].includes(normalized)) {
+		return true;
+	}
+	if (['0', 'false', 'no'].includes(normalized)) {
+		return false;
+	}
+	return fallback;
+}
+
 function sanitizeSortBy(value, fallback = 'createdAt', allowedSortBy?: string[]) {
 	const fallbackSortBy = allowedSortBy?.includes(fallback) || !allowedSortBy?.length ? fallback : allowedSortBy[0];
 	if (typeof value !== 'string') {
@@ -348,6 +359,8 @@ export default {
 	},
 
 	parsePositiveInteger,
+
+	parseBoolean,
 
 	prepareListParams(listParams?: IListParams, options: IListParamsOptions = {}): IListParams {
 		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset', 'includeTotal']);
