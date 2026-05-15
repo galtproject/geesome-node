@@ -3,6 +3,7 @@ import {QueryTypes} from 'sequelize';
 import databaseConfig from '../app/modules/database/config.js';
 import {
   collectDatabaseDerivedStateIntegrity,
+  configureDerivedStateAppEnv,
   defaultRepairLimit,
   derivedStateAppModules,
   getGroupManifestDerivedStateRepairCandidates,
@@ -47,6 +48,7 @@ function assertRehearsalSafety() {
 }
 
 function configureAsyncDerivedStateRehearsal() {
+  configureDerivedStateAppEnv();
   process.env.GROUP_DERIVED_STATE_ASYNC = '1';
   process.env.GROUP_DERIVED_STATE_WORKER = '0';
 }
@@ -150,6 +152,7 @@ async function main() {
   const options = getOptionsFromEnv();
   const appConfig: any = {
     modules: derivedStateAppModules,
+    skipFrontendStorage: true,
     port: Number.parseInt(process.env.DERIVED_STATE_REPAIR_PORT || '0', 10) || 0,
     ...getStorageConfigOverride(),
   };
@@ -193,8 +196,10 @@ async function main() {
 const entryPoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
 
 if (import.meta.url === entryPoint) {
-  main().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  main()
+    .then(() => process.exit(process.exitCode || 0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

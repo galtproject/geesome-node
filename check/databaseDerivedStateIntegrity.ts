@@ -68,9 +68,15 @@ export const derivedStateAppModules = [
   'storage',
   'content',
   'staticId',
+  'asyncOperation',
   'group',
   'entityJsonManifest',
 ];
+
+export function configureDerivedStateAppEnv() {
+  process.env.MODULES = derivedStateAppModules.join(',');
+  process.env.GEESOME_MAINTENANCE_DISABLE_COMMUNICATOR = '1';
+}
 
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -401,9 +407,11 @@ export async function repairDatabaseDerivedState(
 
 async function repairDerivedState(options: DerivedStateIntegrityOptions) {
   assertRepairSafety();
+  configureDerivedStateAppEnv();
   const repairLimit = parsePositiveInteger(process.env.DERIVED_STATE_REPAIR_LIMIT, defaultRepairLimit);
   const appConfig: any = {
     modules: derivedStateAppModules,
+    skipFrontendStorage: true,
     port: Number.parseInt(process.env.DERIVED_STATE_REPAIR_PORT || '0', 10) || 0,
     ...getStorageConfigOverride(),
   };
@@ -447,8 +455,10 @@ async function main() {
 const entryPoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
 
 if (import.meta.url === entryPoint) {
-  main().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  main()
+    .then(() => process.exit(process.exitCode || 0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

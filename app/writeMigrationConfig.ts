@@ -24,6 +24,7 @@ export default function (moduleName: string) {
       username: config.username,
       password: config.password,
       host: config.host,
+      port: config.port,
       dialect: config.dialect
     }
   }));

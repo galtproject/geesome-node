@@ -11,6 +11,9 @@ Queues missing post/group manifest derived-state repairs through the
 group-derived-state async queue, drains the queue in bounded batches, and then
 runs the derived-state integrity audit again.
 
+Set STORAGE_MODULE / STORAGE_URL / STORAGE_REPO to point at the restored or
+copied storage backend when repaired posts need to copy attached content files.
+
 Safety:
   - Refuses to run unless CONFIRM_RESTORED_BACKUP=1.
   - Refuses to use the implicit default DATABASE_NAME.
