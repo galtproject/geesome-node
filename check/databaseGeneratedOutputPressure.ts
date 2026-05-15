@@ -23,6 +23,7 @@ import {
   getScalabilityTargetGroupSelector,
   renderScalabilityTargetGroupEnv,
 } from './databaseScalabilityTarget.js';
+import {defaultGroupManifestInlinePostsLimit} from '../app/modules/entityJsonManifest/helpers.js';
 
 const POST_LIMIT = parsePositiveInteger(process.env.GENERATED_OUTPUT_POST_LIMIT, 9999);
 const TOP_DUPLICATES_LIMIT = parsePositiveInteger(process.env.GENERATED_OUTPUT_TOP_DUPLICATES, 10);
@@ -259,10 +260,13 @@ function renderManifestPressureRows(manifestPressure: ManifestPressureRow): stri
   const averageManifestStorageIdBytes = Number(manifestPressure.average_manifest_storage_id_bytes) || 0;
   const pageCount = Math.ceil(activeManifestRefs / MANIFEST_POST_INDEX_PAGE_SIZE);
   const inlineReferenceLowerBoundBytes = totalManifestStorageIdBytes + totalLocalIdBase36Bytes + activeManifestRefs * 8;
-  const configuredLimit = GROUP_MANIFEST_INLINE_POSTS_LIMIT === null ? 'unset' : String(GROUP_MANIFEST_INLINE_POSTS_LIMIT);
-  const generatedMode = GROUP_MANIFEST_INLINE_POSTS_LIMIT !== null && activeManifestRefs > GROUP_MANIFEST_INLINE_POSTS_LIMIT
-    ? 'chunked-only with current env'
-    : 'inline compatibility with current env';
+  const effectiveInlinePostsLimit = GROUP_MANIFEST_INLINE_POSTS_LIMIT ?? defaultGroupManifestInlinePostsLimit;
+  const configuredLimit = GROUP_MANIFEST_INLINE_POSTS_LIMIT === null
+    ? `${defaultGroupManifestInlinePostsLimit} default`
+    : `${GROUP_MANIFEST_INLINE_POSTS_LIMIT} env override`;
+  const generatedMode = activeManifestRefs > effectiveInlinePostsLimit
+    ? 'chunked-only with current limit'
+    : 'inline compatibility with current limit';
 
   return [
     '',
@@ -278,7 +282,7 @@ function renderManifestPressureRows(manifestPressure: ManifestPressureRow): stri
     `| Paged postsIndex pages | ${pageCount} | ${MANIFEST_POST_INDEX_PAGE_SIZE} refs/page via GENERATED_OUTPUT_MANIFEST_POST_INDEX_PAGE_SIZE |`,
     `| GROUP_MANIFEST_INLINE_POSTS_LIMIT | ${configuredLimit} | This group would generate ${generatedMode} |`,
     '',
-    'Chunked-only group manifests move the per-post refs out of the root manifest and into page manifests. Use this section on a restored large group before choosing a production default for `GROUP_MANIFEST_INLINE_POSTS_LIMIT`.',
+    'Chunked-only group manifests move the per-post refs out of the root manifest and into page manifests. Use this section on a restored large group to tune the default cutoff or an operator override.',
   ];
 }
 
@@ -360,7 +364,7 @@ function renderReport(
     '- If static/RSS unique body counts are close to total body reads, persisted snippets may help more than a larger in-memory cache.',
     '- If repeated body reads dominate, tune `GENERATED_OUTPUT_CACHE_LIMIT` / `RSS_BODY_CACHE_LIMIT` before adding stored snippets.',
     '- If non-text copy candidates dominate, generated-output pressure is storage copy work rather than database hydration or body projection.',
-    '- If group manifest inline reference pressure dominates restored large groups, enable chunked-only manifests with `GROUP_MANIFEST_INLINE_POSTS_LIMIT` before making it the product default.',
+    '- If group manifest inline reference pressure dominates restored large groups, tune `GROUP_MANIFEST_INLINE_POSTS_LIMIT` around the default cutoff before regenerating manifests.',
     '',
   );
 

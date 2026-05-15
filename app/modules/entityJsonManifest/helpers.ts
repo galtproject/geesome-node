@@ -7,6 +7,7 @@ const defaultGroupManifestPostRefsBatchSize = 1000;
 const defaultGroupManifestPostIndexPageSize = 1000;
 
 export const groupManifestPostIndexType = 'geesome-group-post-index-v1';
+export const defaultGroupManifestInlinePostsLimit = 1000;
 
 export type GroupManifestPostRef = {localId: number; manifestStorageId: string};
 export type GroupManifestPostIndexPages = Record<string, any>;
@@ -25,7 +26,7 @@ export type GroupManifestPostIndexPageChanges = {
   removedIdsByPage: Map<string, number[]>;
 };
 
-const groupManifestInlinePostsLimit = parseInlinePostsLimit(process.env.GROUP_MANIFEST_INLINE_POSTS_LIMIT);
+const groupManifestInlinePostsLimit = parseInlinePostsLimit(process.env.GROUP_MANIFEST_INLINE_POSTS_LIMIT, defaultGroupManifestInlinePostsLimit);
 
 export function getGroupManifestPostRefsBatchSize(options: any = {}) {
   const batchSize = Number(options.postRefsBatchSize || defaultGroupManifestPostRefsBatchSize);
@@ -334,15 +335,15 @@ export function unsetTreeNode(tree: Record<string, any>, id) {
   }
 }
 
-function parseInlinePostsLimit(value: any): number {
+function parseInlinePostsLimit(value: any, fallback: number): number {
   if (value === undefined || value === null || value === '') {
-    return Number.MAX_SAFE_INTEGER;
+    return fallback;
   }
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed >= 0) {
     return Math.floor(parsed);
   }
-  return Number.MAX_SAFE_INTEGER;
+  return fallback;
 }
 
 function getGroupManifestPostCountFromPages(pages: GroupManifestPostIndexPages): number {
@@ -362,7 +363,7 @@ function getGroupManifestPostIndexPostCount(groupData: IGroup, pages: GroupManif
 
 function getGroupManifestInlinePostsLimit(options: any = {}): number {
   if (options.inlinePostsLimit !== undefined) {
-    return parseInlinePostsLimit(options.inlinePostsLimit);
+    return parseInlinePostsLimit(options.inlinePostsLimit, groupManifestInlinePostsLimit);
   }
   return groupManifestInlinePostsLimit;
 }
