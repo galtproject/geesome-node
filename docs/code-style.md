@@ -82,6 +82,7 @@ This applies to ordinary method guards too: validate permissions/inputs first, e
 ### File layout
 
 - Module entry files use the `export default async (app: IGeesomeApp) => { ... return getModule(app, ...); }` pattern, then `function getModule(app, ...) { class XxxModule implements IGeesomeXxxModule { ... } return new XxxModule(); }`.
+- Keep the primary exported/module factory and main class/module flow near the top of the file. Put small file-local helper functions, stub factories, and narrow adapter builders after the main functions/classes unless they must be hoisted for constants, types, or readability.
 - Models use `export default async function (sequelize, models) { const Model = sequelize.define(...); ... return Model.sync({}); }`.
 - Class methods are `async methodName(...)` with no explicit return type unless the inference is misleading; the interface in `interface.ts` carries the contract.
 

@@ -1,6 +1,17 @@
 import IGeesomeCommunicatorModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 
+export default async (app: IGeesomeApp) => {
+	app.checkModules(['accountStorage']);
+	if (process.env.GEESOME_MAINTENANCE_DISABLE_COMMUNICATOR === '1') {
+		return getDisabledCommunicator();
+	}
+
+	const module: IGeesomeCommunicatorModule = (await (await import('./fluence.js')).default(app)) as any;
+	(await import('./api.js')).default(app, module);
+	return module;
+};
+
 function getDisabledCommunicator(): IGeesomeCommunicatorModule {
 	return {
 		async isReady() { return false; },
@@ -31,14 +42,3 @@ function getDisabledCommunicator(): IGeesomeCommunicatorModule {
 		async stop() {}
 	};
 }
-
-export default async (app: IGeesomeApp) => {
-	app.checkModules(['accountStorage']);
-	if (process.env.GEESOME_MAINTENANCE_DISABLE_COMMUNICATOR === '1') {
-		return getDisabledCommunicator();
-	}
-
-	const module: IGeesomeCommunicatorModule = (await (await import('./fluence.js')).default(app)) as any;
-	(await import('./api.js')).default(app, module);
-	return module;
-};
