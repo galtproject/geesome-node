@@ -457,6 +457,82 @@ describe("group", function () {
 		assert.deepEqual(importedPosts.map(post => post.manifestStorageId), [firstSourcePost.manifestStorageId, secondSourcePost.manifestStorageId]);
 	});
 
+	it('rewrites only touched chunked group manifest post index pages', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const models = (app.ms.database as any).models;
+		const sourceGroup = await app.ms.group.createGroup(testUser.id, {
+			name: 'incremental-post-index',
+			title: 'Incremental post index'
+		});
+		const firstContent = await app.ms.content.saveData(testUser.id, 'incremental first post', null, {
+			mimeType: 'text/markdown'
+		});
+		const secondContent = await app.ms.content.saveData(testUser.id, 'incremental second post', null, {
+			mimeType: 'text/markdown'
+		});
+		const thirdContent = await app.ms.content.saveData(testUser.id, 'incremental third post', null, {
+			mimeType: 'text/markdown'
+		});
+		const firstPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: firstContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const secondPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: secondContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const thirdPost = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: thirdContent.id, view: ContentView.Contents}],
+			groupId: sourceGroup.id,
+			status: PostStatus.Published
+		});
+		const groupAfterPosts = await app.ms.group.getGroup(sourceGroup.id);
+		const {manifest: initialManifest, state} = await app.ms.entityJsonManifest.generateGroupManifestWithState(groupAfterPosts, {
+			postIndexPageSize: 1,
+			includeInlinePosts: false
+		});
+		const initialManifestStorageId = await app.saveDataStructure(initialManifest, {waitForStorage: true});
+		await models.Group.update({
+			manifestStorageId: initialManifestStorageId,
+			manifestPostsCursorUpdatedAt: state.postCursor.updatedAt,
+			manifestPostsCursorId: state.postCursor.id
+		}, {where: {id: sourceGroup.id}, silent: true});
+
+		const replacementManifestStorageId = await app.saveDataStructure({
+			name: 'Replacement second post manifest',
+			replaces: secondPost.manifestStorageId
+		}, {waitForStorage: true});
+		const nextUpdatedAt = new Date(state.postCursor.updatedAt.getTime() + 1000);
+		await models.Post.update({
+			manifestStorageId: replacementManifestStorageId,
+			updatedAt: nextUpdatedAt
+		}, {where: {id: secondPost.id}, silent: true});
+
+		const groupForIncremental = await app.ms.group.getGroup(sourceGroup.id);
+		const incrementalManifest = await app.ms.entityJsonManifest.generateManifest('group', groupForIncremental, {
+			postIndexPageSize: 1,
+			includeInlinePosts: false,
+			postRefsBatchSize: 1
+		});
+		const manifestRefs = await app.ms.entityJsonManifest.getGroupManifestPostRefs(incrementalManifest);
+		const rewrittenPage = await app.ms.storage.getObject(incrementalManifest.postsIndex.pages[String(secondPost.localId - 1)].storageId);
+
+		assert.equal(incrementalManifest.posts, undefined);
+		assert.equal(incrementalManifest.postsIndex.postCount, 3);
+		assert.equal(incrementalManifest.postsIndex.pageCount, 3);
+		assert.equal(incrementalManifest.postsIndex.pages[String(firstPost.localId - 1)].storageId, initialManifest.postsIndex.pages[String(firstPost.localId - 1)].storageId);
+		assert.notEqual(incrementalManifest.postsIndex.pages[String(secondPost.localId - 1)].storageId, initialManifest.postsIndex.pages[String(secondPost.localId - 1)].storageId);
+		assert.equal(incrementalManifest.postsIndex.pages[String(thirdPost.localId - 1)].storageId, initialManifest.postsIndex.pages[String(thirdPost.localId - 1)].storageId);
+		assert.deepEqual(rewrittenPage.refs, [{localId: secondPost.localId, manifestStorageId: replacementManifestStorageId}]);
+		assert.deepEqual(manifestRefs.map(ref => ref.manifestStorageId), [
+			firstPost.manifestStorageId,
+			replacementManifestStorageId,
+			thirdPost.manifestStorageId
+		]);
+	});
+
 	it('replays remote group manifest post edits and deletes', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const sourceGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
