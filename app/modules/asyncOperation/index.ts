@@ -18,6 +18,14 @@ function getFinishedOperationCleanupCutoff(retentionDays = finishedOperationRete
 	return new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 }
 
+function getOperationQueueInputData(input) {
+	const inputJson = JSON.stringify(input);
+	return {
+		inputJson,
+		inputHash: commonHelper.hash(inputJson)
+	};
+}
+
 export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
@@ -183,13 +191,35 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		addUserOperationQueue(userId, module, userApiKeyId, input) {
-			const inputJson = JSON.stringify(input);
+			const {inputJson, inputHash} = getOperationQueueInputData(input);
 			return models.UserOperationQueue.create({
 				userId,
 				module,
 				inputJson,
 				userApiKeyId,
-				inputHash: commonHelper.hash(inputJson),
+				inputHash,
+				isWaiting: true,
+			});
+		}
+
+		async addUniqueUserOperationQueue(userId, module, userApiKeyId, input) {
+			const {inputJson, inputHash} = getOperationQueueInputData(input);
+			const existingQueue = await models.UserOperationQueue.findOne({
+				where: {module, inputHash, isWaiting: true},
+				order: [['createdAt', 'ASC'], ['id', 'ASC']],
+				include: [ {association: 'asyncOperation'} ]
+			});
+
+			if (existingQueue) {
+				return existingQueue;
+			}
+
+			return models.UserOperationQueue.create({
+				userId,
+				module,
+				inputJson,
+				userApiKeyId,
+				inputHash,
 				isWaiting: true,
 			});
 		}
