@@ -84,6 +84,12 @@ export default interface IGeesomeGroupModule {
 
 	queueGroupManifestUpdate(userId, groupId, options?): Promise<any>;
 
+	startDerivedStateQueueProcessing(options?): void;
+
+	startDerivedStateQueueWorker(): void;
+
+	stopDerivedStateQueueWorker(): void;
+
 	processDerivedStateQueue(options?): Promise<any>;
 
 	getGroupByParams(params): Promise<IGroup>;

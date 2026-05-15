@@ -18,6 +18,17 @@ import {
 	repairDatabaseDerivedState
 } from "../check/databaseDerivedStateIntegrity.js";
 
+async function waitForCondition(condition, timeoutMs = 5000) {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		if (await condition()) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+	throw new Error('condition_timeout');
+}
+
 describe("group", function () {
 	this.timeout(60000);
 
@@ -1525,6 +1536,41 @@ describe("group", function () {
 		assert.equal(retryResult.processed, maxAttempts - 1);
 		assert.equal(finalQueue.isWaiting, false);
 		assert.equal(finalQueue.asyncOperation.errorMessage.includes(`attempt ${maxAttempts} of ${maxAttempts} failed`), true);
+	});
+
+	it('kicks derived-state queue processing with a bounded batch', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const firstMissingPostId = 999999997;
+		const secondMissingPostId = 999999998;
+		const firstQueue = await app.ms.group.queuePostManifestUpdate(testUser.id, firstMissingPostId, {process: false});
+		const secondQueue = await app.ms.group.queuePostManifestUpdate(testUser.id, secondMissingPostId, {process: false});
+
+		app.ms.group.startDerivedStateQueueProcessing();
+
+		await waitForCondition(async () => {
+			const operations = await app.ms.asyncOperation.findAsyncOperations(
+				testUser.id,
+				'run-group-derived-state-post-manifest',
+				'group-derived-state:post-manifest:%',
+				false
+			);
+			return operations.length === 1;
+		});
+
+		const operations = await app.ms.asyncOperation.findAsyncOperations(
+			testUser.id,
+			'run-group-derived-state-post-manifest',
+			'group-derived-state:post-manifest:%',
+			false
+		);
+		const firstQueueAfter = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, firstQueue.id);
+		const secondQueueAfter = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, secondQueue.id);
+
+		assert.equal(operations.length, 1);
+		assert.equal(firstQueueAfter.isWaiting, true);
+		assert.equal(firstQueueAfter.asyncOperationId, null);
+		assert.equal(secondQueueAfter.isWaiting, true);
+		assert.equal(secondQueueAfter.asyncOperationId, null);
 	});
 
 	it('hydrates timeline pages after id-only page selection', async () => {

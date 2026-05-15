@@ -34,7 +34,11 @@ const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
 const groupDerivedStateJobMaxAttempts = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_JOB_MAX_ATTEMPTS, 3);
-const groupDerivedStateAsyncEnabled = ['1', 'true', 'yes'].includes(String(process.env.GROUP_DERIVED_STATE_ASYNC || '').toLowerCase());
+const groupDerivedStateAsyncEnabled = helpers.parseBoolean(process.env.GROUP_DERIVED_STATE_ASYNC, false);
+const groupDerivedStateWorkerEnabled = helpers.parseBoolean(process.env.GROUP_DERIVED_STATE_WORKER, groupDerivedStateAsyncEnabled);
+const groupDerivedStateWorkerIntervalMs = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_WORKER_INTERVAL_MS, 30000);
+const groupDerivedStateWorkerBatchLimit = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_WORKER_BATCH_LIMIT, 10);
+const groupDerivedStateKickBatchLimit = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_KICK_BATCH_LIMIT, 1);
 const publicPostListParams = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
@@ -200,12 +204,14 @@ export default async (app: IGeesomeApp) => {
 	const {sequelize, models} = app.ms.database;
 	const module = getModule(app, await (await import('./models/index.js')).default(sequelize, models));
 	(await import('./api.js')).default(app, module);
+	module.startDerivedStateQueueWorker();
 	return module;
 }
 
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
 	let derivedStateQueueInProcess = false;
+	let derivedStateQueueWorkerTimer = null;
 
 	async function createActorContentFromGroupObject(userId, contentObject) {
 		if (!contentObject) {
@@ -533,10 +539,42 @@ function getModule(app: IGeesomeApp, models) {
 			return queue;
 		}
 
-		startDerivedStateQueueProcessing() {
-			void this.processDerivedStateQueue().catch((e) => {
+		startDerivedStateQueueProcessing(options: any = {}) {
+			const limit = helpers.parsePositiveInteger(options.limit, groupDerivedStateKickBatchLimit);
+			void this.processDerivedStateQueue({limit}).catch((e) => {
 				log('processDerivedStateQueue error', e);
 			});
+		}
+
+		startDerivedStateQueueWorker() {
+			if (!groupDerivedStateWorkerEnabled) {
+				return;
+			}
+			if (derivedStateQueueWorkerTimer) {
+				return;
+			}
+
+			this.startDerivedStateQueueProcessing({limit: groupDerivedStateWorkerBatchLimit});
+			derivedStateQueueWorkerTimer = setInterval(() => {
+				this.startDerivedStateQueueProcessing({limit: groupDerivedStateWorkerBatchLimit});
+			}, groupDerivedStateWorkerIntervalMs);
+
+			const timer: any = derivedStateQueueWorkerTimer;
+			if (timer.unref) {
+				timer.unref();
+			}
+		}
+
+		stopDerivedStateQueueWorker() {
+			if (!derivedStateQueueWorkerTimer) {
+				return;
+			}
+			clearInterval(derivedStateQueueWorkerTimer);
+			derivedStateQueueWorkerTimer = null;
+		}
+
+		stop() {
+			this.stopDerivedStateQueueWorker();
 		}
 
 		async applyPostManifestUpdate(userId, post, group = null, options: any = {}) {

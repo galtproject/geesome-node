@@ -810,6 +810,13 @@ function hotspotRows(): HotspotRow[] {
     && has(groupSource, 'runDerivedStateJob')
     && has(asyncOperationSource, 'addUniqueUserOperationQueue')
     && has(groupTestSource, 'dedupes and processes queued post manifest derived-state jobs');
+  const hasGroupDerivedStateWorkerPolicy = hasGroupDerivedStateQueue
+    && has(groupSource, 'GROUP_DERIVED_STATE_WORKER')
+    && has(groupSource, 'GROUP_DERIVED_STATE_WORKER_BATCH_LIMIT')
+    && has(groupSource, 'GROUP_DERIVED_STATE_KICK_BATCH_LIMIT')
+    && has(groupSource, 'startDerivedStateQueueWorker')
+    && has(groupSource, 'stopDerivedStateQueueWorker')
+    && has(groupTestSource, 'kicks derived-state queue processing with a bounded batch');
   const hasGeneratedOutputPostBatchHelper = has(groupSource, 'forEachHydratedGroupPostBatch')
     && has(groupSource, 'getHydratedGroupPostBatch')
     && has(groupSource, 'getGroupPostRefs(groupId')
@@ -1075,9 +1082,11 @@ function hotspotRows(): HotspotRow[] {
           ? (hasGroupManifestChunkedOnlyOption
               ? (hasGroupManifestDurableCursor
                 ? (hasGroupManifestDefaultInlineCutoff
-                  ? (hasGroupDerivedStateQueue
-                    ? 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups default to chunked-only manifests above the inline cutoff, and post/group manifest rebuilds can enter an opt-in durable derived-state queue; default queue rollout, static delivery status, and page-worker tuning still need follow-up'
-                    : 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups default to chunked-only manifests above the inline cutoff, while async/page-update workers still need follow-up')
+                  ? (hasGroupDerivedStateWorkerPolicy
+                    ? 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups default to chunked-only manifests above the inline cutoff, and post/group manifest rebuilds can enter a bounded durable worker queue; restored-data async rehearsal, default-on rollout, static delivery status, and page-worker tuning still need follow-up'
+                    : (hasGroupDerivedStateQueue
+                      ? 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups default to chunked-only manifests above the inline cutoff, and post/group manifest rebuilds can enter an opt-in durable derived-state queue; default queue rollout, static delivery status, and page-worker tuning still need follow-up'
+                      : 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups default to chunked-only manifests above the inline cutoff, while async/page-update workers still need follow-up'))
                   : 'content/repost hydration, timestamp-only watermarks, and large changed-ref windows are avoided; large groups can avoid the legacy inline trie when enabled, while default chunked-only rollout and page-level incremental updates still need follow-up')
                 : 'content/repost hydration and large changed-ref windows are avoided; large groups can avoid the legacy inline trie when enabled, while default compatibility manifests and durable generation cursors still need follow-up')
             : 'content/repost hydration and large changed-ref windows are avoided; remote import can consume paged post indexes, but generation still keeps the legacy inline trie until old consumers can tolerate chunked-only manifests')
@@ -1227,9 +1236,11 @@ function hotspotRows(): HotspotRow[] {
             ? (hasRemoteGroupManifestReplay
               ? (hasGroupManifestPostIndexSidecar
                 ? (hasGroupManifestChunkedOnlyOption
-                  ? (hasGroupDerivedStateQueue
-                    ? 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked-only post-index coverage, remote edit/delete replay state, and opt-in queued post/group manifest retries consistently; remaining risk is default async rollout and static delivery job status'
-                    : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked-only post-index coverage, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and durable generation state')
+                  ? (hasGroupDerivedStateWorkerPolicy
+                    ? 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked-only post-index coverage, remote edit/delete replay state, and bounded queued post/group manifest retries consistently; remaining risk is restored-data async rehearsal, default-on rollout, and static delivery job status'
+                    : (hasGroupDerivedStateQueue
+                      ? 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked-only post-index coverage, remote edit/delete replay state, and opt-in queued post/group manifest retries consistently; remaining risk is default async rollout and static delivery job status'
+                      : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked-only post-index coverage, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and durable generation state'))
                   : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, chunked post-index fallback, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and retiring the legacy inline trie for large groups')
                 : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, group-manifest post iteration, and remote edit/delete replay state consistently; remaining risk is async derived-state retries and chunked manifest indexes')
               : 'remote manifest imports now get localId, attachment, counter, group-manifest, post-event, same-manifest retry, and group-manifest post iteration state consistently; remote edit/delete replay remains future work')
