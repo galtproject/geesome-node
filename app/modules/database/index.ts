@@ -185,23 +185,62 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'UserApiKey', 'User', 'Value', 'Object'
+      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObject', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
   }
 
-  async addContent(content) {
-    return this.models.Content.create(content);
+  async addContent(contentData) {
+    return this.sequelize.transaction(async (transaction) => {
+      const content = await this.models.Content.create(contentData, {transaction});
+      await this.syncStorageObjectForContent(content, {transaction});
+      return content;
+    });
   }
 
   async updateContent(id, updateData) {
     console.log('updateContent', 'id', id, 'updateData', updateData);
-    return this.models.Content.update(updateData, {where: {id}})
+    const result = await this.models.Content.update(updateData, {where: {id}});
+    if (hasStorageObjectMetadata(updateData)) {
+      await this.syncStorageObjectForContentId(id);
+    }
+    return result;
   }
 
   async deleteContent(id) {
     return this.models.Content.destroy({where: {id}})
+  }
+
+  async getStorageObjectByStorageId(storageId) {
+    return this.models.StorageObject.findOne({where: {storageId}});
+  }
+
+  // Shared physical metadata reads prefer StorageObject, with Content fallback for pre-registry rows.
+  async getSharedStorageMetadataByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
+    if (!storageId) {
+      return null;
+    }
+    const storageObject = await this.models.StorageObject.findOne({where: {storageId}});
+    if (storageObject) {
+      return storageObject;
+    }
+    if (opts.includePreviews) {
+      const previewStorageObject = await this.models.StorageObject.findOne({
+        where: {
+          [Op.or]: [
+            {largePreviewStorageId: storageId},
+            {mediumPreviewStorageId: storageId},
+            {smallPreviewStorageId: storageId},
+          ],
+        },
+        order: [['id', 'ASC']],
+      });
+      if (previewStorageObject) {
+        return previewStorageObject;
+      }
+    }
+    return this.getSharedContentByStorageId(storageId, opts);
   }
 
   async getContentList(userId, listParams: IListParams = {}) {
@@ -226,8 +265,8 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // for shared metadata reads (public file/preview headers, MIME type, size). Multiple users may own
   // separate Content rows with the same storageId or manifestStorageId; pick the oldest by id for
   // deterministic tie-breaking so shared reads always resolve to the same metadata row across calls.
-  // When the A2 carve-out lands, this helper switches to read from the canonical contentAssets
-  // table without any caller change.
+  // New physical-object reads should prefer getSharedStorageMetadataByStorageId() so StorageObject
+  // can be the canonical source while old rows still fall back to Content.
   async getSharedContentByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
     const where = opts.includePreviews
       ? {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]}
@@ -490,8 +529,41 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
         ...userContentActionData,
         contentId: content.id
       }, {transaction});
+      await this.syncStorageObjectForContent(content, {transaction});
       return content;
     });
+  }
+
+  async syncStorageObjectForContentId(contentId, options: any = {}) {
+    const content = await this.models.Content.findOne({
+      where: {id: contentId},
+      transaction: options.transaction
+    });
+    if (!content) {
+      return null;
+    }
+    return this.syncStorageObjectForContent(content, options);
+  }
+
+  async syncStorageObjectForContent(content, options: any = {}) {
+    const storageObjectData = getStorageObjectData(content);
+    if (!storageObjectData) {
+      return null;
+    }
+    const [storageObject, created] = await this.models.StorageObject.findOrCreate({
+      where: {storageId: storageObjectData.storageId},
+      defaults: storageObjectData,
+      transaction: options.transaction
+    });
+    if (created) {
+      return storageObject;
+    }
+    const updateData = getStorageObjectUpdateData(storageObject, storageObjectData);
+    if (!Object.keys(updateData).length) {
+      return storageObject;
+    }
+    await storageObject.update(updateData, {transaction: options.transaction});
+    return storageObject;
   }
 
   async checkUserContentActionLimit(userId, limitName: UserLimitName, actionSize, transaction) {
@@ -567,4 +639,58 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     listParams.limit = Math.min(parseNonNegativeInteger(listParams.limit, defaultLimit), limitCap);
     listParams.offset = parseNonNegativeInteger(listParams.offset, defaultOffset);
   }
+}
+
+const storageObjectMetadataFields = [
+  'storageType',
+  'mimeType',
+  'extension',
+  'size',
+  'largePreviewStorageId',
+  'largePreviewSize',
+  'mediumPreviewStorageId',
+  'mediumPreviewSize',
+  'smallPreviewStorageId',
+  'smallPreviewSize',
+  'previewMimeType',
+  'previewExtension'
+];
+
+function getStorageObjectData(content) {
+  const contentData = typeof content?.toJSON === 'function' ? content.toJSON() : content;
+  if (!contentData?.storageId) {
+    return null;
+  }
+  const storageObjectData: Record<string, any> = {storageId: contentData.storageId};
+  storageObjectMetadataFields.forEach((field) => {
+    if (!isUndefined(contentData[field])) {
+      storageObjectData[field] = contentData[field];
+    }
+  });
+  return storageObjectData;
+}
+
+function hasStorageObjectMetadata(updateData) {
+  if (!updateData) {
+    return false;
+  }
+  if (!isUndefined(updateData.storageId)) {
+    return true;
+  }
+  return storageObjectMetadataFields.some(field => !isUndefined(updateData[field]));
+}
+
+function getStorageObjectUpdateData(storageObject, storageObjectData) {
+  const existingData = typeof storageObject?.toJSON === 'function' ? storageObject.toJSON() : storageObject;
+  const updateData: Record<string, any> = {};
+  storageObjectMetadataFields.forEach((field) => {
+    if (isUndefined(storageObjectData[field])) {
+      return;
+    }
+    if (existingData[field] === storageObjectData[field]) {
+      return;
+    }
+    updateData[field] = storageObjectData[field];
+  });
+  return updateData;
 }

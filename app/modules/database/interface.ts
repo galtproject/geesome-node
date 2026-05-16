@@ -36,6 +36,10 @@ export interface IGeesomeDatabaseModule {
 
   deleteContent(id): Promise<void>;
 
+  getStorageObjectByStorageId(storageId): Promise<IStorageObjectRecord>;
+
+  getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;
+
   getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
 
   getUserContentListByIds(userId, contentIds): Promise<IContent[]>;
@@ -195,6 +199,24 @@ export interface IContent {
   encryptedManifestStorageId?: string;
   propertiesJson?: string;
   toJSON?(): string;
+}
+
+export interface IStorageObjectRecord {
+  id?: number;
+  storageId: string;
+  storageType?: ContentStorageType;
+  mimeType?: ContentMimeType;
+  extension?: string;
+  size?: number;
+  largePreviewSize?: number;
+  largePreviewStorageId?: string;
+  mediumPreviewSize?: number;
+  mediumPreviewStorageId?: string;
+  smallPreviewSize?: number;
+  smallPreviewStorageId?: string;
+  previewMimeType?: ContentMimeType;
+  previewExtension?: string;
+  toJSON?(): any;
 }
 
 export interface IContentData {

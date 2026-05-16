@@ -60,7 +60,9 @@ function modelRows(): ModelRow[] {
   const contentProjectionHelperSource = read('app/modules/group/contentProjectionHelpers.ts');
   const contentSource = read('app/modules/database/models/content.ts');
   const contentModuleSource = read('app/modules/content/index.ts');
+  const storageObjectSource = read('app/modules/database/models/storageObject.ts');
   const objectSource = read('app/modules/database/models/object.ts');
+  const databaseValuesTestSource = read('test/databaseValues.test.ts');
   const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
   const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
@@ -136,6 +138,13 @@ function modelRows(): ModelRow[] {
   const hasOwnerlessContentCreateGuard = has(contentModuleSource, 'async getSharedContentByObject')
     && has(contentModuleSource, 'async getActorContentByObject')
     && has(contentModuleSource, "throw new Error('content_actor_required')");
+  const hasStorageObjectRegistry = has(storageObjectSource, 'storage_objects_storage_id_unique')
+    && has(storageObjectSource, "fields: ['storageId']")
+    && has(storageObjectSource, 'storage_objects_medium_preview_storage_idx')
+    && has(databaseModuleSource, 'syncStorageObjectForContent')
+    && has(databaseModuleSource, 'getStorageObjectByStorageId')
+    && has(databaseModuleSource, 'getSharedStorageMetadataByStorageId')
+    && has(databaseValuesTestSource, 'getSharedStorageMetadataByStorageId(storageId)');
   const hasObjectResolvePropUnique = has(objectSource, 'objects_storage_resolve_prop_unique')
     && has(objectSource, "fields: ['storageId', 'resolveProp']")
     && has(objectSource, 'unique: true');
@@ -270,11 +279,28 @@ function modelRows(): ModelRow[] {
         has(contentSource, "fields: ['mediumPreviewStorageId'") ? 'has preview lookup indexes' : 'missing preview lookup indexes for file/header serving',
         hasContentUserStorageUnique && hasDeterministicSharedContentLookup
           ? (hasOwnerlessContentCreateGuard
-            ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist'
+            ? (hasStorageObjectRegistry
+              ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor'
+              : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist')
             : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific')
           : (hasContentUserStorageUnique
           ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
           : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics'),
+      ],
+    },
+    {
+      area: 'Storage objects',
+      source: 'app/modules/database/models/storageObject.ts',
+      model: 'StorageObject',
+      indexes: [
+        has(storageObjectSource, 'storage_objects_storage_id_unique') ? 'storageId unique physical identity' : 'missing storageId unique physical identity',
+        has(storageObjectSource, 'storage_objects_medium_preview_storage_idx') ? 'preview storage lookup indexes' : 'missing preview storage lookup indexes',
+        has(storageObjectSource, 'storage_objects_updated_idx') ? 'updatedAt,id registry scan' : 'missing updatedAt,id registry scan',
+      ],
+      notes: [
+        hasStorageObjectRegistry
+          ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it and fall back to Content for old rows'
+          : 'canonical physical storage metadata remains represented only by user-owned Content rows',
       ],
     },
     {
@@ -608,6 +634,7 @@ function hotspotRows(): HotspotRow[] {
   const categorySource = read('app/modules/groupCategory/index.ts');
   const contentSource = read('app/modules/content/index.ts');
   const databaseSource = read('app/modules/database/index.ts');
+  const storageObjectModelSource = read('app/modules/database/models/storageObject.ts');
   const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const inviteSource = read('app/modules/invite/index.ts');
   const staticIdSource = read('app/modules/staticId/index.ts');
@@ -929,6 +956,11 @@ function hotspotRows(): HotspotRow[] {
   const hasOwnerlessContentCreateGuard = has(contentSource, 'async getSharedContentByObject')
     && has(contentSource, 'async getActorContentByObject')
     && has(contentSource, "throw new Error('content_actor_required')");
+  const hasStorageObjectRegistry = has(storageObjectModelSource, 'storage_objects_storage_id_unique')
+    && has(storageObjectModelSource, 'storage_objects_medium_preview_storage_idx')
+    && has(databaseSource, 'syncStorageObjectForContent')
+    && has(databaseSource, 'getStorageObjectByStorageId')
+    && has(databaseSource, 'getSharedStorageMetadataByStorageId');
   const hasPublicContentMetadataPolicy = has(contentSource, 'async getPublicContentMetadata')
     && has(contentSource, 'publicStorageMetadataFields')
     && has(contentSource, "throw createContentNotFoundError()");
@@ -1299,7 +1331,9 @@ function hotspotRows(): HotspotRow[] {
       observedPattern: hasDeterministicSharedContentLookup
         ? (hasOwnerlessContentCreateGuard
           ? (hasPublicContentMetadataPolicy
-            ? 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, and preview mode still ORs across storageId and preview storage ids'
+            ? (hasStorageObjectRegistry
+              ? 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, and shared storage/header reads prefer storageObject metadata with Content fallback'
+              : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, and preview mode still ORs across storageId and preview storage ids')
             : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, and preview mode still ORs across storageId and preview storage ids')
           : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers; preview mode still ORs across storageId and preview storage ids')
         : (has(databaseSource, 'largePreviewStorageId') ? 'OR lookup across storageId and preview storage ids' : 'review preview lookup path'),
@@ -1307,7 +1341,9 @@ function hotspotRows(): HotspotRow[] {
         ? (hasDeterministicSharedContentLookup
         ? (hasOwnerlessContentCreateGuard
           ? (hasPublicContentMetadataPolicy
-            ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, and the public metadata route no longer exposes private rows by DB id; shared reads still rely on user-library metadata until canonical asset metadata exists'
+            ? (hasStorageObjectRegistry
+              ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, and shared serving now prefers canonical physical metadata while preserving old-row fallback'
+              : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, and the public metadata route no longer exposes private rows by DB id; shared reads still rely on user-library metadata until canonical asset metadata exists')
             : 'shared reads are stable across duplicate user-owned rows and no longer create new ownerless library rows, but they still read user-library metadata until canonical asset metadata exists')
           : 'shared reads are stable across duplicate user-owned rows, but they still read user-library metadata until canonical asset metadata exists')
         : 'preview columns are indexed, but public/header serving still reads across user-owned rows instead of canonical asset metadata')

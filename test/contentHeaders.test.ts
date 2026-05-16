@@ -36,7 +36,7 @@ describe("content headers", function () {
 					setDefaultHeaders: () => null
 				},
 				database: {
-					getSharedContentByStorageId: async () => ({
+					getSharedStorageMetadataByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: ContentMimeType.Text,
 						size: contentSize
@@ -102,7 +102,7 @@ describe("content headers", function () {
 			ms: {
 				api: getApiStub(),
 				database: {
-					getSharedContentByStorageId: async () => ({
+					getSharedStorageMetadataByStorageId: async () => ({
 						id: 7,
 						userId: 12,
 						name: "private-name.txt",
@@ -183,7 +183,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getSharedContentByStorageId: async () => ({
+					getSharedStorageMetadataByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: ContentMimeType.Text,
 						size: contentSize
@@ -237,7 +237,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getSharedContentByStorageId: async () => null
+					getSharedStorageMetadataByStorageId: async () => null
 				},
 				storage: {
 					getFileStat: async () => null,
@@ -282,7 +282,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getSharedContentByStorageId: async () => ({
+					getSharedStorageMetadataByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: "video/mp4",
 						size: 5
@@ -336,7 +336,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getSharedContentByStorageId: async () => ({
+					getSharedStorageMetadataByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: ContentMimeType.Text,
 						size: contentSize
@@ -389,7 +389,7 @@ describe("content headers", function () {
 					setStorageHeaders: () => null
 				},
 				database: {
-					getSharedContentByStorageId: async () => ({
+					getSharedStorageMetadataByStorageId: async () => ({
 						storageId: "file.txt",
 						mimeType: "video/mp4",
 						size: contentSize

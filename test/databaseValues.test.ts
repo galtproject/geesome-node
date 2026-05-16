@@ -89,6 +89,7 @@ describe("databaseValues", function () {
 			mimeType: ContentMimeType.Text,
 			storageId,
 			manifestStorageId,
+			size: 11,
 			name: 'first shared row'
 		});
 		const secondContent = await database.addContent({
@@ -97,6 +98,7 @@ describe("databaseValues", function () {
 			mimeType: ContentMimeType.Text,
 			storageId,
 			manifestStorageId,
+			size: 11,
 			name: 'second shared row'
 		});
 
@@ -107,6 +109,32 @@ describe("databaseValues", function () {
 		assert.strictEqual(
 			(await database.getContentByManifestAndUserId(manifestStorageId, secondUser.id)).id,
 			secondContent.id
+		);
+
+		const storageObject = await database.getStorageObjectByStorageId(storageId);
+		assert.strictEqual(storageObject.storageId, storageId);
+		assert.strictEqual(storageObject.mimeType, ContentMimeType.Text);
+		assert.strictEqual(Number(storageObject.size), 11);
+		assert.strictEqual((await database.getSharedStorageMetadataByStorageId(storageId)).storageId, storageId);
+		assert.strictEqual(
+			await (database as any).models.StorageObject.count({where: {storageId}}),
+			1
+		);
+
+		await database.updateContent(firstContent.id, {
+			mediumPreviewStorageId: 'shared-content-preview-storage',
+			mediumPreviewSize: 7,
+			previewMimeType: ContentMimeType.ImagePng,
+			previewExtension: 'png'
+		});
+
+		const updatedStorageObject = await database.getStorageObjectByStorageId(storageId);
+		assert.strictEqual(updatedStorageObject.mediumPreviewStorageId, 'shared-content-preview-storage');
+		assert.strictEqual(Number(updatedStorageObject.mediumPreviewSize), 7);
+		assert.strictEqual(updatedStorageObject.previewMimeType, ContentMimeType.ImagePng);
+		assert.strictEqual(
+			(await database.getSharedStorageMetadataByStorageId('shared-content-preview-storage', {includePreviews: true})).storageId,
+			storageId
 		);
 	});
 });
