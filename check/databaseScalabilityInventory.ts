@@ -649,6 +649,7 @@ function hotspotRows(): HotspotRow[] {
   const categorySource = read('app/modules/groupCategory/index.ts');
   const contentSource = read('app/modules/content/index.ts');
   const databaseSource = read('app/modules/database/index.ts');
+  const storageReferenceHelpersSource = read('app/modules/database/storageReferenceHelpers.ts');
   const storageObjectModelSource = read('app/modules/database/models/storageObject.ts');
   const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const inviteSource = read('app/modules/invite/index.ts');
@@ -709,9 +710,10 @@ function hotspotRows(): HotspotRow[] {
     && has(fileCatalogSource, 'contentRefs.pinnedContents === 0')
     && has(pinSource, 'isPinned: true')
     && hasStorageObjectPinState;
-  const hasDerivedStorageDeleteGuard = has(databaseSource, 'derivedStorageReferenceSources')
-    && has(databaseSource, 'countDerivedStorageIdReferences')
-    && has(databaseSource, 'StaticSite')
+  const hasDerivedStorageDeleteGuard = has(storageReferenceHelpersSource, 'derivedStorageReferenceSources')
+    && has(storageReferenceHelpersSource, 'countDerivedStorageIdReferences')
+    && has(storageReferenceHelpersSource, 'StaticSite')
+    && has(databaseSource, 'countDerivedStorageIdReferences(this.models, this.sequelize, storageId)')
     && has(fileCatalogSource, 'storageRefs.derivedStorageRefs === 0');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
