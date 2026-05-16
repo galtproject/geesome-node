@@ -61,6 +61,8 @@ function modelRows(): ModelRow[] {
   const contentSource = read('app/modules/database/models/content.ts');
   const contentModuleSource = read('app/modules/content/index.ts');
   const storageObjectSource = read('app/modules/database/models/storageObject.ts');
+  const storageObjectIntegritySource = read('check/databaseStorageObjectsIntegrity.ts');
+  const migrationRehearsalSource = read('bash/database-migration-rehearsal');
   const objectSource = read('app/modules/database/models/object.ts');
   const databaseValuesTestSource = read('test/databaseValues.test.ts');
   const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
@@ -150,6 +152,10 @@ function modelRows(): ModelRow[] {
     && has(databaseModuleSource, 'pinnedStorageObjects')
     && has(fileCatalogSource, 'storageRefs.pinnedStorageObjects === 0')
     && has(pinIndexSource, 'markStorageObjectPinnedByContent');
+  const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
+    && has(storageObjectIntegritySource, 'repairStorageObjects')
+    && has(storageObjectIntegritySource, 'CONFIRM_STORAGE_OBJECT_REPAIR')
+    && has(migrationRehearsalSource, 'database:storage-objects-integrity -- --repair');
   const hasObjectResolvePropUnique = has(objectSource, 'objects_storage_resolve_prop_unique')
     && has(objectSource, "fields: ['storageId', 'resolveProp']")
     && has(objectSource, 'unique: true');
@@ -305,7 +311,9 @@ function modelRows(): ModelRow[] {
       notes: [
         hasStorageObjectRegistry
           ? (hasStorageObjectPinState
-            ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback'
+            ? (hasStorageObjectReconciliation
+              ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, delete safety checks the canonical pin bit with Content fallback, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+              : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback')
             : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it and fall back to Content for old rows')
           : 'canonical physical storage metadata remains represented only by user-owned Content rows',
       ],

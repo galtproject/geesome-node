@@ -7,7 +7,8 @@ Usage:
   CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> bash/database-migration-rehearsal
 
 Runs the production migration chain against a restored Postgres backup, syncs
-model-created tables, and then runs the migration integrity audit.
+model-created tables, reconciles canonical storage objects, and then runs the
+migration integrity audit.
 
 Safety:
   - Refuses to run unless CONFIRM_RESTORED_BACKUP=1.
@@ -50,4 +51,5 @@ echo
 
 npm run migrate-all-database
 npm run database:sync-models
+CONFIRM_STORAGE_OBJECT_REPAIR=1 npm run database:storage-objects-integrity -- --repair
 npm run database:migration-integrity
