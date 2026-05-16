@@ -54,6 +54,9 @@ export default async function (sequelize, models) {
   } as any, {
     indexes: [
       { name: 'storage_objects_storage_id_unique', fields: ['storageId'], unique: true },
+      { name: 'storage_objects_large_preview_storage_idx', fields: ['largePreviewStorageId'] },
+      { name: 'storage_objects_medium_preview_storage_idx', fields: ['mediumPreviewStorageId'] },
+      { name: 'storage_objects_small_preview_storage_idx', fields: ['smallPreviewStorageId'] },
       { name: 'storage_objects_updated_idx', fields: ['updatedAt', 'id'] }
     ]
   } as any);

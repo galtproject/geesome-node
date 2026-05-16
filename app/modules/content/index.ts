@@ -196,7 +196,7 @@ function getModule(app: IGeesomeApp) {
 				return pickPublicContentMetadata(content);
 			}
 
-			const content = await app.ms.database.getSharedContentByStorageId(contentId, {includePreviews: true});
+			const content = await app.ms.database.getSharedStorageMetadataByStorageId(contentId, {includePreviews: true});
 			if (!content) {
 				throw createContentNotFoundError();
 			}
@@ -1005,13 +1005,12 @@ function getModule(app: IGeesomeApp) {
 			let range = req.headers['range'];
 			if (!range) {
 				let storageId = dataPath;
-				// Shared-metadata read (A1): deterministic tie-break across same-storageId rows
-				// owned by different users. Public serving must not depend on which user's row was
-				// inserted first into the heap.
-				let content = await app.ms.database.getSharedContentByStorageId(storageId, {includePreviews: true});
+				// Shared metadata reads prefer canonical storage-object rows, with deterministic
+				// Content fallback for old data that has not been backfilled yet.
+				let content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
 				if (!content && dataPath.split('/').length > 1) {
 					storageId = dataPath.split('/')[0];
-					content = await app.ms.database.getSharedContentByStorageId(storageId, {includePreviews: true});
+					content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
 				}
 				console.log('content', content ? content.toJSON() : content);
 				if (!content) {
@@ -1038,7 +1037,7 @@ function getModule(app: IGeesomeApp) {
 				if (!fileStat) {
 					return res.send(404);
 				}
-				content = await app.ms.database.getSharedContentByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
+				content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
 				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false);
 				console.log('headers', headers);
 				res.writeHead(200, headers);
@@ -1047,8 +1046,8 @@ function getModule(app: IGeesomeApp) {
 				});
 			}
 
-			console.log('getSharedContentByStorageId', dataPath);
-			const content = await app.ms.database.getSharedContentByStorageId(dataPath, {includePreviews: true});
+			console.log('getSharedStorageMetadataByStorageId', dataPath);
+			const content = await app.ms.database.getSharedStorageMetadataByStorageId(dataPath, {includePreviews: true});
 			if (content && content.mimeType === ContentMimeType.Directory) {
 				// console.log('content.mimeType', dataPath, content.mimeType);
 				dataPath += '/index.html';
@@ -1114,7 +1113,7 @@ function getModule(app: IGeesomeApp) {
 			app.ms.api.setDefaultHeaders(res);
 			const dataPath = await this.getDataPath(hash);
 			// A1 shared-metadata read for public HEAD requests.
-			const content = await app.ms.database.getSharedContentByStorageId(dataPath, {includePreviews: true});
+			const content = await app.ms.database.getSharedStorageMetadataByStorageId(dataPath, {includePreviews: true});
 			let headersObj = {};
 			if (content) {
 				headersObj = await this.getIpfsHashHeadersObj(content, dataPath, null, true);

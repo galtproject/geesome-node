@@ -46,7 +46,7 @@ Near-term backlog:
 
 Later protocol work:
 
-1. Move shared serving headers/previews, pin/refcount state, and ownerless/federated object identity onto the new canonical `StorageObject` registry once restored-data coverage proves the registry is complete enough.
+1. Keep public shared serving/header metadata on the canonical `StorageObject` helper with deterministic `Content` fallback for old rows, then move pin/refcount state and ownerless/federated object identity onto the same registry once restored-data coverage proves the registry is complete enough.
 2. Consider HAMT/ADL maps for unordered canonical object indexes after the relational storage-object registry becomes the stable local source of truth.
 3. Consider an ordered Merkle/prolly-tree-style post index only if range proofs, multi-writer merge, or very large page directories become real requirements.
 4. Consider CARv2 export bundles for whole-group backup/restore and migration rehearsal artifacts.

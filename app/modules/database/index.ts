@@ -216,6 +216,33 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.models.StorageObject.findOne({where: {storageId}});
   }
 
+  // Shared physical metadata reads prefer StorageObject, with Content fallback for pre-registry rows.
+  async getSharedStorageMetadataByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
+    if (!storageId) {
+      return null;
+    }
+    const storageObject = await this.models.StorageObject.findOne({where: {storageId}});
+    if (storageObject) {
+      return storageObject;
+    }
+    if (opts.includePreviews) {
+      const previewStorageObject = await this.models.StorageObject.findOne({
+        where: {
+          [Op.or]: [
+            {largePreviewStorageId: storageId},
+            {mediumPreviewStorageId: storageId},
+            {smallPreviewStorageId: storageId},
+          ],
+        },
+        order: [['id', 'ASC']],
+      });
+      if (previewStorageObject) {
+        return previewStorageObject;
+      }
+    }
+    return this.getSharedContentByStorageId(storageId, opts);
+  }
+
   async getContentList(userId, listParams: IListParams = {}) {
     const {limit, offset} = listParams;
     return this.models.Content.findAll({
@@ -238,8 +265,8 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // for shared metadata reads (public file/preview headers, MIME type, size). Multiple users may own
   // separate Content rows with the same storageId or manifestStorageId; pick the oldest by id for
   // deterministic tie-breaking so shared reads always resolve to the same metadata row across calls.
-  // When the A2 carve-out lands, this helper switches to read from the canonical contentAssets
-  // table without any caller change.
+  // New physical-object reads should prefer getSharedStorageMetadataByStorageId() so StorageObject
+  // can be the canonical source while old rows still fall back to Content.
   async getSharedContentByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
     const where = opts.includePreviews
       ? {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]}

@@ -38,6 +38,8 @@ export interface IGeesomeDatabaseModule {
 
   getStorageObjectByStorageId(storageId): Promise<IStorageObjectRecord>;
 
+  getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;
+
   getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
 
   getUserContentListByIds(userId, contentIds): Promise<IContent[]>;

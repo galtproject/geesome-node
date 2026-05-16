@@ -115,6 +115,7 @@ describe("databaseValues", function () {
 		assert.strictEqual(storageObject.storageId, storageId);
 		assert.strictEqual(storageObject.mimeType, ContentMimeType.Text);
 		assert.strictEqual(Number(storageObject.size), 11);
+		assert.strictEqual((await database.getSharedStorageMetadataByStorageId(storageId)).storageId, storageId);
 		assert.strictEqual(
 			await (database as any).models.StorageObject.count({where: {storageId}}),
 			1
@@ -131,5 +132,9 @@ describe("databaseValues", function () {
 		assert.strictEqual(updatedStorageObject.mediumPreviewStorageId, 'shared-content-preview-storage');
 		assert.strictEqual(Number(updatedStorageObject.mediumPreviewSize), 7);
 		assert.strictEqual(updatedStorageObject.previewMimeType, ContentMimeType.ImagePng);
+		assert.strictEqual(
+			(await database.getSharedStorageMetadataByStorageId('shared-content-preview-storage', {includePreviews: true})).storageId,
+			storageId
+		);
 	});
 });
