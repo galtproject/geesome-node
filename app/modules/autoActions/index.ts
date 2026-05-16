@@ -105,7 +105,11 @@ function getModule(app: IGeesomeApp, models) {
 
 		async addSerialAutoActions(userId, autoActions) {
 			const resAutoActions = reverse(await pIteration.map(autoActions, (a) => this.addAutoAction(userId, a)));
-			log('resAutoActions', resAutoActions.map(a => ({id: a.id, moduleName: a.moduleName, executeOn: a.executeOn})));
+			helpers.logDebug(log, () => ['resAutoActions', helpers.mapForLog(resAutoActions, (a) => ({
+				id: a?.id,
+				moduleName: a?.moduleName,
+				executeOn: a?.executeOn
+			}))]);
 
 			let nextAction;
 			await pIteration.forEachSeries(resAutoActions, async (a) => {
@@ -218,7 +222,7 @@ function getModule(app: IGeesomeApp, models) {
 				[a => a.nextActionsPivot.position],
 				['asc']
 			);
-			log('getNextActionsById', id, 'nextActions.length', nextActions.length);
+			helpers.logDebug(log, () => ['getNextActionsById', id, 'nextActions.length', nextActions?.length]);
 			return nextActions.map(a => {
 				if (a.userId !== userId) {
 					throw new Error("userId_dont_match");

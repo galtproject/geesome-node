@@ -6,6 +6,7 @@ import {ContentView} from "../database/interface.js";
 import IGeesomeTwitterClient from "./interface.js";
 import {IPost} from "../group/interface.js";
 import helpers from './helpers.js';
+import appHelpers from '../../helpers.js';
 const {getReplyToId, getRetweetId, clearMessageFromMediaMessages} = helpers;
 const log = debug('geesome:app:twitterClient');
 
@@ -87,7 +88,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		if (this.messages.tweetsById[refReply.id]) {
-			log('getReplyMessage', JSON.stringify(this.messages.tweetsById[refReply.id]));
+			appHelpers.logDebug(log, () => ['getReplyMessage', this.messages?.tweetsById?.[refReply.id]]);
 			return this.messages.tweetsById[refReply.id];
 		}
 		return null;
@@ -98,7 +99,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		if (this.messages.tweetsById[retweetRef.id]) {
-			log('getRepostMessage', JSON.stringify(this.messages.tweetsById[retweetRef.id]));
+			appHelpers.logDebug(log, () => ['getRepostMessage', this.messages?.tweetsById?.[retweetRef.id]]);
 			return this.messages.tweetsById[retweetRef.id];
 		}
 		return null;

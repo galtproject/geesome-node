@@ -260,8 +260,7 @@ function getModule(app: IGeesomeApp) {
 				offset += limit;
 			} while (userContents.length === limit);
 
-			log('previousIpldToNewIpld', previousIpldToNewIpld);
-			log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
+			helpers.logDebug(log, () => ['previousIpldToNewIpld', previousIpldToNewIpld]);
 		}
 
 		async getPreview(storageFile: IStorageFile, extension, fullType, source?) {
@@ -1012,7 +1011,7 @@ function getModule(app: IGeesomeApp) {
 					storageId = dataPath.split('/')[0];
 					content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
 				}
-				log('content', content ? content.toJSON() : content);
+				helpers.logDebug(log, () => ['content', helpers.toLogValue(content)]);
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 					if (!storageIdAllowed) {

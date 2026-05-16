@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import debug from 'debug';
 import {IMessagesState, ITimelineMessagesState} from "./interface.js";
+import appHelpers from '../../helpers.js';
 const {orderBy, startsWith, maxBy} = _;
 const log = debug('geesome:app:twitterClient');
 const FETCH_LIMIT = 100;
@@ -98,7 +99,7 @@ const helpers = {
 			setRelations(item);
 			tweetsById[item.id] = item;
 			messagesState.listIds.push(item.id);
-			log('parseTweetsList item', JSON.stringify(item));
+			appHelpers.logDebug(log, () => ['parseTweetsList item', item]);
 			const match = (/^(RT \@\w+)/.exec(item.text) || [])[0];
 			log('match', match);
 			if (!match || !match.length) {

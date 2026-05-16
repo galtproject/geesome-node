@@ -18,6 +18,7 @@ import {TwitterImportClient} from "./importClient.js";
 import {ContentView} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import twitterHelpers from './helpers.js';
+import helpers from '../../helpers.js';
 const {uniq, map} = _;
 const log = debug('geesome:app:twitterClient');
 const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = twitterHelpers;
@@ -154,9 +155,11 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 					} else {
 						timeline = await v2.userTimeline(username, options);
 					}
-					// log('timeline._realData.data', timeline._realData.data.map(d => JSON.stringify(d)));
-					log('timeline._realData.errors', timeline._realData.errors.map(e => JSON.stringify(e)));
-					log('timeline._realData.includes.media', JSON.stringify(timeline._realData.includes.media));
+					helpers.logDebug(log, () => [
+						'timeline._realData.errors',
+						helpers.mapForLog(timeline?._realData?.errors, (e) => e)
+					]);
+					helpers.logDebug(log, () => ['timeline._realData.includes.media', timeline?._realData?.includes?.media]);
 
 					limitItems = await handleTwitterLimits(timeline, limitItems);
 					let messagesState = parseTweetsData(timeline);
@@ -198,7 +201,7 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 
 		async handleTweetIdsToFetch(client, messagesState) {
 			while (messagesState.tweetIdsToFetch.length) {
-				log('messagesState.tweetIdsToFetch.length', messagesState.tweetIdsToFetch.length);
+				helpers.logDebug(log, () => ['messagesState.tweetIdsToFetch.length', messagesState?.tweetIdsToFetch?.length]);
 				const tweets = await client.v2.readOnly.tweets(messagesState.tweetIdsToFetch, getTweetsParams(null));
 				log('tweets', tweets);
 				messagesState = parseTweetsData(tweets, messagesState);

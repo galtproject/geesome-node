@@ -12,6 +12,7 @@ import debug from 'debug';
 import {Op, Transaction} from "sequelize";
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
+import helpers from "../../helpers.js";
 import IGeesomeSocNetImport, {IGeesomeSocNetImportClient} from "./interface.js";
 import {IContent} from "../database/interface.js";
 import {GroupType} from "../group/interface.js";
@@ -128,9 +129,9 @@ function getModule(app: IGeesomeApp, models) {
 			let dbChannel = await this.getDbChannel(userId, {channelId});
 			let group;
 
-			log('importChannelMetadata', channelMetadata, updateData, JSON.stringify(dbChannel));
+			helpers.logDebug(log, () => ['importChannelMetadata', channelMetadata, updateData, helpers.toLogValue(dbChannel)]);
 			group = dbChannel ? await app.ms.group.getLocalGroup(userId, dbChannel.groupId) : null;
-			log('group', JSON.stringify(group));
+			helpers.logDebug(log, () => ['group', helpers.toLogValue(group)]);
 			if (group && !group.isDeleted) {
 				if (!group.isCollateral) {
 					delete updateData['isCollateral'];
@@ -221,7 +222,7 @@ function getModule(app: IGeesomeApp, models) {
 			const force = !!client.advancedSettings['force'];
 			const isNeedToReverse = !!client.advancedSettings['isReversedList'];
 			const importState = { mergeSeconds, force, isNeedToReverse };
-			log('client.messages.list.length', client.messages.list.length);
+			helpers.logDebug(log, () => ['client.messages.list.length', client.messages?.list?.length]);
 			await pIteration.forEachSeries(client.messages.list, (m) => {
 				return this.publishPostAndRelated(client, m, importState).catch(e => {
 					console.error('publishPostAndRelated error', e);
@@ -238,7 +239,7 @@ function getModule(app: IGeesomeApp, models) {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			const {userId, socNet} = _client;
-			log('\n\npublishPostAndRelated m', JSON.stringify(_m));
+			helpers.logDebug(log, () => ['publishPostAndRelated m', _m]);
 			const dbChannels = {
 				'repost': await _client.getRemotePostDbChannel(_m, 'repost'),
 				'reply': await _client.getRemotePostDbChannel(_m, 'reply'),
@@ -253,7 +254,7 @@ function getModule(app: IGeesomeApp, models) {
 			await pIteration.forEachSeries(['repost', 'reply', 'post'], async (type) => {
 				const dbChannel = dbChannels[type];
 				const m = type === 'post' ? _m : relMessages[type];
-				log('\n\n', m ? m.id : null, 'type:', type, 'dbChannel:', JSON.stringify(dbChannel))
+				helpers.logDebug(log, () => ['publishPostAndRelated relation', m?.id || null, 'type:', type, 'dbChannel:', helpers.toLogValue(dbChannel)]);
 				if (!dbChannel || !m) {
 					return _client.onRemotePostProcess ? await _client.onRemotePostProcess(m, dbChannel, null, type) : null;
 				}
@@ -287,7 +288,7 @@ function getModule(app: IGeesomeApp, models) {
 				} else if (type === 'repost') {
 					repostOf = post;
 				}
-				log('❗️message', type, m.id, '=> post', post ? post.id : null);
+				helpers.logDebug(log, () => ['message', type, m?.id || null, '=> post', post?.id || null]);
 				return _client.onRemotePostProcess ? await _client.onRemotePostProcess(m, dbChannel, post, type) : null;
 			});
 		}
@@ -297,10 +298,9 @@ function getModule(app: IGeesomeApp, models) {
 			const {force} = importState;
 
 			const existsChannelMessage = await this.findExistsChannelMessage(m.id, dbChannel.id, userId);
-			log('existsChannelMessage:', existsChannelMessage ? JSON.stringify(existsChannelMessage) : null)
+			helpers.logDebug(log, () => ['existsChannelMessage:', helpers.toLogValue(existsChannelMessage)]);
 			if (existsChannelMessage && !force) {
 				const post = await app.ms.group.getPost(userId, existsChannelMessage.postId);
-				// log('post:', JSON.stringify(post));
 				client.onRemotePostProcess ? await client.onRemotePostProcess(m, post, type) : null;
 				return post;
 			}
@@ -370,15 +370,44 @@ function getModule(app: IGeesomeApp, models) {
 					const lastMsg: any = last(orderBy(messagesByTimestamp.concat(_msgData), ['timestamp'], ['desc']));
 					orderBy(messagesByTimestamp.concat(_msgData), ['timestamp'], ['desc']).some((m: any, i) => {
 						const sameReply = m.replyToMsgId == lastMsg.replyToMsgId || messagesToMerge.some(m => m.msgId === lastMsg.replyToMsgId);
-						log('sameReply', sameReply, 'm.msgId', m.msgId, 'm.replyToMsgId', m.replyToMsgId, 'lastMsg.replyToMsgId', lastMsg.replyToMsgId, 'messagesToMerge.filter', messagesToMerge.filter(m => m.msgId === lastMsg.replyToMsgId));
+						helpers.logDebug(log, () => [
+							'sameReply',
+							sameReply,
+							'm.msgId',
+							m?.msgId,
+							'm.replyToMsgId',
+							m?.replyToMsgId,
+							'lastMsg.replyToMsgId',
+							lastMsg?.replyToMsgId,
+							'messagesToMerge.filter',
+							helpers.mapForLog(messagesToMerge.filter(m => m.msgId === lastMsg.replyToMsgId), (m) => m?.msgId)
+						]);
 						const sameRepost = m.repostOfMsgId == lastMsg.repostOfMsgId || m.repostOfDbChannelId == lastMsg.repostOfDbChannelId;
-						log('sameRepost', sameRepost, 'm.repostOfMsgId', m.repostOfMsgId, 'lastMsg.repostOfMsgId', lastMsg.repostOfMsgId, 'm.repostOfDbChannelId', lastMsg.repostOfDbChannelId);
+						helpers.logDebug(log, () => [
+							'sameRepost',
+							sameRepost,
+							'm.repostOfMsgId',
+							m?.repostOfMsgId,
+							'lastMsg.repostOfMsgId',
+							lastMsg?.repostOfMsgId,
+							'm.repostOfDbChannelId',
+							lastMsg?.repostOfDbChannelId
+						]);
 						if (sameReply && sameRepost) {
 							messagesToMerge.push(m);
 						}
 						return !(sameReply && sameRepost);
 					});
-					log('_msgData.timestamp', _msgData.timestamp, 'messagesByTimestamp', messagesByTimestamp.map(m => pick(m, ['msgId', 'timestamp'])), 'messagesToMerge', reverse(messagesToMerge).map(m => m.msgId), '_msgId', _msgData.msgId);
+					helpers.logDebug(log, () => [
+						'_msgData.timestamp',
+						_msgData.timestamp,
+						'messagesByTimestamp',
+						helpers.mapForLog(messagesByTimestamp, (m) => pick(m, ['msgId', 'timestamp'])),
+						'messagesToMerge',
+						helpers.mapForLog(reverse(messagesToMerge), (m) => m?.msgId),
+						'_msgId',
+						_msgData.msgId
+					]);
 					existsPostId = await this.mergePostsToOne(_importState, existsPostId, reverse(messagesToMerge), _postData);
 				}
 			} else if (_msgData.groupedId) {
@@ -440,10 +469,11 @@ function getModule(app: IGeesomeApp, models) {
 
 			posts.forEach(({contents}) => _postData.contents = (_postData.contents || []).concat(contents));
 			await this.setContentsByMessagesContents(_postData, dbChannelId);
-			log('_postData.contents', _postData.contents.map(c => c.id));
+			helpers.logDebug(log, () => ['_postData.contents', helpers.mapForLog(_postData.contents, (c) => c?.id)]);
 
-			log('deletePosts', posts.map(p => p.id).filter(id => id !== resultPost.id));
-			await app.ms.group.deletePosts(userId, posts.map(p => p.id).filter(id => id !== resultPost.id));
+			const deletePostIds = posts.map(p => p.id).filter(id => id !== resultPost.id);
+			log('deletePosts', deletePostIds);
+			await app.ms.group.deletePosts(userId, deletePostIds);
 
 			return resultPost.id;
 		}
@@ -451,16 +481,23 @@ function getModule(app: IGeesomeApp, models) {
 		async setContentsByMessagesContents(_postData, _dbChannelId) {
 			let {contents} = _postData;
 			contents = uniqBy(contents, (c: IContent) => c.manifestStorageId);
-			log('where', {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}});
-			log('ContentMessage', await models.ContentMessage.findAll({}).then(list => list.map(cm => cm.toJSON())));
+			const contentIds = contents.map(c => c.id);
+			helpers.logDebug(log, () => ['where', {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contentIds}}]);
+			await helpers.logDebugAsync(log, async () => [
+				'ContentMessage',
+				helpers.mapForLog(await models.ContentMessage.findAll({}), (cm) => helpers.toLogValue(cm))
+			]);
 			const messageContents = await models.ContentMessage.findAll({
-				where: {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contents.map(c => c.id)}}
+				where: {dbChannelId: _dbChannelId, dbContentId: {[Op.in]: contentIds}}
 			});
-			log('setContentsByMessagesContents contents.map(c => c.id)', contents.map(c => c.id));
-			log('setContentsByMessagesContents messageContents.map(c => c.dbContentId)', messageContents.map(c => ({
-				mId: c.msgId,
-				cId: c.dbContentId
-			})));
+			helpers.logDebug(log, () => ['setContentsByMessagesContents contents.map(c => c.id)', contentIds]);
+			helpers.logDebug(log, () => [
+				'setContentsByMessagesContents messageContents.map(c => c.dbContentId)',
+				helpers.mapForLog(messageContents, (c) => ({
+					mId: c?.msgId,
+					cId: c?.dbContentId
+				}))
+			]);
 			_postData.contents = orderBy(contents, [(c) => {
 				const mc = find(messageContents, {dbContentId: c.id});
 				return mc.msgId * mc.updatedAt.getTime();
@@ -473,7 +510,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		storeMessage(existsChannelMessage, _messageData) {
-			log('storeMessage', JSON.stringify(_messageData));
+			helpers.logDebug(log, () => ['storeMessage', _messageData]);
 			if (existsChannelMessage && existsChannelMessage.msgId === _messageData.msgId) {
 				return models.Message.update(_messageData, {where: {id: existsChannelMessage.id}});
 			} else {
@@ -540,7 +577,7 @@ function getModule(app: IGeesomeApp, models) {
 			log('dbChannelsToReverse', dbChannelId);
 			const dbChannel = await this.getDbChannel(userId, {id: dbChannelId});
 			const startReverseMessage = await this.getDbChannelStartReverseMessage(dbChannelId);
-			log('startReverseMessage', startReverseMessage ? JSON.stringify(startReverseMessage) : null);
+			helpers.logDebug(log, () => ['startReverseMessage', helpers.toLogValue(startReverseMessage)]);
 			if (!startReverseMessage) {
 				return;
 			}
@@ -598,11 +635,11 @@ function getModule(app: IGeesomeApp, models) {
 					{...reverseBatchOptions, transaction},
 					({postRefs}) => this.reversePostLocalIdBatch(postRefs, reverseState)
 				);
-				log('postsToReverse.length', reverseState.reversedCount);
+				helpers.logDebug(log, () => ['postsToReverse.length', reverseState?.reversedCount]);
 				if (reverseState.reversedCount < 2) {
 					return;
 				}
-				log('firstPostId', reverseState.minPostId, 'lastPostId', reverseState.maxPostId);
+				helpers.logDebug(log, () => ['firstPostId', reverseState?.minPostId, 'lastPostId', reverseState?.maxPostId]);
 				return models.Message.update({isNeedToReverse: false}, {
 					where: {dbChannelId, isNeedToReverse: true, postId: {[Op.gte]: reverseState.minPostId, [Op.lte]: reverseState.maxPostId}},
 					transaction

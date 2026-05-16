@@ -20,6 +20,7 @@ import {TelegramImportClient} from "./importClient.js";
 import IGeesomeTelegramClient from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import telegramHelpers from './helpers.js';
+import appHelpers from '../../helpers.js';
 const {pick} = _;
 const log = debug('geesome:app:telegramClient');
 
@@ -86,7 +87,6 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 				} catch (e) {
 					console.warn('handleAuthorized createOrUpdateAccount', e);
 				}
-				// log('getUserChannelsByUserId', await this.getUserChannelsByUserId(acc.userId, {sessionKey: client.session.save(), id: acc.id}).then(r => r.result.length));
 				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			}
 
@@ -349,7 +349,10 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 			while (resultCount >= limit) {
 				const result = await client.invoke(new Api.messages.GetDialogs({ offsetId, offsetPeer, offsetDate, limit }) as any);
 				resultCount = result.dialogs.length;
-				log('result.chats', JSON.stringify((result.chats || []).map(c => c.title), null, ' '));
+				appHelpers.logDebug(log, () => [
+					'result.chats',
+					appHelpers.mapForLog(result?.chats, (chat) => chat?.title)
+				]);
 				if (result.chats && result.chats.length > 0) {
 					chats = [...chats, ...result.chats];
 				}
@@ -473,7 +476,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 					const startPost = currentMessageId + 1;
 					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
 					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
-					log('messages.authorById', JSON.stringify(messages.authorById), 'messages.list', JSON.stringify(messages.list));
+					appHelpers.logDebug(log, () => ['messages.authorById', messages?.authorById, 'messages.list', messages?.list]);
 
 					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, dbChannel, post, type) => {
 						if (type !== 'post' || !m) {
