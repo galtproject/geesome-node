@@ -34,8 +34,6 @@ const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
 const groupDerivedStateJobMaxAttempts = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_JOB_MAX_ATTEMPTS, 3);
-const groupDerivedStateAsyncEnabled = helpers.parseBoolean(process.env.GROUP_DERIVED_STATE_ASYNC, false);
-const groupDerivedStateWorkerEnabled = helpers.parseBoolean(process.env.GROUP_DERIVED_STATE_WORKER, groupDerivedStateAsyncEnabled);
 const groupDerivedStateWorkerIntervalMs = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_WORKER_INTERVAL_MS, 30000);
 const groupDerivedStateWorkerBatchLimit = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_WORKER_BATCH_LIMIT, 10);
 const groupDerivedStateKickBatchLimit = helpers.parsePositiveInteger(process.env.GROUP_DERIVED_STATE_KICK_BATCH_LIMIT, 1);
@@ -82,7 +80,14 @@ function shouldUseAsyncDerivedState(options: any = {}) {
 	if (options.asyncDerivedState !== undefined) {
 		return options.asyncDerivedState === true;
 	}
-	return groupDerivedStateAsyncEnabled;
+	return helpers.parseBoolean(process.env.GROUP_DERIVED_STATE_ASYNC, true);
+}
+
+function shouldRunDerivedStateWorker() {
+	return helpers.parseBoolean(
+		process.env.GROUP_DERIVED_STATE_WORKER,
+		shouldUseAsyncDerivedState()
+	);
 }
 
 function getGroupDerivedStateJobAttempts(job) {
@@ -547,7 +552,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		startDerivedStateQueueWorker() {
-			if (!groupDerivedStateWorkerEnabled) {
+			if (!shouldRunDerivedStateWorker()) {
 				return;
 			}
 			if (derivedStateQueueWorkerTimer) {

@@ -1509,6 +1509,59 @@ describe("group", function () {
 		assert.equal(output.groupManifest.ok, true);
 	});
 
+	it('queues post manifest derived state by default when the env opt-out is absent', async () => {
+		const previousAsyncEnv = process.env.GROUP_DERIVED_STATE_ASYNC;
+		const originalQueuePostManifestUpdate = app.ms.group.queuePostManifestUpdate;
+		let queuedId = null;
+
+		delete process.env.GROUP_DERIVED_STATE_ASYNC;
+		(app.ms.group as any).queuePostManifestUpdate = async (userId, postId, options: any = {}) => {
+			const queue = await originalQueuePostManifestUpdate.call(app.ms.group, userId, postId, {
+				...options,
+				process: false
+			});
+			queuedId = queue.id;
+			return queue;
+		};
+
+		try {
+			const testUser = (await app.ms.database.getAllUserList('user'))[0];
+			const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+			const content = await app.ms.content.saveData(testUser.id, 'default queued derived-state content', null, {
+				mimeType: 'text/markdown'
+			});
+			const post = await app.ms.group.createPost(testUser.id, {
+				contents: [{id: content.id, view: ContentView.Contents}],
+				groupId: testGroup.id,
+				status: PostStatus.Published
+			});
+			const queuedPost = await app.ms.group.getPostPure(post.id);
+			const waitingBefore = await app.ms.asyncOperation.getWaitingOperationQueueListByModule(testUser.id, 'group-derived-state', {
+				limit: 10,
+				offset: 0
+			});
+
+			assert.ok(queuedId);
+			assert.equal(queuedPost.manifestStorageId, null);
+			assert.equal(queuedPost.directoryStorageId, null);
+			assert.equal(waitingBefore.total, 1);
+
+			const result = await app.ms.group.processDerivedStateQueue({limit: 1});
+			const repairedPost = await app.ms.group.getPostPure(post.id);
+
+			assert.equal(result.processed, 1);
+			assert.ok(repairedPost.manifestStorageId);
+			assert.ok(repairedPost.directoryStorageId);
+		} finally {
+			(app.ms.group as any).queuePostManifestUpdate = originalQueuePostManifestUpdate;
+			if (previousAsyncEnv === undefined) {
+				delete process.env.GROUP_DERIVED_STATE_ASYNC;
+			} else {
+				process.env.GROUP_DERIVED_STATE_ASYNC = previousAsyncEnv;
+			}
+		}
+	});
+
 	it('records retry context for failed derived-state jobs', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const missingPostId = 999999999;
