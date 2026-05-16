@@ -2,7 +2,7 @@ import {pathToFileURL} from 'node:url';
 import {QueryTypes, Sequelize} from 'sequelize';
 import databaseConfig from '../app/modules/database/config.js';
 
-type DerivedStateIntegrityOptions = {
+export type DerivedStateIntegrityOptions = {
   groupId?: number;
   postId?: number;
   sampleLimit?: number;
@@ -33,7 +33,7 @@ type CountRow = {
   count: string | number;
 };
 
-type DerivedStateRepairOptions = DerivedStateIntegrityOptions & {
+export type DerivedStateRepairOptions = DerivedStateIntegrityOptions & {
   limit?: number;
 };
 
@@ -57,9 +57,9 @@ export type DerivedStateRepairResult = {
 };
 
 const defaultSampleLimit = 10;
-const defaultRepairLimit = 50;
+export const defaultRepairLimit = 50;
 const defaultStorageRepo = process.env.STORAGE_REPO;
-const derivedStateAppModules = [
+export const derivedStateAppModules = [
   'drivers',
   'database',
   'api',
@@ -68,9 +68,15 @@ const derivedStateAppModules = [
   'storage',
   'content',
   'staticId',
+  'asyncOperation',
   'group',
   'entityJsonManifest',
 ];
+
+export function configureDerivedStateAppEnv() {
+  process.env.MODULES = derivedStateAppModules.join(',');
+  process.env.GEESOME_MAINTENANCE_DISABLE_COMMUNICATOR = '1';
+}
 
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -91,7 +97,7 @@ function parseOptionalPositiveInteger(value) {
   return parsed;
 }
 
-function getOptionsFromEnv(): DerivedStateIntegrityOptions {
+export function getOptionsFromEnv(): DerivedStateIntegrityOptions {
   return {
     groupId: parseOptionalPositiveInteger(process.env.DERIVED_STATE_GROUP_ID || process.env.RESTORED_GROUP_ID),
     postId: parseOptionalPositiveInteger(process.env.DERIVED_STATE_POST_ID),
@@ -292,7 +298,7 @@ function assertRepairSafety() {
   }
 }
 
-function getStorageConfigOverride() {
+export function getStorageConfigOverride() {
   if (!defaultStorageRepo) {
     return {};
   }
@@ -304,7 +310,7 @@ function getStorageConfigOverride() {
   };
 }
 
-async function getPostManifestDerivedStateRepairCandidates(app: any, options: DerivedStateRepairOptions) {
+export async function getPostManifestDerivedStateRepairCandidates(app: any, options: DerivedStateRepairOptions) {
   const limit = parsePositiveInteger(options.limit, defaultRepairLimit);
   const scope = getPostScope(options);
   return app.ms.database.sequelize.query(`
@@ -327,7 +333,7 @@ async function getPostManifestDerivedStateRepairCandidates(app: any, options: De
   }) as Promise<PostManifestDerivedStateRepairCandidate[]>;
 }
 
-async function getGroupManifestDerivedStateRepairCandidates(app: any, options: DerivedStateRepairOptions) {
+export async function getGroupManifestDerivedStateRepairCandidates(app: any, options: DerivedStateRepairOptions) {
   const limit = parsePositiveInteger(options.limit, defaultRepairLimit);
   const postScope = getPostScope(options);
   return app.ms.database.sequelize.query(`
@@ -401,9 +407,11 @@ export async function repairDatabaseDerivedState(
 
 async function repairDerivedState(options: DerivedStateIntegrityOptions) {
   assertRepairSafety();
+  configureDerivedStateAppEnv();
   const repairLimit = parsePositiveInteger(process.env.DERIVED_STATE_REPAIR_LIMIT, defaultRepairLimit);
   const appConfig: any = {
     modules: derivedStateAppModules,
+    skipFrontendStorage: true,
     port: Number.parseInt(process.env.DERIVED_STATE_REPAIR_PORT || '0', 10) || 0,
     ...getStorageConfigOverride(),
   };
@@ -447,8 +455,10 @@ async function main() {
 const entryPoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
 
 if (import.meta.url === entryPoint) {
-  main().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+  main()
+    .then(() => process.exit(process.exitCode || 0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

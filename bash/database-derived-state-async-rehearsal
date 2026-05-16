@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+	cat <<'USAGE'
+Usage:
+  CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> bash/database-derived-state-async-rehearsal
+  CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_ID=<group-id> bash/database-derived-state-async-rehearsal
+
+Queues missing post/group manifest derived-state repairs through the
+group-derived-state async queue, drains the queue in bounded batches, and then
+runs the derived-state integrity audit again.
+
+Set STORAGE_MODULE / STORAGE_URL / STORAGE_REPO to point at the restored or
+copied storage backend when repaired posts need to copy attached content files.
+
+Safety:
+  - Refuses to run unless CONFIRM_RESTORED_BACKUP=1.
+  - Refuses to use the implicit default DATABASE_NAME.
+  - Refuses DATABASE_NAME=geesome_node unless ALLOW_DEFAULT_DATABASE=1.
+  - Forces GROUP_DERIVED_STATE_ASYNC=1 and disables the interval worker so the
+    script owns deterministic queue draining.
+
+Expected target:
+  A disposable database restored from backup and already migrated/rehearsed,
+  not a live user-facing database.
+USAGE
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	usage
+	exit 0
+fi
+
+if [[ "${CONFIRM_RESTORED_BACKUP:-}" != "1" ]]; then
+	echo "Refusing to run: set CONFIRM_RESTORED_BACKUP=1 after restoring a disposable backup target." >&2
+	usage >&2
+	exit 2
+fi
+
+if [[ -z "${DATABASE_NAME:-}" ]]; then
+	echo "Refusing to run: set DATABASE_NAME to the restored backup database name." >&2
+	exit 2
+fi
+
+if [[ "${DATABASE_NAME}" == "geesome_node" && "${ALLOW_DEFAULT_DATABASE:-}" != "1" ]]; then
+	echo "Refusing to run against DATABASE_NAME=geesome_node without ALLOW_DEFAULT_DATABASE=1." >&2
+	echo "Use a disposable restored database name for async derived-state rehearsal whenever possible." >&2
+	exit 2
+fi
+
+echo "Derived-state async rehearsal target:"
+echo "  DATABASE_HOST=${DATABASE_HOST:-localhost}"
+echo "  DATABASE_PORT=${DATABASE_PORT:-5432}"
+echo "  DATABASE_USER=${DATABASE_USER:-geesome}"
+echo "  DATABASE_NAME=${DATABASE_NAME}"
+if [[ -n "${RESTORED_GROUP_ID:-${DERIVED_STATE_GROUP_ID:-}}" ]]; then
+	echo "  GROUP_ID=${RESTORED_GROUP_ID:-${DERIVED_STATE_GROUP_ID:-}}"
+fi
+if [[ -n "${DERIVED_STATE_POST_ID:-}" ]]; then
+	echo "  POST_ID=${DERIVED_STATE_POST_ID}"
+fi
+echo
+
+node --import tsx check/databaseDerivedStateAsyncRehearsal.ts

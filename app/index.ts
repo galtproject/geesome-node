@@ -84,7 +84,7 @@ export default async (extendConfig) => {
   const frontendPackagePath = helpers.getCurDir() + '/../node_modules/@geesome/ui';
   const frontendDistPath = frontendPackagePath + '/dist';
   const frontendPath = fs.existsSync(frontendDistPath + '/index.html') ? frontendDistPath : frontendPackagePath;
-  if (fs.existsSync(frontendPath)) {
+  if (!resConfig.skipFrontendStorage && fs.existsSync(frontendPath)) {
     const directory = await app.ms.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;
   }
