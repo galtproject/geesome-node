@@ -682,6 +682,9 @@ function getStorageObjectData(content) {
       storageObjectData[field] = contentData[field];
     }
   });
+  if (contentData.isPinned === true) {
+    storageObjectData.isPinned = true;
+  }
   return storageObjectData;
 }
 
@@ -707,5 +710,8 @@ function getStorageObjectUpdateData(storageObject, storageObjectData) {
     }
     updateData[field] = storageObjectData[field];
   });
+  if (storageObjectData.isPinned === true && existingData.isPinned !== true) {
+    updateData.isPinned = true;
+  }
   return updateData;
 }

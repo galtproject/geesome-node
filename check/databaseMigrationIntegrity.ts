@@ -235,6 +235,11 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'contents_manifest_storage_idx', table: 'contents', columns: ['manifestStorageId']},
   {name: 'contents_user_manifest_storage_idx', table: 'contents', columns: ['userId', 'manifestStorageId']},
   {name: 'contents_user_storage_unique', table: 'contents', columns: ['userId', 'storageId'], unique: true},
+  {name: 'storage_objects_storage_id_unique', table: 'storageObjects', columns: ['storageId'], unique: true},
+  {name: 'storage_objects_large_preview_storage_idx', table: 'storageObjects', columns: ['largePreviewStorageId']},
+  {name: 'storage_objects_medium_preview_storage_idx', table: 'storageObjects', columns: ['mediumPreviewStorageId']},
+  {name: 'storage_objects_small_preview_storage_idx', table: 'storageObjects', columns: ['smallPreviewStorageId']},
+  {name: 'storage_objects_updated_idx', table: 'storageObjects', columns: ['updatedAt', 'id']},
   {name: 'objects_storage_resolve_prop_unique', table: 'objects', columns: ['storageId', 'resolveProp'], unique: true},
   {name: 'content_bots_user_id_idx', table: 'contentBots', columns: ['userId']},
   {name: 'file_catalog_items_content_idx', table: 'fileCatalogItems', columns: ['contentId']},
@@ -302,8 +307,52 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'auto_tags_required_tag5_idx', table: 'autoTags', columns: ['requiredTag5Id']},
 ];
 
+const storageObjectMetadataColumns = [
+  'storageType',
+  'mimeType',
+  'extension',
+  'size',
+  'largePreviewStorageId',
+  'largePreviewSize',
+  'mediumPreviewStorageId',
+  'mediumPreviewSize',
+  'smallPreviewStorageId',
+  'smallPreviewSize',
+  'previewMimeType',
+  'previewExtension',
+];
+
 const countChecks: CountCheck[] = [
   duplicateCheck('same-user content storage duplicates', 'contents', ['userId', 'storageId']),
+  duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),
+  {
+    name: 'content storage IDs have canonical storage object rows',
+    requirements: [
+      {table: 'contents', columns: ['storageId']},
+      {table: 'storageObjects', columns: ['storageId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM (${getCanonicalStorageObjectSql()}) canonical
+      LEFT JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = canonical."storageId"
+      WHERE storage_object.id IS NULL
+    `,
+  },
+  {
+    name: 'canonical storage object rows match deterministic content metadata',
+    requirements: [
+      {table: 'contents', columns: ['storageId', 'isPinned', ...storageObjectMetadataColumns]},
+      {table: 'storageObjects', columns: ['storageId', 'isPinned', ...storageObjectMetadataColumns]},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM (${getCanonicalStorageObjectSql()}) canonical
+      JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = canonical."storageId"
+      WHERE ${getStorageObjectMismatchPredicate()}
+    `,
+  },
   duplicateCheck('object cache storage/resolveProp duplicates', 'objects', ['storageId', 'resolveProp']),
   duplicateCheck('static-id current binding duplicates', 'staticIdBindings', ['staticId']),
   {
@@ -666,6 +715,48 @@ class SchemaCache {
 
 function quoteIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function getCanonicalStorageObjectSql(): string {
+  const contentColumns = storageObjectMetadataColumns.map(quoteIdentifier).join(', ');
+
+  return `
+    WITH canonical_content AS (
+      SELECT DISTINCT ON ("storageId")
+        "storageId",
+        ${contentColumns}
+      FROM contents
+      WHERE "storageId" IS NOT NULL
+      ORDER BY "storageId", id ASC
+    ),
+    pinned_content AS (
+      SELECT
+        "storageId",
+        BOOL_OR(COALESCE("isPinned", false)) AS "isPinned"
+      FROM contents
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "storageId"
+    )
+    SELECT
+      canonical_content.*,
+      COALESCE(pinned_content."isPinned", false) AS "isPinned"
+    FROM canonical_content
+    LEFT JOIN pinned_content
+      ON pinned_content."storageId" = canonical_content."storageId"
+  `;
+}
+
+function getStorageObjectMismatchPredicate(): string {
+  const metadataPredicates = storageObjectMetadataColumns.map((column) => {
+    const quoted = quoteIdentifier(column);
+
+    return `storage_object.${quoted} IS DISTINCT FROM canonical.${quoted}`;
+  });
+
+  return [
+    ...metadataPredicates,
+    '(canonical."isPinned" IS TRUE AND storage_object."isPinned" IS DISTINCT FROM TRUE)',
+  ].join('\n        OR ');
 }
 
 function normalizeIndexColumns(columns: unknown): string[] {

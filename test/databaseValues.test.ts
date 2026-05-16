@@ -121,6 +121,20 @@ describe("databaseValues", function () {
 			1
 		);
 
+		const pinnedSyncContent = await database.addContent({
+			userId: firstUser.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: ContentMimeType.Text,
+			storageId: 'shared-content-pinned-storage',
+			size: 9,
+			isPinned: true,
+			name: 'pinned shared row'
+		});
+		assert.strictEqual(
+			(await database.getStorageObjectByStorageId(pinnedSyncContent.storageId)).isPinned,
+			true
+		);
+
 		await database.markStorageObjectPinnedByContent(secondContent);
 		const pinnedStorageObject = await database.getStorageObjectByStorageId(storageId);
 		assert.strictEqual(pinnedStorageObject.isPinned, true);

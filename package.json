@@ -33,6 +33,7 @@
     "database:scalability:explain": "node --import tsx check/databaseScalabilityExplain.ts",
     "database:scalability:generated-output": "node --import tsx check/databaseGeneratedOutputPressure.ts",
     "database:sync-models": "node --import tsx check/databaseSyncModels.ts",
+    "database:storage-objects-integrity": "node --import tsx check/databaseStorageObjectsIntegrity.ts",
     "database:migration-integrity": "node --import tsx check/databaseMigrationIntegrity.ts",
     "database:derived-state-integrity": "node --import tsx check/databaseDerivedStateIntegrity.ts",
     "database:derived-state-async-rehearsal": "bash bash/database-derived-state-async-rehearsal",
