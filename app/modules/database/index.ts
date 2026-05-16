@@ -29,6 +29,7 @@ import {
   UserContentActionName,
   UserLimitName
 } from "./interface.js";
+import {countDerivedStorageIdReferences} from './storageReferenceHelpers.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -300,7 +301,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
-    const [otherContents, previewRefs, pinnedStorageObjects] = await Promise.all([
+    const [otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({
         where: {
@@ -312,8 +313,9 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
         },
       }),
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
+      countDerivedStorageIdReferences(this.models, this.sequelize, storageId),
     ]);
-    return {otherContents, previewRefs, pinnedStorageObjects};
+    return {otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs};
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect

@@ -161,6 +161,37 @@ describe("app", function () {
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 	});
 
+	it("keeps physical storage when a derived storage row references the same storage id", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'Derived storage ref body', 'derived-ref.txt', {
+			mimeType: 'text/plain'
+		});
+		const fileItem = await fileCatalog.saveContentByPath(testUser.id, '/derived-ref.txt', content.id);
+		const extraCatalogItems = await fileCatalog.getFileCatalogItemsByContent(testUser.id, content.id, FileCatalogItemType.File);
+
+		await (app.ms['staticSiteGenerator'] as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'derived-ref',
+			name: 'derived-ref',
+			title: 'Derived ref',
+			options: '{}',
+			storageId: content.storageId
+		});
+		await Promise.all(extraCatalogItems
+			.filter((item) => item.id !== fileItem.id)
+			.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
+
+		const refs = await app.ms.database.countStorageIdReferences(content.storageId, content.id);
+		assert.equal(refs.derivedStorageRefs, 1);
+
+		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
+
+		assert.equal(await app.ms.database.getContent(content.id), null);
+		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Derived storage ref body');
+		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
+	});
+
 	it("should create directory by files manifests correctly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 

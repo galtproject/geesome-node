@@ -54,7 +54,12 @@ export interface IGeesomeDatabaseModule {
 
   getSharedContentByManifestId(manifestId): Promise<IContent>;
 
-  countStorageIdReferences(storageId, excludeContentId?): Promise<{otherContents: number; previewRefs: number; pinnedStorageObjects: number}>;
+  countStorageIdReferences(storageId, excludeContentId?): Promise<{
+    otherContents: number;
+    previewRefs: number;
+    pinnedStorageObjects: number;
+    derivedStorageRefs: number;
+  }>;
 
   countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number; pinnedContents: number}>;
 
