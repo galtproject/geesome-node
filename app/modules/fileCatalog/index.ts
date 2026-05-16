@@ -161,7 +161,7 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			if (await this.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
-				console.log(`Content ${content.id} already exists in folder`);
+				log(`Content ${content.id} already exists in folder`);
 				return;
 			}
 
@@ -223,7 +223,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (isUndefined(type) || type === 'undefined') {
 				type = undefined;
 			}
-			console.log('userId', userId, 'parentItemId', parentItemId, 'type', type, 'search', search);
+			log('userId', userId, 'parentItemId', parentItemId, 'type', type, 'search', search);
 			return {
 				list: await this.getFileCatalogItemsList(userId, parentItemId, type, search, isDeleted, listParams),
 				total: await this.getFileCatalogItemsCount(userId, parentItemId, type, search, isDeleted)
@@ -362,10 +362,10 @@ function getModule(app: IGeesomeApp, models) {
 			const results = await this.getActiveFileCatalogPathItems(userId, currentFolderId, lastItemName, type);
 			if (results.length > 1) {
 				await pIteration.forEach(results.slice(1), (item: any) => models.FileCatalogItem.update({isDeleted: true}, {where: {id: item.id}}));
-				console.log('remove excess file items: ', lastItemName);
+				log('remove excess file items: ', lastItemName);
 			}
 
-			console.log('lastFolderId', currentFolderId);
+			log('lastFolderId', currentFolderId);
 			return {
 				lastFolderId: currentFolderId,
 				foundCatalogItem: results[0]
@@ -379,10 +379,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		public async saveContentByPath(userId, path, contentId, options: { groupId? } = {}) {
-			console.log('saveContentByPath', 'path:', path);
+			log('saveContentByPath', 'path:', path);
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			const fileName = trim(path, '/').split('/').slice(-1)[0];
-			console.log('saveContentByPath', 'fileName:', fileName);
+			log('saveContentByPath', 'fileName:', fileName);
 
 			const pathResult = await this.findCatalogItemByPath(userId, path, FileCatalogItemType.File, true);
 			if (!pathResult) {
@@ -392,10 +392,10 @@ function getModule(app: IGeesomeApp, models) {
 
 			const content = await app.ms.database.getContent(contentId);
 			if (fileItem) {
-				console.log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
+				log('saveContentByPath', 'fileItem.name:', fileItem.name, contentId);
 				await models.FileCatalogItem.update({contentId, size: content.size}, {where: {id: fileItem.id}});
 			} else {
-				console.log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
+				log('saveContentByPath', 'addFileCatalogItem', fileName, contentId);
 				try {
 					fileItem = await this.addFileCatalogItem({
 						userId,
@@ -483,7 +483,8 @@ function getModule(app: IGeesomeApp, models) {
 			const safeToRemovePhysical =
 				safeToDestroyContent &&
 				storageRefs.otherContents === 0 &&
-				storageRefs.previewRefs === 0;
+				storageRefs.previewRefs === 0 &&
+				storageRefs.pinnedStorageObjects === 0;
 
 			if (safeToRemovePhysical) {
 				await app.ms.storage.unPin(content.storageId).catch(() => {/*not pinned*/});

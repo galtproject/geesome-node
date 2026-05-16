@@ -1,5 +1,7 @@
 import _ from 'lodash';
+import debug from 'debug';
 const {orderBy, find, pick, maxBy, isNumber} = _;
+const log = debug('geesome:app:telegramClient');
 
 export default {
 	importFields: ['id', 'replyTo', 'fwdFrom', 'date', 'message', 'entities', 'media', 'action', 'groupedId'],
@@ -53,7 +55,7 @@ export default {
 		let thumbSize = 'y';
 		if (media.photo || (media.webpage && media.webpage.photo)) {
 			file = media.photo || media.webpage.photo;
-			// console.log('file.sizes', file.sizes);
+			// log('file.sizes', file.sizes);
 			const ySize = find(file.sizes, s => s.sizes && s.sizes.length) || {sizes: file.sizes};
 			if (!ySize || !ySize.sizes) {
 				return {};
@@ -71,9 +73,9 @@ export default {
 			fileSize = file.size;
 			mimeType = file.mimeType;
 		} else {
-			// console.log('media', media);
+			// log('media', media);
 		}
-		// console.log('media.webpage', media.webpage);
+		// log('media.webpage', media.webpage);
 		return {file, fileSize, mimeType, thumbSize};
 	},
 
@@ -91,7 +93,7 @@ export default {
 		return m.replyTo ? m.replyTo.replyToMsgId.toString() : null;
 	},
 	getForwardMsgId(m) {
-		console.log('getForwardMsgId', m.fwdFrom);
+		log('getForwardMsgId', m.fwdFrom);
 		return m.fwdFrom ? m.fwdFrom.channelPost : null;
 	}
 }

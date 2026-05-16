@@ -7,14 +7,16 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import { create } from 'kubo-rpc-client';
 import JsIpfsServiceNode from "geesome-libs/src/JsIpfsServiceNode.js";
 import {IGeesomeApp} from "../../interface.js";
+const log = debug('geesome:app:storage');
 
 export default async (app: IGeesomeApp) => {
-  console.log('ipfs-http-client create', app.config.storageConfig.goNode);
+  log('ipfsHttpClientCreate', app.config.storageConfig.goNode);
   const node = create(app.config.storageConfig.goNode);
-  console.log('🎁 IPFS node have connected, profile:', process.env.IPFS_PROFILE);
+  log('ipfsHttpClientConnected', {profile: process.env.IPFS_PROFILE});
   const service = new JsIpfsServiceNode(node, 'kubo-rpc');
   if (process.env.STORAGE_SKIP_REMOTE_STOP === '1') {
     service.stop = async () => null;

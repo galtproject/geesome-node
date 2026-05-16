@@ -7,9 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import {IGroup} from "./interface.js";
 import helpers from "../../helpers.js";
+const log = debug('geesome:app:group');
 
 export default (geesomeApp) => {
 
@@ -25,11 +27,11 @@ export default (geesomeApp) => {
   // });
 
   async function updateStaticIdsOfGroups() {
-    console.log('updateStaticIdsOfGroups');
+    log('updateStaticIdsOfGroups');
 
     const groupsToUpdateStatic = await geesomeApp.ms.database.getGroupWhereStaticOutdated(updateOutdatedForSeconds, {limit: updateBatchLimit});
     await pIteration.forEach(groupsToUpdateStatic, async (group: IGroup) => {
-      console.log('bindToStaticId group', group.name, group.manifestStorageId, group.manifestStaticStorageId);
+      log('bindToStaticId group', group.name, group.manifestStorageId, group.manifestStaticStorageId);
       await geesomeApp.storage.bindToStaticId(group.manifestStorageId, group.manifestStaticStorageId, {lifetime: bindStaticForHours + 'h'});
 
       await geesomeApp.ms.database.updateGroup(group.id, {

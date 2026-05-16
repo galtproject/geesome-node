@@ -151,6 +151,9 @@ async createGroup(userId, groupData) {
 
 - `import debug from 'debug'` then `const log = debug('geesome:app');` for module-scoped logs.
 - Use `log('eventName', ...)` for normal trace lines. Reserve `console.log` for short-lived debugging or when you specifically want unconditional stdout (currently mixed in the codebase; do not add new `console.log` statements without a reason).
+- Keep broad debug namespaces out of default scripts. Test and runtime commands should be quiet by default, with tracing enabled from the caller environment when needed.
+- Test-only stdout diagnostics should be opt-in through `GEESOME_TEST_LOGS=1`; the default Mocha path suppresses `console.log` so assertion output stays readable.
+- SQL logging is high-volume and must stay separately opt-in: use `GEESOME_LOG_SQL=1 DEBUG=geesome:database:sql` for query traces instead of enabling SQL output through a broad default `DEBUG=geesome*`.
 - Errors go through `console.error` or are thrown.
 
 ### Errors

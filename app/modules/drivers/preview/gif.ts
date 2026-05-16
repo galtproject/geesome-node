@@ -7,20 +7,22 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 import sharp from "sharp";
 import {v4 as uuidv4} from 'uuid';
 import fs from "fs";
 import { exec } from "child_process";
+const log = debug('geesome:app:drivers');
 
 export class GifPreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream, DriverInput.Path];
   supportedOutputSizes = [OutputSize.Small, OutputSize.Medium, OutputSize.Large];
 
   async processByPath(path, options: any = {}) {
-    console.log(sharp.format.magick);
-    console.log('GifPreviewDriver.processByStream');
+    log('sharpMagickSupport', sharp.format.magick);
+    log('GifPreviewDriver.processByStream');
     const extension = options.extension || 'png';
 
     return new Promise((resolve, reject) => {
@@ -57,7 +59,7 @@ export class GifPreviewDriver extends AbstractDriver {
 
   async processByStream(stream, options: any = {}) {
     const resultPath = `/tmp/` + uuidv4() + '-' + new Date().getTime() + '.gif';
-    console.log('resultPath', resultPath);
+    log('resultPath', resultPath);
     stream.pipe(fs.createWriteStream(resultPath));
     return new Promise((resolve, reject) => {
       stream

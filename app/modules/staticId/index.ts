@@ -140,7 +140,7 @@ function getModule(app: IGeesomeApp, models) {
 		async bindToStaticId(userId, dynamicId, staticId): Promise<IStaticIdHistoryItem> {
 			log('bindToStaticId', dynamicId, staticId);
 			const userIdOfAccount = await app.ms.accountStorage.getUserIdOfLocalStaticIdAccount(staticId);
-			console.log('userIdOfAccount', userIdOfAccount, 'userId', userId);
+			log('userIdOfAccount', userIdOfAccount, 'userId', userId);
 			if (userIdOfAccount !== userId) {
 				throw new Error("userId_dont_match");
 			}
@@ -233,7 +233,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async setStaticAccountGroupId(userId, name, groupId) {
-			console.log('setStaticAccountGroupId', name);
+			log('setStaticAccountGroupId', name);
 			groupId = await app.ms.group.checkGroupId(groupId);
 			const account = await app.ms.accountStorage.getLocalAccountByName(name);
 			if (account.userId !== userId) {
@@ -243,7 +243,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async createStaticGroupAccountId(userId, groupId, name) {
-			console.log('createStaticGroupAccountId', name);
+			log('createStaticGroupAccountId', name);
 			groupId = await app.ms.group.checkGroupId(groupId);
 			return app.ms.accountStorage.createAccount(name, userId, groupId).then(acc => acc.staticId);
 		}

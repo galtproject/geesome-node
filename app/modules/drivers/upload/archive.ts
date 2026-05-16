@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import fs from "fs";
 import {v4 as uuidv4} from 'uuid';
 import unzip from 'unzip-stream';
@@ -14,6 +15,7 @@ import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 import helpers from "../helpers.js";
 const {getDirSize} = helpers;
+const log = debug('geesome:app:upload');
 
 export class ArchiveUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -33,7 +35,7 @@ export class ArchiveUploadDriver extends AbstractDriver {
             reject(error);
           })
           .pipe(unzipStream)
-          .on('data', (data) => console.log(data))
+          .on('data', (data) => log('archiveEntry', data))
           .on('close', () => resolve({path}))
       );
 

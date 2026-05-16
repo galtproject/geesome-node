@@ -8,18 +8,20 @@
  */
 
 import _ from 'lodash';
+import debug from 'debug';
 import sharp from "sharp";
 import {Stream} from "stream";
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 const {extend} = _;
+const log = debug('geesome:app:drivers');
 
 export class ImagePreviewDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
   supportedOutputSizes = [OutputSize.Small, OutputSize.Medium, OutputSize.Large];
 
   async processByStream(inputStream, options: any = {}) {
-    console.log('ImagePreviewDriver.processByStream');
+    log('ImagePreviewDriver.processByStream');
     const extension = options.extension || 'jpg';
 
     // TODO: get size by settings
@@ -34,7 +36,7 @@ export class ImagePreviewDriver extends AbstractDriver {
         .resize(extend(size, {withoutEnlargement: true}))
         .withMetadata()
         .toFormat(extension);
-    console.log('ImagePreviewDriver.resizerStream');
+    log('ImagePreviewDriver.resizerStream');
 
     const resultStream = inputStream.pipe(resizerStream) as Stream;
 

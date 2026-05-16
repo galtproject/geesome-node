@@ -7,15 +7,17 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
 import JsIpfsServiceNodePass from "geesome-libs/src/JsIpfsServiceNodePass.js";
+const log = debug('geesome:app:storage');
 
 export default async (app: IGeesomeApp) => {
   const { createHelia } = await import("helia");
   while (true) {
     try {
       const helia = await createHelia({});
-      console.log('🎁 IPFS node have started');
+      log('jsIpfsNodeStarted');
       return JsIpfsServiceNodePass(helia, app.config.storageConfig.jsNode.pass);
     } catch (e) {
       console.warn('createDaemonNode error, trying to reconnect...', e.message);

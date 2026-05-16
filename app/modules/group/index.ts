@@ -233,7 +233,7 @@ function getModule(app: IGeesomeApp, models) {
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
-			console.log('groupData', groupData);
+			log('groupData', groupData);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 
 			if (!groupData['name'] || !helpers.validateUsername(groupData['name'])) {
@@ -1789,7 +1789,7 @@ function getModule(app: IGeesomeApp, models) {
 					}
 				});
 			});
-			console.log('getPostsWhere', where);
+			log('getPostsWhere', where);
 			return where;
 		}
 
@@ -1940,7 +1940,7 @@ function getModule(app: IGeesomeApp, models) {
 					where[name] = filters[name];
 				}
 			});
-			console.log('getGroupsWhere', where);
+			log('getGroupsWhere', where);
 			return where;
 		}
 

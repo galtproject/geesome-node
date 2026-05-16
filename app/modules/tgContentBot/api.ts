@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import debug from 'debug';
 import TelegramBot from "node-telegram-bot-api";
 import commonHelper from "geesome-libs/src/common.js";
 import MultiTelegramBot from "./multiTelegramBot.js";
@@ -6,6 +7,7 @@ import {IGeesomeApp} from "../../interface.js";
 import {IListParamsOptions} from "../database/interface.js";
 import helpers from "../../helpers.js";
 const {pick} = _;
+const log = debug('geesome:app:tgContentBot');
 
 const contentBotListParams: IListParamsOptions = {
     sortBy: 'createdAt',
@@ -33,7 +35,7 @@ export default (app: IGeesomeApp, models: any, multitelegrambot: MultiTelegramBo
         const botInfo = await bot.getMe();
         await models.ContentBots.create({encryptedToken, botId, socNet: req.body.socNet, botUsername: botInfo.username, userId: req.user.id, tokenHash});
         bot.setWebHook(`https://${req.headers.host}/api/v1/content-bot/tg-webhook/${req.body.tgToken}`).then(() => {
-            console.log('Webhook successfully set');
+            log('Webhook successfully set');
         });
         bot.setMyCommands([
             { command: '/start', description: 'Initial greeting' },

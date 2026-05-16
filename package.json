@@ -8,7 +8,7 @@
     "node": ">=22 <25"
   },
   "scripts": {
-    "start": "yarn --no-optional -W && DEBUG=geesome* ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
+    "start": "yarn --no-optional -W && ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
     "in-docker-start": "cd /geesome-node && yarn --no-optional -W && mkdir -p /geesome-node/frontend/docker-dist && rm -rf /geesome-node/frontend/docker-dist/* && UI_DIST=/geesome-node/node_modules/@geesome/ui/dist; UI_ROOT=/geesome-node/node_modules/@geesome/ui; if [ -f \"$UI_DIST/index.html\" ]; then cp -R \"$UI_DIST\"/* /geesome-node/frontend/docker-dist/; else cp -R \"$UI_ROOT\"/* /geesome-node/frontend/docker-dist/; fi && npm run migrate-all-database; npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb geesome_test && createdb geesome_test",
@@ -40,7 +40,7 @@
     "database:restored-pressure": "bash bash/database-restored-pressure",
     "serve-docs": "tsx check/serveDocs.ts",
     "test:prepare-resources": "bash bash/prepare-test-resources.sh",
-    "test": "yarn -W && GROUP_DERIVED_STATE_ASYNC=0 GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DEBUG=geesome* DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
+    "test": "yarn -W && GROUP_DERIVED_STATE_ASYNC=0 GATEWAY_PORT=2083 PORT=7772 SSG_RUNTIME=1 DATA_DIR=test-data node --import tsx --experimental-global-customevent ./node_modules/.bin/mocha --require ./test/setupQuietLogs.cjs 'test/**/*.test.ts' --exit 'test/**/*.test.ts' -t 10000",
     "test:docker": "bash bash/docker-test",
     "test:docker:cold": "bash bash/docker-test --cold",
     "test:docker:no-build": "bash bash/docker-test --no-build",
@@ -89,7 +89,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#c43fb49",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#e504dc0",
     "keccak": "^3.0.3",
     "kubo-rpc-client": "^6.1.0",
     "lodash": "^4.18.1",

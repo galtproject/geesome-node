@@ -8,6 +8,7 @@
  */
 
 import _ from 'lodash';
+import debug from 'debug';
 import bigInt from 'big-integer';
 import {Api, TelegramClient} from "telegram";
 import {computeCheck} from "telegram/Password";
@@ -20,6 +21,7 @@ import IGeesomeTelegramClient from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import telegramHelpers from './helpers.js';
 const {pick} = _;
+const log = debug('geesome:app:telegramClient');
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
@@ -65,7 +67,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 				if (!isEncrypted) {
 					sessionKey = client.session.save();
 				}
-				console.log('user', user);
+				log('user', user);
 				const username = user ? user.username : null;
 				const fullName = user ? user['firstName'] + ' ' + user['lastName'] : null;
 				try {
@@ -84,7 +86,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 				} catch (e) {
 					console.warn('handleAuthorized createOrUpdateAccount', e);
 				}
-				// console.log('getUserChannelsByUserId', await this.getUserChannelsByUserId(acc.userId, {sessionKey: client.session.save(), id: acc.id}).then(r => r.result.length));
+				// log('getUserChannelsByUserId', await this.getUserChannelsByUserId(acc.userId, {sessionKey: client.session.save(), id: acc.id}).then(r => r.result.length));
 				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			}
 
@@ -167,7 +169,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 								.then(res => handleAuthorized(res.authorization))
 						);
 					} else {
-						console.log('response', response);
+						log('response', response);
 						throw new Error("QR_CODE_DIDNT_SCANNED");
 					}
 				}
@@ -227,7 +229,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 		}
 
 		async getChannelInfoByClient(client, channelId) {
-			console.log('getChannelInfoByClient', channelId);
+			log('getChannelInfoByClient', channelId);
 			const channel = await this.getChannelEntity(client, channelId);
 			const [response, messagesCount] = await Promise.all([
 				client.invoke(new Api.channels.GetFullChannel({channel})),
@@ -283,13 +285,13 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 		}
 
 		async getMessageLink(client, channelId, messageId) {
-			console.log('getMessageLink', channelId, messageId);
+			log('getMessageLink', channelId, messageId);
 			let channel = channelId;
 			if (commonHelper.isNumber(channel)) {
 				channel = await this.getChannelEntity(client, channelId);
 			}
 			messageId = parseInt(messageId);
-			console.log('channelId', channelId, 'messageId', messageId);
+			log('channelId', channelId, 'messageId', messageId);
 			return client.invoke(new Api.channels.ExportMessageLink({
 				channel,
 				id: messageId,
@@ -347,7 +349,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 			while (resultCount >= limit) {
 				const result = await client.invoke(new Api.messages.GetDialogs({ offsetId, offsetPeer, offsetDate, limit }) as any);
 				resultCount = result.dialogs.length;
-				console.log('result.chats', JSON.stringify((result.chats || []).map(c => c.title), null, ' '));
+				log('result.chats', JSON.stringify((result.chats || []).map(c => c.title), null, ' '));
 				if (result.chats && result.chats.length > 0) {
 					chats = [...chats, ...result.chats];
 				}
@@ -397,7 +399,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 		}
 
 		async storeToChannelDbByType(client, userId, type, storeId, isCollateral = false) {
-			console.log('storeToChannelDbByType', userId, type, storeId);
+			log('storeToChannelDbByType', userId, type, storeId);
 			if (type === 'User') {
 				return this.storeUserToChannelDb(client, userId, storeId, {isCollateral});
 			} else {
@@ -439,7 +441,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 		}
 
 		async runChannelImport(userId, userApiKeyId, accData, channelId, advancedSettings = {}) {
-			console.log('runChannelImport');
+			log('runChannelImport');
 			const apiKey = await app.getUserApyKeyById(userId, userApiKeyId);
 			if (apiKey.userId !== userId) {
 				throw new Error("not_permitted");
@@ -451,7 +453,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 			});
 
 			let {startMessageId, lastMessageId} = await socNetImport.prepareChannelQuery(dbChannel, channel.messagesCount, advancedSettings);
-			console.log('startMessageId', startMessageId);
+			log('startMessageId', startMessageId);
 			startMessageId = parseInt(startMessageId);
 			if (advancedSettings['fromMessage']) {
 				startMessageId--;
@@ -463,7 +465,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 			let currentMessageId = startMessageId;
 			(async () => {
 				while (currentMessageId < lastMessageId) {
-					console.log('currentMessageId', currentMessageId, 'lastMessageId', lastMessageId);
+					log('currentMessageId', currentMessageId, 'lastMessageId', lastMessageId);
 					let countToFetch = lastMessageId - currentMessageId;
 					if (countToFetch > 50) {
 						countToFetch = 50;
@@ -471,13 +473,13 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 					const startPost = currentMessageId + 1;
 					const messagesIds = Array.from({length: countToFetch}, (_, i) => i + startPost);
 					const {result: messages} = await this.getMessagesByClient(client, dbChannel.channelId, messagesIds);
-					console.log('messages.authorById', JSON.stringify(messages.authorById), 'messages.list', JSON.stringify(messages.list));
+					log('messages.authorById', JSON.stringify(messages.authorById), 'messages.list', JSON.stringify(messages.list));
 
 					await this.importMessagesList(client, userId, dbChannel, messages, advancedSettings, async (m, dbChannel, post, type) => {
 						if (type !== 'post' || !m) {
 							return;
 						}
-						console.log('onMessageProcess', type, m.id.toString());
+						log('onMessageProcess', type, m.id.toString());
 						currentMessageId = parseInt(m.id.toString());
 						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
 						return app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, (1 - (lastMessageId - currentMessageId) / totalCountToFetch) * 100);

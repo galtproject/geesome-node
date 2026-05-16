@@ -1,8 +1,10 @@
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import IGeesomeForeignAccountsModule, {IAuthMessage, IForeignAccount} from "./interface.js";
 import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
+const log = debug('geesome:app:foreignAccounts');
 
 const foreignAccountListParams: IListParamsOptions = {
 	sortBy: 'provider',
@@ -105,7 +107,7 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		afterUserRegistering(userId: number, userData: any) {
-			console.log('afterUserRegistering', userData.foreignAccounts);
+			log('afterUserRegistering', userData.foreignAccounts);
 			if (userData.foreignAccounts) {
 				return this.setUserAccounts(userId, userData.foreignAccounts);
 			}

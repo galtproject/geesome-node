@@ -1,10 +1,12 @@
 import _ from 'lodash';
+import debug from 'debug';
 import axios from "axios";
 import { Op } from 'sequelize';
 import { createWorker } from 'tesseract.js';
 import {IGeesomeApp} from "../../interface.js";
 import MultiTelegramBot from "./multiTelegramBot.js";
 const {orderBy} = _;
+const log = debug('geesome:app:tgContentBot');
 const waitForCommand = {};
 
 export default async (app: IGeesomeApp) => {
@@ -33,7 +35,7 @@ export default async (app: IGeesomeApp) => {
   });
 
   multitelegrambot.on('inline_query', async (query) => {
-    console.log("!!!!!!!", query);
+    log("!!!!!!!", query);
     const searchTerm = query.query;
     const botId = query.bot.token.split(":")[0]; 
     const searchResult = await models.Description.findOne({
@@ -92,10 +94,10 @@ export default async (app: IGeesomeApp) => {
       mimeType: mime_type
     });
     const botId = msg.bot.token.split(":")[0]; 
-    console.log('content ipfs', contentObj.storageId);
+    log('content ipfs', contentObj.storageId);
     const linky = getLink(msg.host, contentObj.storageId);
     models.Description.create({ tgId: idToString(msg.from.id), contentId: contentObj.id, ipfsContent: contentObj.storageId, botId, aitext: await aiRecognition(linky)}).then(description => {
-      console.log('description saved with aitext:', description.aitext);
+      log('description saved with aitext:', description.aitext);
     });
 
     const keyboard = {

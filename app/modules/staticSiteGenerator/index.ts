@@ -1,5 +1,6 @@
 import fs from 'fs';
 import _ from 'lodash';
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite, IStaticSiteRenderArgs} from "./interface.js";
@@ -10,6 +11,7 @@ import ssgHelpers from './helpers.js';
 import site from './site/index.js';
 import vendorAssets from './site/vendorAssets.js';
 const {clone, uniq, merge, pick, last} = _;
+const log = debug('geesome:app:staticSiteGenerator');
 const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
@@ -199,14 +201,14 @@ export async function getModule(app: IGeesomeApp, models) {
 
         async processQueue() {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
-            console.log('waitingQueue', waitingQueue);
+            log('waitingQueue', waitingQueue);
             if (!waitingQueue) {
                 return;
             }
-            console.log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
+            log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
             if (waitingQueue.asyncOperation) {
                 if (waitingQueue.asyncOperation.inProcess) {
-                    console.log('return');
+                    log('return');
                     return;
                 } else {
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(waitingQueue.asyncOperation.id);
@@ -470,7 +472,7 @@ export async function getModule(app: IGeesomeApp, models) {
         }
 
         async generateGroupSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<string> {
-            // console.log('generateGroupSite', {userId, entityType, entityId, options});
+            // log('generateGroupSite', {userId, entityType, entityId, options});
             const {entityType, entityId} = renderArgs;
             const {
                 staticSite,
@@ -575,9 +577,9 @@ export async function getModule(app: IGeesomeApp, models) {
             await app.ms.storage.copyFileFromId(clientDataStorageId, `${siteStorageDir}/clientData.js`);
 
             await this.renderAndSave(renderPage, options, siteStorageDir, `/${renderData.defaultRoute}`, 'simple');
-            console.log('renderAndSave done');
+            log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            console.log('getDirectoryId storageId', storageId);
+            log('getDirectoryId storageId', storageId);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return {storageId, staticSiteId: staticSite.id};
@@ -621,7 +623,7 @@ export async function getModule(app: IGeesomeApp, models) {
                     return;
                 }
                 await app.ms.storage.nodeLs(c.storageId).then(r => {
-                    // console.log('res fileLs', c.name, c.storageId, r);
+                    // log('res fileLs', c.name, c.storageId, r);
                 }).catch(e => {
                     console.error('err fileLs', c.storageId, e);
                 });
@@ -673,7 +675,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 throw new Error("static_site_not_found");
             }
             const {entityType, entityId, name} = staticSite;
-            console.log('entityType', entityType, 'entityId', entityId, 'name', name);
+            log('entityType', entityType, 'entityId', entityId, 'name', name);
             let staticId;
             if (entityType === 'group') {
                 staticId = await app.ms.staticId.getOrCreateStaticGroupAccountId(userId, entityId, name);

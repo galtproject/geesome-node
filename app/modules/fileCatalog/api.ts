@@ -1,11 +1,13 @@
+import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeFileCatalogModule from "./interface.js";
+const log = debug('geesome:app:fileCatalog');
 
 export default (app: IGeesomeApp, fileCatalogModule: IGeesomeFileCatalogModule) => {
     const fileCatalogApi = app.ms.api.prefix('user/file-catalog/');
 
     fileCatalogApi.onAuthorizedGet('', async (req, res) => {
-        console.log('req.query', req.query);
+        log('req.query', req.query);
         res.send(await fileCatalogModule.getFileCatalogItems(req.user.id, req.query.parentItemId, req.query.type, req.query.search, req.query.isDeleted, req.query));
     });
     fileCatalogApi.onAuthorizedPost('update-items', async (req, res) => {

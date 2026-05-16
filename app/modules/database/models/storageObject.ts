@@ -50,6 +50,11 @@ export default async function (sequelize, models) {
     },
     previewExtension: {
       type: DataTypes.STRING(200)
+    },
+    isPinned: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
     }
   } as any, {
     indexes: [

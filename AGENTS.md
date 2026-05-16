@@ -20,6 +20,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 - Use `yarn install` for dependency setup.
 - For targeted work, run the narrow test file first when one maps directly to the touched module.
 - Prefer `npm run test:docker` as the main full-suite verification path. It runs the suite in Docker with Postgres, IPFS, Node 22, and ffmpeg available, and is optimized for warm reruns after source-only changes by reusing dependency and service caches while still rebuilding the source snapshot.
+- Keep default test/start scripts quiet. Use `DEBUG=geesome*` only when module traces are useful, `GEESOME_TEST_LOGS=1` only when test stdout diagnostics are needed, and `GEESOME_LOG_SQL=1 DEBUG=geesome:database:sql` only when SQL trace output is needed.
 - Use `npm run test:docker:no-build` only to rerun the exact same already-built source snapshot. Use `npm run test:docker:cold` when persistent Docker test services or data may be stale.
 - `yarn test` remains acceptable for quick local checks when the host already has the expected PostgreSQL and media-tooling prerequisites.
 - Treat database and static-site-generator migrations as high-risk changes. Check the relevant module-local migration flow before adding or changing migrations.

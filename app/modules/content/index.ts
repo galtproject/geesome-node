@@ -260,8 +260,8 @@ function getModule(app: IGeesomeApp) {
 				offset += limit;
 			} while (userContents.length === limit);
 
-			console.log('previousIpldToNewIpld', previousIpldToNewIpld);
-			console.log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
+			log('previousIpldToNewIpld', previousIpldToNewIpld);
+			log('previousIpldToNewIpld JSON', JSON.stringify(previousIpldToNewIpld));
 		}
 
 		async getPreview(storageFile: IStorageFile, extension, fullType, source?) {
@@ -395,19 +395,19 @@ function getModule(app: IGeesomeApp) {
 				options.onError = (err) => {
 					throw err;
 				};
-				console.log('getContentPreviewStorageFile stream', options);
+				log('getContentPreviewStorageFile stream', options);
 				const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
 				const previewFile = await app.ms.storage.saveFileByData(resultStream);
-				console.log('getContentPreviewStorageFile stream storageFile', previewFile);
+				log('getContentPreviewStorageFile stream storageFile', previewFile);
 
 				let properties;
 				if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
 					const propertiesStream = await this.getFileStream(previewFile.id);
-					console.log('getContentPreviewStorageFile stream propertiesStream');
+					log('getContentPreviewStorageFile stream propertiesStream');
 					properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(propertiesStream);
 				}
-				console.log('getContentPreviewStorageFile stream properties', properties);
+				log('getContentPreviewStorageFile stream properties', properties);
 
 				return {storageFile: previewFile, type, extension, properties};
 			} else {
@@ -422,23 +422,23 @@ function getModule(app: IGeesomeApp) {
 						fs.unlinkSync(storageFile.tempPath);
 					};
 				}
-				console.log('fs.existsSync(storageFile.tempPath)', fs.existsSync(storageFile.tempPath));
-				console.log('getContentPreviewStorageFile: path', options);
+				log('fs.existsSync(storageFile.tempPath)', fs.existsSync(storageFile.tempPath));
+				log('getContentPreviewStorageFile: path', options);
 				const {path: previewPath, type, extension} = await previewDriver.processByPathWrapByPath(storageFile.tempPath, options);
 
-				console.log('previewPath', previewPath);
+				log('previewPath', previewPath);
 				const previewFile = await app.ms.storage.saveFileByPath(previewPath);
 				const storageContentStat = await app.ms.storage.getFileStat(previewFile.id);
 				previewFile.size = storageContentStat.size;
 				log('previewFile.size', previewFile.size);
-				console.log('getContentPreviewStorageFile path storageFile', previewFile);
+				log('getContentPreviewStorageFile path storageFile', previewFile);
 
 				let properties;
 				if (options.getProperties && app.ms.drivers.metadata[type.split('/')[0]]) {
-					console.log('getContentPreviewStorageFile path propertiesStream');
+					log('getContentPreviewStorageFile path propertiesStream');
 					properties = await app.ms.drivers.metadata[type.split('/')[0]].processByStream(fs.createReadStream(previewPath));
 				}
-				console.log('getContentPreviewStorageFile path properties', properties);
+				log('getContentPreviewStorageFile path properties', properties);
 
 				fs.unlinkSync(previewPath);
 
@@ -447,7 +447,7 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async prepareStorageFileAndGetPreview(storageFile: IStorageFile, extension, fullType) {
-			console.log('prepareStorageFileAndGetPreview');
+			log('prepareStorageFileAndGetPreview');
 			if (commonHelper.isVideoType(fullType)) {
 				const videoThumbnailDriver = app.ms.drivers.preview['videoThumbnail'];
 				const {storageFile: imageFile, extension: imageExtension, type: imageType, properties} = await this.getContentPreviewStorageFile(storageFile, videoThumbnailDriver, {
@@ -610,7 +610,7 @@ function getModule(app: IGeesomeApp) {
 			let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 			log('existsContent', !!existsContent);
 			if (existsContent) {
-				console.log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
+				log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
 				await this.updateExistsContentMetadata(userId, existsContent, options);
 				await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
 				return existsContent;
@@ -717,20 +717,20 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		async addContentWithPreview(userId: number, storageFile: IStorageFile, contentData, options, source?) {
-			console.log('addContentWithPreview');
+			log('addContentWithPreview');
 			let previewData = {};
-			console.log('options.previews', options.previews);
+			log('options.previews', options.previews);
 			if (options.previews) {
 				await pIteration.forEachSeries(options.previews, async (p: any) => {
 					const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
-					console.log('result', result);
+					log('result', result);
 					previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
 					previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
 					//TODO: separate previews types
 					previewData['previewMimeType'] = result.resultMimeType;
 					previewData['previewExtension'] = result.resultExtension;
 				});
-				console.log('previewData', previewData);
+				log('previewData', previewData);
 			} else {
 				const {
 					storageFile: forPreviewStorageFile,
@@ -738,7 +738,7 @@ function getModule(app: IGeesomeApp) {
 					fullType: forPreviewFullType,
 					properties
 				} = await this.prepareStorageFileAndGetPreview(storageFile, contentData.extension, contentData.mimeType);
-				console.log('getPreview');
+				log('getPreview');
 				previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
 				if (properties) {
 					contentData.propertiesJson = JSON.stringify(properties);
@@ -792,18 +792,18 @@ function getModule(app: IGeesomeApp) {
 					if (sizeRemained < 0) {
 						return reject("limit_reached");
 					}
-					console.log('sizeRemained', sizeRemained);
+					log('sizeRemained', sizeRemained);
 					let streamSize = 0;
 					const sizeCheckStream = new Transform({
 						transform: function (chunk, encoding, callback) {
 							streamSize += chunk.length;
-							console.log('streamSize', streamSize);
+							log('streamSize', streamSize);
 							if (streamSize >= sizeRemained) {
 								console.error("limit_reached for user", userId);
 								try {
 									stream.destroy(new Error('limit_reached'));
 									sizeCheckStream.destroy(new Error('limit_reached'));
-								} catch (e) {console.log('error', e);}
+								} catch (e) {log('error', e);}
 								reject("limit_reached");
 								return callback(new Error('limit_reached'), null);
 							} else {
@@ -829,10 +829,10 @@ function getModule(app: IGeesomeApp) {
 			log('saveFileByStream driverName', driverName);
 
 			const propertiesPromise = new Promise(async (resolve) => {
-				console.log('mimeType', mimeType);
+				log('mimeType', mimeType);
 				if (startsWith(mimeType, 'image')) {
 					properties = await app.ms.drivers.metadata['image'].processByStream(stream, {onError});
-					// console.log('metadata processByStream', properties);
+					// log('metadata processByStream', properties);
 				}
 				resolve();
 			});
@@ -854,14 +854,14 @@ function getModule(app: IGeesomeApp) {
 				if (!uploadResult) {
 					return; // onError handled
 				}
-				console.log('saveDirectory', uploadResult['tempPath'] + '/');
+				log('saveDirectory', uploadResult['tempPath'] + '/');
 				resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
 				if (uploadResult['emitFinish']) {
 					uploadResult['emitFinish']();
 				}
 				mimeType = 'directory';
 				extension = 'none';
-				console.log('uploadResult', uploadResult);
+				log('uploadResult', uploadResult);
 				resultFile.size = uploadResult['size'];
 			} else {
 				log('app.ms.storage.isStreamAddSupport()', app.ms.storage.isStreamAddSupport());
@@ -973,7 +973,7 @@ function getModule(app: IGeesomeApp) {
 		async getFileSize(dataPath, content) {
 			let dataSize = content ? content.size : null;
 			// if (!dataSize) {
-			//   console.log('dataSize is null', dataPath, dataSize);
+			//   log('dataSize is null', dataPath, dataSize);
 			//TODO: check if some size not correct
 			const stat = await app.ms.storage.getFileStat(dataPath);
 			dataSize = stat.size;
@@ -982,10 +982,10 @@ function getModule(app: IGeesomeApp) {
 
 		async getDataPath(dataPath) {
 			dataPath = trimStart(dataPath, '/')
-			console.log('dataPath', dataPath);
+			log('dataPath', dataPath);
 
 			let splitPath = dataPath.split('.');
-			console.log('isFileCidHash', splitPath[0], ipfsHelper.isFileCidHash(splitPath[0]));
+			log('isFileCidHash', splitPath[0], ipfsHelper.isFileCidHash(splitPath[0]));
 			if (ipfsHelper.isFileCidHash(splitPath[0])) {
 				// cut extension, TODO: use regex
 				dataPath = splitPath[0];
@@ -1012,7 +1012,7 @@ function getModule(app: IGeesomeApp) {
 					storageId = dataPath.split('/')[0];
 					content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
 				}
-				console.log('content', content ? content.toJSON() : content);
+				log('content', content ? content.toJSON() : content);
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 					if (!storageIdAllowed) {
@@ -1022,7 +1022,7 @@ function getModule(app: IGeesomeApp) {
 
 				if (content) {
 					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
-					console.log('contentType', contentType);
+					log('contentType', contentType);
 					if (contentType) {
 						res.setHeader('Content-Type', contentType);
 					}
@@ -1033,23 +1033,23 @@ function getModule(app: IGeesomeApp) {
 					res.setHeader('Content-Type', 'text/javascript');
 				}
 				const fileStat = await app.ms.storage.getFileStat(dataPath);
-				console.log('getFileStat', fileStat);
+				log('getFileStat', fileStat);
 				if (!fileStat) {
 					return res.send(404);
 				}
 				content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
 				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false);
-				console.log('headers', headers);
+				log('headers', headers);
 				res.writeHead(200, headers);
 				return this.getFileStream(dataPath).then((stream) => {
 					pipeStorageStream(stream, res);
 				});
 			}
 
-			console.log('getSharedStorageMetadataByStorageId', dataPath);
+			log('getSharedStorageMetadataByStorageId', dataPath);
 			const content = await app.ms.database.getSharedStorageMetadataByStorageId(dataPath, {includePreviews: true});
 			if (content && content.mimeType === ContentMimeType.Directory) {
-				// console.log('content.mimeType', dataPath, content.mimeType);
+				// log('content.mimeType', dataPath, content.mimeType);
 				dataPath += '/index.html';
 			}
 			const dataSize = await this.getFileSize(dataPath, content);
@@ -1057,7 +1057,7 @@ function getModule(app: IGeesomeApp) {
 				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, dataSize, false));
 				return res.send(this.getFileStream(dataPath));
 			}
-			console.log('dataSize', dataSize);
+			log('dataSize', dataSize);
 
 			let chunkSize = 1024 * 1024;
 			if(dataSize > chunkSize * 2) {
@@ -1088,7 +1088,7 @@ function getModule(app: IGeesomeApp) {
 					resultLength += data.length;
 				});
 				stream.on('end', (data) => {
-					console.log('range.start', range.start, 'contentLength', contentLength, 'resultLength ', resultLength, 'dataSize', dataSize);
+					log('range.start', range.start, 'contentLength', contentLength, 'resultLength ', resultLength, 'dataSize', dataSize);
 				});
 
 				let mimeType = '';
