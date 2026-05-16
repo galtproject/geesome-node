@@ -145,6 +145,11 @@ function modelRows(): ModelRow[] {
     && has(databaseModuleSource, 'getStorageObjectByStorageId')
     && has(databaseModuleSource, 'getSharedStorageMetadataByStorageId')
     && has(databaseValuesTestSource, 'getSharedStorageMetadataByStorageId(storageId)');
+  const hasStorageObjectPinState = has(storageObjectSource, 'isPinned')
+    && has(databaseModuleSource, 'markStorageObjectPinnedByContent')
+    && has(databaseModuleSource, 'pinnedStorageObjects')
+    && has(fileCatalogSource, 'storageRefs.pinnedStorageObjects === 0')
+    && has(pinIndexSource, 'markStorageObjectPinnedByContent');
   const hasObjectResolvePropUnique = has(objectSource, 'objects_storage_resolve_prop_unique')
     && has(objectSource, "fields: ['storageId', 'resolveProp']")
     && has(objectSource, 'unique: true');
@@ -299,7 +304,9 @@ function modelRows(): ModelRow[] {
       ],
       notes: [
         hasStorageObjectRegistry
-          ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it and fall back to Content for old rows'
+          ? (hasStorageObjectPinState
+            ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback'
+            : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it and fall back to Content for old rows')
           : 'canonical physical storage metadata remains represented only by user-owned Content rows',
       ],
     },
@@ -685,9 +692,15 @@ function hotspotRows(): HotspotRow[] {
     && has(fileCatalogSource, 'fileCatalogPublishBatchLimit')
     && has(fileCatalogSource, "order: [['id', 'ASC']]")
     && has(fileCatalogSource, 'id: {[Op.gt]: lastId}');
+  const hasStorageObjectPinState = has(storageObjectModelSource, 'isPinned')
+    && has(databaseSource, 'markStorageObjectPinnedByContent')
+    && has(databaseSource, 'pinnedStorageObjects')
+    && has(fileCatalogSource, 'storageRefs.pinnedStorageObjects === 0')
+    && has(pinSource, 'markStorageObjectPinnedByContent');
   const hasPinnedContentDeleteGuard = has(databaseSource, 'pinnedContents')
     && has(fileCatalogSource, 'contentRefs.pinnedContents === 0')
-    && has(pinSource, 'isPinned: true');
+    && has(pinSource, 'isPinned: true')
+    && hasStorageObjectPinState;
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -1355,12 +1368,12 @@ function hotspotRows(): HotspotRow[] {
       hotspot: 'deleteFileCatalogItem deleteContent',
       observedPattern: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
         ? (hasPinnedContentDeleteGuard
-          ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including successful remote pins marked on Content.isPinned'
+          ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including successful remote pins marked on StorageObject.isPinned and Content.isPinned'
           : 'destroys catalog item first; only destroys content/physical storage after DB reference checks')
         : (has(fileCatalogSource, 'storage.remove(content.storageId)') ? 'unpin/remove physical storage and destroy content row' : 'review deleteContent path'),
       scalabilityRisk: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
         ? (hasPinnedContentDeleteGuard
-          ? 'DB row references and locally recorded pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'
+          ? 'DB row references and canonical local pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'
           : 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle')
         : 'same storageId rows, post attachments, generated output, and pins need reference checks before physical deletion',
     },

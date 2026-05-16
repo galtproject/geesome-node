@@ -7,9 +7,11 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import fs from "fs";
 import {v4 as uuidv4} from 'uuid';
 import {DriverInput, IDriver, OutputSize} from "./interface.js";
+const log = debug('geesome:app:drivers');
 
 export default class AbstractDriver implements IDriver {
   supportedInputs = [];
@@ -36,11 +38,11 @@ export default class AbstractDriver implements IDriver {
   processByPath?(path, options?): Promise<any> { return null; };
 
   async processByPathWrapByPath(path, options: any = {}) {
-    console.log('processByPath path', path);
+    log('processByPath path', path);
     const result: any = await this.processByStream(fs.createReadStream(path), options);
     const resultPath = `/tmp/` + uuidv4() + '-' + new Date().getTime();
 
-    console.log('processByPath resultPath', resultPath);
+    log('processByPath resultPath', resultPath);
     await new Promise((resolve, reject) =>
         result.stream
             .on('error', error => {

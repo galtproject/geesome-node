@@ -8,6 +8,7 @@
  */
 
 import _ from 'lodash';
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import {TwitterApi} from 'twitter-api-v2';
 import IGeesomeTwitterClient, {IMessagesState} from "./interface.js";
@@ -17,7 +18,9 @@ import {TwitterImportClient} from "./importClient.js";
 import {ContentView} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import twitterHelpers from './helpers.js';
+import helpers from '../../helpers.js';
 const {uniq, map} = _;
+const log = debug('geesome:app:twitterClient');
 const {FETCH_LIMIT, getTweetsParams, handleTwitterLimits, parseTweetsData, makeRepliesList} = twitterHelpers;
 
 export default async (app: IGeesomeApp) => {
@@ -105,7 +108,7 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 		}
 
 		async storeChannelToDb(userId, accountId, channel, updateData = {}, isCollateral = false) {
-			console.log('storeChannelToDb', channel, 'isCollateral', isCollateral);
+			log('storeChannelToDb', channel, 'isCollateral', isCollateral);
 			let avatarContent;
 			if (channel.profile_image_url) {
 				avatarContent = await app.ms.content.saveDataByUrl(userId, channel.profile_image_url, {userId});
@@ -146,15 +149,17 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 					if (fromTimestamp) {
 						options['end_time'] = new Date(fromTimestamp * 1000).toISOString();
 					}
-					console.log('options', options);
+					log('options', options);
 					if (username === 'home') {
 						timeline = await v2.homeTimeline(options);
 					} else {
 						timeline = await v2.userTimeline(username, options);
 					}
-					// console.log('timeline._realData.data', timeline._realData.data.map(d => JSON.stringify(d)));
-					console.log('timeline._realData.errors', timeline._realData.errors.map(e => JSON.stringify(e)));
-					console.log('timeline._realData.includes.media', JSON.stringify(timeline._realData.includes.media));
+					helpers.logDebug(log, () => [
+						'timeline._realData.errors',
+						helpers.mapForLog(timeline?._realData?.errors, (e) => e)
+					]);
+					helpers.logDebug(log, () => ['timeline._realData.includes.media', timeline?._realData?.includes?.media]);
 
 					limitItems = await handleTwitterLimits(timeline, limitItems);
 					let messagesState = parseTweetsData(timeline);
@@ -168,7 +173,7 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 						if (type !== 'post' || !m) {
 							return;
 						}
-						console.log('onMessageProcess', m.id);
+						log('onMessageProcess', m.id);
 						currentMessageId = m.id;
 						await app.ms.asyncOperation.handleOperationCancel(userId, asyncOperation.id);
 						await app.ms.asyncOperation.updateAsyncOperation(userId, asyncOperation.id, -1);
@@ -179,7 +184,7 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 					});
 				} while (pagination_token);
 
-				console.log('dbChannelsToReverse', dbChannelsToReverse);
+				log('dbChannelsToReverse', dbChannelsToReverse);
 				await pIteration.forEachSeries(map(dbChannelsToReverse, (_, id) => id), dbChannelId => socNetImport.reversePostsLocalIds(userId, dbChannelId));
 			})().then(async () => {
 				return app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null);
@@ -196,9 +201,9 @@ function getModule(app: IGeesomeApp): IGeesomeTwitterClient {
 
 		async handleTweetIdsToFetch(client, messagesState) {
 			while (messagesState.tweetIdsToFetch.length) {
-				console.log('messagesState.tweetIdsToFetch.length', messagesState.tweetIdsToFetch.length);
+				helpers.logDebug(log, () => ['messagesState.tweetIdsToFetch.length', messagesState?.tweetIdsToFetch?.length]);
 				const tweets = await client.v2.readOnly.tweets(messagesState.tweetIdsToFetch, getTweetsParams(null));
-				console.log('tweets', tweets);
+				log('tweets', tweets);
 				messagesState = parseTweetsData(tweets, messagesState);
 			}
 			return messagesState;

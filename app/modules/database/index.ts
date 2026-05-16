@@ -9,6 +9,7 @@
 
 import fs from "fs";
 import _ from 'lodash';
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import {Sequelize, Op, Transaction} from "sequelize";
 import expressSession from 'express-session';
@@ -29,6 +30,7 @@ import {
   UserLimitName
 } from "./interface.js";
 const {merge, isUndefined} = _;
+const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
 const maxListLimit = 10000;
 const apiKeyListParams: IListParamsOptions = {
@@ -200,7 +202,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async updateContent(id, updateData) {
-    console.log('updateContent', 'id', id, 'updateData', updateData);
+    log('updateContent', 'id', id, 'updateData', updateData);
     const result = await this.models.Content.update(updateData, {where: {id}});
     if (hasStorageObjectMetadata(updateData)) {
       await this.syncStorageObjectForContentId(id);
@@ -214,6 +216,18 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getStorageObjectByStorageId(storageId) {
     return this.models.StorageObject.findOne({where: {storageId}});
+  }
+
+  async markStorageObjectPinnedByContent(content, options: any = {}) {
+    const storageObject = await this.syncStorageObjectForContent(content, options);
+    if (!storageObject) {
+      return null;
+    }
+    if (storageObject.isPinned === true) {
+      return storageObject;
+    }
+    await storageObject.update({isPinned: true}, {transaction: options.transaction});
+    return storageObject;
   }
 
   // Shared physical metadata reads prefer StorageObject, with Content fallback for pre-registry rows.
@@ -286,7 +300,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
-    const [otherContents, previewRefs] = await Promise.all([
+    const [otherContents, previewRefs, pinnedStorageObjects] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({
         where: {
@@ -297,8 +311,9 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
           ],
         },
       }),
+      this.models.StorageObject.count({where: {storageId, isPinned: true}}),
     ]);
-    return {otherContents, previewRefs};
+    return {otherContents, previewRefs, pinnedStorageObjects};
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect

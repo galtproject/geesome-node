@@ -38,6 +38,8 @@ export interface IGeesomeDatabaseModule {
 
   getStorageObjectByStorageId(storageId): Promise<IStorageObjectRecord>;
 
+  markStorageObjectPinnedByContent(content: IContent, options?): Promise<IStorageObjectRecord>;
+
   getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;
 
   getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
@@ -52,7 +54,7 @@ export interface IGeesomeDatabaseModule {
 
   getSharedContentByManifestId(manifestId): Promise<IContent>;
 
-  countStorageIdReferences(storageId, excludeContentId?): Promise<{otherContents: number; previewRefs: number}>;
+  countStorageIdReferences(storageId, excludeContentId?): Promise<{otherContents: number; previewRefs: number; pinnedStorageObjects: number}>;
 
   countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number; pinnedContents: number}>;
 
@@ -216,6 +218,7 @@ export interface IStorageObjectRecord {
   smallPreviewStorageId?: string;
   previewMimeType?: ContentMimeType;
   previewExtension?: string;
+  isPinned?: boolean;
   toJSON?(): any;
 }
 

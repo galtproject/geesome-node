@@ -1,6 +1,9 @@
 import _ from 'lodash';
+import debug from 'debug';
 import {IMessagesState, ITimelineMessagesState} from "./interface.js";
+import appHelpers from '../../helpers.js';
 const {orderBy, startsWith, maxBy} = _;
+const log = debug('geesome:app:twitterClient');
 const FETCH_LIMIT = 100;
 
 const helpers = {
@@ -48,7 +51,7 @@ const helpers = {
 		if (!max_results) {
 			delete result.max_results;
 		}
-		console.log('getTweetsParams', result);
+		log('getTweetsParams', result);
 		return result;
 	},
 	async handleTwitterLimits(response, limitItems) {
@@ -96,14 +99,14 @@ const helpers = {
 			setRelations(item);
 			tweetsById[item.id] = item;
 			messagesState.listIds.push(item.id);
-			console.log('parseTweetsList item', JSON.stringify(item));
+			appHelpers.logDebug(log, () => ['parseTweetsList item', item]);
 			const match = (/^(RT \@\w+)/.exec(item.text) || [])[0];
-			console.log('match', match);
+			log('match', match);
 			if (!match || !match.length) {
 				return;
 			}
 			const retweetId = helpers.getRetweetId(item);
-			console.log('retweetId', retweetId, 'tweetsById[retweetId]', tweetsById[retweetId]);
+			log('retweetId', retweetId, 'tweetsById[retweetId]', tweetsById[retweetId]);
 			if (retweetId && tweetsById[retweetId]) {
 				item.repost_of_user_id = tweetsById[retweetId].author_id;
 			} else {

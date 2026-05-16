@@ -7,10 +7,12 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import fs from "fs";
 import {v4 as uuidv4} from 'uuid';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
+const log = debug('geesome:app:upload');
 
 export class FileUploadDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -20,11 +22,11 @@ export class FileUploadDriver extends AbstractDriver {
     const path = `/tmp/` + uuidv4() + '-' + new Date().getTime() + (options.extension ? '.' + options.extension : '');
     let size;
 
-    console.log('processByStream', path);
+    log('processByStream', path);
     try {
       if (inputStream.pipe) {
         await new Promise((resolve, reject) => {
-          console.log('fs.createWriteStream');
+          log('fs.createWriteStream');
           if(inputStream.isPaused()) {
             inputStream.resume();
           }
@@ -39,17 +41,17 @@ export class FileUploadDriver extends AbstractDriver {
           writableStream
               .on("error", reject)
               .on('close', () => {
-                console.log('writableStream.on close');
+                log('writableStream.on close');
                 resolve(null);
               });
         })
       } else {
-        console.log('writeFileSync', path);
+        log('writeFileSync', path);
         fs.writeFileSync(path, inputStream);
       }
-      console.log('getFileSize');
+      log('getFileSize');
       size = getFileSize(path);
-      console.log('getFileSize', size);
+      log('getFileSize', size);
     } catch (e) {
       if (options.onError) {
         options.onError(e);

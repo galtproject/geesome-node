@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import debug from 'debug';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
@@ -7,6 +8,7 @@ import {IGeesomeApp} from "../../interface.js";
 import {IListParamsOptions} from "../database/interface.js";
 import helpers from "../../helpers.js";
 const {some, orderBy, reverse} = _;
+const log = debug('geesome:app:autoActions');
 const autoActionExecuteBatchLimit = 100;
 const defaultAutoActionClaimTtlMs = 5 * 60 * 1000;
 const autoActionClaimTtlMs = parsePositiveNumber(process.env.AUTO_ACTION_CLAIM_TTL_MS, defaultAutoActionClaimTtlMs);
@@ -103,7 +105,11 @@ function getModule(app: IGeesomeApp, models) {
 
 		async addSerialAutoActions(userId, autoActions) {
 			const resAutoActions = reverse(await pIteration.map(autoActions, (a) => this.addAutoAction(userId, a)));
-			console.log('resAutoActions', resAutoActions.map(a => ({id: a.id, moduleName: a.moduleName, executeOn: a.executeOn})));
+			helpers.logDebug(log, () => ['resAutoActions', helpers.mapForLog(resAutoActions, (a) => ({
+				id: a?.id,
+				moduleName: a?.moduleName,
+				executeOn: a?.executeOn
+			}))]);
 
 			let nextAction;
 			await pIteration.forEachSeries(resAutoActions, async (a) => {
@@ -216,7 +222,7 @@ function getModule(app: IGeesomeApp, models) {
 				[a => a.nextActionsPivot.position],
 				['asc']
 			);
-			console.log('getNextActionsById', id, 'nextActions.length', nextActions.length);
+			helpers.logDebug(log, () => ['getNextActionsById', id, 'nextActions.length', nextActions?.length]);
 			return nextActions.map(a => {
 				if (a.userId !== userId) {
 					throw new Error("userId_dont_match");

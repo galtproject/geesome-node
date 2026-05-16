@@ -166,6 +166,7 @@ export function getModule(app: IGeesomeApp, models) {
 			}
 			if (content.id) {
 				await app.ms.database.updateContent(content.id, {isPinned: true});
+				await app.ms.database.markStorageObjectPinnedByContent(content);
 			}
 			return result;
 		}

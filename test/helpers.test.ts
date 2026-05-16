@@ -18,6 +18,44 @@ describe('helpers', () => {
 		assert.deepEqual(helpers.normalizeUniqueIds(null), []);
 	});
 
+	it('keeps debug log payload builders lazy and safe', async () => {
+		const disabledCalls: any[] = [];
+		const disabledLog: any = (...args) => disabledCalls.push(args);
+		disabledLog.enabled = false;
+		let disabledPayloadBuilt = false;
+
+		helpers.logDebug(disabledLog, () => {
+			disabledPayloadBuilt = true;
+			return ['expensive', [1, 2, 3].map((id) => ({id}))];
+		});
+
+		assert.strictEqual(disabledPayloadBuilt, false);
+		assert.deepEqual(disabledCalls, []);
+
+		const enabledCalls: any[] = [];
+		const enabledLog: any = (...args) => enabledCalls.push(args);
+		enabledLog.enabled = true;
+		helpers.logDebug(enabledLog, () => [
+			'safeMap',
+			helpers.mapForLog([{id: 1}, null, {get id() { throw new Error('bad getter'); }}], (item) => item.id)
+		]);
+
+		assert.equal(enabledCalls[0][0], 'safeMap');
+		assert.equal(enabledCalls[0][1][0], 1);
+		assert.equal(typeof enabledCalls[0][1][1].debugPayloadError, 'string');
+		assert.equal(enabledCalls[0][1][2].debugPayloadError, 'bad getter');
+
+		let disabledAsyncPayloadBuilt = false;
+		await helpers.logDebugAsync(disabledLog, async () => {
+			disabledAsyncPayloadBuilt = true;
+			return ['async'];
+		});
+
+		assert.strictEqual(disabledAsyncPayloadBuilt, false);
+		assert.deepEqual(disabledCalls, []);
+		assert.deepEqual(helpers.mapForLog(null, (item) => item.id), []);
+	});
+
 	it('parses boolean-like configuration values', () => {
 		assert.strictEqual(helpers.parseBoolean('1'), true);
 		assert.strictEqual(helpers.parseBoolean('yes'), true);

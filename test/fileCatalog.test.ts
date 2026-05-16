@@ -142,6 +142,25 @@ describe("app", function () {
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 	});
 
+	it("keeps physical storage when the canonical storage object is pinned", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'Canonical pinned body', 'canonical-pinned.txt', {
+			mimeType: 'text/plain'
+		});
+		const fileItem = await fileCatalog.saveContentByPath(testUser.id, '/canonical-pinned.txt', content.id);
+		const extraCatalogItems = await fileCatalog.getFileCatalogItemsByContent(testUser.id, content.id, FileCatalogItemType.File);
+
+		await app.ms.database.markStorageObjectPinnedByContent(content);
+		await Promise.all(extraCatalogItems
+			.filter((item) => item.id !== fileItem.id)
+			.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
+		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
+
+		assert.equal(await app.ms.database.getContent(content.id), null);
+		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Canonical pinned body');
+		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
+	});
+
 	it("should create directory by files manifests correctly", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 

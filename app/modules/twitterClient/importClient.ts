@@ -1,3 +1,4 @@
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface.js";
 import IGeesomeContentModule from "../content/interface.js";
@@ -5,7 +6,9 @@ import {ContentView} from "../database/interface.js";
 import IGeesomeTwitterClient from "./interface.js";
 import {IPost} from "../group/interface.js";
 import helpers from './helpers.js';
+import appHelpers from '../../helpers.js';
 const {getReplyToId, getRetweetId, clearMessageFromMediaMessages} = helpers;
+const log = debug('geesome:app:twitterClient');
 
 export class TwitterImportClient implements IGeesomeSocNetImportClient {
 	socNet = 'twitter';
@@ -55,7 +58,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 				authorId = m.in_reply_to_user_id;
 				authorObj = this.authorById[authorId];
 			} else if (type === 'repost') {
-				console.log('getRemotePostDbChannel', type, m);
+				log('getRemotePostDbChannel', type, m);
 				authorId = m.repost_of_user_id;
 				authorObj = this.authorById[authorId];
 			}
@@ -85,7 +88,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		if (this.messages.tweetsById[refReply.id]) {
-			console.log('getReplyMessage', JSON.stringify(this.messages.tweetsById[refReply.id]));
+			appHelpers.logDebug(log, () => ['getReplyMessage', this.messages?.tweetsById?.[refReply.id]]);
 			return this.messages.tweetsById[refReply.id];
 		}
 		return null;
@@ -96,7 +99,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		if (this.messages.tweetsById[retweetRef.id]) {
-			console.log('getRepostMessage', JSON.stringify(this.messages.tweetsById[retweetRef.id]));
+			appHelpers.logDebug(log, () => ['getRepostMessage', this.messages?.tweetsById?.[retweetRef.id]]);
 			return this.messages.tweetsById[retweetRef.id];
 		}
 		return null;
@@ -117,7 +120,7 @@ export class TwitterImportClient implements IGeesomeSocNetImportClient {
 		}
 		return pIteration
 			.map(m.medias, async (media: any) => {
-				console.log('media', media);
+				log('media', media);
 				const content = await this.twitterClient.saveMedia(userId, media);
 				await this.socNetImport.storeContentMessage(contentMessageData, content);
 				return content;

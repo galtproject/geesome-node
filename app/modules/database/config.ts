@@ -7,7 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 import debug from 'debug';
-const log = debug('geesome:database');
+const sqlLog = debug('geesome:database:sql');
 
 export default {
   'dialect': 'postgres',
@@ -26,16 +26,27 @@ export default {
     acquire: parseInt(process.env.DATABASE_POOL_ACQUIRE_MS || '30000'),
     idle: parseInt(process.env.DATABASE_POOL_IDLE_MS || '30000'),
   },
-  'logging': (d) => {
-    if (
-        d.includes('SELECT "post"."id", "post"."status", "post"."name", "post"."publishedAt"') ||
-        d.includes('SELECT "group"."id", "group"."name", "group"."title", "group"."description"') ||
-        d.includes('SELECT "user"."id", "user"."name", "user"."email", "user"."keyStoreMethod"')
-    ) {
-      return;
-    }
-    log(d)
-  },
+  'logging': isSqlLoggingEnabled() ? logSqlQuery : false,
   // 'dialect': 'sqlite',
   // 'storage': `${process.env.DATA_DIR || 'data'}/core.sqlite`
 };
+
+function isSqlLoggingEnabled() {
+  return process.env.GEESOME_LOG_SQL === '1';
+}
+
+function logSqlQuery(query) {
+  if (isNoisySqlQuery(query)) {
+    return;
+  }
+
+  sqlLog(query);
+}
+
+function isNoisySqlQuery(query) {
+  return [
+    'SELECT "post"."id", "post"."status", "post"."name", "post"."publishedAt"',
+    'SELECT "group"."id", "group"."name", "group"."title", "group"."description"',
+    'SELECT "user"."id", "user"."name", "user"."email", "user"."keyStoreMethod"',
+  ].some((fragment) => query.includes(fragment));
+}

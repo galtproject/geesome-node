@@ -3,7 +3,7 @@ import axios from "axios";
 import {getModule as getPinModule} from "../app/modules/pin/index.js";
 import {IGeesomeApp} from "../app/interface.js";
 
-function createPinModule(accounts: any[] = [], contentByStorageId: Record<string, any> = {}, editableGroupIds: number[] = [1]) {
+function createPinModule(accounts: any[] = [], contentByStorageId: Record<string, any> = {}, editableGroupIds: number[] = [1], markedStorageObjects: any[] = []) {
 	return getPinModule({
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
 		decryptTextWithAppPass: async (text) => text.replace(/^encrypted:/, ""),
@@ -23,6 +23,10 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 					if (content) {
 						Object.assign(content, updateData);
 					}
+				},
+				markStorageObjectPinnedByContent: async (content) => {
+					markedStorageObjects.push(content);
+					content.storageObjectPinned = true;
 				},
 				setDefaultListParamsValues: (listParams, defaults = {}) => {
 					listParams.sortBy = listParams.sortBy || defaults.sortBy || "createdAt";
@@ -246,11 +250,12 @@ describe("pin negative paths", function () {
 		assert.equal(pinataRequest.config.headers.pinata_secret_api_key, "pinata-secret");
 	});
 
-	it("marks content pinned after a successful remote pin", async () => {
+	it("marks content and storage object pinned after a successful remote pin", async () => {
 		axios.post = async () => {
 			return {data: {ok: true}};
 		};
-		const content = {id: 12, userId: 1, name: "content-name", isPinned: false};
+		const content: any = {id: 12, userId: 1, storageId: "storage-id", name: "content-name", isPinned: false};
+		const markedStorageObjects: any[] = [];
 		const pins = createPinModule(
 			[{
 				userId: 1,
@@ -259,12 +264,16 @@ describe("pin negative paths", function () {
 				apiKey: "pinata-key",
 				secretApiKey: "pinata-secret"
 			}],
-			{"storage-id": content}
+			{"storage-id": content},
+			[1],
+			markedStorageObjects
 		);
 
 		await pins.pinByUserAccount(1, "pinata", "storage-id");
 
 		assert.equal(content.isPinned, true);
+		assert.equal(content.storageObjectPinned, true);
+		assert.deepEqual(markedStorageObjects.map(item => item.storageId), ["storage-id"]);
 	});
 
 	it("caps and orders pin account lists", async () => {

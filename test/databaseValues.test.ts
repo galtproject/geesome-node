@@ -121,6 +121,14 @@ describe("databaseValues", function () {
 			1
 		);
 
+		await database.markStorageObjectPinnedByContent(secondContent);
+		const pinnedStorageObject = await database.getStorageObjectByStorageId(storageId);
+		assert.strictEqual(pinnedStorageObject.isPinned, true);
+		assert.strictEqual(
+			(await database.countStorageIdReferences(storageId, firstContent.id)).pinnedStorageObjects,
+			1
+		);
+
 		await database.updateContent(firstContent.id, {
 			mediumPreviewStorageId: 'shared-content-preview-storage',
 			mediumPreviewSize: 7,

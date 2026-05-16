@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import debug from 'debug';
 import IGeesomeSocNetImport, {IGeesomeSocNetImportClient, ISocNetDbChannel} from "../socNetImport/interface.js";
 import IGeesomeContentModule from "../content/interface.js";
 import {ContentView} from "../database/interface.js";
@@ -7,6 +8,7 @@ import {IPost} from "../group/interface.js";
 import telegramHelpers from './helpers.js';
 import appHelpers from '../../helpers.js';
 const {clone} = _;
+const log = debug('geesome:app:telegramClient');
 
 export class TelegramImportClient implements IGeesomeSocNetImportClient {
 	socNet = 'telegram';
@@ -46,7 +48,7 @@ export class TelegramImportClient implements IGeesomeSocNetImportClient {
 			return null;
 		}
 		const { channelId } = _dbChannel;
-		console.log('_msgId', _msgId);
+		log('_msgId', _msgId);
 		if (!this.msgLinkTplByAccountId[channelId]) {
 			const msgLink = await this.telegramClient.getMessageLink(this.connectClient, channelId, _msgId);
 			if (msgLink) {
@@ -107,7 +109,7 @@ export class TelegramImportClient implements IGeesomeSocNetImportClient {
 		if (type === 'post' && m.fwdFrom) {
 			return [];
 		}
-		console.log("getRemotePostContents", m);
+		log("getRemotePostContents", m);
 		return this.messageToContents(this.connectClient, this.userId, dbChannel, m);
 	}
 	async getRemotePostProperties (dbChannel, m) {
@@ -147,10 +149,10 @@ export class TelegramImportClient implements IGeesomeSocNetImportClient {
 	}
 
 	async setChannelAuthorAndReturn(type, tgId) {
-		console.log('setChannelAuthorAndReturn', type, tgId);
+		log('setChannelAuthorAndReturn', type, tgId);
 		tgId = tgId.toString();
 		if (!this.channelByAuthorId[tgId]) {
-			console.log('authorById', this.authorById);
+			log('authorById', this.authorById);
 			if (this.authorById[tgId]) {
 				this.channelByAuthorId[tgId] = await this.telegramClient.storeObjToChannelDbByType(this.connectClient, this.userId, type, this.authorById[tgId], true).then(r => r.dbChannel);
 			} else {
@@ -169,9 +171,9 @@ export class TelegramImportClient implements IGeesomeSocNetImportClient {
 		}
 
 		if (m.message) {
-			// console.log('m.message', m.message, 'm.entities', m.entities);
+			// log('m.message', m.message, 'm.entities', m.entities);
 			let text = telegramHelpers.messageWithEntitiesToHtml(m.message, m.entities || []);
-			// console.log('text', text);
+			// log('text', text);
 			const content = await this.content.saveData(userId, text, '', {
 				userId,
 				mimeType: 'text/html',
@@ -186,7 +188,7 @@ export class TelegramImportClient implements IGeesomeSocNetImportClient {
 				//TODO: handle and save polls (325)
 				return contents;
 			}
-			// console.log('m.media', m.media);
+			// log('m.media', m.media);
 			const {result: file} = await this.telegramClient.downloadMediaByClient(client, m.media);
 			if (file && file.content) {
 				const content = await this.content.saveData(userId, file.content, '', {

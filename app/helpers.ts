@@ -36,6 +36,13 @@ type ListCursorState = {
 type WhereParamType = 'boolean' | 'string';
 type WhereParamsOptions = Record<string, WhereParamType>;
 
+function getErrorMessage(e) {
+	if (e && e.message) {
+		return e.message;
+	}
+	return String(e);
+}
+
 function parseNonNegativeInteger(value, fallback = null) {
 	const parsed = Number.parseInt(value as any, 10);
 	if (!Number.isFinite(parsed) || parsed < 0) {
@@ -267,6 +274,66 @@ function normalizeUniqueIds(ids: any = []) {
 	return uniqueIds;
 }
 
+function mapForLog(list, mapper) {
+	if (!Array.isArray(list)) {
+		return [];
+	}
+	return list.map((item, index) => {
+		try {
+			return mapper(item, index);
+		} catch (e) {
+			return {debugPayloadError: getErrorMessage(e)};
+		}
+	});
+}
+
+function toLogValue(value) {
+	if (!value) {
+		return value;
+	}
+	try {
+		const toJson = value.toJSON;
+		if (typeof toJson === 'function') {
+			return toJson.call(value);
+		}
+		return value;
+	} catch (e) {
+		return {debugPayloadError: getErrorMessage(e)};
+	}
+}
+
+function logDebug(log, getArgs) {
+	if (!log.enabled) {
+		return;
+	}
+	try {
+		const args = getArgs();
+		if (!Array.isArray(args)) {
+			log('debug_payload_unavailable', 'payload_factory_must_return_args_array');
+			return;
+		}
+		log(...args);
+	} catch (e) {
+		log('debug_payload_unavailable', getErrorMessage(e));
+	}
+}
+
+async function logDebugAsync(log, getArgs) {
+	if (!log.enabled) {
+		return;
+	}
+	try {
+		const args = await getArgs();
+		if (!Array.isArray(args)) {
+			log('debug_payload_unavailable', 'payload_factory_must_return_args_array');
+			return;
+		}
+		log(...args);
+	} catch (e) {
+		log('debug_payload_unavailable', getErrorMessage(e));
+	}
+}
+
 function shouldIncludeListTotal(listParams: IListParams = {}, cursor: {hasCursor?: boolean} = {}) {
 	if (cursor.hasCursor) {
 		return false;
@@ -280,6 +347,14 @@ export default {
 	hasId,
 
 	normalizeUniqueIds,
+
+	mapForLog,
+
+	toLogValue,
+
+	logDebug,
+
+	logDebugAsync,
 
 	shouldIncludeListTotal,
 

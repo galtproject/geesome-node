@@ -6416,9 +6416,9 @@ functions-have-names@^1.2.2, functions-have-names@^1.2.3:
     semver "^7.5.0"
     webpack "^5.106.2"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#c43fb49":
+"geesome-libs@https://github.com/galtproject/geesome-libs#e504dc0":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#c43fb49d0f19f1cf9e49185e02f1850985d37094"
+  resolved "https://github.com/galtproject/geesome-libs#e504dc0480badfcf053221c4d90d0a43cab92962"
   dependencies:
     "@ethersproject/hash" "^5.7.0"
     "@helia/dag-cbor" "^5.1.1"

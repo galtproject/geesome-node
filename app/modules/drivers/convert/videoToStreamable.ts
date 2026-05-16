@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import debug from 'debug';
 import fs from "fs";
 import stream from 'stream';
 import ffmpeg from 'fluent-ffmpeg';
@@ -14,6 +15,7 @@ import mediainfo from 'node-mediainfo';
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 import helpers from "../helpers.js";
+const log = debug('geesome:app:drivers');
 
 export class VideoToStreambleDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
@@ -60,7 +62,7 @@ export class VideoToStreambleDriver extends AbstractDriver {
         if (options.onProgress) {
           options.onProgress(progress);
         }
-        console.log('VideoToStreambleDriver progress:', progress);
+        log('VideoToStreambleDriver progress:', progress);
       })
       .on('error', function (err, stdout, stderr) {
         console.error('An error occurred: ' + err.message, err, stderr);

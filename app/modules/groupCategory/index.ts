@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface.js";
@@ -7,6 +8,7 @@ import {GroupType} from "../group/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers";
 const {isUndefined, pick} = _;
+const log = debug('geesome:app:groupCategory');
 const publicPostListParams = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
@@ -309,7 +311,7 @@ function getModule(app: IGeesomeApp, models) {
 					where[name] = filters[name];
 				}
 			});
-			console.log('getGroupSectionsWhere', where);
+			log('getGroupSectionsWhere', where);
 			return where;
 		}
 
@@ -382,7 +384,7 @@ function getModule(app: IGeesomeApp, models) {
 					where[name] = filters[name];
 				}
 			});
-			console.log('getSectionsWhere', where);
+			log('getSectionsWhere', where);
 			return where;
 		}
 

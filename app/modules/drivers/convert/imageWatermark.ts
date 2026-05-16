@@ -9,18 +9,20 @@
 
 // process.env.FONTCONFIG_PATH = '';
 
+import debug from 'debug';
 import sharp from "sharp";
 import {Stream} from "stream";
 import {DriverInput, OutputSize} from "../interface.js";
 import AbstractDriver from "../abstractDriver.js";
 import helpers from "../helpers.js";
+const log = debug('geesome:app:drivers');
 
 export class ImageWatermarkDriver extends AbstractDriver {
   supportedInputs = [DriverInput.Stream];
   supportedOutputSizes = [OutputSize.Small, OutputSize.Medium, OutputSize.Large];
 
   async processByStream(inputStream, options: any = {}) {
-    console.log('ImagePreviewDriver.processByStream');
+    log('ImagePreviewDriver.processByStream');
     const path = await helpers.writeStreamToRandomPath(inputStream, options.extension)
     const metadata = await sharp(path).metadata();
 

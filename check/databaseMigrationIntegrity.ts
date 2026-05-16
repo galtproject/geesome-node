@@ -153,6 +153,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['async-operation output can store derived-state JSON'],
   },
   {
+    module: 'database',
+    file: '20260516000000-add-storage-object-pin-state.cjs',
+    verifies: ['storage-object canonical pin state column'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -219,6 +224,7 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'autoActions', columns: ['executeClaimedAt'], type: 'timestamp with time zone'},
   {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},
   {table: 'userAsyncOperations', columns: ['output'], type: 'text'},
+  {table: 'storageObjects', columns: ['isPinned'], type: 'boolean'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [

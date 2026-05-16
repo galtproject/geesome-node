@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import debug from 'debug';
 import {Op} from "sequelize";
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
@@ -6,6 +7,7 @@ import {CorePermissionName, IListParams, IListParamsOptions} from "../database/i
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
 const {isObject, last} = _;
+const log = debug('geesome:app:asyncOperation');
 const operationQueueListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id'],
@@ -59,7 +61,7 @@ export function getModule(app: IGeesomeApp, models) {
 			// TODO: fix hotfix
 			if (isObject(last(args))) {
 				(last(args) as any).onProgress = (progress) => {
-					console.log('onProgress', progress);
+					log('onProgress', progress);
 					this.updateUserAsyncOperation(asyncOperation.id, {
 						percent: progress.percent
 					});
