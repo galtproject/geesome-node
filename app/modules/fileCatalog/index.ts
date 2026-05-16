@@ -484,7 +484,8 @@ function getModule(app: IGeesomeApp, models) {
 				safeToDestroyContent &&
 				storageRefs.otherContents === 0 &&
 				storageRefs.previewRefs === 0 &&
-				storageRefs.pinnedStorageObjects === 0;
+				storageRefs.pinnedStorageObjects === 0 &&
+				storageRefs.derivedStorageRefs === 0;
 
 			if (safeToRemovePhysical) {
 				await app.ms.storage.unPin(content.storageId).catch(() => {/*not pinned*/});

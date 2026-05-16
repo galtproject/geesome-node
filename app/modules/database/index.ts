@@ -300,7 +300,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
-    const [otherContents, previewRefs, pinnedStorageObjects] = await Promise.all([
+    const [otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({
         where: {
@@ -312,8 +312,9 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
         },
       }),
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
+      countDerivedStorageIdReferences(this.models, this.sequelize, storageId),
     ]);
-    return {otherContents, previewRefs, pinnedStorageObjects};
+    return {otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs};
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
@@ -714,4 +715,92 @@ function getStorageObjectUpdateData(storageObject, storageObjectData) {
     updateData.isPinned = true;
   }
   return updateData;
+}
+
+const derivedStorageReferenceSources = [
+  {
+    modelNames: ['Post', 'post'],
+    columns: [
+      'storageId',
+      'directoryStorageId',
+      'staticStorageId',
+      'manifestStorageId',
+      'manifestStaticStorageId',
+      'encryptedManifestStorageId',
+      'groupStorageId',
+      'groupStaticStorageId',
+      'authorStorageId',
+      'authorStaticStorageId',
+    ],
+  },
+  {
+    modelNames: ['Group', 'group'],
+    columns: [
+      'storageId',
+      'directoryStorageId',
+      'staticStorageId',
+      'manifestStorageId',
+      'manifestStaticStorageId',
+      'encryptedManifestStorageId',
+    ],
+  },
+  {
+    modelNames: ['FileCatalogItem', 'fileCatalogItem'],
+    columns: ['manifestStorageId'],
+  },
+  {
+    modelNames: ['GroupCategory', 'groupCategory'],
+    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+  },
+  {
+    modelNames: ['GroupSection', 'groupSection'],
+    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+  },
+  {
+    modelNames: ['Tag', 'tag'],
+    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+  },
+  {
+    modelNames: ['Mention', 'mention'],
+    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+  },
+  {
+    modelNames: ['User', 'user'],
+    columns: ['manifestStorageId', 'manifestStaticStorageId'],
+  },
+  {
+    modelNames: ['StaticSite', 'staticSite'],
+    columns: ['storageId', 'lastEntityManifestStorageId'],
+  },
+];
+
+async function countDerivedStorageIdReferences(models, sequelize, storageId) {
+  const refCounts = await Promise.all(derivedStorageReferenceSources.map((source) => {
+    return countStorageIdColumnReferences(models, sequelize, source, storageId);
+  }));
+  return refCounts.reduce((sum, count) => sum + count, 0);
+}
+
+async function countStorageIdColumnReferences(models, sequelize, source, storageId) {
+  const model = getReferenceModel(models, sequelize, source.modelNames);
+  if (!model) {
+    return 0;
+  }
+  return model.count({
+    where: {
+      [Op.or]: source.columns.map((column) => ({[column]: storageId})),
+    },
+  });
+}
+
+function getReferenceModel(models, sequelize, modelNames) {
+  for (const modelName of modelNames) {
+    if (models[modelName]) {
+      return models[modelName];
+    }
+    if (sequelize.models[modelName]) {
+      return sequelize.models[modelName];
+    }
+  }
+  return null;
 }
