@@ -396,7 +396,7 @@ Verification:
 
 ### 12. Storage Space Analysis UI
 
-Status: planned. This should become a product feature after the A1 content identity and storage-reference work is stable enough to report logical versus physical sizes honestly.
+Status: planned, with the first backend aggregate seam in place. `database.getStorageSpaceOverview`, type breakdown, top content, top file-catalog file, and top group helpers now report logical content bytes separately from deduplicated physical storage bytes. Remaining work is API routing, cached/background snapshots for large nodes, generated-output DAG accounting, and the `geesome-ui` global navigation/screen.
 
 Goal: give node operators a global space-analysis view that explains where storage is going and what can be investigated safely before cleanup or quota decisions.
 
@@ -412,7 +412,7 @@ Scope:
 
 Likely backend contract:
 
-- Add paged aggregate endpoints for file-catalog usage by root/folder, group usage by group/post attachments, top files by size, and type breakdowns by MIME/extension.
+- Add paged aggregate endpoints for file-catalog usage by root/folder, group usage by group/post attachments, top files by size, and type breakdowns by MIME/extension. The first database helper layer exists; API exposure still needs route ownership and permission checks.
 - Report both logical references and deduplicated physical storage where possible; same `storageId` rows across users/groups must not be double-counted as physical bytes.
 - Reuse or extend `StorageObject`, content reference counts, and delete-safety blockers instead of inventing a second storage-accounting model.
 - Include filters for owner user, group, catalog root/folder, MIME type, extension, pinned state, public/private visibility, and time window.

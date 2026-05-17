@@ -32,6 +32,7 @@ import {
   UserLimitName
 } from "./interface.js";
 import {countDerivedStorageIdReferences} from './storageReferenceHelpers.js';
+import * as storageSpaceUsage from './storageSpaceUsageHelpers.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -54,6 +55,10 @@ const userFriendListParams: IListParamsOptions = {
 const adminContentListParams: IListParamsOptions = {
   sortBy: 'createdAt',
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+  maxLimit: 100
+};
+const storageSpaceListParams: IListParamsOptions = {
+  limit: 20,
   maxLimit: 100
 };
 
@@ -351,6 +356,26 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       ...options,
       hasStorageId: Boolean(contentRecord.storageId),
     });
+  }
+
+  async getStorageSpaceOverview() {
+    return storageSpaceUsage.getStorageSpaceOverview(this.sequelize);
+  }
+
+  async getStorageSpaceTypeBreakdown(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTypeBreakdown(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceTopContents(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTopContents(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceTopFileCatalogItems(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTopFileCatalogItems(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceTopGroups(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTopGroups(this.sequelize, getStorageSpaceListWindow(listParams));
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -764,6 +789,14 @@ function getContentDeleteSafety(storageRefs, contentRefs, options) {
     blockers: [...contentBlockers, ...storageBlockers],
     safeToDestroyContent,
     safeToRemovePhysical,
+  };
+}
+
+function getStorageSpaceListWindow(listParams: IListParams = {}) {
+  const limitCap = getListLimitCap(storageSpaceListParams);
+  return {
+    limit: Math.min(parseNonNegativeInteger(listParams.limit, storageSpaceListParams.limit), limitCap),
+    offset: parseNonNegativeInteger(listParams.offset, 0),
   };
 }
 
