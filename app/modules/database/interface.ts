@@ -249,9 +249,21 @@ export interface IContentDeleteSafetyOptions {
   excludeFileCatalogItemId?: number;
 }
 
+export type ContentDeleteSafetyBlockerScope = 'content' | 'storage';
+
+export interface IContentDeleteSafetyBlocker {
+  scope: ContentDeleteSafetyBlockerScope;
+  key: string;
+  count: number;
+  allowedCount?: number;
+}
+
 export interface IContentDeleteSafety {
   contentRefs: IContentReferenceCounts;
   storageRefs: IStorageIdReferenceCounts;
+  contentBlockers: IContentDeleteSafetyBlocker[];
+  storageBlockers: IContentDeleteSafetyBlocker[];
+  blockers: IContentDeleteSafetyBlocker[];
   safeToDestroyContent: boolean;
   safeToRemovePhysical: boolean;
 }
