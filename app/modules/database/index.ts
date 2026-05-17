@@ -62,10 +62,21 @@ const storageSpaceListParams: IListParamsOptions = {
   limit: 20,
   maxLimit: 100
 };
+const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
+const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
+let storageSpaceSnapshotRefreshQueueInProcess = false;
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
   if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value as any, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
     return fallback;
   }
   return parsed;
@@ -111,15 +122,17 @@ export default async function (app: IGeesomeApp) {
     throw e;
   }
 
-  return new PostgresDatabase(sequelize, models, config) as IGeesomeDatabaseModule;
+  return new PostgresDatabase(app, sequelize, models, config) as IGeesomeDatabaseModule;
 };
 
 class PostgresDatabase implements IGeesomeDatabaseModule {
+  app: IGeesomeApp;
   sequelize: any;
   models: any;
   config: any;
 
-  constructor(_sequelize, _models, _config) {
+  constructor(_app, _sequelize, _models, _config) {
+    this.app = _app;
     this.sequelize = _sequelize;
     this.models = _models;
     this.config = _config;
@@ -416,6 +429,95 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       topFileCatalogItems,
       topGroups,
     } as IStorageSpaceSnapshotData;
+  }
+
+  async queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
+    const queue = await this.app.ms.asyncOperation.addUserOperationQueue(
+      userId,
+      storageSpaceSnapshotQueueModuleName,
+      userApiKeyId,
+      getStorageSpaceSnapshotRefreshJobInput(listParams)
+    );
+    if (options.process !== false) {
+      this.startStorageSpaceSnapshotRefreshQueueProcessing();
+    }
+    return queue;
+  }
+
+  startStorageSpaceSnapshotRefreshQueueProcessing(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, storageSpaceSnapshotQueueKickBatchLimit);
+    void this.processStorageSpaceSnapshotRefreshQueue({limit}).catch((e) => {
+      log('processStorageSpaceSnapshotRefreshQueue error', e);
+    });
+  }
+
+  async processStorageSpaceSnapshotRefreshQueue(options: any = {}) {
+    if (storageSpaceSnapshotRefreshQueueInProcess) {
+      return {processed: 0};
+    }
+
+    storageSpaceSnapshotRefreshQueueInProcess = true;
+    let processed = 0;
+    const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+
+    try {
+      while (processed < limit) {
+        const waitingQueue = await this.prepareNextStorageSpaceSnapshotRefreshQueue();
+        if (!waitingQueue) {
+          return {processed};
+        }
+
+        await this.processStorageSpaceSnapshotRefreshQueueItem(waitingQueue);
+        processed += 1;
+      }
+      return {processed};
+    } finally {
+      storageSpaceSnapshotRefreshQueueInProcess = false;
+    }
+  }
+
+  async prepareNextStorageSpaceSnapshotRefreshQueue() {
+    while (true) {
+      const waitingQueue = await this.app.ms.asyncOperation.getWaitingOperationByModule(storageSpaceSnapshotQueueModuleName);
+      if (!waitingQueue) {
+        return null;
+      }
+      if (!waitingQueue.asyncOperation) {
+        return waitingQueue;
+      }
+      if (waitingQueue.asyncOperation.inProcess) {
+        return null;
+      }
+
+      await this.app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+    }
+  }
+
+  async processStorageSpaceSnapshotRefreshQueueItem(waitingQueue) {
+    const job = parseStorageSpaceSnapshotRefreshJob(waitingQueue.inputJson);
+    await this.app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
+
+    const asyncOperation = await this.app.ms.asyncOperation.addAsyncOperation(waitingQueue.userId, {
+      userApiKeyId: waitingQueue.userApiKeyId,
+      module: storageSpaceSnapshotQueueModuleName,
+      name: 'refresh-storage-space-snapshot',
+      channel: getStorageSpaceSnapshotRefreshJobChannel(job),
+      percent: 5,
+    });
+
+    await this.app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+    try {
+      const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams);
+      const result = getStorageSpaceSnapshotRefreshJobResult(snapshot);
+      await this.app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+      await this.app.ms.asyncOperation.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, JSON.stringify(result));
+      return result;
+    } catch (e) {
+      await this.app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+      await this.app.ms.asyncOperation.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, getErrorMessage(e));
+      return null;
+    }
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -848,6 +950,37 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
   };
 }
 
+function getStorageSpaceSnapshotRefreshJobInput(listParams: IListParams = {}) {
+  return {
+    type: 'refresh',
+    listParams: getStorageSpaceSnapshotListWindow(listParams),
+  };
+}
+
+function parseStorageSpaceSnapshotRefreshJob(inputJson) {
+  const job = typeof inputJson === 'string' ? JSON.parse(inputJson) : inputJson;
+  if (job?.type !== 'refresh') {
+    throw new Error('invalid_storage_space_snapshot_job_type');
+  }
+  return {
+    type: job.type,
+    listParams: getStorageSpaceSnapshotListWindow(job.listParams),
+  };
+}
+
+function getStorageSpaceSnapshotRefreshJobChannel(job) {
+  return `${storageSpaceSnapshotQueueModuleName}:refresh:limit:${job.listParams.limit}`;
+}
+
+function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
+  return {
+    snapshotId: snapshot.id,
+    listLimit: snapshot.listLimit,
+    durationMs: snapshot.durationMs,
+    createdAt: snapshot.createdAt,
+  };
+}
+
 function getStorageSpaceSnapshotResponse(snapshot) {
   if (!snapshot) {
     return null;
@@ -874,6 +1007,10 @@ function parseStorageSpaceSnapshotData(data) {
   }
 
   return JSON.parse(data);
+}
+
+function getErrorMessage(error) {
+  return error?.message || String(error);
 }
 
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {

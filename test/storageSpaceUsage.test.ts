@@ -117,5 +117,21 @@ describe("storage space usage", function () {
 		const latestSnapshot = await app.ms.database.getLatestStorageSpaceSnapshot();
 		assert.equal(latestSnapshot.id, snapshot.id);
 		assert.deepEqual(latestSnapshot.data.overview, snapshot.data.overview);
+
+		const queuedRefresh = await app.ms.database.queueStorageSpaceSnapshotRefresh(firstUser.id, null, {limit: 1, offset: 99}, {process: false});
+		assert.equal(queuedRefresh.module, "storage-space-snapshot");
+		assert.equal(queuedRefresh.isWaiting, true);
+
+		assert.deepEqual(await app.ms.database.processStorageSpaceSnapshotRefreshQueue({limit: 1}), {processed: 1});
+		const processedQueue = await app.ms.asyncOperation.getUserOperationQueue(firstUser.id, queuedRefresh.id);
+		assert.equal(processedQueue.isWaiting, false);
+		assert.equal(processedQueue.asyncOperation.inProcess, false);
+		assert.equal(processedQueue.asyncOperation.percent, 100);
+
+		const queuedRefreshOutput = JSON.parse(processedQueue.asyncOperation.output);
+		const queuedSnapshot = await app.ms.database.getLatestStorageSpaceSnapshot();
+		assert.equal(queuedRefreshOutput.snapshotId, queuedSnapshot.id);
+		assert.equal(queuedSnapshot.listLimit, 1);
+		assert.equal(queuedSnapshot.data.topContents.length <= 1, true);
 	});
 });

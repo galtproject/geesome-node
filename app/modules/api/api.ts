@@ -559,6 +559,26 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(await app.ms.database.refreshStorageSpaceSnapshot(req.user.id, req.body));
 	});
 
+	/**
+	 * @api {post} /v1/admin/storage-space/snapshot/refresh-async Queue storage-space snapshot refresh
+	 * @apiName AdminStorageSpaceSnapshotRefreshAsync
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+	 * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
+	 * @apiDescription Queues the analyzer aggregate queries as a background operation and returns the queue item for progress polling.
+	 */
+	module.onAuthorizedPost('admin/storage-space/snapshot/refresh-async', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.queueStorageSpaceSnapshotRefresh(req.user.id, req.apiKey?.id || null, req.body));
+	});
+
 
 	/**
 	 * @api {get} /v1/admin/boot-nodes List boot nodes

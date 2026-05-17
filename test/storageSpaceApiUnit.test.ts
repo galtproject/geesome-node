@@ -44,6 +44,7 @@ function createCoreApiHarness(appOverrides: any = {}) {
 				body: {},
 				params: {},
 				query: {},
+				apiKey: {id: 11},
 				...req,
 			}, {
 				send: (body, status) => {
@@ -91,6 +92,10 @@ describe("storage space admin API", function () {
 						databaseCalled = true;
 						return {};
 					},
+					queueStorageSpaceSnapshotRefresh: async () => {
+						databaseCalled = true;
+						return {};
+					},
 				},
 				communicator: {},
 				storage: {},
@@ -106,6 +111,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/top-groups"],
 			["GET", "admin/storage-space/snapshot"],
 			["POST", "admin/storage-space/snapshot/refresh"],
+			["POST", "admin/storage-space/snapshot/refresh-async"],
 		];
 
 		for (const [method, path] of routes) {
@@ -127,6 +133,7 @@ describe("storage space admin API", function () {
 			topGroups: [{id: 3, size: 10}],
 			snapshot: {id: 4, listLimit: 20},
 			refreshedSnapshot: {id: 5, listLimit: 5},
+			queuedSnapshot: {id: 6, module: "storage-space-snapshot"},
 		};
 		const {call} = createCoreApiHarness({
 			ms: {
@@ -159,6 +166,10 @@ describe("storage space admin API", function () {
 						databaseCalls.push(["refreshSnapshot", ...args]);
 						return responses.refreshedSnapshot;
 					},
+					queueStorageSpaceSnapshotRefresh: async (...args) => {
+						databaseCalls.push(["queueSnapshot", ...args]);
+						return responses.queuedSnapshot;
+					},
 				},
 				communicator: {},
 				storage: {},
@@ -176,8 +187,10 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/top-groups", {user: {id: 7}, query})).body, responses.topGroups);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
+		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -194,6 +207,7 @@ describe("storage space admin API", function () {
 			["topGroups", query],
 			["snapshot"],
 			["refreshSnapshot", 7, query],
+			["queueSnapshot", 7, 12, query],
 		]);
 	});
 });
