@@ -39,23 +39,23 @@ const derivedStorageReferenceSources = [
   },
   {
     modelNames: ['FileCatalogItem', 'fileCatalogItem'],
-    columns: ['manifestStorageId'],
+    columns: ['manifestStorageId', 'nativeStorageId'],
   },
   {
-    modelNames: ['GroupCategory', 'groupCategory'],
-    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+    modelNames: ['GroupCategory', 'groupCategory', 'Category', 'category'],
+    columns: ['storageId', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
   },
   {
     modelNames: ['GroupSection', 'groupSection'],
-    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+    columns: ['storageId', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId', 'encryptedManifestStorageId'],
   },
   {
     modelNames: ['Tag', 'tag'],
-    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+    columns: ['storageId', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
   },
   {
     modelNames: ['Mention', 'mention'],
-    columns: ['staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
+    columns: ['storageId', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId'],
   },
   {
     modelNames: ['User', 'user'],
