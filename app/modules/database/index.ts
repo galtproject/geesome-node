@@ -24,6 +24,7 @@ import {
   IListParams,
   IListParamsOptions,
   IObject,
+  IStorageSpaceSnapshotData,
   IUser,
   IUserApiKey,
   IUserContentAction,
@@ -195,7 +196,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObject', 'UserApiKey', 'User', 'Value', 'Object'
+      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObject', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
@@ -376,6 +377,45 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getStorageSpaceTopGroups(listParams: IListParams = {}) {
     return storageSpaceUsage.getStorageSpaceTopGroups(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getLatestStorageSpaceSnapshot() {
+    const snapshot = await this.models.StorageSpaceSnapshot.findOne({
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+    });
+    return getStorageSpaceSnapshotResponse(snapshot);
+  }
+
+  async refreshStorageSpaceSnapshot(userId?: number, listParams: IListParams = {}) {
+    const startedAt = Date.now();
+    const listWindow = getStorageSpaceSnapshotListWindow(listParams);
+    const data = await this.getStorageSpaceSnapshotData(listWindow);
+    const snapshot = await this.models.StorageSpaceSnapshot.create({
+      userId,
+      listLimit: listWindow.limit,
+      durationMs: Date.now() - startedAt,
+      data: JSON.stringify(data),
+    });
+    return getStorageSpaceSnapshotResponse(snapshot);
+  }
+
+  async getStorageSpaceSnapshotData(listParams: IListParams = {}) {
+    const listWindow = getStorageSpaceSnapshotListWindow(listParams);
+    const [overview, typeBreakdown, topContents, topFileCatalogItems, topGroups] = await Promise.all([
+      this.getStorageSpaceOverview(),
+      this.getStorageSpaceTypeBreakdown(listWindow),
+      this.getStorageSpaceTopContents(listWindow),
+      this.getStorageSpaceTopFileCatalogItems(listWindow),
+      this.getStorageSpaceTopGroups(listWindow),
+    ]);
+
+    return {
+      overview,
+      typeBreakdown,
+      topContents,
+      topFileCatalogItems,
+      topGroups,
+    } as IStorageSpaceSnapshotData;
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -798,6 +838,42 @@ function getStorageSpaceListWindow(listParams: IListParams = {}) {
     limit: Math.min(parseNonNegativeInteger(listParams.limit, storageSpaceListParams.limit), limitCap),
     offset: parseNonNegativeInteger(listParams.offset, 0),
   };
+}
+
+function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
+  const listWindow = getStorageSpaceListWindow(listParams);
+  return {
+    limit: listWindow.limit,
+    offset: 0,
+  };
+}
+
+function getStorageSpaceSnapshotResponse(snapshot) {
+  if (!snapshot) {
+    return null;
+  }
+
+  const snapshotData = typeof snapshot.toJSON === 'function' ? snapshot.toJSON() : snapshot;
+  return {
+    id: snapshotData.id,
+    userId: snapshotData.userId,
+    listLimit: snapshotData.listLimit,
+    durationMs: snapshotData.durationMs,
+    data: parseStorageSpaceSnapshotData(snapshotData.data),
+    createdAt: snapshotData.createdAt,
+    updatedAt: snapshotData.updatedAt,
+  };
+}
+
+function parseStorageSpaceSnapshotData(data) {
+  if (!data) {
+    return null;
+  }
+  if (typeof data !== 'string') {
+    return data;
+  }
+
+  return JSON.parse(data);
 }
 
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {

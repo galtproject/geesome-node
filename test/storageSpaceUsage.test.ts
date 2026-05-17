@@ -103,5 +103,19 @@ describe("storage space usage", function () {
 		const usageGroup = topGroups.find(row => row.id === group.id);
 		assert.equal(!!usageGroup, true);
 		assert.equal(usageGroup?.size, sharedSize);
+
+		assert.equal(await app.ms.database.getLatestStorageSpaceSnapshot(), null);
+		const snapshot = await app.ms.database.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2, offset: 99});
+		assert.equal(snapshot.userId, firstUser.id);
+		assert.equal(snapshot.listLimit, 2);
+		assert.equal(snapshot.data.overview.logicalContentBytes, after.logicalContentBytes);
+		assert.equal(snapshot.data.typeBreakdown.length <= 2, true);
+		assert.equal(snapshot.data.topContents.length <= 2, true);
+		assert.equal(snapshot.data.topFileCatalogItems.length <= 2, true);
+		assert.equal(snapshot.data.topGroups.length <= 2, true);
+
+		const latestSnapshot = await app.ms.database.getLatestStorageSpaceSnapshot();
+		assert.equal(latestSnapshot.id, snapshot.id);
+		assert.deepEqual(latestSnapshot.data.overview, snapshot.data.overview);
 	});
 });

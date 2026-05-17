@@ -70,6 +70,10 @@ export interface IGeesomeDatabaseModule {
 
   getStorageSpaceTopGroups(listParams?: IListParams): Promise<IStorageSpaceGroupRow[]>;
 
+  getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
+
+  refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams): Promise<IStorageSpaceSnapshot>;
+
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
   getContentByStorageIdListAndUserId(storageIdList, userId): Promise<IContent[]>;
@@ -333,6 +337,24 @@ export interface IStorageSpaceGroupRow {
   title?: string;
   size: number;
   availablePostsCount: number;
+}
+
+export interface IStorageSpaceSnapshotData {
+  overview: IStorageSpaceOverview;
+  typeBreakdown: IStorageSpaceTypeBreakdownRow[];
+  topContents: IStorageSpaceContentRow[];
+  topFileCatalogItems: IStorageSpaceFileCatalogRow[];
+  topGroups: IStorageSpaceGroupRow[];
+}
+
+export interface IStorageSpaceSnapshot {
+  id: number;
+  userId?: number;
+  listLimit: number;
+  durationMs: number;
+  data: IStorageSpaceSnapshotData;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface IContentData {

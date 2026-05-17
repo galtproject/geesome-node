@@ -58,6 +58,9 @@ function extractPermissions(block: string): string[] {
   for (const match of block.matchAll(groupPermissionRegex)) {
     permissions.add(`group:${match[1]}`);
   }
+  if (block.includes('canReadAdminStorageSpace')) {
+    permissions.add('AdminRead');
+  }
   return [...permissions].sort();
 }
 
@@ -101,7 +104,12 @@ function parseFile(filePath: string): RouteRow[] {
   const relPath = path.relative(rootDir, filePath);
   const moduleName = path.relative(modulesDir, path.dirname(filePath)).split(path.sep)[0];
   const aliases = new Map<string, string>();
+  const localApiRegistrars = new Set<string>();
   const routes: Array<RouteRow & {index: number}> = [];
+
+  if (relPath === 'app/modules/api/api.ts') {
+    localApiRegistrars.add('module');
+  }
 
   const prefixRegex = /(?:const|let|var)\s+(\w+)\s*=\s*app\.ms\.api\.prefix\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
   for (const match of source.matchAll(prefixRegex)) {
@@ -111,7 +119,7 @@ function parseFile(filePath: string): RouteRow[] {
   const routeRegex = /(?:(app\.ms\.api)|(\w+))\.(onAuthorizedGet|onAuthorizedPost|onUnversionGet|onUnversionHead|onGet|onPost|onHead)\(\s*['"`]([^'"`]+)['"`]/g;
   for (const match of source.matchAll(routeRegex)) {
     const alias = match[2];
-    if (alias && !aliases.has(alias)) {
+    if (alias && !aliases.has(alias) && !localApiRegistrars.has(alias)) {
       continue;
     }
     const registration = match[3];
