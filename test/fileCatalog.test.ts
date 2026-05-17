@@ -178,12 +178,35 @@ describe("app", function () {
 			options: '{}',
 			storageId: content.storageId
 		});
+		await (app.ms.database.models.FileCatalogItem as any).create({
+			userId: testUser.id,
+			name: 'native-derived-ref',
+			type: FileCatalogItemType.File,
+			nativeStorageId: content.storageId,
+			isDeleted: false
+		});
+		await (app.ms.database.models.GroupCategory as any).create({
+			name: 'category-derived-ref',
+			storageId: content.storageId
+		});
+		await (app.ms.database.models.GroupSection as any).create({
+			name: 'section-derived-ref',
+			encryptedManifestStorageId: content.storageId
+		});
+		await (app.ms.database.models.Tag as any).create({
+			name: 'tag-derived-ref',
+			storageId: content.storageId
+		});
+		await (app.ms.database.models.Mention as any).create({
+			name: 'mention-derived-ref',
+			storageId: content.storageId
+		});
 		await Promise.all(extraCatalogItems
 			.filter((item) => item.id !== fileItem.id)
 			.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
 
 		const refs = await app.ms.database.countStorageIdReferences(content.storageId, content.id);
-		assert.equal(refs.derivedStorageRefs, 1);
+		assert.equal(refs.derivedStorageRefs, 6);
 
 		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
 

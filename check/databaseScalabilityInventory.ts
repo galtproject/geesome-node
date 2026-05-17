@@ -715,6 +715,8 @@ function hotspotRows(): HotspotRow[] {
     && has(storageReferenceHelpersSource, 'StaticSite')
     && has(storageReferenceHelpersSource, 'StaticIdBinding')
     && has(storageReferenceHelpersSource, 'countLatestStaticIdHistoryFallbackReferences')
+    && has(storageReferenceHelpersSource, 'nativeStorageId')
+    && has(storageReferenceHelpersSource, 'encryptedManifestStorageId')
     && has(databaseSource, 'countDerivedStorageIdReferences(this.models, this.sequelize, storageId)')
     && has(fileCatalogSource, 'storageRefs.derivedStorageRefs === 0');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
@@ -1385,14 +1387,14 @@ function hotspotRows(): HotspotRow[] {
       observedPattern: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
-            ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including derived storage rows/current static-ID refs plus successful remote pins marked on StorageObject.isPinned and Content.isPinned'
+            ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including all known derived storage columns/current static-ID refs plus successful remote pins marked on StorageObject.isPinned and Content.isPinned'
             : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including successful remote pins marked on StorageObject.isPinned and Content.isPinned')
           : 'destroys catalog item first; only destroys content/physical storage after DB reference checks')
         : (has(fileCatalogSource, 'storage.remove(content.storageId)') ? 'unpin/remove physical storage and destroy content row' : 'review deleteContent path'),
       scalabilityRisk: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
-            ? 'same-storage, preview, DB-visible derived storage rows, current static-ID refs, and canonical local pin state are covered; IPFS DAG child refs inside generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'
+            ? 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, and canonical local pin state are covered; IPFS DAG child refs inside generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'
             : 'DB row references and canonical local pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle')
           : 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle')
         : 'same storageId rows, post attachments, generated output, and pins need reference checks before physical deletion',
