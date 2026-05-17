@@ -61,6 +61,7 @@ function modelRows(): ModelRow[] {
   const contentSource = read('app/modules/database/models/content.ts');
   const contentModuleSource = read('app/modules/content/index.ts');
   const storageObjectSource = read('app/modules/database/models/storageObject.ts');
+  const storageSpaceSnapshotSource = read('app/modules/database/models/storageSpaceSnapshot.ts');
   const storageObjectIntegritySource = read('check/databaseStorageObjectsIntegrity.ts');
   const migrationRehearsalSource = read('bash/database-migration-rehearsal');
   const objectSource = read('app/modules/database/models/object.ts');
@@ -316,6 +317,20 @@ function modelRows(): ModelRow[] {
               : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback')
             : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it and fall back to Content for old rows')
           : 'canonical physical storage metadata remains represented only by user-owned Content rows',
+      ],
+    },
+    {
+      area: 'Storage space snapshots',
+      source: 'app/modules/database/models/storageSpaceSnapshot.ts',
+      model: 'StorageSpaceSnapshot',
+      indexes: [
+        has(storageSpaceSnapshotSource, 'storage_space_snapshots_created_idx') ? 'createdAt,id latest-snapshot scan' : 'missing latest-snapshot scan index',
+        has(storageSpaceSnapshotSource, 'storage_space_snapshots_user_created_idx') ? 'userId,createdAt,id operator history scan' : 'missing user snapshot history index',
+      ],
+      notes: [
+        has(storageSpaceSnapshotSource, 'DataTypes.TEXT') && has(storageSpaceSnapshotSource, 'listLimit') && has(storageSpaceSnapshotSource, 'durationMs')
+          ? 'model-sync cached storage analyzer snapshots store the bounded analyzer payload with list limit, duration, and optional refresher user'
+          : 'snapshot table should store bounded analyzer payload metadata for large-node refreshes',
       ],
     },
     {
@@ -653,6 +668,7 @@ function hotspotRows(): HotspotRow[] {
   const storageSpaceUsageSource = read('app/modules/database/storageSpaceUsageHelpers.ts');
   const storageReferenceHelpersSource = read('app/modules/database/storageReferenceHelpers.ts');
   const storageObjectModelSource = read('app/modules/database/models/storageObject.ts');
+  const storageSpaceSnapshotModelSource = read('app/modules/database/models/storageSpaceSnapshot.ts');
   const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const inviteSource = read('app/modules/invite/index.ts');
   const staticIdSource = read('app/modules/staticId/index.ts');
@@ -749,6 +765,12 @@ function hotspotRows(): HotspotRow[] {
     && has(apiSource, 'admin/storage-space/top-groups')
     && has(apiSource, 'canReadAdminStorageSpace')
     && has(apiSource, 'CorePermissionName.AdminRead');
+  const hasStorageSpaceSnapshots = has(storageSpaceSnapshotModelSource, 'storageSpaceSnapshot')
+    && has(storageSpaceSnapshotModelSource, 'storage_space_snapshots_created_idx')
+    && has(databaseSource, 'getLatestStorageSpaceSnapshot')
+    && has(databaseSource, 'refreshStorageSpaceSnapshot')
+    && has(apiSource, 'admin/storage-space/snapshot')
+    && has(apiSource, 'admin/storage-space/snapshot/refresh');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -1431,16 +1453,20 @@ function hotspotRows(): HotspotRow[] {
     },
     {
       area: 'Storage space analysis',
-      source: 'app/modules/database/storageSpaceUsageHelpers.ts + app/modules/api/api.ts',
+      source: 'app/modules/database/storageSpaceUsageHelpers.ts + app/modules/api/api.ts + app/modules/database/models/storageSpaceSnapshot.ts',
       hotspot: 'storage analyzer aggregate helpers',
       observedPattern: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
-          ? 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
+          ? (hasStorageSpaceSnapshots
+            ? 'read-only helpers, AdminRead API routes, and model-sync cached snapshots expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
+            : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
           : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
         : 'storage usage is still inferred from unrelated content, file-catalog, and group screens',
       scalabilityRisk: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
-          ? 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain'
+          ? (hasStorageSpaceSnapshots
+            ? 'backend aggregate, API, and cached snapshot seams are present; async queue/progress, generated-output DAG accounting, deeper folder/root drilldowns, and restored-data query evidence remain'
+            : 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
           : 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
         : 'operators cannot identify large catalogs/groups/files without ad hoc queries, and duplicate storageId rows risk misleading physical-size reports',
     },

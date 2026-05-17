@@ -67,6 +67,30 @@ describe("storage space admin API", function () {
 						databaseCalled = true;
 						return {};
 					},
+					getStorageSpaceTypeBreakdown: async () => {
+						databaseCalled = true;
+						return {};
+					},
+					getStorageSpaceTopContents: async () => {
+						databaseCalled = true;
+						return {};
+					},
+					getStorageSpaceTopFileCatalogItems: async () => {
+						databaseCalled = true;
+						return {};
+					},
+					getStorageSpaceTopGroups: async () => {
+						databaseCalled = true;
+						return {};
+					},
+					getLatestStorageSpaceSnapshot: async () => {
+						databaseCalled = true;
+						return {};
+					},
+					refreshStorageSpaceSnapshot: async () => {
+						databaseCalled = true;
+						return {};
+					},
 				},
 				communicator: {},
 				storage: {},
@@ -74,9 +98,20 @@ describe("storage space admin API", function () {
 			isAdminCan: async () => false,
 		});
 
-		const response = await call("GET", "admin/storage-space/overview", {user: {id: 7}});
+		const routes = [
+			["GET", "admin/storage-space/overview"],
+			["GET", "admin/storage-space/type-breakdown"],
+			["GET", "admin/storage-space/top-contents"],
+			["GET", "admin/storage-space/top-file-catalog-items"],
+			["GET", "admin/storage-space/top-groups"],
+			["GET", "admin/storage-space/snapshot"],
+			["POST", "admin/storage-space/snapshot/refresh"],
+		];
 
-		assert.equal(response.body, 403);
+		for (const [method, path] of routes) {
+			const response = await call(method, path, {user: {id: 7}});
+			assert.equal(response.body, 403);
+		}
 		assert.equal(databaseCalled, false);
 	});
 
@@ -90,6 +125,8 @@ describe("storage space admin API", function () {
 			topContents: [{id: 1, size: 30}],
 			topFileCatalogItems: [{id: 2, size: 20}],
 			topGroups: [{id: 3, size: 10}],
+			snapshot: {id: 4, listLimit: 20},
+			refreshedSnapshot: {id: 5, listLimit: 5},
 		};
 		const {call} = createCoreApiHarness({
 			ms: {
@@ -114,6 +151,14 @@ describe("storage space admin API", function () {
 						databaseCalls.push(["topGroups", listParams]);
 						return responses.topGroups;
 					},
+					getLatestStorageSpaceSnapshot: async () => {
+						databaseCalls.push(["snapshot"]);
+						return responses.snapshot;
+					},
+					refreshStorageSpaceSnapshot: async (...args) => {
+						databaseCalls.push(["refreshSnapshot", ...args]);
+						return responses.refreshedSnapshot;
+					},
 				},
 				communicator: {},
 				storage: {},
@@ -129,8 +174,12 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/top-contents", {user: {id: 7}, query})).body, responses.topContents);
 		assert.deepEqual((await call("GET", "admin/storage-space/top-file-catalog-items", {user: {id: 7}, query})).body, responses.topFileCatalogItems);
 		assert.deepEqual((await call("GET", "admin/storage-space/top-groups", {user: {id: 7}, query})).body, responses.topGroups);
+		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
+		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -143,6 +192,8 @@ describe("storage space admin API", function () {
 			["topContents", query],
 			["topFileCatalogItems", query],
 			["topGroups", query],
+			["snapshot"],
+			["refreshSnapshot", 7, query],
 		]);
 	});
 });

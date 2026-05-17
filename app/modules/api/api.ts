@@ -522,6 +522,43 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(await app.ms.database.getStorageSpaceTopGroups(req.query));
 	});
 
+	/**
+	 * @api {get} /v1/admin/storage-space/snapshot Get latest storage-space snapshot
+	 * @apiName AdminStorageSpaceSnapshot
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Returns the latest cached storage-space analyzer snapshot, or null before the first refresh.
+	 */
+	module.onAuthorizedGet('admin/storage-space/snapshot', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getLatestStorageSpaceSnapshot());
+	});
+
+	/**
+	 * @api {post} /v1/admin/storage-space/snapshot/refresh Refresh storage-space snapshot
+	 * @apiName AdminStorageSpaceSnapshotRefresh
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+	 * @apiDescription Runs the analyzer aggregate queries once, stores the result as a cached snapshot, and returns it for operator screens.
+	 */
+	module.onAuthorizedPost('admin/storage-space/snapshot/refresh', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.refreshStorageSpaceSnapshot(req.user.id, req.body));
+	});
+
 
 	/**
 	 * @api {get} /v1/admin/boot-nodes List boot nodes
