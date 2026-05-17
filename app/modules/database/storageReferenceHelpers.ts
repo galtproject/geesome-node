@@ -1,9 +1,12 @@
-import {Op} from 'sequelize';
+import {Op, QueryTypes} from 'sequelize';
 
 export async function countDerivedStorageIdReferences(models, sequelize, storageId) {
-  const refCounts = await Promise.all(derivedStorageReferenceSources.map((source) => {
-    return countStorageIdColumnReferences(models, sequelize, source, storageId);
-  }));
+  const refCounts = await Promise.all([
+    ...derivedStorageReferenceSources.map((source) => {
+      return countStorageIdColumnReferences(models, sequelize, source, storageId);
+    }),
+    countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
+  ]);
   return refCounts.reduce((sum, count) => sum + count, 0);
 }
 
@@ -62,6 +65,10 @@ const derivedStorageReferenceSources = [
     modelNames: ['StaticSite', 'staticSite'],
     columns: ['storageId', 'lastEntityManifestStorageId'],
   },
+  {
+    modelNames: ['StaticIdBinding', 'staticIdBinding'],
+    columns: ['dynamicId'],
+  },
 ];
 
 async function countStorageIdColumnReferences(models, sequelize, source, storageId) {
@@ -74,6 +81,33 @@ async function countStorageIdColumnReferences(models, sequelize, source, storage
       [Op.or]: source.columns.map((column) => ({[column]: storageId})),
     },
   });
+}
+
+async function countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId) {
+  const historyModel = getReferenceModel(models, sequelize, ['StaticIdHistory', 'staticIdHistory']);
+  const bindingModel = getReferenceModel(models, sequelize, ['StaticIdBinding', 'staticIdBinding']);
+  if (!historyModel || !bindingModel) {
+    return 0;
+  }
+  const rows = await sequelize.query(`
+    SELECT COUNT(*) AS count
+    FROM (
+      SELECT DISTINCT ON ("staticId")
+        "staticId",
+        "dynamicId"
+      FROM "staticIdHistories"
+      WHERE "staticId" IS NOT NULL
+      ORDER BY "staticId", "boundAt" DESC NULLS LAST, id DESC
+    ) latest_history
+    LEFT JOIN "staticIdBindings" binding
+      ON binding."staticId" = latest_history."staticId"
+    WHERE binding.id IS NULL
+      AND latest_history."dynamicId" = :storageId
+  `, {
+    replacements: {storageId},
+    type: QueryTypes.SELECT,
+  });
+  return Number(rows[0]?.count || 0);
 }
 
 function getReferenceModel(models, sequelize, modelNames) {

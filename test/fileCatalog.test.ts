@@ -161,7 +161,7 @@ describe("app", function () {
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 	});
 
-	it("keeps physical storage when a derived storage row references the same storage id", async () => {
+	it("keeps physical storage when derived rows or static ids reference the same storage id", async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const content = await app.ms.content.saveData(testUser.id, 'Derived storage ref body', 'derived-ref.txt', {
 			mimeType: 'text/plain'
@@ -190,6 +190,32 @@ describe("app", function () {
 		assert.equal(await app.ms.database.getContent(content.id), null);
 		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Derived storage ref body');
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
+
+		const staticRefContent = await app.ms.content.saveData(testUser.id, 'Static id ref body', 'static-ref.txt', {
+			mimeType: 'text/plain'
+		});
+		const staticRefFileItem = await fileCatalog.saveContentByPath(testUser.id, '/static-ref.txt', staticRefContent.id);
+		const staticRefExtraCatalogItems = await fileCatalog.getFileCatalogItemsByContent(testUser.id, staticRefContent.id, FileCatalogItemType.File);
+		const staticId = await app.ms.staticId.createStaticAccountId(testUser.id, 'static-ref-target');
+		const StaticIdBinding = app.ms.database.sequelize.model('staticIdBinding') as any;
+
+		await app.ms.staticId.bindToStaticId(testUser.id, staticRefContent.storageId, staticId);
+		await Promise.all(staticRefExtraCatalogItems
+			.filter((item) => item.id !== staticRefFileItem.id)
+			.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
+
+		let staticRefs = await app.ms.database.countStorageIdReferences(staticRefContent.storageId, staticRefContent.id);
+		assert.equal(staticRefs.derivedStorageRefs, 1);
+
+		await StaticIdBinding.destroy({where: {staticId}});
+		staticRefs = await app.ms.database.countStorageIdReferences(staticRefContent.storageId, staticRefContent.id);
+		assert.equal(staticRefs.derivedStorageRefs, 1);
+
+		await fileCatalog.deleteFileCatalogItem(testUser.id, staticRefFileItem.id, {deleteContent: true});
+
+		assert.equal(await app.ms.database.getContent(staticRefContent.id), null);
+		assert.equal(await app.ms.storage.getFileData(staticRefContent.storageId), 'Static id ref body');
+		assert.equal(await fileCatalog.getFileCatalogItem(staticRefFileItem.id), null);
 	});
 
 	it("should create directory by files manifests correctly", async () => {
