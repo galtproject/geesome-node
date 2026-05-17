@@ -467,33 +467,18 @@ function getModule(app: IGeesomeApp, models) {
 				throw new Error("not_permitted");
 			}
 
-			// A1 reference-count check (P1 finding): one file-catalog delete must not break
-			// other rows or durable pins that still point at this Content row or the same physical storage object.
-			const [storageRefs, contentRefs] = await Promise.all([
-				app.ms.database.countStorageIdReferences(content.storageId, content.id),
-				app.ms.database.countContentReferences(content.id),
-			]);
-			const safeToDestroyContent =
-				contentRefs.posts === 0 &&
-				contentRefs.fileCatalogItems <= 1 && // the catalog item being deleted itself
-				contentRefs.groupAvatars === 0 &&
-				contentRefs.groupCovers === 0 &&
-				contentRefs.userAvatars === 0 &&
-				contentRefs.pinnedContents === 0;
-			const safeToRemovePhysical =
-				safeToDestroyContent &&
-				storageRefs.otherContents === 0 &&
-				storageRefs.previewRefs === 0 &&
-				storageRefs.pinnedStorageObjects === 0 &&
-				storageRefs.derivedStorageRefs === 0;
+			const deleteSafety = await app.ms.database.getContentDeleteSafety(content, {
+				allowedFileCatalogItems: 1,
+				excludeFileCatalogItemId: fileCatalogItem.id,
+			});
 
-			if (safeToRemovePhysical) {
+			if (deleteSafety.safeToRemovePhysical) {
 				await app.ms.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
 				await app.ms.storage.remove(content.storageId).catch(() => {/*not found*/});
 			}
 
 			await fileCatalogItem['destroy']();
-			if (safeToDestroyContent) {
+			if (deleteSafety.safeToDestroyContent) {
 				await content['destroy']();
 			}
 

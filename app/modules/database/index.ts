@@ -296,7 +296,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // A1 reference-count helper for physical storage objects. Used by deleteFileCatalogItem before
   // unpinning/removing the storage object so a delete by one user cannot break another user's row,
   // a Content row that uses the storageId as a preview, or a future canonical asset.
-  async countStorageIdReferences(storageId, excludeContentId?: number) {
+  async countStorageIdReferences(storageId, excludeContentId?: number, options: {excludeFileCatalogItemId?: number} = {}) {
     const otherContentsWhere: any = {storageId};
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
@@ -313,7 +313,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
         },
       }),
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
-      countDerivedStorageIdReferences(this.models, this.sequelize, storageId),
+      countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
     ]);
     return {otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs};
   }
@@ -330,6 +330,25 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       this.models.Content.count({where: {id: contentId, isPinned: true}}),
     ]);
     return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
+  }
+
+  async getContentDeleteSafety(content, options: {allowedFileCatalogItems?: number; excludeFileCatalogItemId?: number} = {}) {
+    const contentRecord = typeof content === 'number' ? await this.getContent(content) : content;
+    if (!contentRecord) {
+      return null;
+    }
+    const [storageRefs, contentRefs] = await Promise.all([
+      contentRecord.storageId
+        ? this.countStorageIdReferences(contentRecord.storageId, contentRecord.id, {
+            excludeFileCatalogItemId: options.excludeFileCatalogItemId,
+          })
+        : getEmptyStorageIdReferenceCounts(),
+      this.countContentReferences(contentRecord.id),
+    ]);
+    return getContentDeleteSafety(storageRefs, contentRefs, {
+      ...options,
+      hasStorageId: Boolean(contentRecord.storageId),
+    });
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -716,4 +735,37 @@ function getStorageObjectUpdateData(storageObject, storageObjectData) {
     updateData.isPinned = true;
   }
   return updateData;
+}
+
+function getEmptyStorageIdReferenceCounts() {
+  return {
+    otherContents: 0,
+    previewRefs: 0,
+    pinnedStorageObjects: 0,
+    derivedStorageRefs: 0,
+  };
+}
+
+function getContentDeleteSafety(storageRefs, contentRefs, options) {
+  const allowedFileCatalogItems = options.allowedFileCatalogItems || 0;
+  const safeToDestroyContent =
+    contentRefs.posts === 0 &&
+    contentRefs.fileCatalogItems <= allowedFileCatalogItems &&
+    contentRefs.groupAvatars === 0 &&
+    contentRefs.groupCovers === 0 &&
+    contentRefs.userAvatars === 0 &&
+    contentRefs.pinnedContents === 0;
+  const safeToRemovePhysical =
+    options.hasStorageId === true &&
+    safeToDestroyContent &&
+    storageRefs.otherContents === 0 &&
+    storageRefs.previewRefs === 0 &&
+    storageRefs.pinnedStorageObjects === 0 &&
+    storageRefs.derivedStorageRefs === 0;
+  return {
+    contentRefs,
+    storageRefs,
+    safeToDestroyContent,
+    safeToRemovePhysical,
+  };
 }

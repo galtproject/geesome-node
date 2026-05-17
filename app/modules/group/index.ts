@@ -2170,7 +2170,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async flushDatabase() {
 			await pIteration.forEachSeries([
-				'AutoTag', 'Tag', 'GroupRead', 'PostEvent', 'PostsContents', 'Post', 'GroupPermission',
+				'Mention', 'AutoTag', 'Tag', 'GroupRead', 'PostEvent', 'PostsContents', 'Post', 'GroupPermission',
 				'GroupAdministrators', 'GroupMembers', 'Group'
 			], (modelName) => {
 				return models[modelName].destroy({where: {}});

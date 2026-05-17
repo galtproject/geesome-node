@@ -150,7 +150,7 @@ function modelRows(): ModelRow[] {
   const hasStorageObjectPinState = has(storageObjectSource, 'isPinned')
     && has(databaseModuleSource, 'markStorageObjectPinnedByContent')
     && has(databaseModuleSource, 'pinnedStorageObjects')
-    && has(fileCatalogSource, 'storageRefs.pinnedStorageObjects === 0')
+    && has(databaseModuleSource, 'storageRefs.pinnedStorageObjects === 0')
     && has(pinIndexSource, 'markStorageObjectPinnedByContent');
   const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
     && has(storageObjectIntegritySource, 'repairStorageObjects')
@@ -701,15 +701,22 @@ function hotspotRows(): HotspotRow[] {
     && has(fileCatalogSource, 'fileCatalogPublishBatchLimit')
     && has(fileCatalogSource, "order: [['id', 'ASC']]")
     && has(fileCatalogSource, 'id: {[Op.gt]: lastId}');
+  const hasContentDeleteSafetyHelper = has(databaseSource, 'getContentDeleteSafety')
+    && has(databaseSource, 'safeToDestroyContent')
+    && has(databaseSource, 'safeToRemovePhysical')
+    && has(fileCatalogSource, 'getContentDeleteSafety(content')
+    && has(fileCatalogSource, 'allowedFileCatalogItems: 1')
+    && has(fileCatalogSource, 'excludeFileCatalogItemId: fileCatalogItem.id');
   const hasStorageObjectPinState = has(storageObjectModelSource, 'isPinned')
     && has(databaseSource, 'markStorageObjectPinnedByContent')
     && has(databaseSource, 'pinnedStorageObjects')
-    && has(fileCatalogSource, 'storageRefs.pinnedStorageObjects === 0')
+    && has(databaseSource, 'storageRefs.pinnedStorageObjects === 0')
     && has(pinSource, 'markStorageObjectPinnedByContent');
   const hasPinnedContentDeleteGuard = has(databaseSource, 'pinnedContents')
-    && has(fileCatalogSource, 'contentRefs.pinnedContents === 0')
+    && has(databaseSource, 'contentRefs.pinnedContents === 0')
     && has(pinSource, 'isPinned: true')
-    && hasStorageObjectPinState;
+    && hasStorageObjectPinState
+    && hasContentDeleteSafetyHelper;
   const hasDerivedStorageDeleteGuard = has(storageReferenceHelpersSource, 'derivedStorageReferenceSources')
     && has(storageReferenceHelpersSource, 'countDerivedStorageIdReferences')
     && has(storageReferenceHelpersSource, 'StaticSite')
@@ -717,8 +724,9 @@ function hotspotRows(): HotspotRow[] {
     && has(storageReferenceHelpersSource, 'countLatestStaticIdHistoryFallbackReferences')
     && has(storageReferenceHelpersSource, 'nativeStorageId')
     && has(storageReferenceHelpersSource, 'encryptedManifestStorageId')
-    && has(databaseSource, 'countDerivedStorageIdReferences(this.models, this.sequelize, storageId)')
-    && has(fileCatalogSource, 'storageRefs.derivedStorageRefs === 0');
+    && has(databaseSource, 'countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options)')
+    && has(storageReferenceHelpersSource, 'excludeFileCatalogItemId')
+    && has(databaseSource, 'storageRefs.derivedStorageRefs === 0');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -1382,16 +1390,16 @@ function hotspotRows(): HotspotRow[] {
     },
     {
       area: 'Content deletion',
-      source: 'app/modules/fileCatalog/index.ts',
+      source: 'app/modules/database/index.ts + app/modules/fileCatalog/index.ts',
       hotspot: 'deleteFileCatalogItem deleteContent',
-      observedPattern: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
+      observedPattern: hasContentDeleteSafetyHelper
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
             ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including all known derived storage columns/current static-ID refs plus successful remote pins marked on StorageObject.isPinned and Content.isPinned'
             : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, including successful remote pins marked on StorageObject.isPinned and Content.isPinned')
           : 'destroys catalog item first; only destroys content/physical storage after DB reference checks')
         : (has(fileCatalogSource, 'storage.remove(content.storageId)') ? 'unpin/remove physical storage and destroy content row' : 'review deleteContent path'),
-      scalabilityRisk: has(fileCatalogSource, 'safeToDestroyContent') && has(fileCatalogSource, 'safeToRemovePhysical')
+      scalabilityRisk: hasContentDeleteSafetyHelper
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
             ? 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, and canonical local pin state are covered; IPFS DAG child refs inside generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'

@@ -54,14 +54,11 @@ export interface IGeesomeDatabaseModule {
 
   getSharedContentByManifestId(manifestId): Promise<IContent>;
 
-  countStorageIdReferences(storageId, excludeContentId?): Promise<{
-    otherContents: number;
-    previewRefs: number;
-    pinnedStorageObjects: number;
-    derivedStorageRefs: number;
-  }>;
+  countStorageIdReferences(storageId, excludeContentId?, options?: IStorageIdReferenceOptions): Promise<IStorageIdReferenceCounts>;
 
-  countContentReferences(contentId): Promise<{posts: number; fileCatalogItems: number; groupAvatars: number; groupCovers: number; userAvatars: number; pinnedContents: number}>;
+  countContentReferences(contentId): Promise<IContentReferenceCounts>;
+
+  getContentDeleteSafety(content: IContent | number, options?: IContentDeleteSafetyOptions): Promise<IContentDeleteSafety>;
 
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
@@ -225,6 +222,38 @@ export interface IStorageObjectRecord {
   previewExtension?: string;
   isPinned?: boolean;
   toJSON?(): any;
+}
+
+export interface IStorageIdReferenceCounts {
+  otherContents: number;
+  previewRefs: number;
+  pinnedStorageObjects: number;
+  derivedStorageRefs: number;
+}
+
+export interface IStorageIdReferenceOptions {
+  excludeFileCatalogItemId?: number;
+}
+
+export interface IContentReferenceCounts {
+  posts: number;
+  fileCatalogItems: number;
+  groupAvatars: number;
+  groupCovers: number;
+  userAvatars: number;
+  pinnedContents: number;
+}
+
+export interface IContentDeleteSafetyOptions {
+  allowedFileCatalogItems?: number;
+  excludeFileCatalogItemId?: number;
+}
+
+export interface IContentDeleteSafety {
+  contentRefs: IContentReferenceCounts;
+  storageRefs: IStorageIdReferenceCounts;
+  safeToDestroyContent: boolean;
+  safeToRemovePhysical: boolean;
 }
 
 export interface IContentData {
