@@ -1,4 +1,4 @@
-import IGeesomeApiModule from "./interface.js";
+import IGeesomeApiModule, {type IApiModuleCommonOutput} from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import http from 'node:http';
@@ -432,6 +432,96 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(await app.getAllUserList(req.user.id, req.query.search, req.query));
 	});
 
+	/**
+	 * @api {get} /v1/admin/storage-space/overview Get storage-space overview
+	 * @apiName AdminStorageSpaceOverview
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Read-only operator totals for logical content bytes, deduplicated physical bytes, catalog usage, group usage, and pinned storage usage.
+	 */
+	module.onAuthorizedGet('admin/storage-space/overview', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceOverview());
+	});
+
+	/**
+	 * @api {get} /v1/admin/storage-space/type-breakdown Get storage-space type breakdown
+	 * @apiName AdminStorageSpaceTypeBreakdown
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 */
+	module.onAuthorizedGet('admin/storage-space/type-breakdown', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceTypeBreakdown(req.query));
+	});
+
+	/**
+	 * @api {get} /v1/admin/storage-space/top-contents Get largest content rows
+	 * @apiName AdminStorageSpaceTopContents
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 */
+	module.onAuthorizedGet('admin/storage-space/top-contents', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceTopContents(req.query));
+	});
+
+	/**
+	 * @api {get} /v1/admin/storage-space/top-file-catalog-items Get largest file-catalog files
+	 * @apiName AdminStorageSpaceTopFileCatalogItems
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 */
+	module.onAuthorizedGet('admin/storage-space/top-file-catalog-items', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceTopFileCatalogItems(req.query));
+	});
+
+	/**
+	 * @api {get} /v1/admin/storage-space/top-groups Get largest groups
+	 * @apiName AdminStorageSpaceTopGroups
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 */
+	module.onAuthorizedGet('admin/storage-space/top-groups', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceTopGroups(req.query));
+	});
+
 
 	/**
 	 * @api {get} /v1/admin/boot-nodes List boot nodes
@@ -575,4 +665,13 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 			res.send(null, 500)
 		});
 	});
+}
+
+async function canReadAdminStorageSpace(app: IGeesomeApp, userId, res: IApiModuleCommonOutput) {
+	if (await app.isAdminCan(userId, CorePermissionName.AdminRead)) {
+		return true;
+	}
+
+	res.send(403);
+	return false;
 }

@@ -145,6 +145,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 119 | Content/storage delete safety is centralized in `database.getContentDeleteSafety`, including exclusion for the file-catalog row currently being deleted, so future content delete paths share the same reference-count decision | this PR |
 | 120 | The centralized delete-safety result now includes content/storage blocker lists with counts, giving delayed-GC jobs and operator checks a reusable explanation for why a row or physical object cannot be removed yet | this PR |
 | 121 | First storage-space analyzer backend helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes | this PR |
+| 122 | AdminRead-protected storage-space API routes now expose the analyzer overview, type breakdown, largest content rows, largest catalog files, and largest groups for the future operator UI | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 
