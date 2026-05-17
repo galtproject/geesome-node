@@ -1,9 +1,9 @@
 import {Op, QueryTypes} from 'sequelize';
 
-export async function countDerivedStorageIdReferences(models, sequelize, storageId) {
+export async function countDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
   const refCounts = await Promise.all([
     ...derivedStorageReferenceSources.map((source) => {
-      return countStorageIdColumnReferences(models, sequelize, source, storageId);
+      return countStorageIdColumnReferences(models, sequelize, source, storageId, options);
     }),
     countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
   ]);
@@ -71,15 +71,19 @@ const derivedStorageReferenceSources = [
   },
 ];
 
-async function countStorageIdColumnReferences(models, sequelize, source, storageId) {
+async function countStorageIdColumnReferences(models, sequelize, source, storageId, options) {
   const model = getReferenceModel(models, sequelize, source.modelNames);
   if (!model) {
     return 0;
   }
+  const where: any = {
+    [Op.or]: source.columns.map((column) => ({[column]: storageId})),
+  };
+  if (options.excludeFileCatalogItemId && source.modelNames.includes('FileCatalogItem')) {
+    where.id = {[Op.ne]: options.excludeFileCatalogItemId};
+  }
   return model.count({
-    where: {
-      [Op.or]: source.columns.map((column) => ({[column]: storageId})),
-    },
+    where,
   });
 }
 

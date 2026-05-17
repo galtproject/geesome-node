@@ -205,8 +205,17 @@ describe("app", function () {
 			.filter((item) => item.id !== fileItem.id)
 			.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
 
-		const refs = await app.ms.database.countStorageIdReferences(content.storageId, content.id);
+		const refs = await app.ms.database.countStorageIdReferences(content.storageId, content.id, {
+			excludeFileCatalogItemId: fileItem.id
+		});
 		assert.equal(refs.derivedStorageRefs, 6);
+		const deleteSafety = await app.ms.database.getContentDeleteSafety(content, {
+			allowedFileCatalogItems: 1,
+			excludeFileCatalogItemId: fileItem.id
+		});
+		assert.equal(deleteSafety.safeToDestroyContent, true);
+		assert.equal(deleteSafety.safeToRemovePhysical, false);
+		assert.equal(deleteSafety.storageRefs.derivedStorageRefs, 6);
 
 		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
 
