@@ -649,6 +649,7 @@ function hotspotRows(): HotspotRow[] {
   const categorySource = read('app/modules/groupCategory/index.ts');
   const contentSource = read('app/modules/content/index.ts');
   const databaseSource = read('app/modules/database/index.ts');
+  const apiSource = read('app/modules/api/api.ts');
   const storageSpaceUsageSource = read('app/modules/database/storageSpaceUsageHelpers.ts');
   const storageReferenceHelpersSource = read('app/modules/database/storageReferenceHelpers.ts');
   const storageObjectModelSource = read('app/modules/database/models/storageObject.ts');
@@ -741,6 +742,13 @@ function hotspotRows(): HotspotRow[] {
     && has(storageSpaceUsageSource, 'physicalContentBytes')
     && has(storageSpaceUsageSource, 'duplicateStorageIdsCount')
     && has(storageSpaceUsageSource, 'getStorageSpaceTypeBreakdown');
+  const hasStorageSpaceApi = has(apiSource, 'admin/storage-space/overview')
+    && has(apiSource, 'admin/storage-space/type-breakdown')
+    && has(apiSource, 'admin/storage-space/top-contents')
+    && has(apiSource, 'admin/storage-space/top-file-catalog-items')
+    && has(apiSource, 'admin/storage-space/top-groups')
+    && has(apiSource, 'canReadAdminStorageSpace')
+    && has(apiSource, 'CorePermissionName.AdminRead');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -1423,13 +1431,17 @@ function hotspotRows(): HotspotRow[] {
     },
     {
       area: 'Storage space analysis',
-      source: 'app/modules/database/storageSpaceUsageHelpers.ts',
+      source: 'app/modules/database/storageSpaceUsageHelpers.ts + app/modules/api/api.ts',
       hotspot: 'storage analyzer aggregate helpers',
       observedPattern: hasStorageSpaceUsageHelpers
-        ? 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
+        ? (hasStorageSpaceApi
+          ? 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
+          : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
         : 'storage usage is still inferred from unrelated content, file-catalog, and group screens',
       scalabilityRisk: hasStorageSpaceUsageHelpers
-        ? 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain'
+        ? (hasStorageSpaceApi
+          ? 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain'
+          : 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
         : 'operators cannot identify large catalogs/groups/files without ad hoc queries, and duplicate storageId rows risk misleading physical-size reports',
     },
     {
