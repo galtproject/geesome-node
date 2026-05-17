@@ -60,6 +60,16 @@ export interface IGeesomeDatabaseModule {
 
   getContentDeleteSafety(content: IContent | number, options?: IContentDeleteSafetyOptions): Promise<IContentDeleteSafety>;
 
+  getStorageSpaceOverview(): Promise<IStorageSpaceOverview>;
+
+  getStorageSpaceTypeBreakdown(listParams?: IListParams): Promise<IStorageSpaceTypeBreakdownRow[]>;
+
+  getStorageSpaceTopContents(listParams?: IListParams): Promise<IStorageSpaceContentRow[]>;
+
+  getStorageSpaceTopFileCatalogItems(listParams?: IListParams): Promise<IStorageSpaceFileCatalogRow[]>;
+
+  getStorageSpaceTopGroups(listParams?: IListParams): Promise<IStorageSpaceGroupRow[]>;
+
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
   getContentByStorageIdListAndUserId(storageIdList, userId): Promise<IContent[]>;
@@ -249,11 +259,80 @@ export interface IContentDeleteSafetyOptions {
   excludeFileCatalogItemId?: number;
 }
 
+export type ContentDeleteSafetyBlockerScope = 'content' | 'storage';
+
+export interface IContentDeleteSafetyBlocker {
+  scope: ContentDeleteSafetyBlockerScope;
+  key: string;
+  count: number;
+  allowedCount?: number;
+}
+
 export interface IContentDeleteSafety {
   contentRefs: IContentReferenceCounts;
   storageRefs: IStorageIdReferenceCounts;
+  contentBlockers: IContentDeleteSafetyBlocker[];
+  storageBlockers: IContentDeleteSafetyBlocker[];
+  blockers: IContentDeleteSafetyBlocker[];
   safeToDestroyContent: boolean;
   safeToRemovePhysical: boolean;
+}
+
+export interface IStorageSpaceOverview {
+  contentRowsCount: number;
+  contentStorageObjectsCount: number;
+  logicalContentBytes: number;
+  physicalContentBytes: number;
+  duplicateStorageIdsCount: number;
+  duplicateContentRowsCount: number;
+  fileCatalogItemsCount: number;
+  fileCatalogLogicalBytes: number;
+  groupPostsCount: number;
+  groupPostsLogicalBytes: number;
+  pinnedStorageObjectsCount: number;
+  pinnedPhysicalBytes: number;
+}
+
+export interface IStorageSpaceTypeBreakdownRow {
+  mimeType: string;
+  extension: string;
+  contentRowsCount: number;
+  storageObjectsCount: number;
+  logicalBytes: number;
+  physicalBytes: number;
+}
+
+export interface IStorageSpaceContentRow {
+  id: number;
+  userId: number;
+  name?: string;
+  mimeType?: string;
+  extension?: string;
+  storageId?: string;
+  size: number;
+  createdAt?: Date;
+}
+
+export interface IStorageSpaceFileCatalogRow {
+  id: number;
+  userId?: number;
+  groupId?: number;
+  parentItemId?: number;
+  contentId?: number;
+  name?: string;
+  type?: string;
+  mimeType?: string;
+  extension?: string;
+  storageId?: string;
+  size: number;
+}
+
+export interface IStorageSpaceGroupRow {
+  id: number;
+  name?: string;
+  title?: string;
+  size: number;
+  availablePostsCount: number;
 }
 
 export interface IContentData {

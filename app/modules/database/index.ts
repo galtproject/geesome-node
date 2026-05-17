@@ -17,7 +17,9 @@ import expressSessionSequelize from 'express-session-sequelize';
 import {IGeesomeApp} from "../../interface.js";
 import config from './config.js';
 import {
+  ContentDeleteSafetyBlockerScope,
   IContent,
+  IContentDeleteSafetyBlocker,
   IGeesomeDatabaseModule,
   IListParams,
   IListParamsOptions,
@@ -30,6 +32,7 @@ import {
   UserLimitName
 } from "./interface.js";
 import {countDerivedStorageIdReferences} from './storageReferenceHelpers.js';
+import * as storageSpaceUsage from './storageSpaceUsageHelpers.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -52,6 +55,10 @@ const userFriendListParams: IListParamsOptions = {
 const adminContentListParams: IListParamsOptions = {
   sortBy: 'createdAt',
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+  maxLimit: 100
+};
+const storageSpaceListParams: IListParamsOptions = {
+  limit: 20,
   maxLimit: 100
 };
 
@@ -349,6 +356,26 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       ...options,
       hasStorageId: Boolean(contentRecord.storageId),
     });
+  }
+
+  async getStorageSpaceOverview() {
+    return storageSpaceUsage.getStorageSpaceOverview(this.sequelize);
+  }
+
+  async getStorageSpaceTypeBreakdown(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTypeBreakdown(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceTopContents(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTopContents(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceTopFileCatalogItems(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTopFileCatalogItems(this.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceTopGroups(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceTopGroups(this.sequelize, getStorageSpaceListWindow(listParams));
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -747,25 +774,73 @@ function getEmptyStorageIdReferenceCounts() {
 }
 
 function getContentDeleteSafety(storageRefs, contentRefs, options) {
-  const allowedFileCatalogItems = options.allowedFileCatalogItems || 0;
-  const safeToDestroyContent =
-    contentRefs.posts === 0 &&
-    contentRefs.fileCatalogItems <= allowedFileCatalogItems &&
-    contentRefs.groupAvatars === 0 &&
-    contentRefs.groupCovers === 0 &&
-    contentRefs.userAvatars === 0 &&
-    contentRefs.pinnedContents === 0;
+  const contentBlockers = getContentDeleteContentBlockers(contentRefs, options);
+  const storageBlockers = getContentDeleteStorageBlockers(storageRefs);
+  const safeToDestroyContent = contentBlockers.length === 0;
   const safeToRemovePhysical =
     options.hasStorageId === true &&
     safeToDestroyContent &&
-    storageRefs.otherContents === 0 &&
-    storageRefs.previewRefs === 0 &&
-    storageRefs.pinnedStorageObjects === 0 &&
-    storageRefs.derivedStorageRefs === 0;
+    storageBlockers.length === 0;
   return {
     contentRefs,
     storageRefs,
+    contentBlockers,
+    storageBlockers,
+    blockers: [...contentBlockers, ...storageBlockers],
     safeToDestroyContent,
     safeToRemovePhysical,
   };
+}
+
+function getStorageSpaceListWindow(listParams: IListParams = {}) {
+  const limitCap = getListLimitCap(storageSpaceListParams);
+  return {
+    limit: Math.min(parseNonNegativeInteger(listParams.limit, storageSpaceListParams.limit), limitCap),
+    offset: parseNonNegativeInteger(listParams.offset, 0),
+  };
+}
+
+function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {
+  return [
+    getContentDeleteBlocker('content', 'posts', contentRefs.posts),
+    getContentDeleteBlocker(
+      'content',
+      'fileCatalogItems',
+      contentRefs.fileCatalogItems,
+      options.allowedFileCatalogItems || 0
+    ),
+    getContentDeleteBlocker('content', 'groupAvatars', contentRefs.groupAvatars),
+    getContentDeleteBlocker('content', 'groupCovers', contentRefs.groupCovers),
+    getContentDeleteBlocker('content', 'userAvatars', contentRefs.userAvatars),
+    getContentDeleteBlocker('content', 'pinnedContents', contentRefs.pinnedContents),
+  ].filter(isContentDeleteBlocker);
+}
+
+function getContentDeleteStorageBlockers(storageRefs): IContentDeleteSafetyBlocker[] {
+  return [
+    getContentDeleteBlocker('storage', 'otherContents', storageRefs.otherContents),
+    getContentDeleteBlocker('storage', 'previewRefs', storageRefs.previewRefs),
+    getContentDeleteBlocker('storage', 'pinnedStorageObjects', storageRefs.pinnedStorageObjects),
+    getContentDeleteBlocker('storage', 'derivedStorageRefs', storageRefs.derivedStorageRefs),
+  ].filter(isContentDeleteBlocker);
+}
+
+function getContentDeleteBlocker(
+  scope: ContentDeleteSafetyBlockerScope,
+  key: string,
+  count: number,
+  allowedCount = 0
+): IContentDeleteSafetyBlocker | null {
+  if (count <= allowedCount) {
+    return null;
+  }
+  const blocker: IContentDeleteSafetyBlocker = {scope, key, count};
+  if (allowedCount > 0) {
+    blocker.allowedCount = allowedCount;
+  }
+  return blocker;
+}
+
+function isContentDeleteBlocker(blocker: IContentDeleteSafetyBlocker | null): blocker is IContentDeleteSafetyBlocker {
+  return blocker !== null;
 }

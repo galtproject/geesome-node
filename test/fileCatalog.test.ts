@@ -119,6 +119,14 @@ describe("app", function () {
 			status: PostStatus.Published
 		});
 
+		const deleteSafety = await app.ms.database.getContentDeleteSafety(content, {
+			allowedFileCatalogItems: 1,
+			excludeFileCatalogItemId: fileItem.id
+		});
+		assert.equal(deleteSafety.safeToDestroyContent, false);
+		assert.equal(deleteSafety.safeToRemovePhysical, false);
+		assert.equal(deleteSafety.contentBlockers.map((blocker) => blocker.key).includes('posts'), true);
+
 		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
 
 		const gotContent = await app.ms.database.getContent(content.id);
@@ -216,6 +224,11 @@ describe("app", function () {
 		assert.equal(deleteSafety.safeToDestroyContent, true);
 		assert.equal(deleteSafety.safeToRemovePhysical, false);
 		assert.equal(deleteSafety.storageRefs.derivedStorageRefs, 6);
+		assert.deepEqual(deleteSafety.contentBlockers, []);
+		const derivedStorageBlocker = deleteSafety.storageBlockers.find((blocker) => blocker.key === 'derivedStorageRefs');
+		assert.equal(!!derivedStorageBlocker, true);
+		assert.equal(derivedStorageBlocker?.count, 6);
+		assert.equal(deleteSafety.blockers.map((blocker) => blocker.key).includes('derivedStorageRefs'), true);
 
 		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
 
