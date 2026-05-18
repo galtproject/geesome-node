@@ -24,7 +24,6 @@ import {
   IListParams,
   IListParamsOptions,
   IObject,
-  IStorageSpaceSnapshotData,
   IUser,
   IUserApiKey,
   IUserContentAction,
@@ -33,7 +32,6 @@ import {
   UserLimitName
 } from "./interface.js";
 import {countDerivedStorageIdReferences} from './storageReferenceHelpers.js';
-import * as storageSpaceUsage from './storageSpaceUsageHelpers.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -58,24 +56,10 @@ const adminContentListParams: IListParamsOptions = {
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
   maxLimit: 100
 };
-const storageSpaceListParams: IListParamsOptions = {
-  limit: 20,
-  maxLimit: 100
-};
-const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
-const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function parsePositiveInteger(value, fallback) {
-  const parsed = Number.parseInt(value as any, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
     return fallback;
   }
   return parsed;
@@ -368,114 +352,6 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return getContentDeleteSafety(storageRefs, contentRefs, {
       ...options,
       hasStorageId: Boolean(contentRecord.storageId),
-    });
-  }
-
-  async getStorageSpaceOverview() {
-    return storageSpaceUsage.getStorageSpaceOverview(this.sequelize);
-  }
-
-  async getStorageSpaceTypeBreakdown(listParams: IListParams = {}) {
-    return storageSpaceUsage.getStorageSpaceTypeBreakdown(this.sequelize, getStorageSpaceListWindow(listParams));
-  }
-
-  async getStorageSpaceTopContents(listParams: IListParams = {}) {
-    return storageSpaceUsage.getStorageSpaceTopContents(this.sequelize, getStorageSpaceListWindow(listParams));
-  }
-
-  async getStorageSpaceTopFileCatalogItems(listParams: IListParams = {}) {
-    return storageSpaceUsage.getStorageSpaceTopFileCatalogItems(this.sequelize, getStorageSpaceListWindow(listParams));
-  }
-
-  async getStorageSpaceFileCatalogFolders(listParams: IListParams = {}) {
-    return storageSpaceUsage.getStorageSpaceFileCatalogFolders(this.sequelize, getStorageSpaceFileCatalogFolderWindow(listParams));
-  }
-
-  async getStorageSpaceTopGroups(listParams: IListParams = {}) {
-    return storageSpaceUsage.getStorageSpaceTopGroups(this.sequelize, getStorageSpaceListWindow(listParams));
-  }
-
-  async getStorageSpaceGroupPosts(listParams: IListParams = {}) {
-    return storageSpaceUsage.getStorageSpaceGroupPosts(this.sequelize, getStorageSpaceGroupPostWindow(listParams));
-  }
-
-  async getLatestStorageSpaceSnapshot() {
-    const snapshot = await this.models.StorageSpaceSnapshot.findOne({
-      order: [['createdAt', 'DESC'], ['id', 'DESC']],
-    });
-    return getStorageSpaceSnapshotResponse(snapshot);
-  }
-
-  async refreshStorageSpaceSnapshot(userId?: number, listParams: IListParams = {}) {
-    const startedAt = Date.now();
-    const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const data = await this.getStorageSpaceSnapshotData(listWindow);
-    const snapshot = await this.models.StorageSpaceSnapshot.create({
-      userId,
-      listLimit: listWindow.limit,
-      durationMs: Date.now() - startedAt,
-      data: JSON.stringify(data),
-    });
-    return getStorageSpaceSnapshotResponse(snapshot);
-  }
-
-  async getStorageSpaceSnapshotData(listParams: IListParams = {}) {
-    const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts] = await Promise.all([
-      this.getStorageSpaceOverview(),
-      this.getStorageSpaceTypeBreakdown(listWindow),
-      this.getStorageSpaceTopContents(listWindow),
-      this.getStorageSpaceTopFileCatalogItems(listWindow),
-      this.getStorageSpaceFileCatalogFolders(listWindow),
-      this.getStorageSpaceTopGroups(listWindow),
-      this.getStorageSpaceGroupPosts(listWindow),
-    ]);
-
-    return {
-      overview,
-      typeBreakdown,
-      topContents,
-      topFileCatalogItems,
-      fileCatalogFolders,
-      topGroups,
-      groupPosts,
-    } as IStorageSpaceSnapshotData;
-  }
-
-  async queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
-    const queue = await this.app.ms.asyncOperation.addUserOperationQueue(
-      userId,
-      storageSpaceSnapshotQueueModuleName,
-      userApiKeyId,
-      getStorageSpaceSnapshotRefreshJobInput(listParams)
-    );
-    if (options.process !== false) {
-      this.startStorageSpaceSnapshotRefreshQueueProcessing();
-    }
-    return queue;
-  }
-
-  startStorageSpaceSnapshotRefreshQueueProcessing(options: any = {}) {
-    const limit = parsePositiveInteger(options.limit, storageSpaceSnapshotQueueKickBatchLimit);
-    void this.processStorageSpaceSnapshotRefreshQueue({limit}).catch((e) => {
-      log('processStorageSpaceSnapshotRefreshQueue error', e);
-    });
-  }
-
-  async processStorageSpaceSnapshotRefreshQueue(options: any = {}) {
-    const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
-    return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceSnapshotQueueModuleName, {
-      limit,
-      getPayload: (waitingQueue) => parseStorageSpaceSnapshotRefreshJob(waitingQueue.inputJson),
-      getAsyncOperationData: (_waitingQueue, job) => ({
-        name: 'refresh-storage-space-snapshot',
-        channel: getStorageSpaceSnapshotRefreshJobChannel(job),
-        percent: 5,
-      }),
-      run: async (waitingQueue, _asyncOperation, job) => {
-        const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams);
-        return getStorageSpaceSnapshotRefreshJobResult(snapshot);
-      },
     });
   }
 
@@ -891,114 +767,6 @@ function getContentDeleteSafety(storageRefs, contentRefs, options) {
     safeToDestroyContent,
     safeToRemovePhysical,
   };
-}
-
-function getStorageSpaceListWindow(listParams: IListParams = {}) {
-  const limitCap = getListLimitCap(storageSpaceListParams);
-  return {
-    limit: Math.min(parseNonNegativeInteger(listParams.limit, storageSpaceListParams.limit), limitCap),
-    offset: parseNonNegativeInteger(listParams.offset, 0),
-  };
-}
-
-function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
-  const listWindow = getStorageSpaceListWindow(listParams);
-  return {
-    limit: listWindow.limit,
-    offset: 0,
-  };
-}
-
-function getStorageSpaceFileCatalogFolderWindow(listParams: any = {}) {
-  const listWindow = getStorageSpaceListWindow(listParams);
-  return {
-    ...listWindow,
-    parentItemId: parseNullableStorageSpaceId(listParams.parentItemId),
-  };
-}
-
-function getStorageSpaceGroupPostWindow(listParams: any = {}) {
-  const listWindow = getStorageSpaceListWindow(listParams);
-  return {
-    ...listWindow,
-    groupId: parseNullableStorageSpaceId(listParams.groupId),
-  };
-}
-
-function parseNullableStorageSpaceId(value) {
-  if (value === null || value === undefined || value === '' || value === 'null' || value === 'undefined') {
-    return null;
-  }
-  return parseNonNegativeInteger(value, null);
-}
-
-function getStorageSpaceSnapshotRefreshJobInput(listParams: IListParams = {}) {
-  return {
-    type: 'refresh',
-    listParams: getStorageSpaceSnapshotListWindow(listParams),
-  };
-}
-
-function parseStorageSpaceSnapshotRefreshJob(inputJson) {
-  const job = typeof inputJson === 'string' ? JSON.parse(inputJson) : inputJson;
-  if (job?.type !== 'refresh') {
-    throw new Error('invalid_storage_space_snapshot_job_type');
-  }
-  return {
-    type: job.type,
-    listParams: getStorageSpaceSnapshotListWindow(job.listParams),
-  };
-}
-
-function getStorageSpaceSnapshotRefreshJobChannel(job) {
-  return `${storageSpaceSnapshotQueueModuleName}:refresh:limit:${job.listParams.limit}`;
-}
-
-function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
-  return {
-    snapshotId: snapshot.id,
-    listLimit: snapshot.listLimit,
-    durationMs: snapshot.durationMs,
-    createdAt: snapshot.createdAt,
-  };
-}
-
-function getStorageSpaceSnapshotResponse(snapshot) {
-  if (!snapshot) {
-    return null;
-  }
-
-  const snapshotData = typeof snapshot.toJSON === 'function' ? snapshot.toJSON() : snapshot;
-  return {
-    id: snapshotData.id,
-    userId: snapshotData.userId,
-    listLimit: snapshotData.listLimit,
-    durationMs: snapshotData.durationMs,
-    data: parseStorageSpaceSnapshotData(snapshotData.data),
-    createdAt: snapshotData.createdAt,
-    updatedAt: snapshotData.updatedAt,
-  };
-}
-
-function parseStorageSpaceSnapshotData(data) {
-  if (!data) {
-    return null;
-  }
-  if (typeof data !== 'string') {
-    return normalizeStorageSpaceSnapshotData(data);
-  }
-
-  return normalizeStorageSpaceSnapshotData(JSON.parse(data));
-}
-
-function normalizeStorageSpaceSnapshotData(data) {
-  if (!data.fileCatalogFolders) {
-    data.fileCatalogFolders = [];
-  }
-  if (!data.groupPosts) {
-    data.groupPosts = [];
-  }
-  return data;
 }
 
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {

@@ -150,6 +150,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 124 | Storage-space snapshot refreshes can now be queued through the shared async-operation queue runner via an AdminRead async refresh route, while the database module owns only the storage-space job payload and snapshot calculation | this PR |
 | 125 | Storage-space file-catalog folder usage now has an AdminRead drilldown endpoint and cached snapshot slice for root/child folder logical and deduplicated physical bytes | this PR |
 | 126 | Storage-space group drilldown now lists largest published posts with attachment counts, logical bytes, and per-post deduplicated physical bytes through AdminRead API and cached snapshots | this PR |
+| 127 | Storage-space analyzer service and AdminRead routes moved into a dedicated `storageSpace` module, while the database module keeps the synced snapshot model and shared SQL connection only | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 
