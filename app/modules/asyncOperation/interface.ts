@@ -30,6 +30,8 @@ export default interface IGeesomeAsyncOperationModule {
 
 	getWaitingOperationByModule(module): Promise<IUserOperationQueue>;
 
+	processModuleOperationQueue(moduleName: string, options: IModuleOperationQueueProcessorOptions): Promise<{processed: number}>;
+
 	getUserOperationQueue(userId, userOperationQueueId): Promise<IUserOperationQueue>;
 
 	getWaitingOperationQueueListByModule(userId, module, listParams: IListParams): Promise<{list: IUserOperationQueue, total: number}>;
@@ -87,6 +89,13 @@ export interface IUserOperationQueue {
 	asyncOperationId: number;
 	userApiKeyId: number;
 	asyncOperation?: IUserAsyncOperation;
+}
+
+export interface IModuleOperationQueueProcessorOptions {
+	limit?: number;
+	getPayload?: (waitingQueue: IUserOperationQueue) => Promise<any> | any;
+	getAsyncOperationData: (waitingQueue: IUserOperationQueue, payload: any) => Promise<any> | any;
+	run: (waitingQueue: IUserOperationQueue, asyncOperation: IUserAsyncOperation, payload: any) => Promise<any> | any;
 }
 
 export interface IUserOperationQueueListInput {

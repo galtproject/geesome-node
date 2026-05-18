@@ -6,6 +6,13 @@ function isBeforeDate(value, cutoff) {
 	return new Date(value).getTime() < cutoff.getTime();
 }
 
+function getSortableDate(value) {
+	if (!value) {
+		return 0;
+	}
+	return new Date(value).getTime();
+}
+
 function removeMatching(rows, predicate) {
 	let deleted = 0;
 	for (let i = rows.length - 1; i >= 0; i--) {
@@ -33,7 +40,24 @@ function createAsyncOperationModule({queues = [], operations = []}: {queues?: an
 
 	return getAsyncOperationModule(app as any, {
 		UserOperationQueue: {
-			findOne: async ({where}) => queues.find((queue) => queue.id === Number(where.id)) || null,
+			findOne: async ({where}) => {
+				if (where.id !== undefined) {
+					return queues.find((queue) => queue.id === Number(where.id)) || null;
+				}
+
+				const waitingQueue = queues
+					.filter((queue) => queue.module === where.module && queue.isWaiting === where.isWaiting)
+					.sort((a, b) => getSortableDate(a.createdAt) - getSortableDate(b.createdAt) || a.id - b.id)[0];
+				if (!waitingQueue) {
+					return null;
+				}
+				if (waitingQueue.asyncOperationId) {
+					waitingQueue.asyncOperation = operations.find((operation) => operation.id === waitingQueue.asyncOperationId) || null;
+				} else {
+					delete waitingQueue.asyncOperation;
+				}
+				return waitingQueue;
+			},
 			findAll: async ({where, limit}) => {
 				if (where.updatedAt?.[Op.lt]) {
 					return queues
@@ -62,11 +86,19 @@ function createAsyncOperationModule({queues = [], operations = []}: {queues?: an
 				return 0;
 			},
 			update: async (updateData, {where}) => {
-				const queue = queues.find((item) => item.id === Number(where.id));
-				if (queue) {
+				const matchedQueues = queues.filter((item) => {
+					if (where.id !== undefined) {
+						return item.id === Number(where.id);
+					}
+					if (where.asyncOperationId !== undefined) {
+						return item.asyncOperationId === Number(where.asyncOperationId);
+					}
+					return false;
+				});
+				for (const queue of matchedQueues) {
 					Object.assign(queue, updateData);
 				}
-				return [queue ? 1 : 0];
+				return [matchedQueues.length];
 			}
 		},
 		UserAsyncOperation: {
@@ -163,6 +195,66 @@ describe("async operation ownership controls", function () {
 		await asyncOperations.cancelAsyncOperation(1, 1);
 		assert.equal(operations[0].cancel, true);
 		assert.equal(operations[1].cancel, false);
+	});
+
+	it("processes module queues through async operation lifecycle", async () => {
+		const queues = [
+			{id: 1, userId: 1, userApiKeyId: 2, module: "storage-space-snapshot", inputJson: "{\"limit\":3}", isWaiting: true, createdAt: new Date("2026-05-01T00:00:00.000Z")},
+		];
+		const operations = [];
+		const asyncOperations = createAsyncOperationModule({operations, queues});
+
+		const result = await asyncOperations.processModuleOperationQueue("storage-space-snapshot", {
+			getPayload: (waitingQueue) => JSON.parse(waitingQueue.inputJson),
+			getAsyncOperationData: (_waitingQueue, payload) => ({
+				name: "refresh-storage-space-snapshot",
+				channel: `snapshot:${payload.limit}`,
+				percent: 5,
+			}),
+			run: async (_waitingQueue, asyncOperation, payload) => {
+				assert.equal(asyncOperation.inProcess, true);
+				assert.equal(asyncOperation.module, "storage-space-snapshot");
+				return {refreshed: payload.limit};
+			},
+		});
+
+		assert.equal(result.processed, 1);
+		assert.equal(queues[0].isWaiting, false);
+		assert.equal(queues[0].asyncOperationId, 1);
+		assert.ok(queues[0].startedAt instanceof Date);
+		assert.equal(operations.length, 1);
+		assert.equal(operations[0].name, "refresh-storage-space-snapshot");
+		assert.equal(operations[0].channel, "snapshot:3");
+		assert.equal(operations[0].percent, 100);
+		assert.equal(operations[0].inProcess, false);
+		assert.equal(operations[0].output, "{\"refreshed\":3}");
+	});
+
+	it("closes completed queue heads before processing the next module queue item", async () => {
+		const operations = [
+			{id: 1, userId: 1, name: "old-refresh", inProcess: false},
+		];
+		const queues = [
+			{id: 1, userId: 1, module: "storage-space-snapshot", inputJson: "{}", isWaiting: true, asyncOperationId: 1, createdAt: new Date("2026-05-01T00:00:00.000Z")},
+			{id: 2, userId: 1, module: "storage-space-snapshot", inputJson: "{}", isWaiting: true, asyncOperationId: null, createdAt: new Date("2026-05-02T00:00:00.000Z")},
+		];
+		const asyncOperations = createAsyncOperationModule({operations, queues});
+
+		const result = await asyncOperations.processModuleOperationQueue("storage-space-snapshot", {
+			getAsyncOperationData: () => ({
+				name: "refresh-storage-space-snapshot",
+				channel: "snapshot",
+				percent: 5,
+			}),
+			run: async () => ({ok: true}),
+		});
+
+		assert.equal(result.processed, 1);
+		assert.equal(queues[0].isWaiting, false);
+		assert.equal(queues[1].isWaiting, false);
+		assert.equal(queues[1].asyncOperationId, 2);
+		assert.equal(operations.length, 2);
+		assert.equal(operations[1].output, "{\"ok\":true}");
 	});
 
 	it("cleans up old finished operations and closed orphan queue rows in bounded batches", async () => {

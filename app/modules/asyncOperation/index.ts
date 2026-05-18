@@ -2,7 +2,7 @@ import _ from 'lodash';
 import debug from 'debug';
 import {Op} from "sequelize";
 import commonHelper from "geesome-libs/src/common.js";
-import IGeesomeAsyncOperationModule, {IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
+import IGeesomeAsyncOperationModule, {IModuleOperationQueueProcessorOptions, IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
 import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
@@ -15,18 +15,7 @@ const operationQueueListParams: IListParamsOptions = {
 };
 const finishedOperationRetentionDays = 30;
 const finishedOperationCleanupBatchLimit = 1000;
-
-function getFinishedOperationCleanupCutoff(retentionDays = finishedOperationRetentionDays) {
-	return new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-}
-
-function getOperationQueueInputData(input) {
-	const inputJson = JSON.stringify(input);
-	return {
-		inputJson,
-		inputHash: commonHelper.hash(inputJson)
-	};
-}
+const moduleOperationQueuesInProcess = new Set<string>();
 
 export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
@@ -230,6 +219,79 @@ export function getModule(app: IGeesomeApp, models) {
 			return this.getWaitingOperationQueueByModule(module);
 		}
 
+		async processModuleOperationQueue(moduleName: string, options: IModuleOperationQueueProcessorOptions) {
+			if (moduleOperationQueuesInProcess.has(moduleName)) {
+				return {processed: 0};
+			}
+
+			moduleOperationQueuesInProcess.add(moduleName);
+			let processed = 0;
+			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+
+			try {
+				while (processed < limit) {
+					const waitingQueue = await this.getNextProcessableOperationQueue(moduleName);
+					if (!waitingQueue) {
+						return {processed};
+					}
+
+					await this.processModuleOperationQueueItem(waitingQueue, options);
+					processed += 1;
+				}
+				return {processed};
+			} finally {
+				moduleOperationQueuesInProcess.delete(moduleName);
+			}
+		}
+
+		async getNextProcessableOperationQueue(moduleName: string) {
+			while (true) {
+				const waitingQueue = await this.getWaitingOperationQueueByModule(moduleName);
+				if (!waitingQueue) {
+					return null;
+				}
+				if (!waitingQueue.asyncOperation) {
+					return waitingQueue;
+				}
+				if (waitingQueue.asyncOperation.inProcess) {
+					return null;
+				}
+
+				await this.closeUserOperationQueue(waitingQueue.id);
+			}
+		}
+
+		async processModuleOperationQueueItem(waitingQueue: IUserOperationQueue, options: IModuleOperationQueueProcessorOptions) {
+			let payload;
+			try {
+				payload = options.getPayload ? await options.getPayload(waitingQueue) : null;
+			} catch (e) {
+				await this.closeUserOperationQueue(waitingQueue.id);
+				return null;
+			}
+
+			await this.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
+			const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
+			const asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
+				userApiKeyId: waitingQueue.userApiKeyId,
+				module: waitingQueue.module,
+				...asyncOperationData,
+			});
+
+			await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+			try {
+				const result = await options.run(waitingQueue, asyncOperation, payload);
+				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, getOperationQueueOutput(result));
+				return result;
+			} catch (e) {
+				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await this.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, getErrorMessage(e));
+				return null;
+			}
+		}
+
 		async getUserOperationQueue(userId, userOperationQueueId) {
 			const userOperationQueue = await models.UserOperationQueue.findOne({where: {id: userOperationQueueId}, include: [ {association: 'asyncOperation'} ]}) as IUserOperationQueue;
 			if (!userOperationQueue) {
@@ -351,4 +413,30 @@ export function getModule(app: IGeesomeApp, models) {
 	}
 
 	return new AsyncOperationModule();
+}
+
+function getFinishedOperationCleanupCutoff(retentionDays = finishedOperationRetentionDays) {
+	return new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+}
+
+function getOperationQueueInputData(input) {
+	const inputJson = JSON.stringify(input);
+	return {
+		inputJson,
+		inputHash: commonHelper.hash(inputJson)
+	};
+}
+
+function getOperationQueueOutput(result) {
+	if (result === null || result === undefined) {
+		return null;
+	}
+	if (typeof result === 'string') {
+		return result;
+	}
+	return JSON.stringify(result);
+}
+
+function getErrorMessage(error) {
+	return error?.message || String(error);
 }

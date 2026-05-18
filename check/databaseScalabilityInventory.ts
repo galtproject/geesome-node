@@ -772,6 +772,8 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'queueStorageSpaceSnapshotRefresh')
     && has(databaseSource, 'processStorageSpaceSnapshotRefreshQueue')
     && has(databaseSource, 'storageSpaceSnapshotQueueModuleName')
+    && has(asyncOperationSource, 'processModuleOperationQueue')
+    && has(asyncOperationSource, 'moduleOperationQueuesInProcess')
     && has(apiSource, 'admin/storage-space/snapshot')
     && has(apiSource, 'admin/storage-space/snapshot/refresh')
     && has(apiSource, 'admin/storage-space/snapshot/refresh-async');
@@ -1462,14 +1464,14 @@ function hotspotRows(): HotspotRow[] {
       observedPattern: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
-            ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, and queued async refresh jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
+            ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
             : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
           : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
         : 'storage usage is still inferred from unrelated content, file-catalog, and group screens',
       scalabilityRisk: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
-            ? 'backend aggregate, API, cached snapshot, and coarse async refresh seams are present; generated-output DAG accounting, deeper folder/root drilldowns, restored-data query evidence, and finer per-query progress remain'
+            ? 'backend aggregate, API, cached snapshot, and generic async refresh queue seams are present; generated-output DAG accounting, deeper folder/root drilldowns, restored-data query evidence, and finer per-query progress remain'
             : 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
           : 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
         : 'operators cannot identify large catalogs/groups/files without ad hoc queries, and duplicate storageId rows risk misleading physical-size reports',

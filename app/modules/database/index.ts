@@ -64,7 +64,6 @@ const storageSpaceListParams: IListParamsOptions = {
 };
 const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
-let storageSpaceSnapshotRefreshQueueInProcess = false;
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -452,72 +451,20 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async processStorageSpaceSnapshotRefreshQueue(options: any = {}) {
-    if (storageSpaceSnapshotRefreshQueueInProcess) {
-      return {processed: 0};
-    }
-
-    storageSpaceSnapshotRefreshQueueInProcess = true;
-    let processed = 0;
     const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
-
-    try {
-      while (processed < limit) {
-        const waitingQueue = await this.prepareNextStorageSpaceSnapshotRefreshQueue();
-        if (!waitingQueue) {
-          return {processed};
-        }
-
-        await this.processStorageSpaceSnapshotRefreshQueueItem(waitingQueue);
-        processed += 1;
-      }
-      return {processed};
-    } finally {
-      storageSpaceSnapshotRefreshQueueInProcess = false;
-    }
-  }
-
-  async prepareNextStorageSpaceSnapshotRefreshQueue() {
-    while (true) {
-      const waitingQueue = await this.app.ms.asyncOperation.getWaitingOperationByModule(storageSpaceSnapshotQueueModuleName);
-      if (!waitingQueue) {
-        return null;
-      }
-      if (!waitingQueue.asyncOperation) {
-        return waitingQueue;
-      }
-      if (waitingQueue.asyncOperation.inProcess) {
-        return null;
-      }
-
-      await this.app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
-    }
-  }
-
-  async processStorageSpaceSnapshotRefreshQueueItem(waitingQueue) {
-    const job = parseStorageSpaceSnapshotRefreshJob(waitingQueue.inputJson);
-    await this.app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
-
-    const asyncOperation = await this.app.ms.asyncOperation.addAsyncOperation(waitingQueue.userId, {
-      userApiKeyId: waitingQueue.userApiKeyId,
-      module: storageSpaceSnapshotQueueModuleName,
-      name: 'refresh-storage-space-snapshot',
-      channel: getStorageSpaceSnapshotRefreshJobChannel(job),
-      percent: 5,
+    return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceSnapshotQueueModuleName, {
+      limit,
+      getPayload: (waitingQueue) => parseStorageSpaceSnapshotRefreshJob(waitingQueue.inputJson),
+      getAsyncOperationData: (_waitingQueue, job) => ({
+        name: 'refresh-storage-space-snapshot',
+        channel: getStorageSpaceSnapshotRefreshJobChannel(job),
+        percent: 5,
+      }),
+      run: async (waitingQueue, _asyncOperation, job) => {
+        const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams);
+        return getStorageSpaceSnapshotRefreshJobResult(snapshot);
+      },
     });
-
-    await this.app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
-
-    try {
-      const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams);
-      const result = getStorageSpaceSnapshotRefreshJobResult(snapshot);
-      await this.app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-      await this.app.ms.asyncOperation.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, JSON.stringify(result));
-      return result;
-    } catch (e) {
-      await this.app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-      await this.app.ms.asyncOperation.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, getErrorMessage(e));
-      return null;
-    }
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -1007,10 +954,6 @@ function parseStorageSpaceSnapshotData(data) {
   }
 
   return JSON.parse(data);
-}
-
-function getErrorMessage(error) {
-  return error?.message || String(error);
 }
 
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {
