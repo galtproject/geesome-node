@@ -88,6 +88,10 @@ describe("storage space admin API", function () {
 						databaseCalled = true;
 						return {};
 					},
+					getStorageSpaceGroupPosts: async () => {
+						databaseCalled = true;
+						return {};
+					},
 					getLatestStorageSpaceSnapshot: async () => {
 						databaseCalled = true;
 						return {};
@@ -114,6 +118,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/top-file-catalog-items"],
 			["GET", "admin/storage-space/file-catalog-folders"],
 			["GET", "admin/storage-space/top-groups"],
+			["GET", "admin/storage-space/group-posts"],
 			["GET", "admin/storage-space/snapshot"],
 			["POST", "admin/storage-space/snapshot/refresh"],
 			["POST", "admin/storage-space/snapshot/refresh-async"],
@@ -137,6 +142,7 @@ describe("storage space admin API", function () {
 			topFileCatalogItems: [{id: 2, size: 20}],
 			fileCatalogFolders: [{id: 8, logicalBytes: 15}],
 			topGroups: [{id: 3, size: 10}],
+			groupPosts: [{id: 9, logicalBytes: 9}],
 			snapshot: {id: 4, listLimit: 20},
 			refreshedSnapshot: {id: 5, listLimit: 5},
 			queuedSnapshot: {id: 6, module: "storage-space-snapshot"},
@@ -168,6 +174,10 @@ describe("storage space admin API", function () {
 						databaseCalls.push(["topGroups", listParams]);
 						return responses.topGroups;
 					},
+					getStorageSpaceGroupPosts: async (listParams) => {
+						databaseCalls.push(["groupPosts", listParams]);
+						return responses.groupPosts;
+					},
 					getLatestStorageSpaceSnapshot: async () => {
 						databaseCalls.push(["snapshot"]);
 						return responses.snapshot;
@@ -196,11 +206,13 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/top-file-catalog-items", {user: {id: 7}, query})).body, responses.topFileCatalogItems);
 		assert.deepEqual((await call("GET", "admin/storage-space/file-catalog-folders", {user: {id: 7}, query: {...query, parentItemId: "8"}})).body, responses.fileCatalogFolders);
 		assert.deepEqual((await call("GET", "admin/storage-space/top-groups", {user: {id: 7}, query})).body, responses.topGroups);
+		assert.deepEqual((await call("GET", "admin/storage-space/group-posts", {user: {id: 7}, query: {...query, groupId: "3"}})).body, responses.groupPosts);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -218,6 +230,7 @@ describe("storage space admin API", function () {
 			["topFileCatalogItems", query],
 			["fileCatalogFolders", {...query, parentItemId: "8"}],
 			["topGroups", query],
+			["groupPosts", {...query, groupId: "3"}],
 			["snapshot"],
 			["refreshSnapshot", 7, query],
 			["queueSnapshot", 7, 12, query],

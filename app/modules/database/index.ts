@@ -395,6 +395,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return storageSpaceUsage.getStorageSpaceTopGroups(this.sequelize, getStorageSpaceListWindow(listParams));
   }
 
+  async getStorageSpaceGroupPosts(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceGroupPosts(this.sequelize, getStorageSpaceGroupPostWindow(listParams));
+  }
+
   async getLatestStorageSpaceSnapshot() {
     const snapshot = await this.models.StorageSpaceSnapshot.findOne({
       order: [['createdAt', 'DESC'], ['id', 'DESC']],
@@ -417,13 +421,14 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getStorageSpaceSnapshotData(listParams: IListParams = {}) {
     const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups] = await Promise.all([
+    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts] = await Promise.all([
       this.getStorageSpaceOverview(),
       this.getStorageSpaceTypeBreakdown(listWindow),
       this.getStorageSpaceTopContents(listWindow),
       this.getStorageSpaceTopFileCatalogItems(listWindow),
       this.getStorageSpaceFileCatalogFolders(listWindow),
       this.getStorageSpaceTopGroups(listWindow),
+      this.getStorageSpaceGroupPosts(listWindow),
     ]);
 
     return {
@@ -433,6 +438,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       topFileCatalogItems,
       fileCatalogFolders,
       topGroups,
+      groupPosts,
     } as IStorageSpaceSnapshotData;
   }
 
@@ -911,6 +917,14 @@ function getStorageSpaceFileCatalogFolderWindow(listParams: any = {}) {
   };
 }
 
+function getStorageSpaceGroupPostWindow(listParams: any = {}) {
+  const listWindow = getStorageSpaceListWindow(listParams);
+  return {
+    ...listWindow,
+    groupId: parseNullableStorageSpaceId(listParams.groupId),
+  };
+}
+
 function parseNullableStorageSpaceId(value) {
   if (value === null || value === undefined || value === '' || value === 'null' || value === 'undefined') {
     return null;
@@ -980,6 +994,9 @@ function parseStorageSpaceSnapshotData(data) {
 function normalizeStorageSpaceSnapshotData(data) {
   if (!data.fileCatalogFolders) {
     data.fileCatalogFolders = [];
+  }
+  if (!data.groupPosts) {
+    data.groupPosts = [];
   }
   return data;
 }

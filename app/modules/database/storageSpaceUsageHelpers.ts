@@ -30,6 +30,17 @@ const numericFileCatalogFolderFields = [
   'physicalBytes',
 ];
 const numericGroupFields = ['id', 'size', 'availablePostsCount'];
+const numericGroupPostFields = [
+  'id',
+  'groupId',
+  'userId',
+  'localId',
+  'logicalBytes',
+  'attachmentsCount',
+  'attachmentLogicalBytes',
+  'storageObjectsCount',
+  'physicalBytes',
+];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
   const rows = await sequelize.query(`
@@ -324,6 +335,87 @@ export async function getStorageSpaceTopGroups(sequelize, listParams: any = {}) 
   return rows.map(row => normalizeNumericFields(row, numericGroupFields));
 }
 
+export async function getStorageSpaceGroupPosts(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH scoped_posts AS (
+      SELECT
+        post.id,
+        post."groupId",
+        post."userId",
+        post."localId",
+        post.name,
+        post."publishedAt",
+        COALESCE(post.size, 0)::bigint AS "logicalBytes",
+        group_row.name AS "groupName",
+        group_row.title AS "groupTitle"
+      FROM posts post
+      LEFT JOIN groups group_row ON group_row.id = post."groupId"
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post.status = :publishedStatus
+        AND (:groupId IS NULL OR post."groupId" = :groupId)
+      ORDER BY COALESCE(post.size, 0) DESC, post.id ASC
+      LIMIT :limit OFFSET :offset
+    ),
+    post_content_rows AS (
+      SELECT
+        scoped_posts.id AS "postId",
+        content."storageId",
+        COALESCE(content.size, 0)::bigint AS size
+      FROM scoped_posts
+      JOIN "postsContents" post_content ON post_content."postId" = scoped_posts.id
+      JOIN contents content ON content.id = post_content."contentId"
+    ),
+    post_content_stats AS (
+      SELECT
+        "postId",
+        COUNT(*)::bigint AS "attachmentsCount",
+        COALESCE(SUM(size), 0)::bigint AS "attachmentLogicalBytes"
+      FROM post_content_rows
+      GROUP BY "postId"
+    ),
+    post_storage_rows AS (
+      SELECT
+        "postId",
+        "storageId",
+        MAX(size)::bigint AS size
+      FROM post_content_rows
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "postId", "storageId"
+    ),
+    post_storage_stats AS (
+      SELECT
+        "postId",
+        COUNT(*)::bigint AS "storageObjectsCount",
+        COALESCE(SUM(size), 0)::bigint AS "physicalBytes"
+      FROM post_storage_rows
+      GROUP BY "postId"
+    )
+    SELECT
+      scoped_posts.id,
+      scoped_posts."groupId",
+      scoped_posts."userId",
+      scoped_posts."localId",
+      scoped_posts.name,
+      scoped_posts."publishedAt",
+      scoped_posts."groupName",
+      scoped_posts."groupTitle",
+      scoped_posts."logicalBytes",
+      COALESCE(post_content_stats."attachmentsCount", 0)::bigint AS "attachmentsCount",
+      COALESCE(post_content_stats."attachmentLogicalBytes", 0)::bigint AS "attachmentLogicalBytes",
+      COALESCE(post_storage_stats."storageObjectsCount", 0)::bigint AS "storageObjectsCount",
+      COALESCE(post_storage_stats."physicalBytes", 0)::bigint AS "physicalBytes"
+    FROM scoped_posts
+    LEFT JOIN post_content_stats ON post_content_stats."postId" = scoped_posts.id
+    LEFT JOIN post_storage_stats ON post_storage_stats."postId" = scoped_posts.id
+    ORDER BY scoped_posts."logicalBytes" DESC, scoped_posts.id ASC
+  `, {
+    replacements: getStorageSpaceGroupPostQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericGroupPostFields));
+}
+
 function getStorageSpaceListQueryReplacements(listParams) {
   return {
     ...getStorageSpaceQueryReplacements(),
@@ -337,6 +429,13 @@ function getStorageSpaceFileCatalogFolderQueryReplacements(listParams) {
     ...getStorageSpaceListQueryReplacements(listParams),
     parentItemId: listParams.parentItemId,
     folderType: 'folder',
+  };
+}
+
+function getStorageSpaceGroupPostQueryReplacements(listParams) {
+  return {
+    ...getStorageSpaceListQueryReplacements(listParams),
+    groupId: listParams.groupId,
   };
 }
 

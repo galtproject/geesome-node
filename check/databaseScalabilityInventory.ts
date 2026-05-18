@@ -755,10 +755,12 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'getStorageSpaceTopFileCatalogItems')
     && has(databaseSource, 'getStorageSpaceFileCatalogFolders')
     && has(databaseSource, 'getStorageSpaceTopGroups')
+    && has(databaseSource, 'getStorageSpaceGroupPosts')
     && has(storageSpaceUsageSource, 'logicalContentBytes')
     && has(storageSpaceUsageSource, 'physicalContentBytes')
     && has(storageSpaceUsageSource, 'duplicateStorageIdsCount')
     && has(storageSpaceUsageSource, 'getStorageSpaceFileCatalogFolders')
+    && has(storageSpaceUsageSource, 'getStorageSpaceGroupPosts')
     && has(storageSpaceUsageSource, 'getStorageSpaceTypeBreakdown');
   const hasStorageSpaceApi = has(apiSource, 'admin/storage-space/overview')
     && has(apiSource, 'admin/storage-space/type-breakdown')
@@ -766,6 +768,7 @@ function hotspotRows(): HotspotRow[] {
     && has(apiSource, 'admin/storage-space/top-file-catalog-items')
     && has(apiSource, 'admin/storage-space/file-catalog-folders')
     && has(apiSource, 'admin/storage-space/top-groups')
+    && has(apiSource, 'admin/storage-space/group-posts')
     && has(apiSource, 'canReadAdminStorageSpace')
     && has(apiSource, 'CorePermissionName.AdminRead');
   const hasStorageSpaceSnapshots = has(storageSpaceSnapshotModelSource, 'storageSpaceSnapshot')
@@ -1467,14 +1470,14 @@ function hotspotRows(): HotspotRow[] {
       observedPattern: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
-            ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, and largest groups while separating logical content bytes from deduplicated physical storage bytes'
-            : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
-          : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, and largest groups while separating logical content bytes from deduplicated physical storage bytes')
+            ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder and group-post drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes'
+            : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
+          : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
         : 'storage usage is still inferred from unrelated content, file-catalog, and group screens',
       scalabilityRisk: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
-            ? 'backend aggregate, API, cached snapshot, generic async refresh queue, and first file-catalog folder drilldown seams are present; generated-output DAG accounting, deeper group/post drilldowns, restored-data query evidence, and finer per-query progress remain'
+            ? 'backend aggregate, API, cached snapshot, generic async refresh queue, file-catalog folder drilldown, and first group-post drilldown seams are present; generated-output DAG accounting, restored-data query evidence, and finer per-query progress remain'
             : 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
           : 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
         : 'operators cannot identify large catalogs/groups/files without ad hoc queries, and duplicate storageId rows risk misleading physical-size reports',
