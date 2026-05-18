@@ -70,6 +70,8 @@ export interface IGeesomeDatabaseModule {
 
   getStorageSpaceTopFileCatalogItems(listParams?: IListParams): Promise<IStorageSpaceFileCatalogRow[]>;
 
+  getStorageSpaceFileCatalogFolders(listParams?: IListParams): Promise<IStorageSpaceFileCatalogFolderRow[]>;
+
   getStorageSpaceTopGroups(listParams?: IListParams): Promise<IStorageSpaceGroupRow[]>;
 
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
@@ -337,6 +339,21 @@ export interface IStorageSpaceFileCatalogRow {
   size: number;
 }
 
+export interface IStorageSpaceFileCatalogFolderRow {
+  id: number;
+  userId?: number;
+  groupId?: number;
+  parentItemId?: number;
+  name?: string;
+  defaultFolderFor?: string;
+  childFoldersCount: number;
+  directFilesCount: number;
+  filesCount: number;
+  storageObjectsCount: number;
+  logicalBytes: number;
+  physicalBytes: number;
+}
+
 export interface IStorageSpaceGroupRow {
   id: number;
   name?: string;
@@ -350,6 +367,7 @@ export interface IStorageSpaceSnapshotData {
   typeBreakdown: IStorageSpaceTypeBreakdownRow[];
   topContents: IStorageSpaceContentRow[];
   topFileCatalogItems: IStorageSpaceFileCatalogRow[];
+  fileCatalogFolders: IStorageSpaceFileCatalogFolderRow[];
   topGroups: IStorageSpaceGroupRow[];
 }
 

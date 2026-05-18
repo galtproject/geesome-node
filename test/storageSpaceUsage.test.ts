@@ -66,6 +66,7 @@ describe("storage space usage", function () {
 
 		assert.equal(sharedContent.storageId, duplicateContent.storageId);
 		await app.ms['fileCatalog'].saveContentByPath(firstUser.id, '/usage/shared.txt', sharedContent.id);
+		await app.ms['fileCatalog'].saveContentByPath(firstUser.id, '/usage/deep/unique.txt', uniqueContent.id);
 		await app.ms.group.createPost(firstUser.id, {
 			contents: [{id: sharedContent.id, view: ContentView.Attachment}],
 			groupId: group.id,
@@ -99,6 +100,23 @@ describe("storage space usage", function () {
 		assert.equal(topCatalogItems.some(row => row.contentId === sharedContent.id), true);
 		assert.equal(topCatalogItems.every(row => row.type === 'file'), true);
 
+		const rootFolders = await app.ms.database.getStorageSpaceFileCatalogFolders({limit: 5});
+		const usageFolder = rootFolders.find(row => row.name === 'usage');
+		assert.equal(!!usageFolder, true);
+		assert.equal(usageFolder?.logicalBytes, sharedSize + uniqueSize);
+		assert.equal(usageFolder?.physicalBytes, sharedSize + uniqueSize);
+		assert.equal(usageFolder?.filesCount, 2);
+		assert.equal(usageFolder?.directFilesCount, 1);
+		assert.equal(usageFolder?.childFoldersCount, 1);
+
+		const childFolders = await app.ms.database.getStorageSpaceFileCatalogFolders({limit: 5, parentItemId: usageFolder.id});
+		const deepFolder = childFolders.find(row => row.name === 'deep');
+		assert.equal(!!deepFolder, true);
+		assert.equal(deepFolder?.parentItemId, usageFolder?.id);
+		assert.equal(deepFolder?.logicalBytes, uniqueSize);
+		assert.equal(deepFolder?.physicalBytes, uniqueSize);
+		assert.equal(deepFolder?.filesCount, 1);
+
 		const topGroups = await app.ms.database.getStorageSpaceTopGroups({limit: 5});
 		const usageGroup = topGroups.find(row => row.id === group.id);
 		assert.equal(!!usageGroup, true);
@@ -112,6 +130,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.typeBreakdown.length <= 2, true);
 		assert.equal(snapshot.data.topContents.length <= 2, true);
 		assert.equal(snapshot.data.topFileCatalogItems.length <= 2, true);
+		assert.equal(snapshot.data.fileCatalogFolders.length <= 2, true);
 		assert.equal(snapshot.data.topGroups.length <= 2, true);
 
 		const latestSnapshot = await app.ms.database.getLatestStorageSpaceSnapshot();
