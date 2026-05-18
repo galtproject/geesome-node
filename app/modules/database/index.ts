@@ -62,10 +62,20 @@ const storageSpaceListParams: IListParamsOptions = {
   limit: 20,
   maxLimit: 100
 };
+const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
+const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
   if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value as any, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
     return fallback;
   }
   return parsed;
@@ -111,15 +121,17 @@ export default async function (app: IGeesomeApp) {
     throw e;
   }
 
-  return new PostgresDatabase(sequelize, models, config) as IGeesomeDatabaseModule;
+  return new PostgresDatabase(app, sequelize, models, config) as IGeesomeDatabaseModule;
 };
 
 class PostgresDatabase implements IGeesomeDatabaseModule {
+  app: IGeesomeApp;
   sequelize: any;
   models: any;
   config: any;
 
-  constructor(_sequelize, _models, _config) {
+  constructor(_app, _sequelize, _models, _config) {
+    this.app = _app;
     this.sequelize = _sequelize;
     this.models = _models;
     this.config = _config;
@@ -416,6 +428,43 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       topFileCatalogItems,
       topGroups,
     } as IStorageSpaceSnapshotData;
+  }
+
+  async queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
+    const queue = await this.app.ms.asyncOperation.addUserOperationQueue(
+      userId,
+      storageSpaceSnapshotQueueModuleName,
+      userApiKeyId,
+      getStorageSpaceSnapshotRefreshJobInput(listParams)
+    );
+    if (options.process !== false) {
+      this.startStorageSpaceSnapshotRefreshQueueProcessing();
+    }
+    return queue;
+  }
+
+  startStorageSpaceSnapshotRefreshQueueProcessing(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, storageSpaceSnapshotQueueKickBatchLimit);
+    void this.processStorageSpaceSnapshotRefreshQueue({limit}).catch((e) => {
+      log('processStorageSpaceSnapshotRefreshQueue error', e);
+    });
+  }
+
+  async processStorageSpaceSnapshotRefreshQueue(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+    return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceSnapshotQueueModuleName, {
+      limit,
+      getPayload: (waitingQueue) => parseStorageSpaceSnapshotRefreshJob(waitingQueue.inputJson),
+      getAsyncOperationData: (_waitingQueue, job) => ({
+        name: 'refresh-storage-space-snapshot',
+        channel: getStorageSpaceSnapshotRefreshJobChannel(job),
+        percent: 5,
+      }),
+      run: async (waitingQueue, _asyncOperation, job) => {
+        const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams);
+        return getStorageSpaceSnapshotRefreshJobResult(snapshot);
+      },
+    });
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -845,6 +894,37 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
   return {
     limit: listWindow.limit,
     offset: 0,
+  };
+}
+
+function getStorageSpaceSnapshotRefreshJobInput(listParams: IListParams = {}) {
+  return {
+    type: 'refresh',
+    listParams: getStorageSpaceSnapshotListWindow(listParams),
+  };
+}
+
+function parseStorageSpaceSnapshotRefreshJob(inputJson) {
+  const job = typeof inputJson === 'string' ? JSON.parse(inputJson) : inputJson;
+  if (job?.type !== 'refresh') {
+    throw new Error('invalid_storage_space_snapshot_job_type');
+  }
+  return {
+    type: job.type,
+    listParams: getStorageSpaceSnapshotListWindow(job.listParams),
+  };
+}
+
+function getStorageSpaceSnapshotRefreshJobChannel(job) {
+  return `${storageSpaceSnapshotQueueModuleName}:refresh:limit:${job.listParams.limit}`;
+}
+
+function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
+  return {
+    snapshotId: snapshot.id,
+    listLimit: snapshot.listLimit,
+    durationMs: snapshot.durationMs,
+    createdAt: snapshot.createdAt,
   };
 }
 

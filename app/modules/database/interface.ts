@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import type {IUserOperationQueue} from "../asyncOperation/interface.js";
+
 export interface IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
@@ -73,6 +75,10 @@ export interface IGeesomeDatabaseModule {
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
   refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams): Promise<IStorageSpaceSnapshot>;
+
+  queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId?: number, listParams?: IListParams, options?: any): Promise<IUserOperationQueue>;
+
+  processStorageSpaceSnapshotRefreshQueue(options?: any): Promise<{processed: number}>;
 
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 

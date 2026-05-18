@@ -146,6 +146,7 @@ async createGroup(userId, groupData) {
 - Prefer `await Promise.all([...])` for independent reads.
 - `pIteration.forEach` / `pIteration.map` / `pIteration.some` for sequential async loops over arrays. Plain `for ... of` with `await` is also acceptable for iteration with control flow (`continue`, `return`).
 - Do not write `.then(...).catch(console.error)` to silently swallow rejections in production paths. Migration files in particular must propagate errors so deploys fail loudly (see `docs/database-scalability-review.md` decision F12/F13 and contrast with the legacy `change-size-type.cjs`).
+- Feature modules should not hand-roll generic `UserOperationQueue` draining loops. Put shared queue lifecycle mechanics in `asyncOperation.processModuleOperationQueue`; keep feature modules responsible for job payloads, operation labels/channels, and idempotent job execution.
 
 ### Logging
 
