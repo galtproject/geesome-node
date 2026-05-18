@@ -665,7 +665,9 @@ function hotspotRows(): HotspotRow[] {
   const contentSource = read('app/modules/content/index.ts');
   const databaseSource = read('app/modules/database/index.ts');
   const apiSource = read('app/modules/api/api.ts');
-  const storageSpaceUsageSource = read('app/modules/database/storageSpaceUsageHelpers.ts');
+  const storageSpaceSource = read('app/modules/storageSpace/index.ts');
+  const storageSpaceApiSource = read('app/modules/storageSpace/api.ts');
+  const storageSpaceUsageSource = read('app/modules/storageSpace/queryHelpers.ts');
   const storageReferenceHelpersSource = read('app/modules/database/storageReferenceHelpers.ts');
   const storageObjectModelSource = read('app/modules/database/models/storageObject.ts');
   const storageSpaceSnapshotModelSource = read('app/modules/database/models/storageSpaceSnapshot.ts');
@@ -749,40 +751,47 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options)')
     && has(storageReferenceHelpersSource, 'excludeFileCatalogItemId')
     && has(databaseSource, "getContentDeleteBlocker('storage', 'derivedStorageRefs'");
-  const hasStorageSpaceUsageHelpers = has(databaseSource, 'getStorageSpaceOverview')
-    && has(databaseSource, 'getStorageSpaceTypeBreakdown')
-    && has(databaseSource, 'getStorageSpaceTopContents')
-    && has(databaseSource, 'getStorageSpaceTopFileCatalogItems')
-    && has(databaseSource, 'getStorageSpaceFileCatalogFolders')
-    && has(databaseSource, 'getStorageSpaceTopGroups')
-    && has(databaseSource, 'getStorageSpaceGroupPosts')
+  const hasStorageSpaceUsageHelpers = has(storageSpaceSource, 'getStorageSpaceOverview')
+    && has(storageSpaceSource, 'getStorageSpaceTypeBreakdown')
+    && has(storageSpaceSource, 'getStorageSpaceTopContents')
+    && has(storageSpaceSource, 'getStorageSpaceTopFileCatalogItems')
+    && has(storageSpaceSource, 'getStorageSpaceFileCatalogFolders')
+    && has(storageSpaceSource, 'getStorageSpaceTopGroups')
+    && has(storageSpaceSource, 'getStorageSpaceGroupPosts')
     && has(storageSpaceUsageSource, 'logicalContentBytes')
     && has(storageSpaceUsageSource, 'physicalContentBytes')
     && has(storageSpaceUsageSource, 'duplicateStorageIdsCount')
     && has(storageSpaceUsageSource, 'getStorageSpaceFileCatalogFolders')
     && has(storageSpaceUsageSource, 'getStorageSpaceGroupPosts')
     && has(storageSpaceUsageSource, 'getStorageSpaceTypeBreakdown');
-  const hasStorageSpaceApi = has(apiSource, 'admin/storage-space/overview')
-    && has(apiSource, 'admin/storage-space/type-breakdown')
-    && has(apiSource, 'admin/storage-space/top-contents')
-    && has(apiSource, 'admin/storage-space/top-file-catalog-items')
-    && has(apiSource, 'admin/storage-space/file-catalog-folders')
-    && has(apiSource, 'admin/storage-space/top-groups')
-    && has(apiSource, 'admin/storage-space/group-posts')
-    && has(apiSource, 'canReadAdminStorageSpace')
-    && has(apiSource, 'CorePermissionName.AdminRead');
+  const hasStorageSpaceApi = has(storageSpaceApiSource, 'admin/storage-space/overview')
+    && has(storageSpaceApiSource, 'admin/storage-space/type-breakdown')
+    && has(storageSpaceApiSource, 'admin/storage-space/top-contents')
+    && has(storageSpaceApiSource, 'admin/storage-space/top-file-catalog-items')
+    && has(storageSpaceApiSource, 'admin/storage-space/file-catalog-folders')
+    && has(storageSpaceApiSource, 'admin/storage-space/top-groups')
+    && has(storageSpaceApiSource, 'admin/storage-space/group-posts')
+    && has(storageSpaceApiSource, 'canReadAdminStorageSpace')
+    && has(storageSpaceApiSource, 'CorePermissionName.AdminRead');
+  const hasStorageSpaceGeneratedOutputs = has(storageSpaceSource, 'getStorageSpaceGeneratedOutputs')
+    && has(storageSpaceSource, 'generatedOutputs')
+    && has(storageSpaceApiSource, 'admin/storage-space/generated-outputs')
+    && has(storageSpaceUsageSource, 'getGeneratedOutputRefsSql')
+    && has(storageSpaceUsageSource, 'generatedOutputKnownPhysicalBytes')
+    && has(storageSpaceUsageSource, 'staticSite.storageId')
+    && has(storageSpaceUsageSource, 'unknownStorageIdsCount');
   const hasStorageSpaceSnapshots = has(storageSpaceSnapshotModelSource, 'storageSpaceSnapshot')
     && has(storageSpaceSnapshotModelSource, 'storage_space_snapshots_created_idx')
-    && has(databaseSource, 'getLatestStorageSpaceSnapshot')
-    && has(databaseSource, 'refreshStorageSpaceSnapshot')
-    && has(databaseSource, 'queueStorageSpaceSnapshotRefresh')
-    && has(databaseSource, 'processStorageSpaceSnapshotRefreshQueue')
-    && has(databaseSource, 'storageSpaceSnapshotQueueModuleName')
+    && has(storageSpaceSource, 'getLatestStorageSpaceSnapshot')
+    && has(storageSpaceSource, 'refreshStorageSpaceSnapshot')
+    && has(storageSpaceSource, 'queueStorageSpaceSnapshotRefresh')
+    && has(storageSpaceSource, 'processStorageSpaceSnapshotRefreshQueue')
+    && has(storageSpaceSource, 'storageSpaceSnapshotQueueModuleName')
     && has(asyncOperationSource, 'processModuleOperationQueue')
     && has(asyncOperationSource, 'moduleOperationQueuesInProcess')
-    && has(apiSource, 'admin/storage-space/snapshot')
-    && has(apiSource, 'admin/storage-space/snapshot/refresh')
-    && has(apiSource, 'admin/storage-space/snapshot/refresh-async');
+    && has(storageSpaceApiSource, 'admin/storage-space/snapshot')
+    && has(storageSpaceApiSource, 'admin/storage-space/snapshot/refresh')
+    && has(storageSpaceApiSource, 'admin/storage-space/snapshot/refresh-async');
   const hasCategoryManagementListLimits = has(categorySource, 'categoryManagementListParams')
     && has(categorySource, 'helpers.prepareListParams(listParams, categoryManagementListParams)')
     && has(categorySource, 'app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams)');
@@ -1465,19 +1474,23 @@ function hotspotRows(): HotspotRow[] {
     },
     {
       area: 'Storage space analysis',
-      source: 'app/modules/database/storageSpaceUsageHelpers.ts + app/modules/api/api.ts + app/modules/database/models/storageSpaceSnapshot.ts',
+      source: 'app/modules/storageSpace/queryHelpers.ts + app/modules/storageSpace/api.ts + app/modules/database/models/storageSpaceSnapshot.ts',
       hotspot: 'storage analyzer aggregate helpers',
       observedPattern: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
-            ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder and group-post drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes'
+            ? (hasStorageSpaceGeneratedOutputs
+              ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, and generated-output source drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, and DB-visible generated/static refs while separating logical bytes, known physical bytes, and unknown DAG refs'
+              : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder and group-post drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
             : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
           : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
         : 'storage usage is still inferred from unrelated content, file-catalog, and group screens',
       scalabilityRisk: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
-            ? 'backend aggregate, API, cached snapshot, generic async refresh queue, file-catalog folder drilldown, and first group-post drilldown seams are present; generated-output DAG accounting, restored-data query evidence, and finer per-query progress remain'
+            ? (hasStorageSpaceGeneratedOutputs
+              ? 'backend aggregate, API, cached snapshot, generic async refresh queue, file-catalog folder drilldown, group-post drilldown, and DB-visible generated/static ref accounting are present; true IPFS DAG byte traversal for unknown directory/manifest refs, restored-data query evidence, and finer per-query progress remain'
+              : 'backend aggregate, API, cached snapshot, generic async refresh queue, file-catalog folder drilldown, and first group-post drilldown seams are present; generated-output DAG accounting, restored-data query evidence, and finer per-query progress remain')
             : 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
           : 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
         : 'operators cannot identify large catalogs/groups/files without ad hoc queries, and duplicate storageId rows risk misleading physical-size reports',

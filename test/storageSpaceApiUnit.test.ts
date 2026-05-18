@@ -1,5 +1,6 @@
 import assert from "assert";
 import registerCoreApi from "../app/modules/api/api.js";
+import registerStorageSpaceApi from "../app/modules/storageSpace/api.js";
 import {CorePermissionName} from "../app/modules/database/interface.js";
 
 function createCoreApiHarness(appOverrides: any = {}) {
@@ -23,6 +24,7 @@ function createCoreApiHarness(appOverrides: any = {}) {
 	const app = {
 		ms: {
 			database: {},
+			storageSpace: {},
 			communicator: {},
 			storage: {},
 		},
@@ -30,7 +32,9 @@ function createCoreApiHarness(appOverrides: any = {}) {
 		...appOverrides,
 	};
 
+	app.ms.api = module;
 	registerCoreApi(app as any, module as any);
+	registerStorageSpaceApi(app as any, app.ms.storageSpace as any);
 
 	return {
 		async call(method, path, req: any = {}) {
@@ -60,51 +64,56 @@ function createCoreApiHarness(appOverrides: any = {}) {
 
 describe("storage space admin API", function () {
 	it("requires admin read permission before reading storage-space aggregates", async () => {
-		let databaseCalled = false;
+		let storageSpaceCalled = false;
 		const {call} = createCoreApiHarness({
 			ms: {
-				database: {
+				storageSpace: {
 					getStorageSpaceOverview: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					getStorageSpaceTypeBreakdown: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					getStorageSpaceTopContents: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					getStorageSpaceTopFileCatalogItems: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					getStorageSpaceFileCatalogFolders: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					getStorageSpaceTopGroups: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					getStorageSpaceGroupPosts: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
+						return {};
+					},
+					getStorageSpaceGeneratedOutputs: async () => {
+						storageSpaceCalled = true;
 						return {};
 					},
 					getLatestStorageSpaceSnapshot: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					refreshStorageSpaceSnapshot: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 					queueStorageSpaceSnapshotRefresh: async () => {
-						databaseCalled = true;
+						storageSpaceCalled = true;
 						return {};
 					},
 				},
+				database: {},
 				communicator: {},
 				storage: {},
 			},
@@ -119,6 +128,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/file-catalog-folders"],
 			["GET", "admin/storage-space/top-groups"],
 			["GET", "admin/storage-space/group-posts"],
+			["GET", "admin/storage-space/generated-outputs"],
 			["GET", "admin/storage-space/snapshot"],
 			["POST", "admin/storage-space/snapshot/refresh"],
 			["POST", "admin/storage-space/snapshot/refresh-async"],
@@ -128,12 +138,12 @@ describe("storage space admin API", function () {
 			const response = await call(method, path, {user: {id: 7}});
 			assert.equal(response.body, 403);
 		}
-		assert.equal(databaseCalled, false);
+		assert.equal(storageSpaceCalled, false);
 	});
 
 	it("exposes storage-space aggregate helpers through admin read routes", async () => {
 		const permissionChecks = [];
-		const databaseCalls = [];
+		const storageSpaceCalls = [];
 		const query = {limit: "5", offset: "10"};
 		const responses = {
 			overview: {logicalContentBytes: 100, physicalContentBytes: 60},
@@ -143,54 +153,60 @@ describe("storage space admin API", function () {
 			fileCatalogFolders: [{id: 8, logicalBytes: 15}],
 			topGroups: [{id: 3, size: 10}],
 			groupPosts: [{id: 9, logicalBytes: 9}],
+			generatedOutputs: [{source: "staticSite.storageId", knownPhysicalBytes: 33}],
 			snapshot: {id: 4, listLimit: 20},
 			refreshedSnapshot: {id: 5, listLimit: 5},
 			queuedSnapshot: {id: 6, module: "storage-space-snapshot"},
 		};
 		const {call} = createCoreApiHarness({
 			ms: {
-				database: {
+				storageSpace: {
 					getStorageSpaceOverview: async () => {
-						databaseCalls.push(["overview"]);
+						storageSpaceCalls.push(["overview"]);
 						return responses.overview;
 					},
 					getStorageSpaceTypeBreakdown: async (listParams) => {
-						databaseCalls.push(["typeBreakdown", listParams]);
+						storageSpaceCalls.push(["typeBreakdown", listParams]);
 						return responses.typeBreakdown;
 					},
 					getStorageSpaceTopContents: async (listParams) => {
-						databaseCalls.push(["topContents", listParams]);
+						storageSpaceCalls.push(["topContents", listParams]);
 						return responses.topContents;
 					},
 					getStorageSpaceTopFileCatalogItems: async (listParams) => {
-						databaseCalls.push(["topFileCatalogItems", listParams]);
+						storageSpaceCalls.push(["topFileCatalogItems", listParams]);
 						return responses.topFileCatalogItems;
 					},
 					getStorageSpaceFileCatalogFolders: async (listParams) => {
-						databaseCalls.push(["fileCatalogFolders", listParams]);
+						storageSpaceCalls.push(["fileCatalogFolders", listParams]);
 						return responses.fileCatalogFolders;
 					},
 					getStorageSpaceTopGroups: async (listParams) => {
-						databaseCalls.push(["topGroups", listParams]);
+						storageSpaceCalls.push(["topGroups", listParams]);
 						return responses.topGroups;
 					},
 					getStorageSpaceGroupPosts: async (listParams) => {
-						databaseCalls.push(["groupPosts", listParams]);
+						storageSpaceCalls.push(["groupPosts", listParams]);
 						return responses.groupPosts;
 					},
+					getStorageSpaceGeneratedOutputs: async (listParams) => {
+						storageSpaceCalls.push(["generatedOutputs", listParams]);
+						return responses.generatedOutputs;
+					},
 					getLatestStorageSpaceSnapshot: async () => {
-						databaseCalls.push(["snapshot"]);
+						storageSpaceCalls.push(["snapshot"]);
 						return responses.snapshot;
 					},
 					refreshStorageSpaceSnapshot: async (...args) => {
-						databaseCalls.push(["refreshSnapshot", ...args]);
+						storageSpaceCalls.push(["refreshSnapshot", ...args]);
 						return responses.refreshedSnapshot;
 					},
 					queueStorageSpaceSnapshotRefresh: async (...args) => {
-						databaseCalls.push(["queueSnapshot", ...args]);
+						storageSpaceCalls.push(["queueSnapshot", ...args]);
 						return responses.queuedSnapshot;
 					},
 				},
+				database: {},
 				communicator: {},
 				storage: {},
 			},
@@ -207,6 +223,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/file-catalog-folders", {user: {id: 7}, query: {...query, parentItemId: "8"}})).body, responses.fileCatalogFolders);
 		assert.deepEqual((await call("GET", "admin/storage-space/top-groups", {user: {id: 7}, query})).body, responses.topGroups);
 		assert.deepEqual((await call("GET", "admin/storage-space/group-posts", {user: {id: 7}, query: {...query, groupId: "3"}})).body, responses.groupPosts);
+		assert.deepEqual((await call("GET", "admin/storage-space/generated-outputs", {user: {id: 7}, query})).body, responses.generatedOutputs);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
@@ -222,8 +239,9 @@ describe("storage space admin API", function () {
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
+			[7, CorePermissionName.AdminRead],
 		]);
-		assert.deepEqual(databaseCalls, [
+		assert.deepEqual(storageSpaceCalls, [
 			["overview"],
 			["typeBreakdown", query],
 			["topContents", query],
@@ -231,6 +249,7 @@ describe("storage space admin API", function () {
 			["fileCatalogFolders", {...query, parentItemId: "8"}],
 			["topGroups", query],
 			["groupPosts", {...query, groupId: "3"}],
+			["generatedOutputs", query],
 			["snapshot"],
 			["refreshSnapshot", 7, query],
 			["queueSnapshot", 7, 12, query],
