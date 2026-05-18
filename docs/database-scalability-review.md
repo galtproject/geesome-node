@@ -152,6 +152,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 126 | Storage-space group drilldown now lists largest published posts with attachment counts, logical bytes, and per-post deduplicated physical bytes through AdminRead API and cached snapshots | this PR |
 | 127 | Storage-space analyzer service and AdminRead routes moved into a dedicated `storageSpace` module, while the database module keeps the synced snapshot model and shared SQL connection only | this PR |
 | 128 | Storage-space analyzer now exposes DB-visible generated/static output refs by source column, known `StorageObject` bytes, and unknown DAG refs that still need IPFS traversal or metadata reconciliation | this PR |
+| 129 | Queued storage-space snapshot refreshes now report staged analyzer progress in the async operation while preserving the parallel query path for synchronous refreshes | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 

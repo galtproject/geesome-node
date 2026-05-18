@@ -1,7 +1,11 @@
 import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
-import IGeesomeStorageSpaceModule, {IStorageSpaceSnapshotData} from "./interface.js";
+import IGeesomeStorageSpaceModule, {
+  IStorageSpaceSnapshotData,
+  IStorageSpaceSnapshotDataOptions,
+  IStorageSpaceSnapshotProgress
+} from "./interface.js";
 import * as storageSpaceQueries from './queryHelpers.js';
 
 const log = debug('geesome:app:storageSpace');
@@ -12,6 +16,7 @@ const storageSpaceListParams: IListParamsOptions = {
 };
 const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
+const storageSpaceSnapshotQueueInitialPercent = 1;
 
 export default async function (app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator']);
@@ -66,10 +71,10 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return getStorageSpaceSnapshotResponse(snapshot);
   }
 
-  async refreshStorageSpaceSnapshot(userId?: number, listParams: IListParams = {}) {
+  async refreshStorageSpaceSnapshot(userId?: number, listParams: IListParams = {}, options: IStorageSpaceSnapshotDataOptions = {}) {
     const startedAt = Date.now();
     const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const data = await this.getStorageSpaceSnapshotData(listWindow);
+    const data = await this.getStorageSpaceSnapshotData(listWindow, options);
     const snapshot = await this.app.ms.database.models.StorageSpaceSnapshot.create({
       userId,
       listLimit: listWindow.limit,
@@ -79,29 +84,12 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return getStorageSpaceSnapshotResponse(snapshot);
   }
 
-  async getStorageSpaceSnapshotData(listParams: IListParams = {}) {
+  async getStorageSpaceSnapshotData(listParams: IListParams = {}, options: IStorageSpaceSnapshotDataOptions = {}) {
     const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts, generatedOutputs] = await Promise.all([
-      this.getStorageSpaceOverview(),
-      this.getStorageSpaceTypeBreakdown(listWindow),
-      this.getStorageSpaceTopContents(listWindow),
-      this.getStorageSpaceTopFileCatalogItems(listWindow),
-      this.getStorageSpaceFileCatalogFolders(listWindow),
-      this.getStorageSpaceTopGroups(listWindow),
-      this.getStorageSpaceGroupPosts(listWindow),
-      this.getStorageSpaceGeneratedOutputs(listWindow),
-    ]);
-
-    return {
-      overview,
-      typeBreakdown,
-      topContents,
-      topFileCatalogItems,
-      fileCatalogFolders,
-      topGroups,
-      groupPosts,
-      generatedOutputs,
-    } as IStorageSpaceSnapshotData;
+    if (options.onProgress) {
+      return getStorageSpaceSnapshotDataWithProgress(this, listWindow, options);
+    }
+    return getStorageSpaceSnapshotDataInParallel(this, listWindow);
   }
 
   async queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
@@ -132,10 +120,12 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       getAsyncOperationData: (_waitingQueue, job) => ({
         name: 'refresh-storage-space-snapshot',
         channel: getStorageSpaceSnapshotRefreshJobChannel(job),
-        percent: 5,
+        percent: storageSpaceSnapshotQueueInitialPercent,
       }),
       run: async (waitingQueue, _asyncOperation, job) => {
-        const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams);
+        const snapshot = await this.refreshStorageSpaceSnapshot(waitingQueue.userId, job.listParams, {
+          onProgress: (progress) => updateStorageSpaceSnapshotRefreshProgress(this.app, _asyncOperation, progress),
+        });
         return getStorageSpaceSnapshotRefreshJobResult(snapshot);
       },
     });
@@ -177,6 +167,42 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
     limit: listWindow.limit,
     offset: 0,
   };
+}
+
+async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule, listWindow): Promise<IStorageSpaceSnapshotData> {
+  const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts, generatedOutputs] = await Promise.all([
+    module.getStorageSpaceOverview(),
+    module.getStorageSpaceTypeBreakdown(listWindow),
+    module.getStorageSpaceTopContents(listWindow),
+    module.getStorageSpaceTopFileCatalogItems(listWindow),
+    module.getStorageSpaceFileCatalogFolders(listWindow),
+    module.getStorageSpaceTopGroups(listWindow),
+    module.getStorageSpaceGroupPosts(listWindow),
+    module.getStorageSpaceGeneratedOutputs(listWindow),
+  ]);
+
+  return {
+    overview,
+    typeBreakdown,
+    topContents,
+    topFileCatalogItems,
+    fileCatalogFolders,
+    topGroups,
+    groupPosts,
+    generatedOutputs,
+  } as IStorageSpaceSnapshotData;
+}
+
+async function getStorageSpaceSnapshotDataWithProgress(module: StorageSpaceModule, listWindow, options: IStorageSpaceSnapshotDataOptions): Promise<IStorageSpaceSnapshotData> {
+  const data: any = {};
+  const stages = getStorageSpaceSnapshotStages(module, listWindow);
+
+  for (const [stageIndex, stage] of stages.entries()) {
+    data[stage.key] = await stage.getData();
+    await notifyStorageSpaceSnapshotProgress(options, stage.name, stageIndex, stages.length);
+  }
+
+  return data as IStorageSpaceSnapshotData;
 }
 
 function getStorageSpaceFileCatalogFolderWindow(listParams: any = {}) {
@@ -233,6 +259,13 @@ function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
   };
 }
 
+async function updateStorageSpaceSnapshotRefreshProgress(app: IGeesomeApp, asyncOperation, progress: IStorageSpaceSnapshotProgress) {
+  await app.ms.asyncOperation.updateUserAsyncOperation(asyncOperation.id, {
+    percent: progress.percent,
+    output: JSON.stringify(getStorageSpaceSnapshotProgressOutput(progress)),
+  });
+}
+
 function getStorageSpaceSnapshotResponse(snapshot) {
   if (!snapshot) {
     return null;
@@ -272,4 +305,72 @@ function normalizeStorageSpaceSnapshotData(data) {
     data.generatedOutputs = [];
   }
   return data;
+}
+
+async function notifyStorageSpaceSnapshotProgress(options: IStorageSpaceSnapshotDataOptions, stage: string, stageIndex: number, totalStages: number) {
+  if (!options.onProgress) {
+    return null;
+  }
+  return options.onProgress({
+    stage,
+    totalStages,
+    finishedStages: stageIndex + 1,
+    percent: getStorageSpaceSnapshotProgressPercent(stageIndex, totalStages),
+  });
+}
+
+function getStorageSpaceSnapshotProgressPercent(stageIndex: number, totalStages: number) {
+  return Math.round(10 + ((stageIndex + 1) / totalStages) * 85);
+}
+
+function getStorageSpaceSnapshotProgressOutput(progress: IStorageSpaceSnapshotProgress) {
+  return {
+    type: 'storage-space-snapshot-progress',
+    ...progress,
+  };
+}
+
+function getStorageSpaceSnapshotStages(module: StorageSpaceModule, listWindow) {
+  return [
+    {
+      key: 'overview',
+      name: 'overview',
+      getData: () => module.getStorageSpaceOverview(),
+    },
+    {
+      key: 'typeBreakdown',
+      name: 'type-breakdown',
+      getData: () => module.getStorageSpaceTypeBreakdown(listWindow),
+    },
+    {
+      key: 'topContents',
+      name: 'top-contents',
+      getData: () => module.getStorageSpaceTopContents(listWindow),
+    },
+    {
+      key: 'topFileCatalogItems',
+      name: 'top-file-catalog-items',
+      getData: () => module.getStorageSpaceTopFileCatalogItems(listWindow),
+    },
+    {
+      key: 'fileCatalogFolders',
+      name: 'file-catalog-folders',
+      getData: () => module.getStorageSpaceFileCatalogFolders(listWindow),
+    },
+    {
+      key: 'topGroups',
+      name: 'top-groups',
+      getData: () => module.getStorageSpaceTopGroups(listWindow),
+    },
+    {
+      key: 'groupPosts',
+      name: 'group-posts',
+      getData: () => module.getStorageSpaceGroupPosts(listWindow),
+    },
+    {
+      key: 'generatedOutputs',
+      name: 'generated-outputs',
+      getData: () => module.getStorageSpaceGeneratedOutputs(listWindow),
+    },
+  ];
 }
