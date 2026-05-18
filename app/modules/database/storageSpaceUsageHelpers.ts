@@ -17,6 +17,18 @@ const numericOverviewFields = [
 const numericTypeFields = ['contentRowsCount', 'storageObjectsCount', 'logicalBytes', 'physicalBytes'];
 const numericContentFields = ['id', 'userId', 'size'];
 const numericFileCatalogFields = ['id', 'userId', 'groupId', 'parentItemId', 'contentId', 'size'];
+const numericFileCatalogFolderFields = [
+  'id',
+  'userId',
+  'groupId',
+  'parentItemId',
+  'childFoldersCount',
+  'directFilesCount',
+  'filesCount',
+  'storageObjectsCount',
+  'logicalBytes',
+  'physicalBytes',
+];
 const numericGroupFields = ['id', 'size', 'availablePostsCount'];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
@@ -191,6 +203,107 @@ export async function getStorageSpaceTopFileCatalogItems(sequelize, listParams: 
   return rows.map(row => normalizeNumericFields(row, numericFileCatalogFields));
 }
 
+export async function getStorageSpaceFileCatalogFolders(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH RECURSIVE scoped_folders AS (
+      SELECT
+        folder.id,
+        folder."userId",
+        folder."groupId",
+        folder."parentItemId",
+        folder.name,
+        folder."defaultFolderFor"
+      FROM "fileCatalogItems" folder
+      WHERE folder."isDeleted" IS NOT TRUE
+        AND folder.type = :folderType
+        AND folder."parentItemId" IS NOT DISTINCT FROM :parentItemId
+    ),
+    folder_tree AS (
+      SELECT
+        scoped_folders.id AS "folderId",
+        scoped_folders.id AS "itemId"
+      FROM scoped_folders
+
+      UNION ALL
+
+      SELECT
+        folder_tree."folderId",
+        child.id AS "itemId"
+      FROM folder_tree
+      JOIN "fileCatalogItems" child ON child."parentItemId" = folder_tree."itemId"
+      WHERE child."isDeleted" IS NOT TRUE
+    ),
+    folder_logical_stats AS (
+      SELECT
+        folder_tree."folderId",
+        COUNT(item.id) FILTER (WHERE item.type = :fileType)::bigint AS "filesCount",
+        COALESCE(
+          SUM(COALESCE(content.size, item.size, 0)) FILTER (WHERE item.type = :fileType),
+          0
+        )::bigint AS "logicalBytes"
+      FROM folder_tree
+      JOIN "fileCatalogItems" item ON item.id = folder_tree."itemId"
+      LEFT JOIN contents content ON content.id = item."contentId"
+      GROUP BY folder_tree."folderId"
+    ),
+    folder_storage_rows AS (
+      SELECT
+        folder_tree."folderId",
+        content."storageId",
+        MAX(COALESCE(content.size, item.size, 0))::bigint AS size
+      FROM folder_tree
+      JOIN "fileCatalogItems" item ON item.id = folder_tree."itemId"
+      JOIN contents content ON content.id = item."contentId"
+      WHERE item.type = :fileType
+        AND content."storageId" IS NOT NULL
+      GROUP BY folder_tree."folderId", content."storageId"
+    ),
+    folder_physical_stats AS (
+      SELECT
+        "folderId",
+        COUNT(*)::bigint AS "storageObjectsCount",
+        COALESCE(SUM(size), 0)::bigint AS "physicalBytes"
+      FROM folder_storage_rows
+      GROUP BY "folderId"
+    ),
+    direct_child_stats AS (
+      SELECT
+        folder.id AS "folderId",
+        COUNT(child.id) FILTER (WHERE child.type = :folderType)::bigint AS "childFoldersCount",
+        COUNT(child.id) FILTER (WHERE child.type = :fileType)::bigint AS "directFilesCount"
+      FROM scoped_folders folder
+      LEFT JOIN "fileCatalogItems" child
+        ON child."parentItemId" = folder.id
+        AND child."isDeleted" IS NOT TRUE
+      GROUP BY folder.id
+    )
+    SELECT
+      folder.id,
+      folder."userId",
+      folder."groupId",
+      folder."parentItemId",
+      folder.name,
+      folder."defaultFolderFor",
+      COALESCE(direct_child_stats."childFoldersCount", 0)::bigint AS "childFoldersCount",
+      COALESCE(direct_child_stats."directFilesCount", 0)::bigint AS "directFilesCount",
+      COALESCE(folder_logical_stats."filesCount", 0)::bigint AS "filesCount",
+      COALESCE(folder_physical_stats."storageObjectsCount", 0)::bigint AS "storageObjectsCount",
+      COALESCE(folder_logical_stats."logicalBytes", 0)::bigint AS "logicalBytes",
+      COALESCE(folder_physical_stats."physicalBytes", 0)::bigint AS "physicalBytes"
+    FROM scoped_folders folder
+    LEFT JOIN folder_logical_stats ON folder_logical_stats."folderId" = folder.id
+    LEFT JOIN folder_physical_stats ON folder_physical_stats."folderId" = folder.id
+    LEFT JOIN direct_child_stats ON direct_child_stats."folderId" = folder.id
+    ORDER BY COALESCE(folder_logical_stats."logicalBytes", 0) DESC, folder.id ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceFileCatalogFolderQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericFileCatalogFolderFields));
+}
+
 export async function getStorageSpaceTopGroups(sequelize, listParams: any = {}) {
   const rows = await sequelize.query(`
     SELECT
@@ -216,6 +329,14 @@ function getStorageSpaceListQueryReplacements(listParams) {
     ...getStorageSpaceQueryReplacements(),
     limit: listParams.limit,
     offset: listParams.offset,
+  };
+}
+
+function getStorageSpaceFileCatalogFolderQueryReplacements(listParams) {
+  return {
+    ...getStorageSpaceListQueryReplacements(listParams),
+    parentItemId: listParams.parentItemId,
+    folderType: 'folder',
   };
 }
 

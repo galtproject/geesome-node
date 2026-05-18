@@ -505,6 +505,26 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	});
 
 	/**
+	 * @api {get} /v1/admin/storage-space/file-catalog-folders Get file-catalog folder usage
+	 * @apiName AdminStorageSpaceFileCatalogFolders
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {Number} [parentItemId] Parent folder id. Omit or pass null for root folders.
+	 * @apiDescription Lists active file-catalog folders under the requested parent folder, sorted by descendant logical bytes, with deduplicated physical bytes for drilldown screens.
+	 */
+	module.onAuthorizedGet('admin/storage-space/file-catalog-folders', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceFileCatalogFolders(req.query));
+	});
+
+	/**
 	 * @api {get} /v1/admin/storage-space/top-groups Get largest groups
 	 * @apiName AdminStorageSpaceTopGroups
 	 * @apiGroup AdminStorage

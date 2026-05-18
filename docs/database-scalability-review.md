@@ -148,6 +148,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 122 | AdminRead-protected storage-space API routes now expose the analyzer overview, type breakdown, largest content rows, largest catalog files, and largest groups for the future operator UI | this PR |
 | 123 | Storage-space analyzer results can now be persisted as model-sync cached snapshots with list limit, duration, timestamp, and refresher user metadata, exposed through AdminRead latest/refresh routes for operator screens | this PR |
 | 124 | Storage-space snapshot refreshes can now be queued through the shared async-operation queue runner via an AdminRead async refresh route, while the database module owns only the storage-space job payload and snapshot calculation | this PR |
+| 125 | Storage-space file-catalog folder usage now has an AdminRead drilldown endpoint and cached snapshot slice for root/child folder logical and deduplicated physical bytes | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 

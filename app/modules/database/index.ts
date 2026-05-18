@@ -387,6 +387,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return storageSpaceUsage.getStorageSpaceTopFileCatalogItems(this.sequelize, getStorageSpaceListWindow(listParams));
   }
 
+  async getStorageSpaceFileCatalogFolders(listParams: IListParams = {}) {
+    return storageSpaceUsage.getStorageSpaceFileCatalogFolders(this.sequelize, getStorageSpaceFileCatalogFolderWindow(listParams));
+  }
+
   async getStorageSpaceTopGroups(listParams: IListParams = {}) {
     return storageSpaceUsage.getStorageSpaceTopGroups(this.sequelize, getStorageSpaceListWindow(listParams));
   }
@@ -413,11 +417,12 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getStorageSpaceSnapshotData(listParams: IListParams = {}) {
     const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const [overview, typeBreakdown, topContents, topFileCatalogItems, topGroups] = await Promise.all([
+    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups] = await Promise.all([
       this.getStorageSpaceOverview(),
       this.getStorageSpaceTypeBreakdown(listWindow),
       this.getStorageSpaceTopContents(listWindow),
       this.getStorageSpaceTopFileCatalogItems(listWindow),
+      this.getStorageSpaceFileCatalogFolders(listWindow),
       this.getStorageSpaceTopGroups(listWindow),
     ]);
 
@@ -426,6 +431,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       typeBreakdown,
       topContents,
       topFileCatalogItems,
+      fileCatalogFolders,
       topGroups,
     } as IStorageSpaceSnapshotData;
   }
@@ -897,6 +903,21 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
   };
 }
 
+function getStorageSpaceFileCatalogFolderWindow(listParams: any = {}) {
+  const listWindow = getStorageSpaceListWindow(listParams);
+  return {
+    ...listWindow,
+    parentItemId: parseNullableStorageSpaceId(listParams.parentItemId),
+  };
+}
+
+function parseNullableStorageSpaceId(value) {
+  if (value === null || value === undefined || value === '' || value === 'null' || value === 'undefined') {
+    return null;
+  }
+  return parseNonNegativeInteger(value, null);
+}
+
 function getStorageSpaceSnapshotRefreshJobInput(listParams: IListParams = {}) {
   return {
     type: 'refresh',
@@ -950,10 +971,17 @@ function parseStorageSpaceSnapshotData(data) {
     return null;
   }
   if (typeof data !== 'string') {
-    return data;
+    return normalizeStorageSpaceSnapshotData(data);
   }
 
-  return JSON.parse(data);
+  return normalizeStorageSpaceSnapshotData(JSON.parse(data));
+}
+
+function normalizeStorageSpaceSnapshotData(data) {
+  if (!data.fileCatalogFolders) {
+    data.fileCatalogFolders = [];
+  }
+  return data;
 }
 
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {
