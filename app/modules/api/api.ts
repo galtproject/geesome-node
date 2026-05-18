@@ -543,6 +543,26 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	});
 
 	/**
+	 * @api {get} /v1/admin/storage-space/group-posts Get group post storage usage
+	 * @apiName AdminStorageSpaceGroupPosts
+	 * @apiGroup AdminStorage
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {Number} [groupId] Group id. Omit to list the largest published posts across all groups.
+	 * @apiDescription Lists published posts sorted by logical bytes, with attachment counts and deduplicated physical bytes for group drilldown screens.
+	 */
+	module.onAuthorizedGet('admin/storage-space/group-posts', async (req, res) => {
+		if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+			return;
+		}
+		res.send(await app.ms.database.getStorageSpaceGroupPosts(req.query));
+	});
+
+	/**
 	 * @api {get} /v1/admin/storage-space/snapshot Get latest storage-space snapshot
 	 * @apiName AdminStorageSpaceSnapshot
 	 * @apiGroup AdminStorage

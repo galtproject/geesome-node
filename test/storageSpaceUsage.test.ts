@@ -67,7 +67,7 @@ describe("storage space usage", function () {
 		assert.equal(sharedContent.storageId, duplicateContent.storageId);
 		await app.ms['fileCatalog'].saveContentByPath(firstUser.id, '/usage/shared.txt', sharedContent.id);
 		await app.ms['fileCatalog'].saveContentByPath(firstUser.id, '/usage/deep/unique.txt', uniqueContent.id);
-		await app.ms.group.createPost(firstUser.id, {
+		const sharedPost = await app.ms.group.createPost(firstUser.id, {
 			contents: [{id: sharedContent.id, view: ContentView.Attachment}],
 			groupId: group.id,
 			status: PostStatus.Published
@@ -122,6 +122,16 @@ describe("storage space usage", function () {
 		assert.equal(!!usageGroup, true);
 		assert.equal(usageGroup?.size, sharedSize);
 
+		const groupPosts = await app.ms.database.getStorageSpaceGroupPosts({limit: 5, groupId: group.id});
+		const usagePost = groupPosts.find(row => row.id === sharedPost.id);
+		assert.equal(!!usagePost, true);
+		assert.equal(usagePost?.groupId, group.id);
+		assert.equal(usagePost?.logicalBytes, sharedSize);
+		assert.equal(usagePost?.attachmentLogicalBytes, sharedSize);
+		assert.equal(usagePost?.physicalBytes, sharedSize);
+		assert.equal(usagePost?.attachmentsCount, 1);
+		assert.equal(usagePost?.storageObjectsCount, 1);
+
 		assert.equal(await app.ms.database.getLatestStorageSpaceSnapshot(), null);
 		const snapshot = await app.ms.database.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2, offset: 99});
 		assert.equal(snapshot.userId, firstUser.id);
@@ -132,6 +142,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.topFileCatalogItems.length <= 2, true);
 		assert.equal(snapshot.data.fileCatalogFolders.length <= 2, true);
 		assert.equal(snapshot.data.topGroups.length <= 2, true);
+		assert.equal(snapshot.data.groupPosts.length <= 2, true);
 
 		const latestSnapshot = await app.ms.database.getLatestStorageSpaceSnapshot();
 		assert.equal(latestSnapshot.id, snapshot.id);

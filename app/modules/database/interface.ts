@@ -74,6 +74,8 @@ export interface IGeesomeDatabaseModule {
 
   getStorageSpaceTopGroups(listParams?: IListParams): Promise<IStorageSpaceGroupRow[]>;
 
+  getStorageSpaceGroupPosts(listParams?: IListParams): Promise<IStorageSpaceGroupPostRow[]>;
+
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
   refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams): Promise<IStorageSpaceSnapshot>;
@@ -362,6 +364,22 @@ export interface IStorageSpaceGroupRow {
   availablePostsCount: number;
 }
 
+export interface IStorageSpaceGroupPostRow {
+  id: number;
+  groupId?: number;
+  userId?: number;
+  localId?: number;
+  name?: string;
+  publishedAt?: Date;
+  groupName?: string;
+  groupTitle?: string;
+  logicalBytes: number;
+  attachmentsCount: number;
+  attachmentLogicalBytes: number;
+  storageObjectsCount: number;
+  physicalBytes: number;
+}
+
 export interface IStorageSpaceSnapshotData {
   overview: IStorageSpaceOverview;
   typeBreakdown: IStorageSpaceTypeBreakdownRow[];
@@ -369,6 +387,7 @@ export interface IStorageSpaceSnapshotData {
   topFileCatalogItems: IStorageSpaceFileCatalogRow[];
   fileCatalogFolders: IStorageSpaceFileCatalogFolderRow[];
   topGroups: IStorageSpaceGroupRow[];
+  groupPosts: IStorageSpaceGroupPostRow[];
 }
 
 export interface IStorageSpaceSnapshot {
