@@ -16,6 +16,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpaceGroupPosts(listParams?: IListParams): Promise<IStorageSpaceGroupPostRow[]>;
 
+  getStorageSpaceGeneratedOutputs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRow[]>;
+
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
   refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams): Promise<IStorageSpaceSnapshot>;
@@ -40,6 +42,11 @@ export interface IStorageSpaceOverview {
   groupPostsLogicalBytes: number;
   pinnedStorageObjectsCount: number;
   pinnedPhysicalBytes: number;
+  generatedOutputStorageRefsCount: number;
+  generatedOutputUniqueStorageIdsCount: number;
+  generatedOutputKnownStorageObjectsCount: number;
+  generatedOutputKnownPhysicalBytes: number;
+  generatedOutputUnknownStorageIdsCount: number;
 }
 
 export interface IStorageSpaceTypeBreakdownRow {
@@ -115,6 +122,15 @@ export interface IStorageSpaceGroupPostRow {
   physicalBytes: number;
 }
 
+export interface IStorageSpaceGeneratedOutputRow {
+  source: string;
+  storageRefsCount: number;
+  uniqueStorageIdsCount: number;
+  knownStorageObjectsCount: number;
+  knownPhysicalBytes: number;
+  unknownStorageIdsCount: number;
+}
+
 export interface IStorageSpaceSnapshotData {
   overview: IStorageSpaceOverview;
   typeBreakdown: IStorageSpaceTypeBreakdownRow[];
@@ -123,6 +139,7 @@ export interface IStorageSpaceSnapshotData {
   fileCatalogFolders: IStorageSpaceFileCatalogFolderRow[];
   topGroups: IStorageSpaceGroupRow[];
   groupPosts: IStorageSpaceGroupPostRow[];
+  generatedOutputs: IStorageSpaceGeneratedOutputRow[];
 }
 
 export interface IStorageSpaceSnapshot {

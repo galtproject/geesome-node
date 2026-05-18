@@ -13,6 +13,11 @@ const numericOverviewFields = [
   'groupPostsLogicalBytes',
   'pinnedStorageObjectsCount',
   'pinnedPhysicalBytes',
+  'generatedOutputStorageRefsCount',
+  'generatedOutputUniqueStorageIdsCount',
+  'generatedOutputKnownStorageObjectsCount',
+  'generatedOutputKnownPhysicalBytes',
+  'generatedOutputUnknownStorageIdsCount',
 ];
 const numericTypeFields = ['contentRowsCount', 'storageObjectsCount', 'logicalBytes', 'physicalBytes'];
 const numericContentFields = ['id', 'userId', 'size'];
@@ -40,6 +45,13 @@ const numericGroupPostFields = [
   'attachmentLogicalBytes',
   'storageObjectsCount',
   'physicalBytes',
+];
+const numericGeneratedOutputFields = [
+  'storageRefsCount',
+  'uniqueStorageIdsCount',
+  'knownStorageObjectsCount',
+  'knownPhysicalBytes',
+  'unknownStorageIdsCount',
 ];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
@@ -96,6 +108,23 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
         COALESCE(SUM(COALESCE(size, 0)), 0)::bigint AS "pinnedPhysicalBytes"
       FROM "storageObjects"
       WHERE "isPinned" = true
+    ),
+    ${getGeneratedOutputRefsSql()},
+    generated_output_unique_refs AS (
+      SELECT DISTINCT "storageId"
+      FROM generated_output_refs
+      WHERE "storageId" IS NOT NULL
+    ),
+    generated_output AS (
+      SELECT
+        (SELECT COUNT(*)::bigint FROM generated_output_refs WHERE "storageId" IS NOT NULL) AS "generatedOutputStorageRefsCount",
+        COUNT(generated_output_unique_refs."storageId")::bigint AS "generatedOutputUniqueStorageIdsCount",
+        COUNT(storage_object.id)::bigint AS "generatedOutputKnownStorageObjectsCount",
+        COALESCE(SUM(COALESCE(storage_object.size, 0)), 0)::bigint AS "generatedOutputKnownPhysicalBytes",
+        COUNT(*) FILTER (WHERE storage_object.id IS NULL)::bigint AS "generatedOutputUnknownStorageIdsCount"
+      FROM generated_output_unique_refs
+      LEFT JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = generated_output_unique_refs."storageId"
     )
     SELECT
       content_stats.*,
@@ -103,8 +132,9 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
       duplicate_content.*,
       file_catalog.*,
       group_posts.*,
-      pinned_storage.*
-    FROM content_stats, physical_content, duplicate_content, file_catalog, group_posts, pinned_storage
+      pinned_storage.*,
+      generated_output.*
+    FROM content_stats, physical_content, duplicate_content, file_catalog, group_posts, pinned_storage, generated_output
   `, {
     replacements: getStorageSpaceQueryReplacements(options),
     type: QueryTypes.SELECT,
@@ -416,6 +446,63 @@ export async function getStorageSpaceGroupPosts(sequelize, listParams: any = {})
   return rows.map(row => normalizeNumericFields(row, numericGroupPostFields));
 }
 
+export async function getStorageSpaceGeneratedOutputs(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH ${getGeneratedOutputRefsSql()},
+    source_refs AS (
+      SELECT
+        source,
+        COUNT(*)::bigint AS "storageRefsCount",
+        COUNT(DISTINCT "storageId")::bigint AS "uniqueStorageIdsCount"
+      FROM generated_output_refs
+      WHERE "storageId" IS NOT NULL
+      GROUP BY source
+    ),
+    source_unique_storage AS (
+      SELECT DISTINCT
+        source,
+        "storageId"
+      FROM generated_output_refs
+      WHERE "storageId" IS NOT NULL
+    ),
+    source_storage AS (
+      SELECT
+        source_unique_storage.source,
+        source_unique_storage."storageId",
+        storage_object.id IS NOT NULL AS "isKnownStorageObject",
+        COALESCE(storage_object.size, 0)::bigint AS size
+      FROM source_unique_storage
+      LEFT JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = source_unique_storage."storageId"
+    ),
+    source_storage_stats AS (
+      SELECT
+        source,
+        COUNT(*) FILTER (WHERE "isKnownStorageObject")::bigint AS "knownStorageObjectsCount",
+        COALESCE(SUM(size) FILTER (WHERE "isKnownStorageObject"), 0)::bigint AS "knownPhysicalBytes",
+        COUNT(*) FILTER (WHERE NOT "isKnownStorageObject")::bigint AS "unknownStorageIdsCount"
+      FROM source_storage
+      GROUP BY source
+    )
+    SELECT
+      source_refs.source,
+      source_refs."storageRefsCount",
+      source_refs."uniqueStorageIdsCount",
+      COALESCE(source_storage_stats."knownStorageObjectsCount", 0)::bigint AS "knownStorageObjectsCount",
+      COALESCE(source_storage_stats."knownPhysicalBytes", 0)::bigint AS "knownPhysicalBytes",
+      COALESCE(source_storage_stats."unknownStorageIdsCount", 0)::bigint AS "unknownStorageIdsCount"
+    FROM source_refs
+    LEFT JOIN source_storage_stats ON source_storage_stats.source = source_refs.source
+    ORDER BY COALESCE(source_storage_stats."knownPhysicalBytes", 0) DESC, source_refs."storageRefsCount" DESC, source_refs.source ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceListQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericGeneratedOutputFields));
+}
+
 function getStorageSpaceListQueryReplacements(listParams) {
   return {
     ...getStorageSpaceQueryReplacements(),
@@ -453,4 +540,90 @@ function normalizeNumericFields(row, fields: string[]) {
     result[field] = Number(result[field] || 0);
   });
   return result;
+}
+
+function getGeneratedOutputRefsSql() {
+  return `
+    generated_output_refs AS (
+      SELECT 'post.storageId' AS source, post."storageId"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."storageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'post.directoryStorageId' AS source, post."directoryStorageId" AS "storageId"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."directoryStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'post.manifestStorageId' AS source, post."manifestStorageId" AS "storageId"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."manifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'post.encryptedManifestStorageId' AS source, post."encryptedManifestStorageId" AS "storageId"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."encryptedManifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'group.storageId' AS source, group_row."storageId"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."storageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'group.directoryStorageId' AS source, group_row."directoryStorageId" AS "storageId"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."directoryStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'group.manifestStorageId' AS source, group_row."manifestStorageId" AS "storageId"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."manifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'group.encryptedManifestStorageId' AS source, group_row."encryptedManifestStorageId" AS "storageId"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."encryptedManifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'fileCatalogItem.nativeStorageId' AS source, item."nativeStorageId" AS "storageId"
+      FROM "fileCatalogItems" item
+      WHERE item."isDeleted" IS NOT TRUE
+        AND item."nativeStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'fileCatalogItem.manifestStorageId' AS source, item."manifestStorageId" AS "storageId"
+      FROM "fileCatalogItems" item
+      WHERE item."isDeleted" IS NOT TRUE
+        AND item."manifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'staticSite.storageId' AS source, site."storageId"
+      FROM "staticSites" site
+      WHERE site."storageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT 'staticSite.lastEntityManifestStorageId' AS source, site."lastEntityManifestStorageId" AS "storageId"
+      FROM "staticSites" site
+      WHERE site."lastEntityManifestStorageId" IS NOT NULL
+    )
+  `;
 }

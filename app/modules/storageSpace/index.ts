@@ -14,7 +14,7 @@ const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 
 export default async function (app: IGeesomeApp) {
-  app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog']);
+  app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator']);
   const module = new StorageSpaceModule(app);
   (await import('./api.js')).default(app, module);
   return module as IGeesomeStorageSpaceModule;
@@ -55,6 +55,10 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return storageSpaceQueries.getStorageSpaceGroupPosts(this.app.ms.database.sequelize, getStorageSpaceGroupPostWindow(listParams));
   }
 
+  async getStorageSpaceGeneratedOutputs(listParams: IListParams = {}) {
+    return storageSpaceQueries.getStorageSpaceGeneratedOutputs(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
   async getLatestStorageSpaceSnapshot() {
     const snapshot = await this.app.ms.database.models.StorageSpaceSnapshot.findOne({
       order: [['createdAt', 'DESC'], ['id', 'DESC']],
@@ -77,7 +81,7 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
 
   async getStorageSpaceSnapshotData(listParams: IListParams = {}) {
     const listWindow = getStorageSpaceSnapshotListWindow(listParams);
-    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts] = await Promise.all([
+    const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts, generatedOutputs] = await Promise.all([
       this.getStorageSpaceOverview(),
       this.getStorageSpaceTypeBreakdown(listWindow),
       this.getStorageSpaceTopContents(listWindow),
@@ -85,6 +89,7 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       this.getStorageSpaceFileCatalogFolders(listWindow),
       this.getStorageSpaceTopGroups(listWindow),
       this.getStorageSpaceGroupPosts(listWindow),
+      this.getStorageSpaceGeneratedOutputs(listWindow),
     ]);
 
     return {
@@ -95,6 +100,7 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       fileCatalogFolders,
       topGroups,
       groupPosts,
+      generatedOutputs,
     } as IStorageSpaceSnapshotData;
   }
 
@@ -261,6 +267,9 @@ function normalizeStorageSpaceSnapshotData(data) {
   }
   if (!data.groupPosts) {
     data.groupPosts = [];
+  }
+  if (!data.generatedOutputs) {
+    data.generatedOutputs = [];
   }
   return data;
 }

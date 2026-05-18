@@ -135,6 +135,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/generated-outputs Get generated-output storage usage
+   * @apiName AdminStorageSpaceGeneratedOutputs
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Lists generated/static output storage references by source column, including DB-known physical bytes and unknown refs that still need DAG traversal or StorageObject metadata.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/generated-outputs', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceGeneratedOutputs(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/snapshot Get latest storage-space snapshot
    * @apiName AdminStorageSpaceSnapshot
    * @apiGroup AdminStorage

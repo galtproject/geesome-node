@@ -72,6 +72,24 @@ describe("storage space usage", function () {
 			groupId: group.id,
 			status: PostStatus.Published
 		});
+		const generatedStorageId = 'generated-space-output';
+		const generatedSize = 33;
+		await app.ms.database.models.StorageObject.create({
+			storageId: generatedStorageId,
+			storageType: 'ipfs',
+			mimeType: 'text/html',
+			extension: 'html',
+			size: generatedSize,
+		});
+		await app.ms.database.sequelize.models.staticSite.create({
+			name: 'usage-generated-site',
+			title: 'Usage generated site',
+			userId: firstUser.id,
+			entityType: 'group',
+			entityId: group.id.toString(),
+			storageId: generatedStorageId,
+			lastEntityManifestStorageId: group.manifestStorageId,
+		});
 
 		const after = await app.ms.storageSpace.getStorageSpaceOverview();
 		const sharedSize = Number(sharedContent.size);
@@ -84,6 +102,9 @@ describe("storage space usage", function () {
 		assert.equal(after.duplicateContentRowsCount - before.duplicateContentRowsCount, 1);
 		assert.equal(after.groupPostsLogicalBytes - before.groupPostsLogicalBytes, sharedSize);
 		assert.equal(after.fileCatalogLogicalBytes > before.fileCatalogLogicalBytes, true);
+		assert.equal(after.generatedOutputKnownPhysicalBytes - before.generatedOutputKnownPhysicalBytes, generatedSize);
+		assert.equal(after.generatedOutputKnownStorageObjectsCount - before.generatedOutputKnownStorageObjectsCount, 1);
+		assert.equal(after.generatedOutputUniqueStorageIdsCount > before.generatedOutputUniqueStorageIdsCount, true);
 
 		const typeBreakdown = await app.ms.storageSpace.getStorageSpaceTypeBreakdown({limit: 10});
 		const textType = typeBreakdown.find(row => row.mimeType === 'text/plain');
@@ -132,6 +153,13 @@ describe("storage space usage", function () {
 		assert.equal(usagePost?.attachmentsCount, 1);
 		assert.equal(usagePost?.storageObjectsCount, 1);
 
+		const generatedOutputs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
+		const staticSiteOutput = generatedOutputs.find(row => row.source === 'staticSite.storageId');
+		assert.equal(!!staticSiteOutput, true);
+		assert.equal(staticSiteOutput?.knownPhysicalBytes, generatedSize);
+		assert.equal(staticSiteOutput?.knownStorageObjectsCount, 1);
+		assert.equal(staticSiteOutput?.unknownStorageIdsCount, 0);
+
 		assert.equal(await app.ms.storageSpace.getLatestStorageSpaceSnapshot(), null);
 		const snapshot = await app.ms.storageSpace.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2, offset: 99});
 		assert.equal(snapshot.userId, firstUser.id);
@@ -143,6 +171,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.fileCatalogFolders.length <= 2, true);
 		assert.equal(snapshot.data.topGroups.length <= 2, true);
 		assert.equal(snapshot.data.groupPosts.length <= 2, true);
+		assert.equal(snapshot.data.generatedOutputs.length <= 2, true);
 
 		const latestSnapshot = await app.ms.storageSpace.getLatestStorageSpaceSnapshot();
 		assert.equal(latestSnapshot.id, snapshot.id);
