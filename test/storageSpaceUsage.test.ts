@@ -74,6 +74,8 @@ describe("storage space usage", function () {
 		});
 		const generatedStorageId = 'generated-space-output';
 		const generatedSize = 33;
+		const generatedUnknownContent = 'generated runtime output bytes';
+		const generatedUnknownFile = await app.ms.storage.saveFileByData(generatedUnknownContent);
 		await app.ms.database.models.StorageObject.create({
 			storageId: generatedStorageId,
 			storageType: 'ipfs',
@@ -89,6 +91,14 @@ describe("storage space usage", function () {
 			entityId: group.id.toString(),
 			storageId: generatedStorageId,
 			lastEntityManifestStorageId: group.manifestStorageId,
+		});
+		await app.ms.database.sequelize.models.staticSite.create({
+			name: 'usage-runtime-generated-site',
+			title: 'Usage runtime generated site',
+			userId: firstUser.id,
+			entityType: 'group',
+			entityId: `${group.id}:runtime`,
+			storageId: generatedUnknownFile.id,
 		});
 
 		const after = await app.ms.storageSpace.getStorageSpaceOverview();
@@ -158,7 +168,19 @@ describe("storage space usage", function () {
 		assert.equal(!!staticSiteOutput, true);
 		assert.equal(staticSiteOutput?.knownPhysicalBytes, generatedSize);
 		assert.equal(staticSiteOutput?.knownStorageObjectsCount, 1);
-		assert.equal(staticSiteOutput?.unknownStorageIdsCount, 0);
+		assert.equal(staticSiteOutput?.unknownStorageIdsCount, 1);
+
+		const generatedUnknownRefs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputUnknownRefs({limit: 20});
+		const staticSiteUnknownRef = generatedUnknownRefs.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
+		assert.equal(!!staticSiteUnknownRef, true);
+		assert.equal(staticSiteUnknownRef?.storageRefsCount, 1);
+
+		const generatedInspections = await app.ms.storageSpace.inspectStorageSpaceGeneratedOutputRefs({limit: 20});
+		const staticSiteInspection = generatedInspections.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
+		assert.equal(!!staticSiteInspection, true);
+		assert.equal(staticSiteInspection?.ok, true);
+		assert.equal(staticSiteInspection?.storageRefsCount, 1);
+		assert.equal(staticSiteInspection?.measuredBytes >= generatedUnknownContent.length, true);
 
 		assert.equal(await app.ms.storageSpace.getLatestStorageSpaceSnapshot(), null);
 		const snapshot = await app.ms.storageSpace.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2, offset: 99});

@@ -154,6 +154,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/generated-output-inspection Inspect generated-output storage refs
+   * @apiName AdminStorageSpaceGeneratedOutputInspection
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Bounded runtime inspection for generated/static output storage references that do not have StorageObject metadata yet. Calls the storage backend for file/DAG stats, so operators should use small pages.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/generated-output-inspection', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.inspectStorageSpaceGeneratedOutputRefs(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/snapshot Get latest storage-space snapshot
    * @apiName AdminStorageSpaceSnapshot
    * @apiGroup AdminStorage

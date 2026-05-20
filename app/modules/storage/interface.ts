@@ -24,7 +24,7 @@ export default interface IGeesomeStorageModule {
 
   getFileStream(filePath, options?): Promise<any>;
 
-  getFileStat(filePath): Promise<any>;
+  getFileStat(filePath, options?): Promise<any>;
 
   getFileData(filePath): Promise<any>;
 
