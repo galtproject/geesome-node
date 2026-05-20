@@ -173,6 +173,24 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.groupPosts.length <= 2, true);
 		assert.equal(snapshot.data.generatedOutputs.length <= 2, true);
 
+		const progressEvents = [];
+		const progressSnapshotData = await app.ms.storageSpace.getStorageSpaceSnapshotData({limit: 1, offset: 99}, {
+			onProgress: (progress) => progressEvents.push(progress)
+		});
+		assert.deepEqual(progressEvents.map(event => event.stage), [
+			'overview',
+			'type-breakdown',
+			'top-contents',
+			'top-file-catalog-items',
+			'file-catalog-folders',
+			'top-groups',
+			'group-posts',
+			'generated-outputs',
+		]);
+		assert.equal(progressEvents[0].percent > 1, true);
+		assert.equal(progressEvents[progressEvents.length - 1].percent, 95);
+		assert.equal(progressSnapshotData.topContents.length <= 1, true);
+
 		const latestSnapshot = await app.ms.storageSpace.getLatestStorageSpaceSnapshot();
 		assert.equal(latestSnapshot.id, snapshot.id);
 		assert.deepEqual(latestSnapshot.data.overview, snapshot.data.overview);

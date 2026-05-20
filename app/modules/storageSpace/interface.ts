@@ -20,9 +20,9 @@ export default interface IGeesomeStorageSpaceModule {
 
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
-  refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams): Promise<IStorageSpaceSnapshot>;
+  refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams, options?: IStorageSpaceSnapshotDataOptions): Promise<IStorageSpaceSnapshot>;
 
-  getStorageSpaceSnapshotData(listParams?: IListParams): Promise<IStorageSpaceSnapshotData>;
+  getStorageSpaceSnapshotData(listParams?: IListParams, options?: IStorageSpaceSnapshotDataOptions): Promise<IStorageSpaceSnapshotData>;
 
   queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId?: number, listParams?: IListParams, options?: any): Promise<IUserOperationQueue>;
 
@@ -140,6 +140,17 @@ export interface IStorageSpaceSnapshotData {
   topGroups: IStorageSpaceGroupRow[];
   groupPosts: IStorageSpaceGroupPostRow[];
   generatedOutputs: IStorageSpaceGeneratedOutputRow[];
+}
+
+export interface IStorageSpaceSnapshotDataOptions {
+  onProgress?: (progress: IStorageSpaceSnapshotProgress) => Promise<void> | void;
+}
+
+export interface IStorageSpaceSnapshotProgress {
+  stage: string;
+  percent: number;
+  finishedStages: number;
+  totalStages: number;
 }
 
 export interface IStorageSpaceSnapshot {
