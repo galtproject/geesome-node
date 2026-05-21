@@ -173,6 +173,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/pinned-storage-objects Get pinned storage objects
+   * @apiName AdminStorageSpacePinnedStorageObjects
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Lists canonical pinned storage objects with physical bytes and DB-visible content, file-catalog, post, and generated-output references that explain why cleanup must preserve them.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/pinned-storage-objects', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpacePinnedStorageObjects(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/generated-output-inspection Inspect generated-output storage refs
    * @apiName AdminStorageSpaceGeneratedOutputInspection
    * @apiGroup AdminStorage

@@ -72,6 +72,7 @@ describe("storage space usage", function () {
 			groupId: group.id,
 			status: PostStatus.Published
 		});
+		await app.ms.database.markStorageObjectPinnedByContent(sharedContent);
 		const generatedStorageId = 'generated-space-output';
 		const generatedSize = 33;
 		const generatedUnknownContent = 'generated runtime output bytes';
@@ -112,6 +113,8 @@ describe("storage space usage", function () {
 		assert.equal(after.duplicateContentRowsCount - before.duplicateContentRowsCount, 1);
 		assert.equal(after.groupPostsLogicalBytes - before.groupPostsLogicalBytes, sharedSize);
 		assert.equal(after.fileCatalogLogicalBytes > before.fileCatalogLogicalBytes, true);
+		assert.equal(after.pinnedStorageObjectsCount - before.pinnedStorageObjectsCount, 1);
+		assert.equal(after.pinnedPhysicalBytes - before.pinnedPhysicalBytes, sharedSize);
 		assert.equal(after.generatedOutputKnownPhysicalBytes - before.generatedOutputKnownPhysicalBytes, generatedSize);
 		assert.equal(after.generatedOutputKnownStorageObjectsCount - before.generatedOutputKnownStorageObjectsCount, 1);
 		assert.equal(after.generatedOutputUniqueStorageIdsCount > before.generatedOutputUniqueStorageIdsCount, true);
@@ -173,7 +176,18 @@ describe("storage space usage", function () {
 		assert.equal(sharedStorageIdRow?.deduplicatedSavingsBytes, duplicateSize);
 		assert.equal(sharedStorageIdRow?.activeFileCatalogRefsCount >= 1, true);
 		assert.equal(sharedStorageIdRow?.groupPostRefsCount, 1);
-		assert.equal(sharedStorageIdRow?.isPinned, false);
+		assert.equal(sharedStorageIdRow?.isPinned, true);
+
+		const pinnedStorageObjects = await app.ms.storageSpace.getStorageSpacePinnedStorageObjects({limit: 5});
+		const pinnedSharedObject = pinnedStorageObjects.find(row => row.storageId === sharedContent.storageId);
+		assert.equal(!!pinnedSharedObject, true);
+		assert.equal(pinnedSharedObject?.physicalBytes, sharedSize);
+		assert.equal(pinnedSharedObject?.contentRowsCount, 2);
+		assert.equal(pinnedSharedObject?.usersCount, 2);
+		assert.equal(pinnedSharedObject?.activeFileCatalogRefsCount >= 1, true);
+		assert.equal(pinnedSharedObject?.groupPostRefsCount, 1);
+		assert.equal(pinnedSharedObject?.generatedOutputRefsCount, 0);
+		assert.equal(pinnedSharedObject?.isPinned, true);
 
 		const generatedOutputs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
 		const staticSiteOutput = generatedOutputs.find(row => row.source === 'staticSite.storageId');
@@ -222,6 +236,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.groupPosts.length <= 2, true);
 		assert.equal(snapshot.data.generatedOutputs.length <= 2, true);
 		assert.equal(snapshot.data.sharedStorageIds.length <= 2, true);
+		assert.equal(snapshot.data.pinnedStorageObjects.length <= 2, true);
 
 		const progressEvents = [];
 		const progressSnapshotData = await app.ms.storageSpace.getStorageSpaceSnapshotData({limit: 1, offset: 99}, {
@@ -237,6 +252,7 @@ describe("storage space usage", function () {
 			'group-posts',
 			'generated-outputs',
 			'shared-storage-ids',
+			'pinned-storage-objects',
 		]);
 		assert.equal(progressEvents[0].percent > 1, true);
 		assert.equal(progressEvents[progressEvents.length - 1].percent, 95);

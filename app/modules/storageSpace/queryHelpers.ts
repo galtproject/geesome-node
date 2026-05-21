@@ -64,6 +64,15 @@ const numericSharedStorageIdFields = [
   'activeFileCatalogRefsCount',
   'groupPostRefsCount',
 ];
+const numericPinnedStorageObjectFields = [
+  'id',
+  'physicalBytes',
+  'contentRowsCount',
+  'usersCount',
+  'activeFileCatalogRefsCount',
+  'groupPostRefsCount',
+  'generatedOutputRefsCount',
+];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
   const rows = await sequelize.query(`
@@ -611,6 +620,76 @@ export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any
   });
 
   return rows.map(row => normalizeNumericFields(row, numericSharedStorageIdFields));
+}
+
+export async function getStorageSpacePinnedStorageObjects(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH content_stats AS (
+      SELECT
+        "storageId",
+        COUNT(*)::bigint AS "contentRowsCount",
+        COUNT(DISTINCT "userId")::bigint AS "usersCount"
+      FROM contents
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "storageId"
+    ),
+    file_catalog_stats AS (
+      SELECT
+        content."storageId",
+        COUNT(item.id)::bigint AS "activeFileCatalogRefsCount"
+      FROM "fileCatalogItems" item
+      JOIN contents content ON content.id = item."contentId"
+      WHERE item."isDeleted" IS NOT TRUE
+        AND content."storageId" IS NOT NULL
+      GROUP BY content."storageId"
+    ),
+    group_post_stats AS (
+      SELECT
+        content."storageId",
+        COUNT(DISTINCT post_content."postId")::bigint AS "groupPostRefsCount"
+      FROM "postsContents" post_content
+      JOIN contents content ON content.id = post_content."contentId"
+      WHERE content."storageId" IS NOT NULL
+      GROUP BY content."storageId"
+    ),
+    ${getGeneratedOutputRefsSql()},
+    generated_output_stats AS (
+      SELECT
+        "storageId",
+        COUNT(*)::bigint AS "generatedOutputRefsCount"
+      FROM generated_output_refs
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "storageId"
+    )
+    SELECT
+      storage_object.id,
+      storage_object."storageId",
+      storage_object."storageType",
+      COALESCE(storage_object."mimeType", :unknownValue) AS "mimeType",
+      COALESCE(storage_object.extension, :unknownValue) AS extension,
+      COALESCE(storage_object.size, 0)::bigint AS "physicalBytes",
+      COALESCE(content_stats."contentRowsCount", 0)::bigint AS "contentRowsCount",
+      COALESCE(content_stats."usersCount", 0)::bigint AS "usersCount",
+      COALESCE(file_catalog_stats."activeFileCatalogRefsCount", 0)::bigint AS "activeFileCatalogRefsCount",
+      COALESCE(group_post_stats."groupPostRefsCount", 0)::bigint AS "groupPostRefsCount",
+      COALESCE(generated_output_stats."generatedOutputRefsCount", 0)::bigint AS "generatedOutputRefsCount",
+      storage_object."isPinned",
+      storage_object."createdAt",
+      storage_object."updatedAt"
+    FROM "storageObjects" storage_object
+    LEFT JOIN content_stats ON content_stats."storageId" = storage_object."storageId"
+    LEFT JOIN file_catalog_stats ON file_catalog_stats."storageId" = storage_object."storageId"
+    LEFT JOIN group_post_stats ON group_post_stats."storageId" = storage_object."storageId"
+    LEFT JOIN generated_output_stats ON generated_output_stats."storageId" = storage_object."storageId"
+    WHERE storage_object."isPinned" = true
+    ORDER BY COALESCE(storage_object.size, 0) DESC, storage_object.id ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceListQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericPinnedStorageObjectFields));
 }
 
 function getStorageSpaceListQueryReplacements(listParams) {

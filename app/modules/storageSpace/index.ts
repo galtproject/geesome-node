@@ -76,6 +76,10 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return storageSpaceQueries.getStorageSpaceSharedStorageIds(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
   }
 
+  async getStorageSpacePinnedStorageObjects(listParams: IListParams = {}) {
+    return storageSpaceQueries.getStorageSpacePinnedStorageObjects(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
   async getStorageSpaceGeneratedOutputUnknownRefs(listParams: IListParams = {}) {
     return storageSpaceQueries.getStorageSpaceGeneratedOutputUnknownRefs(this.app.ms.database.sequelize, getStorageSpaceStorageInspectionWindow(listParams));
   }
@@ -208,7 +212,7 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
 }
 
 async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule, listWindow): Promise<IStorageSpaceSnapshotData> {
-  const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts, generatedOutputs, sharedStorageIds] = await Promise.all([
+  const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts, generatedOutputs, sharedStorageIds, pinnedStorageObjects] = await Promise.all([
     module.getStorageSpaceOverview(),
     module.getStorageSpaceTypeBreakdown(listWindow),
     module.getStorageSpaceTopContents(listWindow),
@@ -218,6 +222,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     module.getStorageSpaceGroupPosts(listWindow),
     module.getStorageSpaceGeneratedOutputs(listWindow),
     module.getStorageSpaceSharedStorageIds(listWindow),
+    module.getStorageSpacePinnedStorageObjects(listWindow),
   ]);
 
   return {
@@ -230,6 +235,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     groupPosts,
     generatedOutputs,
     sharedStorageIds,
+    pinnedStorageObjects,
   } as IStorageSpaceSnapshotData;
 }
 
@@ -347,6 +353,9 @@ function normalizeStorageSpaceSnapshotData(data) {
   if (!data.sharedStorageIds) {
     data.sharedStorageIds = [];
   }
+  if (!data.pinnedStorageObjects) {
+    data.pinnedStorageObjects = [];
+  }
   return data;
 }
 
@@ -451,6 +460,11 @@ function getStorageSpaceSnapshotStages(module: StorageSpaceModule, listWindow) {
       key: 'sharedStorageIds',
       name: 'shared-storage-ids',
       getData: () => module.getStorageSpaceSharedStorageIds(listWindow),
+    },
+    {
+      key: 'pinnedStorageObjects',
+      name: 'pinned-storage-objects',
+      getData: () => module.getStorageSpacePinnedStorageObjects(listWindow),
     },
   ];
 }

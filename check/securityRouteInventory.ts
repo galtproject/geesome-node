@@ -85,7 +85,7 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('webhook')) {
     notes.add('webhook/token-in-path review');
   }
-  if (routeLower.includes('pin') || blockLower.includes('secretapikey')) {
+  if (routeLower.includes('/pin/') || blockLower.includes('secretapikey')) {
     notes.add('external service secret boundary');
   }
   if (routeLower.includes('content') || routeLower.includes('file') || routeLower.includes('ipfs')) {
