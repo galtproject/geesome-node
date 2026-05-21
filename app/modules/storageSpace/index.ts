@@ -1,7 +1,10 @@
 import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
+import IGeesomeStorageModule from "../storage/interface.js";
 import IGeesomeStorageSpaceModule, {
+  IStorageSpaceGeneratedOutputRefRow,
+  IStorageSpaceGeneratedOutputInspectionRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
   IStorageSpaceSnapshotProgress
@@ -14,12 +17,16 @@ const storageSpaceListParams: IListParamsOptions = {
   limit: 20,
   maxLimit: 100,
 };
+const storageSpaceStorageInspectionListParams: IListParamsOptions = {
+  limit: 10,
+  maxLimit: 25,
+};
 const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceSnapshotQueueInitialPercent = 1;
 
 export default async function (app: IGeesomeApp) {
-  app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator']);
+  app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator', 'storage']);
   const module = new StorageSpaceModule(app);
   (await import('./api.js')).default(app, module);
   return module as IGeesomeStorageSpaceModule;
@@ -62,6 +69,19 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
 
   async getStorageSpaceGeneratedOutputs(listParams: IListParams = {}) {
     return storageSpaceQueries.getStorageSpaceGeneratedOutputs(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceGeneratedOutputUnknownRefs(listParams: IListParams = {}) {
+    return storageSpaceQueries.getStorageSpaceGeneratedOutputUnknownRefs(this.app.ms.database.sequelize, getStorageSpaceStorageInspectionWindow(listParams));
+  }
+
+  async inspectStorageSpaceGeneratedOutputRefs(listParams: IListParams = {}) {
+    const refs = await this.getStorageSpaceGeneratedOutputUnknownRefs(listParams);
+    const rows: IStorageSpaceGeneratedOutputInspectionRow[] = [];
+    for (const ref of refs) {
+      rows.push(await inspectStorageSpaceGeneratedOutputRef(this.app.ms.storage, ref));
+    }
+    return rows;
   }
 
   async getLatestStorageSpaceSnapshot() {
@@ -153,12 +173,16 @@ function getListLimitCap(defaultParams: IListParamsOptions) {
   return Math.min(cap, maxListLimit);
 }
 
-function getStorageSpaceListWindow(listParams: IListParams = {}) {
-  const limitCap = getListLimitCap(storageSpaceListParams);
+function getStorageSpaceListWindow(listParams: IListParams = {}, defaultParams = storageSpaceListParams) {
+  const limitCap = getListLimitCap(defaultParams);
   return {
-    limit: Math.min(parseNonNegativeInteger(listParams.limit, storageSpaceListParams.limit), limitCap),
+    limit: Math.min(parseNonNegativeInteger(listParams.limit, defaultParams.limit), limitCap),
     offset: parseNonNegativeInteger(listParams.offset, 0),
   };
+}
+
+function getStorageSpaceStorageInspectionWindow(listParams: IListParams = {}) {
+  return getStorageSpaceListWindow(listParams, storageSpaceStorageInspectionListParams);
 }
 
 function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
@@ -307,6 +331,38 @@ function normalizeStorageSpaceSnapshotData(data) {
   return data;
 }
 
+async function inspectStorageSpaceGeneratedOutputRef(storage: IGeesomeStorageModule, ref: IStorageSpaceGeneratedOutputRefRow) {
+  try {
+    const stat = await storage.getFileStat(ref.storageId, {
+      attempts: 1,
+      attemptTimeout: 5000,
+      withLocal: true,
+      size: true,
+    });
+    return {
+      ...ref,
+      ok: true,
+      type: stat?.type || null,
+      measuredBytes: getStorageStatMeasuredBytes(stat),
+      statSize: parseStorageStatNumber(stat?.size),
+      cumulativeSize: parseStorageStatNumber(stat?.cumulativeSize),
+      blocksSize: parseStorageStatNumber(stat?.blocksSize),
+      errorMessage: null,
+    };
+  } catch (e) {
+    return {
+      ...ref,
+      ok: false,
+      type: null,
+      measuredBytes: 0,
+      statSize: 0,
+      cumulativeSize: 0,
+      blocksSize: 0,
+      errorMessage: getStorageInspectionErrorMessage(e),
+    };
+  }
+}
+
 async function notifyStorageSpaceSnapshotProgress(options: IStorageSpaceSnapshotDataOptions, stage: string, stageIndex: number, totalStages: number) {
   if (!options.onProgress) {
     return null;
@@ -373,4 +429,22 @@ function getStorageSpaceSnapshotStages(module: StorageSpaceModule, listWindow) {
       getData: () => module.getStorageSpaceGeneratedOutputs(listWindow),
     },
   ];
+}
+
+function getStorageStatMeasuredBytes(stat) {
+  return parseStorageStatNumber(
+    stat?.cumulativeSize ?? stat?.size ?? stat?.fileSize ?? stat?.blocksSize
+  );
+}
+
+function parseStorageStatNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
+}
+
+function getStorageInspectionErrorMessage(error) {
+  return error?.message || String(error);
 }

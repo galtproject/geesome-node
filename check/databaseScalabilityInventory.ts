@@ -780,6 +780,11 @@ function hotspotRows(): HotspotRow[] {
     && has(storageSpaceUsageSource, 'generatedOutputKnownPhysicalBytes')
     && has(storageSpaceUsageSource, 'staticSite.storageId')
     && has(storageSpaceUsageSource, 'unknownStorageIdsCount');
+  const hasStorageSpaceGeneratedOutputInspection = has(storageSpaceSource, 'inspectStorageSpaceGeneratedOutputRefs')
+    && has(storageSpaceSource, 'getStorageStatMeasuredBytes')
+    && has(storageSpaceSource, 'getStorageSpaceStorageInspectionWindow')
+    && has(storageSpaceUsageSource, 'getStorageSpaceGeneratedOutputUnknownRefs')
+    && has(storageSpaceApiSource, 'admin/storage-space/generated-output-inspection');
   const hasStorageSpaceSnapshots = has(storageSpaceSnapshotModelSource, 'storageSpaceSnapshot')
     && has(storageSpaceSnapshotModelSource, 'storage_space_snapshots_created_idx')
     && has(storageSpaceSource, 'getLatestStorageSpaceSnapshot')
@@ -1485,7 +1490,9 @@ function hotspotRows(): HotspotRow[] {
           ? (hasStorageSpaceSnapshots
             ? (hasStorageSpaceGeneratedOutputs
               ? (hasStorageSpaceSnapshotProgress
-                ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, and generated-output source drilldowns, and asyncOperation-owned refresh queue jobs expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, and DB-visible generated/static refs with logical bytes, known physical bytes, and unknown DAG refs separated'
+                ? (hasStorageSpaceGeneratedOutputInspection
+                  ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source drilldowns, and bounded generated-ref storage inspection expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, and runtime measured bytes for missing StorageObject refs'
+                  : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, and generated-output source drilldowns, and asyncOperation-owned refresh queue jobs expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, and DB-visible generated/static refs with logical bytes, known physical bytes, and unknown DAG refs separated')
                 : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, and generated-output source drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, and DB-visible generated/static refs while separating logical bytes, known physical bytes, and unknown DAG refs')
               : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder and group-post drilldowns, and asyncOperation-owned refresh queue jobs expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
             : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
@@ -1496,7 +1503,9 @@ function hotspotRows(): HotspotRow[] {
           ? (hasStorageSpaceSnapshots
             ? (hasStorageSpaceGeneratedOutputs
               ? (hasStorageSpaceSnapshotProgress
-                ? 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, and DB-visible generated/static ref accounting are present; true IPFS DAG byte traversal for unknown directory/manifest refs and restored-data query evidence remain'
+                ? (hasStorageSpaceGeneratedOutputInspection
+                  ? 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, and bounded runtime storage-stat inspection are present; restored-data query evidence and persisted DAG metadata reconciliation remain'
+                  : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, and DB-visible generated/static ref accounting are present; true IPFS DAG byte traversal for unknown directory/manifest refs and restored-data query evidence remain')
                 : 'backend aggregate, API, cached snapshot, generic async refresh queue, file-catalog folder drilldown, group-post drilldown, and DB-visible generated/static ref accounting are present; true IPFS DAG byte traversal for unknown directory/manifest refs, restored-data query evidence, and finer per-query progress remain')
               : 'backend aggregate, API, cached snapshot, generic async refresh queue, file-catalog folder drilldown, and first group-post drilldown seams are present; generated-output DAG accounting, restored-data query evidence, and finer per-query progress remain')
             : 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
