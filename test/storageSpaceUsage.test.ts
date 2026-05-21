@@ -216,6 +216,20 @@ describe("storage space usage", function () {
 		assert.equal(smallPreviewRow?.logicalPreviewBytes, previewSize);
 		assert.equal(smallPreviewRow?.physicalPreviewBytes, previewSize);
 
+		const cleanupBlockers = await app.ms.storageSpace.getStorageSpaceCleanupBlockers({contentId: sharedContent.id});
+		assert.equal(cleanupBlockers.length, 1);
+		const sharedCleanupRow = cleanupBlockers[0];
+		assert.equal(sharedCleanupRow?.safeToDestroyContent, false);
+		assert.equal(sharedCleanupRow?.safeToRemovePhysical, false);
+		assert.equal(sharedCleanupRow?.contentRefs.posts, 1);
+		assert.equal(sharedCleanupRow?.storageRefs.otherContents, 1);
+		assert.equal(sharedCleanupRow?.storageRefs.pinnedStorageObjects, 1);
+		assert.equal(sharedCleanupRow?.blockerCount, sharedCleanupRow?.blockers.length);
+		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'content', 'posts'), true);
+		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'content', 'fileCatalogItems'), true);
+		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'storage', 'otherContents'), true);
+		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'storage', 'pinnedStorageObjects'), true);
+
 		const generatedOutputs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
 		const staticSiteOutput = generatedOutputs.find(row => row.source === 'staticSite.storageId');
 		assert.equal(!!staticSiteOutput, true);
@@ -308,3 +322,7 @@ describe("storage space usage", function () {
 		assert.equal(queuedSnapshot.data.topContents.length <= 1, true);
 	});
 });
+
+function hasStorageSpaceBlocker(blockers, scope, key) {
+	return (blockers || []).some(blocker => blocker.scope === scope && blocker.key === key);
+}

@@ -112,6 +112,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					getStorageSpaceCleanupBlockers: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					getStorageSpaceGeneratedOutputUnknownRefs: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -156,6 +160,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/shared-storage-ids"],
 			["GET", "admin/storage-space/pinned-storage-objects"],
 			["GET", "admin/storage-space/preview-storage"],
+			["GET", "admin/storage-space/cleanup-blockers"],
 			["GET", "admin/storage-space/generated-output-inspection"],
 			["POST", "admin/storage-space/generated-output-reconcile"],
 			["GET", "admin/storage-space/snapshot"],
@@ -186,6 +191,7 @@ describe("storage space admin API", function () {
 			sharedStorageIds: [{storageId: "bafy-shared", contentRowsCount: 2}],
 			pinnedStorageObjects: [{storageId: "bafy-pinned", physicalBytes: 44}],
 			previewStorage: [{previewField: "smallPreviewStorageId", physicalPreviewBytes: 12}],
+			cleanupBlockers: [{id: 1, blockerCount: 2}],
 			generatedOutputInspection: [{source: "staticSite.storageId", storageId: "bafy-site", measuredBytes: 123}],
 			generatedOutputReconcile: {inspected: 1, reconciled: 1, failed: 0, skipped: 0},
 			snapshot: {id: 4, listLimit: 20},
@@ -239,6 +245,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalls.push(["previewStorage", listParams]);
 						return responses.previewStorage;
 					},
+					getStorageSpaceCleanupBlockers: async (listParams) => {
+						storageSpaceCalls.push(["cleanupBlockers", listParams]);
+						return responses.cleanupBlockers;
+					},
 					getStorageSpaceGeneratedOutputUnknownRefs: async (listParams) => {
 						storageSpaceCalls.push(["generatedOutputUnknownRefs", listParams]);
 						return [];
@@ -285,6 +295,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/shared-storage-ids", {user: {id: 7}, query})).body, responses.sharedStorageIds);
 		assert.deepEqual((await call("GET", "admin/storage-space/pinned-storage-objects", {user: {id: 7}, query})).body, responses.pinnedStorageObjects);
 		assert.deepEqual((await call("GET", "admin/storage-space/preview-storage", {user: {id: 7}, query})).body, responses.previewStorage);
+		assert.deepEqual((await call("GET", "admin/storage-space/cleanup-blockers", {user: {id: 7}, query: {...query, contentId: "1"}})).body, responses.cleanupBlockers);
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-inspection", {user: {id: 7}, query})).body, responses.generatedOutputInspection);
 		assert.deepEqual((await call("POST", "admin/storage-space/generated-output-reconcile", {user: {id: 7}, body: query})).body, responses.generatedOutputReconcile);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
@@ -292,6 +303,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -321,6 +333,7 @@ describe("storage space admin API", function () {
 			["sharedStorageIds", query],
 			["pinnedStorageObjects", query],
 			["previewStorage", query],
+			["cleanupBlockers", {...query, contentId: "1"}],
 			["generatedOutputInspection", query],
 			["generatedOutputReconcile", query],
 			["snapshot"],
