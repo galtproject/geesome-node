@@ -156,6 +156,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 130 | Storage-space analysis can now page unknown generated/static refs and perform bounded runtime storage-stat inspection so operators can measure refs missing `StorageObject` metadata without blocking normal snapshots | this PR |
 | 131 | AdminAll storage-space reconciliation can persist measured unknown generated/static output refs into canonical `StorageObject` rows, turning later analyzer runs from unknown DAG refs into known physical-byte accounting | this PR |
 | 132 | Storage-space analysis now lists duplicate/shared `storageId` rows with user/content counts, logical bytes, deduplicated physical bytes, catalog refs, and post refs for safer drilldown before cleanup decisions | this PR |
+| 133 | Storage-space analysis now lists pinned canonical `StorageObject` rows with physical bytes and DB-visible content, catalog, post, and generated-output reference counts that explain cleanup blockers | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 

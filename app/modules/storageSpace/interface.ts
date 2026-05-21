@@ -20,6 +20,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpaceSharedStorageIds(listParams?: IListParams): Promise<IStorageSpaceSharedStorageIdRow[]>;
 
+  getStorageSpacePinnedStorageObjects(listParams?: IListParams): Promise<IStorageSpacePinnedStorageObjectRow[]>;
+
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
 
   inspectStorageSpaceGeneratedOutputRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputInspectionRow[]>;
@@ -161,6 +163,23 @@ export interface IStorageSpaceSharedStorageIdRow {
   isPinned: boolean;
 }
 
+export interface IStorageSpacePinnedStorageObjectRow {
+  id: number;
+  storageId: string;
+  storageType?: string;
+  mimeType?: string;
+  extension?: string;
+  physicalBytes: number;
+  contentRowsCount: number;
+  usersCount: number;
+  activeFileCatalogRefsCount: number;
+  groupPostRefsCount: number;
+  generatedOutputRefsCount: number;
+  isPinned: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpaceGeneratedOutputRefRow {
   ok: boolean;
   type?: string | null;
@@ -194,6 +213,7 @@ export interface IStorageSpaceSnapshotData {
   groupPosts: IStorageSpaceGroupPostRow[];
   generatedOutputs: IStorageSpaceGeneratedOutputRow[];
   sharedStorageIds: IStorageSpaceSharedStorageIdRow[];
+  pinnedStorageObjects: IStorageSpacePinnedStorageObjectRow[];
 }
 
 export interface IStorageSpaceSnapshotDataOptions {
