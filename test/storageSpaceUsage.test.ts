@@ -8,7 +8,7 @@
  */
 
 import assert from "assert";
-import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
 
@@ -76,13 +76,29 @@ describe("storage space usage", function () {
 		const generatedStorageId = 'generated-space-output';
 		const generatedSize = 33;
 		const generatedUnknownContent = 'generated runtime output bytes';
+		const previewContent = 'preview-space-body';
+		const previewSize = Buffer.byteLength(previewContent);
 		const generatedUnknownFile = await app.ms.storage.saveFileByData(generatedUnknownContent);
+		const previewFile = await app.ms.storage.saveFileByData(previewContent);
 		await app.ms.database.models.StorageObject.create({
 			storageId: generatedStorageId,
 			storageType: 'ipfs',
 			mimeType: 'text/html',
 			extension: 'html',
 			size: generatedSize,
+		});
+		await app.ms.database.updateContent(sharedContent.id, {
+			smallPreviewStorageId: previewFile.id,
+			smallPreviewSize: previewSize,
+			previewMimeType: 'text/plain',
+			previewExtension: 'txt',
+		});
+		await app.ms.database.syncStorageObject({
+			storageId: previewFile.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'text/plain',
+			extension: 'txt',
+			size: previewSize,
 		});
 		await app.ms.database.sequelize.models.staticSite.create({
 			name: 'usage-generated-site',
@@ -189,6 +205,17 @@ describe("storage space usage", function () {
 		assert.equal(pinnedSharedObject?.generatedOutputRefsCount, 0);
 		assert.equal(pinnedSharedObject?.isPinned, true);
 
+		const previewStorage = await app.ms.storageSpace.getStorageSpacePreviewStorage({limit: 5});
+		const smallPreviewRow = previewStorage.find(row => row.previewField === 'smallPreviewStorageId');
+		assert.equal(!!smallPreviewRow, true);
+		assert.equal(smallPreviewRow?.contentRowsCount, 1);
+		assert.equal(smallPreviewRow?.storageObjectRowsCount, 1);
+		assert.equal(smallPreviewRow?.uniqueStorageIdsCount, 1);
+		assert.equal(smallPreviewRow?.registeredStorageObjectsCount, 1);
+		assert.equal(smallPreviewRow?.unregisteredStorageIdsCount, 0);
+		assert.equal(smallPreviewRow?.logicalPreviewBytes, previewSize);
+		assert.equal(smallPreviewRow?.physicalPreviewBytes, previewSize);
+
 		const generatedOutputs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
 		const staticSiteOutput = generatedOutputs.find(row => row.source === 'staticSite.storageId');
 		assert.equal(!!staticSiteOutput, true);
@@ -237,6 +264,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.generatedOutputs.length <= 2, true);
 		assert.equal(snapshot.data.sharedStorageIds.length <= 2, true);
 		assert.equal(snapshot.data.pinnedStorageObjects.length <= 2, true);
+		assert.equal(snapshot.data.previewStorage.length <= 2, true);
 
 		const progressEvents = [];
 		const progressSnapshotData = await app.ms.storageSpace.getStorageSpaceSnapshotData({limit: 1, offset: 99}, {
@@ -253,6 +281,7 @@ describe("storage space usage", function () {
 			'generated-outputs',
 			'shared-storage-ids',
 			'pinned-storage-objects',
+			'preview-storage',
 		]);
 		assert.equal(progressEvents[0].percent > 1, true);
 		assert.equal(progressEvents[progressEvents.length - 1].percent, 95);
