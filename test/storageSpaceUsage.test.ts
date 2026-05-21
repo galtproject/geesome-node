@@ -79,6 +79,7 @@ describe("storage space usage", function () {
 		const previewContent = 'preview-space-body';
 		const previewSize = Buffer.byteLength(previewContent);
 		const generatedUnknownFile = await app.ms.storage.saveFileByData(generatedUnknownContent);
+		const generatedUnknownDirectory = await saveGeneratedOutputDirectory(app);
 		const previewFile = await app.ms.storage.saveFileByData(previewContent);
 		await app.ms.database.models.StorageObject.create({
 			storageId: generatedStorageId,
@@ -116,6 +117,14 @@ describe("storage space usage", function () {
 			entityType: 'group',
 			entityId: `${group.id}:runtime`,
 			storageId: generatedUnknownFile.id,
+		});
+		await app.ms.database.sequelize.models.staticSite.create({
+			name: 'usage-runtime-generated-directory',
+			title: 'Usage runtime generated directory',
+			userId: firstUser.id,
+			entityType: 'group',
+			entityId: `${group.id}:directory`,
+			storageId: generatedUnknownDirectory.id,
 		});
 
 		const after = await app.ms.storageSpace.getStorageSpaceOverview();
@@ -235,12 +244,16 @@ describe("storage space usage", function () {
 		assert.equal(!!staticSiteOutput, true);
 		assert.equal(staticSiteOutput?.knownPhysicalBytes, generatedSize);
 		assert.equal(staticSiteOutput?.knownStorageObjectsCount, 1);
-		assert.equal(staticSiteOutput?.unknownStorageIdsCount, 1);
+		assert.equal(staticSiteOutput?.unknownStorageIdsCount, 2);
 
 		const generatedUnknownRefs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputUnknownRefs({limit: 20});
 		const staticSiteUnknownRef = generatedUnknownRefs.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
 		assert.equal(!!staticSiteUnknownRef, true);
 		assert.equal(staticSiteUnknownRef?.storageRefsCount, 1);
+		assert.equal(
+			generatedUnknownRefs.some(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownDirectory.id),
+			true
+		);
 
 		const generatedInspections = await app.ms.storageSpace.inspectStorageSpaceGeneratedOutputRefs({limit: 20});
 		const staticSiteInspection = generatedInspections.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
@@ -248,6 +261,31 @@ describe("storage space usage", function () {
 		assert.equal(staticSiteInspection?.ok, true);
 		assert.equal(staticSiteInspection?.storageRefsCount, 1);
 		assert.equal(staticSiteInspection?.measuredBytes >= generatedUnknownContent.length, true);
+
+		const childInspections = await app.ms.storageSpace.inspectStorageSpaceGeneratedOutputChildRefs({
+			storageId: generatedUnknownDirectory.id,
+			childLimit: 10,
+		});
+		const directoryChildInspection = childInspections[0];
+		assert.equal(directoryChildInspection?.storageId, generatedUnknownDirectory.id);
+		assert.equal(directoryChildInspection?.ok, true);
+		assert.equal(directoryChildInspection?.childrenCount >= 2, true);
+		assert.equal(directoryChildInspection?.inspectedChildrenCount >= 2, true);
+		assert.equal(directoryChildInspection?.unknownChildrenCount >= 2, true);
+		assert.equal(directoryChildInspection?.childMeasuredBytes > 0, true);
+		assert.equal(directoryChildInspection?.children.some(child => child.name === 'index.html'), true);
+
+		const childReconcileResult = await app.ms.storageSpace.reconcileStorageSpaceGeneratedOutputChildRefs({
+			storageId: generatedUnknownDirectory.id,
+			childLimit: 10,
+		});
+		assert.equal(childReconcileResult.inspectedParents, 1);
+		assert.equal(childReconcileResult.inspectedChildren >= 2, true);
+		assert.equal(childReconcileResult.reconciled >= 2, true);
+
+		const reconciledChild = childReconcileResult.rows.find(row => row.name === 'index.html');
+		assert.equal(!!reconciledChild?.storageObjectId, true);
+		assert.equal(!!await app.ms.database.getStorageObjectByStorageId(reconciledChild.storageId), true);
 
 		const reconcileResult = await app.ms.storageSpace.reconcileStorageSpaceGeneratedOutputRefs({limit: 20});
 		const reconciledStaticSiteOutput = reconcileResult.rows.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
@@ -261,7 +299,7 @@ describe("storage space usage", function () {
 
 		const generatedOutputsAfterReconcile = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
 		const staticSiteOutputAfterReconcile = generatedOutputsAfterReconcile.find(row => row.source === 'staticSite.storageId');
-		assert.equal(staticSiteOutputAfterReconcile?.knownStorageObjectsCount, 2);
+		assert.equal(staticSiteOutputAfterReconcile?.knownStorageObjectsCount, 3);
 		assert.equal(staticSiteOutputAfterReconcile?.unknownStorageIdsCount, 0);
 
 		assert.equal(await app.ms.storageSpace.getLatestStorageSpaceSnapshot(), null);
@@ -322,6 +360,16 @@ describe("storage space usage", function () {
 		assert.equal(queuedSnapshot.data.topContents.length <= 1, true);
 	});
 });
+
+async function saveGeneratedOutputDirectory(app: IGeesomeApp) {
+	const dirPath = `/storage-space-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+	const indexFile = await app.ms.storage.saveFileByData('<html>generated child</html>');
+	const assetFile = await app.ms.storage.saveFileByData('generated asset child');
+	await app.ms.storage.makeDir(dirPath);
+	await app.ms.storage.copyFileFromId(indexFile.id, `${dirPath}/index.html`);
+	await app.ms.storage.copyFileFromId(assetFile.id, `${dirPath}/asset.txt`);
+	return {id: await app.ms.storage.getDirectoryId(dirPath)};
+}
 
 function hasStorageSpaceBlocker(blockers, scope, key) {
 	return (blockers || []).some(blocker => blocker.scope === scope && blocker.key === key);

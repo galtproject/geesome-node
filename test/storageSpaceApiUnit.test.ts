@@ -128,6 +128,14 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					inspectStorageSpaceGeneratedOutputChildRefs: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
+					reconcileStorageSpaceGeneratedOutputChildRefs: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					getLatestStorageSpaceSnapshot: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -163,6 +171,8 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/cleanup-blockers"],
 			["GET", "admin/storage-space/generated-output-inspection"],
 			["POST", "admin/storage-space/generated-output-reconcile"],
+			["GET", "admin/storage-space/generated-output-child-inspection"],
+			["POST", "admin/storage-space/generated-output-child-reconcile"],
 			["GET", "admin/storage-space/snapshot"],
 			["POST", "admin/storage-space/snapshot/refresh"],
 			["POST", "admin/storage-space/snapshot/refresh-async"],
@@ -194,6 +204,8 @@ describe("storage space admin API", function () {
 			cleanupBlockers: [{id: 1, blockerCount: 2}],
 			generatedOutputInspection: [{source: "staticSite.storageId", storageId: "bafy-site", measuredBytes: 123}],
 			generatedOutputReconcile: {inspected: 1, reconciled: 1, failed: 0, skipped: 0},
+			generatedOutputChildInspection: [{source: "staticSite.storageId", storageId: "bafy-site", childrenCount: 1}],
+			generatedOutputChildReconcile: {inspectedParents: 1, inspectedChildren: 1, reconciled: 1, skipped: 0},
 			snapshot: {id: 4, listLimit: 20},
 			refreshedSnapshot: {id: 5, listLimit: 5},
 			queuedSnapshot: {id: 6, module: "storage-space-snapshot"},
@@ -261,6 +273,14 @@ describe("storage space admin API", function () {
 						storageSpaceCalls.push(["generatedOutputReconcile", listParams]);
 						return responses.generatedOutputReconcile;
 					},
+					inspectStorageSpaceGeneratedOutputChildRefs: async (listParams) => {
+						storageSpaceCalls.push(["generatedOutputChildInspection", listParams]);
+						return responses.generatedOutputChildInspection;
+					},
+					reconcileStorageSpaceGeneratedOutputChildRefs: async (listParams) => {
+						storageSpaceCalls.push(["generatedOutputChildReconcile", listParams]);
+						return responses.generatedOutputChildReconcile;
+					},
 					getLatestStorageSpaceSnapshot: async () => {
 						storageSpaceCalls.push(["snapshot"]);
 						return responses.snapshot;
@@ -298,6 +318,8 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/cleanup-blockers", {user: {id: 7}, query: {...query, contentId: "1"}})).body, responses.cleanupBlockers);
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-inspection", {user: {id: 7}, query})).body, responses.generatedOutputInspection);
 		assert.deepEqual((await call("POST", "admin/storage-space/generated-output-reconcile", {user: {id: 7}, body: query})).body, responses.generatedOutputReconcile);
+		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-child-inspection", {user: {id: 7}, query: {...query, childLimit: "3"}})).body, responses.generatedOutputChildInspection);
+		assert.deepEqual((await call("POST", "admin/storage-space/generated-output-child-reconcile", {user: {id: 7}, body: {...query, childLimit: "3"}})).body, responses.generatedOutputChildReconcile);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
@@ -315,6 +337,8 @@ describe("storage space admin API", function () {
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
+			[7, CorePermissionName.AdminRead],
+			[7, CorePermissionName.AdminAll],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminAll],
 			[7, CorePermissionName.AdminRead],
@@ -336,6 +360,8 @@ describe("storage space admin API", function () {
 			["cleanupBlockers", {...query, contentId: "1"}],
 			["generatedOutputInspection", query],
 			["generatedOutputReconcile", query],
+			["generatedOutputChildInspection", {...query, childLimit: "3"}],
+			["generatedOutputChildReconcile", {...query, childLimit: "3"}],
 			["snapshot"],
 			["refreshSnapshot", 7, query],
 			["queueSnapshot", 7, 12, query],

@@ -668,6 +668,7 @@ function hotspotRows(): HotspotRow[] {
   const storageSpaceSource = read('app/modules/storageSpace/index.ts');
   const storageSpaceApiSource = read('app/modules/storageSpace/api.ts');
   const storageSpaceUsageSource = read('app/modules/storageSpace/queryHelpers.ts');
+  const storageSpaceInspectionHelpersSource = read('app/modules/storageSpace/storageInspectionHelpers.ts');
   const storageReferenceHelpersSource = read('app/modules/database/storageReferenceHelpers.ts');
   const storageObjectModelSource = read('app/modules/database/models/storageObject.ts');
   const storageSpaceSnapshotModelSource = read('app/modules/database/models/storageSpaceSnapshot.ts');
@@ -781,16 +782,25 @@ function hotspotRows(): HotspotRow[] {
     && has(storageSpaceUsageSource, 'staticSite.storageId')
     && has(storageSpaceUsageSource, 'unknownStorageIdsCount');
   const hasStorageSpaceGeneratedOutputInspection = has(storageSpaceSource, 'inspectStorageSpaceGeneratedOutputRefs')
-    && has(storageSpaceSource, 'getStorageStatMeasuredBytes')
+    && has(storageSpaceInspectionHelpersSource, 'getStorageStatMeasuredBytes')
     && has(storageSpaceSource, 'getStorageSpaceStorageInspectionWindow')
     && has(storageSpaceUsageSource, 'getStorageSpaceGeneratedOutputUnknownRefs')
     && has(storageSpaceApiSource, 'admin/storage-space/generated-output-inspection');
   const hasStorageSpaceGeneratedOutputReconcile = has(storageSpaceSource, 'reconcileStorageSpaceGeneratedOutputRefs')
-    && has(storageSpaceSource, 'reconcileStorageSpaceGeneratedOutputRef')
-    && has(storageSpaceSource, 'ContentStorageType.IPFS')
+    && has(storageSpaceInspectionHelpersSource, 'reconcileStorageSpaceGeneratedOutputRef')
+    && has(storageSpaceInspectionHelpersSource, 'ContentStorageType.IPFS')
     && has(databaseSource, 'syncStorageObject(storageObjectData')
     && has(storageSpaceApiSource, 'admin/storage-space/generated-output-reconcile')
     && has(storageSpaceApiSource, 'CorePermissionName.AdminAll');
+  const hasStorageSpaceGeneratedOutputChildRefs = has(storageSpaceSource, 'inspectStorageSpaceGeneratedOutputChildRefs')
+    && has(storageSpaceSource, 'reconcileStorageSpaceGeneratedOutputChildRefs')
+    && has(storageSpaceSource, 'getStorageSpaceGeneratedOutputChildInspectionWindow')
+    && has(storageSpaceUsageSource, 'getStorageSpaceGeneratedOutputRefs')
+    && has(storageSpaceInspectionHelpersSource, 'inspectStorageSpaceGeneratedOutputChildRefs')
+    && has(storageSpaceInspectionHelpersSource, 'normalizeStorageLsEntries')
+    && has(storageSpaceInspectionHelpersSource, 'reconcileStorageSpaceGeneratedOutputChildRef')
+    && has(storageSpaceApiSource, 'admin/storage-space/generated-output-child-inspection')
+    && has(storageSpaceApiSource, 'admin/storage-space/generated-output-child-reconcile');
   const hasStorageSpaceSharedStorageIds = has(storageSpaceSource, 'getStorageSpaceSharedStorageIds')
     && has(storageSpaceSource, 'sharedStorageIds')
     && has(storageSpaceUsageSource, 'getStorageSpaceSharedStorageIds')
@@ -1509,7 +1519,7 @@ function hotspotRows(): HotspotRow[] {
     },
     {
       area: 'Storage space analysis',
-      source: 'app/modules/storageSpace/queryHelpers.ts + app/modules/storageSpace/api.ts + app/modules/database/models/storageSpaceSnapshot.ts',
+      source: 'app/modules/storageSpace/queryHelpers.ts + app/modules/storageSpace/storageInspectionHelpers.ts + app/modules/storageSpace/api.ts + app/modules/database/models/storageSpaceSnapshot.ts',
       hotspot: 'storage analyzer aggregate helpers',
       observedPattern: hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
@@ -1522,7 +1532,9 @@ function hotspotRows(): HotspotRow[] {
                       ? (hasStorageSpacePinnedStorageObjects
                         ? (hasStorageSpacePreviewStorage
                           ? (hasStorageSpaceCleanupBlockers
-                            ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, and on-demand cleanup-blocker drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, and persisted StorageObject bytes for measured generated refs'
+                            ? (hasStorageSpaceGeneratedOutputChildRefs
+                              ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, on-demand cleanup-blocker, and generated-output child-ref drilldowns plus bounded generated-ref/child storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, and persisted StorageObject bytes for measured generated refs and immediate DAG children'
+                              : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, and on-demand cleanup-blocker drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, and persisted StorageObject bytes for measured generated refs')
                             : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, and preview-storage drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, and persisted StorageObject bytes for measured generated refs')
                           : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, and pinned-object drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, and persisted StorageObject bytes for measured generated refs')
                         : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, and shared-storage drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, and persisted StorageObject bytes for measured generated refs')
@@ -1545,7 +1557,9 @@ function hotspotRows(): HotspotRow[] {
                       ? (hasStorageSpacePinnedStorageObjects
                         ? (hasStorageSpacePreviewStorage
                           ? (hasStorageSpaceCleanupBlockers
-                            ? 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence and fuller DAG child-ref reconciliation remain'
+                            ? (hasStorageSpaceGeneratedOutputChildRefs
+                              ? 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded runtime storage-stat/child-DAG inspection, explicit metadata reconciliation, and immediate child StorageObject reconciliation are present; restored-data query evidence, deeper DAG recursion, remote pin reconciliation, and delayed garbage collection remain'
+                              : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence and fuller DAG child-ref reconciliation remain')
                             : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence, cleanup blocker drilldowns, and fuller DAG child-ref reconciliation remain')
                           : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence, cleanup blocker drilldowns, preview drilldowns, and fuller DAG child-ref reconciliation remain')
                         : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence, cleanup blocker drilldowns, and fuller DAG child-ref reconciliation remain')

@@ -269,6 +269,48 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/generated-output-child-inspection Inspect generated-output child refs
+   * @apiName AdminStorageSpaceGeneratedOutputChildInspection
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiQuery {String} [storageId] Inspect one generated-output parent storage id.
+   * @apiQuery {Number} [childLimit] Maximum immediate child refs to include for each parent.
+   * @apiDescription Bounded runtime inspection for immediate IPFS DAG children of generated/static output storage references. This is on-demand and intentionally excluded from cached snapshots.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/generated-output-child-inspection', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.inspectStorageSpaceGeneratedOutputChildRefs(req.query));
+  });
+
+  /**
+   * @api {post} /v1/admin/storage-space/generated-output-child-reconcile Reconcile generated-output child refs
+   * @apiName AdminStorageSpaceGeneratedOutputChildReconcile
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+   * @apiBody {String} [storageId] Reconcile one generated-output parent storage id.
+   * @apiBody {Number} [childLimit] Maximum immediate child refs to reconcile for each parent.
+   * @apiDescription Bounded repair for generated/static output child refs. Calls the storage backend to list immediate DAG children, then writes measured child refs into the canonical StorageObject registry.
+   */
+  app.ms.api.onAuthorizedPost('admin/storage-space/generated-output-child-reconcile', async (req, res) => {
+    if (!await canManageAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.reconcileStorageSpaceGeneratedOutputChildRefs(req.body));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/snapshot Get latest storage-space snapshot
    * @apiName AdminStorageSpaceSnapshot
    * @apiGroup AdminStorage

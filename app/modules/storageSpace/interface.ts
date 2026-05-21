@@ -37,6 +37,10 @@ export default interface IGeesomeStorageSpaceModule {
 
   reconcileStorageSpaceGeneratedOutputRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputReconcileResult>;
 
+  inspectStorageSpaceGeneratedOutputChildRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputChildInspectionRow[]>;
+
+  reconcileStorageSpaceGeneratedOutputChildRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputChildReconcileResult>;
+
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
   refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams, options?: IStorageSpaceSnapshotDataOptions): Promise<IStorageSpaceSnapshot>;
@@ -232,6 +236,47 @@ export interface IStorageSpaceGeneratedOutputReconcileResult {
 export interface IStorageSpaceGeneratedOutputReconcileRow extends IStorageSpaceGeneratedOutputInspectionRow {
   reconciled: boolean;
   storageObjectId?: number | null;
+}
+
+export interface IStorageSpaceGeneratedOutputChildRefInspectionRow {
+  source: string;
+  parentStorageId: string;
+  storageId: string;
+  name?: string | null;
+  type?: string | null;
+  measuredBytes: number;
+  statSize: number;
+  cumulativeSize: number;
+  blocksSize: number;
+  knownStorageObject: boolean;
+  storageObjectId?: number | null;
+  storageObjectBytes?: number | null;
+}
+
+export interface IStorageSpaceGeneratedOutputChildInspectionRow extends IStorageSpaceGeneratedOutputInspectionRow {
+  childLimit: number;
+  childrenCount: number;
+  inspectedChildrenCount: number;
+  knownChildrenCount: number;
+  unknownChildrenCount: number;
+  childMeasuredBytes: number;
+  knownChildPhysicalBytes: number;
+  unknownChildMeasuredBytes: number;
+  childrenTruncated: boolean;
+  childErrorMessage?: string | null;
+  children: IStorageSpaceGeneratedOutputChildRefInspectionRow[];
+}
+
+export interface IStorageSpaceGeneratedOutputChildReconcileResult {
+  inspectedParents: number;
+  inspectedChildren: number;
+  reconciled: number;
+  skipped: number;
+  rows: IStorageSpaceGeneratedOutputChildReconcileRow[];
+}
+
+export interface IStorageSpaceGeneratedOutputChildReconcileRow extends IStorageSpaceGeneratedOutputChildRefInspectionRow {
+  reconciled: boolean;
 }
 
 export interface IStorageSpaceSnapshotData {
