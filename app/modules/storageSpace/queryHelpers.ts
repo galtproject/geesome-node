@@ -54,6 +54,16 @@ const numericGeneratedOutputFields = [
   'unknownStorageIdsCount',
 ];
 const numericGeneratedOutputRefFields = ['storageRefsCount'];
+const numericSharedStorageIdFields = [
+  'firstContentId',
+  'contentRowsCount',
+  'usersCount',
+  'logicalBytes',
+  'physicalBytes',
+  'deduplicatedSavingsBytes',
+  'activeFileCatalogRefsCount',
+  'groupPostRefsCount',
+];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
   const rows = await sequelize.query(`
@@ -525,6 +535,82 @@ export async function getStorageSpaceGeneratedOutputUnknownRefs(sequelize, listP
   });
 
   return rows.map(row => normalizeNumericFields(row, numericGeneratedOutputRefFields));
+}
+
+export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH content_storage_stats AS (
+      SELECT
+        "storageId",
+        MIN(id)::bigint AS "firstContentId",
+        COUNT(*)::bigint AS "contentRowsCount",
+        COUNT(DISTINCT "userId")::bigint AS "usersCount",
+        COALESCE(SUM(COALESCE(size, 0)), 0)::bigint AS "logicalBytes",
+        MAX(COALESCE(size, 0))::bigint AS "contentPhysicalBytes",
+        (ARRAY_AGG("mimeType" ORDER BY id))[1] AS "contentMimeType",
+        (ARRAY_AGG(extension ORDER BY id))[1] AS "contentExtension"
+      FROM contents
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "storageId"
+      HAVING COUNT(*) > 1
+    ),
+    file_catalog_stats AS (
+      SELECT
+        content."storageId",
+        COUNT(item.id)::bigint AS "activeFileCatalogRefsCount"
+      FROM "fileCatalogItems" item
+      JOIN contents content ON content.id = item."contentId"
+      WHERE item."isDeleted" IS NOT TRUE
+        AND content."storageId" IS NOT NULL
+      GROUP BY content."storageId"
+    ),
+    group_post_stats AS (
+      SELECT
+        content."storageId",
+        COUNT(DISTINCT post_content."postId")::bigint AS "groupPostRefsCount"
+      FROM "postsContents" post_content
+      JOIN contents content ON content.id = post_content."contentId"
+      WHERE content."storageId" IS NOT NULL
+      GROUP BY content."storageId"
+    )
+    SELECT
+      content_storage_stats."storageId",
+      content_storage_stats."firstContentId",
+      storage_object.id AS "storageObjectId",
+      COALESCE(storage_object."mimeType", content_storage_stats."contentMimeType", :unknownValue) AS "mimeType",
+      COALESCE(storage_object.extension, content_storage_stats."contentExtension", :unknownValue) AS extension,
+      content_storage_stats."contentRowsCount",
+      content_storage_stats."usersCount",
+      content_storage_stats."logicalBytes",
+      COALESCE(storage_object.size, content_storage_stats."contentPhysicalBytes", 0)::bigint AS "physicalBytes",
+      GREATEST(
+        content_storage_stats."logicalBytes" - COALESCE(storage_object.size, content_storage_stats."contentPhysicalBytes", 0),
+        0
+      )::bigint AS "deduplicatedSavingsBytes",
+      COALESCE(file_catalog_stats."activeFileCatalogRefsCount", 0)::bigint AS "activeFileCatalogRefsCount",
+      COALESCE(group_post_stats."groupPostRefsCount", 0)::bigint AS "groupPostRefsCount",
+      COALESCE(storage_object."isPinned", false) AS "isPinned"
+    FROM content_storage_stats
+    LEFT JOIN "storageObjects" storage_object
+      ON storage_object."storageId" = content_storage_stats."storageId"
+    LEFT JOIN file_catalog_stats
+      ON file_catalog_stats."storageId" = content_storage_stats."storageId"
+    LEFT JOIN group_post_stats
+      ON group_post_stats."storageId" = content_storage_stats."storageId"
+    ORDER BY
+      GREATEST(
+        content_storage_stats."logicalBytes" - COALESCE(storage_object.size, content_storage_stats."contentPhysicalBytes", 0),
+        0
+      ) DESC,
+      content_storage_stats."logicalBytes" DESC,
+      content_storage_stats."storageId" ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceListQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericSharedStorageIdFields));
 }
 
 function getStorageSpaceListQueryReplacements(listParams) {

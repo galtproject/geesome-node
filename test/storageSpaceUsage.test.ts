@@ -163,6 +163,18 @@ describe("storage space usage", function () {
 		assert.equal(usagePost?.attachmentsCount, 1);
 		assert.equal(usagePost?.storageObjectsCount, 1);
 
+		const sharedStorageIds = await app.ms.storageSpace.getStorageSpaceSharedStorageIds({limit: 5});
+		const sharedStorageIdRow = sharedStorageIds.find(row => row.storageId === sharedContent.storageId);
+		assert.equal(!!sharedStorageIdRow, true);
+		assert.equal(sharedStorageIdRow?.contentRowsCount, 2);
+		assert.equal(sharedStorageIdRow?.usersCount, 2);
+		assert.equal(sharedStorageIdRow?.logicalBytes, sharedSize + duplicateSize);
+		assert.equal(sharedStorageIdRow?.physicalBytes, sharedSize);
+		assert.equal(sharedStorageIdRow?.deduplicatedSavingsBytes, duplicateSize);
+		assert.equal(sharedStorageIdRow?.activeFileCatalogRefsCount >= 1, true);
+		assert.equal(sharedStorageIdRow?.groupPostRefsCount, 1);
+		assert.equal(sharedStorageIdRow?.isPinned, false);
+
 		const generatedOutputs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
 		const staticSiteOutput = generatedOutputs.find(row => row.source === 'staticSite.storageId');
 		assert.equal(!!staticSiteOutput, true);
@@ -209,6 +221,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.topGroups.length <= 2, true);
 		assert.equal(snapshot.data.groupPosts.length <= 2, true);
 		assert.equal(snapshot.data.generatedOutputs.length <= 2, true);
+		assert.equal(snapshot.data.sharedStorageIds.length <= 2, true);
 
 		const progressEvents = [];
 		const progressSnapshotData = await app.ms.storageSpace.getStorageSpaceSnapshotData({limit: 1, offset: 99}, {
@@ -223,6 +236,7 @@ describe("storage space usage", function () {
 			'top-groups',
 			'group-posts',
 			'generated-outputs',
+			'shared-storage-ids',
 		]);
 		assert.equal(progressEvents[0].percent > 1, true);
 		assert.equal(progressEvents[progressEvents.length - 1].percent, 95);
