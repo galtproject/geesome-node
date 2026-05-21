@@ -182,6 +182,21 @@ describe("storage space usage", function () {
 		assert.equal(staticSiteInspection?.storageRefsCount, 1);
 		assert.equal(staticSiteInspection?.measuredBytes >= generatedUnknownContent.length, true);
 
+		const reconcileResult = await app.ms.storageSpace.reconcileStorageSpaceGeneratedOutputRefs({limit: 20});
+		const reconciledStaticSiteOutput = reconcileResult.rows.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
+		assert.equal(!!reconciledStaticSiteOutput, true);
+		assert.equal(reconciledStaticSiteOutput?.reconciled, true);
+		assert.equal(reconcileResult.reconciled >= 1, true);
+
+		const reconciledStorageObject = await app.ms.database.getStorageObjectByStorageId(generatedUnknownFile.id);
+		assert.equal(!!reconciledStorageObject, true);
+		assert.equal(Number(reconciledStorageObject.size) >= generatedUnknownContent.length, true);
+
+		const generatedOutputsAfterReconcile = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
+		const staticSiteOutputAfterReconcile = generatedOutputsAfterReconcile.find(row => row.source === 'staticSite.storageId');
+		assert.equal(staticSiteOutputAfterReconcile?.knownStorageObjectsCount, 2);
+		assert.equal(staticSiteOutputAfterReconcile?.unknownStorageIdsCount, 0);
+
 		assert.equal(await app.ms.storageSpace.getLatestStorageSpaceSnapshot(), null);
 		const snapshot = await app.ms.storageSpace.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2, offset: 99});
 		assert.equal(snapshot.userId, firstUser.id);

@@ -1,10 +1,11 @@
 import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
-import {IListParams, IListParamsOptions} from "../database/interface.js";
+import {ContentStorageType, IListParams, IListParamsOptions} from "../database/interface.js";
 import IGeesomeStorageModule from "../storage/interface.js";
 import IGeesomeStorageSpaceModule, {
   IStorageSpaceGeneratedOutputRefRow,
   IStorageSpaceGeneratedOutputInspectionRow,
+  IStorageSpaceGeneratedOutputReconcileRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
   IStorageSpaceSnapshotProgress
@@ -82,6 +83,15 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       rows.push(await inspectStorageSpaceGeneratedOutputRef(this.app.ms.storage, ref));
     }
     return rows;
+  }
+
+  async reconcileStorageSpaceGeneratedOutputRefs(listParams: IListParams = {}) {
+    const inspections = await this.inspectStorageSpaceGeneratedOutputRefs(listParams);
+    const rows: IStorageSpaceGeneratedOutputReconcileRow[] = [];
+    for (const inspection of inspections) {
+      rows.push(await reconcileStorageSpaceGeneratedOutputRef(this.app, inspection));
+    }
+    return getStorageSpaceGeneratedOutputReconcileResult(rows);
   }
 
   async getLatestStorageSpaceSnapshot() {
@@ -447,4 +457,34 @@ function parseStorageStatNumber(value) {
 
 function getStorageInspectionErrorMessage(error) {
   return error?.message || String(error);
+}
+
+async function reconcileStorageSpaceGeneratedOutputRef(app: IGeesomeApp, inspection: IStorageSpaceGeneratedOutputInspectionRow) {
+  if (!inspection.ok) {
+    return {
+      ...inspection,
+      reconciled: false,
+      storageObjectId: null,
+    };
+  }
+  const storageObject = await app.ms.database.syncStorageObject({
+    storageId: inspection.storageId,
+    storageType: ContentStorageType.IPFS,
+    size: inspection.measuredBytes,
+  });
+  return {
+    ...inspection,
+    reconciled: !!storageObject,
+    storageObjectId: storageObject?.id || null,
+  };
+}
+
+function getStorageSpaceGeneratedOutputReconcileResult(rows: IStorageSpaceGeneratedOutputReconcileRow[]) {
+  return {
+    rows,
+    inspected: rows.length,
+    reconciled: rows.filter(row => row.reconciled).length,
+    failed: rows.filter(row => !row.ok).length,
+    skipped: rows.filter(row => row.ok && !row.reconciled).length,
+  };
 }

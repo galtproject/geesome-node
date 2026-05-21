@@ -108,6 +108,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					reconcileStorageSpaceGeneratedOutputRefs: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					getLatestStorageSpaceSnapshot: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -138,6 +142,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/group-posts"],
 			["GET", "admin/storage-space/generated-outputs"],
 			["GET", "admin/storage-space/generated-output-inspection"],
+			["POST", "admin/storage-space/generated-output-reconcile"],
 			["GET", "admin/storage-space/snapshot"],
 			["POST", "admin/storage-space/snapshot/refresh"],
 			["POST", "admin/storage-space/snapshot/refresh-async"],
@@ -164,6 +169,7 @@ describe("storage space admin API", function () {
 			groupPosts: [{id: 9, logicalBytes: 9}],
 			generatedOutputs: [{source: "staticSite.storageId", knownPhysicalBytes: 33}],
 			generatedOutputInspection: [{source: "staticSite.storageId", storageId: "bafy-site", measuredBytes: 123}],
+			generatedOutputReconcile: {inspected: 1, reconciled: 1, failed: 0, skipped: 0},
 			snapshot: {id: 4, listLimit: 20},
 			refreshedSnapshot: {id: 5, listLimit: 5},
 			queuedSnapshot: {id: 6, module: "storage-space-snapshot"},
@@ -211,6 +217,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalls.push(["generatedOutputInspection", listParams]);
 						return responses.generatedOutputInspection;
 					},
+					reconcileStorageSpaceGeneratedOutputRefs: async (listParams) => {
+						storageSpaceCalls.push(["generatedOutputReconcile", listParams]);
+						return responses.generatedOutputReconcile;
+					},
 					getLatestStorageSpaceSnapshot: async () => {
 						storageSpaceCalls.push(["snapshot"]);
 						return responses.snapshot;
@@ -243,6 +253,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/group-posts", {user: {id: 7}, query: {...query, groupId: "3"}})).body, responses.groupPosts);
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-outputs", {user: {id: 7}, query})).body, responses.generatedOutputs);
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-inspection", {user: {id: 7}, query})).body, responses.generatedOutputInspection);
+		assert.deepEqual((await call("POST", "admin/storage-space/generated-output-reconcile", {user: {id: 7}, body: query})).body, responses.generatedOutputReconcile);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
@@ -257,6 +268,7 @@ describe("storage space admin API", function () {
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
+			[7, CorePermissionName.AdminAll],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -271,6 +283,7 @@ describe("storage space admin API", function () {
 			["groupPosts", {...query, groupId: "3"}],
 			["generatedOutputs", query],
 			["generatedOutputInspection", query],
+			["generatedOutputReconcile", query],
 			["snapshot"],
 			["refreshSnapshot", 7, query],
 			["queueSnapshot", 7, 12, query],

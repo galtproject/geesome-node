@@ -22,6 +22,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   inspectStorageSpaceGeneratedOutputRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputInspectionRow[]>;
 
+  reconcileStorageSpaceGeneratedOutputRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputReconcileResult>;
+
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
   refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams, options?: IStorageSpaceSnapshotDataOptions): Promise<IStorageSpaceSnapshot>;
@@ -149,6 +151,19 @@ export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpace
   cumulativeSize: number;
   blocksSize: number;
   errorMessage?: string | null;
+}
+
+export interface IStorageSpaceGeneratedOutputReconcileResult {
+  inspected: number;
+  reconciled: number;
+  failed: number;
+  skipped: number;
+  rows: IStorageSpaceGeneratedOutputReconcileRow[];
+}
+
+export interface IStorageSpaceGeneratedOutputReconcileRow extends IStorageSpaceGeneratedOutputInspectionRow {
+  reconciled: boolean;
+  storageObjectId?: number | null;
 }
 
 export interface IStorageSpaceSnapshotData {

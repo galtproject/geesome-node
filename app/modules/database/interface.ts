@@ -38,6 +38,8 @@ export interface IGeesomeDatabaseModule {
 
   getStorageObjectByStorageId(storageId): Promise<IStorageObjectRecord>;
 
+  syncStorageObject(storageObjectData: Partial<IStorageObjectRecord>, options?): Promise<IStorageObjectRecord | null>;
+
   markStorageObjectPinnedByContent(content: IContent, options?): Promise<IStorageObjectRecord>;
 
   getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;

@@ -173,6 +173,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {post} /v1/admin/storage-space/generated-output-reconcile Reconcile generated-output storage refs
+   * @apiName AdminStorageSpaceGeneratedOutputReconcile
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+   * @apiDescription Bounded repair for generated/static output storage references that do not have StorageObject metadata yet. Calls the storage backend for file/DAG stats, then writes measured refs into the canonical StorageObject registry.
+   */
+  app.ms.api.onAuthorizedPost('admin/storage-space/generated-output-reconcile', async (req, res) => {
+    if (!await canManageAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.reconcileStorageSpaceGeneratedOutputRefs(req.body));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/snapshot Get latest storage-space snapshot
    * @apiName AdminStorageSpaceSnapshot
    * @apiGroup AdminStorage
@@ -232,6 +251,15 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
 
 async function canReadAdminStorageSpace(app: IGeesomeApp, userId, res: IApiModuleCommonOutput) {
   if (await app.isAdminCan(userId, CorePermissionName.AdminRead)) {
+    return true;
+  }
+
+  res.send(403);
+  return false;
+}
+
+async function canManageAdminStorageSpace(app: IGeesomeApp, userId, res: IApiModuleCommonOutput) {
+  if (await app.isAdminCan(userId, CorePermissionName.AdminAll)) {
     return true;
   }
 
