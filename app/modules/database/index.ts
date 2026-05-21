@@ -24,7 +24,9 @@ import {
   IListParams,
   IListParamsOptions,
   IObject,
+  IStorageObjectReferenceRecord,
   IStorageObjectRecord,
+  StorageObjectReferenceType,
   IUser,
   IUserApiKey,
   IUserContentAction,
@@ -32,7 +34,7 @@ import {
   UserContentActionName,
   UserLimitName
 } from "./interface.js";
-import {countDerivedStorageIdReferences} from './storageReferenceHelpers.js';
+import {countDerivedStorageIdReferences, countStorageObjectChildReferences} from './storageReferenceHelpers.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -193,7 +195,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObject', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
+      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
@@ -242,6 +244,66 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     }
     await storageObject.update(updateData, {transaction: options.transaction});
     return storageObject;
+  }
+
+  async syncStorageObjectReference(referenceData: Partial<IStorageObjectReferenceRecord>, options: any = {}) {
+    if (!isValidStorageObjectReferenceData(referenceData)) {
+      return null;
+    }
+    const normalizedReferenceData = getStorageObjectReferenceData(referenceData);
+    const [storageObjectReference, created] = await this.models.StorageObjectReference.findOrCreate({
+      where: {
+        sourceStorageId: normalizedReferenceData.sourceStorageId,
+        targetStorageId: normalizedReferenceData.targetStorageId,
+        referenceType: normalizedReferenceData.referenceType,
+      },
+      defaults: normalizedReferenceData,
+      transaction: options.transaction
+    });
+    if (created) {
+      return storageObjectReference;
+    }
+    const updateData = getStorageObjectReferenceUpdateData(storageObjectReference, normalizedReferenceData);
+    if (!Object.keys(updateData).length) {
+      return storageObjectReference;
+    }
+    await storageObjectReference.update(updateData, {transaction: options.transaction});
+    return storageObjectReference;
+  }
+
+  async replaceStorageObjectReferences(
+    sourceStorageId: string,
+    referenceType: StorageObjectReferenceType,
+    references: Partial<IStorageObjectReferenceRecord>[],
+    options: any = {}
+  ) {
+    if (!sourceStorageId || !referenceType) {
+      return [];
+    }
+    const run = async (transaction) => {
+      const targetStorageIds = getUniqueStorageReferenceTargets(references);
+      const deleteWhere: any = {sourceStorageId, referenceType};
+      if (targetStorageIds.length) {
+        deleteWhere.targetStorageId = {[Op.notIn]: targetStorageIds};
+      }
+      await this.models.StorageObjectReference.destroy({where: deleteWhere, transaction});
+      const rows = [];
+      for (const reference of references) {
+        const row = await this.syncStorageObjectReference({
+          ...reference,
+          sourceStorageId,
+          referenceType,
+        }, {transaction});
+        if (row) {
+          rows.push(row);
+        }
+      }
+      return rows;
+    };
+    if (options.transaction) {
+      return run(options.transaction);
+    }
+    return this.sequelize.transaction(run);
   }
 
   async markStorageObjectPinnedByContent(content, options: any = {}) {
@@ -326,7 +388,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
-    const [otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs] = await Promise.all([
+    const [otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs, storageObjectChildRefs] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({
         where: {
@@ -339,8 +401,9 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       }),
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
       countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
+      countStorageObjectChildReferences(this.models, this.sequelize, storageId, options),
     ]);
-    return {otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs};
+    return {otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs, storageObjectChildRefs};
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
@@ -755,6 +818,7 @@ function getEmptyStorageIdReferenceCounts() {
     previewRefs: 0,
     pinnedStorageObjects: 0,
     derivedStorageRefs: 0,
+    storageObjectChildRefs: 0,
   };
 }
 
@@ -799,6 +863,7 @@ function getContentDeleteStorageBlockers(storageRefs): IContentDeleteSafetyBlock
     getContentDeleteBlocker('storage', 'previewRefs', storageRefs.previewRefs),
     getContentDeleteBlocker('storage', 'pinnedStorageObjects', storageRefs.pinnedStorageObjects),
     getContentDeleteBlocker('storage', 'derivedStorageRefs', storageRefs.derivedStorageRefs),
+    getContentDeleteBlocker('storage', 'storageObjectChildRefs', storageRefs.storageObjectChildRefs),
   ].filter(isContentDeleteBlocker);
 }
 
@@ -820,4 +885,60 @@ function getContentDeleteBlocker(
 
 function isContentDeleteBlocker(blocker: IContentDeleteSafetyBlocker | null): blocker is IContentDeleteSafetyBlocker {
   return blocker !== null;
+}
+
+const storageObjectReferenceMetadataFields = [
+  'source',
+  'name',
+  'targetType',
+  'targetSize',
+];
+
+function isValidStorageObjectReferenceData(referenceData) {
+  if (!referenceData?.sourceStorageId) {
+    return false;
+  }
+  if (!referenceData?.targetStorageId) {
+    return false;
+  }
+  if (!referenceData?.referenceType) {
+    return false;
+  }
+  return true;
+}
+
+function getStorageObjectReferenceData(referenceData) {
+  const normalizedReferenceData: Partial<IStorageObjectReferenceRecord> = {
+    sourceStorageId: referenceData.sourceStorageId,
+    targetStorageId: referenceData.targetStorageId,
+    referenceType: referenceData.referenceType,
+  };
+  storageObjectReferenceMetadataFields.forEach((field) => {
+    if (isUndefined(referenceData[field])) {
+      return;
+    }
+    normalizedReferenceData[field] = referenceData[field];
+  });
+  return normalizedReferenceData;
+}
+
+function getStorageObjectReferenceUpdateData(storageObjectReference, referenceData) {
+  const existingData = typeof storageObjectReference?.toJSON === 'function'
+    ? storageObjectReference.toJSON()
+    : storageObjectReference;
+  const updateData: Record<string, any> = {};
+  storageObjectReferenceMetadataFields.forEach((field) => {
+    if (isUndefined(referenceData[field])) {
+      return;
+    }
+    if (existingData[field] === referenceData[field]) {
+      return;
+    }
+    updateData[field] = referenceData[field];
+  });
+  return updateData;
+}
+
+function getUniqueStorageReferenceTargets(references: Partial<IStorageObjectReferenceRecord>[] = []) {
+  return [...new Set(references.map(reference => reference.targetStorageId).filter(Boolean))];
 }
