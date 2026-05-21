@@ -245,6 +245,29 @@ export async function getStorageSpaceTopContents(sequelize, listParams: any = {}
   return rows.map(row => normalizeNumericFields(row, numericContentFields));
 }
 
+export async function getStorageSpaceCleanupCandidateContents(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    SELECT
+      id,
+      "userId",
+      name,
+      "mimeType",
+      extension,
+      "storageId",
+      COALESCE(size, 0)::bigint AS size,
+      "createdAt"
+    FROM contents
+    WHERE (:contentId::bigint IS NULL OR id = :contentId::bigint)
+    ORDER BY COALESCE(size, 0) DESC, id ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceCleanupCandidateQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericContentFields));
+}
+
 export async function getStorageSpaceTopFileCatalogItems(sequelize, listParams: any = {}) {
   const rows = await sequelize.query(`
     SELECT
@@ -850,6 +873,13 @@ function getStorageSpaceGroupPostQueryReplacements(listParams) {
   return {
     ...getStorageSpaceListQueryReplacements(listParams),
     groupId: listParams.groupId,
+  };
+}
+
+function getStorageSpaceCleanupCandidateQueryReplacements(listParams) {
+  return {
+    ...getStorageSpaceListQueryReplacements(listParams),
+    contentId: listParams.contentId,
   };
 }
 

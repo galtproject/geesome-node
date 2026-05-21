@@ -211,6 +211,26 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/cleanup-blockers Get content cleanup blockers
+   * @apiName AdminStorageSpaceCleanupBlockers
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiQuery {Number} [contentId] Content id. Omit to list the largest content rows with their cleanup blockers.
+   * @apiDescription Lists bounded content cleanup candidates with the same content/storage blocker keys and counts returned by database delete-safety checks.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/cleanup-blockers', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceCleanupBlockers(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/generated-output-inspection Inspect generated-output storage refs
    * @apiName AdminStorageSpaceGeneratedOutputInspection
    * @apiGroup AdminStorage

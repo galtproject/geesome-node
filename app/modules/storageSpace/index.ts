@@ -6,6 +6,7 @@ import IGeesomeStorageSpaceModule, {
   IStorageSpaceGeneratedOutputRefRow,
   IStorageSpaceGeneratedOutputInspectionRow,
   IStorageSpaceGeneratedOutputReconcileRow,
+  IStorageSpaceCleanupBlockerRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
   IStorageSpaceSnapshotProgress
@@ -19,6 +20,10 @@ const storageSpaceListParams: IListParamsOptions = {
   maxLimit: 100,
 };
 const storageSpaceStorageInspectionListParams: IListParamsOptions = {
+  limit: 10,
+  maxLimit: 25,
+};
+const storageSpaceCleanupBlockerListParams: IListParamsOptions = {
   limit: 10,
   maxLimit: 25,
 };
@@ -82,6 +87,18 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
 
   async getStorageSpacePreviewStorage(listParams: IListParams = {}) {
     return storageSpaceQueries.getStorageSpacePreviewStorage(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async getStorageSpaceCleanupBlockers(listParams: IListParams = {}) {
+    const candidates = await storageSpaceQueries.getStorageSpaceCleanupCandidateContents(
+      this.app.ms.database.sequelize,
+      getStorageSpaceCleanupBlockerWindow(listParams)
+    );
+    const rows: IStorageSpaceCleanupBlockerRow[] = [];
+    for (const candidate of candidates) {
+      rows.push(await getStorageSpaceCleanupBlockerRow(this.app, candidate));
+    }
+    return rows;
   }
 
   async getStorageSpaceGeneratedOutputUnknownRefs(listParams: IListParams = {}) {
@@ -282,6 +299,16 @@ function getStorageSpaceGroupPostWindow(listParams: any = {}) {
   return {
     ...listWindow,
     groupId: parseNullableStorageSpaceId(listParams.groupId),
+  };
+}
+
+function getStorageSpaceCleanupBlockerWindow(listParams: any = {}) {
+  const listWindow = getStorageSpaceListWindow(listParams, storageSpaceCleanupBlockerListParams);
+  const contentId = parseNullableStorageSpaceId(listParams.contentId);
+  return {
+    ...listWindow,
+    contentId,
+    offset: contentId === null ? listWindow.offset : 0,
   };
 }
 
@@ -511,6 +538,21 @@ function parseStorageStatNumber(value) {
 
 function getStorageInspectionErrorMessage(error) {
   return error?.message || String(error);
+}
+
+async function getStorageSpaceCleanupBlockerRow(app: IGeesomeApp, candidate): Promise<IStorageSpaceCleanupBlockerRow> {
+  const deleteSafety = await app.ms.database.getContentDeleteSafety(candidate.id);
+  return {
+    ...candidate,
+    contentRefs: deleteSafety.contentRefs,
+    storageRefs: deleteSafety.storageRefs,
+    contentBlockers: deleteSafety.contentBlockers,
+    storageBlockers: deleteSafety.storageBlockers,
+    blockers: deleteSafety.blockers,
+    blockerCount: deleteSafety.blockers.length,
+    safeToDestroyContent: deleteSafety.safeToDestroyContent,
+    safeToRemovePhysical: deleteSafety.safeToRemovePhysical,
+  };
 }
 
 async function reconcileStorageSpaceGeneratedOutputRef(app: IGeesomeApp, inspection: IStorageSpaceGeneratedOutputInspectionRow) {

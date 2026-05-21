@@ -1,5 +1,10 @@
 import type {IUserOperationQueue} from "../asyncOperation/interface.js";
-import type {IListParams} from "../database/interface.js";
+import type {
+  IContentDeleteSafetyBlocker,
+  IContentReferenceCounts,
+  IListParams,
+  IStorageIdReferenceCounts
+} from "../database/interface.js";
 
 export default interface IGeesomeStorageSpaceModule {
   getStorageSpaceOverview(): Promise<IStorageSpaceOverview>;
@@ -23,6 +28,8 @@ export default interface IGeesomeStorageSpaceModule {
   getStorageSpacePinnedStorageObjects(listParams?: IListParams): Promise<IStorageSpacePinnedStorageObjectRow[]>;
 
   getStorageSpacePreviewStorage(listParams?: IListParams): Promise<IStorageSpacePreviewStorageRow[]>;
+
+  getStorageSpaceCleanupBlockers(listParams?: IListParams): Promise<IStorageSpaceCleanupBlockerRow[]>;
 
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
 
@@ -191,6 +198,17 @@ export interface IStorageSpacePreviewStorageRow {
   unregisteredStorageIdsCount: number;
   logicalPreviewBytes: number;
   physicalPreviewBytes: number;
+}
+
+export interface IStorageSpaceCleanupBlockerRow extends IStorageSpaceContentRow {
+  contentRefs: IContentReferenceCounts;
+  storageRefs: IStorageIdReferenceCounts;
+  contentBlockers: IContentDeleteSafetyBlocker[];
+  storageBlockers: IContentDeleteSafetyBlocker[];
+  blockers: IContentDeleteSafetyBlocker[];
+  blockerCount: number;
+  safeToDestroyContent: boolean;
+  safeToRemovePhysical: boolean;
 }
 
 export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpaceGeneratedOutputRefRow {
