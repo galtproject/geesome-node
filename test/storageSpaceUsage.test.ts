@@ -8,7 +8,7 @@
  */
 
 import assert from "assert";
-import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
+import {ContentMimeType, ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
 
@@ -286,6 +286,24 @@ describe("storage space usage", function () {
 		const reconciledChild = childReconcileResult.rows.find(row => row.name === 'index.html');
 		assert.equal(!!reconciledChild?.storageObjectId, true);
 		assert.equal(!!await app.ms.database.getStorageObjectByStorageId(reconciledChild.storageId), true);
+		const generatedChildContent = await app.ms.database.addContent({
+			userId: firstUser.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: ContentMimeType.Text,
+			storageId: reconciledChild.storageId,
+			size: reconciledChild.measuredBytes,
+			name: 'generated child reused content',
+		});
+		const generatedChildSafety = await app.ms.database.getContentDeleteSafety(generatedChildContent);
+		assert.equal(generatedChildSafety.storageRefs.storageObjectChildRefs, 1);
+		assert.equal(hasStorageSpaceBlocker(generatedChildSafety.blockers, 'storage', 'storageObjectChildRefs'), true);
+		assert.equal(generatedChildSafety.safeToDestroyContent, true);
+		assert.equal(generatedChildSafety.safeToRemovePhysical, false);
+		const afterGeneratedChildContent = await app.ms.storageSpace.getStorageSpaceOverview();
+		assert.equal(
+			afterGeneratedChildContent.logicalContentBytes - after.logicalContentBytes,
+			Number(generatedChildContent.size)
+		);
 
 		const reconcileResult = await app.ms.storageSpace.reconcileStorageSpaceGeneratedOutputRefs({limit: 20});
 		const reconciledStaticSiteOutput = reconcileResult.rows.find(row => row.source === 'staticSite.storageId' && row.storageId === generatedUnknownFile.id);
@@ -306,7 +324,7 @@ describe("storage space usage", function () {
 		const snapshot = await app.ms.storageSpace.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2, offset: 99});
 		assert.equal(snapshot.userId, firstUser.id);
 		assert.equal(snapshot.listLimit, 2);
-		assert.equal(snapshot.data.overview.logicalContentBytes, after.logicalContentBytes);
+		assert.equal(snapshot.data.overview.logicalContentBytes, afterGeneratedChildContent.logicalContentBytes);
 		assert.equal(snapshot.data.typeBreakdown.length <= 2, true);
 		assert.equal(snapshot.data.topContents.length <= 2, true);
 		assert.equal(snapshot.data.topFileCatalogItems.length <= 2, true);

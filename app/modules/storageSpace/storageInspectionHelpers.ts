@@ -1,6 +1,6 @@
 import {Op} from 'sequelize';
 import {IGeesomeApp} from "../../interface.js";
-import {ContentStorageType} from "../database/interface.js";
+import {ContentStorageType, StorageObjectReferenceType} from "../database/interface.js";
 import IGeesomeStorageModule from "../storage/interface.js";
 import {
   IStorageSpaceGeneratedOutputChildInspectionRow,
@@ -90,6 +90,32 @@ export async function reconcileStorageSpaceGeneratedOutputChildRef(
     reconciled: !!storageObject,
     storageObjectId: storageObject?.id || child.storageObjectId || null,
   };
+}
+
+export async function replaceStorageSpaceGeneratedOutputChildReferences(
+  app: IGeesomeApp,
+  inspection: IStorageSpaceGeneratedOutputChildInspectionRow,
+  children: IStorageSpaceGeneratedOutputChildReconcileRow[]
+) {
+  if (!shouldReplaceStorageSpaceGeneratedOutputChildReferences(inspection)) {
+    return [];
+  }
+  if (children.some(child => !child.reconciled)) {
+    return [];
+  }
+  return app.ms.database.replaceStorageObjectReferences(
+    inspection.storageId,
+    StorageObjectReferenceType.GeneratedOutputChild,
+    children
+      .filter(child => child.reconciled && child.storageId)
+      .map(child => ({
+        targetStorageId: child.storageId,
+        source: child.source,
+        name: child.name,
+        targetType: child.type,
+        targetSize: child.measuredBytes,
+      }))
+  );
 }
 
 export function getStorageSpaceGeneratedOutputReconcileResult(rows: IStorageSpaceGeneratedOutputReconcileRow[]) {
@@ -233,6 +259,19 @@ function normalizeStorageId(value) {
     return value.toString();
   }
   return String(value);
+}
+
+function shouldReplaceStorageSpaceGeneratedOutputChildReferences(inspection: IStorageSpaceGeneratedOutputChildInspectionRow) {
+  if (!inspection.ok) {
+    return false;
+  }
+  if (inspection.childErrorMessage) {
+    return false;
+  }
+  if (inspection.childrenTruncated) {
+    return false;
+  }
+  return true;
 }
 
 function normalizeStorageLsEntryName(entry) {

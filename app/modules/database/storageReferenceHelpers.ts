@@ -1,6 +1,35 @@
 import {Op, QueryTypes} from 'sequelize';
 
 export async function countDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
+  return countDirectDerivedStorageIdReferences(models, sequelize, storageId, options);
+}
+
+export async function countStorageObjectChildReferences(models, sequelize, storageId, options: any = {}) {
+  const referenceModel = getReferenceModel(models, sequelize, ['StorageObjectReference', 'storageObjectReference']);
+  if (!referenceModel) {
+    return 0;
+  }
+  const sourceStorageIds = await getStorageObjectChildReferenceSourceIds(referenceModel, storageId);
+  if (!sourceStorageIds.length) {
+    return 0;
+  }
+  let count = 0;
+  for (const sourceStorageId of sourceStorageIds) {
+    const sourceRefsCount = await countDirectDerivedStorageIdReferences(models, sequelize, sourceStorageId, options);
+    if (sourceRefsCount <= 0) {
+      continue;
+    }
+    count += await referenceModel.count({
+      where: {
+        sourceStorageId,
+        targetStorageId: storageId,
+      },
+    });
+  }
+  return count;
+}
+
+async function countDirectDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
   const refCounts = await Promise.all([
     ...derivedStorageReferenceSources.map((source) => {
       return countStorageIdColumnReferences(models, sequelize, source, storageId, options);
@@ -8,6 +37,22 @@ export async function countDerivedStorageIdReferences(models, sequelize, storage
     countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
   ]);
   return refCounts.reduce((sum, count) => sum + count, 0);
+}
+
+async function getStorageObjectChildReferenceSourceIds(referenceModel, targetStorageId: string) {
+  const rows = await referenceModel.findAll({
+    attributes: ['sourceStorageId'],
+    where: {targetStorageId},
+    group: ['sourceStorageId'],
+  });
+  return rows
+    .map(row => getStorageObjectChildReferenceSourceId(row))
+    .filter(Boolean);
+}
+
+function getStorageObjectChildReferenceSourceId(row) {
+  const data = typeof row?.toJSON === 'function' ? row.toJSON() : row;
+  return data?.sourceStorageId || null;
 }
 
 const derivedStorageReferenceSources = [

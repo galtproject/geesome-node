@@ -40,6 +40,10 @@ export interface IGeesomeDatabaseModule {
 
   syncStorageObject(storageObjectData: Partial<IStorageObjectRecord>, options?): Promise<IStorageObjectRecord | null>;
 
+  syncStorageObjectReference(referenceData: Partial<IStorageObjectReferenceRecord>, options?): Promise<IStorageObjectReferenceRecord | null>;
+
+  replaceStorageObjectReferences(sourceStorageId: string, referenceType: StorageObjectReferenceType, references: Partial<IStorageObjectReferenceRecord>[], options?): Promise<IStorageObjectReferenceRecord[]>;
+
   markStorageObjectPinnedByContent(content: IContent, options?): Promise<IStorageObjectRecord>;
 
   getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;
@@ -226,11 +230,24 @@ export interface IStorageObjectRecord {
   toJSON?(): any;
 }
 
+export interface IStorageObjectReferenceRecord {
+  id?: number;
+  sourceStorageId: string;
+  targetStorageId: string;
+  referenceType: StorageObjectReferenceType;
+  source?: string;
+  name?: string;
+  targetType?: string;
+  targetSize?: number;
+  toJSON?(): any;
+}
+
 export interface IStorageIdReferenceCounts {
   otherContents: number;
   previewRefs: number;
   pinnedStorageObjects: number;
   derivedStorageRefs: number;
+  storageObjectChildRefs: number;
 }
 
 export interface IStorageIdReferenceOptions {
@@ -303,6 +320,10 @@ export interface IObject {
 export enum ContentStorageType {
   IPFS = 'ipfs',
   IPLD = 'ipld'
+}
+
+export enum StorageObjectReferenceType {
+  GeneratedOutputChild = 'generated-output-child'
 }
 
 export enum ContentMimeType {

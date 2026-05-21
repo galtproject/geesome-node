@@ -225,6 +225,10 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},
   {table: 'userAsyncOperations', columns: ['output'], type: 'text'},
   {table: 'storageObjects', columns: ['isPinned'], type: 'boolean'},
+  {table: 'storageObjectReferences', columns: ['sourceStorageId'], type: 'character varying'},
+  {table: 'storageObjectReferences', columns: ['targetStorageId'], type: 'character varying'},
+  {table: 'storageObjectReferences', columns: ['referenceType'], type: 'character varying'},
+  {table: 'storageObjectReferences', columns: ['targetSize'], type: 'bigint'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -240,6 +244,10 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'storage_objects_medium_preview_storage_idx', table: 'storageObjects', columns: ['mediumPreviewStorageId']},
   {name: 'storage_objects_small_preview_storage_idx', table: 'storageObjects', columns: ['smallPreviewStorageId']},
   {name: 'storage_objects_updated_idx', table: 'storageObjects', columns: ['updatedAt', 'id']},
+  {name: 'storage_object_refs_source_target_type_unique', table: 'storageObjectReferences', columns: ['sourceStorageId', 'targetStorageId', 'referenceType'], unique: true},
+  {name: 'storage_object_refs_target_type_idx', table: 'storageObjectReferences', columns: ['targetStorageId', 'referenceType']},
+  {name: 'storage_object_refs_source_idx', table: 'storageObjectReferences', columns: ['sourceStorageId']},
+  {name: 'storage_object_refs_updated_idx', table: 'storageObjectReferences', columns: ['updatedAt', 'id']},
   {name: 'objects_storage_resolve_prop_unique', table: 'objects', columns: ['storageId', 'resolveProp'], unique: true},
   {name: 'content_bots_user_id_idx', table: 'contentBots', columns: ['userId']},
   {name: 'file_catalog_items_content_idx', table: 'fileCatalogItems', columns: ['contentId']},
@@ -325,6 +333,7 @@ const storageObjectMetadataColumns = [
 const countChecks: CountCheck[] = [
   duplicateCheck('same-user content storage duplicates', 'contents', ['userId', 'storageId']),
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),
+  duplicateCheck('storage object reference duplicates', 'storageObjectReferences', ['sourceStorageId', 'targetStorageId', 'referenceType']),
   {
     name: 'content storage IDs have canonical storage object rows',
     requirements: [
@@ -391,6 +400,20 @@ const countChecks: CountCheck[] = [
   duplicateCheck('post content position duplicates', 'postsContents', ['postId', 'position']),
   duplicateCheck('post group/localId duplicates', 'posts', ['groupId', 'localId']),
   duplicateCheck('post source identity duplicates', 'posts', ['groupId', 'source', 'sourceChannelId', 'sourcePostId']),
+  {
+    name: 'storage object reference targets have canonical storage object rows',
+    requirements: [
+      {table: 'storageObjectReferences', columns: ['targetStorageId']},
+      {table: 'storageObjects', columns: ['storageId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "storageObjectReferences" reference
+      LEFT JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = reference."targetStorageId"
+      WHERE storage_object.id IS NULL
+    `,
+  },
   duplicateCheck('active file-catalog child path duplicates', 'fileCatalogItems', ['parentItemId', 'userId', 'name'], '"isDeleted" IS FALSE'),
   duplicateCheck('active file-catalog root path duplicates', 'fileCatalogItems', ['userId', 'name'], '"isDeleted" IS FALSE AND "parentItemId" IS NULL'),
   {

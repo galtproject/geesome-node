@@ -13,6 +13,7 @@ import {
   getStorageSpaceGeneratedOutputReconcileResult,
   inspectStorageSpaceGeneratedOutputChildRefs as inspectGeneratedOutputChildRefs,
   inspectStorageSpaceGeneratedOutputRef,
+  replaceStorageSpaceGeneratedOutputChildReferences,
   reconcileStorageSpaceGeneratedOutputChildRef,
   reconcileStorageSpaceGeneratedOutputRef
 } from "./storageInspectionHelpers.js";
@@ -147,9 +148,12 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     const inspections = await this.inspectStorageSpaceGeneratedOutputChildRefs(listParams);
     const rows = [];
     for (const inspection of inspections) {
+      const parentRows = [];
       for (const child of inspection.children) {
-        rows.push(await reconcileStorageSpaceGeneratedOutputChildRef(this.app, child));
+        parentRows.push(await reconcileStorageSpaceGeneratedOutputChildRef(this.app, child));
       }
+      await replaceStorageSpaceGeneratedOutputChildReferences(this.app, inspection, parentRows);
+      rows.push(...parentRows);
     }
     return getStorageSpaceGeneratedOutputChildReconcileResult(inspections.length, rows);
   }
