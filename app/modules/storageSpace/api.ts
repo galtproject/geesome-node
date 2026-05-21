@@ -279,8 +279,10 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
    *
    * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
    * @apiQuery {String} [storageId] Inspect one generated-output parent storage id.
-   * @apiQuery {Number} [childLimit] Maximum immediate child refs to include for each parent.
-   * @apiDescription Bounded runtime inspection for immediate IPFS DAG children of generated/static output storage references. This is on-demand and intentionally excluded from cached snapshots.
+   * @apiQuery {Number} [childLimit] Maximum child refs to include for each inspected parent.
+   * @apiQuery {Number} [depthLimit=1] Maximum DAG depth to inspect. Depth 1 preserves immediate-child behavior.
+   * @apiQuery {Number} [nodeLimit] Maximum child refs to include across the full recursive inspection.
+   * @apiDescription Bounded runtime inspection for IPFS DAG children of generated/static output storage references. This is on-demand and intentionally excluded from cached snapshots.
    */
   app.ms.api.onAuthorizedGet('admin/storage-space/generated-output-child-inspection', async (req, res) => {
     if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
@@ -300,8 +302,10 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
    *
    * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
    * @apiBody {String} [storageId] Reconcile one generated-output parent storage id.
-   * @apiBody {Number} [childLimit] Maximum immediate child refs to reconcile for each parent.
-   * @apiDescription Bounded repair for generated/static output child refs. Calls the storage backend to list immediate DAG children, then writes measured child refs into the canonical StorageObject registry.
+   * @apiBody {Number} [childLimit] Maximum child refs to reconcile for each inspected parent.
+   * @apiBody {Number} [depthLimit=1] Maximum DAG depth to reconcile. Depth 1 preserves immediate-child behavior.
+   * @apiBody {Number} [nodeLimit] Maximum child refs to reconcile across the full recursive inspection.
+   * @apiDescription Bounded repair for generated/static output child refs. Calls the storage backend to list DAG children, then writes measured child refs into the canonical StorageObject registry and durable parent-child reference table.
    */
   app.ms.api.onAuthorizedPost('admin/storage-space/generated-output-child-reconcile', async (req, res) => {
     if (!await canManageAdminStorageSpace(app, req.user.id, res)) {
