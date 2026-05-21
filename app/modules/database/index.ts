@@ -24,6 +24,7 @@ import {
   IListParams,
   IListParamsOptions,
   IObject,
+  IStorageObjectRecord,
   IUser,
   IUserApiKey,
   IUserContentAction,
@@ -221,6 +222,26 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getStorageObjectByStorageId(storageId) {
     return this.models.StorageObject.findOne({where: {storageId}});
+  }
+
+  async syncStorageObject(storageObjectData: Partial<IStorageObjectRecord>, options: any = {}) {
+    if (!storageObjectData?.storageId) {
+      return null;
+    }
+    const [storageObject, created] = await this.models.StorageObject.findOrCreate({
+      where: {storageId: storageObjectData.storageId},
+      defaults: storageObjectData,
+      transaction: options.transaction
+    });
+    if (created) {
+      return storageObject;
+    }
+    const updateData = getStorageObjectUpdateData(storageObject, storageObjectData);
+    if (!Object.keys(updateData).length) {
+      return storageObject;
+    }
+    await storageObject.update(updateData, {transaction: options.transaction});
+    return storageObject;
   }
 
   async markStorageObjectPinnedByContent(content, options: any = {}) {
@@ -590,20 +611,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (!storageObjectData) {
       return null;
     }
-    const [storageObject, created] = await this.models.StorageObject.findOrCreate({
-      where: {storageId: storageObjectData.storageId},
-      defaults: storageObjectData,
-      transaction: options.transaction
-    });
-    if (created) {
-      return storageObject;
-    }
-    const updateData = getStorageObjectUpdateData(storageObject, storageObjectData);
-    if (!Object.keys(updateData).length) {
-      return storageObject;
-    }
-    await storageObject.update(updateData, {transaction: options.transaction});
-    return storageObject;
+    return this.syncStorageObject(storageObjectData, options);
   }
 
   async checkUserContentActionLimit(userId, limitName: UserLimitName, actionSize, transaction) {

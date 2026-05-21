@@ -49,17 +49,21 @@ function routePrefixFor(registration: string): string {
 }
 
 function extractPermissions(block: string): string[] {
+  const routeBlock = block.replace(/\nasync function can(?:Read|Manage)AdminStorageSpace[\s\S]*$/g, '');
   const permissions = new Set<string>();
   const permissionRegex = /app\.(?:checkUserCan|isUserCan|isAdminCan|isUserCanByUserPermissionOnly|isAdminCanByUserPermissionOnly)\([^)]*,\s*(CorePermissionName\.\w+|['"`][^'"`]+['"`])/g;
-  for (const match of block.matchAll(permissionRegex)) {
+  for (const match of routeBlock.matchAll(permissionRegex)) {
     permissions.add(match[1].replace(/^CorePermissionName\./, '').replace(/^['"`]|['"`]$/g, ''));
   }
   const groupPermissionRegex = /GroupPermissionName\.(\w+)/g;
-  for (const match of block.matchAll(groupPermissionRegex)) {
+  for (const match of routeBlock.matchAll(groupPermissionRegex)) {
     permissions.add(`group:${match[1]}`);
   }
-  if (block.includes('canReadAdminStorageSpace')) {
+  if (routeBlock.includes('canReadAdminStorageSpace')) {
     permissions.add('AdminRead');
+  }
+  if (routeBlock.includes('canManageAdminStorageSpace')) {
+    permissions.add('AdminAll');
   }
   return [...permissions].sort();
 }
