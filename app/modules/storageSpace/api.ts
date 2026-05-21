@@ -154,6 +154,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/shared-storage-ids Get shared storage IDs
+   * @apiName AdminStorageSpaceSharedStorageIds
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Lists physical storage IDs referenced by more than one content row, with logical bytes, deduplicated physical bytes, user counts, file-catalog refs, and post refs for duplicate/shared-content drilldowns.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/shared-storage-ids', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceSharedStorageIds(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/generated-output-inspection Inspect generated-output storage refs
    * @apiName AdminStorageSpaceGeneratedOutputInspection
    * @apiGroup AdminStorage

@@ -18,6 +18,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpaceGeneratedOutputs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRow[]>;
 
+  getStorageSpaceSharedStorageIds(listParams?: IListParams): Promise<IStorageSpaceSharedStorageIdRow[]>;
+
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
 
   inspectStorageSpaceGeneratedOutputRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputInspectionRow[]>;
@@ -143,6 +145,22 @@ export interface IStorageSpaceGeneratedOutputRefRow {
   storageRefsCount: number;
 }
 
+export interface IStorageSpaceSharedStorageIdRow {
+  storageId: string;
+  firstContentId: number;
+  storageObjectId?: number | null;
+  mimeType?: string;
+  extension?: string;
+  contentRowsCount: number;
+  usersCount: number;
+  logicalBytes: number;
+  physicalBytes: number;
+  deduplicatedSavingsBytes: number;
+  activeFileCatalogRefsCount: number;
+  groupPostRefsCount: number;
+  isPinned: boolean;
+}
+
 export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpaceGeneratedOutputRefRow {
   ok: boolean;
   type?: string | null;
@@ -175,6 +193,7 @@ export interface IStorageSpaceSnapshotData {
   topGroups: IStorageSpaceGroupRow[];
   groupPosts: IStorageSpaceGroupPostRow[];
   generatedOutputs: IStorageSpaceGeneratedOutputRow[];
+  sharedStorageIds: IStorageSpaceSharedStorageIdRow[];
 }
 
 export interface IStorageSpaceSnapshotDataOptions {
