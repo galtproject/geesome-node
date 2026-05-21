@@ -22,6 +22,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpacePinnedStorageObjects(listParams?: IListParams): Promise<IStorageSpacePinnedStorageObjectRow[]>;
 
+  getStorageSpacePreviewStorage(listParams?: IListParams): Promise<IStorageSpacePreviewStorageRow[]>;
+
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
 
   inspectStorageSpaceGeneratedOutputRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputInspectionRow[]>;
@@ -180,6 +182,17 @@ export interface IStorageSpacePinnedStorageObjectRow {
   updatedAt?: Date;
 }
 
+export interface IStorageSpacePreviewStorageRow {
+  previewField: string;
+  contentRowsCount: number;
+  storageObjectRowsCount: number;
+  uniqueStorageIdsCount: number;
+  registeredStorageObjectsCount: number;
+  unregisteredStorageIdsCount: number;
+  logicalPreviewBytes: number;
+  physicalPreviewBytes: number;
+}
+
 export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpaceGeneratedOutputRefRow {
   ok: boolean;
   type?: string | null;
@@ -214,6 +227,7 @@ export interface IStorageSpaceSnapshotData {
   generatedOutputs: IStorageSpaceGeneratedOutputRow[];
   sharedStorageIds: IStorageSpaceSharedStorageIdRow[];
   pinnedStorageObjects: IStorageSpacePinnedStorageObjectRow[];
+  previewStorage: IStorageSpacePreviewStorageRow[];
 }
 
 export interface IStorageSpaceSnapshotDataOptions {

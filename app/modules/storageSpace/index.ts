@@ -80,6 +80,10 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return storageSpaceQueries.getStorageSpacePinnedStorageObjects(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
   }
 
+  async getStorageSpacePreviewStorage(listParams: IListParams = {}) {
+    return storageSpaceQueries.getStorageSpacePreviewStorage(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
   async getStorageSpaceGeneratedOutputUnknownRefs(listParams: IListParams = {}) {
     return storageSpaceQueries.getStorageSpaceGeneratedOutputUnknownRefs(this.app.ms.database.sequelize, getStorageSpaceStorageInspectionWindow(listParams));
   }
@@ -212,7 +216,19 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
 }
 
 async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule, listWindow): Promise<IStorageSpaceSnapshotData> {
-  const [overview, typeBreakdown, topContents, topFileCatalogItems, fileCatalogFolders, topGroups, groupPosts, generatedOutputs, sharedStorageIds, pinnedStorageObjects] = await Promise.all([
+  const [
+    overview,
+    typeBreakdown,
+    topContents,
+    topFileCatalogItems,
+    fileCatalogFolders,
+    topGroups,
+    groupPosts,
+    generatedOutputs,
+    sharedStorageIds,
+    pinnedStorageObjects,
+    previewStorage,
+  ] = await Promise.all([
     module.getStorageSpaceOverview(),
     module.getStorageSpaceTypeBreakdown(listWindow),
     module.getStorageSpaceTopContents(listWindow),
@@ -223,6 +239,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     module.getStorageSpaceGeneratedOutputs(listWindow),
     module.getStorageSpaceSharedStorageIds(listWindow),
     module.getStorageSpacePinnedStorageObjects(listWindow),
+    module.getStorageSpacePreviewStorage(listWindow),
   ]);
 
   return {
@@ -236,6 +253,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     generatedOutputs,
     sharedStorageIds,
     pinnedStorageObjects,
+    previewStorage,
   } as IStorageSpaceSnapshotData;
 }
 
@@ -356,6 +374,9 @@ function normalizeStorageSpaceSnapshotData(data) {
   if (!data.pinnedStorageObjects) {
     data.pinnedStorageObjects = [];
   }
+  if (!data.previewStorage) {
+    data.previewStorage = [];
+  }
   return data;
 }
 
@@ -465,6 +486,11 @@ function getStorageSpaceSnapshotStages(module: StorageSpaceModule, listWindow) {
       key: 'pinnedStorageObjects',
       name: 'pinned-storage-objects',
       getData: () => module.getStorageSpacePinnedStorageObjects(listWindow),
+    },
+    {
+      key: 'previewStorage',
+      name: 'preview-storage',
+      getData: () => module.getStorageSpacePreviewStorage(listWindow),
     },
   ];
 }

@@ -73,6 +73,15 @@ const numericPinnedStorageObjectFields = [
   'groupPostRefsCount',
   'generatedOutputRefsCount',
 ];
+const numericPreviewStorageFields = [
+  'contentRowsCount',
+  'storageObjectRowsCount',
+  'uniqueStorageIdsCount',
+  'registeredStorageObjectsCount',
+  'unregisteredStorageIdsCount',
+  'logicalPreviewBytes',
+  'physicalPreviewBytes',
+];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
   const rows = await sequelize.query(`
@@ -690,6 +699,135 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
   });
 
   return rows.map(row => normalizeNumericFields(row, numericPinnedStorageObjectFields));
+}
+
+export async function getStorageSpacePreviewStorage(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH content_preview_refs AS (
+      SELECT
+        'largePreviewStorageId' AS "previewField",
+        "largePreviewStorageId" AS "storageId",
+        COALESCE("largePreviewSize", 0)::bigint AS size
+      FROM contents
+      WHERE "largePreviewStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT
+        'mediumPreviewStorageId' AS "previewField",
+        "mediumPreviewStorageId" AS "storageId",
+        COALESCE("mediumPreviewSize", 0)::bigint AS size
+      FROM contents
+      WHERE "mediumPreviewStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT
+        'smallPreviewStorageId' AS "previewField",
+        "smallPreviewStorageId" AS "storageId",
+        COALESCE("smallPreviewSize", 0)::bigint AS size
+      FROM contents
+      WHERE "smallPreviewStorageId" IS NOT NULL
+    ),
+    storage_object_preview_refs AS (
+      SELECT
+        'largePreviewStorageId' AS "previewField",
+        "largePreviewStorageId" AS "storageId",
+        COALESCE("largePreviewSize", 0)::bigint AS size
+      FROM "storageObjects"
+      WHERE "largePreviewStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT
+        'mediumPreviewStorageId' AS "previewField",
+        "mediumPreviewStorageId" AS "storageId",
+        COALESCE("mediumPreviewSize", 0)::bigint AS size
+      FROM "storageObjects"
+      WHERE "mediumPreviewStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT
+        'smallPreviewStorageId' AS "previewField",
+        "smallPreviewStorageId" AS "storageId",
+        COALESCE("smallPreviewSize", 0)::bigint AS size
+      FROM "storageObjects"
+      WHERE "smallPreviewStorageId" IS NOT NULL
+    ),
+    content_preview_stats AS (
+      SELECT
+        "previewField",
+        COUNT(*)::bigint AS "contentRowsCount",
+        COALESCE(SUM(size), 0)::bigint AS "logicalPreviewBytes"
+      FROM content_preview_refs
+      GROUP BY "previewField"
+    ),
+    storage_object_preview_stats AS (
+      SELECT
+        "previewField",
+        COUNT(*)::bigint AS "storageObjectRowsCount"
+      FROM storage_object_preview_refs
+      GROUP BY "previewField"
+    ),
+    all_preview_refs AS (
+      SELECT
+        "previewField",
+        "storageId",
+        size
+      FROM content_preview_refs
+
+      UNION ALL
+
+      SELECT
+        "previewField",
+        "storageId",
+        size
+      FROM storage_object_preview_refs
+    ),
+    unique_preview_storage AS (
+      SELECT
+        "previewField",
+        "storageId",
+        MAX(size)::bigint AS size
+      FROM all_preview_refs
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "previewField", "storageId"
+    ),
+    unique_preview_stats AS (
+      SELECT
+        unique_preview_storage."previewField",
+        COUNT(*)::bigint AS "uniqueStorageIdsCount",
+        COUNT(storage_object.id)::bigint AS "registeredStorageObjectsCount",
+        COUNT(*) FILTER (WHERE storage_object.id IS NULL)::bigint AS "unregisteredStorageIdsCount",
+        COALESCE(SUM(COALESCE(storage_object.size, unique_preview_storage.size, 0)), 0)::bigint AS "physicalPreviewBytes"
+      FROM unique_preview_storage
+      LEFT JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = unique_preview_storage."storageId"
+      GROUP BY unique_preview_storage."previewField"
+    )
+    SELECT
+      unique_preview_stats."previewField",
+      COALESCE(content_preview_stats."contentRowsCount", 0)::bigint AS "contentRowsCount",
+      COALESCE(storage_object_preview_stats."storageObjectRowsCount", 0)::bigint AS "storageObjectRowsCount",
+      unique_preview_stats."uniqueStorageIdsCount",
+      unique_preview_stats."registeredStorageObjectsCount",
+      unique_preview_stats."unregisteredStorageIdsCount",
+      COALESCE(content_preview_stats."logicalPreviewBytes", 0)::bigint AS "logicalPreviewBytes",
+      unique_preview_stats."physicalPreviewBytes"
+    FROM unique_preview_stats
+    LEFT JOIN content_preview_stats
+      ON content_preview_stats."previewField" = unique_preview_stats."previewField"
+    LEFT JOIN storage_object_preview_stats
+      ON storage_object_preview_stats."previewField" = unique_preview_stats."previewField"
+    ORDER BY unique_preview_stats."physicalPreviewBytes" DESC, unique_preview_stats."previewField" ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceListQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericPreviewStorageFields));
 }
 
 function getStorageSpaceListQueryReplacements(listParams) {

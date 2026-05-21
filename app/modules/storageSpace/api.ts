@@ -192,6 +192,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/preview-storage Get preview storage usage
+   * @apiName AdminStorageSpacePreviewStorage
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Lists content and StorageObject preview/thumbnail storage references by preview field, including logical preview bytes, deduplicated physical preview bytes, and unregistered preview storage IDs.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/preview-storage', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpacePreviewStorage(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/generated-output-inspection Inspect generated-output storage refs
    * @apiName AdminStorageSpaceGeneratedOutputInspection
    * @apiGroup AdminStorage
