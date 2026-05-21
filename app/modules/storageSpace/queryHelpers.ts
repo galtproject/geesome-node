@@ -566,12 +566,34 @@ export async function getStorageSpaceGeneratedOutputUnknownRefs(sequelize, listP
     LEFT JOIN "storageObjects" storage_object
       ON storage_object."storageId" = generated_output_refs."storageId"
     WHERE generated_output_refs."storageId" IS NOT NULL
+      AND (:storageId::text IS NULL OR generated_output_refs."storageId" = :storageId::text)
       AND storage_object.id IS NULL
     GROUP BY generated_output_refs.source, generated_output_refs."storageId"
     ORDER BY COUNT(*) DESC, generated_output_refs.source ASC, generated_output_refs."storageId" ASC
     LIMIT :limit OFFSET :offset
   `, {
-    replacements: getStorageSpaceListQueryReplacements(listParams),
+    replacements: getStorageSpaceGeneratedOutputRefQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericGeneratedOutputRefFields));
+}
+
+export async function getStorageSpaceGeneratedOutputRefs(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH ${getGeneratedOutputRefsSql()}
+    SELECT
+      generated_output_refs.source,
+      generated_output_refs."storageId",
+      COUNT(*)::bigint AS "storageRefsCount"
+    FROM generated_output_refs
+    WHERE generated_output_refs."storageId" IS NOT NULL
+      AND (:storageId::text IS NULL OR generated_output_refs."storageId" = :storageId::text)
+    GROUP BY generated_output_refs.source, generated_output_refs."storageId"
+    ORDER BY COUNT(*) DESC, generated_output_refs.source ASC, generated_output_refs."storageId" ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceGeneratedOutputRefQueryReplacements(listParams),
     type: QueryTypes.SELECT,
   });
 
@@ -880,6 +902,13 @@ function getStorageSpaceCleanupCandidateQueryReplacements(listParams) {
   return {
     ...getStorageSpaceListQueryReplacements(listParams),
     contentId: listParams.contentId,
+  };
+}
+
+function getStorageSpaceGeneratedOutputRefQueryReplacements(listParams) {
+  return {
+    ...getStorageSpaceListQueryReplacements(listParams),
+    storageId: listParams.storageId || null,
   };
 }
 
