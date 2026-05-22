@@ -66,6 +66,8 @@ export interface IGeesomeDatabaseModule {
 
   getContentDeleteSafety(content: IContent | number, options?: IContentDeleteSafetyOptions): Promise<IContentDeleteSafety>;
 
+  getStorageObjectDeleteSafety(storageId: string, options?: IStorageIdReferenceOptions): Promise<IStorageObjectDeleteSafety>;
+
   getContentByStorageAndUserId(storageId, userId): Promise<IContent>;
 
   getContentByStorageIdListAndUserId(storageIdList, userId): Promise<IContent[]>;
@@ -285,6 +287,14 @@ export interface IContentDeleteSafety {
   storageBlockers: IContentDeleteSafetyBlocker[];
   blockers: IContentDeleteSafetyBlocker[];
   safeToDestroyContent: boolean;
+  safeToRemovePhysical: boolean;
+}
+
+export interface IStorageObjectDeleteSafety {
+  storageId: string;
+  storageRefs: IStorageIdReferenceCounts;
+  storageBlockers: IContentDeleteSafetyBlocker[];
+  blockers: IContentDeleteSafetyBlocker[];
   safeToRemovePhysical: boolean;
 }
 

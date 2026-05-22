@@ -5,7 +5,8 @@ import IGeesomeStorageSpaceModule, {
   IStorageSpaceCleanupBlockerRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
-  IStorageSpaceSnapshotProgress
+  IStorageSpaceSnapshotProgress,
+  IStorageSpaceStorageObjectRemovalResult
 } from "./interface.js";
 import * as storageSpaceQueries from './queryHelpers.js';
 import {
@@ -45,6 +46,9 @@ const storageSpaceCleanupBlockerListParams: IListParamsOptions = {
 const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceSnapshotQueueInitialPercent = 1;
+const storageSpaceStorageRemovalQueueModuleName = 'storage-space-storage-removal';
+const storageSpaceStorageRemovalQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_QUEUE_KICK_BATCH_LIMIT, 1);
+const storageSpaceStorageRemovalQueueInitialPercent = 5;
 
 export default async function (app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator', 'storage']);
@@ -227,6 +231,55 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
         return getStorageSpaceSnapshotRefreshJobResult(snapshot);
       },
     });
+  }
+
+  async queueStorageObjectRemoval(userId: number, userApiKeyId: number | null, storageId: string, options: any = {}) {
+    const queue = await this.app.ms.asyncOperation.addUniqueUserOperationQueue(
+      userId,
+      storageSpaceStorageRemovalQueueModuleName,
+      userApiKeyId,
+      getStorageSpaceStorageRemovalJobInput(storageId)
+    );
+    if (options.process !== false) {
+      this.startStorageObjectRemovalQueueProcessing(options);
+    }
+    return queue;
+  }
+
+  startStorageObjectRemovalQueueProcessing(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, storageSpaceStorageRemovalQueueKickBatchLimit);
+    void this.processStorageObjectRemovalQueue({limit}).catch((e) => {
+      log('processStorageObjectRemovalQueue error', e);
+    });
+  }
+
+  async processStorageObjectRemovalQueue(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+    return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceStorageRemovalQueueModuleName, {
+      limit,
+      getPayload: (waitingQueue) => parseStorageSpaceStorageRemovalJob(waitingQueue.inputJson),
+      getAsyncOperationData: (_waitingQueue, job) => ({
+        name: 'remove-storage-object',
+        channel: getStorageSpaceStorageRemovalJobChannel(job),
+        percent: storageSpaceStorageRemovalQueueInitialPercent,
+      }),
+      run: async (_waitingQueue, _asyncOperation, job) => this.removeStorageObjectIfSafe(job.storageId),
+    });
+  }
+
+  async removeStorageObjectIfSafe(storageId: string): Promise<IStorageSpaceStorageObjectRemovalResult> {
+    const deleteSafety = await this.app.ms.database.getStorageObjectDeleteSafety(storageId);
+    if (!deleteSafety.safeToRemovePhysical) {
+      return getStorageSpaceStorageRemovalBlockedResult(deleteSafety);
+    }
+
+    await this.app.ms.storage.unPin(storageId).catch(() => null);
+    const removeResult = await removeStorageObject(this.app.ms.storage, storageId);
+    return {
+      ...deleteSafety,
+      ...removeResult,
+      blocked: false,
+    };
   }
 }
 
@@ -414,6 +467,62 @@ function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
     durationMs: snapshot.durationMs,
     createdAt: snapshot.createdAt,
   };
+}
+
+function getStorageSpaceStorageRemovalJobInput(storageId) {
+  const normalizedStorageId = normalizeStorageSpaceStorageId(storageId);
+  if (!normalizedStorageId) {
+    throw new Error('storage_id_required');
+  }
+  return {
+    type: 'remove-storage-object',
+    storageId: normalizedStorageId,
+  };
+}
+
+function parseStorageSpaceStorageRemovalJob(inputJson) {
+  const job = typeof inputJson === 'string' ? JSON.parse(inputJson) : inputJson;
+  if (job?.type !== 'remove-storage-object') {
+    throw new Error('invalid_storage_space_storage_removal_job_type');
+  }
+  return getStorageSpaceStorageRemovalJobInput(job.storageId);
+}
+
+function getStorageSpaceStorageRemovalJobChannel(job) {
+  return `${storageSpaceStorageRemovalQueueModuleName}:storage:${job.storageId}`;
+}
+
+function getStorageSpaceStorageRemovalBlockedResult(deleteSafety): IStorageSpaceStorageObjectRemovalResult {
+  return {
+    ...deleteSafety,
+    removed: false,
+    missing: false,
+    blocked: true,
+  };
+}
+
+async function removeStorageObject(storage, storageId): Promise<{removed: boolean; missing: boolean}> {
+  try {
+    await storage.remove(storageId);
+    return {removed: true, missing: false};
+  } catch (e) {
+    if (isMissingStorageObjectError(e)) {
+      return {removed: false, missing: true};
+    }
+    throw e;
+  }
+}
+
+function isMissingStorageObjectError(e) {
+  const message = getStorageObjectErrorMessage(e).toLowerCase();
+  return message.includes('not found') ||
+    message.includes('not exist') ||
+    message.includes('does not exist') ||
+    message.includes('no link named');
+}
+
+function getStorageObjectErrorMessage(e) {
+  return e?.message || String(e);
 }
 
 async function updateStorageSpaceSnapshotRefreshProgress(app: IGeesomeApp, asyncOperation, progress: IStorageSpaceSnapshotProgress) {

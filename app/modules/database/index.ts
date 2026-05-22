@@ -21,6 +21,7 @@ import {
   IContent,
   IContentDeleteSafetyBlocker,
   IGeesomeDatabaseModule,
+  IStorageIdReferenceOptions,
   IListParams,
   IListParamsOptions,
   IObject,
@@ -392,6 +393,16 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
+    const previewRefsWhere: any = {
+      [Op.or]: [
+        {largePreviewStorageId: storageId},
+        {mediumPreviewStorageId: storageId},
+        {smallPreviewStorageId: storageId},
+      ],
+    };
+    if (excludeContentId) {
+      previewRefsWhere.id = {[Op.ne]: excludeContentId};
+    }
     const [
       otherContents,
       previewRefs,
@@ -401,15 +412,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       storageObjectChildRefs
     ] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
-      this.models.Content.count({
-        where: {
-          [Op.or]: [
-            {largePreviewStorageId: storageId},
-            {mediumPreviewStorageId: storageId},
-            {smallPreviewStorageId: storageId},
-          ],
-        },
-      }),
+      this.models.Content.count({where: previewRefsWhere}),
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
       countRemotePinReferences(this.models, this.sequelize, storageId),
       countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
@@ -456,6 +459,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       ...options,
       hasStorageId: Boolean(contentRecord.storageId),
     });
+  }
+
+  async getStorageObjectDeleteSafety(storageId: string, options: IStorageIdReferenceOptions = {}) {
+    const storageRefs = storageId
+      ? await this.countStorageIdReferences(storageId, undefined, options)
+      : getEmptyStorageIdReferenceCounts();
+    return getStorageObjectDeleteSafety(storageId, storageRefs);
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
@@ -858,6 +868,17 @@ function getContentDeleteSafety(storageRefs, contentRefs, options) {
     blockers: [...contentBlockers, ...storageBlockers],
     safeToDestroyContent,
     safeToRemovePhysical,
+  };
+}
+
+function getStorageObjectDeleteSafety(storageId, storageRefs) {
+  const storageBlockers = getContentDeleteStorageBlockers(storageRefs);
+  return {
+    storageId,
+    storageRefs,
+    storageBlockers,
+    blockers: [...storageBlockers],
+    safeToRemovePhysical: Boolean(storageId) && storageBlockers.length === 0,
   };
 }
 
