@@ -120,6 +120,10 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return storageSpaceQueries.getStorageSpacePreviewStorage(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
   }
 
+  async getStorageSpaceAvailabilitySignals(listParams: IListParams = {}) {
+    return storageSpaceQueries.getStorageSpaceAvailabilitySignals(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
   async getStorageSpaceCleanupBlockers(listParams: IListParams = {}) {
     const candidates = await storageSpaceQueries.getStorageSpaceCleanupCandidateContents(
       this.app.ms.database.sequelize,
@@ -455,6 +459,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     sharedStorageIds,
     pinnedStorageObjects,
     previewStorage,
+    availabilitySignals,
   ] = await Promise.all([
     module.getStorageSpaceOverview(),
     module.getStorageSpaceTypeBreakdown(listWindow),
@@ -467,6 +472,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     module.getStorageSpaceSharedStorageIds(listWindow),
     module.getStorageSpacePinnedStorageObjects(listWindow),
     module.getStorageSpacePreviewStorage(listWindow),
+    module.getStorageSpaceAvailabilitySignals(listWindow),
   ]);
 
   return {
@@ -481,6 +487,7 @@ async function getStorageSpaceSnapshotDataInParallel(module: StorageSpaceModule,
     sharedStorageIds,
     pinnedStorageObjects,
     previewStorage,
+    availabilitySignals,
   } as IStorageSpaceSnapshotData;
 }
 
@@ -778,6 +785,9 @@ function normalizeStorageSpaceSnapshotData(data) {
   if (!data.previewStorage) {
     data.previewStorage = [];
   }
+  if (!data.availabilitySignals) {
+    data.availabilitySignals = [];
+  }
   return data;
 }
 
@@ -860,6 +870,11 @@ function getStorageSpaceSnapshotStages(module: StorageSpaceModule, listWindow) {
       key: 'previewStorage',
       name: 'preview-storage',
       getData: () => module.getStorageSpacePreviewStorage(listWindow),
+    },
+    {
+      key: 'availabilitySignals',
+      name: 'availability-signals',
+      getData: () => module.getStorageSpaceAvailabilitySignals(listWindow),
     },
   ];
 }

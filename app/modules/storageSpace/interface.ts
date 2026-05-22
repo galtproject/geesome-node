@@ -29,6 +29,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpacePreviewStorage(listParams?: IListParams): Promise<IStorageSpacePreviewStorageRow[]>;
 
+  getStorageSpaceAvailabilitySignals(listParams?: IListParams): Promise<IStorageSpaceAvailabilitySignalRow[]>;
+
   getStorageSpaceCleanupBlockers(listParams?: IListParams): Promise<IStorageSpaceCleanupBlockerRow[]>;
 
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
@@ -219,6 +221,35 @@ export interface IStorageSpacePreviewStorageRow {
   physicalPreviewBytes: number;
 }
 
+export interface IStorageSpaceAvailabilitySignalRow {
+  id?: number | null;
+  storageId: string;
+  storageType?: string | null;
+  mimeType?: string;
+  extension?: string;
+  physicalBytes: number;
+  contentRowsCount: number;
+  usersCount: number;
+  activeFileCatalogRefsCount: number;
+  groupPostRefsCount: number;
+  generatedOutputRefsCount: number;
+  localPinRefsCount: number;
+  remotePinsCount: number;
+  pinAccountsCount: number;
+  pinServices?: string | null;
+  contentPeerRowsCount: number;
+  postPeerRowsCount: number;
+  groupPeerRowsCount: number;
+  maxContentPeersCount: number;
+  maxPostPeersCount: number;
+  maxGroupPeersCount: number;
+  maxPeerCount: number;
+  maxFullyPeerCount: number;
+  isPinned: boolean;
+  latestSignalAt?: Date | null;
+  updatedAt?: Date | null;
+}
+
 export interface IStorageSpaceCleanupBlockerRow extends IStorageSpaceContentRow {
   contentRefs: IContentReferenceCounts;
   storageRefs: IStorageIdReferenceCounts;
@@ -347,6 +378,7 @@ export interface IStorageSpaceSnapshotData {
   sharedStorageIds: IStorageSpaceSharedStorageIdRow[];
   pinnedStorageObjects: IStorageSpacePinnedStorageObjectRow[];
   previewStorage: IStorageSpacePreviewStorageRow[];
+  availabilitySignals: IStorageSpaceAvailabilitySignalRow[];
 }
 
 export interface IStorageSpaceSnapshotDataOptions {

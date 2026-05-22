@@ -82,6 +82,9 @@ describe("storage space usage", function () {
 		await app.ms['pin'].recordPinnedStorageObject(sharedContent.storageId, pinAccount, sharedContent, {
 			data: {IpfsHash: sharedContent.storageId}
 		});
+		await app.ms.database.updateContent(sharedContent.id, {peersCount: 3});
+		await app.ms.database.models.Post.update({peersCount: 5, fullyPeersCount: 2}, {where: {id: sharedPost.id}});
+		await app.ms.database.models.Group.update({peersCount: 7, fullyPeersCount: 4}, {where: {id: group.id}});
 		const generatedStorageId = 'generated-space-output';
 		const generatedSize = 33;
 		const generatedUnknownContent = 'generated runtime output bytes';
@@ -239,6 +242,24 @@ describe("storage space usage", function () {
 		assert.equal(smallPreviewRow?.logicalPreviewBytes, previewSize);
 		assert.equal(smallPreviewRow?.physicalPreviewBytes, previewSize);
 
+		const availabilitySignals = await app.ms.storageSpace.getStorageSpaceAvailabilitySignals({limit: 10});
+		const sharedSignal = availabilitySignals.find(row => row.storageId === sharedContent.storageId);
+		assert.equal(!!sharedSignal, true);
+		assert.equal(sharedSignal?.contentRowsCount, 2);
+		assert.equal(sharedSignal?.usersCount, 2);
+		assert.equal(sharedSignal?.activeFileCatalogRefsCount >= 1, true);
+		assert.equal(sharedSignal?.groupPostRefsCount, 1);
+		assert.equal(sharedSignal?.localPinRefsCount, 1);
+		assert.equal(sharedSignal?.remotePinsCount, 1);
+		assert.equal(sharedSignal?.pinAccountsCount, 1);
+		assert.equal(sharedSignal?.pinServices, 'pinata');
+		assert.equal(sharedSignal?.contentPeerRowsCount, 1);
+		assert.equal(sharedSignal?.postPeerRowsCount, 1);
+		assert.equal(sharedSignal?.maxContentPeersCount, 3);
+		assert.equal(sharedSignal?.maxPostPeersCount, 5);
+		assert.equal(sharedSignal?.maxPeerCount, 5);
+		assert.equal(sharedSignal?.maxFullyPeerCount, 2);
+
 		const cleanupBlockers = await app.ms.storageSpace.getStorageSpaceCleanupBlockers({contentId: sharedContent.id});
 		assert.equal(cleanupBlockers.length, 1);
 		const sharedCleanupRow = cleanupBlockers[0];
@@ -360,6 +381,7 @@ describe("storage space usage", function () {
 		assert.equal(snapshot.data.sharedStorageIds.length <= 2, true);
 		assert.equal(snapshot.data.pinnedStorageObjects.length <= 2, true);
 		assert.equal(snapshot.data.previewStorage.length <= 2, true);
+		assert.equal(snapshot.data.availabilitySignals.length <= 2, true);
 
 		const progressEvents = [];
 		const progressSnapshotData = await app.ms.storageSpace.getStorageSpaceSnapshotData({limit: 1, offset: 99}, {
@@ -377,10 +399,12 @@ describe("storage space usage", function () {
 			'shared-storage-ids',
 			'pinned-storage-objects',
 			'preview-storage',
+			'availability-signals',
 		]);
 		assert.equal(progressEvents[0].percent > 1, true);
 		assert.equal(progressEvents[progressEvents.length - 1].percent, 95);
 		assert.equal(progressSnapshotData.topContents.length <= 1, true);
+		assert.equal(progressSnapshotData.availabilitySignals.length <= 1, true);
 
 		const latestSnapshot = await app.ms.storageSpace.getLatestStorageSpaceSnapshot();
 		assert.equal(latestSnapshot.id, snapshot.id);

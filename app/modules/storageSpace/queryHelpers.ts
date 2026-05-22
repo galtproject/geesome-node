@@ -86,6 +86,25 @@ const numericPreviewStorageFields = [
   'logicalPreviewBytes',
   'physicalPreviewBytes',
 ];
+const numericAvailabilitySignalFields = [
+  'physicalBytes',
+  'contentRowsCount',
+  'usersCount',
+  'activeFileCatalogRefsCount',
+  'groupPostRefsCount',
+  'generatedOutputRefsCount',
+  'localPinRefsCount',
+  'remotePinsCount',
+  'pinAccountsCount',
+  'contentPeerRowsCount',
+  'postPeerRowsCount',
+  'groupPeerRowsCount',
+  'maxContentPeersCount',
+  'maxPostPeersCount',
+  'maxGroupPeersCount',
+  'maxPeerCount',
+  'maxFullyPeerCount',
+];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
   const hasRemotePinRefs = shouldIncludeRemotePinRefs(sequelize, options);
@@ -895,6 +914,250 @@ export async function getStorageSpacePreviewStorage(sequelize, listParams: any =
   return rows.map(row => normalizeNumericFields(row, numericPreviewStorageFields));
 }
 
+export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: any = {}) {
+  const hasRemotePinRefs = shouldIncludeRemotePinRefs(sequelize, listParams);
+  const rows = await sequelize.query(`
+    WITH ${getGeneratedOutputRefsSql()},
+    content_stats AS (
+      SELECT
+        "storageId",
+        COUNT(*)::bigint AS "contentRowsCount",
+        COUNT(DISTINCT "userId")::bigint AS "usersCount",
+        MAX(COALESCE(size, 0))::bigint AS "contentPhysicalBytes",
+        (ARRAY_AGG("mimeType" ORDER BY id))[1] AS "contentMimeType",
+        (ARRAY_AGG(extension ORDER BY id))[1] AS "contentExtension",
+        COUNT(*) FILTER (WHERE COALESCE("peersCount", 0) > 0)::bigint AS "contentPeerRowsCount",
+        COALESCE(MAX(COALESCE("peersCount", 0)), 0)::bigint AS "maxContentPeersCount",
+        MAX("updatedAt") AS "latestContentSignalAt"
+      FROM contents
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "storageId"
+    ),
+    file_catalog_stats AS (
+      SELECT
+        content."storageId",
+        COUNT(item.id)::bigint AS "activeFileCatalogRefsCount"
+      FROM "fileCatalogItems" item
+      JOIN contents content ON content.id = item."contentId"
+      WHERE item."isDeleted" IS NOT TRUE
+        AND content."storageId" IS NOT NULL
+      GROUP BY content."storageId"
+    ),
+    post_attachment_stats AS (
+      SELECT
+        content."storageId",
+        COUNT(DISTINCT post.id)::bigint AS "groupPostRefsCount",
+        COUNT(DISTINCT post.id) FILTER (WHERE COALESCE(post."peersCount", 0) > 0)::bigint AS "postPeerRowsCount",
+        COALESCE(MAX(COALESCE(post."peersCount", 0)), 0)::bigint AS "maxPostPeersCount",
+        COALESCE(MAX(COALESCE(post."fullyPeersCount", 0)), 0)::bigint AS "maxPostFullyPeersCount",
+        MAX(post."updatedAt") AS "latestPostSignalAt"
+      FROM "postsContents" post_content
+      JOIN posts post ON post.id = post_content."postId"
+      JOIN contents content ON content.id = post_content."contentId"
+      WHERE post."isDeleted" IS NOT TRUE
+        AND content."storageId" IS NOT NULL
+      GROUP BY content."storageId"
+    ),
+    post_direct_refs AS (
+      SELECT post."storageId", post.id, post."peersCount", post."fullyPeersCount", post."updatedAt"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."storageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT post."directoryStorageId" AS "storageId", post.id, post."peersCount", post."fullyPeersCount", post."updatedAt"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."directoryStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT post."manifestStorageId" AS "storageId", post.id, post."peersCount", post."fullyPeersCount", post."updatedAt"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."manifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT post."encryptedManifestStorageId" AS "storageId", post.id, post."peersCount", post."fullyPeersCount", post."updatedAt"
+      FROM posts post
+      WHERE post."isDeleted" IS NOT TRUE
+        AND post."encryptedManifestStorageId" IS NOT NULL
+    ),
+    post_direct_stats AS (
+      SELECT
+        "storageId",
+        COUNT(DISTINCT id) FILTER (WHERE COALESCE("peersCount", 0) > 0)::bigint AS "postPeerRowsCount",
+        COALESCE(MAX(COALESCE("peersCount", 0)), 0)::bigint AS "maxPostPeersCount",
+        COALESCE(MAX(COALESCE("fullyPeersCount", 0)), 0)::bigint AS "maxPostFullyPeersCount",
+        MAX("updatedAt") AS "latestPostSignalAt"
+      FROM post_direct_refs
+      GROUP BY "storageId"
+    ),
+    group_direct_refs AS (
+      SELECT group_row."storageId", group_row.id, group_row."peersCount", group_row."fullyPeersCount", group_row."updatedAt"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."storageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT group_row."directoryStorageId" AS "storageId", group_row.id, group_row."peersCount", group_row."fullyPeersCount", group_row."updatedAt"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."directoryStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT group_row."manifestStorageId" AS "storageId", group_row.id, group_row."peersCount", group_row."fullyPeersCount", group_row."updatedAt"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."manifestStorageId" IS NOT NULL
+
+      UNION ALL
+
+      SELECT group_row."encryptedManifestStorageId" AS "storageId", group_row.id, group_row."peersCount", group_row."fullyPeersCount", group_row."updatedAt"
+      FROM groups group_row
+      WHERE group_row."isDeleted" IS NOT TRUE
+        AND group_row."encryptedManifestStorageId" IS NOT NULL
+    ),
+    group_direct_stats AS (
+      SELECT
+        "storageId",
+        COUNT(DISTINCT id) FILTER (WHERE COALESCE("peersCount", 0) > 0)::bigint AS "groupPeerRowsCount",
+        COALESCE(MAX(COALESCE("peersCount", 0)), 0)::bigint AS "maxGroupPeersCount",
+        COALESCE(MAX(COALESCE("fullyPeersCount", 0)), 0)::bigint AS "maxGroupFullyPeersCount",
+        MAX("updatedAt") AS "latestGroupSignalAt"
+      FROM group_direct_refs
+      GROUP BY "storageId"
+    ),
+    generated_output_stats AS (
+      SELECT
+        "storageId",
+        COUNT(*)::bigint AS "generatedOutputRefsCount"
+      FROM generated_output_refs
+      WHERE "storageId" IS NOT NULL
+      GROUP BY "storageId"
+    ),
+    ${getAvailabilityRemotePinStatsSql(hasRemotePinRefs)},
+    storage_candidates AS (
+      SELECT "storageId"
+      FROM "storageObjects"
+      WHERE "storageId" IS NOT NULL
+
+      UNION
+
+      SELECT "storageId"
+      FROM contents
+      WHERE "storageId" IS NOT NULL
+
+      UNION
+
+      SELECT "storageId"
+      FROM generated_output_refs
+      WHERE "storageId" IS NOT NULL
+
+      UNION
+
+      SELECT "storageId"
+      FROM post_direct_refs
+      WHERE "storageId" IS NOT NULL
+
+      UNION
+
+      SELECT "storageId"
+      FROM group_direct_refs
+      WHERE "storageId" IS NOT NULL
+
+      ${getAvailabilityRemotePinCandidateSql(hasRemotePinRefs)}
+    )
+    SELECT
+      storage_object.id,
+      storage_candidates."storageId",
+      storage_object."storageType",
+      COALESCE(storage_object."mimeType", content_stats."contentMimeType", :unknownValue) AS "mimeType",
+      COALESCE(storage_object.extension, content_stats."contentExtension", :unknownValue) AS extension,
+      COALESCE(storage_object.size, content_stats."contentPhysicalBytes", 0)::bigint AS "physicalBytes",
+      COALESCE(content_stats."contentRowsCount", 0)::bigint AS "contentRowsCount",
+      COALESCE(content_stats."usersCount", 0)::bigint AS "usersCount",
+      COALESCE(file_catalog_stats."activeFileCatalogRefsCount", 0)::bigint AS "activeFileCatalogRefsCount",
+      COALESCE(post_attachment_stats."groupPostRefsCount", 0)::bigint AS "groupPostRefsCount",
+      COALESCE(generated_output_stats."generatedOutputRefsCount", 0)::bigint AS "generatedOutputRefsCount",
+      CASE WHEN COALESCE(storage_object."isPinned", false) THEN 1 ELSE 0 END::bigint AS "localPinRefsCount",
+      COALESCE(remote_pin_stats."remotePinsCount", 0)::bigint AS "remotePinsCount",
+      COALESCE(remote_pin_stats."pinAccountsCount", 0)::bigint AS "pinAccountsCount",
+      remote_pin_stats."pinServices",
+      COALESCE(content_stats."contentPeerRowsCount", 0)::bigint AS "contentPeerRowsCount",
+      (
+        COALESCE(post_attachment_stats."postPeerRowsCount", 0) +
+        COALESCE(post_direct_stats."postPeerRowsCount", 0)
+      )::bigint AS "postPeerRowsCount",
+      COALESCE(group_direct_stats."groupPeerRowsCount", 0)::bigint AS "groupPeerRowsCount",
+      COALESCE(content_stats."maxContentPeersCount", 0)::bigint AS "maxContentPeersCount",
+      GREATEST(
+        COALESCE(post_attachment_stats."maxPostPeersCount", 0),
+        COALESCE(post_direct_stats."maxPostPeersCount", 0)
+      )::bigint AS "maxPostPeersCount",
+      COALESCE(group_direct_stats."maxGroupPeersCount", 0)::bigint AS "maxGroupPeersCount",
+      GREATEST(
+        COALESCE(content_stats."maxContentPeersCount", 0),
+        COALESCE(post_attachment_stats."maxPostPeersCount", 0),
+        COALESCE(post_direct_stats."maxPostPeersCount", 0),
+        COALESCE(group_direct_stats."maxGroupPeersCount", 0)
+      )::bigint AS "maxPeerCount",
+      GREATEST(
+        COALESCE(post_attachment_stats."maxPostFullyPeersCount", 0),
+        COALESCE(post_direct_stats."maxPostFullyPeersCount", 0),
+        COALESCE(group_direct_stats."maxGroupFullyPeersCount", 0)
+      )::bigint AS "maxFullyPeerCount",
+      COALESCE(storage_object."isPinned", false) AS "isPinned",
+      GREATEST(
+        COALESCE(storage_object."updatedAt", '1970-01-01'::timestamptz),
+        COALESCE(content_stats."latestContentSignalAt", '1970-01-01'::timestamptz),
+        COALESCE(post_attachment_stats."latestPostSignalAt", '1970-01-01'::timestamptz),
+        COALESCE(post_direct_stats."latestPostSignalAt", '1970-01-01'::timestamptz),
+        COALESCE(group_direct_stats."latestGroupSignalAt", '1970-01-01'::timestamptz),
+        COALESCE(remote_pin_stats."latestRemotePinSignalAt", '1970-01-01'::timestamptz)
+      ) AS "latestSignalAt",
+      storage_object."updatedAt"
+    FROM storage_candidates
+    LEFT JOIN "storageObjects" storage_object
+      ON storage_object."storageId" = storage_candidates."storageId"
+    LEFT JOIN content_stats
+      ON content_stats."storageId" = storage_candidates."storageId"
+    LEFT JOIN file_catalog_stats
+      ON file_catalog_stats."storageId" = storage_candidates."storageId"
+    LEFT JOIN post_attachment_stats
+      ON post_attachment_stats."storageId" = storage_candidates."storageId"
+    LEFT JOIN post_direct_stats
+      ON post_direct_stats."storageId" = storage_candidates."storageId"
+    LEFT JOIN group_direct_stats
+      ON group_direct_stats."storageId" = storage_candidates."storageId"
+    LEFT JOIN generated_output_stats
+      ON generated_output_stats."storageId" = storage_candidates."storageId"
+    LEFT JOIN remote_pin_stats
+      ON remote_pin_stats."storageId" = storage_candidates."storageId"
+    ORDER BY
+      COALESCE(remote_pin_stats."remotePinsCount", 0) DESC,
+      CASE WHEN COALESCE(storage_object."isPinned", false) THEN 1 ELSE 0 END DESC,
+      GREATEST(
+        COALESCE(content_stats."maxContentPeersCount", 0),
+        COALESCE(post_attachment_stats."maxPostPeersCount", 0),
+        COALESCE(post_direct_stats."maxPostPeersCount", 0),
+        COALESCE(group_direct_stats."maxGroupPeersCount", 0)
+      ) DESC,
+      COALESCE(storage_object.size, content_stats."contentPhysicalBytes", 0) DESC,
+      storage_candidates."storageId" ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceListQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericAvailabilitySignalFields));
+}
+
 function getStorageSpaceListQueryReplacements(listParams) {
   return {
     ...getStorageSpaceQueryReplacements(),
@@ -1020,6 +1283,49 @@ function getPinnedStorageObjectWhereSql(hasRemotePinRefs) {
   return `
     WHERE storage_object."isPinned" = true
       OR remote_pin_stats."remotePinsCount" > 0
+  `;
+}
+
+function getAvailabilityRemotePinStatsSql(hasRemotePinRefs) {
+  if (!hasRemotePinRefs) {
+    return `
+    remote_pin_stats AS (
+      SELECT
+        NULL::text AS "storageId",
+        0::bigint AS "remotePinsCount",
+        0::bigint AS "pinAccountsCount",
+        NULL::text AS "pinServices",
+        NULL::timestamptz AS "latestRemotePinSignalAt"
+      WHERE false
+    )
+    `;
+  }
+  return `
+    remote_pin_stats AS (
+      SELECT
+        "storageId",
+        COUNT(*)::bigint AS "remotePinsCount",
+        COUNT(DISTINCT "pinAccountId")::bigint AS "pinAccountsCount",
+        STRING_AGG(DISTINCT COALESCE(service, :unknownValue), ', ' ORDER BY COALESCE(service, :unknownValue)) AS "pinServices",
+        MAX(COALESCE("checkedAt", "pinnedAt", "updatedAt")) AS "latestRemotePinSignalAt"
+      FROM "pinStorageObjects"
+      WHERE status = :pinnedStatus
+      GROUP BY "storageId"
+    )
+  `;
+}
+
+function getAvailabilityRemotePinCandidateSql(hasRemotePinRefs) {
+  if (!hasRemotePinRefs) {
+    return '';
+  }
+  return `
+      UNION
+
+      SELECT "storageId"
+      FROM "pinStorageObjects"
+      WHERE "storageId" IS NOT NULL
+        AND status = :pinnedStatus
   `;
 }
 
