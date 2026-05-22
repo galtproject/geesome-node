@@ -259,6 +259,43 @@ describe("storage space usage", function () {
 		assert.equal(sharedSignal?.maxPostPeersCount, 5);
 		assert.equal(sharedSignal?.maxPeerCount, 5);
 		assert.equal(sharedSignal?.maxFullyPeerCount, 2);
+		await app.ms.database.models.StorageSpaceAvailabilitySample.create({
+			userId: firstUser.id,
+			storageId: sharedContent.storageId,
+			sampleJson: JSON.stringify({
+				...sharedSignal,
+				providerLookupOk: true,
+				providersCount: 1,
+				providersTruncated: false,
+				providerLookupDurationMs: 12,
+				providerLookupErrorMessage: null,
+				providers: [{id: 'peer-a', multiaddrs: ['/ip4/127.0.0.1/tcp/4001'], protocols: [], source: 'test'}],
+				retrievalStatOk: true,
+				retrievalStatDurationMs: 8,
+				retrievalType: 'file',
+				retrievalMeasuredBytes: sharedSize,
+				retrievalErrorMessage: null,
+			}),
+			providerLookupOk: true,
+			providersCount: 1,
+			providersTruncated: false,
+			providerLookupDurationMs: 12,
+			retrievalStatOk: true,
+			retrievalStatDurationMs: 8,
+			retrievalType: 'file',
+			retrievalMeasuredBytes: sharedSize,
+			sampledAt: new Date('2026-05-22T00:00:00.000Z'),
+		});
+		const availabilitySamples = await app.ms.storageSpace.getStorageSpaceAvailabilityNetworkSamples({
+			storageId: sharedContent.storageId,
+			offset: 99,
+		});
+		assert.equal(availabilitySamples.length, 1);
+		assert.equal(availabilitySamples[0].storageId, sharedContent.storageId);
+		assert.equal(availabilitySamples[0].userId, firstUser.id);
+		assert.equal(availabilitySamples[0].providersCount, 1);
+		assert.equal(availabilitySamples[0].providers[0].id, 'peer-a');
+		assert.equal(availabilitySamples[0].retrievalMeasuredBytes, sharedSize);
 
 		const cleanupBlockers = await app.ms.storageSpace.getStorageSpaceCleanupBlockers({contentId: sharedContent.id});
 		assert.equal(cleanupBlockers.length, 1);

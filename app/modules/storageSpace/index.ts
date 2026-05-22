@@ -3,6 +3,9 @@ import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
 import IGeesomeStorageSpaceModule, {
+  IStorageSpaceAvailabilityNetworkSampleRefreshResult,
+  IStorageSpaceAvailabilityNetworkSampleRow,
+  IStorageSpaceAvailabilityNetworkSignalInspectionRow,
   IStorageSpaceCleanupBlockerRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
@@ -63,9 +66,16 @@ const storageSpaceStorageRemovalHistoryListParams: IListParamsOptions = {
   limit: 20,
   maxLimit: 100,
 };
+const storageSpaceAvailabilitySampleListParams: IListParamsOptions = {
+  limit: 20,
+  maxLimit: 100,
+};
 const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceSnapshotQueueInitialPercent = 1;
+const storageSpaceAvailabilitySampleQueueModuleName = 'storage-space-availability-sample';
+const storageSpaceAvailabilitySampleQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_QUEUE_KICK_BATCH_LIMIT, 1);
+const storageSpaceAvailabilitySampleQueueInitialPercent = 5;
 const storageSpaceStorageRemovalQueueModuleName = 'storage-space-storage-removal';
 const storageSpaceStorageRemovalQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceStorageRemovalQueueInitialPercent = 5;
@@ -145,6 +155,88 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       rows.push(await inspectStorageSpaceAvailabilityNetworkSignal(this.app.ms.storage, signal, listWindow));
     }
     return rows;
+  }
+
+  async getStorageSpaceAvailabilityNetworkSamples(listParams: IListParams = {}) {
+    const listWindow = getStorageSpaceAvailabilitySampleWindow(listParams);
+    const rows = await this.app.ms.database.models.StorageSpaceAvailabilitySample.findAll({
+      where: getStorageSpaceAvailabilitySampleWhere(listWindow),
+      order: [['sampledAt', 'DESC'], ['id', 'DESC']],
+      limit: listWindow.limit,
+      offset: listWindow.offset,
+    });
+    return rows.map(row => getStorageSpaceAvailabilityNetworkSampleResponse(row));
+  }
+
+  async refreshStorageSpaceAvailabilityNetworkSamples(userId?: number, listParams: IListParams = {}): Promise<IStorageSpaceAvailabilityNetworkSampleRefreshResult> {
+    const startedAt = Date.now();
+    const inspections = await this.inspectStorageSpaceAvailabilityNetworkSignals(listParams);
+    const rows = [];
+    for (const inspection of inspections) {
+      rows.push(await this.createStorageSpaceAvailabilityNetworkSample(userId, inspection));
+    }
+    return {
+      sampled: rows.length,
+      durationMs: Date.now() - startedAt,
+      rows,
+    };
+  }
+
+  async createStorageSpaceAvailabilityNetworkSample(userId: number | null | undefined, inspection: IStorageSpaceAvailabilityNetworkSignalInspectionRow) {
+    const sample = await this.app.ms.database.models.StorageSpaceAvailabilitySample.create({
+      userId: userId || null,
+      storageId: inspection.storageId,
+      sampleJson: JSON.stringify(inspection),
+      providerLookupOk: inspection.providerLookupOk === true,
+      providersCount: readNonNegativeNumber(inspection.providersCount),
+      providersTruncated: inspection.providersTruncated === true,
+      providerLookupDurationMs: readNonNegativeNumber(inspection.providerLookupDurationMs),
+      providerLookupErrorMessage: inspection.providerLookupErrorMessage || null,
+      retrievalStatOk: inspection.retrievalStatOk === true,
+      retrievalStatDurationMs: readNonNegativeNumber(inspection.retrievalStatDurationMs),
+      retrievalType: inspection.retrievalType || null,
+      retrievalMeasuredBytes: readNonNegativeNumber(inspection.retrievalMeasuredBytes),
+      retrievalErrorMessage: inspection.retrievalErrorMessage || null,
+      sampledAt: new Date(),
+    });
+    return getStorageSpaceAvailabilityNetworkSampleResponse(sample);
+  }
+
+  async queueStorageSpaceAvailabilityNetworkSampleRefresh(userId: number, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
+    const queue = await this.app.ms.asyncOperation.addUniqueUserOperationQueue(
+      userId,
+      storageSpaceAvailabilitySampleQueueModuleName,
+      userApiKeyId,
+      getStorageSpaceAvailabilitySampleRefreshJobInput(listParams)
+    );
+    if (options.process !== false) {
+      this.startStorageSpaceAvailabilityNetworkSampleRefreshQueueProcessing();
+    }
+    return queue;
+  }
+
+  startStorageSpaceAvailabilityNetworkSampleRefreshQueueProcessing(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, storageSpaceAvailabilitySampleQueueKickBatchLimit);
+    void this.processStorageSpaceAvailabilityNetworkSampleRefreshQueue({limit}).catch((e) => {
+      log('processStorageSpaceAvailabilityNetworkSampleRefreshQueue error', e);
+    });
+  }
+
+  async processStorageSpaceAvailabilityNetworkSampleRefreshQueue(options: any = {}) {
+    const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+    return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceAvailabilitySampleQueueModuleName, {
+      limit,
+      getPayload: (waitingQueue) => parseStorageSpaceAvailabilitySampleRefreshJob(waitingQueue.inputJson),
+      getAsyncOperationData: (_waitingQueue, job) => ({
+        name: 'refresh-storage-space-availability-samples',
+        channel: getStorageSpaceAvailabilitySampleRefreshJobChannel(job),
+        percent: storageSpaceAvailabilitySampleQueueInitialPercent,
+      }),
+      run: async (waitingQueue, _asyncOperation, job) => {
+        const result = await this.refreshStorageSpaceAvailabilityNetworkSamples(waitingQueue.userId, job.listParams);
+        return getStorageSpaceAvailabilitySampleRefreshJobResult(result);
+      },
+    });
   }
 
   async getStorageSpaceCleanupBlockers(listParams: IListParams = {}) {
@@ -468,6 +560,16 @@ function getStorageSpaceAvailabilityNetworkInspectionWindow(listParams: any = {}
   };
 }
 
+function getStorageSpaceAvailabilitySampleWindow(listParams: any = {}) {
+  const listWindow = getStorageSpaceListWindow(listParams, storageSpaceAvailabilitySampleListParams);
+  const storageId = normalizeStorageSpaceStorageId(listParams.storageId);
+  return {
+    ...listWindow,
+    storageId,
+    offset: storageId === null ? listWindow.offset : 0,
+  };
+}
+
 function getStorageSpaceGeneratedOutputChildInspectionWindow(listParams: any = {}) {
   const listWindow = getStorageSpaceListWindow(listParams, storageSpaceChildInspectionListParams);
   return {
@@ -621,6 +723,35 @@ function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
     listLimit: snapshot.listLimit,
     durationMs: snapshot.durationMs,
     createdAt: snapshot.createdAt,
+  };
+}
+
+function getStorageSpaceAvailabilitySampleRefreshJobInput(listParams: IListParams = {}) {
+  return {
+    type: 'refresh-availability-network-samples',
+    listParams: getStorageSpaceAvailabilityNetworkInspectionWindow(listParams),
+  };
+}
+
+function parseStorageSpaceAvailabilitySampleRefreshJob(inputJson) {
+  const job = typeof inputJson === 'string' ? JSON.parse(inputJson) : inputJson;
+  if (job?.type !== 'refresh-availability-network-samples') {
+    throw new Error('invalid_storage_space_availability_sample_job_type');
+  }
+  return getStorageSpaceAvailabilitySampleRefreshJobInput(job.listParams);
+}
+
+function getStorageSpaceAvailabilitySampleRefreshJobChannel(job) {
+  const storageId = job.listParams.storageId || 'page';
+  return `${storageSpaceAvailabilitySampleQueueModuleName}:${storageId}:limit:${job.listParams.limit}`;
+}
+
+function getStorageSpaceAvailabilitySampleRefreshJobResult(result: IStorageSpaceAvailabilityNetworkSampleRefreshResult) {
+  return {
+    sampled: result.sampled,
+    durationMs: result.durationMs,
+    sampleIds: result.rows.map(row => row.id),
+    storageIds: result.rows.map(row => row.storageId),
   };
 }
 
@@ -779,6 +910,56 @@ function isMissingStorageObjectError(e) {
 
 function getStorageObjectErrorMessage(e) {
   return e?.message || String(e);
+}
+
+function getStorageSpaceAvailabilitySampleWhere(listWindow) {
+  const where = {};
+  if (listWindow.storageId) {
+    where['storageId'] = listWindow.storageId;
+  }
+  return where;
+}
+
+function getStorageSpaceAvailabilityNetworkSampleResponse(row): IStorageSpaceAvailabilityNetworkSampleRow {
+  const data = typeof row?.toJSON === 'function' ? row.toJSON() : row;
+  const sample = parseStorageSpaceAvailabilitySampleJson(data?.sampleJson);
+  return {
+    ...sample,
+    id: data.id,
+    userId: data.userId || null,
+    storageId: data.storageId || sample.storageId,
+    providerLookupOk: data.providerLookupOk === true,
+    providersCount: readNonNegativeNumber(data.providersCount),
+    providersTruncated: data.providersTruncated === true,
+    providerLookupDurationMs: readNonNegativeNumber(data.providerLookupDurationMs),
+    providerLookupErrorMessage: data.providerLookupErrorMessage || sample.providerLookupErrorMessage || null,
+    retrievalStatOk: data.retrievalStatOk === true,
+    retrievalStatDurationMs: readNonNegativeNumber(data.retrievalStatDurationMs),
+    retrievalType: data.retrievalType || sample.retrievalType || null,
+    retrievalMeasuredBytes: readNonNegativeNumber(data.retrievalMeasuredBytes),
+    retrievalErrorMessage: data.retrievalErrorMessage || sample.retrievalErrorMessage || null,
+    sampledAt: data.sampledAt || null,
+    createdAt: data.createdAt || null,
+    updatedAt: data.updatedAt || null,
+  };
+}
+
+function parseStorageSpaceAvailabilitySampleJson(sampleJson) {
+  if (!sampleJson) {
+    return {};
+  }
+  if (typeof sampleJson !== 'string') {
+    return sampleJson;
+  }
+  return JSON.parse(sampleJson);
+}
+
+function readNonNegativeNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
 }
 
 async function updateStorageSpaceSnapshotRefreshProgress(app: IGeesomeApp, asyncOperation, progress: IStorageSpaceSnapshotProgress) {
