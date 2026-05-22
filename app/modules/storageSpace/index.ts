@@ -34,6 +34,10 @@ const storageSpaceChildInspectionListParams: IListParamsOptions = {
 };
 const storageSpaceChildInspectionDefaultChildLimit = 50;
 const storageSpaceChildInspectionMaxChildLimit = 200;
+const storageSpaceChildInspectionDefaultDepthLimit = 1;
+const storageSpaceChildInspectionMaxDepthLimit = 5;
+const storageSpaceChildInspectionDefaultNodeLimit = 200;
+const storageSpaceChildInspectionMaxNodeLimit = 1000;
 const storageSpaceCleanupBlockerListParams: IListParamsOptions = {
   limit: 10,
   maxLimit: 25,
@@ -139,7 +143,7 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     const refs = await storageSpaceQueries.getStorageSpaceGeneratedOutputRefs(this.app.ms.database.sequelize, listWindow);
     const rows = [];
     for (const ref of refs) {
-      rows.push(await inspectGeneratedOutputChildRefs(this.app, ref, listWindow.childLimit));
+      rows.push(await inspectGeneratedOutputChildRefs(this.app, ref, listWindow));
     }
     return rows;
   }
@@ -267,6 +271,14 @@ function getStorageSpaceGeneratedOutputChildInspectionWindow(listParams: any = {
     childLimit: Math.min(
       parsePositiveInteger(listParams.childLimit, storageSpaceChildInspectionDefaultChildLimit),
       storageSpaceChildInspectionMaxChildLimit
+    ),
+    depthLimit: Math.min(
+      parsePositiveInteger(listParams.depthLimit, storageSpaceChildInspectionDefaultDepthLimit),
+      storageSpaceChildInspectionMaxDepthLimit
+    ),
+    nodeLimit: Math.min(
+      parsePositiveInteger(listParams.nodeLimit, storageSpaceChildInspectionDefaultNodeLimit),
+      storageSpaceChildInspectionMaxNodeLimit
     ),
   };
 }

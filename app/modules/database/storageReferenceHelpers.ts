@@ -15,8 +15,14 @@ export async function countStorageObjectChildReferences(models, sequelize, stora
   }
   let count = 0;
   for (const sourceStorageId of sourceStorageIds) {
-    const sourceRefsCount = await countDirectDerivedStorageIdReferences(models, sequelize, sourceStorageId, options);
-    if (sourceRefsCount <= 0) {
+    const sourceVisible = await isStorageObjectReferenceSourceVisible(
+      models,
+      sequelize,
+      referenceModel,
+      sourceStorageId,
+      options
+    );
+    if (!sourceVisible) {
       continue;
     }
     count += await referenceModel.count({
@@ -27,6 +33,31 @@ export async function countStorageObjectChildReferences(models, sequelize, stora
     });
   }
   return count;
+}
+
+async function isStorageObjectReferenceSourceVisible(
+  models,
+  sequelize,
+  referenceModel,
+  sourceStorageId,
+  options,
+  visited = new Set<string>()
+) {
+  if (visited.has(sourceStorageId)) {
+    return false;
+  }
+  visited.add(sourceStorageId);
+  const sourceRefsCount = await countDirectDerivedStorageIdReferences(models, sequelize, sourceStorageId, options);
+  if (sourceRefsCount > 0) {
+    return true;
+  }
+  const parentStorageIds = await getStorageObjectChildReferenceSourceIds(referenceModel, sourceStorageId);
+  for (const parentStorageId of parentStorageIds) {
+    if (await isStorageObjectReferenceSourceVisible(models, sequelize, referenceModel, parentStorageId, options, visited)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function countDirectDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {

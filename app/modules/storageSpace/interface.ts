@@ -242,6 +242,8 @@ export interface IStorageSpaceGeneratedOutputChildRefInspectionRow {
   source: string;
   parentStorageId: string;
   storageId: string;
+  depth?: number;
+  path?: string | null;
   name?: string | null;
   type?: string | null;
   measuredBytes: number;
@@ -255,8 +257,11 @@ export interface IStorageSpaceGeneratedOutputChildRefInspectionRow {
 
 export interface IStorageSpaceGeneratedOutputChildInspectionRow extends IStorageSpaceGeneratedOutputInspectionRow {
   childLimit: number;
+  depthLimit?: number;
+  nodeLimit?: number;
   childrenCount: number;
   inspectedChildrenCount: number;
+  inspectedParentStorageIds?: string[];
   knownChildrenCount: number;
   unknownChildrenCount: number;
   childMeasuredBytes: number;

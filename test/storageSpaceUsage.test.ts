@@ -265,33 +265,42 @@ describe("storage space usage", function () {
 		const childInspections = await app.ms.storageSpace.inspectStorageSpaceGeneratedOutputChildRefs({
 			storageId: generatedUnknownDirectory.id,
 			childLimit: 10,
+			depthLimit: 2,
+			nodeLimit: 20,
 		});
 		const directoryChildInspection = childInspections[0];
 		assert.equal(directoryChildInspection?.storageId, generatedUnknownDirectory.id);
 		assert.equal(directoryChildInspection?.ok, true);
-		assert.equal(directoryChildInspection?.childrenCount >= 2, true);
-		assert.equal(directoryChildInspection?.inspectedChildrenCount >= 2, true);
-		assert.equal(directoryChildInspection?.unknownChildrenCount >= 2, true);
+		assert.equal(directoryChildInspection?.childrenCount >= 3, true);
+		assert.equal(directoryChildInspection?.inspectedChildrenCount >= 4, true);
+		assert.equal(directoryChildInspection?.inspectedParentStorageIds.length >= 2, true);
+		assert.equal(directoryChildInspection?.unknownChildrenCount >= 4, true);
 		assert.equal(directoryChildInspection?.childMeasuredBytes > 0, true);
 		assert.equal(directoryChildInspection?.children.some(child => child.name === 'index.html'), true);
+		assert.equal(directoryChildInspection?.children.some(child => child.name === 'nested.txt' && child.depth === 2), true);
 
 		const childReconcileResult = await app.ms.storageSpace.reconcileStorageSpaceGeneratedOutputChildRefs({
 			storageId: generatedUnknownDirectory.id,
 			childLimit: 10,
+			depthLimit: 2,
+			nodeLimit: 20,
 		});
 		assert.equal(childReconcileResult.inspectedParents, 1);
-		assert.equal(childReconcileResult.inspectedChildren >= 2, true);
-		assert.equal(childReconcileResult.reconciled >= 2, true);
+		assert.equal(childReconcileResult.inspectedChildren >= 4, true);
+		assert.equal(childReconcileResult.reconciled >= 4, true);
 
 		const reconciledChild = childReconcileResult.rows.find(row => row.name === 'index.html');
 		assert.equal(!!reconciledChild?.storageObjectId, true);
 		assert.equal(!!await app.ms.database.getStorageObjectByStorageId(reconciledChild.storageId), true);
+		const reconciledNestedChild = childReconcileResult.rows.find(row => row.name === 'nested.txt');
+		assert.equal(!!reconciledNestedChild?.storageObjectId, true);
+		assert.equal(!!await app.ms.database.getStorageObjectByStorageId(reconciledNestedChild.storageId), true);
 		const generatedChildContent = await app.ms.database.addContent({
 			userId: firstUser.id,
 			storageType: ContentStorageType.IPFS,
 			mimeType: ContentMimeType.Text,
-			storageId: reconciledChild.storageId,
-			size: reconciledChild.measuredBytes,
+			storageId: reconciledNestedChild.storageId,
+			size: reconciledNestedChild.measuredBytes,
 			name: 'generated child reused content',
 		});
 		const generatedChildSafety = await app.ms.database.getContentDeleteSafety(generatedChildContent);
@@ -383,9 +392,12 @@ async function saveGeneratedOutputDirectory(app: IGeesomeApp) {
 	const dirPath = `/storage-space-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 	const indexFile = await app.ms.storage.saveFileByData('<html>generated child</html>');
 	const assetFile = await app.ms.storage.saveFileByData('generated asset child');
+	const nestedFile = await app.ms.storage.saveFileByData('nested generated asset child');
 	await app.ms.storage.makeDir(dirPath);
+	await app.ms.storage.makeDir(`${dirPath}/nested`);
 	await app.ms.storage.copyFileFromId(indexFile.id, `${dirPath}/index.html`);
 	await app.ms.storage.copyFileFromId(assetFile.id, `${dirPath}/asset.txt`);
+	await app.ms.storage.copyFileFromId(nestedFile.id, `${dirPath}/nested/nested.txt`);
 	return {id: await app.ms.storage.getDirectoryId(dirPath)};
 }
 

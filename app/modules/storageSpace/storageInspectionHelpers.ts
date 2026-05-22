@@ -37,20 +37,16 @@ export async function inspectStorageSpaceGeneratedOutputRef(storage: IGeesomeSto
 export async function inspectStorageSpaceGeneratedOutputChildRefs(
   app: IGeesomeApp,
   ref: IStorageSpaceGeneratedOutputRefRow,
-  childLimit: number
+  options: any
 ) {
+  const inspectOptions = getGeneratedOutputChildInspectionOptions(options);
   const parentInspection = await inspectStorageSpaceGeneratedOutputRef(app.ms.storage, ref);
   if (!parentInspection.ok) {
-    return getGeneratedOutputChildInspection(parentInspection, childLimit, [], 0);
+    return getGeneratedOutputChildInspection(parentInspection, inspectOptions, getEmptyGeneratedOutputChildTraversalResult());
   }
 
-  try {
-    const childEntries = normalizeStorageLsEntries(await app.ms.storage.nodeLs(ref.storageId));
-    const childRows = await getGeneratedOutputChildRows(app, ref, childEntries.slice(0, childLimit));
-    return getGeneratedOutputChildInspection(parentInspection, childLimit, childRows, childEntries.length);
-  } catch (e) {
-    return getGeneratedOutputChildInspection(parentInspection, childLimit, [], 0, getStorageInspectionErrorMessage(e));
-  }
+  const traversalResult = await getGeneratedOutputChildTraversal(app, ref, inspectOptions);
+  return getGeneratedOutputChildInspection(parentInspection, inspectOptions, traversalResult);
 }
 
 export async function reconcileStorageSpaceGeneratedOutputRef(
@@ -103,19 +99,16 @@ export async function replaceStorageSpaceGeneratedOutputChildReferences(
   if (children.some(child => !child.reconciled)) {
     return [];
   }
-  return app.ms.database.replaceStorageObjectReferences(
-    inspection.storageId,
-    StorageObjectReferenceType.GeneratedOutputChild,
-    children
-      .filter(child => child.reconciled && child.storageId)
-      .map(child => ({
-        targetStorageId: child.storageId,
-        source: child.source,
-        name: child.name,
-        targetType: child.type,
-        targetSize: child.measuredBytes,
-      }))
-  );
+  const rows = [];
+  const childrenByParent = getGeneratedOutputChildRowsByParent(children);
+  for (const parentStorageId of getInspectedGeneratedOutputParentStorageIds(inspection)) {
+    rows.push(...await app.ms.database.replaceStorageObjectReferences(
+      parentStorageId,
+      StorageObjectReferenceType.GeneratedOutputChild,
+      getGeneratedOutputChildReferenceRows(childrenByParent.get(parentStorageId) || [])
+    ));
+  }
+  return rows;
 }
 
 export function getStorageSpaceGeneratedOutputReconcileResult(rows: IStorageSpaceGeneratedOutputReconcileRow[]) {
@@ -141,26 +134,6 @@ export function getStorageSpaceGeneratedOutputChildReconcileResult(
   };
 }
 
-async function getGeneratedOutputChildRows(app: IGeesomeApp, ref: IStorageSpaceGeneratedOutputRefRow, childEntries) {
-  const childRows = childEntries
-    .map(entry => getGeneratedOutputChildRow(ref, entry))
-    .filter(row => row.storageId);
-  const knownStorageObjects = await getKnownStorageObjectsByStorageId(app, childRows.map(row => row.storageId));
-
-  return childRows.map((row) => {
-    const storageObject = knownStorageObjects.get(row.storageId);
-    if (!storageObject) {
-      return row;
-    }
-    return {
-      ...row,
-      knownStorageObject: true,
-      storageObjectId: storageObject.id || null,
-      storageObjectBytes: parseStorageStatNumber(storageObject.size),
-    };
-  });
-}
-
 async function getKnownStorageObjectsByStorageId(app: IGeesomeApp, storageIds: string[]) {
   if (!storageIds.length) {
     return new Map();
@@ -176,16 +149,20 @@ async function getKnownStorageObjectsByStorageId(app: IGeesomeApp, storageIds: s
 
 function getGeneratedOutputChildRow(
   ref: IStorageSpaceGeneratedOutputRefRow,
-  entry
+  entry,
+  parent: any = {storageId: ref.storageId, depth: 0, path: ''}
 ): IStorageSpaceGeneratedOutputChildRefInspectionRow {
   const statSize = parseStorageStatNumber(entry?.size);
   const cumulativeSize = parseStorageStatNumber(entry?.cumulativeSize);
   const blocksSize = parseStorageStatNumber(entry?.blocksSize);
+  const name = normalizeStorageLsEntryName(entry);
   return {
     source: ref.source,
-    parentStorageId: ref.storageId,
+    parentStorageId: parent.storageId,
     storageId: normalizeStorageId(entry?.cid || entry?.hash || entry?.Hash || entry?.path),
-    name: normalizeStorageLsEntryName(entry),
+    depth: parent.depth + 1,
+    path: getGeneratedOutputChildPath(parent.path, name),
+    name,
     type: normalizeStorageLsEntryType(entry),
     measuredBytes: getStorageStatMeasuredBytes(entry),
     statSize,
@@ -199,27 +176,123 @@ function getGeneratedOutputChildRow(
 
 function getGeneratedOutputChildInspection(
   parentInspection: IStorageSpaceGeneratedOutputInspectionRow,
-  childLimit: number,
-  children: IStorageSpaceGeneratedOutputChildRefInspectionRow[],
-  childrenCount: number,
-  childErrorMessage: string | null = null
+  options: any,
+  traversalResult: any
 ): IStorageSpaceGeneratedOutputChildInspectionRow {
+  const children = traversalResult.children;
   const knownChildren = children.filter(child => child.knownStorageObject);
   const unknownChildren = children.filter(child => !child.knownStorageObject);
   return {
     ...parentInspection,
-    childLimit,
-    childrenCount,
+    childLimit: options.childLimit,
+    depthLimit: options.depthLimit,
+    nodeLimit: options.nodeLimit,
+    childrenCount: traversalResult.childrenCount,
     inspectedChildrenCount: children.length,
+    inspectedParentStorageIds: traversalResult.inspectedParentStorageIds,
     knownChildrenCount: knownChildren.length,
     unknownChildrenCount: unknownChildren.length,
     childMeasuredBytes: sumStorageBytes(children.map(child => child.measuredBytes)),
     knownChildPhysicalBytes: sumStorageBytes(knownChildren.map(child => child.storageObjectBytes ?? child.measuredBytes)),
     unknownChildMeasuredBytes: sumStorageBytes(unknownChildren.map(child => child.measuredBytes)),
-    childrenTruncated: childrenCount > children.length,
-    childErrorMessage,
+    childrenTruncated: traversalResult.childrenTruncated,
+    childErrorMessage: traversalResult.childErrorMessage,
     children,
   };
+}
+
+async function getGeneratedOutputChildTraversal(app: IGeesomeApp, ref: IStorageSpaceGeneratedOutputRefRow, options) {
+  const traversal = getEmptyGeneratedOutputChildTraversalResult();
+  try {
+    await collectGeneratedOutputChildRows(app, ref, {
+      storageId: ref.storageId,
+      depth: 0,
+      path: '',
+    }, options, traversal);
+  } catch (e) {
+    traversal.childErrorMessage = getStorageInspectionErrorMessage(e);
+  }
+  if (!traversal.children.length) {
+    return traversal;
+  }
+  traversal.children = await hydrateGeneratedOutputChildRows(app, traversal.children);
+  return traversal;
+}
+
+async function collectGeneratedOutputChildRows(app: IGeesomeApp, ref: IStorageSpaceGeneratedOutputRefRow, parent, options, traversal) {
+  if (parent.depth >= options.depthLimit) {
+    return;
+  }
+  if (traversal.children.length >= options.nodeLimit) {
+    traversal.childrenTruncated = true;
+    return;
+  }
+  traversal.inspectedParentStorageIds.push(parent.storageId);
+  const childEntries = normalizeStorageLsEntries(await app.ms.storage.nodeLs(parent.storageId));
+  traversal.childrenCount += childEntries.length;
+  const nextEntries = getGeneratedOutputChildEntriesWithinLimits(childEntries, options, traversal);
+  for (const entry of nextEntries) {
+    const child = getGeneratedOutputChildRow(ref, entry, parent);
+    if (!child.storageId) {
+      continue;
+    }
+    traversal.children.push(child);
+    if (!shouldInspectGeneratedOutputChild(child, options, traversal)) {
+      continue;
+    }
+    await collectGeneratedOutputChildRows(app, ref, {
+      storageId: child.storageId,
+      depth: child.depth,
+      path: child.path || '',
+    }, options, traversal);
+  }
+}
+
+async function hydrateGeneratedOutputChildRows(app: IGeesomeApp, childRows: IStorageSpaceGeneratedOutputChildRefInspectionRow[]) {
+  const knownStorageObjects = await getKnownStorageObjectsByStorageId(app, childRows.map(row => row.storageId));
+  return childRows.map((row) => {
+    const storageObject = knownStorageObjects.get(row.storageId);
+    if (!storageObject) {
+      return row;
+    }
+    return {
+      ...row,
+      knownStorageObject: true,
+      storageObjectId: storageObject.id || null,
+      storageObjectBytes: parseStorageStatNumber(storageObject.size),
+    };
+  });
+}
+
+function getEmptyGeneratedOutputChildTraversalResult() {
+  return {
+    children: [],
+    childrenCount: 0,
+    inspectedParentStorageIds: [],
+    childrenTruncated: false,
+    childErrorMessage: null,
+  };
+}
+
+function getGeneratedOutputChildEntriesWithinLimits(childEntries, options, traversal) {
+  const remainingNodeLimit = options.nodeLimit - traversal.children.length;
+  const limit = Math.min(options.childLimit, Math.max(remainingNodeLimit, 0));
+  const nextEntries = childEntries.slice(0, limit);
+  if (childEntries.length > nextEntries.length) {
+    traversal.childrenTruncated = true;
+  }
+  return nextEntries;
+}
+
+function shouldInspectGeneratedOutputChild(child: IStorageSpaceGeneratedOutputChildRefInspectionRow, options, traversal) {
+  if (traversal.children.length >= options.nodeLimit) {
+    traversal.childrenTruncated = true;
+    return false;
+  }
+  if (child.depth >= options.depthLimit) {
+    return false;
+  }
+  return isStorageDirectoryType(child.type);
 }
 
 function getFailedGeneratedOutputInspection(ref: IStorageSpaceGeneratedOutputRefRow, error) {
@@ -261,6 +334,53 @@ function normalizeStorageId(value) {
   return String(value);
 }
 
+function getGeneratedOutputChildInspectionOptions(options: any = {}) {
+  return {
+    childLimit: options.childLimit || 50,
+    depthLimit: options.depthLimit || 1,
+    nodeLimit: options.nodeLimit || options.childLimit || 50,
+  };
+}
+
+function getGeneratedOutputChildRowsByParent(children: IStorageSpaceGeneratedOutputChildReconcileRow[]) {
+  const childrenByParent = new Map<string, IStorageSpaceGeneratedOutputChildReconcileRow[]>();
+  for (const child of children) {
+    const parentRows = childrenByParent.get(child.parentStorageId) || [];
+    parentRows.push(child);
+    childrenByParent.set(child.parentStorageId, parentRows);
+  }
+  return childrenByParent;
+}
+
+function getInspectedGeneratedOutputParentStorageIds(inspection: IStorageSpaceGeneratedOutputChildInspectionRow) {
+  if (inspection.inspectedParentStorageIds?.length) {
+    return [...new Set(inspection.inspectedParentStorageIds)];
+  }
+  return [inspection.storageId];
+}
+
+function getGeneratedOutputChildReferenceRows(children: IStorageSpaceGeneratedOutputChildReconcileRow[]) {
+  return children
+    .filter(child => child.reconciled && child.storageId)
+    .map(child => ({
+      targetStorageId: child.storageId,
+      source: child.source,
+      name: child.name,
+      targetType: child.type,
+      targetSize: child.measuredBytes,
+    }));
+}
+
+function getGeneratedOutputChildPath(parentPath, name) {
+  if (!name) {
+    return parentPath || null;
+  }
+  if (!parentPath) {
+    return name;
+  }
+  return `${parentPath}/${name}`;
+}
+
 function shouldReplaceStorageSpaceGeneratedOutputChildReferences(inspection: IStorageSpaceGeneratedOutputChildInspectionRow) {
   if (!inspection.ok) {
     return false;
@@ -272,6 +392,10 @@ function shouldReplaceStorageSpaceGeneratedOutputChildReferences(inspection: ISt
     return false;
   }
   return true;
+}
+
+function isStorageDirectoryType(type) {
+  return type === 'directory' || type === 'dir';
 }
 
 function normalizeStorageLsEntryName(entry) {
