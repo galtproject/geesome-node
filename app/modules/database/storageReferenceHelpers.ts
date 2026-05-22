@@ -60,8 +60,20 @@ async function isStorageObjectReferenceSourceVisible(
     return false;
   }
   visited.add(sourceStorageId);
+  const sourceContentRefsCount = await countStorageObjectReferenceSourceContents(models, sequelize, sourceStorageId, options);
+  if (sourceContentRefsCount > 0) {
+    return true;
+  }
   const sourceRefsCount = await countDirectDerivedStorageIdReferences(models, sequelize, sourceStorageId, options);
   if (sourceRefsCount > 0) {
+    return true;
+  }
+  const pinnedSourceRefsCount = await countPinnedStorageObjectReferences(models, sequelize, sourceStorageId);
+  if (pinnedSourceRefsCount > 0) {
+    return true;
+  }
+  const remotePinSourceRefsCount = await countRemotePinReferences(models, sequelize, sourceStorageId);
+  if (remotePinSourceRefsCount > 0) {
     return true;
   }
   const parentStorageIds = await getStorageObjectChildReferenceSourceIds(referenceModel, sourceStorageId);
@@ -81,6 +93,31 @@ async function countDirectDerivedStorageIdReferences(models, sequelize, storageI
     countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
   ]);
   return refCounts.reduce((sum, count) => sum + count, 0);
+}
+
+async function countStorageObjectReferenceSourceContents(models, sequelize, sourceStorageId, options: any = {}) {
+  const contentModel = getReferenceModel(models, sequelize, ['Content', 'content']);
+  if (!contentModel) {
+    return 0;
+  }
+  const where: any = {storageId: sourceStorageId};
+  if (options.excludeContentId) {
+    where.id = {[Op.ne]: options.excludeContentId};
+  }
+  return contentModel.count({where});
+}
+
+async function countPinnedStorageObjectReferences(models, sequelize, storageId) {
+  const storageObjectModel = getReferenceModel(models, sequelize, ['StorageObject', 'storageObject']);
+  if (!storageObjectModel) {
+    return 0;
+  }
+  return storageObjectModel.count({
+    where: {
+      storageId,
+      isPinned: true,
+    },
+  });
 }
 
 async function getStorageObjectChildReferenceSourceIds(referenceModel, targetStorageId: string) {

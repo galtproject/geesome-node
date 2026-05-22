@@ -157,11 +157,19 @@ describe("app", function () {
 		const content = await app.ms.content.saveData(testUser.id, 'Queued removal body', 'queued-removal.txt', {
 			mimeType: 'text/plain'
 		});
+		const previewStorageId = `${content.storageId}-preview`;
 		const fileItem = await fileCatalog.saveContentByPath(testUser.id, '/queued-removal.txt', content.id);
 		const extraCatalogItems = await fileCatalog.getFileCatalogItemsByContent(testUser.id, content.id, FileCatalogItemType.File);
 		const storageSpace = app.ms['storageSpace'] as any;
 		const originalQueueStorageObjectRemoval = storageSpace.queueStorageObjectRemoval.bind(storageSpace);
 		const queuedStorageIds = [];
+
+		await app.ms.database.updateContent(content.id, {
+			mediumPreviewStorageId: previewStorageId,
+			mediumPreviewSize: 7,
+			previewMimeType: 'text/plain',
+			previewExtension: 'txt',
+		});
 
 		storageSpace.queueStorageObjectRemoval = async (queuedUserId, userApiKeyId, storageId, options) => {
 			queuedStorageIds.push({queuedUserId, userApiKeyId, storageId, options});
@@ -178,7 +186,7 @@ describe("app", function () {
 		}
 
 		assert.equal(await app.ms.database.getContent(content.id), null);
-		assert.deepEqual(queuedStorageIds.map((row) => row.storageId), [content.storageId]);
+		assert.deepEqual(queuedStorageIds.map((row) => row.storageId).sort(), [content.storageId, previewStorageId].sort());
 		assert.equal(queuedStorageIds[0].queuedUserId, testUser.id);
 	});
 

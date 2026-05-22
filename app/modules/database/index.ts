@@ -388,7 +388,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // A1 reference-count helper for physical storage objects. Used by deleteFileCatalogItem before
   // unpinning/removing the storage object so a delete by one user cannot break another user's row,
   // a Content row that uses the storageId as a preview, or a future canonical asset.
-  async countStorageIdReferences(storageId, excludeContentId?: number, options: {excludeFileCatalogItemId?: number} = {}) {
+  async countStorageIdReferences(storageId, excludeContentId?: number, options: IStorageIdReferenceOptions = {}) {
     const otherContentsWhere: any = {storageId};
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
@@ -416,7 +416,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
       countRemotePinReferences(this.models, this.sequelize, storageId),
       countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
-      countStorageObjectChildReferences(this.models, this.sequelize, storageId, options),
+      countStorageObjectChildReferences(this.models, this.sequelize, storageId, {
+        ...options,
+        excludeContentId,
+      }),
     ]);
     return {
       otherContents,
@@ -703,7 +706,31 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (!storageObjectData) {
       return null;
     }
-    return this.syncStorageObject(storageObjectData, options);
+    const run = async (transaction) => {
+      const transactionOptions = {...options, transaction};
+      const storageObject = await this.syncStorageObject(storageObjectData, transactionOptions);
+      await this.syncStorageObjectPreviewsForContent(content, transactionOptions);
+      await this.replaceStorageObjectReferences(
+        storageObjectData.storageId,
+        StorageObjectReferenceType.Preview,
+        getStorageObjectPreviewReferences(content),
+        transactionOptions
+      );
+      return storageObject;
+    };
+    if (options.transaction) {
+      return run(options.transaction);
+    }
+    return this.sequelize.transaction(run);
+  }
+
+  async syncStorageObjectPreviewsForContent(content, options: any = {}) {
+    const previewStorageObjects = getStorageObjectPreviewDataList(content);
+    const rows = [];
+    for (const previewStorageObject of previewStorageObjects) {
+      rows.push(await this.syncStorageObject(previewStorageObject, options));
+    }
+    return rows.filter(Boolean);
   }
 
   async checkUserContentActionLimit(userId, limitName: UserLimitName, actionSize, transaction) {
@@ -811,6 +838,77 @@ function getStorageObjectData(content) {
     storageObjectData.isPinned = true;
   }
   return storageObjectData;
+}
+
+function getStorageObjectPreviewDataList(content) {
+  const contentData = typeof content?.toJSON === 'function' ? content.toJSON() : content;
+  if (!contentData?.storageId) {
+    return [];
+  }
+  return uniqueStorageObjectPreviewRows(getStorageObjectPreviewFields(contentData)
+    .filter(preview => preview.storageId !== contentData.storageId)
+    .map(preview => ({
+      storageId: preview.storageId,
+      storageType: contentData.storageType,
+      mimeType: contentData.previewMimeType,
+      extension: contentData.previewExtension,
+      size: preview.size,
+    })));
+}
+
+function getStorageObjectPreviewReferences(content) {
+  const contentData = typeof content?.toJSON === 'function' ? content.toJSON() : content;
+  if (!contentData?.storageId) {
+    return [];
+  }
+  return uniqueStorageObjectPreviewReferences(getStorageObjectPreviewFields(contentData)
+    .filter(preview => preview.storageId !== contentData.storageId)
+    .map(preview => ({
+      targetStorageId: preview.storageId,
+      source: preview.field,
+      name: preview.name,
+      targetType: contentData.previewMimeType,
+      targetSize: preview.size,
+    })));
+}
+
+function getStorageObjectPreviewFields(contentData) {
+  return [
+    getStorageObjectPreviewField(contentData, 'large'),
+    getStorageObjectPreviewField(contentData, 'medium'),
+    getStorageObjectPreviewField(contentData, 'small'),
+  ].filter(preview => preview.storageId);
+}
+
+function getStorageObjectPreviewField(contentData, name) {
+  return {
+    name,
+    field: `${name}PreviewStorageId`,
+    storageId: contentData[`${name}PreviewStorageId`],
+    size: contentData[`${name}PreviewSize`],
+  };
+}
+
+function uniqueStorageObjectPreviewRows(rows) {
+  const seenStorageIds = new Set<string>();
+  return rows.filter((row) => {
+    if (seenStorageIds.has(row.storageId)) {
+      return false;
+    }
+    seenStorageIds.add(row.storageId);
+    return true;
+  });
+}
+
+function uniqueStorageObjectPreviewReferences(references) {
+  const seenTargetStorageIds = new Set<string>();
+  return references.filter((reference) => {
+    if (seenTargetStorageIds.has(reference.targetStorageId)) {
+      return false;
+    }
+    seenTargetStorageIds.add(reference.targetStorageId);
+    return true;
+  });
 }
 
 function hasStorageObjectMetadata(updateData) {
