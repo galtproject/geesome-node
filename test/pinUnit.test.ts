@@ -3,7 +3,13 @@ import axios from "axios";
 import {getModule as getPinModule} from "../app/modules/pin/index.js";
 import {IGeesomeApp} from "../app/interface.js";
 
-function createPinModule(accounts: any[] = [], contentByStorageId: Record<string, any> = {}, editableGroupIds: number[] = [1], markedStorageObjects: any[] = []) {
+function createPinModule(
+	accounts: any[] = [],
+	contentByStorageId: Record<string, any> = {},
+	editableGroupIds: number[] = [1],
+	markedStorageObjects: any[] = [],
+	pinnedStorageObjects: any[] = []
+) {
 	return getPinModule({
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
 		decryptTextWithAppPass: async (text) => text.replace(/^encrypted:/, ""),
@@ -88,6 +94,22 @@ function createPinModule(accounts: any[] = [], contentByStorageId: Record<string
 				}
 				accounts.splice(index, 1);
 				return 1;
+			}
+		},
+		PinStorageObject: {
+			findOrCreate: async ({where, defaults}) => {
+				const existing = pinnedStorageObjects.find((item) => {
+					return Object.keys(where).every((key) => item[key] === where[key]);
+				});
+				if (existing) {
+					return [existing, false];
+				}
+				const created = createPinnedStorageObjectRecord({
+					id: pinnedStorageObjects.length + 1,
+					...defaults
+				});
+				pinnedStorageObjects.push(created);
+				return [created, true];
 			}
 		}
 	});
@@ -252,12 +274,14 @@ describe("pin negative paths", function () {
 
 	it("marks content and storage object pinned after a successful remote pin", async () => {
 		axios.post = async () => {
-			return {data: {ok: true}};
+			return {data: {IpfsHash: "storage-id", ok: true}};
 		};
 		const content: any = {id: 12, userId: 1, storageId: "storage-id", name: "content-name", isPinned: false};
 		const markedStorageObjects: any[] = [];
+		const pinnedStorageObjects: any[] = [];
 		const pins = createPinModule(
 			[{
+				id: 4,
 				userId: 1,
 				name: "pinata",
 				service: "pinata",
@@ -266,7 +290,8 @@ describe("pin negative paths", function () {
 			}],
 			{"storage-id": content},
 			[1],
-			markedStorageObjects
+			markedStorageObjects,
+			pinnedStorageObjects
 		);
 
 		await pins.pinByUserAccount(1, "pinata", "storage-id");
@@ -274,6 +299,13 @@ describe("pin negative paths", function () {
 		assert.equal(content.isPinned, true);
 		assert.equal(content.storageObjectPinned, true);
 		assert.deepEqual(markedStorageObjects.map(item => item.storageId), ["storage-id"]);
+		assert.equal(pinnedStorageObjects.length, 1);
+		assert.equal(pinnedStorageObjects[0].storageId, "storage-id");
+		assert.equal(pinnedStorageObjects[0].pinAccountId, 4);
+		assert.equal(pinnedStorageObjects[0].accountName, "pinata");
+		assert.equal(pinnedStorageObjects[0].service, "pinata");
+		assert.equal(pinnedStorageObjects[0].status, "pinned");
+		assert.equal(pinnedStorageObjects[0].resultJson.includes("pinata-secret"), false);
 	});
 
 	it("caps and orders pin account lists", async () => {
@@ -327,3 +359,15 @@ describe("pin negative paths", function () {
 		);
 	});
 });
+
+function createPinnedStorageObjectRecord(data) {
+	const record = {
+		...data,
+		update: async (updateData) => {
+			Object.assign(record, updateData);
+			return record;
+		},
+		toJSON: () => record
+	};
+	return record;
+}

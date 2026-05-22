@@ -154,6 +154,10 @@ function modelRows(): ModelRow[] {
     && has(databaseModuleSource, 'pinnedStorageObjects')
     && has(databaseModuleSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'")
     && has(pinIndexSource, 'markStorageObjectPinnedByContent');
+  const hasPinStorageObjectLedger = has(pinSource, 'PinStorageObject')
+    && has(pinSource, 'pin_storage_objects_account_storage_unique')
+    && has(pinIndexSource, 'recordPinnedStorageObject')
+    && has(databaseModuleSource, 'remotePinRefs');
   const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
     && has(storageObjectIntegritySource, 'repairStorageObjects')
     && has(storageObjectIntegritySource, 'CONFIRM_STORAGE_OBJECT_REPAIR')
@@ -313,9 +317,13 @@ function modelRows(): ModelRow[] {
       notes: [
         hasStorageObjectRegistry
           ? (hasStorageObjectPinState
-            ? (hasStorageObjectReconciliation
-              ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, delete safety checks the canonical pin bit with Content fallback, and restored-backup rehearsal repairs missing/mismatched canonical rows'
-              : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback')
+            ? (hasPinStorageObjectLedger
+              ? (hasStorageObjectReconciliation
+                ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger')
+              : (hasStorageObjectReconciliation
+                ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, delete safety checks the canonical pin bit with Content fallback, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback'))
             : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it and fall back to Content for old rows')
           : 'canonical physical storage metadata remains represented only by user-owned Content rows',
       ],
@@ -498,6 +506,24 @@ function modelRows(): ModelRow[] {
             ? 'runtime owner/name lookups are deterministic after duplicate-name cleanup; owner-scoped account lists are capped and ordered by allowlisted fields'
             : 'runtime owner/name lookups are deterministic after duplicate-name cleanup')
           : 'pin account lookup should start with owner id before name',
+      ],
+    },
+    {
+      area: 'Pin storage objects',
+      source: 'app/modules/pin/models.ts',
+      model: 'PinStorageObject',
+      indexes: [
+        hasPinStorageObjectLedger
+          ? 'pinAccountId,storageId unique remote-pin ledger'
+          : 'missing remote-pin ledger uniqueness',
+        has(pinSource, 'pin_storage_objects_storage_status_idx')
+          ? 'storageId,status cleanup blocker lookup'
+          : 'missing storage/status lookup',
+      ],
+      notes: [
+        hasPinStorageObjectLedger
+          ? 'model-sync remote-pin ledger records successful remote pins independently from the canonical StorageObject.isPinned flag'
+          : 'successful remote pins are only represented by Content/StorageObject pin booleans',
       ],
     },
     {
@@ -754,6 +780,13 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'pinnedStorageObjects')
     && has(databaseSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'")
     && has(pinSource, 'markStorageObjectPinnedByContent');
+  const hasPinStorageObjectLedger = has(pinModelSource, 'PinStorageObject')
+    && has(pinModelSource, 'pin_storage_objects_account_storage_unique')
+    && has(pinModelSource, 'pin_storage_objects_storage_status_idx')
+    && has(pinSource, 'recordPinnedStorageObject')
+    && has(storageReferenceHelpersSource, 'countRemotePinReferences')
+    && has(databaseSource, 'remotePinRefs')
+    && has(databaseSource, "getContentDeleteBlocker('storage', 'remotePinRefs'");
   const hasPinnedContentDeleteGuard = has(databaseSource, 'pinnedContents')
     && has(databaseSource, "getContentDeleteBlocker('content', 'pinnedContents'")
     && has(pinSource, 'isPinned: true')
@@ -842,6 +875,7 @@ function hotspotRows(): HotspotRow[] {
     && has(storageSpaceSource, 'pinnedStorageObjects')
     && has(storageSpaceUsageSource, 'getStorageSpacePinnedStorageObjects')
     && has(storageSpaceUsageSource, 'generatedOutputRefsCount')
+    && has(storageSpaceUsageSource, 'remotePinsCount')
     && has(storageSpaceApiSource, 'admin/storage-space/pinned-storage-objects');
   const hasStorageSpacePreviewStorage = has(storageSpaceSource, 'getStorageSpacePreviewStorage')
     && has(storageSpaceSource, 'previewStorage')
@@ -1538,9 +1572,15 @@ function hotspotRows(): HotspotRow[] {
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
             ? (hasStorageObjectChildReferenceGuard
-              ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing content/storage blocker reasons for future delayed-GC or operator reporting; checks include all known derived storage columns/current static-ID refs, visible generated-output child refs, plus successful remote pins marked on StorageObject.isPinned and Content.isPinned'
-              : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing content/storage blocker reasons for future delayed-GC or operator reporting; checks include all known derived storage columns/current static-ID refs plus successful remote pins marked on StorageObject.isPinned and Content.isPinned')
-            : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing blocker reasons for future delayed-GC or operator reporting; checks include successful remote pins marked on StorageObject.isPinned and Content.isPinned')
+              ? (hasPinStorageObjectLedger
+                ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing content/storage blocker reasons for future delayed-GC or operator reporting; checks include all known derived storage columns/current static-ID refs, visible generated-output child refs, canonical local pin state, and recorded remote pin refs'
+                : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing content/storage blocker reasons for future delayed-GC or operator reporting; checks include all known derived storage columns/current static-ID refs, visible generated-output child refs, plus successful remote pins marked on StorageObject.isPinned and Content.isPinned')
+              : (hasPinStorageObjectLedger
+                ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing content/storage blocker reasons for future delayed-GC or operator reporting; checks include all known derived storage columns/current static-ID refs, canonical local pin state, and recorded remote pin refs'
+                : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing content/storage blocker reasons for future delayed-GC or operator reporting; checks include all known derived storage columns/current static-ID refs plus successful remote pins marked on StorageObject.isPinned and Content.isPinned'))
+            : (hasPinStorageObjectLedger
+              ? 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing blocker reasons for future delayed-GC or operator reporting; checks include canonical local pin state and recorded remote pin refs'
+              : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing blocker reasons for future delayed-GC or operator reporting; checks include successful remote pins marked on StorageObject.isPinned and Content.isPinned'))
           : 'destroys catalog item first; only destroys content/physical storage after DB reference checks')
         : (has(fileCatalogSource, 'storage.remove(content.storageId)') ? 'unpin/remove physical storage and destroy content row' : 'review deleteContent path'),
       scalabilityRisk: hasContentDeleteSafetyHelper
@@ -1548,10 +1588,18 @@ function hotspotRows(): HotspotRow[] {
           ? (hasDerivedStorageDeleteGuard
             ? (hasStorageObjectChildReferenceGuard
               ? (hasRecursiveStorageSpaceGeneratedOutputChildRefs
-                ? 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, and durable generated-output child refs with still-visible source ancestors are covered; remote pin reconciliation and async garbage collection still need a fuller lifecycle'
-                : 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, and durable generated-output child refs with still-visible source parents are covered; deeper recursive DAG traversal, remote pin reconciliation, and async garbage collection still need a fuller lifecycle')
-              : 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, and canonical local pin state are covered; IPFS DAG child refs inside generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle')
-            : 'DB row references and canonical local pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle')
+                ? (hasPinStorageObjectLedger
+                  ? 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, recorded remote pin refs, and durable generated-output child refs with still-visible source ancestors are covered; async garbage collection still needs a fuller lifecycle'
+                  : 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, and durable generated-output child refs with still-visible source ancestors are covered; remote pin reconciliation and async garbage collection still need a fuller lifecycle')
+                : (hasPinStorageObjectLedger
+                  ? 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, recorded remote pin refs, and durable generated-output child refs with still-visible source parents are covered; deeper recursive DAG traversal and async garbage collection still need a fuller lifecycle'
+                  : 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, and durable generated-output child refs with still-visible source parents are covered; deeper recursive DAG traversal, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'))
+              : (hasPinStorageObjectLedger
+                ? 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, canonical local pin state, and recorded remote pin refs are covered; IPFS DAG child refs inside generated output and async garbage collection still need a fuller lifecycle'
+                : 'same-storage, preview, known DB-visible derived storage columns, current static-ID refs, and canonical local pin state are covered; IPFS DAG child refs inside generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'))
+            : (hasPinStorageObjectLedger
+              ? 'DB row references, canonical local pin state, and recorded remote pin refs are covered; generated output and async garbage collection still need a fuller lifecycle'
+              : 'DB row references and canonical local pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'))
           : 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle')
         : 'same storageId rows, post attachments, generated output, and pins need reference checks before physical deletion',
     },
@@ -1572,7 +1620,9 @@ function hotspotRows(): HotspotRow[] {
                           ? (hasStorageSpaceCleanupBlockers
                             ? (hasStorageSpaceGeneratedOutputChildRefs
                               ? (hasRecursiveStorageSpaceGeneratedOutputChildRefs
-                                ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, on-demand cleanup-blocker, and generated-output child-ref drilldowns plus bounded generated-ref/recursive-child storage inspection and AdminAll metadata/reference reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, persisted StorageObject bytes for measured generated refs, and durable DAG child refs'
+                                ? (hasPinStorageObjectLedger
+                                  ? 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, on-demand cleanup-blocker, and generated-output child-ref drilldowns plus bounded generated-ref/recursive-child storage inspection and AdminAll metadata/reference reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, remote pin refs, preview/thumbnail overhead, cleanup safety blockers, persisted StorageObject bytes for measured generated refs, and durable DAG child refs'
+                                  : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, on-demand cleanup-blocker, and generated-output child-ref drilldowns plus bounded generated-ref/recursive-child storage inspection and AdminAll metadata/reference reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, persisted StorageObject bytes for measured generated refs, and durable DAG child refs')
                                 : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, on-demand cleanup-blocker, and generated-output child-ref drilldowns plus bounded generated-ref/child storage inspection and AdminAll metadata/reference reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, persisted StorageObject bytes for measured generated refs, and durable immediate DAG child refs')
                               : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, preview-storage, and on-demand cleanup-blocker drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, cleanup safety blockers, and persisted StorageObject bytes for measured generated refs')
                             : 'read-only helpers, AdminRead API routes, model-sync cached snapshots, file-catalog folder, group-post, generated-output source, shared-storage, pinned-object, and preview-storage drilldowns plus bounded generated-ref storage inspection and AdminAll metadata reconciliation expose staged progress while reporting overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, largest published posts, DB-visible generated/static refs, duplicate/shared storage IDs, pinned StorageObject refs, preview/thumbnail overhead, and persisted StorageObject bytes for measured generated refs')
@@ -1599,7 +1649,9 @@ function hotspotRows(): HotspotRow[] {
                           ? (hasStorageSpaceCleanupBlockers
                             ? (hasStorageSpaceGeneratedOutputChildRefs
                               ? (hasRecursiveStorageSpaceGeneratedOutputChildRefs
-                                ? 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded recursive runtime storage-stat/child-DAG inspection, explicit metadata reconciliation, recursive child StorageObject reconciliation, and durable generated-output child delete blockers are present; restored-data query evidence, remote pin reconciliation, and delayed garbage collection remain'
+                                ? (hasPinStorageObjectLedger
+                                  ? 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object/remote-pin drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded recursive runtime storage-stat/child-DAG inspection, explicit metadata reconciliation, recursive child StorageObject reconciliation, durable generated-output child delete blockers, and recorded remote pin blockers are present; restored-data query evidence and delayed garbage collection remain'
+                                  : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded recursive runtime storage-stat/child-DAG inspection, explicit metadata reconciliation, recursive child StorageObject reconciliation, and durable generated-output child delete blockers are present; restored-data query evidence, remote pin reconciliation, and delayed garbage collection remain')
                                 : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded runtime storage-stat/child-DAG inspection, explicit metadata reconciliation, immediate child StorageObject reconciliation, and durable generated-output child delete blockers are present; restored-data query evidence, deeper DAG recursion, remote pin reconciliation, and delayed garbage collection remain')
                               : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, on-demand cleanup-blocker drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence and fuller DAG child-ref reconciliation remain')
                             : 'backend aggregate, API, cached snapshot, staged async refresh progress, file-catalog folder drilldown, group-post drilldown, DB-visible generated/static ref accounting, duplicate/shared storage-id drilldown, pinned-object drilldown, preview-storage overhead drilldown, bounded runtime storage-stat inspection, and explicit metadata reconciliation are present; restored-data query evidence, cleanup blocker drilldowns, and fuller DAG child-ref reconciliation remain')

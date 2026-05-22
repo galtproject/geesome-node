@@ -13,7 +13,7 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
    * @apiUse AuthErrors
    * @apiUse AdminErrors
    *
-   * @apiDescription Read-only operator totals for logical content bytes, deduplicated physical bytes, catalog usage, group usage, and pinned storage usage.
+   * @apiDescription Read-only operator totals for logical content bytes, deduplicated physical bytes, catalog usage, group usage, and local/remote pinned storage usage.
    */
   app.ms.api.onAuthorizedGet('admin/storage-space/overview', async (req, res) => {
     if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
@@ -182,7 +182,7 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
    * @apiUse AdminErrors
    *
    * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
-   * @apiDescription Lists canonical pinned storage objects with physical bytes and DB-visible content, file-catalog, post, and generated-output references that explain why cleanup must preserve them.
+   * @apiDescription Lists canonical pinned storage objects with physical bytes, remote pin-account refs, and DB-visible content, file-catalog, post, and generated-output references that explain why cleanup must preserve them.
    */
   app.ms.api.onAuthorizedGet('admin/storage-space/pinned-storage-objects', async (req, res) => {
     if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
@@ -221,7 +221,7 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
    *
    * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
    * @apiQuery {Number} [contentId] Content id. Omit to list the largest content rows with their cleanup blockers.
-   * @apiDescription Lists bounded content cleanup candidates with the same content/storage blocker keys and counts returned by database delete-safety checks.
+   * @apiDescription Lists bounded content cleanup candidates with the same content/storage blocker keys and counts returned by database delete-safety checks, including local pin flags and recorded remote pin refs.
    */
   app.ms.api.onAuthorizedGet('admin/storage-space/cleanup-blockers', async (req, res) => {
     if (!await canReadAdminStorageSpace(app, req.user.id, res)) {

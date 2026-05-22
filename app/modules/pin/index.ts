@@ -167,8 +167,31 @@ export function getModule(app: IGeesomeApp, models) {
 			if (content.id) {
 				await app.ms.database.updateContent(content.id, {isPinned: true});
 				await app.ms.database.markStorageObjectPinnedByContent(content);
+				await this.recordPinnedStorageObject(storageId, account, content, result);
 			}
 			return result;
+		}
+
+		async recordPinnedStorageObject(storageId: string, account: IPinAccount, content?, result?) {
+			if (!models.PinStorageObject) {
+				return null;
+			}
+			if (!account?.id) {
+				return null;
+			}
+			const pinStorageObjectData = getPinStorageObjectData(storageId, account, content, result);
+			const [pinStorageObject, created] = await models.PinStorageObject.findOrCreate({
+				where: {
+					pinAccountId: account.id,
+					storageId
+				},
+				defaults: pinStorageObjectData
+			});
+			if (created) {
+				return pinStorageObject;
+			}
+			await pinStorageObject.update(getPinStorageObjectUpdateData(pinStorageObject, pinStorageObjectData));
+			return pinStorageObject;
 		}
 
 		async encryptPinAccountIfNecessary(pinAccount: IPinAccount) {
@@ -190,7 +213,7 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		async flushDatabase() {
-			await pIteration.forEachSeries(['PinAccount'], (modelName) => {
+			await pIteration.forEachSeries(['PinStorageObject', 'PinAccount'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
 		}
@@ -201,4 +224,62 @@ export function getModule(app: IGeesomeApp, models) {
 	}
 
 	return new PinModule();
+}
+
+function getPinStorageObjectData(storageId: string, account: IPinAccount, content, result) {
+	const now = new Date();
+	return {
+		storageId,
+		service: account.service || null,
+		status: 'pinned',
+		pinAccountId: account.id,
+		accountName: account.name || null,
+		userId: account.userId || content?.userId || null,
+		groupId: account.groupId || null,
+		remoteId: getRemotePinId(storageId, result),
+		pinnedAt: now,
+		checkedAt: now,
+		resultJson: stringifyPinResult(result),
+	};
+}
+
+function getPinStorageObjectUpdateData(pinStorageObject, pinStorageObjectData) {
+	const existingData = typeof pinStorageObject?.toJSON === 'function'
+		? pinStorageObject.toJSON()
+		: pinStorageObject;
+	const updateData: Record<string, any> = {};
+	getPinStorageObjectMetadataFields().forEach((field) => {
+		if (existingData[field] === pinStorageObjectData[field]) {
+			return;
+		}
+		updateData[field] = pinStorageObjectData[field];
+	});
+	return updateData;
+}
+
+function getPinStorageObjectMetadataFields() {
+	return [
+		'service',
+		'status',
+		'accountName',
+		'userId',
+		'groupId',
+		'remoteId',
+		'pinnedAt',
+		'checkedAt',
+		'resultJson'
+	];
+}
+
+function getRemotePinId(storageId: string, result) {
+	const resultData = result?.data || {};
+	return resultData.IpfsHash || resultData.ipfsHash || resultData.cid || storageId;
+}
+
+function stringifyPinResult(result) {
+	try {
+		return JSON.stringify(result?.data || null);
+	} catch (e) {
+		return JSON.stringify({error: 'pin_result_unserializable'});
+	}
 }
