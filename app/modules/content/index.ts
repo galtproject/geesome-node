@@ -76,7 +76,10 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp) {
 	app.checkModules(['database', 'drivers', 'storage']);
 
-	function closeResponseStream(stream) {
+	function closeStream(stream) {
+		if (!stream) {
+			return;
+		}
 		if (stream.destroy) {
 			stream.destroy();
 		} else if (stream.end) {
@@ -84,10 +87,36 @@ function getModule(app: IGeesomeApp) {
 		}
 	}
 
+	function removeStreamListener(stream, eventName, listener) {
+		if (!stream) {
+			return;
+		}
+		if (stream.off) {
+			stream.off(eventName, listener);
+			return;
+		}
+		if (stream.removeListener) {
+			stream.removeListener(eventName, listener);
+		}
+	}
+
 	function pipeStorageStream(stream, res) {
+		const onResponseClose = () => {
+			closeStream(stream);
+		};
+		const cleanup = () => {
+			removeStreamListener(res.stream, 'close', onResponseClose);
+		};
+
+		if (res.stream?.once) {
+			res.stream.once('close', onResponseClose);
+		}
+		stream.once('end', cleanup);
+		stream.once('close', cleanup);
 		stream.on('error', (error) => {
 			console.error('content stream error', error);
-			closeResponseStream(res.stream);
+			cleanup();
+			closeStream(res.stream);
 		});
 		stream.pipe(res.stream);
 	}
@@ -1081,14 +1110,15 @@ function getModule(app: IGeesomeApp) {
 			};
 
 			return this.getFileStream(dataPath, fileStreamOptions).then((stream) => {
-				//
-				let resultLength = 0;
-				stream.on('data', (data) => {
-					resultLength += data.length;
-				});
-				stream.on('end', (data) => {
-					log('range.start', range.start, 'contentLength', contentLength, 'resultLength ', resultLength, 'dataSize', dataSize);
-				});
+				if (log.enabled) {
+					let resultLength = 0;
+					stream.on('data', (data) => {
+						resultLength += data.length;
+					});
+					stream.on('end', () => {
+						log('range.start', range.start, 'contentLength', contentLength, 'resultLength ', resultLength, 'dataSize', dataSize);
+					});
+				}
 
 				let mimeType = '';
 				if(content) {

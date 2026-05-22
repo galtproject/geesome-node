@@ -319,6 +319,59 @@ describe("content headers", function () {
 		assert.equal(writes.send, undefined);
 	});
 
+	it("destroys storage streams when the response closes before completion", async () => {
+		const responseStream = new PassThrough();
+		const storageStream = new PassThrough();
+		const originalDestroy = storageStream.destroy.bind(storageStream);
+		let storageDestroyed = false;
+		storageStream.destroy = ((error?: Error) => {
+			storageDestroyed = true;
+			return originalDestroy(error);
+		}) as any;
+		const writes: any = {};
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: {
+					onGet: () => null,
+					onHead: () => null,
+					onUnversionGet: () => null,
+					onUnversionHead: () => null,
+					onAuthorizedGet: () => null,
+					onAuthorizedPost: () => null,
+					setStorageHeaders: () => null
+				},
+				database: {
+					getSharedStorageMetadataByStorageId: async () => ({
+						storageId: "file.txt",
+						mimeType: "video/mp4",
+						size: 5
+					})
+				},
+				storage: {
+					getFileStat: async () => ({size: 5}),
+					getFileStream: async () => storageStream
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: responseStream
+		} as any, "file.txt");
+		responseStream.emit("close");
+
+		assert.equal(writes.status, 206);
+		assert.equal(storageDestroyed, true);
+	});
+
 	it("rejects malformed byte ranges before opening storage streams", async () => {
 		let streamRequested = false;
 		const writes: any = {};
