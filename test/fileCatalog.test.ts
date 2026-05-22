@@ -204,8 +204,10 @@ describe("app", function () {
 		};
 
 		try {
-			await storageSpace.queueStorageObjectRemoval(testUser.id, null, content.storageId, {process: false});
-			const result = await storageSpace.processStorageObjectRemovalQueue({limit: 1});
+			const queue = await storageSpace.queueStorageObjectRemoval(testUser.id, null, content.storageId, {process: false});
+			const delayedResult = await storageSpace.processStorageObjectRemovalQueue({limit: 1, delayMs: 60000});
+			const delayedQueue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, queue.id);
+			const result = await storageSpace.processStorageObjectRemovalQueue({limit: 1, delayMs: 0});
 			const operations = await app.ms.asyncOperation.getUserAsyncOperationList(
 				testUser.id,
 				'remove-storage-object',
@@ -213,12 +215,19 @@ describe("app", function () {
 				false
 			);
 			const output = JSON.parse(operations[0].output);
+			const history = await storageSpace.getStorageObjectRemovalHistory({limit: 10, delayMs: 0});
+			const historyRow = history.find((row) => row.storageId === content.storageId);
 
+			assert.equal(delayedResult.processed, 0);
+			assert.equal(delayedResult.delayed, 1);
+			assert.equal(delayedQueue.isWaiting, true);
 			assert.equal(result.processed, 1);
 			assert.deepEqual(removeCalls, []);
 			assert.equal(output.blocked, true);
 			assert.equal(output.safeToRemovePhysical, false);
 			assert.equal(output.storageRefs.otherContents, 1);
+			assert.equal(historyRow.status, 'blocked');
+			assert.equal(historyRow.result.blocked, true);
 		} finally {
 			app.ms.storage.remove = originalStorageRemove;
 		}

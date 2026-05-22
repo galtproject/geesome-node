@@ -55,9 +55,11 @@ export default interface IGeesomeStorageSpaceModule {
 
   startStorageObjectRemovalQueueProcessing(options?: any): void;
 
-  processStorageObjectRemovalQueue(options?: any): Promise<{processed: number}>;
+  processStorageObjectRemovalQueue(options?: any): Promise<IStorageSpaceStorageObjectRemovalQueueResult>;
 
   removeStorageObjectIfSafe(storageId: string): Promise<IStorageSpaceStorageObjectRemovalResult>;
+
+  getStorageObjectRemovalHistory(listParams?: IListParams): Promise<IStorageSpaceStorageObjectRemovalHistoryRow[]>;
 }
 
 export interface IStorageSpaceOverview {
@@ -166,7 +168,7 @@ export interface IStorageSpaceGeneratedOutputRow {
 
 export interface IStorageSpaceGeneratedOutputRefRow {
   source: string;
-  storageId: string;
+  storageId: string | null;
   storageRefsCount: number;
 }
 
@@ -237,6 +239,31 @@ export interface IStorageSpaceStorageObjectRemovalResult {
   removed: boolean;
   missing: boolean;
   blocked: boolean;
+}
+
+export interface IStorageSpaceStorageObjectRemovalQueueResult {
+  processed: number;
+  delayed?: number;
+  nextProcessAt?: Date;
+}
+
+export interface IStorageSpaceStorageObjectRemovalHistoryRow {
+  queueId: number;
+  asyncOperationId?: number | null;
+  userId?: number | null;
+  userApiKeyId?: number | null;
+  storageId: string;
+  status: string;
+  isWaiting: boolean;
+  ready: boolean;
+  queuedAt?: Date | null;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
+  nextProcessAt?: Date | null;
+  delayMs: number;
+  result?: IStorageSpaceStorageObjectRemovalResult | null;
+  errorMessage?: string | null;
+  updatedAt?: Date | null;
 }
 
 export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpaceGeneratedOutputRefRow {
