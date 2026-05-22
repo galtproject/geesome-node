@@ -13,6 +13,8 @@ import {ContentView, CorePermissionName} from "../app/modules/database/interface
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
 
+process.env.DATABASE_POOL_MAX = process.env.DATABASE_POOL_MAX || '5';
+
 function isUniqueConstraintError(error: any) {
 	assert.equal(error.name, 'SequelizeUniqueConstraintError');
 	return true;
@@ -148,6 +150,70 @@ describe("app", function () {
 		assert.equal(!!gotContent, true);
 		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Pinned body');
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
+	});
+
+	it("queues physical storage removal after deleting the last catalog content reference", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'Queued removal body', 'queued-removal.txt', {
+			mimeType: 'text/plain'
+		});
+		const fileItem = await fileCatalog.saveContentByPath(testUser.id, '/queued-removal.txt', content.id);
+		const extraCatalogItems = await fileCatalog.getFileCatalogItemsByContent(testUser.id, content.id, FileCatalogItemType.File);
+		const storageSpace = app.ms['storageSpace'] as any;
+		const originalQueueStorageObjectRemoval = storageSpace.queueStorageObjectRemoval.bind(storageSpace);
+		const queuedStorageIds = [];
+
+		storageSpace.queueStorageObjectRemoval = async (queuedUserId, userApiKeyId, storageId, options) => {
+			queuedStorageIds.push({queuedUserId, userApiKeyId, storageId, options});
+			return {id: queuedStorageIds.length};
+		};
+
+		try {
+			await Promise.all(extraCatalogItems
+				.filter((item) => item.id !== fileItem.id)
+				.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
+			await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
+		} finally {
+			storageSpace.queueStorageObjectRemoval = originalQueueStorageObjectRemoval;
+		}
+
+		assert.equal(await app.ms.database.getContent(content.id), null);
+		assert.deepEqual(queuedStorageIds.map((row) => row.storageId), [content.storageId]);
+		assert.equal(queuedStorageIds[0].queuedUserId, testUser.id);
+	});
+
+	it("blocks queued storage removal when database references still exist", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const content = await app.ms.content.saveData(testUser.id, 'Blocked removal body', 'blocked-removal.txt', {
+			mimeType: 'text/plain'
+		});
+		const storageSpace = app.ms['storageSpace'] as any;
+		const originalStorageRemove = app.ms.storage.remove.bind(app.ms.storage);
+		const removeCalls = [];
+
+		app.ms.storage.remove = async (storageId) => {
+			removeCalls.push(storageId);
+		};
+
+		try {
+			await storageSpace.queueStorageObjectRemoval(testUser.id, null, content.storageId, {process: false});
+			const result = await storageSpace.processStorageObjectRemovalQueue({limit: 1});
+			const operations = await app.ms.asyncOperation.getUserAsyncOperationList(
+				testUser.id,
+				'remove-storage-object',
+				`%${content.storageId}%`,
+				false
+			);
+			const output = JSON.parse(operations[0].output);
+
+			assert.equal(result.processed, 1);
+			assert.deepEqual(removeCalls, []);
+			assert.equal(output.blocked, true);
+			assert.equal(output.safeToRemovePhysical, false);
+			assert.equal(output.storageRefs.otherContents, 1);
+		} finally {
+			app.ms.storage.remove = originalStorageRemove;
+		}
 	});
 
 	it("keeps physical storage when the canonical storage object is pinned", async () => {

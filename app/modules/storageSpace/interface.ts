@@ -50,6 +50,14 @@ export default interface IGeesomeStorageSpaceModule {
   queueStorageSpaceSnapshotRefresh(userId: number, userApiKeyId?: number, listParams?: IListParams, options?: any): Promise<IUserOperationQueue>;
 
   processStorageSpaceSnapshotRefreshQueue(options?: any): Promise<{processed: number}>;
+
+  queueStorageObjectRemoval(userId: number, userApiKeyId: number | null, storageId: string, options?: any): Promise<IUserOperationQueue>;
+
+  startStorageObjectRemovalQueueProcessing(options?: any): void;
+
+  processStorageObjectRemovalQueue(options?: any): Promise<{processed: number}>;
+
+  removeStorageObjectIfSafe(storageId: string): Promise<IStorageSpaceStorageObjectRemovalResult>;
 }
 
 export interface IStorageSpaceOverview {
@@ -218,6 +226,17 @@ export interface IStorageSpaceCleanupBlockerRow extends IStorageSpaceContentRow 
   blockerCount: number;
   safeToDestroyContent: boolean;
   safeToRemovePhysical: boolean;
+}
+
+export interface IStorageSpaceStorageObjectRemovalResult {
+  storageId: string;
+  storageRefs: IStorageIdReferenceCounts;
+  storageBlockers: IContentDeleteSafetyBlocker[];
+  blockers: IContentDeleteSafetyBlocker[];
+  safeToRemovePhysical: boolean;
+  removed: boolean;
+  missing: boolean;
+  blocked: boolean;
 }
 
 export interface IStorageSpaceGeneratedOutputInspectionRow extends IStorageSpaceGeneratedOutputRefRow {

@@ -472,14 +472,12 @@ function getModule(app: IGeesomeApp, models) {
 				excludeFileCatalogItemId: fileCatalogItem.id,
 			});
 
-			if (deleteSafety.safeToRemovePhysical) {
-				await app.ms.storage.unPin(content.storageId).catch(() => {/*not pinned*/});
-				await app.ms.storage.remove(content.storageId).catch(() => {/*not found*/});
-			}
-
 			await fileCatalogItem['destroy']();
 			if (deleteSafety.safeToDestroyContent) {
 				await content['destroy']();
+			}
+			if (deleteSafety.safeToRemovePhysical) {
+				await removePhysicalStorageForDeletedContent(app, userId, content.storageId);
 			}
 
 			return true;
@@ -666,4 +664,15 @@ function getModule(app: IGeesomeApp, models) {
 		}
 	}
 	return new FileCatalogModule();
+}
+
+async function removePhysicalStorageForDeletedContent(app: IGeesomeApp, userId, storageId) {
+	const storageSpace = app.ms['storageSpace'];
+	if (storageSpace && typeof storageSpace.queueStorageObjectRemoval === 'function') {
+		await storageSpace.queueStorageObjectRemoval(userId, null, storageId);
+		return;
+	}
+
+	await app.ms.storage.unPin(storageId).catch(() => null);
+	await app.ms.storage.remove(storageId).catch(() => null);
 }
