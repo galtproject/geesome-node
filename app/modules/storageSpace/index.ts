@@ -1,4 +1,5 @@
 import debug from 'debug';
+import {Op} from 'sequelize';
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
@@ -76,6 +77,15 @@ const storageSpaceSnapshotQueueInitialPercent = 1;
 const storageSpaceAvailabilitySampleQueueModuleName = 'storage-space-availability-sample';
 const storageSpaceAvailabilitySampleQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceAvailabilitySampleQueueInitialPercent = 5;
+const storageSpaceAvailabilitySampleRetentionDays = parseNonNegativeInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_RETENTION_DAYS, 90);
+const storageSpaceAvailabilitySampleWorkerIntervalMs = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_INTERVAL_MS, 6 * 60 * 60 * 1000);
+const storageSpaceAvailabilitySampleWorkerBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_BATCH_LIMIT, 1);
+const storageSpaceAvailabilitySampleWorkerListLimit = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_LIST_LIMIT, 3);
+const storageSpaceAvailabilitySampleWorkerOffset = parseNonNegativeInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_OFFSET, 0);
+const storageSpaceAvailabilitySampleWorkerProviderLimit = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_PROVIDER_LIMIT, 10);
+const storageSpaceAvailabilitySampleWorkerProviderAddressLimit = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_PROVIDER_ADDRESS_LIMIT, 2);
+const storageSpaceAvailabilitySampleWorkerProviderTimeoutMs = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_PROVIDER_TIMEOUT_MS, storageSpaceAvailabilityNetworkDefaultProviderTimeoutMs);
+const storageSpaceAvailabilitySampleWorkerStatTimeoutMs = parsePositiveInteger(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_STAT_TIMEOUT_MS, storageSpaceAvailabilityNetworkDefaultStatTimeoutMs);
 const storageSpaceStorageRemovalQueueModuleName = 'storage-space-storage-removal';
 const storageSpaceStorageRemovalQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceStorageRemovalQueueInitialPercent = 5;
@@ -83,10 +93,12 @@ const storageSpaceStorageRemovalDelayMs = parseNonNegativeInteger(process.env.ST
 const storageSpaceStorageRemovalWorkerIntervalMs = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER_INTERVAL_MS, 60000);
 const storageSpaceStorageRemovalWorkerBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER_BATCH_LIMIT, 5);
 let storageObjectRemovalQueueWorkerTimer = null;
+let storageSpaceAvailabilitySampleWorkerTimer = null;
 
 export default async function (app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator', 'storage']);
   const module = new StorageSpaceModule(app);
+  module.startStorageSpaceAvailabilityNetworkSampleRefreshWorker();
   module.startStorageObjectRemovalQueueWorker();
   (await import('./api.js')).default(app, module);
   return module as IGeesomeStorageSpaceModule;
@@ -175,6 +187,7 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     for (const inspection of inspections) {
       rows.push(await this.createStorageSpaceAvailabilityNetworkSample(userId, inspection));
     }
+    await this.cleanupStorageSpaceAvailabilityNetworkSamples();
     return {
       sampled: rows.length,
       durationMs: Date.now() - startedAt,
@@ -202,12 +215,26 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return getStorageSpaceAvailabilityNetworkSampleResponse(sample);
   }
 
-  async queueStorageSpaceAvailabilityNetworkSampleRefresh(userId: number, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
+  async cleanupStorageSpaceAvailabilityNetworkSamples(options: any = {}) {
+    const retentionDays = getStorageSpaceAvailabilitySampleRetentionDays(options);
+    if (retentionDays <= 0) {
+      return 0;
+    }
+    return this.app.ms.database.models.StorageSpaceAvailabilitySample.destroy({
+      where: {
+        sampledAt: {
+          [Op.lt]: getStorageSpaceAvailabilitySampleRetentionCutoff(retentionDays, options.now),
+        },
+      },
+    });
+  }
+
+  async queueStorageSpaceAvailabilityNetworkSampleRefresh(userId: number | null = null, userApiKeyId = null, listParams: IListParams = {}, options: any = {}) {
     const queue = await this.app.ms.asyncOperation.addUniqueUserOperationQueue(
       userId,
       storageSpaceAvailabilitySampleQueueModuleName,
       userApiKeyId,
-      getStorageSpaceAvailabilitySampleRefreshJobInput(listParams)
+      getStorageSpaceAvailabilitySampleRefreshJobInput(listParams, options.queueSource)
     );
     if (options.process !== false) {
       this.startStorageSpaceAvailabilityNetworkSampleRefreshQueueProcessing();
@@ -220,6 +247,48 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     void this.processStorageSpaceAvailabilityNetworkSampleRefreshQueue({limit}).catch((e) => {
       log('processStorageSpaceAvailabilityNetworkSampleRefreshQueue error', e);
     });
+  }
+
+  startStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
+    if (!shouldRunStorageSpaceAvailabilitySampleWorker()) {
+      return;
+    }
+    if (storageSpaceAvailabilitySampleWorkerTimer) {
+      return;
+    }
+
+    this.kickStorageSpaceAvailabilityNetworkSampleRefreshWorker();
+    storageSpaceAvailabilitySampleWorkerTimer = setInterval(() => {
+      this.kickStorageSpaceAvailabilityNetworkSampleRefreshWorker();
+    }, storageSpaceAvailabilitySampleWorkerIntervalMs);
+
+    const timer: any = storageSpaceAvailabilitySampleWorkerTimer;
+    if (timer.unref) {
+      timer.unref();
+    }
+  }
+
+  kickStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
+    void this.queueStorageSpaceAvailabilityNetworkSampleRefresh(
+      null,
+      null,
+      getStorageSpaceAvailabilitySampleWorkerListParams(),
+      {process: false, queueSource: 'worker'}
+    ).then(() => {
+      this.startStorageSpaceAvailabilityNetworkSampleRefreshQueueProcessing({
+        limit: storageSpaceAvailabilitySampleWorkerBatchLimit,
+      });
+    }).catch((e) => {
+      log('kickStorageSpaceAvailabilityNetworkSampleRefreshWorker error', e);
+    });
+  }
+
+  stopStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
+    if (!storageSpaceAvailabilitySampleWorkerTimer) {
+      return;
+    }
+    clearInterval(storageSpaceAvailabilitySampleWorkerTimer);
+    storageSpaceAvailabilitySampleWorkerTimer = null;
   }
 
   async processStorageSpaceAvailabilityNetworkSampleRefreshQueue(options: any = {}) {
@@ -480,6 +549,7 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   stop() {
+    this.stopStorageSpaceAvailabilityNetworkSampleRefreshWorker();
     this.stopStorageObjectRemovalQueueWorker();
   }
 
@@ -726,11 +796,15 @@ function getStorageSpaceSnapshotRefreshJobResult(snapshot) {
   };
 }
 
-function getStorageSpaceAvailabilitySampleRefreshJobInput(listParams: IListParams = {}) {
-  return {
+function getStorageSpaceAvailabilitySampleRefreshJobInput(listParams: IListParams = {}, queueSource = null) {
+  const input: any = {
     type: 'refresh-availability-network-samples',
     listParams: getStorageSpaceAvailabilityNetworkInspectionWindow(listParams),
   };
+  if (queueSource) {
+    input['source'] = String(queueSource);
+  }
+  return input;
 }
 
 function parseStorageSpaceAvailabilitySampleRefreshJob(inputJson) {
@@ -753,6 +827,45 @@ function getStorageSpaceAvailabilitySampleRefreshJobResult(result: IStorageSpace
     sampleIds: result.rows.map(row => row.id),
     storageIds: result.rows.map(row => row.storageId),
   };
+}
+
+function shouldRunStorageSpaceAvailabilitySampleWorker() {
+  return helpers.parseBoolean(
+    process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER,
+    false
+  );
+}
+
+function getStorageSpaceAvailabilitySampleWorkerListParams() {
+  return getStorageSpaceAvailabilityNetworkInspectionWindow({
+    limit: storageSpaceAvailabilitySampleWorkerListLimit,
+    offset: storageSpaceAvailabilitySampleWorkerOffset,
+    providerLimit: storageSpaceAvailabilitySampleWorkerProviderLimit,
+    providerAddressLimit: storageSpaceAvailabilitySampleWorkerProviderAddressLimit,
+    providerTimeoutMs: storageSpaceAvailabilitySampleWorkerProviderTimeoutMs,
+    statTimeoutMs: storageSpaceAvailabilitySampleWorkerStatTimeoutMs,
+    statWithLocal: helpers.parseBoolean(process.env.STORAGE_SPACE_AVAILABILITY_SAMPLE_WORKER_STAT_WITH_LOCAL, false),
+  });
+}
+
+function getStorageSpaceAvailabilitySampleRetentionDays(options: any = {}) {
+  if (options.retentionDays !== undefined) {
+    return parseNonNegativeInteger(options.retentionDays, storageSpaceAvailabilitySampleRetentionDays);
+  }
+  return storageSpaceAvailabilitySampleRetentionDays;
+}
+
+function getStorageSpaceAvailabilitySampleRetentionCutoff(retentionDays, now = new Date()) {
+  const nowDate = getDateOrNow(now);
+  return new Date(nowDate.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+}
+
+function getDateOrNow(value) {
+  const date = new Date(value || Date.now());
+  if (!Number.isFinite(date.getTime())) {
+    return new Date();
+  }
+  return date;
 }
 
 function getStorageSpaceStorageRemovalJobInput(storageId) {

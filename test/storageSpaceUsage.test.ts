@@ -296,6 +296,40 @@ describe("storage space usage", function () {
 		assert.equal(availabilitySamples[0].providersCount, 1);
 		assert.equal(availabilitySamples[0].providers[0].id, 'peer-a');
 		assert.equal(availabilitySamples[0].retrievalMeasuredBytes, sharedSize);
+		await app.ms.database.models.StorageSpaceAvailabilitySample.create({
+			userId: null,
+			storageId: 'bafy-old-availability-sample',
+			sampleJson: JSON.stringify({
+				storageId: 'bafy-old-availability-sample',
+				providerLookupOk: false,
+				providersCount: 0,
+				providersTruncated: false,
+				providerLookupErrorMessage: 'old sample',
+				retrievalStatOk: false,
+				retrievalMeasuredBytes: 0,
+				retrievalErrorMessage: 'old sample',
+			}),
+			providerLookupOk: false,
+			providersCount: 0,
+			providersTruncated: false,
+			retrievalStatOk: false,
+			retrievalMeasuredBytes: 0,
+			sampledAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+		const deletedOldSamples = await app.ms.storageSpace.cleanupStorageSpaceAvailabilityNetworkSamples({
+			retentionDays: 30,
+			now: new Date('2026-05-22T00:00:00.000Z'),
+		});
+		assert.equal(deletedOldSamples, 1);
+		const oldAvailabilitySamples = await app.ms.storageSpace.getStorageSpaceAvailabilityNetworkSamples({
+			storageId: 'bafy-old-availability-sample',
+		});
+		assert.equal(oldAvailabilitySamples.length, 0);
+		const retainedAvailabilitySamples = await app.ms.storageSpace.getStorageSpaceAvailabilityNetworkSamples({
+			storageId: sharedContent.storageId,
+			offset: 99,
+		});
+		assert.equal(retainedAvailabilitySamples.length, 1);
 
 		const cleanupBlockers = await app.ms.storageSpace.getStorageSpaceCleanupBlockers({contentId: sharedContent.id});
 		assert.equal(cleanupBlockers.length, 1);

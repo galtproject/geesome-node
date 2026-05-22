@@ -37,7 +37,13 @@ export default interface IGeesomeStorageSpaceModule {
 
   refreshStorageSpaceAvailabilityNetworkSamples(userId?: number, listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSampleRefreshResult>;
 
-  queueStorageSpaceAvailabilityNetworkSampleRefresh(userId: number, userApiKeyId?: number, listParams?: IListParams, options?: any): Promise<IUserOperationQueue>;
+  cleanupStorageSpaceAvailabilityNetworkSamples(options?: any): Promise<number>;
+
+  queueStorageSpaceAvailabilityNetworkSampleRefresh(userId?: number | null, userApiKeyId?: number | null, listParams?: IListParams, options?: any): Promise<IUserOperationQueue>;
+
+  startStorageSpaceAvailabilityNetworkSampleRefreshWorker(): void;
+
+  stopStorageSpaceAvailabilityNetworkSampleRefreshWorker(): void;
 
   processStorageSpaceAvailabilityNetworkSampleRefreshQueue(options?: any): Promise<{processed: number}>;
 
