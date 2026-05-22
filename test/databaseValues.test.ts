@@ -11,7 +11,8 @@ import assert from "assert";
 import {
 	ContentMimeType,
 	ContentStorageType,
-	IGeesomeDatabaseModule
+	IGeesomeDatabaseModule,
+	StorageObjectReferenceType
 } from "../app/modules/database/interface.js";
 
 describe("databaseValues", function () {
@@ -151,12 +152,30 @@ describe("databaseValues", function () {
 		});
 
 		const updatedStorageObject = await database.getStorageObjectByStorageId(storageId);
+		const previewStorageObject = await database.getStorageObjectByStorageId('shared-content-preview-storage');
+		const previewReference = await (database as any).models.StorageObjectReference.findOne({
+			where: {
+				sourceStorageId: storageId,
+				targetStorageId: 'shared-content-preview-storage',
+				referenceType: StorageObjectReferenceType.Preview
+			}
+		});
+		assert.ok(previewStorageObject);
+		assert.ok(previewReference);
 		assert.strictEqual(updatedStorageObject.mediumPreviewStorageId, 'shared-content-preview-storage');
 		assert.strictEqual(Number(updatedStorageObject.mediumPreviewSize), 7);
 		assert.strictEqual(updatedStorageObject.previewMimeType, ContentMimeType.ImagePng);
+		assert.strictEqual(previewStorageObject.storageId, 'shared-content-preview-storage');
+		assert.strictEqual(previewStorageObject.mimeType, ContentMimeType.ImagePng);
+		assert.strictEqual(Number(previewStorageObject.size), 7);
+		assert.strictEqual(previewReference.name, 'medium');
+		assert.strictEqual(
+			(await database.countStorageIdReferences('shared-content-preview-storage')).storageObjectChildRefs,
+			1
+		);
 		assert.strictEqual(
 			(await database.getSharedStorageMetadataByStorageId('shared-content-preview-storage', {includePreviews: true})).storageId,
-			storageId
+			'shared-content-preview-storage'
 		);
 	});
 });

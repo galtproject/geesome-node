@@ -255,6 +255,7 @@ export interface IStorageIdReferenceCounts {
 
 export interface IStorageIdReferenceOptions {
   excludeFileCatalogItemId?: number;
+  excludeContentId?: number;
 }
 
 export interface IContentReferenceCounts {
@@ -334,7 +335,8 @@ export enum ContentStorageType {
 }
 
 export enum StorageObjectReferenceType {
-  GeneratedOutputChild = 'generated-output-child'
+  GeneratedOutputChild = 'generated-output-child',
+  Preview = 'preview'
 }
 
 export enum ContentMimeType {

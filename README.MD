@@ -254,7 +254,7 @@ geesomeClient.init().then(async () => {
 - Expand group views toward thread/feed use cases while preserving existing post/group APIs.
 - Improve social backup/import workflows for Telegram and Twitter-compatible sources.
 - Keep large-group/database scalability work moving through measured migrations, cursor/page-scoped reads, generated-output batching, and migration-integrity verification.
-- Add a global storage space analyzer UI and restored-database reports for file-catalog and group usage, with drilldowns into largest files, file types, duplicate/shared storage IDs, safe cleanup blockers, queued physical storage cleanup, and a separate IPFS popularity/availability tab for peer/provider and retrieval signals.
+- Add a global storage space analyzer UI and restored-database reports for file-catalog and group usage, with drilldowns into largest files, file types, duplicate/shared storage IDs, preview overhead, safe cleanup blockers, queued original/preview physical storage cleanup, and a separate IPFS popularity/availability tab for peer/provider and retrieval signals.
 - Keep protocol-scale work such as local IPNS accounts, PubSub modules, remote backup, Matrix/Filecoin integrations, and mobile/browser apps as separate epics.
 
 See [docs/todo.md](./docs/todo.md) for the issue-backed backlog snapshot and fast delivery plan.

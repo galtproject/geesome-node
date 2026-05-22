@@ -477,7 +477,7 @@ function getModule(app: IGeesomeApp, models) {
 				await content['destroy']();
 			}
 			if (deleteSafety.safeToRemovePhysical) {
-				await removePhysicalStorageForDeletedContent(app, userId, content.storageId);
+				await removePhysicalStorageForDeletedContent(app, userId, content);
 			}
 
 			return true;
@@ -666,13 +666,35 @@ function getModule(app: IGeesomeApp, models) {
 	return new FileCatalogModule();
 }
 
-async function removePhysicalStorageForDeletedContent(app: IGeesomeApp, userId, storageId) {
+async function removePhysicalStorageForDeletedContent(app: IGeesomeApp, userId, content) {
+	const storageIds = getContentPhysicalStorageIds(content);
 	const storageSpace = app.ms['storageSpace'];
 	if (storageSpace && typeof storageSpace.queueStorageObjectRemoval === 'function') {
-		await storageSpace.queueStorageObjectRemoval(userId, null, storageId);
+		for (const storageId of storageIds) {
+			await storageSpace.queueStorageObjectRemoval(userId, null, storageId);
+		}
 		return;
 	}
 
+	for (const storageId of storageIds) {
+		await removePhysicalStorageIdIfSafe(app, storageId);
+	}
+}
+
+async function removePhysicalStorageIdIfSafe(app: IGeesomeApp, storageId) {
+	const deleteSafety = await app.ms.database.getStorageObjectDeleteSafety(storageId);
+	if (!deleteSafety.safeToRemovePhysical) {
+		return;
+	}
 	await app.ms.storage.unPin(storageId).catch(() => null);
 	await app.ms.storage.remove(storageId).catch(() => null);
+}
+
+function getContentPhysicalStorageIds(content) {
+	return [...new Set([
+		content?.storageId,
+		content?.largePreviewStorageId,
+		content?.mediumPreviewStorageId,
+		content?.smallPreviewStorageId,
+	].filter(Boolean))];
 }
