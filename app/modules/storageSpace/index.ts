@@ -15,6 +15,7 @@ import * as storageSpaceQueries from './queryHelpers.js';
 import {
   getStorageSpaceGeneratedOutputChildReconcileResult,
   getStorageSpaceGeneratedOutputReconcileResult,
+  inspectStorageSpaceAvailabilityNetworkSignal,
   inspectStorageSpaceGeneratedOutputChildRefs as inspectGeneratedOutputChildRefs,
   inspectStorageSpaceGeneratedOutputRef,
   replaceStorageSpaceGeneratedOutputChildReferences,
@@ -32,10 +33,22 @@ const storageSpaceStorageInspectionListParams: IListParamsOptions = {
   limit: 10,
   maxLimit: 25,
 };
+const storageSpaceAvailabilityNetworkInspectionListParams: IListParamsOptions = {
+  limit: 3,
+  maxLimit: 10,
+};
 const storageSpaceChildInspectionListParams: IListParamsOptions = {
   limit: 3,
   maxLimit: 10,
 };
+const storageSpaceAvailabilityNetworkDefaultProviderLimit = 20;
+const storageSpaceAvailabilityNetworkMaxProviderLimit = 50;
+const storageSpaceAvailabilityNetworkDefaultProviderAddressLimit = 5;
+const storageSpaceAvailabilityNetworkMaxProviderAddressLimit = 20;
+const storageSpaceAvailabilityNetworkDefaultProviderTimeoutMs = 5000;
+const storageSpaceAvailabilityNetworkMaxProviderTimeoutMs = 30000;
+const storageSpaceAvailabilityNetworkDefaultStatTimeoutMs = 5000;
+const storageSpaceAvailabilityNetworkMaxStatTimeoutMs = 30000;
 const storageSpaceChildInspectionDefaultChildLimit = 50;
 const storageSpaceChildInspectionMaxChildLimit = 200;
 const storageSpaceChildInspectionDefaultDepthLimit = 1;
@@ -122,6 +135,16 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
 
   async getStorageSpaceAvailabilitySignals(listParams: IListParams = {}) {
     return storageSpaceQueries.getStorageSpaceAvailabilitySignals(this.app.ms.database.sequelize, getStorageSpaceListWindow(listParams));
+  }
+
+  async inspectStorageSpaceAvailabilityNetworkSignals(listParams: IListParams = {}) {
+    const listWindow = getStorageSpaceAvailabilityNetworkInspectionWindow(listParams);
+    const signals = await storageSpaceQueries.getStorageSpaceAvailabilitySignals(this.app.ms.database.sequelize, listWindow);
+    const rows = [];
+    for (const signal of signals) {
+      rows.push(await inspectStorageSpaceAvailabilityNetworkSignal(this.app.ms.storage, signal, listWindow));
+    }
+    return rows;
   }
 
   async getStorageSpaceCleanupBlockers(listParams: IListParams = {}) {
@@ -416,6 +439,33 @@ function getStorageSpaceListWindow(listParams: IListParams = {}, defaultParams =
 
 function getStorageSpaceStorageInspectionWindow(listParams: IListParams = {}) {
   return getStorageSpaceListWindow(listParams, storageSpaceStorageInspectionListParams);
+}
+
+function getStorageSpaceAvailabilityNetworkInspectionWindow(listParams: any = {}) {
+  const listWindow = getStorageSpaceListWindow(listParams, storageSpaceAvailabilityNetworkInspectionListParams);
+  const storageId = normalizeStorageSpaceStorageId(listParams.storageId);
+  return {
+    ...listWindow,
+    storageId,
+    offset: storageId === null ? listWindow.offset : 0,
+    providerLimit: Math.min(
+      parsePositiveInteger(listParams.providerLimit, storageSpaceAvailabilityNetworkDefaultProviderLimit),
+      storageSpaceAvailabilityNetworkMaxProviderLimit
+    ),
+    providerAddressLimit: Math.min(
+      parsePositiveInteger(listParams.providerAddressLimit, storageSpaceAvailabilityNetworkDefaultProviderAddressLimit),
+      storageSpaceAvailabilityNetworkMaxProviderAddressLimit
+    ),
+    providerTimeoutMs: Math.min(
+      parsePositiveInteger(listParams.providerTimeoutMs, storageSpaceAvailabilityNetworkDefaultProviderTimeoutMs),
+      storageSpaceAvailabilityNetworkMaxProviderTimeoutMs
+    ),
+    statTimeoutMs: Math.min(
+      parsePositiveInteger(listParams.statTimeoutMs, storageSpaceAvailabilityNetworkDefaultStatTimeoutMs),
+      storageSpaceAvailabilityNetworkMaxStatTimeoutMs
+    ),
+    statWithLocal: helpers.parseBoolean(listParams.statWithLocal, false),
+  };
 }
 
 function getStorageSpaceGeneratedOutputChildInspectionWindow(listParams: any = {}) {

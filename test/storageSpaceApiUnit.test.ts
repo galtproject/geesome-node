@@ -2,6 +2,7 @@ import assert from "assert";
 import registerCoreApi from "../app/modules/api/api.js";
 import registerStorageSpaceApi from "../app/modules/storageSpace/api.js";
 import * as storageSpaceQueries from "../app/modules/storageSpace/queryHelpers.js";
+import {inspectStorageSpaceAvailabilityNetworkSignal} from "../app/modules/storageSpace/storageInspectionHelpers.js";
 import {CorePermissionName} from "../app/modules/database/interface.js";
 
 function createCoreApiHarness(appOverrides: any = {}) {
@@ -117,6 +118,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					inspectStorageSpaceAvailabilityNetworkSignals: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					getStorageSpaceCleanupBlockers: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -178,6 +183,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/pinned-storage-objects"],
 			["GET", "admin/storage-space/preview-storage"],
 			["GET", "admin/storage-space/availability-signals"],
+			["GET", "admin/storage-space/availability-network-inspection"],
 			["GET", "admin/storage-space/cleanup-blockers"],
 			["GET", "admin/storage-space/storage-removals"],
 			["GET", "admin/storage-space/generated-output-inspection"],
@@ -213,6 +219,7 @@ describe("storage space admin API", function () {
 			pinnedStorageObjects: [{storageId: "bafy-pinned", physicalBytes: 44}],
 			previewStorage: [{previewField: "smallPreviewStorageId", physicalPreviewBytes: 12}],
 			availabilitySignals: [{storageId: "bafy-signal", maxPeerCount: 7}],
+			availabilityNetworkInspection: [{storageId: "bafy-signal", providersCount: 2, retrievalStatOk: true}],
 			cleanupBlockers: [{id: 1, blockerCount: 2}],
 			storageRemovals: [{queueId: 12, storageId: "bafy-remove", status: "blocked"}],
 			generatedOutputInspection: [{source: "staticSite.storageId", storageId: "bafy-site", measuredBytes: 123}],
@@ -273,6 +280,10 @@ describe("storage space admin API", function () {
 					getStorageSpaceAvailabilitySignals: async (listParams) => {
 						storageSpaceCalls.push(["availabilitySignals", listParams]);
 						return responses.availabilitySignals;
+					},
+					inspectStorageSpaceAvailabilityNetworkSignals: async (listParams) => {
+						storageSpaceCalls.push(["availabilityNetworkInspection", listParams]);
+						return responses.availabilityNetworkInspection;
 					},
 					getStorageSpaceCleanupBlockers: async (listParams) => {
 						storageSpaceCalls.push(["cleanupBlockers", listParams]);
@@ -337,6 +348,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/pinned-storage-objects", {user: {id: 7}, query})).body, responses.pinnedStorageObjects);
 		assert.deepEqual((await call("GET", "admin/storage-space/preview-storage", {user: {id: 7}, query})).body, responses.previewStorage);
 		assert.deepEqual((await call("GET", "admin/storage-space/availability-signals", {user: {id: 7}, query})).body, responses.availabilitySignals);
+		assert.deepEqual((await call("GET", "admin/storage-space/availability-network-inspection", {user: {id: 7}, query: {...query, providerLimit: "2"}})).body, responses.availabilityNetworkInspection);
 		assert.deepEqual((await call("GET", "admin/storage-space/cleanup-blockers", {user: {id: 7}, query: {...query, contentId: "1"}})).body, responses.cleanupBlockers);
 		assert.deepEqual((await call("GET", "admin/storage-space/storage-removals", {user: {id: 7}, query: {...query, delayMs: "60000"}})).body, responses.storageRemovals);
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-inspection", {user: {id: 7}, query})).body, responses.generatedOutputInspection);
@@ -348,6 +360,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -383,6 +396,7 @@ describe("storage space admin API", function () {
 			["pinnedStorageObjects", query],
 			["previewStorage", query],
 			["availabilitySignals", query],
+			["availabilityNetworkInspection", {...query, providerLimit: "2"}],
 			["cleanupBlockers", {...query, contentId: "1"}],
 			["storageRemovals", {...query, delayMs: "60000"}],
 			["generatedOutputInspection", query],
@@ -412,5 +426,77 @@ describe("storage space query helpers", function () {
 		await storageSpaceQueries.getStorageSpaceAvailabilitySignals(fakeSequelize, {limit: 1, offset: 0});
 
 		assert.equal(capturedSql.join("\n").includes('"pinStorageObjects"'), false);
+	});
+});
+
+describe("storage space network signal inspection", function () {
+	it("normalizes provider lookup events and timed stat checks", async () => {
+		const fakeStorage = {
+			node: {
+				routing: {
+					findProvs: async function* (storageId, options) {
+						assert.equal(storageId, "bafy-signal");
+						assert.equal(options.numProviders, 2);
+						yield {
+							routing: "kubo-routing",
+							providers: [{
+								id: "peer-a",
+								multiaddrs: ["/ip4/127.0.0.1/tcp/4001", "/ip4/127.0.0.1/tcp/4002"],
+								protocols: ["transport-bitswap"],
+							}],
+						};
+						yield {
+							type: "provider",
+							ID: "peer-b",
+							Addrs: ["/ip4/127.0.0.2/tcp/4001"],
+						};
+					},
+				},
+			},
+			getFileStat: async (storageId, options) => {
+				assert.equal(storageId, "bafy-signal");
+				assert.equal(options.attemptTimeout, 7000);
+				assert.equal(options.withLocal, false);
+				return {type: "file", cumulativeSize: "42"};
+			},
+		};
+		const row = await inspectStorageSpaceAvailabilityNetworkSignal(fakeStorage as any, {
+			storageId: "bafy-signal",
+			physicalBytes: 40,
+			contentRowsCount: 1,
+			usersCount: 1,
+			activeFileCatalogRefsCount: 0,
+			groupPostRefsCount: 0,
+			generatedOutputRefsCount: 0,
+			localPinRefsCount: 0,
+			remotePinsCount: 0,
+			pinAccountsCount: 0,
+			contentPeerRowsCount: 0,
+			postPeerRowsCount: 0,
+			groupPeerRowsCount: 0,
+			maxContentPeersCount: 0,
+			maxPostPeersCount: 0,
+			maxGroupPeersCount: 0,
+			maxPeerCount: 0,
+			maxFullyPeerCount: 0,
+			isPinned: false,
+		}, {
+			providerLimit: 2,
+			providerAddressLimit: 1,
+			providerTimeoutMs: 5000,
+			statTimeoutMs: 7000,
+			statWithLocal: false,
+		});
+
+		assert.equal(row.providerLookupOk, true);
+		assert.equal(row.providersCount, 2);
+		assert.equal(row.providersTruncated, true);
+		assert.equal(row.providers[0].id, "peer-a");
+		assert.deepEqual(row.providers[0].multiaddrs, ["/ip4/127.0.0.1/tcp/4001"]);
+		assert.equal(row.providers[0].source, "kubo-routing");
+		assert.equal(row.providers[1].id, "peer-b");
+		assert.equal(row.retrievalStatOk, true);
+		assert.equal(row.retrievalType, "file");
+		assert.equal(row.retrievalMeasuredBytes, 42);
 	});
 });

@@ -1,8 +1,12 @@
 import {Op} from 'sequelize';
+import {CID} from 'multiformats/cid';
 import {IGeesomeApp} from "../../interface.js";
 import {ContentStorageType, StorageObjectReferenceType} from "../database/interface.js";
 import IGeesomeStorageModule from "../storage/interface.js";
 import {
+  IStorageSpaceAvailabilityNetworkSignalInspectionRow,
+  IStorageSpaceAvailabilityProviderRow,
+  IStorageSpaceAvailabilitySignalRow,
   IStorageSpaceGeneratedOutputChildInspectionRow,
   IStorageSpaceGeneratedOutputChildReconcileRow,
   IStorageSpaceGeneratedOutputChildRefInspectionRow,
@@ -32,6 +36,20 @@ export async function inspectStorageSpaceGeneratedOutputRef(storage: IGeesomeSto
   } catch (e) {
     return getFailedGeneratedOutputInspection(ref, e);
   }
+}
+
+export async function inspectStorageSpaceAvailabilityNetworkSignal(
+  storage: IGeesomeStorageModule,
+  signal: IStorageSpaceAvailabilitySignalRow,
+  options: any = {}
+): Promise<IStorageSpaceAvailabilityNetworkSignalInspectionRow> {
+  const providerResult = await inspectStorageSpaceAvailabilityProviders(storage, signal.storageId, options);
+  const retrievalStatResult = await inspectStorageSpaceAvailabilityRetrievalStat(storage, signal.storageId, options);
+  return {
+    ...signal,
+    ...providerResult,
+    ...retrievalStatResult,
+  };
 }
 
 export async function inspectStorageSpaceGeneratedOutputChildRefs(
@@ -131,6 +149,228 @@ export function getStorageSpaceGeneratedOutputChildReconcileResult(
     inspectedChildren: rows.length,
     reconciled: rows.filter(row => row.reconciled).length,
     skipped: rows.filter(row => !row.reconciled).length,
+  };
+}
+
+async function inspectStorageSpaceAvailabilityProviders(storage: IGeesomeStorageModule, storageId: string, options: any) {
+  const startedAt = Date.now();
+  try {
+    const result = await collectStorageSpaceAvailabilityProviders(storage, storageId, options);
+    return {
+      providerLookupOk: true,
+      providersCount: result.providers.length,
+      providersTruncated: result.truncated,
+      providerLookupDurationMs: Date.now() - startedAt,
+      providerLookupErrorMessage: null,
+      providers: result.providers,
+    };
+  } catch (e) {
+    return {
+      providerLookupOk: false,
+      providersCount: 0,
+      providersTruncated: false,
+      providerLookupDurationMs: Date.now() - startedAt,
+      providerLookupErrorMessage: getStorageInspectionErrorMessage(e),
+      providers: [],
+    };
+  }
+}
+
+async function inspectStorageSpaceAvailabilityRetrievalStat(storage: IGeesomeStorageModule, storageId: string, options: any) {
+  const startedAt = Date.now();
+  try {
+    const stat = await storage.getFileStat(storageId, {
+      attempts: 1,
+      attemptTimeout: options.statTimeoutMs,
+      withLocal: options.statWithLocal,
+      size: true,
+    });
+    return {
+      retrievalStatOk: true,
+      retrievalStatDurationMs: Date.now() - startedAt,
+      retrievalType: stat?.type || null,
+      retrievalMeasuredBytes: getStorageStatMeasuredBytes(stat),
+      retrievalErrorMessage: null,
+    };
+  } catch (e) {
+    return {
+      retrievalStatOk: false,
+      retrievalStatDurationMs: Date.now() - startedAt,
+      retrievalType: null,
+      retrievalMeasuredBytes: 0,
+      retrievalErrorMessage: getStorageInspectionErrorMessage(e),
+    };
+  }
+}
+
+async function collectStorageSpaceAvailabilityProviders(storage: IGeesomeStorageModule, storageId: string, options: any) {
+  const providerLimit = options.providerLimit || 20;
+  const providerAddressLimit = options.providerAddressLimit || 5;
+  const timeout = getTimeoutController(options.providerTimeoutMs || 5000);
+  const providers: IStorageSpaceAvailabilityProviderRow[] = [];
+  const providerKeys = new Set<string>();
+  let truncated = false;
+
+  try {
+    const iterator = getStorageSpaceProviderIterator(storage, storageId, {
+      providerLimit,
+      signal: timeout.signal,
+    });
+    for await (const event of iterator) {
+      for (const provider of getStorageSpaceProviderRowsFromEvent(event, providerAddressLimit)) {
+        const providerKey = getStorageSpaceProviderKey(provider);
+        if (providerKeys.has(providerKey)) {
+          continue;
+        }
+        providers.push(provider);
+        providerKeys.add(providerKey);
+        if (providers.length >= providerLimit) {
+          truncated = true;
+          timeout.abort();
+          return {providers, truncated};
+        }
+      }
+    }
+    return {providers, truncated};
+  } finally {
+    timeout.clear();
+  }
+}
+
+function getStorageSpaceProviderIterator(storage: IGeesomeStorageModule, storageId: string, options: any) {
+  const node: any = storage?.node;
+  if (node?.routing?.findProvs) {
+    return node.routing.findProvs(storageId, {
+      numProviders: options.providerLimit,
+      signal: options.signal,
+    });
+  }
+  if (node?.routing?.findProviders) {
+    return node.routing.findProviders(parseStorageSpaceCid(storageId), {
+      signal: options.signal,
+    });
+  }
+  if (node?.dht?.findProvs) {
+    return node.dht.findProvs(storageId, {
+      numProviders: options.providerLimit,
+      signal: options.signal,
+    });
+  }
+  if (node?.dht?.findProviders) {
+    return node.dht.findProviders(parseStorageSpaceCid(storageId), {
+      signal: options.signal,
+    });
+  }
+  throw new Error('storage_provider_lookup_not_supported');
+}
+
+function getStorageSpaceProviderRowsFromEvent(event, providerAddressLimit: number): IStorageSpaceAvailabilityProviderRow[] {
+  return getStorageSpaceProviderCandidates(event)
+    .map(provider => getStorageSpaceProviderRow(provider, event, providerAddressLimit))
+    .filter(provider => !!provider);
+}
+
+function getStorageSpaceProviderCandidates(event) {
+  const providers = [];
+  if (event?.provider) {
+    providers.push(event.provider);
+  }
+  if (Array.isArray(event?.providers)) {
+    providers.push(...event.providers);
+  }
+  if (Array.isArray(event?.responses)) {
+    providers.push(...event.responses);
+  }
+  if (Array.isArray(event?.Responses)) {
+    providers.push(...event.Responses);
+  }
+  if (isStorageSpaceProviderLike(event)) {
+    providers.push(event);
+  }
+  return providers;
+}
+
+function getStorageSpaceProviderRow(provider, event, providerAddressLimit: number): IStorageSpaceAvailabilityProviderRow | null {
+  const id = normalizeStorageSpaceProviderId(provider?.id ?? provider?.ID ?? provider?.peer ?? provider?.peerId);
+  const multiaddrs = normalizeStorageSpaceProviderMultiaddrs(
+    provider?.multiaddrs ?? provider?.addrs ?? provider?.Addrs,
+    providerAddressLimit
+  );
+  if (!id && !multiaddrs.length) {
+    return null;
+  }
+  return {
+    id,
+    multiaddrs,
+    protocols: normalizeStorageSpaceProviderProtocols(provider?.protocols),
+    source: normalizeStorageSpaceProviderSource(provider, event),
+  };
+}
+
+function getStorageSpaceProviderKey(provider: IStorageSpaceAvailabilityProviderRow) {
+  return `${provider.id || ''}|${provider.multiaddrs.join(',')}`;
+}
+
+function normalizeStorageSpaceProviderId(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value.toString === 'function') {
+    return value.toString();
+  }
+  return String(value);
+}
+
+function normalizeStorageSpaceProviderMultiaddrs(value, limit: number) {
+  const values = Array.isArray(value) ? value : (value ? [value] : []);
+  return values
+    .map(address => normalizeStorageSpaceProviderAddress(address))
+    .filter(address => !!address)
+    .slice(0, limit);
+}
+
+function normalizeStorageSpaceProviderAddress(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value.toString === 'function') {
+    return value.toString();
+  }
+  return String(value);
+}
+
+function normalizeStorageSpaceProviderProtocols(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map(protocol => String(protocol));
+}
+
+function normalizeStorageSpaceProviderSource(provider, event) {
+  return provider?.routing || event?.routing || event?.type || event?.name || null;
+}
+
+function isStorageSpaceProviderLike(event) {
+  return !!(event?.id || event?.ID || event?.peer || event?.peerId || event?.multiaddrs || event?.addrs || event?.Addrs);
+}
+
+function parseStorageSpaceCid(storageId: string) {
+  return CID.parse(storageId);
+}
+
+function getTimeoutController(timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    abort: () => controller.abort(),
+    clear: () => clearTimeout(timeout),
   };
 }
 

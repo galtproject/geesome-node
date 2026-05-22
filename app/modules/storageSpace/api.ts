@@ -230,6 +230,31 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/availability-network-inspection Inspect storage availability network signals
+   * @apiName AdminStorageSpaceAvailabilityNetworkInspection
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiQuery {String} [storageId] Inspect one storage id from the availability signal set.
+   * @apiQuery {Number} [providerLimit=20] Maximum provider rows to collect per storage id.
+   * @apiQuery {Number} [providerAddressLimit=5] Maximum multiaddrs to include per provider row.
+   * @apiQuery {Number} [providerTimeoutMs=5000] Provider lookup timeout in milliseconds.
+   * @apiQuery {Number} [statTimeoutMs=5000] Runtime stat timeout in milliseconds.
+   * @apiQuery {Boolean} [statWithLocal=false] Include local blocks in the stat lookup when the storage backend supports it.
+   * @apiDescription Bounded on-demand network inspection for the availability/popularity analyzer tab. Performs live provider lookup plus a timed storage stat check for a small page of storage IDs; intentionally excluded from cached snapshots.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/availability-network-inspection', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.inspectStorageSpaceAvailabilityNetworkSignals(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/cleanup-blockers Get content cleanup blockers
    * @apiName AdminStorageSpaceCleanupBlockers
    * @apiGroup AdminStorage

@@ -1138,6 +1138,7 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
       ON generated_output_stats."storageId" = storage_candidates."storageId"
     LEFT JOIN remote_pin_stats
       ON remote_pin_stats."storageId" = storage_candidates."storageId"
+    WHERE (:storageId IS NULL OR storage_candidates."storageId" = :storageId)
     ORDER BY
       COALESCE(remote_pin_stats."remotePinsCount", 0) DESC,
       CASE WHEN COALESCE(storage_object."isPinned", false) THEN 1 ELSE 0 END DESC,
@@ -1151,7 +1152,7 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
       storage_candidates."storageId" ASC
     LIMIT :limit OFFSET :offset
   `, {
-    replacements: getStorageSpaceListQueryReplacements(listParams),
+    replacements: getStorageSpaceAvailabilitySignalsQueryReplacements(listParams),
     type: QueryTypes.SELECT,
   });
 
@@ -1178,6 +1179,13 @@ function getStorageSpaceGroupPostQueryReplacements(listParams) {
   return {
     ...getStorageSpaceListQueryReplacements(listParams),
     groupId: listParams.groupId,
+  };
+}
+
+function getStorageSpaceAvailabilitySignalsQueryReplacements(listParams) {
+  return {
+    ...getStorageSpaceListQueryReplacements(listParams),
+    storageId: listParams.storageId || null,
   };
 }
 
