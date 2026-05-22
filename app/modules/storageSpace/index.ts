@@ -1,11 +1,14 @@
 import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
 import IGeesomeStorageSpaceModule, {
   IStorageSpaceCleanupBlockerRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
   IStorageSpaceSnapshotProgress,
+  IStorageSpaceStorageObjectRemovalHistoryRow,
+  IStorageSpaceStorageObjectRemovalQueueResult,
   IStorageSpaceStorageObjectRemovalResult
 } from "./interface.js";
 import * as storageSpaceQueries from './queryHelpers.js';
@@ -43,16 +46,25 @@ const storageSpaceCleanupBlockerListParams: IListParamsOptions = {
   limit: 10,
   maxLimit: 25,
 };
+const storageSpaceStorageRemovalHistoryListParams: IListParamsOptions = {
+  limit: 20,
+  maxLimit: 100,
+};
 const storageSpaceSnapshotQueueModuleName = 'storage-space-snapshot';
 const storageSpaceSnapshotQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_SNAPSHOT_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceSnapshotQueueInitialPercent = 1;
 const storageSpaceStorageRemovalQueueModuleName = 'storage-space-storage-removal';
 const storageSpaceStorageRemovalQueueKickBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_QUEUE_KICK_BATCH_LIMIT, 1);
 const storageSpaceStorageRemovalQueueInitialPercent = 5;
+const storageSpaceStorageRemovalDelayMs = parseNonNegativeInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_DELAY_MS, 0);
+const storageSpaceStorageRemovalWorkerIntervalMs = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER_INTERVAL_MS, 60000);
+const storageSpaceStorageRemovalWorkerBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER_BATCH_LIMIT, 5);
+let storageObjectRemovalQueueWorkerTimer = null;
 
 export default async function (app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator', 'storage']);
   const module = new StorageSpaceModule(app);
+  module.startStorageObjectRemovalQueueWorker();
   (await import('./api.js')).default(app, module);
   return module as IGeesomeStorageSpaceModule;
 }
@@ -234,13 +246,14 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   async queueStorageObjectRemoval(userId: number, userApiKeyId: number | null, storageId: string, options: any = {}) {
+    const delayMs = getStorageObjectRemovalDelayMs(options);
     const queue = await this.app.ms.asyncOperation.addUniqueUserOperationQueue(
       userId,
       storageSpaceStorageRemovalQueueModuleName,
       userApiKeyId,
       getStorageSpaceStorageRemovalJobInput(storageId)
     );
-    if (options.process !== false) {
+    if (options.process !== false && delayMs <= 0) {
       this.startStorageObjectRemovalQueueProcessing(options);
     }
     return queue;
@@ -248,15 +261,37 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
 
   startStorageObjectRemovalQueueProcessing(options: any = {}) {
     const limit = parsePositiveInteger(options.limit, storageSpaceStorageRemovalQueueKickBatchLimit);
-    void this.processStorageObjectRemovalQueue({limit}).catch((e) => {
+    void this.processStorageObjectRemovalQueue({...options, limit}).catch((e) => {
       log('processStorageObjectRemovalQueue error', e);
     });
   }
 
   async processStorageObjectRemovalQueue(options: any = {}) {
     const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+    let processed = 0;
+
+    while (processed < limit) {
+      const delayResult = await this.getStorageObjectRemovalQueueDelayResult(options);
+      if (delayResult) {
+        return {
+          ...delayResult,
+          processed,
+        };
+      }
+
+      const result = await this.processStorageObjectRemovalQueueItem();
+      processed += result.processed;
+      if (result.processed <= 0) {
+        return {processed};
+      }
+    }
+
+    return {processed};
+  }
+
+  async processStorageObjectRemovalQueueItem() {
     return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceStorageRemovalQueueModuleName, {
-      limit,
+      limit: 1,
       getPayload: (waitingQueue) => parseStorageSpaceStorageRemovalJob(waitingQueue.inputJson),
       getAsyncOperationData: (_waitingQueue, job) => ({
         name: 'remove-storage-object',
@@ -280,6 +315,69 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       ...removeResult,
       blocked: false,
     };
+  }
+
+  async getStorageObjectRemovalQueueDelayResult(options: any = {}): Promise<IStorageSpaceStorageObjectRemovalQueueResult | null> {
+    const delayMs = getStorageObjectRemovalDelayMs(options);
+    if (delayMs <= 0) {
+      return null;
+    }
+    const waitingQueue = await this.app.ms.asyncOperation.getWaitingOperationByModule(storageSpaceStorageRemovalQueueModuleName);
+    if (!waitingQueue || isStorageObjectRemovalQueueReady(waitingQueue, delayMs)) {
+      return null;
+    }
+    return {
+      processed: 0,
+      delayed: 1,
+      nextProcessAt: getStorageObjectRemovalQueueProcessAt(waitingQueue, delayMs),
+    };
+  }
+
+  startStorageObjectRemovalQueueWorker() {
+    if (!shouldRunStorageObjectRemovalQueueWorker()) {
+      return;
+    }
+    if (storageObjectRemovalQueueWorkerTimer) {
+      return;
+    }
+
+    this.startStorageObjectRemovalQueueProcessing({limit: storageSpaceStorageRemovalWorkerBatchLimit});
+    storageObjectRemovalQueueWorkerTimer = setInterval(() => {
+      this.startStorageObjectRemovalQueueProcessing({limit: storageSpaceStorageRemovalWorkerBatchLimit});
+    }, storageSpaceStorageRemovalWorkerIntervalMs);
+
+    const timer: any = storageObjectRemovalQueueWorkerTimer;
+    if (timer.unref) {
+      timer.unref();
+    }
+  }
+
+  stopStorageObjectRemovalQueueWorker() {
+    if (!storageObjectRemovalQueueWorkerTimer) {
+      return;
+    }
+    clearInterval(storageObjectRemovalQueueWorkerTimer);
+    storageObjectRemovalQueueWorkerTimer = null;
+  }
+
+  stop() {
+    this.stopStorageObjectRemovalQueueWorker();
+  }
+
+  async getStorageObjectRemovalHistory(listParams: any = {}) {
+    const listWindow = getStorageSpaceListWindow(listParams, storageSpaceStorageRemovalHistoryListParams);
+    const model = this.app.ms.database.sequelize.models.userOperationQueue;
+    if (!model) {
+      return [];
+    }
+    const rows = await model.findAll({
+      where: {module: storageSpaceStorageRemovalQueueModuleName},
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+      limit: listWindow.limit,
+      offset: listWindow.offset,
+      include: [{association: 'asyncOperation'}],
+    });
+    return rows.map(row => getStorageObjectRemovalHistoryRow(row, getStorageObjectRemovalDelayMs(listParams)));
   }
 }
 
@@ -478,6 +576,107 @@ function getStorageSpaceStorageRemovalJobInput(storageId) {
     type: 'remove-storage-object',
     storageId: normalizedStorageId,
   };
+}
+
+function getStorageObjectRemovalDelayMs(options: any = {}) {
+  if (options.delayMs !== undefined) {
+    return parseNonNegativeInteger(options.delayMs, storageSpaceStorageRemovalDelayMs);
+  }
+  return storageSpaceStorageRemovalDelayMs;
+}
+
+function shouldRunStorageObjectRemovalQueueWorker() {
+  return helpers.parseBoolean(
+    process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER,
+    storageSpaceStorageRemovalDelayMs > 0
+  );
+}
+
+function isStorageObjectRemovalQueueReady(waitingQueue, delayMs) {
+  return Date.now() >= getStorageObjectRemovalQueueProcessAt(waitingQueue, delayMs).getTime();
+}
+
+function getStorageObjectRemovalQueueProcessAt(waitingQueue, delayMs) {
+  const createdAt = getStorageObjectRemovalQueueCreatedAt(waitingQueue);
+  return new Date(createdAt.getTime() + delayMs);
+}
+
+function getStorageObjectRemovalQueueCreatedAt(waitingQueue) {
+  const createdAt = new Date(waitingQueue?.createdAt || Date.now());
+  if (!Number.isFinite(createdAt.getTime())) {
+    return new Date();
+  }
+  return createdAt;
+}
+
+function getStorageObjectRemovalHistoryRow(row, delayMs): IStorageSpaceStorageObjectRemovalHistoryRow {
+  const data = typeof row?.toJSON === 'function' ? row.toJSON() : row;
+  const asyncOperation = data.asyncOperation || null;
+  const result = getStorageObjectRemovalHistoryResult(asyncOperation?.output);
+  const nextProcessAt = getStorageObjectRemovalQueueProcessAt(data, delayMs);
+  const ready = isStorageObjectRemovalQueueReady(data, delayMs);
+  return {
+    queueId: data.id,
+    asyncOperationId: data.asyncOperationId || asyncOperation?.id || null,
+    userId: data.userId || null,
+    userApiKeyId: data.userApiKeyId || null,
+    storageId: getStorageObjectRemovalHistoryStorageId(data),
+    status: getStorageObjectRemovalHistoryStatus(data, asyncOperation, result, ready),
+    isWaiting: data.isWaiting === true,
+    ready,
+    queuedAt: data.createdAt || null,
+    startedAt: data.startedAt || null,
+    finishedAt: asyncOperation?.finishedAt || null,
+    nextProcessAt: data.isWaiting === true && !ready ? nextProcessAt : null,
+    delayMs,
+    result,
+    errorMessage: asyncOperation?.errorMessage || null,
+    updatedAt: data.updatedAt || asyncOperation?.updatedAt || null,
+  };
+}
+
+function getStorageObjectRemovalHistoryStorageId(row) {
+  try {
+    return parseStorageSpaceStorageRemovalJob(row.inputJson).storageId;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getStorageObjectRemovalHistoryResult(output): IStorageSpaceStorageObjectRemovalResult | null {
+  if (!output) {
+    return null;
+  }
+  try {
+    return typeof output === 'string' ? JSON.parse(output) : output;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getStorageObjectRemovalHistoryStatus(row, asyncOperation, result, ready) {
+  if (row.isWaiting === true && !asyncOperation) {
+    return ready ? 'waiting' : 'delayed';
+  }
+  if (asyncOperation?.inProcess) {
+    return 'in_process';
+  }
+  if (asyncOperation?.errorMessage) {
+    return 'failed';
+  }
+  if (result?.blocked) {
+    return 'blocked';
+  }
+  if (result?.missing) {
+    return 'missing';
+  }
+  if (result?.removed) {
+    return 'removed';
+  }
+  if (row.isWaiting === true) {
+    return ready ? 'waiting' : 'delayed';
+  }
+  return 'finished';
 }
 
 function parseStorageSpaceStorageRemovalJob(inputJson) {

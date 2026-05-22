@@ -231,6 +231,26 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/storage-removals Get storage-object removal history
+   * @apiName AdminStorageSpaceStorageRemovals
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiQuery {Number} [delayMs] Override the configured retention delay when calculating ready/nextProcessAt fields.
+   * @apiDescription Lists queued and completed physical storage-object removals, including delayed, waiting, blocked, removed, missing, failed, or in-process state for operator review.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/storage-removals', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageObjectRemovalHistory(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/generated-output-inspection Inspect generated-output storage refs
    * @apiName AdminStorageSpaceGeneratedOutputInspection
    * @apiGroup AdminStorage
