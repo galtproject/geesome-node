@@ -88,7 +88,7 @@ const numericPreviewStorageFields = [
 ];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
-  const hasRemotePinRefs = hasPinStorageObjectModel(sequelize);
+  const hasRemotePinRefs = shouldIncludeRemotePinRefs(sequelize, options);
   const rows = await sequelize.query(`
     WITH content_stats AS (
       SELECT
@@ -691,7 +691,7 @@ export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any
 }
 
 export async function getStorageSpacePinnedStorageObjects(sequelize, listParams: any = {}) {
-  const hasRemotePinRefs = hasPinStorageObjectModel(sequelize);
+  const hasRemotePinRefs = shouldIncludeRemotePinRefs(sequelize, listParams);
   const rows = await sequelize.query(`
     WITH content_stats AS (
       SELECT
@@ -943,6 +943,13 @@ function getStorageSpaceQueryReplacements(options: any = {}) {
 
 function hasPinStorageObjectModel(sequelize) {
   return !!(sequelize?.models?.pinStorageObject || sequelize?.models?.PinStorageObject);
+}
+
+function shouldIncludeRemotePinRefs(sequelize, options: any = {}) {
+  if (typeof options.hasRemotePinRefs === 'boolean') {
+    return options.hasRemotePinRefs;
+  }
+  return hasPinStorageObjectModel(sequelize);
 }
 
 function getRemotePinnedStorageIdsSql(hasRemotePinRefs) {

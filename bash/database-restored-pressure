@@ -8,7 +8,8 @@ Usage:
   CONFIRM_RESTORED_BACKUP=1 DATABASE_NAME=<restored-db> RESTORED_GROUP_NAME=<group-name> bash/database-restored-pressure
 
 Runs the scalability EXPLAIN and generated-output pressure reports against a
-restored Postgres backup group after migration rehearsal.
+restored Postgres backup group after migration rehearsal. Also writes the
+storage-space analyzer report for the restored database.
 
 Safety:
   - Refuses to run unless CONFIRM_RESTORED_BACKUP=1.
@@ -68,3 +69,4 @@ echo
 
 npm run database:scalability:explain
 npm run database:scalability:generated-output
+npm run database:storage-space-report
