@@ -211,6 +211,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/availability-signals Get storage availability signals
+   * @apiName AdminStorageSpaceAvailabilitySignals
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Lists storage IDs with local pin, remote pin, generated-output, and stored peer-count signals for the availability/popularity analyzer tab. These are best-effort node-visible availability signals, not exact global popularity.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/availability-signals', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceAvailabilitySignals(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/cleanup-blockers Get content cleanup blockers
    * @apiName AdminStorageSpaceCleanupBlockers
    * @apiGroup AdminStorage

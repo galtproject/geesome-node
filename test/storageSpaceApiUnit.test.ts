@@ -113,6 +113,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					getStorageSpaceAvailabilitySignals: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					getStorageSpaceCleanupBlockers: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -173,6 +177,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/shared-storage-ids"],
 			["GET", "admin/storage-space/pinned-storage-objects"],
 			["GET", "admin/storage-space/preview-storage"],
+			["GET", "admin/storage-space/availability-signals"],
 			["GET", "admin/storage-space/cleanup-blockers"],
 			["GET", "admin/storage-space/storage-removals"],
 			["GET", "admin/storage-space/generated-output-inspection"],
@@ -207,6 +212,7 @@ describe("storage space admin API", function () {
 			sharedStorageIds: [{storageId: "bafy-shared", contentRowsCount: 2}],
 			pinnedStorageObjects: [{storageId: "bafy-pinned", physicalBytes: 44}],
 			previewStorage: [{previewField: "smallPreviewStorageId", physicalPreviewBytes: 12}],
+			availabilitySignals: [{storageId: "bafy-signal", maxPeerCount: 7}],
 			cleanupBlockers: [{id: 1, blockerCount: 2}],
 			storageRemovals: [{queueId: 12, storageId: "bafy-remove", status: "blocked"}],
 			generatedOutputInspection: [{source: "staticSite.storageId", storageId: "bafy-site", measuredBytes: 123}],
@@ -263,6 +269,10 @@ describe("storage space admin API", function () {
 					getStorageSpacePreviewStorage: async (listParams) => {
 						storageSpaceCalls.push(["previewStorage", listParams]);
 						return responses.previewStorage;
+					},
+					getStorageSpaceAvailabilitySignals: async (listParams) => {
+						storageSpaceCalls.push(["availabilitySignals", listParams]);
+						return responses.availabilitySignals;
 					},
 					getStorageSpaceCleanupBlockers: async (listParams) => {
 						storageSpaceCalls.push(["cleanupBlockers", listParams]);
@@ -326,6 +336,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/shared-storage-ids", {user: {id: 7}, query})).body, responses.sharedStorageIds);
 		assert.deepEqual((await call("GET", "admin/storage-space/pinned-storage-objects", {user: {id: 7}, query})).body, responses.pinnedStorageObjects);
 		assert.deepEqual((await call("GET", "admin/storage-space/preview-storage", {user: {id: 7}, query})).body, responses.previewStorage);
+		assert.deepEqual((await call("GET", "admin/storage-space/availability-signals", {user: {id: 7}, query})).body, responses.availabilitySignals);
 		assert.deepEqual((await call("GET", "admin/storage-space/cleanup-blockers", {user: {id: 7}, query: {...query, contentId: "1"}})).body, responses.cleanupBlockers);
 		assert.deepEqual((await call("GET", "admin/storage-space/storage-removals", {user: {id: 7}, query: {...query, delayMs: "60000"}})).body, responses.storageRemovals);
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-inspection", {user: {id: 7}, query})).body, responses.generatedOutputInspection);
@@ -337,6 +348,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -370,6 +382,7 @@ describe("storage space admin API", function () {
 			["sharedStorageIds", query],
 			["pinnedStorageObjects", query],
 			["previewStorage", query],
+			["availabilitySignals", query],
 			["cleanupBlockers", {...query, contentId: "1"}],
 			["storageRemovals", {...query, delayMs: "60000"}],
 			["generatedOutputInspection", query],
@@ -396,6 +409,7 @@ describe("storage space query helpers", function () {
 
 		await storageSpaceQueries.getStorageSpaceOverview(fakeSequelize);
 		await storageSpaceQueries.getStorageSpacePinnedStorageObjects(fakeSequelize, {limit: 1, offset: 0});
+		await storageSpaceQueries.getStorageSpaceAvailabilitySignals(fakeSequelize, {limit: 1, offset: 0});
 
 		assert.equal(capturedSql.join("\n").includes('"pinStorageObjects"'), false);
 	});
