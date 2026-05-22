@@ -13,6 +13,8 @@ const numericOverviewFields = [
   'groupPostsLogicalBytes',
   'pinnedStorageObjectsCount',
   'pinnedPhysicalBytes',
+  'remotePinnedStorageObjectsCount',
+  'remotePinRefsCount',
   'generatedOutputStorageRefsCount',
   'generatedOutputUniqueStorageIdsCount',
   'generatedOutputKnownStorageObjectsCount',
@@ -72,6 +74,8 @@ const numericPinnedStorageObjectFields = [
   'activeFileCatalogRefsCount',
   'groupPostRefsCount',
   'generatedOutputRefsCount',
+  'remotePinsCount',
+  'pinAccountsCount',
 ];
 const numericPreviewStorageFields = [
   'contentRowsCount',
@@ -84,6 +88,7 @@ const numericPreviewStorageFields = [
 ];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
+  const hasRemotePinRefs = hasPinStorageObjectModel(sequelize);
   const rows = await sequelize.query(`
     WITH content_stats AS (
       SELECT
@@ -133,11 +138,19 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
     ),
     pinned_storage AS (
       SELECT
-        COUNT(*)::bigint AS "pinnedStorageObjectsCount",
-        COALESCE(SUM(COALESCE(size, 0)), 0)::bigint AS "pinnedPhysicalBytes"
-      FROM "storageObjects"
-      WHERE "isPinned" = true
+        COUNT(pinned_storage_ids."storageId")::bigint AS "pinnedStorageObjectsCount",
+        COALESCE(SUM(COALESCE(storage_object.size, 0)), 0)::bigint AS "pinnedPhysicalBytes"
+      FROM (
+        SELECT "storageId"
+        FROM "storageObjects"
+        WHERE "isPinned" = true
+
+        ${getRemotePinnedStorageIdsSql(hasRemotePinRefs)}
+      ) pinned_storage_ids
+      LEFT JOIN "storageObjects" storage_object
+        ON storage_object."storageId" = pinned_storage_ids."storageId"
     ),
+    ${getOverviewRemotePinStatsSql(hasRemotePinRefs)},
     ${getGeneratedOutputRefsSql()},
     generated_output_unique_refs AS (
       SELECT DISTINCT "storageId"
@@ -162,8 +175,9 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
       file_catalog.*,
       group_posts.*,
       pinned_storage.*,
+      remote_pin_stats.*,
       generated_output.*
-    FROM content_stats, physical_content, duplicate_content, file_catalog, group_posts, pinned_storage, generated_output
+    FROM content_stats, physical_content, duplicate_content, file_catalog, group_posts, pinned_storage, remote_pin_stats, generated_output
   `, {
     replacements: getStorageSpaceQueryReplacements(options),
     type: QueryTypes.SELECT,
@@ -677,6 +691,7 @@ export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any
 }
 
 export async function getStorageSpacePinnedStorageObjects(sequelize, listParams: any = {}) {
+  const hasRemotePinRefs = hasPinStorageObjectModel(sequelize);
   const rows = await sequelize.query(`
     WITH content_stats AS (
       SELECT
@@ -714,7 +729,8 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
       FROM generated_output_refs
       WHERE "storageId" IS NOT NULL
       GROUP BY "storageId"
-    )
+    ),
+    ${getPinnedStorageObjectRemotePinStatsSql(hasRemotePinRefs)}
     SELECT
       storage_object.id,
       storage_object."storageId",
@@ -727,6 +743,9 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
       COALESCE(file_catalog_stats."activeFileCatalogRefsCount", 0)::bigint AS "activeFileCatalogRefsCount",
       COALESCE(group_post_stats."groupPostRefsCount", 0)::bigint AS "groupPostRefsCount",
       COALESCE(generated_output_stats."generatedOutputRefsCount", 0)::bigint AS "generatedOutputRefsCount",
+      COALESCE(remote_pin_stats."remotePinsCount", 0)::bigint AS "remotePinsCount",
+      COALESCE(remote_pin_stats."pinAccountsCount", 0)::bigint AS "pinAccountsCount",
+      remote_pin_stats."pinServices",
       storage_object."isPinned",
       storage_object."createdAt",
       storage_object."updatedAt"
@@ -735,7 +754,8 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
     LEFT JOIN file_catalog_stats ON file_catalog_stats."storageId" = storage_object."storageId"
     LEFT JOIN group_post_stats ON group_post_stats."storageId" = storage_object."storageId"
     LEFT JOIN generated_output_stats ON generated_output_stats."storageId" = storage_object."storageId"
-    WHERE storage_object."isPinned" = true
+    LEFT JOIN remote_pin_stats ON remote_pin_stats."storageId" = storage_object."storageId"
+    ${getPinnedStorageObjectWhereSql(hasRemotePinRefs)}
     ORDER BY COALESCE(storage_object.size, 0) DESC, storage_object.id ASC
     LIMIT :limit OFFSET :offset
   `, {
@@ -917,7 +937,83 @@ function getStorageSpaceQueryReplacements(options: any = {}) {
     fileType: options.fileType || 'file',
     publishedStatus: options.publishedStatus || 'published',
     unknownValue: 'unknown',
+    pinnedStatus: 'pinned',
   };
+}
+
+function hasPinStorageObjectModel(sequelize) {
+  return !!(sequelize?.models?.pinStorageObject || sequelize?.models?.PinStorageObject);
+}
+
+function getRemotePinnedStorageIdsSql(hasRemotePinRefs) {
+  if (!hasRemotePinRefs) {
+    return '';
+  }
+  return `
+        UNION
+
+        SELECT "storageId"
+        FROM "pinStorageObjects"
+        WHERE status = :pinnedStatus
+  `;
+}
+
+function getOverviewRemotePinStatsSql(hasRemotePinRefs) {
+  if (!hasRemotePinRefs) {
+    return `
+    remote_pin_stats AS (
+      SELECT
+        0::bigint AS "remotePinnedStorageObjectsCount",
+        0::bigint AS "remotePinRefsCount"
+    )
+    `;
+  }
+  return `
+    remote_pin_stats AS (
+      SELECT
+        COUNT(DISTINCT "storageId")::bigint AS "remotePinnedStorageObjectsCount",
+        COUNT(*)::bigint AS "remotePinRefsCount"
+      FROM "pinStorageObjects"
+      WHERE status = :pinnedStatus
+    )
+  `;
+}
+
+function getPinnedStorageObjectRemotePinStatsSql(hasRemotePinRefs) {
+  if (!hasRemotePinRefs) {
+    return `
+    remote_pin_stats AS (
+      SELECT
+        NULL::text AS "storageId",
+        0::bigint AS "remotePinsCount",
+        0::bigint AS "pinAccountsCount",
+        NULL::text AS "pinServices"
+      WHERE false
+    )
+    `;
+  }
+  return `
+    remote_pin_stats AS (
+      SELECT
+        "storageId",
+        COUNT(*)::bigint AS "remotePinsCount",
+        COUNT(DISTINCT "pinAccountId")::bigint AS "pinAccountsCount",
+        STRING_AGG(DISTINCT COALESCE(service, :unknownValue), ', ' ORDER BY COALESCE(service, :unknownValue)) AS "pinServices"
+      FROM "pinStorageObjects"
+      WHERE status = :pinnedStatus
+      GROUP BY "storageId"
+    )
+  `;
+}
+
+function getPinnedStorageObjectWhereSql(hasRemotePinRefs) {
+  if (!hasRemotePinRefs) {
+    return 'WHERE storage_object."isPinned" = true';
+  }
+  return `
+    WHERE storage_object."isPinned" = true
+      OR remote_pin_stats."remotePinsCount" > 0
+  `;
 }
 
 function normalizeNumericFields(row, fields: string[]) {

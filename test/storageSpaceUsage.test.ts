@@ -73,6 +73,15 @@ describe("storage space usage", function () {
 			status: PostStatus.Published
 		});
 		await app.ms.database.markStorageObjectPinnedByContent(sharedContent);
+		const pinAccount = await app.ms['pin'].createAccount(firstUser.id, {
+			name: 'usage-pinata',
+			service: 'pinata',
+			apiKey: 'pinata-key',
+			secretApiKey: 'pinata-secret',
+		});
+		await app.ms['pin'].recordPinnedStorageObject(sharedContent.storageId, pinAccount, sharedContent, {
+			data: {IpfsHash: sharedContent.storageId}
+		});
 		const generatedStorageId = 'generated-space-output';
 		const generatedSize = 33;
 		const generatedUnknownContent = 'generated runtime output bytes';
@@ -140,6 +149,8 @@ describe("storage space usage", function () {
 		assert.equal(after.fileCatalogLogicalBytes > before.fileCatalogLogicalBytes, true);
 		assert.equal(after.pinnedStorageObjectsCount - before.pinnedStorageObjectsCount, 1);
 		assert.equal(after.pinnedPhysicalBytes - before.pinnedPhysicalBytes, sharedSize);
+		assert.equal(after.remotePinnedStorageObjectsCount - before.remotePinnedStorageObjectsCount, 1);
+		assert.equal(after.remotePinRefsCount - before.remotePinRefsCount, 1);
 		assert.equal(after.generatedOutputKnownPhysicalBytes - before.generatedOutputKnownPhysicalBytes, generatedSize);
 		assert.equal(after.generatedOutputKnownStorageObjectsCount - before.generatedOutputKnownStorageObjectsCount, 1);
 		assert.equal(after.generatedOutputUniqueStorageIdsCount > before.generatedOutputUniqueStorageIdsCount, true);
@@ -212,6 +223,9 @@ describe("storage space usage", function () {
 		assert.equal(pinnedSharedObject?.activeFileCatalogRefsCount >= 1, true);
 		assert.equal(pinnedSharedObject?.groupPostRefsCount, 1);
 		assert.equal(pinnedSharedObject?.generatedOutputRefsCount, 0);
+		assert.equal(pinnedSharedObject?.remotePinsCount, 1);
+		assert.equal(pinnedSharedObject?.pinAccountsCount, 1);
+		assert.equal(pinnedSharedObject?.pinServices, 'pinata');
 		assert.equal(pinnedSharedObject?.isPinned, true);
 
 		const previewStorage = await app.ms.storageSpace.getStorageSpacePreviewStorage({limit: 5});
@@ -233,11 +247,13 @@ describe("storage space usage", function () {
 		assert.equal(sharedCleanupRow?.contentRefs.posts, 1);
 		assert.equal(sharedCleanupRow?.storageRefs.otherContents, 1);
 		assert.equal(sharedCleanupRow?.storageRefs.pinnedStorageObjects, 1);
+		assert.equal(sharedCleanupRow?.storageRefs.remotePinRefs, 1);
 		assert.equal(sharedCleanupRow?.blockerCount, sharedCleanupRow?.blockers.length);
 		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'content', 'posts'), true);
 		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'content', 'fileCatalogItems'), true);
 		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'storage', 'otherContents'), true);
 		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'storage', 'pinnedStorageObjects'), true);
+		assert.equal(hasStorageSpaceBlocker(sharedCleanupRow?.blockers, 'storage', 'remotePinRefs'), true);
 
 		const generatedOutputs = await app.ms.storageSpace.getStorageSpaceGeneratedOutputs({limit: 20});
 		const staticSiteOutput = generatedOutputs.find(row => row.source === 'staticSite.storageId');

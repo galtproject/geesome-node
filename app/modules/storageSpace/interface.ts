@@ -65,6 +65,8 @@ export interface IStorageSpaceOverview {
   groupPostsLogicalBytes: number;
   pinnedStorageObjectsCount: number;
   pinnedPhysicalBytes: number;
+  remotePinnedStorageObjectsCount: number;
+  remotePinRefsCount: number;
   generatedOutputStorageRefsCount: number;
   generatedOutputUniqueStorageIdsCount: number;
   generatedOutputKnownStorageObjectsCount: number;
@@ -188,6 +190,9 @@ export interface IStorageSpacePinnedStorageObjectRow {
   activeFileCatalogRefsCount: number;
   groupPostRefsCount: number;
   generatedOutputRefsCount: number;
+  remotePinsCount: number;
+  pinAccountsCount: number;
+  pinServices?: string;
   isPinned: boolean;
   createdAt?: Date;
   updatedAt?: Date;

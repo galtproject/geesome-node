@@ -35,6 +35,19 @@ export async function countStorageObjectChildReferences(models, sequelize, stora
   return count;
 }
 
+export async function countRemotePinReferences(models, sequelize, storageId) {
+  const pinStorageObjectModel = getReferenceModel(models, sequelize, ['PinStorageObject', 'pinStorageObject']);
+  if (!pinStorageObjectModel) {
+    return 0;
+  }
+  return pinStorageObjectModel.count({
+    where: {
+      storageId,
+      status: 'pinned',
+    },
+  });
+}
+
 async function isStorageObjectReferenceSourceVisible(
   models,
   sequelize,

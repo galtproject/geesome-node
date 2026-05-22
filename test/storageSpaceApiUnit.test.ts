@@ -1,6 +1,7 @@
 import assert from "assert";
 import registerCoreApi from "../app/modules/api/api.js";
 import registerStorageSpaceApi from "../app/modules/storageSpace/api.js";
+import * as storageSpaceQueries from "../app/modules/storageSpace/queryHelpers.js";
 import {CorePermissionName} from "../app/modules/database/interface.js";
 
 function createCoreApiHarness(appOverrides: any = {}) {
@@ -366,5 +367,23 @@ describe("storage space admin API", function () {
 			["refreshSnapshot", 7, query],
 			["queueSnapshot", 7, 12, query],
 		]);
+	});
+});
+
+describe("storage space query helpers", function () {
+	it("keeps remote pin refs optional when the pin model is absent", async () => {
+		const capturedSql: string[] = [];
+		const fakeSequelize = {
+			models: {},
+			query: async (sql) => {
+				capturedSql.push(sql);
+				return [];
+			}
+		};
+
+		await storageSpaceQueries.getStorageSpaceOverview(fakeSequelize);
+		await storageSpaceQueries.getStorageSpacePinnedStorageObjects(fakeSequelize, {limit: 1, offset: 0});
+
+		assert.equal(capturedSql.join("\n").includes('"pinStorageObjects"'), false);
 	});
 });

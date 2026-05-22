@@ -69,7 +69,65 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const PinStorageObject = sequelize.define('pinStorageObject', {
+		storageId: {
+			type: DataTypes.STRING(200),
+			allowNull: false
+		},
+		service: {
+			type: DataTypes.STRING(100)
+		},
+		status: {
+			type: DataTypes.STRING(100),
+			allowNull: false,
+			defaultValue: 'pinned'
+		},
+		pinAccountId: {
+			type: DataTypes.INTEGER
+		},
+		accountName: {
+			type: DataTypes.STRING(100)
+		},
+		userId: {
+			type: DataTypes.INTEGER
+		},
+		groupId: {
+			type: DataTypes.INTEGER
+		},
+		remoteId: {
+			type: DataTypes.STRING(200)
+		},
+		pinnedAt: {
+			type: DataTypes.DATE
+		},
+		checkedAt: {
+			type: DataTypes.DATE
+		},
+		resultJson: {
+			type: DataTypes.TEXT
+		},
+	} as any, {
+		indexes: [
+			{
+				name: 'pin_storage_objects_account_storage_unique',
+				fields: ['pinAccountId', 'storageId'],
+				unique: true,
+				where: {
+					pinAccountId: {[Op.ne]: null},
+					storageId: {[Op.ne]: null}
+				}
+			},
+			{ name: 'pin_storage_objects_storage_status_idx', fields: ['storageId', 'status'] },
+			{ name: 'pin_storage_objects_user_storage_idx', fields: ['userId', 'storageId'] },
+			{ name: 'pin_storage_objects_group_storage_idx', fields: ['groupId', 'storageId'] },
+		]
+	} as any);
+
+	await PinAccount.sync({});
+	await PinStorageObject.sync({});
+
 	return {
-		PinAccount: await PinAccount.sync({})
+		PinAccount,
+		PinStorageObject
 	};
 };

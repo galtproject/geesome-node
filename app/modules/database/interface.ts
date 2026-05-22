@@ -246,6 +246,7 @@ export interface IStorageIdReferenceCounts {
   otherContents: number;
   previewRefs: number;
   pinnedStorageObjects: number;
+  remotePinRefs: number;
   derivedStorageRefs: number;
   storageObjectChildRefs: number;
 }

@@ -18,6 +18,8 @@ export default interface IGeesomePinModule {
 	pinByUserAccount(userId: number, name: string, storageId: string, options?): Promise<any>;
 
 	pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options?): Promise<any>;
+
+	recordPinnedStorageObject?(storageId: string, account: IPinAccount, content?: any, result?: any): Promise<IPinStorageObject | null>;
 }
 
 export interface IPinAccount {
@@ -32,4 +34,19 @@ export interface IPinAccount {
 	secretApiKeyEncrypted?: string;
 	secretApiKey?: string;
 	options?: string;
+}
+
+export interface IPinStorageObject {
+	id?: number;
+	storageId: string;
+	service?: string;
+	status?: string;
+	pinAccountId?: number;
+	accountName?: string;
+	userId?: number;
+	groupId?: number;
+	remoteId?: string;
+	pinnedAt?: Date;
+	checkedAt?: Date;
+	resultJson?: string;
 }

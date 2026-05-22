@@ -34,7 +34,11 @@ import {
   UserContentActionName,
   UserLimitName
 } from "./interface.js";
-import {countDerivedStorageIdReferences, countStorageObjectChildReferences} from './storageReferenceHelpers.js';
+import {
+  countDerivedStorageIdReferences,
+  countRemotePinReferences,
+  countStorageObjectChildReferences
+} from './storageReferenceHelpers.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -388,7 +392,14 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
-    const [otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs, storageObjectChildRefs] = await Promise.all([
+    const [
+      otherContents,
+      previewRefs,
+      pinnedStorageObjects,
+      remotePinRefs,
+      derivedStorageRefs,
+      storageObjectChildRefs
+    ] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({
         where: {
@@ -400,10 +411,18 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
         },
       }),
       this.models.StorageObject.count({where: {storageId, isPinned: true}}),
+      countRemotePinReferences(this.models, this.sequelize, storageId),
       countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
       countStorageObjectChildReferences(this.models, this.sequelize, storageId, options),
     ]);
-    return {otherContents, previewRefs, pinnedStorageObjects, derivedStorageRefs, storageObjectChildRefs};
+    return {
+      otherContents,
+      previewRefs,
+      pinnedStorageObjects,
+      remotePinRefs,
+      derivedStorageRefs,
+      storageObjectChildRefs
+    };
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
@@ -817,6 +836,7 @@ function getEmptyStorageIdReferenceCounts() {
     otherContents: 0,
     previewRefs: 0,
     pinnedStorageObjects: 0,
+    remotePinRefs: 0,
     derivedStorageRefs: 0,
     storageObjectChildRefs: 0,
   };
@@ -862,6 +882,7 @@ function getContentDeleteStorageBlockers(storageRefs): IContentDeleteSafetyBlock
     getContentDeleteBlocker('storage', 'otherContents', storageRefs.otherContents),
     getContentDeleteBlocker('storage', 'previewRefs', storageRefs.previewRefs),
     getContentDeleteBlocker('storage', 'pinnedStorageObjects', storageRefs.pinnedStorageObjects),
+    getContentDeleteBlocker('storage', 'remotePinRefs', storageRefs.remotePinRefs),
     getContentDeleteBlocker('storage', 'derivedStorageRefs', storageRefs.derivedStorageRefs),
     getContentDeleteBlocker('storage', 'storageObjectChildRefs', storageRefs.storageObjectChildRefs),
   ].filter(isContentDeleteBlocker);
