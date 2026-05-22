@@ -255,6 +255,71 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/availability-network-samples Get storage availability network samples
+   * @apiName AdminStorageSpaceAvailabilityNetworkSamples
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiQuery {String} [storageId] Filter persisted samples for one storage id.
+   * @apiDescription Lists persisted provider/retrieval samples previously collected from live availability-network inspection. This lets operator screens show recent popularity/availability evidence without running a network lookup on page load.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/availability-network-samples', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceAvailabilityNetworkSamples(req.query));
+  });
+
+  /**
+   * @api {post} /v1/admin/storage-space/availability-network-samples/refresh Refresh storage availability network samples
+   * @apiName AdminStorageSpaceAvailabilityNetworkSamplesRefresh
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+   * @apiBody {String} [storageId] Sample one storage id from the availability signal set.
+   * @apiBody {Number} [providerLimit=20] Maximum provider rows to collect per storage id.
+   * @apiBody {Number} [providerAddressLimit=5] Maximum multiaddrs to include per provider row.
+   * @apiBody {Number} [providerTimeoutMs=5000] Provider lookup timeout in milliseconds.
+   * @apiBody {Number} [statTimeoutMs=5000] Runtime stat timeout in milliseconds.
+   * @apiBody {Boolean} [statWithLocal=false] Include local blocks in the stat lookup when the storage backend supports it.
+   * @apiDescription Runs bounded live provider/stat inspection and stores the result as durable availability-network samples for later operator review.
+   */
+  app.ms.api.onAuthorizedPost('admin/storage-space/availability-network-samples/refresh', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.refreshStorageSpaceAvailabilityNetworkSamples(req.user.id, req.body));
+  });
+
+  /**
+   * @api {post} /v1/admin/storage-space/availability-network-samples/refresh-async Queue storage availability network sample refresh
+   * @apiName AdminStorageSpaceAvailabilityNetworkSamplesRefreshAsync
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+   * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
+   * @apiDescription Queues bounded live provider/stat inspection as a background operation and stores the resulting availability-network samples.
+   */
+  app.ms.api.onAuthorizedPost('admin/storage-space/availability-network-samples/refresh-async', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.queueStorageSpaceAvailabilityNetworkSampleRefresh(req.user.id, req.apiKey?.id || null, req.body));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/cleanup-blockers Get content cleanup blockers
    * @apiName AdminStorageSpaceCleanupBlockers
    * @apiGroup AdminStorage

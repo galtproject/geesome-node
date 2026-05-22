@@ -18,6 +18,7 @@ export default async function (sequelize) {
   models.StorageObject = await (await import('./storageObject.js')).default(sequelize, models);
   models.StorageObjectReference = await (await import('./storageObjectReference.js')).default(sequelize, models);
   models.StorageSpaceSnapshot = await (await import('./storageSpaceSnapshot.js')).default(sequelize, models);
+  models.StorageSpaceAvailabilitySample = await (await import('./storageSpaceAvailabilitySample.js')).default(sequelize, models);
   models.Content = await (await import('./content.js')).default(sequelize, models);
   models.Object = await (await import('./object.js')).default(sequelize, models);
 

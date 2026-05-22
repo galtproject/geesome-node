@@ -200,7 +200,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
+      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceAvailabilitySample', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });

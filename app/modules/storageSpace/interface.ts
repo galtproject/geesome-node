@@ -33,6 +33,14 @@ export default interface IGeesomeStorageSpaceModule {
 
   inspectStorageSpaceAvailabilityNetworkSignals(listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSignalInspectionRow[]>;
 
+  getStorageSpaceAvailabilityNetworkSamples(listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSampleRow[]>;
+
+  refreshStorageSpaceAvailabilityNetworkSamples(userId?: number, listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSampleRefreshResult>;
+
+  queueStorageSpaceAvailabilityNetworkSampleRefresh(userId: number, userApiKeyId?: number, listParams?: IListParams, options?: any): Promise<IUserOperationQueue>;
+
+  processStorageSpaceAvailabilityNetworkSampleRefreshQueue(options?: any): Promise<{processed: number}>;
+
   getStorageSpaceCleanupBlockers(listParams?: IListParams): Promise<IStorageSpaceCleanupBlockerRow[]>;
 
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
@@ -271,6 +279,20 @@ export interface IStorageSpaceAvailabilityNetworkSignalInspectionRow extends ISt
   retrievalType?: string | null;
   retrievalMeasuredBytes: number;
   retrievalErrorMessage?: string | null;
+}
+
+export interface IStorageSpaceAvailabilityNetworkSampleRow extends IStorageSpaceAvailabilityNetworkSignalInspectionRow {
+  id: number;
+  userId?: number | null;
+  sampledAt?: Date | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+}
+
+export interface IStorageSpaceAvailabilityNetworkSampleRefreshResult {
+  sampled: number;
+  durationMs: number;
+  rows: IStorageSpaceAvailabilityNetworkSampleRow[];
 }
 
 export interface IStorageSpaceCleanupBlockerRow extends IStorageSpaceContentRow {
