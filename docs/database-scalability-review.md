@@ -166,6 +166,7 @@ Implementation work is landing slice-by-slice on `codex/database-scalability-rev
 | 140 | Storage-object physical removal now has a `storageSpace` async queue that rechecks `database.getStorageObjectDeleteSafety` immediately before unpin/remove; file-catalog content deletion routes safe physical removals through that queue and no longer lets the deleted row's own preview refs self-block cleanup | this PR |
 | 141 | Content preview CIDs now seed their own canonical `StorageObject` rows and preview `StorageObjectReference` edges; restored-data storage-object repair recreates both, and file-catalog content deletion queues distinct original and preview storage IDs for final safety-checked cleanup | this PR |
 | 142 | Storage-space analysis now exposes deterministic availability/popularity signals from DB-visible refs, local pins, remote pin ledger rows, and stored content/post/group peer counts without requiring live DHT/provider sampling in snapshots | this PR |
+| 143 | Storage-space analysis now exposes a bounded on-demand availability-network inspection route that samples Kubo/Helia provider lookup and timed storage stat signals without adding live network calls to cached snapshots | this PR |
 
 The findings/plan tables below call out the remaining risk after shipped slices. When a row references shipped work, its evidence is scoped to the pieces still missing rather than the already-landed behavior. Backlog items (A2 carve-out, post event/revision, etc.) are listed in their own section after the implementation plan.
 

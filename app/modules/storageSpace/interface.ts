@@ -31,6 +31,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpaceAvailabilitySignals(listParams?: IListParams): Promise<IStorageSpaceAvailabilitySignalRow[]>;
 
+  inspectStorageSpaceAvailabilityNetworkSignals(listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSignalInspectionRow[]>;
+
   getStorageSpaceCleanupBlockers(listParams?: IListParams): Promise<IStorageSpaceCleanupBlockerRow[]>;
 
   getStorageSpaceGeneratedOutputUnknownRefs(listParams?: IListParams): Promise<IStorageSpaceGeneratedOutputRefRow[]>;
@@ -248,6 +250,27 @@ export interface IStorageSpaceAvailabilitySignalRow {
   isPinned: boolean;
   latestSignalAt?: Date | null;
   updatedAt?: Date | null;
+}
+
+export interface IStorageSpaceAvailabilityProviderRow {
+  id?: string | null;
+  multiaddrs: string[];
+  protocols: string[];
+  source?: string | null;
+}
+
+export interface IStorageSpaceAvailabilityNetworkSignalInspectionRow extends IStorageSpaceAvailabilitySignalRow {
+  providerLookupOk: boolean;
+  providersCount: number;
+  providersTruncated: boolean;
+  providerLookupDurationMs: number;
+  providerLookupErrorMessage?: string | null;
+  providers: IStorageSpaceAvailabilityProviderRow[];
+  retrievalStatOk: boolean;
+  retrievalStatDurationMs: number;
+  retrievalType?: string | null;
+  retrievalMeasuredBytes: number;
+  retrievalErrorMessage?: string | null;
 }
 
 export interface IStorageSpaceCleanupBlockerRow extends IStorageSpaceContentRow {
