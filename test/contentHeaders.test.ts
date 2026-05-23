@@ -458,6 +458,116 @@ describe("content headers", function () {
 		assert.equal(statRequested, false);
 	});
 
+	it("returns partial content for image byte ranges", async () => {
+		let streamOptions: any;
+		let sendCalled = false;
+		const writes: any = {};
+		const contentSize = 5;
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => ({
+						storageId: "image.png",
+						mimeType: ContentMimeType.ImagePng,
+						size: contentSize
+					})
+				},
+				storage: {
+					getFileStat: async () => ({size: contentSize}),
+					getFileStream: async (_path, options) => {
+						streamOptions = options;
+						return Readable.from(["im"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			send: () => {
+				sendCalled = true;
+			},
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: {
+				write: () => null,
+				on: () => null,
+				once: () => null,
+				emit: () => null,
+				end: () => null
+			}
+		} as any, "image.png");
+
+		assert.equal(writes.status, 206);
+		assert.equal(writes.headers["Content-Type"], ContentMimeType.ImagePng);
+		assert.equal(writes.headers["Content-Range"], "bytes 0-1/5");
+		assert.equal(writes.headers["Content-Length"], 2);
+		assert.deepEqual(streamOptions, {offset: 0, length: 2});
+		assert.equal(sendCalled, false);
+	});
+
+	it("returns partial content for directory index byte ranges", async () => {
+		let streamOptions: any;
+		let streamPath = "";
+		let sendCalled = false;
+		const writes: any = {};
+		const contentSize = 5;
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => ({
+						storageId: "site",
+						mimeType: ContentMimeType.Directory,
+						size: contentSize
+					})
+				},
+				storage: {
+					getFileStat: async () => ({size: contentSize}),
+					getFileStream: async (path, options) => {
+						streamPath = path;
+						streamOptions = options;
+						return Readable.from(["<h"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			send: () => {
+				sendCalled = true;
+			},
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: {
+				write: () => null,
+				on: () => null,
+				once: () => null,
+				emit: () => null,
+				end: () => null
+			}
+		} as any, "site");
+
+		assert.equal(writes.status, 206);
+		assert.equal(writes.headers["Content-Range"], "bytes 0-1/5");
+		assert.equal(writes.headers["Content-Length"], 2);
+		assert.equal(streamPath, "site/index.html");
+		assert.deepEqual(streamOptions, {offset: 0, length: 2});
+		assert.equal(sendCalled, false);
+	});
+
 	it("closes the response stream when a content stream fails after headers", async () => {
 		const responseStream = new PassThrough();
 		const writes: any = {};
