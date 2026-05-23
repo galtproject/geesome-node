@@ -74,6 +74,37 @@ function isAccessLogEnabled(env = process.env) {
 	return parseBoolean(env.GEESOME_ACCESS_LOGS, false);
 }
 
+function isDependencyInfoLogEnabled(env = process.env) {
+	return parseBoolean(env.GEESOME_DEPENDENCY_INFO_LOGS, false);
+}
+
+async function withSuppressedConsoleInfo<T>(suppressedMessages: string[], callback: () => Promise<T> | T): Promise<T> {
+	if (isDependencyInfoLogEnabled()) {
+		return await callback();
+	}
+
+	const originalInfo = console.info;
+	console.info = (...args) => {
+		if (isSuppressedConsoleInfo(args, suppressedMessages)) {
+			return;
+		}
+		originalInfo.apply(console, args);
+	};
+
+	try {
+		return await callback();
+	} finally {
+		console.info = originalInfo;
+	}
+}
+
+function isSuppressedConsoleInfo(args: any[], suppressedMessages: string[]) {
+	if (args.length !== 1) {
+		return false;
+	}
+	return suppressedMessages.includes(String(args[0]));
+}
+
 function sanitizeSortBy(value, fallback = 'createdAt', allowedSortBy?: string[]) {
 	const fallbackSortBy = allowedSortBy?.includes(fallback) || !allowedSortBy?.length ? fallback : allowedSortBy[0];
 	if (typeof value !== 'string') {
@@ -442,6 +473,10 @@ export default {
 	parseBoolean,
 
 	isAccessLogEnabled,
+
+	isDependencyInfoLogEnabled,
+
+	withSuppressedConsoleInfo,
 
 	prepareListParams(listParams?: IListParams, options: IListParamsOptions = {}): IListParams {
 		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset', 'includeTotal']);
