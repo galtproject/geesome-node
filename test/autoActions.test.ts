@@ -271,6 +271,47 @@ describe("autoActions", function () {
 		assert.deepEqual(expiredClaim.map(action => action.id), [dueAction.id]);
 	});
 
+	it('keeps handled execution failures out of stderr', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const action = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'missingModule',
+			funcName: 'run',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 1,
+			currentExecuteAttempts: 1,
+			executeOn: new Date(Date.now() - 1000)
+		});
+		const originalConsoleError = console.error;
+		const consoleErrorCalls = [];
+
+		console.error = ((...args) => {
+			consoleErrorCalls.push(args);
+		}) as any;
+
+		try {
+			const cronService = new CronService(app, autoActions);
+			await cronService.getActionsAndAddToQueueAndRun();
+		} finally {
+			console.error = originalConsoleError;
+		}
+
+		const dbAction = await (autoActions as any).getAutoAction(action.id);
+		const [logs] = await app.ms.database.sequelize.query(`
+			SELECT error
+			FROM "autoActionLogs"
+			WHERE "actionId" = :actionId
+			ORDER BY id ASC
+		`, {
+			replacements: {actionId: action.id}
+		}) as any;
+
+		assert.deepEqual(consoleErrorCalls, []);
+		assert.equal(dbAction.isActive, false);
+		assert.equal(logs.length, 1);
+		assert.equal(JSON.parse(logs[0].error), 'module_dont_support_auto_actions');
+	});
+
 	it('stores long auto action log payloads', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const action = await autoActions.addAutoAction(testUser.id, {

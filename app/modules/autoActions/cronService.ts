@@ -1,8 +1,11 @@
 import _ from 'lodash';
+import debug from 'debug';
 import pIteration from 'p-iteration';
 import IGeesomeAutoActionsModule, {IAutoAction} from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
 const {some, uniqBy, isArray, isString} = _;
+const log = debug('geesome:app:autoActions:cron');
 
 export default class CronService {
 	queueByModules = {};
@@ -142,12 +145,12 @@ export default class CronService {
 	async executeAction(a: IAutoAction, rootActionId = null): Promise<{result?, success}> {
 		const module = this.app.ms[a.moduleName];
 		if (!module || !module.isAutoActionAllowed) {
-			console.error('executeAction', a.id, 'module_dont_support_auto_actions');
+			logAutoActionExecutionFailure(a, rootActionId, 'module_dont_support_auto_actions');
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('module_dont_support_auto_actions'), rootActionId);
 			return {success: false};
 		}
 		if (!(await module.isAutoActionAllowed(a.userId, a.funcName, a.funcArgs))) {
-			console.error('executeAction', a.id, 'auto_action_not_allowed_in_module');
+			logAutoActionExecutionFailure(a, rootActionId, 'auto_action_not_allowed_in_module');
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('auto_action_not_allowed_in_module'), rootActionId);
 			return {success: false};
 		}
@@ -158,7 +161,7 @@ export default class CronService {
 				throw new Error("funcArgs_not_array");
 			}
 		} catch (e) {
-			console.error('executeAction', a.id, 'funcArgs_parsing_error', e);
+			logAutoActionExecutionFailure(a, rootActionId, 'funcArgs_parsing_error', e);
 			await this.autoActionsModule.deactivateAutoActionWithError(a.userId, a.id, new Error('funcArgs_parsing_error'), rootActionId);
 			return {success: false};
 		}
@@ -174,10 +177,34 @@ export default class CronService {
 			result = await module[a.funcName].apply(module, [a.userId].concat(funcArgs));
 			await this.autoActionsModule.handleAutoActionSuccessfulExecution(a.userId, a.id, result, rootActionId);
 		} catch (error) {
-			console.error('executeAction', a.id, 'execute error', error);
+			logAutoActionExecutionFailure(a, rootActionId, 'execute_error', error);
 			await this.autoActionsModule.handleAutoActionFailedExecution(a.userId, a.id, error, rootActionId);
 			return {success: false};
 		}
 		return {success: true, result};
 	}
+}
+
+function logAutoActionExecutionFailure(a: IAutoAction, rootActionId, reason, error = null) {
+	helpers.logDebug(log, () => [
+		'executeAction',
+		{
+			actionId: a?.id,
+			rootActionId,
+			moduleName: a?.moduleName,
+			funcName: a?.funcName,
+			reason,
+			error: getAutoActionExecutionErrorMessage(error)
+		}
+	]);
+}
+
+function getAutoActionExecutionErrorMessage(error) {
+	if (!error) {
+		return null;
+	}
+	if (error.message) {
+		return error.message;
+	}
+	return String(error);
 }
