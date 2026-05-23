@@ -156,7 +156,7 @@ async createGroup(userId, groupData) {
 - Keep broad debug namespaces out of default scripts. Test and runtime commands should be quiet by default, with tracing enabled from the caller environment when needed.
 - Test-only stdout diagnostics should be opt-in through `GEESOME_TEST_LOGS=1`; the default Mocha path suppresses `console.log` so assertion output stays readable.
 - SQL logging is high-volume and must stay separately opt-in: use `GEESOME_LOG_SQL=1 DEBUG=geesome:database:sql` for query traces instead of enabling SQL output through a broad default `DEBUG=geesome*`.
-- Errors go through `console.error` or are thrown.
+- Errors go through `console.error` or are thrown when they need operator attention. Expected per-request stream/client failures after response headers are already committed should clean up resources and use lazy debug logging instead of unconditional stdout/stderr noise.
 
 ### Errors
 

@@ -114,7 +114,7 @@ function getModule(app: IGeesomeApp) {
 		stream.once('end', cleanup);
 		stream.once('close', cleanup);
 		stream.on('error', (error) => {
-			console.error('content stream error', error);
+			helpers.logDebug(log, () => ['content stream error', error]);
 			cleanup();
 			closeStream(res.stream);
 		});
