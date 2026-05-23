@@ -1004,6 +1004,9 @@ function getModule(app: IGeesomeApp) {
 			//   log('dataSize is null', dataPath, dataSize);
 			//TODO: check if some size not correct
 			const stat = await app.ms.storage.getFileStat(dataPath);
+			if (!stat) {
+				return null;
+			}
 			dataSize = stat.size;
 			return dataSize;
 		}
@@ -1058,13 +1061,21 @@ function getModule(app: IGeesomeApp) {
 				});
 			}
 
-			log('getSharedStorageMetadataByStorageId', dataPath);
-			const content = await app.ms.database.getSharedStorageMetadataByStorageId(dataPath, {includePreviews: true});
-			if (content && content.mimeType === ContentMimeType.Directory) {
-				// log('content.mimeType', dataPath, content.mimeType);
-				dataPath += '/index.html';
+			const storagePathMetadata = await this.getSharedStorageMetadataForPath(dataPath);
+			const {storageId} = storagePathMetadata;
+			const content = storagePathMetadata.content;
+			if (!content) {
+				const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+				if (!storageIdAllowed) {
+					return res.send(423);
+				}
 			}
+
+			dataPath = this.prepareContentStorageDataPath(dataPath, content);
 			const dataSize = await this.getFileSize(dataPath, content);
+			if (dataSize === null) {
+				return res.send(404);
+			}
 			if (content && (startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory)) {
 				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, dataSize, false));
 				return res.send(this.getFileStream(dataPath));
@@ -1104,10 +1115,7 @@ function getModule(app: IGeesomeApp) {
 					});
 				}
 
-				let mimeType = '';
-				if(content) {
-					mimeType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
-				}
+				const mimeType = this.getContentStorageMimeType(dataPath, content);
 				res.writeHead(206, {
 					// 'Cache-Control': 'no-cache, no-store, must-revalidate',
 					// 'Pragma': 'no-cache',
@@ -1189,19 +1197,29 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		prepareContentStoragePathResponse(res, dataPath, content) {
-			if (content) {
-				const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
-				log('contentType', contentType);
-				if (contentType) {
-					res.setHeader('Content-Type', contentType);
-				}
-				if (content.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
-					dataPath += '/index.html';
-				}
-			} else if (dataPath.endsWith('.js')) {
-				res.setHeader('Content-Type', 'text/javascript');
+			const contentType = this.getContentStorageMimeType(dataPath, content);
+			log('contentType', contentType);
+			if (contentType) {
+				res.setHeader('Content-Type', contentType);
+			}
+			return this.prepareContentStorageDataPath(dataPath, content);
+		}
+
+		prepareContentStorageDataPath(dataPath, content) {
+			if (content?.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
+				return dataPath + '/index.html';
 			}
 			return dataPath;
+		}
+
+		getContentStorageMimeType(dataPath, content) {
+			if (content) {
+				return content.storageId === dataPath ? content.mimeType : content.previewMimeType;
+			}
+			if (dataPath.endsWith('.js')) {
+				return 'text/javascript';
+			}
+			return '';
 		}
 
 		isContentPreviewStoragePath(content, dataPath) {
