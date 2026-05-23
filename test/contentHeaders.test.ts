@@ -561,6 +561,7 @@ describe("content headers", function () {
 		} as any, "site");
 
 		assert.equal(writes.status, 206);
+		assert.equal(writes.headers["Content-Type"], ContentMimeType.Directory);
 		assert.equal(writes.headers["Content-Range"], "bytes 0-1/5");
 		assert.equal(writes.headers["Content-Length"], 2);
 		assert.equal(streamPath, "site/index.html");
