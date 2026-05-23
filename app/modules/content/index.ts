@@ -1076,10 +1076,6 @@ function getModule(app: IGeesomeApp) {
 			if (dataSize === null) {
 				return res.send(404);
 			}
-			if (content && (startsWith(content.mimeType, 'image/') || content.mimeType === ContentMimeType.Directory)) {
-				res.writeHead(200, await this.getIpfsHashHeadersObj(content, dataPath, dataSize, false));
-				return res.send(this.getFileStream(dataPath));
-			}
 			log('dataSize', dataSize);
 
 			let chunkSize = 1024 * 1024;
