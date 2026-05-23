@@ -243,7 +243,7 @@ geesomeClient.init().then(async () => {
 - Auto-backup social networks channels(Telegram)
 
 ## TODO:
-- Stabilize content serving, upload limits, and high-CPU paths reported in open operational issues.
+- Stabilize content serving, upload limits, client-disconnect stream cleanup, and high-CPU paths reported in open operational issues.
 - Finish the existing Pinata/pinning path with manual and auto pin flows exposed cleanly in API/UI.
 - API key permissions and expiration are enforced; keep extending scoped service-token tests as new integrations land.
 - Run a focused security review of API authorization and encryption boundaries before expanding integrations and production E2EE.
