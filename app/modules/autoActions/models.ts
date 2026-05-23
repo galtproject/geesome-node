@@ -180,10 +180,10 @@ export default async function (sequelize: Sequelize) {
 			defaultValue: false
 		},
 		error: {
-			type: DataTypes.STRING
+			type: DataTypes.TEXT
 		},
 		response: {
-			type: DataTypes.STRING
+			type: DataTypes.TEXT
 		},
 	} as any, {
 		indexes: [

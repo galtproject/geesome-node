@@ -270,4 +270,37 @@ describe("autoActions", function () {
 		});
 		assert.deepEqual(expiredClaim.map(action => action.id), [dueAction.id]);
 	});
+
+	it('stores long auto action log payloads', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const action = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'testModule',
+			funcName: 'run',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 2,
+			currentExecuteAttempts: 2,
+			executeOn: new Date(Date.now() - 1000)
+		});
+		const longResponse = {
+			staticId: 'bafzbeice7d5pthq72mr7bfylhyzcwyzbmzy26q7xib3a2gruiqopnem3za',
+			dynamicId: 'bafkreihndyo47fyzsda3rftwvz4finqqn52urmnoihixjsu5hp5zmyneo4',
+			metadata: 'x'.repeat(400)
+		};
+
+		await autoActions.handleAutoActionSuccessfulExecution(testUser.id, action.id, longResponse);
+		await autoActions.handleAutoActionFailedExecution(testUser.id, action.id, new Error('x'.repeat(400)));
+
+		const [logs] = await app.ms.database.sequelize.query(`
+			SELECT response, error
+			FROM "autoActionLogs"
+			WHERE "actionId" = :actionId
+			ORDER BY id ASC
+		`, {
+			replacements: {actionId: action.id}
+		}) as any;
+		assert.equal(logs.length, 2);
+		assert.deepEqual(JSON.parse(logs[0].response), longResponse);
+		assert.equal(JSON.parse(logs[1].error), 'x'.repeat(400));
+	});
 });
