@@ -630,6 +630,8 @@ describe("content headers", function () {
 	it("closes the response stream when a content stream fails after headers", async () => {
 		const responseStream = new PassThrough();
 		const writes: any = {};
+		const consoleErrors: any[] = [];
+		const originalConsoleError = console.error;
 		let destroyed = false;
 		responseStream.destroy = (() => {
 			destroyed = true;
@@ -666,24 +668,32 @@ describe("content headers", function () {
 			}
 		} as unknown as IGeesomeApp);
 
-		await content.getFileStreamForApiRequest({
-			headers: {range: "bytes=0-1"}
-		} as any, {
-			send: (...args) => {
-				writes.send = args;
-			},
-			setHeader: () => null,
-			writeHead: (status, responseHeaders) => {
-				writes.status = status;
-				writes.headers = responseHeaders;
-			},
-			stream: responseStream
-		} as any, "file.txt");
-		await new Promise((resolve) => setImmediate(resolve));
+		console.error = ((...args) => {
+			consoleErrors.push(args);
+		}) as any;
+		try {
+			await content.getFileStreamForApiRequest({
+				headers: {range: "bytes=0-1"}
+			} as any, {
+				send: (...args) => {
+					writes.send = args;
+				},
+				setHeader: () => null,
+				writeHead: (status, responseHeaders) => {
+					writes.status = status;
+					writes.headers = responseHeaders;
+				},
+				stream: responseStream
+			} as any, "file.txt");
+			await new Promise((resolve) => setImmediate(resolve));
+		} finally {
+			console.error = originalConsoleError;
+		}
 
 		assert.equal(writes.status, 206);
 		assert.equal(destroyed, true);
 		assert.equal(writes.send, undefined);
+		assert.deepEqual(consoleErrors, []);
 	});
 
 	it("destroys storage streams when the response closes before completion", async () => {
