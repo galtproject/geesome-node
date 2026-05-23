@@ -75,6 +75,37 @@ describe('helpers', () => {
 		assert.strictEqual(helpers.isAccessLogEnabled({GEESOME_ACCESS_LOGS: 'true'}), true);
 	});
 
+	it('suppresses known dependency info logs unless explicitly enabled', async () => {
+		const originalInfo = console.info;
+		const originalEnv = process.env.GEESOME_DEPENDENCY_INFO_LOGS;
+		const calls: any[] = [];
+		console.info = (...args) => calls.push(args);
+
+		try {
+			delete process.env.GEESOME_DEPENDENCY_INFO_LOGS;
+			const result = await helpers.withSuppressedConsoleInfo(['skip me'], async () => {
+				console.info('skip me');
+				console.info('keep me');
+				return 'done';
+			});
+			assert.strictEqual(result, 'done');
+			assert.deepEqual(calls, [['keep me']]);
+
+			process.env.GEESOME_DEPENDENCY_INFO_LOGS = '1';
+			await helpers.withSuppressedConsoleInfo(['skip me'], async () => {
+				console.info('skip me');
+			});
+			assert.deepEqual(calls, [['keep me'], ['skip me']]);
+		} finally {
+			console.info = originalInfo;
+			if (originalEnv === undefined) {
+				delete process.env.GEESOME_DEPENDENCY_INFO_LOGS;
+			} else {
+				process.env.GEESOME_DEPENDENCY_INFO_LOGS = originalEnv;
+			}
+		}
+	});
+
 	it('sanitizes list params before they reach Sequelize queries', () => {
 		assert.deepEqual(helpers.prepareListParams({
 			sortBy: 'createdAt;DROP',

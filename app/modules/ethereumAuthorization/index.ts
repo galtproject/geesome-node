@@ -1,18 +1,25 @@
 import commonHelper from "geesome-libs/src/common.js";
 import geesomeMessages from "geesome-libs/src/messages.js";
-import ethereumAuthorization from "geesome-libs/src/ethereum.js";
 import IGeesomeForeignAccountsModule from "../foreignAccounts/interface.js";
 import IGeesomeEthereumAuthorizationModule from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
+
+type EthereumAuthorizationHelper = {
+	isSignatureValid(address, signature, message, fieldName?: string): boolean;
+};
+
+const noisyDependencyInfoLogs = ['secp256k1 unavailable, reverting to browser version'];
 
 export default async (app: IGeesomeApp) => {
-	const module = getModule(app);
+	const ethereumAuthorization = await importEthereumAuthorization();
+	const module = getModule(app, ethereumAuthorization);
 	(await import('./api')).default(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp) {
+function getModule(app: IGeesomeApp, ethereumAuthorization: EthereumAuthorizationHelper) {
 	app.checkModules(['database', 'foreignAccounts']);
 
 	const foreignAccounts = app.ms['foreignAccounts'] as IGeesomeForeignAccountsModule;
@@ -105,4 +112,12 @@ function getModule(app: IGeesomeApp) {
 	}
 
 	return new EthereumAuthorizationModule();
+}
+
+async function importEthereumAuthorization(): Promise<EthereumAuthorizationHelper> {
+	const imported = await helpers.withSuppressedConsoleInfo(
+		noisyDependencyInfoLogs,
+		() => import("geesome-libs/src/ethereum.js")
+	);
+	return imported.default;
 }
