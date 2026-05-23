@@ -70,6 +70,10 @@ function parseBoolean(value, fallback = false) {
 	return fallback;
 }
 
+function isAccessLogEnabled(env = process.env) {
+	return parseBoolean(env.GEESOME_ACCESS_LOGS, false);
+}
+
 function sanitizeSortBy(value, fallback = 'createdAt', allowedSortBy?: string[]) {
 	const fallbackSortBy = allowedSortBy?.includes(fallback) || !allowedSortBy?.length ? fallback : allowedSortBy[0];
 	if (typeof value !== 'string') {
@@ -436,6 +440,8 @@ export default {
 	parsePositiveInteger,
 
 	parseBoolean,
+
+	isAccessLogEnabled,
 
 	prepareListParams(listParams?: IListParams, options: IListParamsOptions = {}): IListParams {
 		const res = pick(listParams || {}, ['sortBy', 'sortDir', 'limit', 'offset', 'includeTotal']);

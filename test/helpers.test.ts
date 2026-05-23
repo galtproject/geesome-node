@@ -67,6 +67,14 @@ describe('helpers', () => {
 		assert.strictEqual(helpers.parseBoolean(undefined, false), false);
 	});
 
+	it('keeps access logging opt-in', () => {
+		assert.strictEqual(helpers.isAccessLogEnabled({}), false);
+		assert.strictEqual(helpers.isAccessLogEnabled({GEESOME_ACCESS_LOGS: '0'}), false);
+		assert.strictEqual(helpers.isAccessLogEnabled({GEESOME_ACCESS_LOGS: 'false'}), false);
+		assert.strictEqual(helpers.isAccessLogEnabled({GEESOME_ACCESS_LOGS: '1'}), true);
+		assert.strictEqual(helpers.isAccessLogEnabled({GEESOME_ACCESS_LOGS: 'true'}), true);
+	});
+
 	it('sanitizes list params before they reach Sequelize queries', () => {
 		assert.deepEqual(helpers.prepareListParams({
 			sortBy: 'createdAt;DROP',

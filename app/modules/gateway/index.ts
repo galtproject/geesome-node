@@ -4,7 +4,8 @@ import bodyParser from 'body-parser';
 import bearerToken from 'express-bearer-token';
 import IGeesomeGatewayModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
-import helpers from "./helpers.js";
+import appHelpers from "../../helpers.js";
+import gatewayHelpers from "./helpers.js";
 
 export default async (app: IGeesomeApp, options: {registerApi?: boolean, port?: number | string} = {}) => {
 	app.checkModules(['api']);
@@ -23,7 +24,9 @@ async function getModule(app: IGeesomeApp, port) {
 	service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
 	service.use(bodyParser.urlencoded({extended: true}));
 	service.use(bearerToken());
-	service.use(morgan('combined'));
+	if (appHelpers.isAccessLogEnabled()) {
+		service.use(morgan('combined'));
+	}
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);
@@ -62,7 +65,7 @@ async function getModule(app: IGeesomeApp, port) {
 			this.port = port;
 		}
 		async getDnsLinkPathFromRequest(req) {
-			return helpers.getDnsLinkPathFromHost(req.headers.host);
+			return gatewayHelpers.getDnsLinkPathFromHost(req.headers.host);
 		}
 		onGetRequest(callback) {
 			service.get("/*", (req, res) => {
