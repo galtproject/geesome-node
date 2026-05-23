@@ -379,6 +379,64 @@ describe("content headers", function () {
 		assert.equal(streamRequested, false);
 	});
 
+	it("streams non-range content when storage stats do not include a CID", async () => {
+		const responseStream = new PassThrough();
+		const finished = new Promise((resolve) => responseStream.on("finish", resolve));
+		const metadataLookups: string[] = [];
+		const writes: any = {};
+		let streamPath = "";
+		responseStream.resume();
+		const contentSize = 5;
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async (storageId) => {
+						metadataLookups.push(storageId);
+						return {
+							storageId: "file.txt",
+							mimeType: ContentMimeType.Text,
+							size: contentSize
+						};
+					}
+				},
+				storage: {
+					getFileStat: async () => ({size: contentSize}),
+					getFileStream: async (path) => {
+						streamPath = path;
+						return Readable.from(["hello"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {}
+		} as any, {
+			setHeader: (name, value) => {
+				writes.headers = writes.headers || {};
+				writes.headers[name] = value;
+			},
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = {
+					...writes.headers,
+					...responseHeaders
+				};
+			},
+			stream: responseStream
+		} as any, "file.txt");
+		await finished;
+
+		assert.equal(writes.status, 200);
+		assert.equal(writes.headers["Content-Type"], ContentMimeType.Text);
+		assert.equal(writes.headers["Content-Length"], contentSize);
+		assert.equal(writes.headers["x-ipfs-datasize"], contentSize);
+		assert.equal(streamPath, "file.txt");
+		assert.deepEqual(metadataLookups, ["file.txt"]);
+	});
+
 	it("returns 404 for allowed ranged storage paths missing from storage", async () => {
 		let streamRequested = false;
 		const sends: any[] = [];
