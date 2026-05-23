@@ -379,6 +379,85 @@ describe("content headers", function () {
 		assert.equal(streamRequested, false);
 	});
 
+	it("returns 404 for allowed ranged storage paths missing from storage", async () => {
+		let streamRequested = false;
+		const sends: any[] = [];
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: {
+					onGet: () => null,
+					onHead: () => null,
+					onUnversionGet: () => null,
+					onUnversionHead: () => null,
+					onAuthorizedGet: () => null,
+					onAuthorizedPost: () => null,
+					setStorageHeaders: () => null
+				},
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => null,
+					getFileStream: async () => {
+						streamRequested = true;
+						return Readable.from(["unexpected"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			send: (...args) => sends.push(args),
+			setHeader: () => null
+		} as any, "missing.txt");
+
+		assert.deepEqual(sends, [[404]]);
+		assert.equal(streamRequested, false);
+	});
+
+	it("returns 423 for forbidden unknown ranged storage paths before stat lookup", async () => {
+		let statRequested = false;
+		const sends: any[] = [];
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => false,
+			ms: {
+				api: {
+					onGet: () => null,
+					onHead: () => null,
+					onUnversionGet: () => null,
+					onUnversionHead: () => null,
+					onAuthorizedGet: () => null,
+					onAuthorizedPost: () => null,
+					setStorageHeaders: () => null
+				},
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => {
+						statRequested = true;
+						return null;
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			send: (...args) => sends.push(args),
+			setHeader: () => null
+		} as any, "forbidden.txt");
+
+		assert.deepEqual(sends, [[423]]);
+		assert.equal(statRequested, false);
+	});
+
 	it("closes the response stream when a content stream fails after headers", async () => {
 		const responseStream = new PassThrough();
 		const writes: any = {};
