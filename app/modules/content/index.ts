@@ -1052,7 +1052,9 @@ function getModule(app: IGeesomeApp) {
 				if (!fileStat) {
 					return res.send(404);
 				}
-				content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
+				if (fileStat.cid) {
+					content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
+				}
 				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false);
 				log('headers', headers);
 				res.writeHead(200, headers);
