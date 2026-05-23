@@ -158,6 +158,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['storage-object canonical pin state column'],
   },
   {
+    module: 'database',
+    file: '20260517000000-widen-auto-action-log-payloads-text.cjs',
+    verifies: ['auto-action log payload columns can store JSON diagnostics'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -223,6 +228,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'groups', columns: ['manifestPostsCursorId'], type: 'integer'},
   {table: 'autoActions', columns: ['executeClaimedAt'], type: 'timestamp with time zone'},
   {table: 'autoActions', columns: ['executeClaimExpiresAt'], type: 'timestamp with time zone'},
+  {table: 'autoActionLogs', columns: ['error'], type: 'text'},
+  {table: 'autoActionLogs', columns: ['response'], type: 'text'},
   {table: 'userAsyncOperations', columns: ['output'], type: 'text'},
   {table: 'storageObjects', columns: ['isPinned'], type: 'boolean'},
   {table: 'storageObjectReferences', columns: ['sourceStorageId'], type: 'character varying'},
