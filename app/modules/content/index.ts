@@ -1071,6 +1071,7 @@ function getModule(app: IGeesomeApp) {
 				}
 			}
 
+			const contentStoragePath = dataPath;
 			dataPath = this.prepareContentStorageDataPath(dataPath, content);
 			const dataSize = await this.getFileSize(dataPath, content);
 			if (dataSize === null) {
@@ -1111,7 +1112,7 @@ function getModule(app: IGeesomeApp) {
 					});
 				}
 
-				const mimeType = this.getContentStorageMimeType(dataPath, content);
+				const mimeType = this.getContentStorageMimeType(contentStoragePath, content);
 				res.writeHead(206, {
 					// 'Cache-Control': 'no-cache, no-store, must-revalidate',
 					// 'Pragma': 'no-cache',
