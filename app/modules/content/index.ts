@@ -1032,14 +1032,9 @@ function getModule(app: IGeesomeApp) {
 			dataPath = await this.getDataPath(dataPath);
 			let range = req.headers['range'];
 			if (!range) {
-				let storageId = dataPath;
-				// Shared metadata reads prefer canonical storage-object rows, with deterministic
-				// Content fallback for old data that has not been backfilled yet.
-				let content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
-				if (!content && dataPath.split('/').length > 1) {
-					storageId = dataPath.split('/')[0];
-					content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
-				}
+				const storagePathMetadata = await this.getSharedStorageMetadataForPath(dataPath);
+				const {storageId} = storagePathMetadata;
+				let content = storagePathMetadata.content;
 				helpers.logDebug(log, () => ['content', helpers.toLogValue(content)]);
 				if (!content) {
 					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
@@ -1048,18 +1043,7 @@ function getModule(app: IGeesomeApp) {
 					}
 				}
 
-				if (content) {
-					const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
-					log('contentType', contentType);
-					if (contentType) {
-						res.setHeader('Content-Type', contentType);
-					}
-					if (content.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
-						dataPath += '/index.html';
-					}
-				} else if (dataPath.endsWith('.js')) {
-					res.setHeader('Content-Type', 'text/javascript');
-				}
+				dataPath = this.prepareContentStoragePathResponse(res, dataPath, content);
 				const fileStat = await app.ms.storage.getFileStat(dataPath);
 				log('getFileStat', fileStat);
 				if (!fileStat) {
@@ -1140,13 +1124,28 @@ function getModule(app: IGeesomeApp) {
 
 		async getContentHead(req, res, hash) {
 			app.ms.api.setDefaultHeaders(res);
-			const dataPath = await this.getDataPath(hash);
-			// A1 shared-metadata read for public HEAD requests.
-			const content = await app.ms.database.getSharedStorageMetadataByStorageId(dataPath, {includePreviews: true});
-			let headersObj = {};
-			if (content) {
-				headersObj = await this.getIpfsHashHeadersObj(content, dataPath, null, true);
+			let dataPath = await this.getDataPath(hash);
+			const storagePathMetadata = await this.getSharedStorageMetadataForPath(dataPath);
+			const {storageId} = storagePathMetadata;
+			let content = storagePathMetadata.content;
+			if (!content) {
+				const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+				if (!storageIdAllowed) {
+					res.writeHead(423, {'Cross-Origin-Resource-Policy': 'cross-origin'});
+					return res.stream.end();
+				}
 			}
+
+			dataPath = this.prepareContentStoragePathResponse(res, dataPath, content);
+			const fileStat = await app.ms.storage.getFileStat(dataPath);
+			if (!fileStat) {
+				res.writeHead(404, {'Cross-Origin-Resource-Policy': 'cross-origin'});
+				return res.stream.end();
+			}
+			if (fileStat.cid) {
+				content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
+			}
+			const headersObj = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, this.isContentPreviewStoragePath(content, dataPath));
 			res.writeHead(200, headersObj);
 			res.stream.end();
 		}
@@ -1177,6 +1176,44 @@ function getModule(app: IGeesomeApp) {
 				'x-proxy-cache': 'MISS',
 				'timing-allow-origin': '*'
 			}
+		}
+
+		async getSharedStorageMetadataForPath(dataPath) {
+			let storageId = dataPath;
+			let content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
+			if (!content && dataPath.split('/').length > 1) {
+				storageId = dataPath.split('/')[0];
+				content = await app.ms.database.getSharedStorageMetadataByStorageId(storageId, {includePreviews: true});
+			}
+			return {storageId, content};
+		}
+
+		prepareContentStoragePathResponse(res, dataPath, content) {
+			if (content) {
+				const contentType = content.storageId === dataPath ? content.mimeType : content.previewMimeType;
+				log('contentType', contentType);
+				if (contentType) {
+					res.setHeader('Content-Type', contentType);
+				}
+				if (content.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
+					dataPath += '/index.html';
+				}
+			} else if (dataPath.endsWith('.js')) {
+				res.setHeader('Content-Type', 'text/javascript');
+			}
+			return dataPath;
+		}
+
+		isContentPreviewStoragePath(content, dataPath) {
+			if (!content || content.storageId === dataPath) {
+				return false;
+			}
+			return [
+				content.largePreviewStorageId,
+				content.mediumPreviewStorageId,
+				content.smallPreviewStorageId,
+				content.previewStorageId
+			].includes(dataPath);
 		}
 	}
 

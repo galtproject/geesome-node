@@ -70,6 +70,125 @@ describe("content headers", function () {
 		assert.equal(ended, true);
 	});
 
+	it("returns 404 for allowed HEAD paths missing from storage", async () => {
+		const writes: any = {};
+		let streamRequested = false;
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => null,
+					getFileStream: async () => {
+						streamRequested = true;
+						return Readable.from(["unexpected"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getContentHead({} as any, {
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: {
+				end: () => {
+					writes.ended = true;
+				}
+			}
+		} as any, "missing.txt");
+
+		assert.equal(writes.status, 404);
+		assert.equal(writes.headers["Cross-Origin-Resource-Policy"], "cross-origin");
+		assert.equal(writes.ended, true);
+		assert.equal(streamRequested, false);
+	});
+
+	it("returns 423 for forbidden unknown HEAD storage paths before stat lookup", async () => {
+		const writes: any = {};
+		let statRequested = false;
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => false,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => {
+						statRequested = true;
+						return null;
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getContentHead({} as any, {
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: {
+				end: () => {
+					writes.ended = true;
+				}
+			}
+		} as any, "forbidden.txt");
+
+		assert.equal(writes.status, 423);
+		assert.equal(writes.headers["Cross-Origin-Resource-Policy"], "cross-origin");
+		assert.equal(writes.ended, true);
+		assert.equal(statRequested, false);
+	});
+
+	it("keeps preview MIME headers on HEAD preview storage paths", async () => {
+		const headers = {};
+		const contentSize = 3;
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => ({
+						storageId: "original.txt",
+						mediumPreviewStorageId: "preview.jpg",
+						mimeType: ContentMimeType.Text,
+						previewMimeType: "image/jpeg",
+						size: 9
+					})
+				},
+				storage: {
+					getFileStat: async () => ({size: contentSize})
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getContentHead({} as any, {
+			setHeader: (name, value) => {
+				headers[name] = value;
+			},
+			writeHead: (status, responseHeaders) => {
+				headers["status"] = status;
+				Object.assign(headers, responseHeaders);
+			},
+			stream: {
+				end: () => null
+			}
+		} as any, "preview.jpg");
+
+		assert.equal(headers["status"], 200);
+		assert.equal(headers["Content-Type"], "image/jpeg");
+		assert.equal(headers["Content-Length"], contentSize);
+	});
+
 	it("does not expose private content rows by database id through public metadata", async () => {
 		const content = await contentModule({
 			checkModules: () => null,
