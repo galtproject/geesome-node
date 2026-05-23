@@ -4,6 +4,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import bearerToken from 'express-bearer-token';
 import {IGeesomeApp} from "../../interface.js";
+import helpers from "../../helpers.js";
 import {IUser} from "../database/interface.js";
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
@@ -26,7 +27,9 @@ async function getModule(app: IGeesomeApp, version, port) {
 	service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
 	service.use(bodyParser.urlencoded({extended: true}));
 	service.use(bearerToken());
-	service.use(morgan('combined'));
+	if (helpers.isAccessLogEnabled()) {
+		service.use(morgan('combined'));
+	}
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);
