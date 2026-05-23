@@ -80,4 +80,34 @@ describe('content quota', function () {
 		assert.equal(await UserContentAction.count({where: {userId: testUser.id, name: UserContentActionName.Upload}}), 1);
 		assert.equal(await app.getUserLimitRemained(testUser.id, UserLimitName.SaveContentSize), 1);
 	});
+
+	it('keeps handled save limit failures out of stderr', async () => {
+		await app.setUserLimit(admin.id, {
+			name: UserLimitName.SaveContentSize,
+			value: 5,
+			adminId: admin.id,
+			userId: testUser.id,
+			periodTimestamp: 60,
+			isActive: true
+		});
+
+		const originalConsoleError = console.error;
+		const consoleErrorCalls = [];
+		let thrownError;
+
+		console.error = ((...args) => {
+			consoleErrorCalls.push(args);
+		}) as any;
+
+		try {
+			await app.ms.content.saveData(testUser.id, Buffer.from('exceeds-limit'), 'too-large.txt');
+		} catch (e) {
+			thrownError = e;
+		} finally {
+			console.error = originalConsoleError;
+		}
+
+		assert.equal(String(thrownError?.message || thrownError), 'limit_reached');
+		assert.deepEqual(consoleErrorCalls, []);
+	});
 });

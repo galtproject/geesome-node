@@ -628,7 +628,7 @@ function getModule(app: IGeesomeApp) {
 				onProgress: options.onProgress,
 				waitForPin: options.waitForPin
 			}).catch(e => {
-				console.error('checkFileSizeAndSaveByStream', e);
+				logContentStreamSaveFailure(e);
 				dataToSave.emit && dataToSave.emit('end');
 				dataToSave.destroy && dataToSave.destroy();
 				throw e;
@@ -827,7 +827,7 @@ function getModule(app: IGeesomeApp) {
 							streamSize += chunk.length;
 							log('streamSize', streamSize);
 							if (streamSize >= sizeRemained) {
-								console.error("limit_reached for user", userId);
+								logContentLimitReached(userId, streamSize, sizeRemained);
 								try {
 									stream.destroy(new Error('limit_reached'));
 									sizeCheckStream.destroy(new Error('limit_reached'));
@@ -1235,6 +1235,31 @@ function getModule(app: IGeesomeApp) {
 	}
 
 	return new ContentModule();
+}
+
+function logContentStreamSaveFailure(error) {
+	helpers.logDebug(log, () => ['checkFileSizeAndSaveByStream', getContentErrorMessage(error)]);
+}
+
+function logContentLimitReached(userId, streamSize, sizeRemained) {
+	helpers.logDebug(log, () => [
+		'limit_reached',
+		{
+			userId,
+			streamSize,
+			sizeRemained
+		}
+	]);
+}
+
+function getContentErrorMessage(error) {
+	if (!error) {
+		return null;
+	}
+	if (error.message) {
+		return error.message;
+	}
+	return String(error);
 }
 
 interface IStorageFile {
