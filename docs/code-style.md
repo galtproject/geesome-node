@@ -164,6 +164,11 @@ async createGroup(userId, groupData) {
 
 `throw new Error("snake_case_reason")`. The string is the API contract — do not change wording on existing errors without considering callers.
 
+### Static-site SSR
+
+- Create a fresh Vue SSR app/router for each rendered page. Cache shared render inputs, assets, and compiled styles outside page rendering, but do not reuse one Vue app across multiple `renderToString` calls because Vue stores per-render SSR context on the app.
+- Use Sass namespace imports directly: `import * as sass from 'sass';` then `sass.compileAsync(...)`. Do not access `sass.default`, which re-enables Sass's deprecated default-import path warning.
+
 ### Comments
 
 - Default to no comment. Code with good identifiers reads itself.

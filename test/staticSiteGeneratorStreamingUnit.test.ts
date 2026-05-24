@@ -5,6 +5,9 @@ describe('staticSiteGenerator streaming render state', function () {
 	this.timeout(10000);
 
 	it('renders list and post pages from current page/post state without a full posts array', async () => {
+		const warnings: any[] = [];
+		const originalWarn = console.warn;
+		console.warn = (...args) => warnings.push(args);
 		const post = {
 			id: 7,
 			lang: 'en',
@@ -42,15 +45,21 @@ describe('staticSiteGenerator streaming render state', function () {
 			indexById: {}
 		};
 		const headers = [['meta', {name: 'og:title', content: 'Stream Site'}]];
-		const {renderPage} = await site.prepareRender(renderData);
 
-		const indexHtml = await renderPage('/', headers);
-		assert.equal(indexHtml.includes('streamed intro'), true);
-		assert.equal(indexHtml.includes('./post/7/'), true);
+		try {
+			const {renderPage} = await site.prepareRender(renderData);
 
-		renderData.currentPosts = [];
-		renderData.currentPost = post;
-		const postHtml = await renderPage('/post/7', headers);
-		assert.equal(postHtml.includes('streamed post body'), true);
+			const indexHtml = await renderPage('/', headers);
+			assert.equal(indexHtml.includes('streamed intro'), true);
+			assert.equal(indexHtml.includes('./post/7/'), true);
+
+			renderData.currentPosts = [];
+			renderData.currentPost = post;
+			const postHtml = await renderPage('/post/7', headers);
+			assert.equal(postHtml.includes('streamed post body'), true);
+		} finally {
+			console.warn = originalWarn;
+		}
+		assert.equal(warnings.some(args => args.join(' ').includes('Symbol(v-scx)')), false);
 	});
 });
