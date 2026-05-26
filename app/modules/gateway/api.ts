@@ -1,7 +1,10 @@
 import _ from 'lodash';
+import debug from 'debug';
 import IGeesomeApiModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import {sendBadRequestOnContentRouteError} from "../api/routeErrorHelpers.js";
 const {trim} = _;
+const log = debug('geesome:gateway:api');
 
 export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
@@ -17,11 +20,15 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
 	module.onGetRequest(async (req, res) => {
 		const contentPath = await getGatewayContentPath(req);
-		app.ms.content.getFileStreamForApiRequest(req, res, contentPath).catch((e) => {console.error(e); res.send(400)});
+		app.ms.content.getFileStreamForApiRequest(req, res, contentPath).catch(
+			sendBadRequestOnContentRouteError(log, res, () => ({route: 'gateway', dataPath: contentPath}))
+		);
 	});
 
 	module.onHeadRequest(async (req, res) => {
 		const contentPath = await getGatewayContentPath(req);
-		app.ms.content.getContentHead(req, res, contentPath).catch((e) => {console.error(e); res.send(400)});
+		app.ms.content.getContentHead(req, res, contentPath).catch(
+			sendBadRequestOnContentRouteError(log, res, () => ({route: 'gateway:head', dataPath: contentPath}))
+		);
 	});
 }

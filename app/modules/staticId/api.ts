@@ -1,7 +1,10 @@
 import _ from 'lodash';
+import debug from 'debug';
 import IGeesomeStaticIdModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import {sendBadRequestOnContentRouteError} from "../api/routeErrorHelpers.js";
 const {trim} = _;
+const log = debug('geesome:static-id:api');
 
 export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
 
@@ -28,7 +31,10 @@ export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
         const ipnsId = trim(ipnsPath, '/').split('/').slice(0, 1)[0];
         const ipfsId = await staticIdModule.resolveStaticId(ipnsId);
-        app.ms.content.getFileStreamForApiRequest(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
+        const dataPath = ipnsPath.replace(ipnsId, ipfsId);
+        app.ms.content.getFileStreamForApiRequest(req, res, dataPath).catch(
+            sendBadRequestOnContentRouteError(log, res, () => ({route: 'ipns', ipnsPath, dataPath}))
+        );
     });
 
     /**
@@ -43,7 +49,10 @@ export default (app: IGeesomeApp, staticIdModule: IGeesomeStaticIdModule) => {
         const ipnsPath = req.route.replace('/ipns/', '').split('?')[0];
         const ipnsId = trim(ipnsPath, '/').split('/').slice(0, 1)[0];
         const ipfsId = await staticIdModule.resolveStaticId(ipnsId);
-        app.ms.content.getContentHead(req, res, ipnsPath.replace(ipnsId, ipfsId)).catch((e) => {console.error(e); res.send(400)});
+        const dataPath = ipnsPath.replace(ipnsId, ipfsId);
+        app.ms.content.getContentHead(req, res, dataPath).catch(
+            sendBadRequestOnContentRouteError(log, res, () => ({route: 'ipns:head', ipnsPath, dataPath}))
+        );
     });
 
     /**
