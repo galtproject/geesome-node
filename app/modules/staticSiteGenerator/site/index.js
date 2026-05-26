@@ -10,26 +10,23 @@ export default {
     async prepareRender(storageData) {
         // const storageData = {path: url.split('?')[0], urlQuery, ...additionalData};
         loadAssets(storageData);
-        const [{app, router}, {css}] = await Promise.all([
-            createApp(storageData),// VueSSR: init simple Vue app with components, pages and routes
-            sass['default'].compileAsync(getFilePath('styles/index.scss'))
-        ]);
+        const {css} = await compileStyles();
         const rootContent = getFileContent('index.html');
         return {
             css,
             // VueSSR: call for each page and save to fs
             renderPage: (url, headers) => {
-                return renderApp(app, router, rootContent, url, headers, 'en');
+                return renderApp(storageData, rootContent, url, headers, 'en');
             }
         };
     },
 };
 
-async function renderApp(app, router, rootContent, url, headers, lang) {
+async function renderApp(storageData, rootContent, url, headers, lang) {
     // console.log('app', app);
+    const {app} = await createApp(storageData, url);
     const slashSplit = url.split('/');
     const relativeRoot = slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './';
-    await router.push(url);
     // app.use(Notifications);
     // installFakeComponent(app, '$notify', 'Notifications');
 
@@ -44,6 +41,10 @@ async function renderApp(app, router, rootContent, url, headers, lang) {
         .replace('{{lang}}', lang)
         .replace('{{headers}}', `<title>${title}</title>\n` + headers.map(([tag, attr]) => `<${tag} name="${attr['name']}" content="${attr['content']}"/>`).join('\n'))
         .replace('{{content}}', content);
+}
+
+function compileStyles() {
+    return sass.compileAsync(getFilePath('styles/index.scss'));
 }
 
 function loadAssets(data) {
