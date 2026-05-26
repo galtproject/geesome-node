@@ -8,9 +8,6 @@ export default {
         EmptyLayout,
     },
     inject: ['store'],
-    created() {
-      // console.log('post page', this.$route.params.postId);
-    },
     computed: {
         contents() {
             return this.store.contents;
@@ -21,7 +18,6 @@ export default {
     },
     methods: {
       openMedia(imageIndex) {
-          console.log('openMedia', imageIndex);
           this.$root.$modal.open({
               id: 'image-modal',
               component: markRaw(ImageModal),
