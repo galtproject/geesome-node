@@ -146,6 +146,32 @@ describe("app", function () {
 		assert.equal(matchingLimits, 1);
 	});
 
+	it('keeps core app diagnostics out of stdout by default', async () => {
+		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		await app.setUserLimit(adminUser.id, {
+			name: UserLimitName.SaveContentSize,
+			value: 1000,
+			adminId: adminUser.id,
+			userId: testUser.id,
+			periodTimestamp: 60,
+			isActive: true
+		});
+		const objectStorageId = await app.ms.storage.saveObject({foo: 'quiet'}, {waitForPin: true});
+		const originalLog = console.log;
+		const logCalls: any[] = [];
+		console.log = (...args) => logCalls.push(args);
+
+		try {
+			assert.equal(await app.getUserLimitRemained(testUser.id, UserLimitName.SaveContentSize), 1000);
+			assert.equal(await app.callHookCheckAllowed('app', 'missingHook', []), false);
+			assert.deepEqual(await app.getDataStructure(objectStorageId), {foo: 'quiet'});
+		} finally {
+			console.log = originalLog;
+		}
+		assert.deepEqual(logCalls, []);
+	});
+
 	it('loginPassword and updateUser should work properly', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 
