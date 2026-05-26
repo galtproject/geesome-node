@@ -466,7 +466,7 @@ function getModule(config, appPass) {
       if (limitName === UserLimitName.SaveContentSize) {
         const uploadSize = await this.ms.database.getUserContentActionsSizeSum(userId, UserContentActionName.Upload, limit.periodTimestamp);
         const pinSize = await this.ms.database.getUserContentActionsSizeSum(userId, UserContentActionName.Pin, limit.periodTimestamp);
-        console.log('uploadSize', uploadSize, 'pinSize', pinSize, 'limit.value', limit.value );
+        helpers.logDebug(log, () => ['userLimitRemained', {userId, limitName, uploadSize, pinSize, limitValue: limit.value}]);
         return limit.value - uploadSize - pinSize;
       } else {
         throw new Error("Unknown limit");
@@ -497,8 +497,9 @@ function getModule(config, appPass) {
 
     async callHookCheckAllowed(callFromModule, name, args) {
       return this.callHook(callFromModule, name, args).then(responseList => {
-        console.log('responseList', responseList);
-        return responseList.some(a => !!a);
+        const isAllowed = responseList.some(a => !!a);
+        helpers.logDebug(log, () => ['callHookCheckAllowed', {callFromModule, name, responseCount: responseList.length, isAllowed}]);
+        return isAllowed;
       })
     }
 
@@ -517,8 +518,9 @@ function getModule(config, appPass) {
 
     async getDataStructure(storageId, isResolve = true) {
       const dataPathSplit = storageId.split('/');
-      console.log('ipfsHelper.isAccountCidHash', dataPathSplit[0], ipfsHelper.isAccountCidHash(dataPathSplit[0]));
-      if (ipfsHelper.isAccountCidHash(dataPathSplit[0])) {
+      const isAccountCidHash = ipfsHelper.isAccountCidHash(dataPathSplit[0]);
+      helpers.logDebug(log, () => ['getDataStructureStaticIdCheck', {storageId: dataPathSplit[0], isAccountCidHash}]);
+      if (isAccountCidHash) {
         try {
           const dynamicIdByStaticId = await this.ms.staticId.resolveStaticId(dataPathSplit[0]);
           if (dynamicIdByStaticId) {
