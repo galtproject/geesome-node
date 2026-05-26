@@ -1,9 +1,12 @@
 import _ from 'lodash';
+import debug from 'debug';
 import {UserLimitName} from "../database/interface.js";
 import IGeesomeContentModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import asyncBusboy from "./asyncBusboy.js";
+import {sendBadRequestOnContentRouteError} from "../api/routeErrorHelpers.js";
 const {pick} = _;
+const log = debug('geesome:content:api');
 
 export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
@@ -216,7 +219,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      */
     app.ms.api.onGet('content-data/*', async (req, res) => {
         const dataPath = req.route.replace('content-data/', '');
-        contentModule.getFileStreamForApiRequest(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
+        contentModule.getFileStreamForApiRequest(req, res, dataPath).catch(
+            sendBadRequestOnContentRouteError(log, res, () => ({route: 'content-data', dataPath}))
+        );
     });
 
     /**
@@ -229,7 +234,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      */
     app.ms.api.onHead('content-data/*', async (req, res) => {
         const dataPath = req.route.replace('content-data/', '');
-        contentModule.getContentHead(req, res, dataPath).catch((e) => {console.error(e); res.send(400)});
+        contentModule.getContentHead(req, res, dataPath).catch(
+            sendBadRequestOnContentRouteError(log, res, () => ({route: 'content-data:head', dataPath}))
+        );
     });
 
     /**
@@ -242,7 +249,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     */
     app.ms.api.onUnversionGet('/ipfs/*', async (req, res) => {
         const ipfsPath = req.route.replace('/ipfs/', '');
-        contentModule.getFileStreamForApiRequest(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
+        contentModule.getFileStreamForApiRequest(req, res, ipfsPath).catch(
+            sendBadRequestOnContentRouteError(log, res, () => ({route: 'ipfs', dataPath: ipfsPath}))
+        );
     });
 
     /**
@@ -255,7 +264,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      */
     app.ms.api.onUnversionHead('/ipfs/*', async (req, res) => {
         const ipfsPath = req.route.replace('/ipfs/', '');
-        contentModule.getContentHead(req, res, ipfsPath).catch((e) => {console.error(e); res.send(400)});
+        contentModule.getContentHead(req, res, ipfsPath).catch(
+            sendBadRequestOnContentRouteError(log, res, () => ({route: 'ipfs:head', dataPath: ipfsPath}))
+        );
     });
 
 
@@ -276,7 +287,10 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
             if (!path || path === '/') {
                 path = '/index.html';
             }
-            contentModule.getFileStreamForApiRequest(req, res, app.frontendStorageId + path).catch((e) => {console.error(e); res.send(400)});
+            const dataPath = app.frontendStorageId + path;
+            contentModule.getFileStreamForApiRequest(req, res, dataPath).catch(
+                sendBadRequestOnContentRouteError(log, res, () => ({route: 'frontend-node', dataPath}))
+            );
         });
     }
 };
