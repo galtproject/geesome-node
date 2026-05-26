@@ -19,6 +19,19 @@ export function sendBadRequestOnContentRouteError(log: DebugLog, res: IApiModule
 	};
 }
 
+export function sendForbiddenOnAuthRouteError(log: DebugLog, res: IApiModuleCommonOutput, getContext: () => any = () => ({})) {
+	return (error) => {
+		helpers.logDebug(log, () => [
+			'auth route request failed',
+			{
+				...getContext(),
+				error: getErrorMessage(error)
+			}
+		]);
+		res.send(403);
+	};
+}
+
 function getErrorMessage(error) {
 	if (error && error.message) {
 		return error.message;
