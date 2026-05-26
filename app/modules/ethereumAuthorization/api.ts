@@ -1,5 +1,8 @@
+import debug from 'debug';
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeEthereumAuthorizationModule from "./interface.js";
+import {sendForbiddenOnAuthRouteError} from "../api/routeErrorHelpers.js";
+const log = debug('geesome:ethereum-authorization:api');
 
 export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumAuthorizationModule) => {
 	/**
@@ -40,9 +43,10 @@ export default (app: IGeesomeApp, ethereumAuthorizationModule: IGeesomeEthereumA
 	app.ms.api.onPost('login/auth-message', async (req, res) => {
 		ethereumAuthorizationModule.loginAuthMessage(req.body.authMessageId, req.body.accountAddress, req.body.signature, req.body.params)
 			.then(user => app.ms.api.handleAuthResult(res, user))
-			.catch((err) => {
-				console.error(err);
-				res.send(403)
-			});
+			.catch(sendForbiddenOnAuthRouteError(log, res, () => ({
+				route: 'login/auth-message',
+				authMessageId: req.body?.authMessageId,
+				accountAddress: req.body?.accountAddress
+			})));
 	});
 }

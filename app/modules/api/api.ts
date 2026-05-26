@@ -1,9 +1,12 @@
+import _ from 'lodash';
+import debug from 'debug';
+import http from 'node:http';
 import IGeesomeApiModule from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
-import http from 'node:http';
-import _ from 'lodash';
+import {sendForbiddenOnAuthRouteError} from "./routeErrorHelpers.js";
 const {isNumber} = _;
+const log = debug('geesome:api:routes');
 
 export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	//TODO: move to core module
@@ -146,10 +149,10 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	module.onPost('login/password', async (req, res) => {
 		app.loginPassword(req.body.username, req.body.password)
 			.then(user => module.handleAuthResult(res, user))
-			.catch((err) => {
-				console.error(err);
-				res.send(403)
-			});
+			.catch(sendForbiddenOnAuthRouteError(log, res, () => ({
+				route: 'login/password',
+				username: req.body?.username
+			})));
 	});
 
 	/**
