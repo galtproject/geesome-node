@@ -13,7 +13,6 @@ export async function createApp(store, serverRoute = null) {
         `,
         mounted() {
             this.$root.$modal = this.$refs.modal;
-            console.log('this.$root.$modal', this.$root.$modal);
         },
     }).use(asyncModal);
 

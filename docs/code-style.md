@@ -170,6 +170,7 @@ async createGroup(userId, groupData) {
 
 - Create a fresh Vue SSR app/router for each rendered page. Cache shared render inputs, assets, and compiled styles outside page rendering, but do not reuse one Vue app across multiple `renderToString` calls because Vue stores per-render SSR context on the app.
 - Use Sass namespace imports directly: `import * as sass from 'sass';` then `sass.compileAsync(...)`. Do not access `sass.default`, which re-enables Sass's deprecated default-import path warning.
+- Generated static-site client files should not write incidental diagnostics to the browser console by default. Keep mounted refs, click diagnostics, and internal state dumps out of published site assets unless there is an explicit opt-in debug mode. Intentional visitor/developer-facing console messages, such as the generated-site examples banner, may stay when they are part of the product experience.
 
 ### Comments
 

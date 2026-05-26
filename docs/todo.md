@@ -196,7 +196,7 @@ Verification:
 
 ### 6. Static Site Generator Polish
 
-Status: in progress. [#564](https://github.com/galtproject/geesome-node/issues/564) is implemented for generated group-site favicons. [#494](https://github.com/galtproject/geesome-node/issues/494) is the active static-site settings slice. The renderer now avoids Sass's deprecated default-import path and creates a fresh Vue SSR app/router per page render, so repeated generated-page renders do not emit `Symbol(v-scx)` context warnings or risk cross-page SSR state reuse.
+Status: in progress. [#564](https://github.com/galtproject/geesome-node/issues/564) is implemented for generated group-site favicons. [#494](https://github.com/galtproject/geesome-node/issues/494) is the active static-site settings slice. The renderer now avoids Sass's deprecated default-import path and creates a fresh Vue SSR app/router per page render, so repeated generated-page renders do not emit `Symbol(v-scx)` context warnings or risk cross-page SSR state reuse. Generated static-site clients no longer print mounted modal refs or media-click diagnostics into visitor browser consoles while preserving the useful developer/examples banner.
 
 Goal: deliver visible improvements without redesigning the protocol.
 
