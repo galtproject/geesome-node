@@ -24,19 +24,27 @@ function removeMatching(rows, predicate) {
 	return deleted;
 }
 
-function createAsyncOperationModule({queues = [], operations = []}: {queues?: any[], operations?: any[]} = {}) {
+function createAsyncOperationModule({queues = [], operations = [], appOverrides = {}}: {queues?: any[], operations?: any[], appOverrides?: any} = {}) {
+	const database = {
+		setDefaultListParamsValues: (listParams) => {
+			listParams.sortBy ||= "createdAt";
+			listParams.sortDir ||= "DESC";
+			listParams.limit ||= 20;
+			listParams.offset ||= 0;
+		}
+	};
+	const overrideMs = appOverrides.ms || {};
 	const app = {
+		checkUserCan: async () => null,
 		ms: {
+			...overrideMs,
 			database: {
-				setDefaultListParamsValues: (listParams) => {
-					listParams.sortBy ||= "createdAt";
-					listParams.sortDir ||= "DESC";
-					listParams.limit ||= 20;
-					listParams.offset ||= 0;
-				}
+				...database,
+				...(overrideMs.database || {})
 			}
 		}
 	};
+	Object.assign(app, appOverrides, {ms: app.ms});
 
 	return getAsyncOperationModule(app as any, {
 		UserOperationQueue: {
@@ -230,6 +238,52 @@ describe("async operation ownership controls", function () {
 		assert.equal(operations[0].output, "{\"refreshed\":3}");
 	});
 
+	it("keeps async operation wrapper diagnostics out of stderr", async () => {
+		const operations = [];
+		const asyncOperations = createAsyncOperationModule({
+			operations,
+			appOverrides: {
+				ms: {
+					communicator: {
+						publishEvent: async () => null
+					},
+					failingModule: {
+						run: async () => {
+							throw new Error("expected_async_failure");
+						}
+					},
+					successfulModule: {
+						run: async () => ({id: 42})
+					}
+				}
+			}
+		});
+
+		const consoleErrorCalls = await captureConsoleErrors(async () => {
+			const success = await asyncOperations.asyncOperationWrapper("successfulModule", "run", [{payload: "hidden"}], {
+				userId: 1,
+				userApiKeyId: 2,
+				async: true
+			});
+			assert.equal(success.asyncOperationId, 1);
+			await flushAsyncHandlers();
+
+			const failure = await asyncOperations.asyncOperationWrapper("failingModule", "run", [], {
+				userId: 1,
+				userApiKeyId: 2,
+				async: true
+			});
+			assert.equal(failure.asyncOperationId, 2);
+			await flushAsyncHandlers();
+		});
+
+		assert.deepEqual(consoleErrorCalls, []);
+		assert.equal(operations[0].inProcess, false);
+		assert.equal(operations[0].contentId, 42);
+		assert.equal(operations[1].inProcess, false);
+		assert.equal(operations[1].errorMessage, "expected_async_failure");
+	});
+
 	it("closes completed queue heads before processing the next module queue item", async () => {
 		const operations = [
 			{id: 1, userId: 1, name: "old-refresh", inProcess: false},
@@ -285,3 +339,21 @@ describe("async operation ownership controls", function () {
 		assert.deepEqual(queues.map(queue => queue.id), [2, 4, 5, 6]);
 	});
 });
+
+async function captureConsoleErrors(callback) {
+	const originalConsoleError = console.error;
+	const consoleErrorCalls: any[] = [];
+	console.error = ((...args) => {
+		consoleErrorCalls.push(args);
+	}) as any;
+	try {
+		await callback();
+		return consoleErrorCalls;
+	} finally {
+		console.error = originalConsoleError;
+	}
+}
+
+async function flushAsyncHandlers() {
+	await new Promise((resolve) => setImmediate(resolve));
+}

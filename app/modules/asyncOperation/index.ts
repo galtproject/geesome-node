@@ -69,10 +69,18 @@ export function getModule(app: IGeesomeApp, models) {
 			});
 			const methodPromise = this.executeOperation(moduleName, funcName, args);
 
-			console.error('executeOperation', moduleName, funcName, args);
+			helpers.logDebug(log, () => ['asyncOperationWrapper executeOperation', {
+				asyncOperationId: asyncOperation.id,
+				moduleName,
+				funcName,
+				argsCount: Array.isArray(args) ? args.length : 0
+			}]);
 			methodPromise
 				.then((res: any) => {
-					console.error('res.id', res.id, 'asyncOperation.id', asyncOperation.id);
+					helpers.logDebug(log, () => ['asyncOperationWrapper result', {
+						asyncOperationId: asyncOperation.id,
+						contentId: res?.id
+					}]);
 					this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						contentId: res.id
@@ -80,7 +88,10 @@ export function getModule(app: IGeesomeApp, models) {
 					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
 				.catch((e) => {
-					console.error('asyncOperationWrapper', e);
+					helpers.logDebug(log, () => ['asyncOperationWrapper error', {
+						asyncOperationId: asyncOperation.id,
+						error: getErrorMessage(e)
+					}]);
 					return this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
 						errorType: 'unknown',
