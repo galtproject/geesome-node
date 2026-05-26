@@ -31,5 +31,6 @@ COPY . .
 
 ENV STORAGE_MODULE=ipfs-http-client
 ENV STORAGE_URL=http://go_ipfs:5001
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
 CMD ["npm", "run", "test:docker:run"]

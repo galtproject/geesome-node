@@ -157,6 +157,7 @@ async createGroup(userId, groupData) {
 - HTTP access logging is opt-in. Use `GEESOME_ACCESS_LOGS=1` for request logs instead of registering `morgan` unconditionally in API/gateway modules.
 - Known noisy dependency import-time info logs should be wrapped with `helpers.withSuppressedConsoleInfo` and stay quiet by default; use `GEESOME_DEPENDENCY_INFO_LOGS=1` when dependency fallback details are useful.
 - Test-only stdout diagnostics should be opt-in through `GEESOME_TEST_LOGS=1`; the default Mocha path suppresses `console.log` so assertion output stays readable.
+- Docker test runtime scripts should call the shared Mocha runner directly after model sync/migrations. Keep dependency installation and frozen-lockfile checks in the Docker image build or explicit local `yarn test` path, not in `bash/docker-test-run.sh`, so source-only Docker reruns do not replay package-manager warning output.
 - SQL logging is high-volume and must stay separately opt-in: use `GEESOME_LOG_SQL=1 DEBUG=geesome:database:sql` for query traces instead of enabling SQL output through a broad default `DEBUG=geesome*`.
 - Errors go through `console.error` or are thrown when they need operator attention. Expected per-request stream/client failures after response headers are already committed should clean up resources and use lazy debug logging instead of unconditional stdout/stderr noise.
 
