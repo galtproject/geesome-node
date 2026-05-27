@@ -32,6 +32,19 @@ export function sendForbiddenOnAuthRouteError(log: DebugLog, res: IApiModuleComm
 	};
 }
 
+export function sendBadGatewayOnStorageRouteError(log: DebugLog, res: IApiModuleCommonOutput, getContext: () => any = () => ({})) {
+	return (error) => {
+		helpers.logDebug(log, () => [
+			'storage route request failed',
+			{
+				...getContext(),
+				error: getErrorMessage(error)
+			}
+		]);
+		res.send(null, 502);
+	};
+}
+
 function getErrorMessage(error) {
 	if (error && error.message) {
 		return error.message;
