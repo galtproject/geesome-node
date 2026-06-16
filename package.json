@@ -100,7 +100,7 @@
     "keccak": "^3.0.3",
     "kubo-rpc-client": "^6.1.0",
     "lodash": "^4.18.1",
-    "markdown-it": "^12.2.0",
+    "markdown-it": "^14.2.0",
     "mime": "1.6.0",
     "morgan": "^1.9.1",
     "node-cron": "^2.0.3",
