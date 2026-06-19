@@ -14,6 +14,21 @@ sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-
 
 sudo chmod +x /usr/local/bin/docker-compose
 
+# Low memory makes the yarn build corrupt its cache during extraction.
+# Analyze total available memory (RAM + swap) before the memory-heavy build.
+MEM_MB=$(free -m | awk '/^Mem:/{print $2}')
+SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')
+TOTAL_MB=$((MEM_MB + SWAP_MB))
+MIN_MB=2048
+if [ "$TOTAL_MB" -lt "$MIN_MB" ]; then
+  echo "WARNING: only ${TOTAL_MB}MB total memory (RAM ${MEM_MB}MB + swap ${SWAP_MB}MB),"
+  echo "below the ${MIN_MB}MB recommended for the build. The 'docker compose build' yarn"
+  echo "step can run out of memory and fail with 'file appears to be corrupt' errors."
+  echo "Run 'sudo bash/ubuntu-init-swapfile.sh' first to add swap, then re-run this script."
+else
+  echo "Memory OK: ${TOTAL_MB}MB total (RAM ${MEM_MB}MB + swap ${SWAP_MB}MB)."
+fi
+
 docker compose build --no-cache && mkdir -p .docker-data
 
 sudo sed "s|/root/geesome-node|$PWD|g" < bash/geesome-docker.service > /etc/systemd/system/geesome-docker.service
