@@ -148,6 +148,14 @@ function getModule(config, appPass) {
       if ((await this.ms.database.getUsersCount()) > 0) {
         throw new Error('already_setup');
       }
+      // Fail fast before creating any user row if storage-dependent modules are
+      // not ready yet (e.g. IPFS is still connecting). Otherwise registerUser
+      // inserts the user and then throws on this.ms.staticId, leaving a partial
+      // admin that makes the node look "already set up" on retry.
+      const notReady = ['storage', 'staticId', 'accountStorage'].filter((moduleName) => !this.ms[moduleName]);
+      if (notReady.length) {
+        throw new Error('modules_not_ready: ' + notReady.join(', '));
+      }
       const adminUser = await this.registerUser(userData);
       await this.ms.accountStorage.getOrCreateAccountStaticId('self', adminUser.id);
 
