@@ -8,6 +8,7 @@
  */
 
 import fs from "fs";
+import os from "os";
 import _ from 'lodash';
 import debug from 'debug';
 import pIteration from 'p-iteration';
@@ -44,6 +45,39 @@ import helpers from './helpers.js';
 import config from './config.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
+const memoryLog = debug('geesome:memory');
+
+function toMb(bytes: number) {
+  return Math.round((bytes / 1024 / 1024) * 10) / 10;
+}
+
+// Periodically log process and system memory so real-world footprint can be
+// measured to size hardware requirements. Gated on the geesome:memory debug
+// namespace (no timer is created unless it is enabled); interval in seconds via
+// GEESOME_MEMORY_LOGS_INTERVAL (default 60).
+function startMemoryProfiler() {
+  if (!memoryLog.enabled) {
+    return;
+  }
+  const intervalSec = Number.parseInt(process.env.GEESOME_MEMORY_LOGS_INTERVAL || '', 10);
+  const intervalMs = (Number.isFinite(intervalSec) && intervalSec > 0 ? intervalSec : 60) * 1000;
+  const logSnapshot = () => helpers.logDebug(memoryLog, () => {
+    const mem = process.memoryUsage();
+    return ['snapshot', {
+      rssMb: toMb(mem.rss),
+      heapUsedMb: toMb(mem.heapUsed),
+      heapTotalMb: toMb(mem.heapTotal),
+      externalMb: toMb(mem.external),
+      arrayBuffersMb: toMb(mem.arrayBuffers),
+      systemTotalMb: toMb(os.totalmem()),
+      systemFreeMb: toMb(os.freemem()),
+      uptimeSec: Math.round(process.uptime()),
+    }];
+  });
+  logSnapshot();
+  const timer = setInterval(logSnapshot, intervalMs);
+  timer.unref();
+}
 const apiKeyListParams: IListParamsOptions = {
   sortBy: 'createdAt',
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],
@@ -89,6 +123,8 @@ export default async (extendConfig) => {
     const directory = await app.ms.storage.saveDirectory(frontendPath);
     app.frontendStorageId = directory.id;
   }
+
+  startMemoryProfiler();
 
   return app;
 };
