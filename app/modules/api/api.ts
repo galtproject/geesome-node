@@ -115,7 +115,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiExample {curl} Example usage
 	 *   curl -X POST http://localhost:2052/v1/setup \
 	 *     -H "Content-Type: application/json" \
-	 *     -d '{"username":"admin","password":"secret","email":"admin@example.com"}'
+	 *     -d '{"name":"admin","password":"secret","email":"admin@example.com"}'
 	 */
 	module.onPost('setup', async (req, res) => {
 		res.send(await app.setup(req.body), 200);
