@@ -101,6 +101,29 @@ sudo DOMAIN=geesome.your-site.com EMAIL=your@email.com GATEWAY=1 bash/ubuntu-ins
 ```
 6. Open `geesome.your-site.com/#/setup` to create first admin user
 
+## Install without domain (IP only)
+Use this if your server has no domain and you want to reach the node by its IP address.
+1. Clone repo to server
+```
+git clone https://github.com/galtproject/geesome-node.git && cd geesome-node
+```
+2. [Recommended] actions before install:
+```
+sudo SIZE=8G bash/ubuntu-init-swapfile.sh # Init 8GB Swapfile
+sudo PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
+```
+3. Install Docker and build/start the node:
+```
+sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
+```
+4. Configure nginx for IP access and create the first admin user:
+```
+bash/ubuntu-install-nginx-nodomain.sh
+```
+The script serves the node on `http://<server-ip>/` (API proxied at `http://<server-ip>/api/`), waits for the node, prompts for the admin username, email and password, creates the first admin user, and prints the API auth token. Copy the token from the output — you can use it for API requests.
+
+> **Note: the browser UI will not work over plain `http://<server-ip>`.** Chrome and other modern browsers restrict secure-context-only APIs (Web Crypto, service workers, etc.) that the GeeSome UI relies on to HTTPS origins (or `localhost`). The node and its HTTP API work fine over IP — this setup is intended for API/headless use or local access. To use the browser UI, install with a domain and TLS (see [Install with domain](#install-with-domain-to-your-server)) or tunnel the node to `localhost` on your own machine.
+
 # How to use gateway
 1. Set `A` DNS record for your `gateway.geesome.your-site.com` domain with ip address of server
 2. Set `CNAME` DNS record for your `your-site.com` or `blog.your-site.com`(for example) with gateway domain: `gateway.geesome.your-site.com`
