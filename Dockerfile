@@ -20,9 +20,11 @@ RUN npm i -g yarn
 COPY . /geesome-node
 WORKDIR "/geesome-node"
 #RUN git checkout improve
-# Clean the inherited yarn cache first: the base image can ship a corrupt
-# cached tarball (e.g. ts-morph) that makes `yarn install` fail on extraction.
-RUN yarn cache clean && yarn -W --no-optional
+# yarn v1 corrupts its own cache when parallel tar extraction races (a
+# different package fails "appears to be corrupt" on each run, often when the
+# droplet runs low on memory mid-extract). Clean the inherited cache and
+# serialize fetch+extract with --network-concurrency 1 to avoid the race.
+RUN yarn cache clean && yarn -W --no-optional --network-concurrency 1
 RUN npm rebuild youtube-dl #https://github.com/przemyslawpluta/node-youtube-dl/issues/131
 
 ENV STORAGE_MODULE=ipfs-http-client
