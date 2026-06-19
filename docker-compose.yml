@@ -15,8 +15,15 @@ services:
       - "${GEESOME_FRONTEND_DIST:-./.docker-data/geesome-frontend}:/geesome-node/frontend/docker-dist"
     environment:
       - IPFS_PROFILE
-      - DEBUG
       - SSG_RUNTIME
+      # Debug/logging knobs. Interpolated so they can be set via a project-dir
+      # .env file (or the shell/systemd env). Default empty -> off. See DEBUG.md.
+      - DEBUG=${DEBUG:-}
+      - GEESOME_MEMORY_LOG_FILE=${GEESOME_MEMORY_LOG_FILE:-}
+      - GEESOME_MEMORY_LOGS_INTERVAL=${GEESOME_MEMORY_LOGS_INTERVAL:-}
+      - GEESOME_ACCESS_LOGS=${GEESOME_ACCESS_LOGS:-}
+      - GEESOME_DEPENDENCY_INFO_LOGS=${GEESOME_DEPENDENCY_INFO_LOGS:-}
+      - GEESOME_LOG_SQL=${GEESOME_LOG_SQL:-}
       - DATABASE_USER=geesome
       - DATABASE_PASSWORD=geesome
       - DATABASE_NAME=geesome_node

@@ -145,6 +145,9 @@ If you know more efficient way to update GeeSome container app - please, make a 
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
 
+# Debugging and logs
+Logs are quiet by default. See [DEBUG.md](DEBUG.md) for debug namespaces, log flags, and memory profiling (including how to dump per-process memory to a file for sizing hardware requirements).
+
 ## Getting started with GeeSome Node API
 1. Install GeeSome libs by npm:
 ```
