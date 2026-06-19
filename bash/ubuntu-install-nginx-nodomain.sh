@@ -67,7 +67,9 @@ printf "\nCreating admin user...\n"
 response=$(curl -fsS -X POST "$API_URL/v1/setup" -H "Content-Type: application/json" -d "$SETUP_BODY" 2>&1)
 
 if [[ "$response" == *'"apiKey"'* ]]; then
+  API_TOKEN=$(printf '%s' "$response" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("apiKey",""))')
   printf "\nSetup complete. Admin user '%s' created.\n" "$ADMIN_NAME"
+  printf "\nAPI auth token (copy it now):\n\n  %s\n\n" "$API_TOKEN"
   printf "Open http://%s/ and log in.\n" "$SERVER_IP"
 else
   printf "\nSetup failed. API response:\n%s\n" "$response"
