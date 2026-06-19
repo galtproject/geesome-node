@@ -49,7 +49,11 @@ services:
     restart: always
     environment:
       - IPFS_PROFILE
-    entrypoint: ["ipfs", "daemon", "--migrate=true"]
+    # Use the image default entrypoint (start_ipfs) via command so the repo is
+    # auto-initialized (ipfs init) on a fresh server and IPFS_PROFILE is applied.
+    # Overriding entrypoint with a bare `ipfs daemon` skips init and crash-loops
+    # on first boot with "no IPFS repo found".
+    command: ["daemon", "--migrate=true"]
     expose:
       - 5001
     ports:
