@@ -14,6 +14,17 @@ sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-
 
 sudo chmod +x /usr/local/bin/docker-compose
 
+# Low memory makes the yarn build corrupt its cache during extraction.
+# Confirm swap is active before the memory-heavy build.
+if [ -n "$(swapon --show)" ]; then
+  echo "Swap is initialized:"
+  swapon --show
+else
+  echo "WARNING: no active swap detected. The 'docker compose build' yarn step can"
+  echo "run out of memory and fail with 'file appears to be corrupt' errors."
+  echo "Run 'sudo bash/ubuntu-init-swapfile.sh' first, then re-run this script."
+fi
+
 docker compose build --no-cache && mkdir -p .docker-data
 
 sudo sed "s|/root/geesome-node|$PWD|g" < bash/geesome-docker.service > /etc/systemd/system/geesome-docker.service
