@@ -261,6 +261,53 @@ async function getModule(app: IGeesomeApp, version, port) {
 	// operation, path params, and which require a bearer token, and points to the
 	// full apiDoc (params/examples) on IPFS via x-docs-ipfs. Served as JSON so
 	// tooling/agents can consume it directly.
+	// Hand-authored request bodies for the upload operations (the registry has no
+	// param schemas). Documents the multipart fields and the driver option,
+	// including driver:{"raw":true} for byte-exact / no-transcode uploads.
+	const driverProp = {
+		type: 'string',
+		description: 'Source/processing driver. A name like "youtubeVideo", or a JSON object string {"name?","params?","raw?"}. Set {"raw":true} to store the original bytes unchanged (no video transcoding, no preview generation) so the stored content CID equals the uploaded file.',
+		example: '{"raw":true}',
+	};
+	const asyncProp = {type: 'boolean', description: 'Process in the background; the response then returns {asyncOperationId, channel} instead of the content object.'};
+	const operationOverlay = {
+		'POST /user/save-file': {
+			summary: 'Store a file (multipart form-data).',
+			requestBody: {required: true, content: {'multipart/form-data': {schema: {type: 'object', required: ['file'], properties: {
+				file: {type: 'string', format: 'binary', description: 'File to store.'},
+				driver: driverProp,
+				path: {type: 'string', description: 'Virtual path / filename in the user file catalog.'},
+				groupId: {type: 'string'},
+				folderId: {type: 'integer'},
+				async: asyncProp,
+			}}}}},
+		},
+		'POST /user/save-data': {
+			summary: 'Store data (string or buffer) as JSON.',
+			requestBody: {required: true, content: {'application/json': {schema: {type: 'object', required: ['content'], properties: {
+				content: {description: 'Raw content to store (string or buffer).'},
+				fileName: {type: 'string'},
+				mimeType: {type: 'string'},
+				driver: driverProp,
+				groupId: {type: 'string'},
+				folderId: {type: 'integer'},
+				path: {type: 'string'},
+				async: asyncProp,
+			}}}}},
+		},
+		'POST /user/save-data-by-url': {
+			summary: 'Download and store data from a URL.',
+			requestBody: {required: true, content: {'application/json': {schema: {type: 'object', required: ['url'], properties: {
+				url: {type: 'string'},
+				driver: driverProp,
+				mimeType: {type: 'string'},
+				groupId: {type: 'string'},
+				folderId: {type: 'integer'},
+				path: {type: 'string'},
+				async: asyncProp,
+			}}}}},
+		},
+	};
 	function buildOpenApi() {
 		const versionPrefix = `/${version}`;
 		const paths = {};
@@ -279,6 +326,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 			}
 			if (route.authorized) {
 				operation.security = [{bearerAuth: []}];
+			}
+			const overlay = operationOverlay[`${route.method} ${specPath}`];
+			if (overlay) {
+				Object.assign(operation, overlay);
 			}
 			paths[specPath] = paths[specPath] || {};
 			paths[specPath][route.method.toLowerCase()] = operation;
@@ -299,7 +350,11 @@ async function getModule(app: IGeesomeApp, version, port) {
 			paths,
 		};
 	}
-	apiModule.onGet('openapi.json', (req, res) => res.send(buildOpenApi(), 200));
+	const openapiHandler = (req, res) => res.send(buildOpenApi(), 200);
+	apiModule.onGet('openapi.json', openapiHandler);
+	// Also serve at conventional unversioned paths an agent is likely to guess, so
+	// they return the real spec instead of being shadowed by the frontend SPA.
+	['openapi.json', 'swagger.json', 'api-docs.json', '.well-known/openapi.json'].forEach((p) => apiModule.onUnversionGet(p, openapiHandler));
 
 	// Machine-readable discovery index so an agent with only the node URL can find
 	// the route map and the published API docs. Served at GET /{version} and
