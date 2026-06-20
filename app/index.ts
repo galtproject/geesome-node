@@ -8,8 +8,6 @@
  */
 
 import fs from "fs";
-import os from "os";
-import path from "path";
 import _ from 'lodash';
 import debug from 'debug';
 import pIteration from 'p-iteration';
@@ -44,67 +42,9 @@ import {
 import appEvents from './events.js';
 import helpers from './helpers.js';
 import config from './config.js';
+import {startMemoryProfiler} from './memoryProfiler.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
-const memoryLog = debug('geesome:memory');
-
-function toMb(bytes: number) {
-  return Math.round((bytes / 1024 / 1024) * 10) / 10;
-}
-
-// Periodically log process and system memory so real-world footprint can be
-// measured to size hardware requirements. Gated on the geesome:memory debug
-// namespace (no timer is created unless it is enabled); interval in seconds via
-// GEESOME_MEMORY_LOGS_INTERVAL (default 60).
-function takeMemorySnapshot() {
-  const mem = process.memoryUsage();
-  return {
-    time: new Date().toISOString(),
-    rssMb: toMb(mem.rss),
-    heapUsedMb: toMb(mem.heapUsed),
-    heapTotalMb: toMb(mem.heapTotal),
-    externalMb: toMb(mem.external),
-    arrayBuffersMb: toMb(mem.arrayBuffers),
-    systemTotalMb: toMb(os.totalmem()),
-    systemFreeMb: toMb(os.freemem()),
-    uptimeSec: Math.round(process.uptime()),
-  };
-}
-
-// Profile process/system memory to size hardware. Writes one JSON object per
-// line to GEESOME_MEMORY_LOG_FILE (if set) so the file can be handed to an
-// agent for analysis, and/or emits the same snapshot on the geesome:memory
-// debug namespace. Runs only when at least one of those outputs is requested.
-// Interval in seconds via GEESOME_MEMORY_LOGS_INTERVAL (default 60).
-function startMemoryProfiler() {
-  const filePath = process.env.GEESOME_MEMORY_LOG_FILE;
-  if (!memoryLog.enabled && !filePath) {
-    return;
-  }
-  if (filePath) {
-    try {
-      fs.mkdirSync(path.dirname(filePath), {recursive: true});
-    } catch (e) {
-      console.error('memory_log_file_dir_error', e.message);
-    }
-  }
-  const intervalSec = Number.parseInt(process.env.GEESOME_MEMORY_LOGS_INTERVAL || '', 10);
-  const intervalMs = (Number.isFinite(intervalSec) && intervalSec > 0 ? intervalSec : 60) * 1000;
-  const record = () => {
-    const snapshot = takeMemorySnapshot();
-    helpers.logDebug(memoryLog, () => ['snapshot', snapshot]);
-    if (filePath) {
-      fs.appendFile(filePath, JSON.stringify(snapshot) + '\n', (e) => {
-        if (e) {
-          console.error('memory_log_file_write_error', e.message);
-        }
-      });
-    }
-  };
-  record();
-  const timer = setInterval(record, intervalMs);
-  timer.unref();
-}
 const apiKeyListParams: IListParamsOptions = {
   sortBy: 'createdAt',
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'expiredOn', 'isDisabled'],

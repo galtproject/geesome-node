@@ -27,6 +27,7 @@ import IGeesomeContentModule from "./interface.js";
 import AbstractDriver from "../drivers/abstractDriver.js";
 import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
+import {recordMemorySnapshot} from "../../memoryProfiler.js";
 import {rtrim} from "telegram/Utils";
 const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
@@ -802,6 +803,10 @@ function getModule(app: IGeesomeApp) {
 			return new Promise(async (resolve, reject) => {
 				if (commonHelper.isVideoType(mimeType)) {
 					log('videoToStreamable processByStream');
+					// Snapshot memory around video transcoding to measure its cost.
+					// ffmpeg runs as a child process, so its footprint shows up in
+					// systemFreeMb rather than this process's rss/heap.
+					recordMemorySnapshot('video:transcode:before', {mimeType, extension});
 					const convertResult = await app.ms.drivers.convert['videoToStreamable'].processByStream(stream, {
 						extension: extension,
 						onProgress: options.onProgress,
@@ -811,6 +816,7 @@ function getModule(app: IGeesomeApp) {
 					extension = convertResult.extension;
 					mimeType = convertResult.type;
 					properties = {duration: convertResult['duration']};
+					recordMemorySnapshot('video:transcode:after', {mimeType, extension, processed: convertResult['processed']});
 				}
 
 				const sizeRemained = await app.getUserLimitRemained(userId, UserLimitName.SaveContentSize);

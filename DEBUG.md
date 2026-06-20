@@ -47,3 +47,5 @@ Each line looks like:
 ```
 
 `rssMb` is the process resident memory — the number to size RAM by; `systemFreeMb` shows host headroom. The JSONL file can be handed to an agent to analyze and propose hardware requirements.
+
+Besides the periodic snapshots, the node also emits **labeled** snapshots around video transcoding (`"label":"video:transcode:before"` / `"video:transcode:after"`). ffmpeg runs as a child process, so its cost shows up as a drop in `systemFreeMb` (and a bump in `externalMb` for native buffers) between the two labels rather than in `rssMb`.
