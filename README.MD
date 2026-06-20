@@ -294,9 +294,9 @@ Existing services:
 - [GeeSome ETH Manager](https://github.com/galtproject/geesome-eth-manager): Ethereum listener library for managing GeeSome node by Smart Contracts events: register users, set storage limits.
 
 ## Minimal requirements
-- System: Ubuntu 16.04
-- 8 GB RAM
-- 1 GB free HDD + space for your files
+- System: Ubuntu 22.04 (Jammy) or newer
+- RAM: **2 GB minimum (with swap), 4 GB recommended.** Swap is required — the Docker image build and video transcoding spike memory; initialize it with `bash/ubuntu-init-swapfile.sh`. Measured footprint: the node process peaks ~350 MB at startup and settles to ~300 MB; the whole stack (node + IPFS + Postgres) stayed under ~1.75 GB in light use. Concurrent video transcoding needs more headroom — prefer 4 GB. You can profile your own load with the memory tooling in [DEBUG.md](DEBUG.md).
+- Disk: 1 GB free + space for your files (plus ~3–4 GB for Docker images)
 
 ## Dependencies
 - GO IPFS or IPFS JS
