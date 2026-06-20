@@ -108,6 +108,8 @@ function getModule(config, appPass) {
 
     frontendStorageId;
 
+    docsStorageId;
+
     apiKeyContext = new AsyncLocalStorage<any>();
 
     ms: {

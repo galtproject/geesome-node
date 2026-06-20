@@ -22,6 +22,12 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 async function getModule(app: IGeesomeApp, version, port) {
 	const service = express();
 
+	// Registry of routes for the discovery index (GET /v1).
+	const registeredRoutes: {method: string, path: string}[] = [];
+	function trackRoute(method: string, path: string) {
+		registeredRoutes.push({method, path});
+	}
+
 	const maxBodySizeMb = 2000;
 	service.use(express.static('frontend/dist'));
 	service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
@@ -68,6 +74,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 		res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
 		res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
 		res.setHeader('Connection', 'close'); //TODO: determine the best solution https://serverfault.com/questions/708319/chrome-requests-get-stuck-pending
+		// Point clients/agents at the API docs. Use the IPFS path (served at /ipfs/
+		// regardless of any reverse-proxy prefix) so it is unambiguous; the JSON
+		// discovery index is reachable at the API base root (GET /{version}).
+		res.setHeader('X-Api-Docs', app.docsStorageId ? `/ipfs/${app.docsStorageId}` : 'https://github.com/galtproject/geesome-node');
 	}
 
 	class GeesomeApiModule implements IGeesomeApiModule {
@@ -90,26 +100,31 @@ async function getModule(app: IGeesomeApp, version, port) {
 
 		onGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
+			trackRoute('GET', `/${version}/${routeName}`);
 			service.get(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onUnversionGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
+			trackRoute('GET', `/${routeName}`);
 			service.get(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
+			trackRoute('POST', `/${version}/${routeName}`);
 			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
+			trackRoute('HEAD', `/${version}/${routeName}`);
 			service.head(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
 		onUnversionHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
+			trackRoute('HEAD', `/${routeName}`);
 			service.head(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
@@ -232,5 +247,25 @@ async function getModule(app: IGeesomeApp, version, port) {
 		};
 	}
 
-	return new GeesomeApiModule(port);
+	const apiModule = new GeesomeApiModule(port);
+
+	// Machine-readable discovery index so an agent with only the node URL can find
+	// the route map and the published API docs. Served at GET /{version} and
+	// /{version}/ (e.g. /api/v1 behind nginx). Fast JSON, never the SPA shell.
+	const discoveryHandler = (req, res) => res.send({
+		name: 'geesome-node',
+		version,
+		docs: {
+			description: 'Full API reference (apiDoc) is generated and published to IPFS on each node boot.',
+			ipfsStorageId: app.docsStorageId || null,
+			ipfsPath: app.docsStorageId ? `/ipfs/${app.docsStorageId}` : null,
+			repo: 'https://github.com/galtproject/geesome-node',
+		},
+		routesCount: registeredRoutes.length,
+		routes: registeredRoutes,
+	}, 200);
+	apiModule.onGet('', discoveryHandler);
+	apiModule.onUnversionGet(version, discoveryHandler);
+
+	return apiModule;
 }
