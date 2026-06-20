@@ -5,6 +5,7 @@ import bodyParser from 'body-parser';
 import bearerToken from 'express-bearer-token';
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
+import {buildOpenApiFromApiDoc, getApiDocData} from "../../apiDocSpec.js";
 import {IUser} from "../database/interface.js";
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
@@ -261,6 +262,9 @@ async function getModule(app: IGeesomeApp, version, port) {
 	// operation, path params, and which require a bearer token, and points to the
 	// full apiDoc (params/examples) on IPFS via x-docs-ipfs. Served as JSON so
 	// tooling/agents can consume it directly.
+	// Fallback spec built only from the route registry (method/path/auth), used if
+	// apiDoc parsing is unavailable at runtime. The primary spec is generated from
+	// the apiDoc annotations via buildOpenApiFromApiDoc (full param schemas).
 	function buildOpenApi() {
 		const versionPrefix = `/${version}`;
 		const paths = {};
@@ -299,7 +303,16 @@ async function getModule(app: IGeesomeApp, version, port) {
 			paths,
 		};
 	}
-	apiModule.onGet('openapi.json', (req, res) => res.send(buildOpenApi(), 200));
+	// Primary spec is generated from the node's apiDoc annotations (full param
+	// schemas); fall back to the route-registry map if apiDoc parsing is
+	// unavailable at runtime.
+	const openapiHandler = (req, res) => res.send(buildOpenApiFromApiDoc(version, app.docsStorageId) || buildOpenApi(), 200);
+	apiModule.onGet('openapi.json', openapiHandler);
+	// Raw apiDoc data (native format) for clients that prefer it.
+	apiModule.onGet('apidoc.json', (req, res) => res.send(getApiDocData() || [], 200));
+	// Also serve at conventional unversioned paths an agent is likely to guess, so
+	// they return the real spec instead of being shadowed by the frontend SPA.
+	['openapi.json', 'swagger.json', 'api-docs.json', '.well-known/openapi.json'].forEach((p) => apiModule.onUnversionGet(p, openapiHandler));
 
 	// Machine-readable discovery index so an agent with only the node URL can find
 	// the route map and the published API docs. Served at GET /{version} and
