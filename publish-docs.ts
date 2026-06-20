@@ -25,6 +25,7 @@ export default (app: IGeesomeApp) => {
     }
     const result = await app.ms.storage.saveDirectory(helpers.getCurDir() + '/../docs');
 
+    app.docsStorageId = result.id;
     console.log('Docs IPFS:', result.id);
 
     // const geesomeDocsAcc = await app.ms.communicator.createAccountIfNotExists('geesome.docs');
