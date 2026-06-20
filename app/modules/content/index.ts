@@ -749,7 +749,11 @@ function getModule(app: IGeesomeApp) {
 			log('addContentWithPreview');
 			let previewData = {};
 			log('options.previews', options.previews);
-			if (options.previews) {
+			const isRaw = !!this.getDriverNameAndParams(options).raw;
+			if (isRaw) {
+				// Raw driver: store original bytes only, skip preview generation.
+				log('driver raw, skip previews');
+			} else if (options.previews) {
 				await pIteration.forEachSeries(options.previews, async (p: any) => {
 					const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
 					log('result', result);
@@ -799,9 +803,10 @@ function getModule(app: IGeesomeApp) {
 
 		private async checkFileSizeAndSaveByStream(userId: number, stream, mimeType, options: any = {}): Promise<any> {
 			let properties, extension = (options.extension || last(mimeType.split('/')) || '').toLowerCase();
+			const isRaw = !!this.getDriverNameAndParams(options).raw;
 
 			return new Promise(async (resolve, reject) => {
-				if (commonHelper.isVideoType(mimeType)) {
+				if (commonHelper.isVideoType(mimeType) && !isRaw) {
 					log('videoToStreamable processByStream');
 					// Snapshot memory around video transcoding to measure its cost.
 					// ffmpeg runs as a child process, so its footprint shows up in

@@ -19,6 +19,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiUse ApiKey
      * @apiUse AuthErrors
      * @apiUse UploadErrors
+     * @apiUse AsyncResponse
      *
      * @apiInterface (../../interface.ts) {IFileContentInput} apiBody
      *
@@ -55,6 +56,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiUse ApiKey
      * @apiUse AuthErrors
      * @apiUse UploadErrors
+     * @apiUse AsyncResponse
      *
      * @apiInterface (../../interface.ts) {IDataContentInput} apiBody
      *
@@ -85,6 +87,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiUse ApiKey
      * @apiUse AuthErrors
      * @apiUse UploadErrors
+     * @apiUse AsyncResponse
      *
      * @apiInterface (../../interface.ts) {IUrlContentInput} apiBody
      *

@@ -79,6 +79,20 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 */
 
 	/**
+	 * @apiDefine AsyncResponse
+	 *
+	 * @apiBody {Boolean} [async=false] Process in the background. The response then returns immediately with `asyncOperationId` and `channel` instead of the content object; poll `POST /v1/user/get-async-operation/:id` (or subscribe to `channel`) for completion. Recommended for large media to avoid holding the HTTP request open through transcoding.
+	 * @apiSuccess (Async response) {Number} asyncOperationId Id of the background operation (when `async=true`).
+	 * @apiSuccess (Async response) {String} channel Event channel that emits progress and the final result (when `async=true`).
+	 * @apiSuccessExample {json} Async accepted
+	 *   HTTP/1.1 200 OK
+	 *   {
+	 *     "asyncOperationId": 42,
+	 *     "channel": "async_operation_42"
+	 *   }
+	 */
+
+	/**
 	 * @apiDefine StorageErrors
 	 *
 	 * @apiError (400) StoragePathInvalid Storage path is invalid or cannot be resolved.
