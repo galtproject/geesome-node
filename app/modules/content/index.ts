@@ -27,6 +27,7 @@ import IGeesomeContentModule from "./interface.js";
 import AbstractDriver from "../drivers/abstractDriver.js";
 import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
+import {recordMemorySnapshot} from "../../memoryProfiler.js";
 import {rtrim} from "telegram/Utils";
 const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
@@ -748,7 +749,11 @@ function getModule(app: IGeesomeApp) {
 			log('addContentWithPreview');
 			let previewData = {};
 			log('options.previews', options.previews);
-			if (options.previews) {
+			const isRaw = !!this.getDriverNameAndParams(options).raw;
+			if (isRaw) {
+				// Raw driver: store original bytes only, skip preview generation.
+				log('driver raw, skip previews');
+			} else if (options.previews) {
 				await pIteration.forEachSeries(options.previews, async (p: any) => {
 					const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
 					log('result', result);
@@ -798,10 +803,15 @@ function getModule(app: IGeesomeApp) {
 
 		private async checkFileSizeAndSaveByStream(userId: number, stream, mimeType, options: any = {}): Promise<any> {
 			let properties, extension = (options.extension || last(mimeType.split('/')) || '').toLowerCase();
+			const isRaw = !!this.getDriverNameAndParams(options).raw;
 
 			return new Promise(async (resolve, reject) => {
-				if (commonHelper.isVideoType(mimeType)) {
+				if (commonHelper.isVideoType(mimeType) && !isRaw) {
 					log('videoToStreamable processByStream');
+					// Snapshot memory around video transcoding to measure its cost.
+					// ffmpeg runs as a child process, so its footprint shows up in
+					// systemFreeMb rather than this process's rss/heap.
+					recordMemorySnapshot('video:transcode:before', {mimeType, extension});
 					const convertResult = await app.ms.drivers.convert['videoToStreamable'].processByStream(stream, {
 						extension: extension,
 						onProgress: options.onProgress,
@@ -811,6 +821,7 @@ function getModule(app: IGeesomeApp) {
 					extension = convertResult.extension;
 					mimeType = convertResult.type;
 					properties = {duration: convertResult['duration']};
+					recordMemorySnapshot('video:transcode:after', {mimeType, extension, processed: convertResult['processed']});
 				}
 
 				const sizeRemained = await app.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
