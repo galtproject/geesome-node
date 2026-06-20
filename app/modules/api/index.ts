@@ -22,10 +22,16 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 async function getModule(app: IGeesomeApp, version, port) {
 	const service = express();
 
-	// Registry of routes for the discovery index (GET /v1).
-	const registeredRoutes: {method: string, path: string}[] = [];
+	// Registry of routes for the discovery index (GET /v1) and OpenAPI spec.
+	const registeredRoutes: {method: string, path: string, authorized?: boolean}[] = [];
 	function trackRoute(method: string, path: string) {
 		registeredRoutes.push({method, path});
+	}
+	function markLastRouteAuthorized() {
+		const last = registeredRoutes[registeredRoutes.length - 1];
+		if (last) {
+			last.authorized = true;
+		}
 	}
 
 	const maxBodySizeMb = 2000;
@@ -145,12 +151,14 @@ async function getModule(app: IGeesomeApp, version, port) {
 			this.onGet(routeName, async (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => {
 				return this.authorizeAndHandleCallback(req, res, callback);
 			});
+			markLastRouteAuthorized();
 		}
 
 		onAuthorizedPost(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
 			this.onPost(routeName, (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => {
 				return this.authorizeAndHandleCallback(req, res, callback);
 			});
+			markLastRouteAuthorized();
 		}
 
 		async handleAuthResult(res: IApiModuleCommonOutput, user: IUser) {
@@ -249,6 +257,50 @@ async function getModule(app: IGeesomeApp, version, port) {
 
 	const apiModule = new GeesomeApiModule(port);
 
+	// OpenAPI 3 document built from the live route registry. It lists every
+	// operation, path params, and which require a bearer token, and points to the
+	// full apiDoc (params/examples) on IPFS via x-docs-ipfs. Served as JSON so
+	// tooling/agents can consume it directly.
+	function buildOpenApi() {
+		const versionPrefix = `/${version}`;
+		const paths = {};
+		for (const route of registeredRoutes) {
+			if (!route.path.startsWith(versionPrefix + '/')) {
+				continue;
+			}
+			const parameters = [];
+			const specPath = route.path.slice(versionPrefix.length).replace(/:([A-Za-z0-9_]+)/g, (_m, name) => {
+				parameters.push({name, in: 'path', required: true, schema: {type: 'string'}});
+				return `{${name}}`;
+			});
+			const operation: any = {responses: {'200': {description: 'OK'}}};
+			if (parameters.length) {
+				operation.parameters = parameters;
+			}
+			if (route.authorized) {
+				operation.security = [{bearerAuth: []}];
+			}
+			paths[specPath] = paths[specPath] || {};
+			paths[specPath][route.method.toLowerCase()] = operation;
+		}
+		return {
+			openapi: '3.0.3',
+			info: {
+				title: 'GeeSome Node API',
+				version,
+				description: 'Operation/route map generated from the live node. Full parameter and response details (apiDoc) are published to IPFS on each boot — see x-docs-ipfs and the GET /' + version + ' discovery index.',
+			},
+			servers: [
+				{url: `/${version}`, description: 'Direct node'},
+				{url: `/api/${version}`, description: 'Behind the bundled nginx reverse proxy'},
+			],
+			'x-docs-ipfs': app.docsStorageId ? `/ipfs/${app.docsStorageId}` : null,
+			components: {securitySchemes: {bearerAuth: {type: 'http', scheme: 'bearer'}}},
+			paths,
+		};
+	}
+	apiModule.onGet('openapi.json', (req, res) => res.send(buildOpenApi(), 200));
+
 	// Machine-readable discovery index so an agent with only the node URL can find
 	// the route map and the published API docs. Served at GET /{version} and
 	// /{version}/ (e.g. /api/v1 behind nginx). Fast JSON, never the SPA shell.
@@ -257,6 +309,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 		version,
 		docs: {
 			description: 'Full API reference (apiDoc) is generated and published to IPFS on each node boot.',
+			openapi: `/${version}/openapi.json`,
 			ipfsStorageId: app.docsStorageId || null,
 			ipfsPath: app.docsStorageId ? `/ipfs/${app.docsStorageId}` : null,
 			repo: 'https://github.com/galtproject/geesome-node',
