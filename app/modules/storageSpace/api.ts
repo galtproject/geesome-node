@@ -462,6 +462,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/snapshot-growth Get storage-space snapshot growth
+   * @apiName AdminStorageSpaceSnapshotGrowth
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiQuery {Number} [sinceDays=7] Prefer the newest baseline snapshot at least this many days before the latest snapshot. Falls back to the previous snapshot when there is not enough history yet.
+   * @apiDescription Compares the latest cached analyzer snapshot with an older snapshot and returns overview/category deltas for recently growing storage areas.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/snapshot-growth', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceSnapshotGrowth(req.query));
+  });
+
+  /**
    * @api {post} /v1/admin/storage-space/snapshot/refresh Refresh storage-space snapshot
    * @apiName AdminStorageSpaceSnapshotRefresh
    * @apiGroup AdminStorage
