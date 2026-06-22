@@ -10,6 +10,7 @@ import IGeesomeStorageSpaceModule, {
   IStorageSpaceCleanupBlockerRow,
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
+  IStorageSpaceSnapshotGrowth,
   IStorageSpaceSnapshotProgress,
   IStorageSpaceStorageObjectRemovalHistoryRow,
   IStorageSpaceStorageObjectRemovalQueueResult,
@@ -53,6 +54,36 @@ const storageSpaceAvailabilityNetworkDefaultProviderTimeoutMs = 5000;
 const storageSpaceAvailabilityNetworkMaxProviderTimeoutMs = 30000;
 const storageSpaceAvailabilityNetworkDefaultStatTimeoutMs = 5000;
 const storageSpaceAvailabilityNetworkMaxStatTimeoutMs = 30000;
+const storageSpaceSnapshotGrowthDefaultSinceDays = 7;
+const storageSpaceSnapshotOverviewGrowthFields = [
+  'contentRowsCount',
+  'contentStorageObjectsCount',
+  'logicalContentBytes',
+  'physicalContentBytes',
+  'duplicateStorageIdsCount',
+  'duplicateContentRowsCount',
+  'fileCatalogItemsCount',
+  'fileCatalogLogicalBytes',
+  'groupPostsCount',
+  'groupPostsLogicalBytes',
+  'pinnedStorageObjectsCount',
+  'pinnedPhysicalBytes',
+  'remotePinnedStorageObjectsCount',
+  'remotePinRefsCount',
+  'generatedOutputStorageRefsCount',
+  'generatedOutputUniqueStorageIdsCount',
+  'generatedOutputKnownStorageObjectsCount',
+  'generatedOutputKnownPhysicalBytes',
+  'generatedOutputUnknownStorageIdsCount',
+];
+const storageSpaceSnapshotSectionGrowthFields = [
+  {key: 'logical-content', field: 'logicalContentBytes'},
+  {key: 'physical-content', field: 'physicalContentBytes'},
+  {key: 'file-catalog', field: 'fileCatalogLogicalBytes'},
+  {key: 'group-posts', field: 'groupPostsLogicalBytes'},
+  {key: 'pinned-storage', field: 'pinnedPhysicalBytes'},
+  {key: 'generated-output', field: 'generatedOutputKnownPhysicalBytes'},
+];
 const storageSpaceChildInspectionDefaultChildLimit = 50;
 const storageSpaceChildInspectionMaxChildLimit = 200;
 const storageSpaceChildInspectionDefaultDepthLimit = 1;
@@ -373,6 +404,30 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return getStorageSpaceSnapshotResponse(snapshot);
   }
 
+  async getStorageSpaceSnapshotGrowth(listParams: any = {}): Promise<IStorageSpaceSnapshotGrowth | null> {
+    const snapshotModel = this.app.ms.database.models.StorageSpaceSnapshot;
+    const latestSnapshotRow = await snapshotModel.findOne({
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+    });
+    if (!latestSnapshotRow) {
+      return null;
+    }
+
+    const sinceDays = getStorageSpaceSnapshotGrowthSinceDays(listParams);
+    const baselineSnapshotRow = await getStorageSpaceSnapshotGrowthBaseline(snapshotModel, latestSnapshotRow, sinceDays);
+    const latestSnapshot = getStorageSpaceSnapshotResponse(latestSnapshotRow);
+    const baselineSnapshot = getStorageSpaceSnapshotResponse(baselineSnapshotRow);
+    return {
+      latestSnapshot,
+      baselineSnapshot,
+      sinceDays,
+      usedFallbackBaseline: !!baselineSnapshotRow && !isStorageSpaceSnapshotOlderThanSinceDays(latestSnapshotRow, baselineSnapshotRow, sinceDays),
+      elapsedMs: getStorageSpaceSnapshotGrowthElapsedMs(latestSnapshot, baselineSnapshot),
+      overview: getStorageSpaceSnapshotOverviewGrowth(latestSnapshot?.data?.overview, baselineSnapshot?.data?.overview),
+      sections: getStorageSpaceSnapshotSectionGrowth(latestSnapshot?.data?.overview, baselineSnapshot?.data?.overview),
+    };
+  }
+
   async refreshStorageSpaceSnapshot(userId?: number, listParams: IListParams = {}, options: IStorageSpaceSnapshotDataOptions = {}) {
     const startedAt = Date.now();
     const listWindow = getStorageSpaceSnapshotListWindow(listParams);
@@ -665,6 +720,74 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
   return {
     limit: listWindow.limit,
     offset: 0,
+  };
+}
+
+function getStorageSpaceSnapshotGrowthSinceDays(listParams: any = {}) {
+  return parseNonNegativeInteger(listParams.sinceDays, storageSpaceSnapshotGrowthDefaultSinceDays);
+}
+
+async function getStorageSpaceSnapshotGrowthBaseline(snapshotModel, latestSnapshotRow, sinceDays) {
+  const cutoff = getStorageSpaceSnapshotGrowthCutoff(latestSnapshotRow, sinceDays);
+  const cutoffSnapshot = await snapshotModel.findOne({
+    where: {
+      id: {[Op.ne]: latestSnapshotRow.id},
+      createdAt: {[Op.lte]: cutoff},
+    },
+    order: [['createdAt', 'DESC'], ['id', 'DESC']],
+  });
+  if (cutoffSnapshot) {
+    return cutoffSnapshot;
+  }
+
+  return snapshotModel.findOne({
+    where: {
+      id: {[Op.ne]: latestSnapshotRow.id},
+    },
+    order: [['createdAt', 'DESC'], ['id', 'DESC']],
+  });
+}
+
+function getStorageSpaceSnapshotGrowthCutoff(latestSnapshotRow, sinceDays) {
+  const latestCreatedAt = getStorageSpaceSnapshotCreatedAt(latestSnapshotRow);
+  return new Date(latestCreatedAt.getTime() - sinceDays * 24 * 60 * 60 * 1000);
+}
+
+function getStorageSpaceSnapshotCreatedAt(snapshot) {
+  const data = typeof snapshot?.toJSON === 'function' ? snapshot.toJSON() : snapshot;
+  return getDateOrNow(data?.createdAt);
+}
+
+function isStorageSpaceSnapshotOlderThanSinceDays(latestSnapshotRow, baselineSnapshotRow, sinceDays) {
+  const cutoff = getStorageSpaceSnapshotGrowthCutoff(latestSnapshotRow, sinceDays);
+  return getStorageSpaceSnapshotCreatedAt(baselineSnapshotRow).getTime() <= cutoff.getTime();
+}
+
+function getStorageSpaceSnapshotGrowthElapsedMs(latestSnapshot, baselineSnapshot) {
+  if (!latestSnapshot || !baselineSnapshot) {
+    return 0;
+  }
+  return Math.max(0, getDateOrNow(latestSnapshot.createdAt).getTime() - getDateOrNow(baselineSnapshot.createdAt).getTime());
+}
+
+function getStorageSpaceSnapshotOverviewGrowth(latestOverview: any = {}, baselineOverview: any = {}) {
+  return storageSpaceSnapshotOverviewGrowthFields.map(field => getStorageSpaceSnapshotGrowthMetric(field, latestOverview?.[field], baselineOverview?.[field]));
+}
+
+function getStorageSpaceSnapshotSectionGrowth(latestOverview: any = {}, baselineOverview: any = {}) {
+  return storageSpaceSnapshotSectionGrowthFields
+    .map(({key, field}) => getStorageSpaceSnapshotGrowthMetric(key, latestOverview?.[field], baselineOverview?.[field]))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || b.latest - a.latest || a.key.localeCompare(b.key));
+}
+
+function getStorageSpaceSnapshotGrowthMetric(key, latestValue, baselineValue) {
+  const latest = readNonNegativeNumber(latestValue);
+  const baseline = readNonNegativeNumber(baselineValue);
+  return {
+    key,
+    latest,
+    baseline,
+    delta: latest - baseline,
   };
 }
 

@@ -496,6 +496,21 @@ describe("storage space usage", function () {
 		assert.equal(queuedRefreshOutput.snapshotId, queuedSnapshot.id);
 		assert.equal(queuedSnapshot.listLimit, 1);
 		assert.equal(queuedSnapshot.data.topContents.length <= 1, true);
+
+		const growthBaselineSnapshot = await app.ms.storageSpace.getLatestStorageSpaceSnapshot();
+		const growthContentBody = 'growth-space-body';
+		const growthContent = await app.ms.content.saveData(firstUser.id, growthContentBody, 'growth.txt', {
+			mimeType: 'text/plain'
+		});
+		const growthSnapshot = await app.ms.storageSpace.refreshStorageSpaceSnapshot(firstUser.id, {limit: 2});
+		const snapshotGrowth = await app.ms.storageSpace.getStorageSpaceSnapshotGrowth({sinceDays: 0});
+		const logicalContentGrowth = snapshotGrowth.overview.find(row => row.key === 'logicalContentBytes');
+		const logicalContentSectionGrowth = snapshotGrowth.sections.find(row => row.key === 'logical-content');
+		assert.equal(snapshotGrowth.latestSnapshot.id, growthSnapshot.id);
+		assert.equal(snapshotGrowth.baselineSnapshot.id, growthBaselineSnapshot.id);
+		assert.equal(snapshotGrowth.usedFallbackBaseline, false);
+		assert.equal(logicalContentGrowth.delta, Number(growthContent.size));
+		assert.equal(logicalContentSectionGrowth.delta, Number(growthContent.size));
 	});
 });
 

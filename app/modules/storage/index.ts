@@ -1,6 +1,12 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeStorageModule from "./interface.js";
 
+export default async (app: IGeesomeApp, options = {implementation: null}) => {
+	const implementation = options.implementation || app.config.storageConfig.implementation;
+	const module: IGeesomeStorageModule = await (await import(`./${implementation}.js`)).default(app);
+	return suppressStoragePinLogs(normalizeStorageAddresses(module));
+};
+
 function normalizeStorageAddress(address): string {
 	if (typeof address === "string") {
 		return address;
@@ -46,8 +52,39 @@ function normalizeStorageAddresses(module: IGeesomeStorageModule): IGeesomeStora
 	return module;
 }
 
-export default async (app: IGeesomeApp, options = {implementation: null}) => {
-	const implementation = options.implementation || app.config.storageConfig.implementation;
-	const module: IGeesomeStorageModule = await (await import(`./${implementation}.js`)).default(app);
-	return normalizeStorageAddresses(module);
-};
+function suppressStoragePinLogs(module: IGeesomeStorageModule): IGeesomeStorageModule {
+	const addPin = (module as any).addPin?.bind(module);
+	if (!addPin) {
+		return module;
+	}
+	(module as any).addPin = (...args) => withSuppressedStoragePinLogs(() => addPin(...args));
+	return module;
+}
+
+function withSuppressedStoragePinLogs(callback) {
+	const originalLog = console.log;
+	console.log = (...args) => {
+		if (isStoragePinLog(args)) {
+			return;
+		}
+		originalLog.apply(console, args);
+	};
+
+	try {
+		const result = callback();
+		if (result && typeof result.finally === 'function') {
+			return result.finally(() => {
+				console.log = originalLog;
+			});
+		}
+		console.log = originalLog;
+		return result;
+	} catch (e) {
+		console.log = originalLog;
+		throw e;
+	}
+}
+
+function isStoragePinLog(args) {
+	return args.length >= 2 && args[1] === 'pinned:';
+}
