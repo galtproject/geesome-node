@@ -13,6 +13,7 @@ services:
     volumes:
       - "${GEESOME_DATA:-./.docker-data/geesome-data}:/geesome-node/data"
       - "${GEESOME_FRONTEND_DIST:-./.docker-data/geesome-frontend}:/geesome-node/frontend/docker-dist"
+      - "${GEESOME_TEMP:-./.docker-data/geesome-temp}:/tmp"
     environment:
       - IPFS_PROFILE
       - SSG_RUNTIME
