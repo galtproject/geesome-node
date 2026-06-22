@@ -137,10 +137,11 @@ Note: You can generate a static site from Geesome groups by UI and get IPNS or I
 
 # Getting updates
 ```
-bash/docker-prune.sh && bash/docker-rebuild-and-upgrade.sh
+npm run docker-upgrade
 ```
-Warning: above commands deletes all stopped containers, not used images and docker build cache. Also, it's reverting not commited local git changes. 
-If you know more efficient way to update GeeSome container app - please, make a PR.
+This runs `bash/docker-rebuild-and-upgrade.sh`: it pulls the latest source, rebuilds the Docker image, restarts the `geesome-docker` systemd service, then prunes dangling images and build cache after the new containers are running.
+
+Warning: the upgrade script reverts uncommitted local git changes before pulling. Commit or stash server-side edits before running it.
 
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
