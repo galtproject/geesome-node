@@ -320,6 +320,22 @@ describe("app", function () {
 			1
 		);
 
+		const tempSourcePath = `/tmp/geesome-save-data-temp-${Date.now()}.txt`;
+		fs.writeFileSync(tempSourcePath, 'test');
+		let tempSourceCleaned = false;
+		const tempSourceStream: any = fs.createReadStream(tempSourcePath);
+		tempSourceStream.emitFinish = () => {
+			tempSourceCleaned = true;
+			fs.rmSync(tempSourcePath, {force: true});
+		};
+		const duplicateStreamContent = await app.ms.content.saveData(saveDataTestUser.id, tempSourceStream, 'text.txt', {
+			waitForPin: true,
+			mimeType: 'text/plain'
+		});
+		assert.equal(duplicateStreamContent.id, textContent.id);
+		assert.equal(tempSourceCleaned, true);
+		assert.equal(fs.existsSync(tempSourcePath), false);
+
 		const secondSaveDataUser = await app.registerUser({
 			email: 'user-save-data-2@user.com',
 			name: 'user-save-data-2',

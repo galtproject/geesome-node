@@ -623,39 +623,51 @@ function getModule(app: IGeesomeApp) {
 				fileStream = dataToSave;
 			}
 
-			const {resultFile: storageFile, resultMimeType: mimeType, resultExtension: extension, resultProperties} = await this.checkFileSizeAndSaveByStream(userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
-				extension: extensionFromName,
-				driver: options.driver,
-				onProgress: options.onProgress,
-				waitForPin: options.waitForPin
-			}).catch(e => {
-				logContentStreamSaveFailure(e);
-				dataToSave.emit && dataToSave.emit('end');
-				dataToSave.destroy && dataToSave.destroy();
-				throw e;
-			});
-			log('checkFileSizeAndSaveByStream extension', extension, 'mimeType', mimeType);
+			let storageFile: IStorageFile;
+			try {
+				const {
+					resultFile,
+					resultMimeType: mimeType,
+					resultExtension: extension,
+					resultProperties
+				} = await this.checkFileSizeAndSaveByStream(userId, fileStream, options.mimeType || mime.lookup(fileName) || extensionFromName, {
+					extension: extensionFromName,
+					driver: options.driver,
+					onProgress: options.onProgress,
+					waitForPin: options.waitForPin
+				}).catch(e => {
+					logContentStreamSaveFailure(e);
+					dataToSave.emit && dataToSave.emit('end');
+					dataToSave.destroy && dataToSave.destroy();
+					throw e;
+				});
+				storageFile = resultFile;
+				log('checkFileSizeAndSaveByStream extension', extension, 'mimeType', mimeType);
 
-			let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
-			log('existsContent', !!existsContent);
-			if (existsContent) {
-				log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
-				await this.updateExistsContentMetadata(userId, existsContent, options);
-				await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
-				return existsContent;
+				let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
+				log('existsContent', !!existsContent);
+				if (existsContent) {
+					log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
+					await this.updateExistsContentMetadata(userId, existsContent, options);
+					await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
+					return existsContent;
+				}
+
+				log('this.addContentWithPreview(storageFile, {resultProperties', resultProperties);
+				return await this.addContentWithPreview(userId, storageFile, {
+					extension,
+					mimeType,
+					storageType: ContentStorageType.IPFS,
+					view: options.view || ContentView.Contents,
+					storageId: storageFile.id,
+					size: storageFile.size,
+					name: fileName,
+					propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
+				}, options);
+			} finally {
+				finishStorageFileTemp(storageFile);
+				finishStorageFileTemp(fileStream);
 			}
-
-			log('this.addContentWithPreview(storageFile, {resultProperties', resultProperties);
-			return this.addContentWithPreview(userId, storageFile, {
-				extension,
-				mimeType,
-				storageType: ContentStorageType.IPFS,
-				view: options.view || ContentView.Contents,
-				storageId: storageFile.id,
-				size: storageFile.size,
-				name: fileName,
-				propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
-			}, options);
 		}
 
 		getDriverNameAndParams(options: {driver}) {
@@ -747,46 +759,45 @@ function getModule(app: IGeesomeApp) {
 
 		async addContentWithPreview(userId: number, storageFile: IStorageFile, contentData, options, source?) {
 			log('addContentWithPreview');
-			let previewData = {};
-			log('options.previews', options.previews);
-			const isRaw = !!this.getDriverNameAndParams(options).raw;
-			if (isRaw) {
-				// Raw driver: store original bytes only, skip preview generation.
-				log('driver raw, skip previews');
-			} else if (options.previews) {
-				await pIteration.forEachSeries(options.previews, async (p: any) => {
-					const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
-					log('result', result);
-					previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
-					previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
-					//TODO: separate previews types
-					previewData['previewMimeType'] = result.resultMimeType;
-					previewData['previewExtension'] = result.resultExtension;
-				});
-				log('previewData', previewData);
-			} else {
-				const {
-					storageFile: forPreviewStorageFile,
-					extension: forPreviewExtension,
-					fullType: forPreviewFullType,
-					properties
-				} = await this.prepareStorageFileAndGetPreview(storageFile, contentData.extension, contentData.mimeType);
-				log('getPreview');
-				previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
-				if (properties) {
-					contentData.propertiesJson = JSON.stringify(properties);
+			try {
+				let previewData = {};
+				log('options.previews', options.previews);
+				const isRaw = !!this.getDriverNameAndParams(options).raw;
+				if (isRaw) {
+					// Raw driver: store original bytes only, skip preview generation.
+					log('driver raw, skip previews');
+				} else if (options.previews) {
+					await pIteration.forEachSeries(options.previews, async (p: any) => {
+						const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
+						log('result', result);
+						previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
+						previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
+						//TODO: separate previews types
+						previewData['previewMimeType'] = result.resultMimeType;
+						previewData['previewExtension'] = result.resultExtension;
+					});
+					log('previewData', previewData);
+				} else {
+					const {
+						storageFile: forPreviewStorageFile,
+						extension: forPreviewExtension,
+						fullType: forPreviewFullType,
+						properties
+					} = await this.prepareStorageFileAndGetPreview(storageFile, contentData.extension, contentData.mimeType);
+					log('getPreview');
+					previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
+					if (properties) {
+						contentData.propertiesJson = JSON.stringify(properties);
+					}
 				}
-			}
 
-			if (storageFile.emitFinish) {
-				storageFile.emitFinish();
-				storageFile.emitFinish = null;
+				return await this.addContent(userId, {
+					...contentData,
+					...previewData
+				}, options);
+			} finally {
+				finishStorageFileTemp(storageFile);
 			}
-
-			return this.addContent(userId, {
-				...contentData,
-				...previewData
-			}, options);
 		}
 
 		async saveDirectoryToStorage(userId: number, dirPath, options: { userApiKeyId? } = {}) {
@@ -893,10 +904,13 @@ function getModule(app: IGeesomeApp) {
 				if (!uploadResult) {
 					return; // onError handled
 				}
-				log('saveDirectory', uploadResult['tempPath'] + '/');
-				resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
-				if (uploadResult['emitFinish']) {
-					uploadResult['emitFinish']();
+				try {
+					log('saveDirectory', uploadResult['tempPath'] + '/');
+					resultFile = await app.ms.storage.saveDirectory(uploadResult['tempPath'] + '/', storageOptions);
+				} finally {
+					if (uploadResult['emitFinish']) {
+						uploadResult['emitFinish']();
+					}
 				}
 				mimeType = 'directory';
 				extension = 'none';
@@ -913,7 +927,14 @@ function getModule(app: IGeesomeApp) {
 						onError
 					});
 					log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
-					resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
+					try {
+						resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
+					} catch (e) {
+						if (uploadResult['emitFinish']) {
+							uploadResult['emitFinish']();
+						}
+						throw e;
+					}
 					resultFile.tempPath = uploadResult['tempPath'];
 					resultFile.emitFinish = uploadResult['emitFinish'];
 				}
@@ -1271,6 +1292,19 @@ function getContentErrorMessage(error) {
 		return error.message;
 	}
 	return String(error);
+}
+
+function finishStorageFileTemp(storageFile) {
+	if (!storageFile || !storageFile.emitFinish) {
+		return;
+	}
+	const emitFinish = storageFile.emitFinish;
+	storageFile.emitFinish = null;
+	try {
+		emitFinish();
+	} catch (e) {
+		log('storage temp cleanup failed', e);
+	}
 }
 
 interface IStorageFile {

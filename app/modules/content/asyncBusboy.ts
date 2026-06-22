@@ -58,9 +58,16 @@ function onFile (filePromises, file, stream, info) {
             readStream.filename = filename
             readStream.transferEncoding = readStream.encoding = encoding
             readStream.mimeType = readStream.mime = mimeType
+            readStream.tempPath = saveTo
+            readStream.emitFinish = (callback) => {
+              fs.rm(saveTo, { force: true }, function () {
+                callback && callback()
+              })
+            }
             resolve(readStream)
           }))
       .on('error', (err) => {
+        fs.rm(saveTo, { force: true }, () => {})
         stream.resume()
           .on('error', reject)
         reject(err)
