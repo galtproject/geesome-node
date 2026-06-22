@@ -4,7 +4,7 @@ import http from 'node:http';
 import IGeesomeApiModule from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
-import {sendForbiddenOnAuthRouteError} from "./routeErrorHelpers.js";
+import {sendBadGatewayOnStorageRouteError, sendForbiddenOnAuthRouteError} from "./routeErrorHelpers.js";
 const {isNumber} = _;
 const log = debug('geesome:api:routes');
 
@@ -566,10 +566,10 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 			res.writeHead(upstreamRes.statusCode || 500, upstreamRes.headers);
 			upstreamRes.pipe(res.stream);
 		});
-		upstream.on('error', (error) => {
-			console.error(error);
-			res.send(null, 502);
-		});
+		upstream.on('error', sendBadGatewayOnStorageRouteError(log, res, () => ({
+			route: 'api/v0/refs',
+			proxyPath: req.route
+		})));
 	});
 
 	/**
