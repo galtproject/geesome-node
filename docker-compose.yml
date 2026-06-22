@@ -51,6 +51,25 @@ services:
     volumes:
       - "${GEESOME_FRONTEND_DIST:-./.docker-data/geesome-frontend}:/usr/share/nginx/html"
 
+  temp-cleaner:
+    container_name: geesome_temp_cleaner
+    image: alpine:3.20
+    restart: always
+    volumes:
+      - "${GEESOME_TEMP:-./.docker-data/geesome-temp}:/geesome-temp"
+    environment:
+      - GEESOME_TEMP_MAX_AGE_MINUTES=${GEESOME_TEMP_MAX_AGE_MINUTES:-1440}
+      - GEESOME_TEMP_CLEAN_INTERVAL_SECONDS=${GEESOME_TEMP_CLEAN_INTERVAL_SECONDS:-3600}
+    # Last-resort cleanup for temp files left after crashes or killed uploads.
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          find /geesome-temp -mindepth 1 -maxdepth 1 -mmin +"$${GEESOME_TEMP_MAX_AGE_MINUTES}" -exec rm -rf {} +
+          sleep "$${GEESOME_TEMP_CLEAN_INTERVAL_SECONDS}"
+        done
+
   ipfs:
     container_name: go_ipfs
     image: "ipfs/kubo:v0.21.0"
