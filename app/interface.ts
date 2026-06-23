@@ -35,6 +35,8 @@ export interface IGeesomeApp {
 
   frontendStorageId;
 
+  docsStorageId;
+
   //modules
   ms: {
     api: IGeesomeApiModule;

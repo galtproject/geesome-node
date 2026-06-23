@@ -173,6 +173,21 @@ function getModule(app: IGeesomeApp) {
 		return error;
 	}
 
+	async function isStorageIdAllowedForApi(storageId) {
+		if (isPublishedAppStorageId(storageId)) {
+			return true;
+		}
+		return app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+	}
+
+	function isPublishedAppStorageId(storageId) {
+		return storageId && (storageId === app.docsStorageId || storageId === app.frontendStorageId);
+	}
+
+	function isPublishedAppStorageRootPath(dataPath) {
+		return isPublishedAppStorageId(String(dataPath || '').replace(/\/+$/, ''));
+	}
+
 	function pickPublicContentMetadata(content) {
 		const contentData = toContentPlainObject(content);
 		if (!contentData) {
@@ -1181,7 +1196,7 @@ function getModule(app: IGeesomeApp) {
 				let content = storagePathMetadata.content;
 				helpers.logDebug(log, () => ['content', helpers.toLogValue(content)]);
 				if (!content) {
-					const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+					const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 					if (!storageIdAllowed) {
 						return res.send(423);
 					}
@@ -1208,7 +1223,7 @@ function getModule(app: IGeesomeApp) {
 			const {storageId} = storagePathMetadata;
 			const content = storagePathMetadata.content;
 			if (!content) {
-				const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+				const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 				if (!storageIdAllowed) {
 					return res.send(423);
 				}
@@ -1277,7 +1292,7 @@ function getModule(app: IGeesomeApp) {
 			const {storageId} = storagePathMetadata;
 			let content = storagePathMetadata.content;
 			if (!content) {
-				const storageIdAllowed = await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
+				const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 				if (!storageIdAllowed) {
 					res.writeHead(423, {'Cross-Origin-Resource-Policy': 'cross-origin'});
 					return res.stream.end();
@@ -1337,15 +1352,19 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		prepareContentStoragePathResponse(res, dataPath, content) {
-			const contentType = this.getContentStorageMimeType(dataPath, content);
+			const preparedDataPath = this.prepareContentStorageDataPath(dataPath, content);
+			const contentType = this.getContentStorageMimeType(content ? dataPath : preparedDataPath, content);
 			log('contentType', contentType);
 			if (contentType) {
 				res.setHeader('Content-Type', contentType);
 			}
-			return this.prepareContentStorageDataPath(dataPath, content);
+			return preparedDataPath;
 		}
 
 		prepareContentStorageDataPath(dataPath, content) {
+			if (!content && isPublishedAppStorageRootPath(dataPath)) {
+				return String(dataPath).replace(/\/+$/, '') + '/index.html';
+			}
 			if (content?.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
 				return dataPath + '/index.html';
 			}
@@ -1358,6 +1377,10 @@ function getModule(app: IGeesomeApp) {
 			}
 			if (dataPath.endsWith('.js')) {
 				return 'text/javascript';
+			}
+			const mimeType = mime.lookup(dataPath);
+			if (mimeType) {
+				return mimeType;
 			}
 			return '';
 		}
