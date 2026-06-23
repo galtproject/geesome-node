@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-echo "==> [1/3] Updating source (git pull --ff-only)..."
+echo "==> [1/4] Updating source (git pull --ff-only)..."
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "Refusing to upgrade with uncommitted local changes:"
   git status --short

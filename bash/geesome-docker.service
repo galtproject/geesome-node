@@ -13,6 +13,7 @@ Environment=DEBUG=geesome*
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/root/geesome-node
+ExecStartPre=/bin/bash /root/geesome-node/bash/ipfs-ownership-preflight.sh
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
 TimeoutStartSec=0
