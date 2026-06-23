@@ -1289,7 +1289,7 @@ function getModule(app: IGeesomeApp) {
 					});
 				}
 
-				const mimeType = this.getContentStorageMimeType(contentStoragePath, content);
+				const mimeType = this.getContentStorageMimeType(content ? contentStoragePath : dataPath, content);
 				res.writeHead(206, {
 					// 'Cache-Control': 'no-cache, no-store, must-revalidate',
 					// 'Pragma': 'no-cache',
@@ -1381,8 +1381,11 @@ function getModule(app: IGeesomeApp) {
 		}
 
 		prepareContentStorageDataPath(dataPath, content) {
-			if (!content && isPublishedAppStorageRootPath(dataPath)) {
-				return String(dataPath).replace(/\/+$/, '') + '/index.html';
+			if (!content) {
+				const storagePath = String(dataPath);
+				if (isPublishedAppStorageRootPath(storagePath) || storagePath.endsWith('/')) {
+					return storagePath.replace(/\/+$/, '') + '/index.html';
+				}
 			}
 			if (content?.mimeType === ContentMimeType.Directory && !(last(dataPath.split('/')) as string).includes('.')) {
 				return dataPath + '/index.html';

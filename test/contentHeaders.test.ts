@@ -446,6 +446,62 @@ describe("content headers", function () {
 		assert.deepEqual(sends, []);
 	});
 
+	it("serves allowed unknown directory roots from index html", async () => {
+		const responseStream = new PassThrough();
+		const finished = new Promise((resolve) => responseStream.on("finish", resolve));
+		const writes: any = {};
+		const sends: any[] = [];
+		let statPath = "";
+		let streamPath = "";
+		responseStream.resume();
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async (path) => {
+						statPath = path;
+						return {size: 21620};
+					},
+					getFileStream: async (path) => {
+						streamPath = path;
+						return Readable.from(["<html></html>"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {}
+		} as any, {
+			send: (...args) => sends.push(args),
+			setHeader: (name, value) => {
+				writes.headers = writes.headers || {};
+				writes.headers[name] = value;
+			},
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = {
+					...writes.headers,
+					...responseHeaders
+				};
+			},
+			stream: responseStream
+		} as any, "site-root/");
+		await finished;
+
+		assert.equal(writes.status, 200);
+		assert.equal(writes.headers["Content-Type"], "text/html");
+		assert.equal(writes.headers["Content-Length"], 21620);
+		assert.equal(statPath, "site-root/index.html");
+		assert.equal(streamPath, "site-root/index.html");
+		assert.deepEqual(sends, []);
+	});
+
 	it("streams non-range content when storage stats do not include a CID", async () => {
 		const responseStream = new PassThrough();
 		const finished = new Promise((resolve) => responseStream.on("finish", resolve));
@@ -695,6 +751,64 @@ describe("content headers", function () {
 		assert.equal(writes.headers["Content-Range"], "bytes 0-1/5");
 		assert.equal(writes.headers["Content-Length"], 2);
 		assert.equal(streamPath, "site/index.html");
+		assert.deepEqual(streamOptions, {offset: 0, length: 2});
+		assert.equal(sendCalled, false);
+	});
+
+	it("returns partial content for allowed unknown directory index byte ranges", async () => {
+		let streamOptions: any;
+		let streamPath = "";
+		let statPath = "";
+		let sendCalled = false;
+		const writes: any = {};
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async (path) => {
+						statPath = path;
+						return {size: 5};
+					},
+					getFileStream: async (path, options) => {
+						streamPath = path;
+						streamOptions = options;
+						return Readable.from(["he"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {range: "bytes=0-1"}
+		} as any, {
+			send: () => {
+				sendCalled = true;
+			},
+			setHeader: () => null,
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = responseHeaders;
+			},
+			stream: {
+				write: () => null,
+				on: () => null,
+				once: () => null,
+				emit: () => null,
+				end: () => null
+			}
+		} as any, "site-root/");
+
+		assert.equal(writes.status, 206);
+		assert.equal(writes.headers["Content-Type"], "text/html");
+		assert.equal(writes.headers["Content-Range"], "bytes 0-1/5");
+		assert.equal(writes.headers["Content-Length"], 2);
+		assert.equal(statPath, "site-root/index.html");
+		assert.equal(streamPath, "site-root/index.html");
 		assert.deepEqual(streamOptions, {offset: 0, length: 2});
 		assert.equal(sendCalled, false);
 	});
