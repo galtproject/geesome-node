@@ -306,6 +306,14 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.models.StorageObject.findOne({where: {storageId}});
   }
 
+  async getStorageObjectByIdentity(identityType: string, identityId: string) {
+    const where = getStorageObjectIdentityWhere(identityType, identityId);
+    if (!where) {
+      return null;
+    }
+    return this.models.StorageObject.findOne({where, order: [['id', 'ASC']]});
+  }
+
   async syncStorageObject(storageObjectData: Partial<IStorageObjectRecord>, options: any = {}) {
     if (!storageObjectData?.storageId) {
       return null;
@@ -1091,6 +1099,13 @@ function getStorageObjectIdentityData(identityData) {
     identityUrl: identityData.identityUrl,
     identityUpdatedAt: identityData.identityUpdatedAt || new Date(),
   };
+}
+
+function getStorageObjectIdentityWhere(identityType: string, identityId: string) {
+  if (!identityType || !identityId) {
+    return null;
+  }
+  return {identityType, identityId};
 }
 
 function getEmptyStorageIdReferenceCounts() {

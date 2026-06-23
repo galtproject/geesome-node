@@ -197,10 +197,16 @@ describe("databaseValues", function () {
 			identityUrl: 'https://example.test/@group/1',
 			identityUpdatedAt
 		});
+		const identityLookupStorageObject = await database.getStorageObjectByIdentity(
+			'activitypub-object',
+			'https://example.test/objects/1'
+		);
 		const contentRow = await database.getSharedContentByStorageId(storageId);
 
 		assert.strictEqual(contentRow, null);
+		assert.ok(identityLookupStorageObject);
 		assert.strictEqual(identityStorageObject.storageId, storageId);
+		assert.strictEqual(identityLookupStorageObject.storageId, storageId);
 		assert.strictEqual(identityStorageObject.identityType, 'activitypub-object');
 		assert.strictEqual(identityStorageObject.identityId, 'https://example.test/objects/1');
 		assert.strictEqual(identityStorageObject.identityUrl, 'https://example.test/@group/1');
@@ -213,6 +219,14 @@ describe("databaseValues", function () {
 		);
 		assert.strictEqual(
 			await database.syncStorageObjectIdentity(storageId, {identityType: '', identityId: 'missing-type'}),
+			null
+		);
+		assert.strictEqual(
+			await database.getStorageObjectByIdentity('activitypub-object', 'missing-identity'),
+			null
+		);
+		assert.strictEqual(
+			await database.getStorageObjectByIdentity('', 'https://example.test/objects/1'),
 			null
 		);
 	});
