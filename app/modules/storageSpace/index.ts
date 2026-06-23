@@ -11,6 +11,7 @@ import IGeesomeStorageSpaceModule, {
   IStorageSpaceSnapshotData,
   IStorageSpaceSnapshotDataOptions,
   IStorageSpaceSnapshotGrowth,
+  IStorageSpaceSnapshotHistoryRow,
   IStorageSpaceSnapshotProgress,
   IStorageSpaceStorageObjectRemovalHistoryRow,
   IStorageSpaceStorageObjectRemovalQueueResult,
@@ -404,6 +405,17 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
     return getStorageSpaceSnapshotResponse(snapshot);
   }
 
+  async getStorageSpaceSnapshotHistory(listParams: IListParams = {}): Promise<IStorageSpaceSnapshotHistoryRow[]> {
+    const listWindow = getStorageSpaceSnapshotHistoryWindow(listParams);
+    const snapshots = await this.app.ms.database.models.StorageSpaceSnapshot.findAll({
+      attributes: ['id', 'userId', 'listLimit', 'durationMs', 'createdAt', 'updatedAt'],
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+      limit: listWindow.limit,
+      offset: listWindow.offset,
+    });
+    return snapshots.map(snapshot => getStorageSpaceSnapshotHistoryResponse(snapshot));
+  }
+
   async getStorageSpaceSnapshotGrowth(listParams: any = {}): Promise<IStorageSpaceSnapshotGrowth | null> {
     const snapshotModel = this.app.ms.database.models.StorageSpaceSnapshot;
     const latestSnapshotRow = await snapshotModel.findOne({
@@ -721,6 +733,10 @@ function getStorageSpaceSnapshotListWindow(listParams: IListParams = {}) {
     limit: listWindow.limit,
     offset: 0,
   };
+}
+
+function getStorageSpaceSnapshotHistoryWindow(listParams: IListParams = {}) {
+  return getStorageSpaceListWindow(listParams);
 }
 
 function getStorageSpaceSnapshotGrowthSinceDays(listParams: any = {}) {
@@ -1217,6 +1233,18 @@ function getStorageSpaceSnapshotResponse(snapshot) {
     listLimit: snapshotData.listLimit,
     durationMs: snapshotData.durationMs,
     data: parseStorageSpaceSnapshotData(snapshotData.data),
+    createdAt: snapshotData.createdAt,
+    updatedAt: snapshotData.updatedAt,
+  };
+}
+
+function getStorageSpaceSnapshotHistoryResponse(snapshot): IStorageSpaceSnapshotHistoryRow {
+  const snapshotData = typeof snapshot.toJSON === 'function' ? snapshot.toJSON() : snapshot;
+  return {
+    id: snapshotData.id,
+    userId: snapshotData.userId,
+    listLimit: snapshotData.listLimit,
+    durationMs: snapshotData.durationMs,
     createdAt: snapshotData.createdAt,
     updatedAt: snapshotData.updatedAt,
   };

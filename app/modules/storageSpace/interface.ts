@@ -61,6 +61,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getLatestStorageSpaceSnapshot(): Promise<IStorageSpaceSnapshot | null>;
 
+  getStorageSpaceSnapshotHistory(listParams?: IListParams): Promise<IStorageSpaceSnapshotHistoryRow[]>;
+
   getStorageSpaceSnapshotGrowth(listParams?: IListParams): Promise<IStorageSpaceSnapshotGrowth | null>;
 
   refreshStorageSpaceSnapshot(userId?: number, listParams?: IListParams, options?: IStorageSpaceSnapshotDataOptions): Promise<IStorageSpaceSnapshot>;
@@ -451,6 +453,15 @@ export interface IStorageSpaceSnapshot {
   listLimit: number;
   durationMs: number;
   data: IStorageSpaceSnapshotData;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface IStorageSpaceSnapshotHistoryRow {
+  id: number;
+  userId?: number | null;
+  listLimit: number;
+  durationMs: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
