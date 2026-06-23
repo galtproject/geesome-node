@@ -330,6 +330,53 @@ describe("storage space usage", function () {
 			offset: 99,
 		});
 		assert.equal(retainedAvailabilitySamples.length, 1);
+		await app.ms.database.models.StorageSpaceAvailabilitySample.create({
+			userId: null,
+			storageId: sharedContent.storageId,
+			sampleJson: JSON.stringify({
+				...sharedSignal,
+				providerLookupOk: false,
+				providersCount: 4,
+				providersTruncated: true,
+				providerLookupDurationMs: 20,
+				providerLookupErrorMessage: 'provider timeout',
+				providers: [],
+				retrievalStatOk: false,
+				retrievalStatDurationMs: 15,
+				retrievalType: null,
+				retrievalMeasuredBytes: 0,
+				retrievalErrorMessage: 'stat timeout',
+			}),
+			providerLookupOk: false,
+			providersCount: 4,
+			providersTruncated: true,
+			providerLookupDurationMs: 20,
+			providerLookupErrorMessage: 'provider timeout',
+			retrievalStatOk: false,
+			retrievalStatDurationMs: 15,
+			retrievalMeasuredBytes: 0,
+			retrievalErrorMessage: 'stat timeout',
+			sampledAt: new Date('2026-05-23T00:00:00.000Z'),
+		});
+		const availabilitySampleSummary = await app.ms.storageSpace.getStorageSpaceAvailabilityNetworkSampleSummary({
+			storageId: sharedContent.storageId,
+			offset: 99,
+		});
+		assert.equal(availabilitySampleSummary.length, 1);
+		assert.equal(availabilitySampleSummary[0].storageId, sharedContent.storageId);
+		assert.equal(availabilitySampleSummary[0].samplesCount, 2);
+		assert.equal(availabilitySampleSummary[0].providerLookupOkCount, 1);
+		assert.equal(availabilitySampleSummary[0].retrievalStatOkCount, 1);
+		assert.equal(availabilitySampleSummary[0].maxProvidersCount, 4);
+		assert.equal(availabilitySampleSummary[0].latestUserId, null);
+		assert.equal(availabilitySampleSummary[0].latestProviderLookupOk, false);
+		assert.equal(availabilitySampleSummary[0].latestProvidersCount, 4);
+		assert.equal(availabilitySampleSummary[0].latestProvidersTruncated, true);
+		assert.equal(availabilitySampleSummary[0].latestProviderLookupErrorMessage, 'provider timeout');
+		assert.equal(availabilitySampleSummary[0].latestRetrievalStatOk, false);
+		assert.equal(availabilitySampleSummary[0].latestRetrievalErrorMessage, 'stat timeout');
+		assert.equal(new Date(availabilitySampleSummary[0].firstSampledAt as any).toISOString(), '2026-05-22T00:00:00.000Z');
+		assert.equal(new Date(availabilitySampleSummary[0].latestSampledAt as any).toISOString(), '2026-05-23T00:00:00.000Z');
 
 		const cleanupBlockers = await app.ms.storageSpace.getStorageSpaceCleanupBlockers({contentId: sharedContent.id});
 		assert.equal(cleanupBlockers.length, 1);

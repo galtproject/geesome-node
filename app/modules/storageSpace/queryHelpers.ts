@@ -105,6 +105,17 @@ const numericAvailabilitySignalFields = [
   'maxPeerCount',
   'maxFullyPeerCount',
 ];
+const numericAvailabilityNetworkSampleSummaryFields = [
+  'samplesCount',
+  'providerLookupOkCount',
+  'retrievalStatOkCount',
+  'maxProvidersCount',
+  'latestSampleId',
+  'latestProvidersCount',
+  'latestProviderLookupDurationMs',
+  'latestRetrievalStatDurationMs',
+  'latestRetrievalMeasuredBytes',
+];
 
 export async function getStorageSpaceOverview(sequelize, options: any = {}) {
   const hasRemotePinRefs = shouldIncludeRemotePinRefs(sequelize, options);
@@ -1157,6 +1168,58 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
   });
 
   return rows.map(row => normalizeNumericFields(row, numericAvailabilitySignalFields));
+}
+
+export async function getStorageSpaceAvailabilityNetworkSampleSummary(sequelize, listParams: any = {}) {
+  const rows = await sequelize.query(`
+    WITH ranked_samples AS (
+      SELECT
+        sample.*,
+        COUNT(*) OVER (PARTITION BY sample."storageId")::bigint AS "samplesCount",
+        COUNT(*) FILTER (WHERE sample."providerLookupOk" IS TRUE) OVER (PARTITION BY sample."storageId")::bigint AS "providerLookupOkCount",
+        COUNT(*) FILTER (WHERE sample."retrievalStatOk" IS TRUE) OVER (PARTITION BY sample."storageId")::bigint AS "retrievalStatOkCount",
+        COALESCE(MAX(sample."providersCount") OVER (PARTITION BY sample."storageId"), 0)::bigint AS "maxProvidersCount",
+        MIN(sample."sampledAt") OVER (PARTITION BY sample."storageId") AS "firstSampledAt",
+        ROW_NUMBER() OVER (
+          PARTITION BY sample."storageId"
+          ORDER BY sample."sampledAt" DESC, sample.id DESC
+        ) AS "sampleRank"
+      FROM "storageSpaceAvailabilitySamples" sample
+      WHERE (:storageId IS NULL OR sample."storageId" = :storageId)
+    )
+    SELECT
+      "storageId",
+      "samplesCount",
+      "providerLookupOkCount",
+      "retrievalStatOkCount",
+      "maxProvidersCount",
+      "firstSampledAt",
+      id AS "latestSampleId",
+      "userId" AS "latestUserId",
+      "providerLookupOk" AS "latestProviderLookupOk",
+      "providersCount" AS "latestProvidersCount",
+      "providersTruncated" AS "latestProvidersTruncated",
+      "providerLookupDurationMs" AS "latestProviderLookupDurationMs",
+      "providerLookupErrorMessage" AS "latestProviderLookupErrorMessage",
+      "retrievalStatOk" AS "latestRetrievalStatOk",
+      "retrievalStatDurationMs" AS "latestRetrievalStatDurationMs",
+      "retrievalType" AS "latestRetrievalType",
+      "retrievalMeasuredBytes" AS "latestRetrievalMeasuredBytes",
+      "retrievalErrorMessage" AS "latestRetrievalErrorMessage",
+      "sampledAt" AS "latestSampledAt"
+    FROM ranked_samples
+    WHERE "sampleRank" = 1
+    ORDER BY
+      "maxProvidersCount" DESC,
+      "latestSampledAt" DESC,
+      "storageId" ASC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements: getStorageSpaceAvailabilitySignalsQueryReplacements(listParams),
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(row => normalizeNumericFields(row, numericAvailabilityNetworkSampleSummaryFields));
 }
 
 function getStorageSpaceListQueryReplacements(listParams) {

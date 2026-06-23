@@ -126,6 +126,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					getStorageSpaceAvailabilityNetworkSampleSummary: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					refreshStorageSpaceAvailabilityNetworkSamples: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -205,6 +209,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/availability-signals"],
 			["GET", "admin/storage-space/availability-network-inspection"],
 			["GET", "admin/storage-space/availability-network-samples"],
+			["GET", "admin/storage-space/availability-network-samples/summary"],
 			["POST", "admin/storage-space/availability-network-samples/refresh"],
 			["POST", "admin/storage-space/availability-network-samples/refresh-async"],
 			["GET", "admin/storage-space/cleanup-blockers"],
@@ -246,6 +251,7 @@ describe("storage space admin API", function () {
 			availabilitySignals: [{storageId: "bafy-signal", maxPeerCount: 7}],
 			availabilityNetworkInspection: [{storageId: "bafy-signal", providersCount: 2, retrievalStatOk: true}],
 			availabilityNetworkSamples: [{id: 10, storageId: "bafy-signal", providersCount: 2, retrievalStatOk: true}],
+			availabilityNetworkSampleSummary: [{storageId: "bafy-signal", samplesCount: 2, maxProvidersCount: 3}],
 			refreshedAvailabilitySamples: {sampled: 1, durationMs: 100, rows: [{id: 11, storageId: "bafy-signal"}]},
 			queuedAvailabilitySamples: {id: 12, module: "storage-space-availability-sample"},
 			cleanupBlockers: [{id: 1, blockerCount: 2}],
@@ -318,6 +324,10 @@ describe("storage space admin API", function () {
 					getStorageSpaceAvailabilityNetworkSamples: async (listParams) => {
 						storageSpaceCalls.push(["availabilityNetworkSamples", listParams]);
 						return responses.availabilityNetworkSamples;
+					},
+					getStorageSpaceAvailabilityNetworkSampleSummary: async (listParams) => {
+						storageSpaceCalls.push(["availabilityNetworkSampleSummary", listParams]);
+						return responses.availabilityNetworkSampleSummary;
 					},
 					refreshStorageSpaceAvailabilityNetworkSamples: async (...args) => {
 						storageSpaceCalls.push(["refreshAvailabilityNetworkSamples", ...args]);
@@ -400,6 +410,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/availability-signals", {user: {id: 7}, query})).body, responses.availabilitySignals);
 		assert.deepEqual((await call("GET", "admin/storage-space/availability-network-inspection", {user: {id: 7}, query: {...query, providerLimit: "2"}})).body, responses.availabilityNetworkInspection);
 		assert.deepEqual((await call("GET", "admin/storage-space/availability-network-samples", {user: {id: 7}, query: {...query, storageId: "bafy-signal"}})).body, responses.availabilityNetworkSamples);
+		assert.deepEqual((await call("GET", "admin/storage-space/availability-network-samples/summary", {user: {id: 7}, query: {...query, storageId: "bafy-signal"}})).body, responses.availabilityNetworkSampleSummary);
 		assert.deepEqual((await call("POST", "admin/storage-space/availability-network-samples/refresh", {user: {id: 7}, body: {...query, providerLimit: "2"}})).body, responses.refreshedAvailabilitySamples);
 		assert.deepEqual((await call("POST", "admin/storage-space/availability-network-samples/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: {...query, providerLimit: "2"}})).body, responses.queuedAvailabilitySamples);
 		assert.deepEqual((await call("GET", "admin/storage-space/cleanup-blockers", {user: {id: 7}, query: {...query, contentId: "1"}})).body, responses.cleanupBlockers);
@@ -415,6 +426,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
 
 		assert.deepEqual(permissionChecks, [
+			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
@@ -458,6 +470,7 @@ describe("storage space admin API", function () {
 			["availabilitySignals", query],
 			["availabilityNetworkInspection", {...query, providerLimit: "2"}],
 			["availabilityNetworkSamples", {...query, storageId: "bafy-signal"}],
+			["availabilityNetworkSampleSummary", {...query, storageId: "bafy-signal"}],
 			["refreshAvailabilityNetworkSamples", 7, {...query, providerLimit: "2"}],
 			["queueAvailabilityNetworkSamples", 7, 12, {...query, providerLimit: "2"}],
 			["cleanupBlockers", {...query, contentId: "1"}],

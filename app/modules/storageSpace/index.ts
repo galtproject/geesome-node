@@ -6,6 +6,7 @@ import {IListParams, IListParamsOptions} from "../database/interface.js";
 import IGeesomeStorageSpaceModule, {
   IStorageSpaceAvailabilityNetworkSampleRefreshResult,
   IStorageSpaceAvailabilityNetworkSampleRow,
+  IStorageSpaceAvailabilityNetworkSampleSummaryRow,
   IStorageSpaceAvailabilityNetworkSignalInspectionRow,
   IStorageSpaceCleanupBlockerRow,
   IStorageSpaceSnapshotData,
@@ -210,6 +211,13 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
       offset: listWindow.offset,
     });
     return rows.map(row => getStorageSpaceAvailabilityNetworkSampleResponse(row));
+  }
+
+  async getStorageSpaceAvailabilityNetworkSampleSummary(listParams: IListParams = {}): Promise<IStorageSpaceAvailabilityNetworkSampleSummaryRow[]> {
+    return storageSpaceQueries.getStorageSpaceAvailabilityNetworkSampleSummary(
+      this.app.ms.database.sequelize,
+      getStorageSpaceAvailabilitySampleWindow(listParams)
+    );
   }
 
   async refreshStorageSpaceAvailabilityNetworkSamples(userId?: number, listParams: IListParams = {}): Promise<IStorageSpaceAvailabilityNetworkSampleRefreshResult> {

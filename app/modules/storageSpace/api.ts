@@ -275,6 +275,26 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/availability-network-samples/summary Get storage availability network sample summary
+   * @apiName AdminStorageSpaceAvailabilityNetworkSampleSummary
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiQuery {String} [storageId] Summarize persisted samples for one storage id.
+   * @apiDescription Groups persisted provider/retrieval samples by storage id and returns latest sample state plus aggregate success/max-provider counts for cached popularity and availability screens.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/availability-network-samples/summary', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceAvailabilityNetworkSampleSummary(req.query));
+  });
+
+  /**
    * @api {post} /v1/admin/storage-space/availability-network-samples/refresh Refresh storage availability network samples
    * @apiName AdminStorageSpaceAvailabilityNetworkSamplesRefresh
    * @apiGroup AdminStorage
