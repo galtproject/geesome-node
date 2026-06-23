@@ -161,6 +161,9 @@ function modelRows(): ModelRow[] {
     && has(storageObjectSource, 'storage_objects_identity_idx')
     && has(databaseModuleSource, 'syncStorageObjectIdentity')
     && has(databaseValuesTestSource, 'ownerless storage-object identity');
+  const hasContentManifestStorageObjectIdentityProducer = has(contentModuleSource, 'contentManifestStorageObjectIdentityType')
+    && has(contentModuleSource, 'syncContentManifestStorageObject')
+    && has(contentModuleSource, 'syncStorageObjectForContent(storageObjectData)');
   const hasStorageObjectPinState = has(storageObjectSource, 'isPinned')
     && has(databaseModuleSource, 'markStorageObjectPinnedByContent')
     && has(databaseModuleSource, 'pinnedStorageObjects')
@@ -333,7 +336,11 @@ function modelRows(): ModelRow[] {
       model: 'StorageObject',
       indexes: [
         has(storageObjectSource, 'storage_objects_storage_id_unique') ? 'storageId unique physical identity' : 'missing storageId unique physical identity',
-        hasStorageObjectIdentity ? 'identityType,identityId ownerless/federated lookup' : 'missing ownerless/federated identity lookup',
+        hasStorageObjectIdentity
+          ? (hasContentManifestStorageObjectIdentityProducer
+            ? 'identityType,identityId ownerless/federated lookup with GeeSome manifest producer'
+            : 'identityType,identityId ownerless/federated lookup')
+          : 'missing ownerless/federated identity lookup',
         has(storageObjectSource, 'storage_objects_medium_preview_storage_idx') ? 'preview storage lookup indexes' : 'missing preview storage lookup indexes',
         has(storageObjectSource, 'storage_objects_updated_idx') ? 'updatedAt,id registry scan' : 'missing updatedAt,id registry scan',
       ],
@@ -343,10 +350,14 @@ function modelRows(): ModelRow[] {
             ? (hasPinStorageObjectLedger
               ? (hasStorageObjectReconciliation
                 ? (hasStorageObjectIdentity
-                  ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                  ? (hasContentManifestStorageObjectIdentityProducer
+                    ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                    : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
                   : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
                 : (hasStorageObjectIdentity
-                  ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger'
+                  ? (hasContentManifestStorageObjectIdentityProducer
+                    ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger'
+                    : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger')
                   : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger'))
               : (hasStorageObjectReconciliation
                 ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, delete safety checks the canonical pin bit with Content fallback, and restored-backup rehearsal repairs missing/mismatched canonical rows'
@@ -1245,6 +1256,10 @@ function hotspotRows(): HotspotRow[] {
     && has(storageObjectModelSource, 'storage_objects_identity_idx')
     && has(databaseSource, 'syncStorageObjectIdentity')
     && has(databaseValuesTestSource, 'ownerless storage-object identity');
+  const hasContentManifestStorageObjectIdentityProducer = has(contentSource, 'contentManifestStorageObjectIdentityType')
+    && has(contentSource, 'syncContentManifestStorageObject')
+    && has(contentSource, 'syncStorageObjectForContent(storageObjectData)')
+    && has(groupTestSource, 'geesome-content-manifest');
   const hasPublicContentMetadataPolicy = has(contentSource, 'async getPublicContentMetadata')
     && has(contentSource, 'publicStorageMetadataFields')
     && has(contentSource, "throw createContentNotFoundError()");
@@ -1617,7 +1632,9 @@ function hotspotRows(): HotspotRow[] {
           ? (hasPublicContentMetadataPolicy
             ? (hasStorageObjectRegistry
               ? (hasStorageObjectIdentity
-                ? 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, storageObject can carry ownerless/federated identity metadata, and shared storage/header reads prefer storageObject metadata with Content fallback'
+                ? (hasContentManifestStorageObjectIdentityProducer
+                  ? 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, storageObject can carry ownerless/federated identity metadata, remote content manifest imports seed GeeSome manifest identity there, and shared storage/header reads prefer storageObject metadata with Content fallback'
+                  : 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, storageObject can carry ownerless/federated identity metadata, and shared storage/header reads prefer storageObject metadata with Content fallback')
                 : 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, and shared storage/header reads prefer storageObject metadata with Content fallback')
               : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, and preview mode still ORs across storageId and preview storage ids')
             : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, and preview mode still ORs across storageId and preview storage ids')
@@ -1629,7 +1646,9 @@ function hotspotRows(): HotspotRow[] {
             ? (hasPublicContentMetadataPolicy
               ? (hasStorageObjectRegistry
                 ? (hasStorageObjectIdentity
-                  ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, ownerless/federated identities can live on StorageObject, and shared serving now prefers canonical physical metadata while preserving old-row fallback'
+                  ? (hasContentManifestStorageObjectIdentityProducer
+                    ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, ownerless/federated identities can live on StorageObject, GeeSome content manifests now seed that identity without ownerless Content rows, and shared serving prefers canonical physical metadata while preserving old-row fallback'
+                    : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, ownerless/federated identities can live on StorageObject, and shared serving now prefers canonical physical metadata while preserving old-row fallback')
                   : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, and shared serving now prefers canonical physical metadata while preserving old-row fallback')
                 : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, and the public metadata route no longer exposes private rows by DB id; shared reads still rely on user-library metadata until canonical asset metadata exists')
               : 'shared reads are stable across duplicate user-owned rows and no longer create new ownerless library rows, but they still read user-library metadata until canonical asset metadata exists')
