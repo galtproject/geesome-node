@@ -156,6 +156,11 @@ function modelRows(): ModelRow[] {
     && has(databaseModuleSource, 'getStorageObjectByStorageId')
     && has(databaseModuleSource, 'getSharedStorageMetadataByStorageId')
     && has(databaseValuesTestSource, 'getSharedStorageMetadataByStorageId(storageId)');
+  const hasStorageObjectIdentity = has(storageObjectSource, 'identityType')
+    && has(storageObjectSource, 'identityId')
+    && has(storageObjectSource, 'storage_objects_identity_idx')
+    && has(databaseModuleSource, 'syncStorageObjectIdentity')
+    && has(databaseValuesTestSource, 'ownerless storage-object identity');
   const hasStorageObjectPinState = has(storageObjectSource, 'isPinned')
     && has(databaseModuleSource, 'markStorageObjectPinnedByContent')
     && has(databaseModuleSource, 'pinnedStorageObjects')
@@ -310,8 +315,8 @@ function modelRows(): ModelRow[] {
                 ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor'
                 : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor')
               : (hasContentSoftDeletePolicy
-                ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist'
-                : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist'))
+                ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical asset policy uses StorageObject identity'
+                : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical asset policy uses StorageObject identity'))
             : (hasContentSoftDeletePolicy
               ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, and shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'
               : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'))
@@ -328,6 +333,7 @@ function modelRows(): ModelRow[] {
       model: 'StorageObject',
       indexes: [
         has(storageObjectSource, 'storage_objects_storage_id_unique') ? 'storageId unique physical identity' : 'missing storageId unique physical identity',
+        hasStorageObjectIdentity ? 'identityType,identityId ownerless/federated lookup' : 'missing ownerless/federated identity lookup',
         has(storageObjectSource, 'storage_objects_medium_preview_storage_idx') ? 'preview storage lookup indexes' : 'missing preview storage lookup indexes',
         has(storageObjectSource, 'storage_objects_updated_idx') ? 'updatedAt,id registry scan' : 'missing updatedAt,id registry scan',
       ],
@@ -336,8 +342,12 @@ function modelRows(): ModelRow[] {
           ? (hasStorageObjectPinState
             ? (hasPinStorageObjectLedger
               ? (hasStorageObjectReconciliation
-                ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
-                : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger')
+                ? (hasStorageObjectIdentity
+                  ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                  : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
+                : (hasStorageObjectIdentity
+                  ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger'
+                  : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, remote pin refs are recorded separately, and delete safety checks both the canonical pin bit and remote-pin ledger'))
               : (hasStorageObjectReconciliation
                 ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, delete safety checks the canonical pin bit with Content fallback, and restored-backup rehearsal repairs missing/mismatched canonical rows'
                 : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins mark canonical storage-object state, and delete safety checks the canonical pin bit with Content fallback'))
@@ -759,6 +769,7 @@ function hotspotRows(): HotspotRow[] {
   const scalabilityTargetSource = read('check/databaseScalabilityTarget.ts');
   const generatedOutputPressureSource = read('check/databaseGeneratedOutputPressure.ts');
   const storageSpaceReportSource = read('check/databaseStorageSpaceReport.ts');
+  const databaseValuesTestSource = read('test/databaseValues.test.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
@@ -1229,6 +1240,11 @@ function hotspotRows(): HotspotRow[] {
     && has(databaseSource, 'syncStorageObjectForContent')
     && has(databaseSource, 'getStorageObjectByStorageId')
     && has(databaseSource, 'getSharedStorageMetadataByStorageId');
+  const hasStorageObjectIdentity = has(storageObjectModelSource, 'identityType')
+    && has(storageObjectModelSource, 'identityId')
+    && has(storageObjectModelSource, 'storage_objects_identity_idx')
+    && has(databaseSource, 'syncStorageObjectIdentity')
+    && has(databaseValuesTestSource, 'ownerless storage-object identity');
   const hasPublicContentMetadataPolicy = has(contentSource, 'async getPublicContentMetadata')
     && has(contentSource, 'publicStorageMetadataFields')
     && has(contentSource, "throw createContentNotFoundError()");
@@ -1600,21 +1616,25 @@ function hotspotRows(): HotspotRow[] {
         ? (hasOwnerlessContentCreateGuard
           ? (hasPublicContentMetadataPolicy
             ? (hasStorageObjectRegistry
-              ? 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, and shared storage/header reads prefer storageObject metadata with Content fallback'
+              ? (hasStorageObjectIdentity
+                ? 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, storageObject can carry ownerless/federated identity metadata, and shared storage/header reads prefer storageObject metadata with Content fallback'
+                : 'legacy/global manifest lookups still use deterministic content helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, content writes maintain a storageObject registry row, and shared storage/header reads prefer storageObject metadata with Content fallback')
               : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, public metadata is projected, and preview mode still ORs across storageId and preview storage ids')
             : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers, ownerless imports can only reuse existing shared rows, and preview mode still ORs across storageId and preview storage ids')
           : 'legacy/global storage and manifest lookups delegate to deterministic shared helpers; preview mode still ORs across storageId and preview storage ids')
         : (has(databaseSource, 'largePreviewStorageId') ? 'OR lookup across storageId and preview storage ids' : 'review preview lookup path'),
       scalabilityRisk: has(read('app/modules/database/models/content.ts'), 'contents_large_preview_storage_idx')
         ? (hasDeterministicSharedContentLookup
-        ? (hasOwnerlessContentCreateGuard
-          ? (hasPublicContentMetadataPolicy
-            ? (hasStorageObjectRegistry
-              ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, and shared serving now prefers canonical physical metadata while preserving old-row fallback'
-              : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, and the public metadata route no longer exposes private rows by DB id; shared reads still rely on user-library metadata until canonical asset metadata exists')
-            : 'shared reads are stable across duplicate user-owned rows and no longer create new ownerless library rows, but they still read user-library metadata until canonical asset metadata exists')
-          : 'shared reads are stable across duplicate user-owned rows, but they still read user-library metadata until canonical asset metadata exists')
-        : 'preview columns are indexed, but public/header serving still reads across user-owned rows instead of canonical asset metadata')
+          ? (hasOwnerlessContentCreateGuard
+            ? (hasPublicContentMetadataPolicy
+              ? (hasStorageObjectRegistry
+                ? (hasStorageObjectIdentity
+                  ? 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, ownerless/federated identities can live on StorageObject, and shared serving now prefers canonical physical metadata while preserving old-row fallback'
+                  : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, public metadata hides private DB rows, and shared serving now prefers canonical physical metadata while preserving old-row fallback')
+                : 'shared reads are stable across duplicate user-owned rows, no longer create new ownerless library rows, and the public metadata route no longer exposes private rows by DB id; shared reads still rely on user-library metadata until canonical asset metadata exists')
+              : 'shared reads are stable across duplicate user-owned rows and no longer create new ownerless library rows, but they still read user-library metadata until canonical asset metadata exists')
+            : 'shared reads are stable across duplicate user-owned rows, but they still read user-library metadata until canonical asset metadata exists')
+          : 'preview columns are indexed, but public/header serving still reads across user-owned rows instead of canonical asset metadata')
         : 'preview/header serving can scan contents without preview-column indexes or canonical asset metadata',
     },
     {

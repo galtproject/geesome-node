@@ -178,4 +178,42 @@ describe("databaseValues", function () {
 			'shared-content-preview-storage'
 		);
 	});
+
+	it("should keep ownerless storage-object identity outside user content rows", async () => {
+		const storageId = 'ownerless-federated-storage-object';
+		const identityUpdatedAt = new Date('2026-06-23T10:00:00.000Z');
+
+		const storageObject = await database.syncStorageObject({
+			storageId,
+			storageType: ContentStorageType.IPFS,
+			mimeType: ContentMimeType.Text,
+			size: 15
+		});
+		assert.strictEqual(storageObject.storageId, storageId);
+
+		const identityStorageObject = await database.syncStorageObjectIdentity(storageId, {
+			identityType: 'activitypub-object',
+			identityId: 'https://example.test/objects/1',
+			identityUrl: 'https://example.test/@group/1',
+			identityUpdatedAt
+		});
+		const contentRow = await database.getSharedContentByStorageId(storageId);
+
+		assert.strictEqual(contentRow, null);
+		assert.strictEqual(identityStorageObject.storageId, storageId);
+		assert.strictEqual(identityStorageObject.identityType, 'activitypub-object');
+		assert.strictEqual(identityStorageObject.identityId, 'https://example.test/objects/1');
+		assert.strictEqual(identityStorageObject.identityUrl, 'https://example.test/@group/1');
+		assert.strictEqual(new Date(identityStorageObject.identityUpdatedAt).toISOString(), identityUpdatedAt.toISOString());
+		assert.strictEqual(
+			await (database as any).models.StorageObject.count({
+				where: {identityType: 'activitypub-object', identityId: 'https://example.test/objects/1'}
+			}),
+			1
+		);
+		assert.strictEqual(
+			await database.syncStorageObjectIdentity(storageId, {identityType: '', identityId: 'missing-type'}),
+			null
+		);
+	});
 });

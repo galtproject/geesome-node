@@ -25,6 +25,7 @@ type ExpectedIndex = Requirement & {
   name: string;
   columns: string[];
   unique?: boolean;
+  predicateIncludes?: string[];
 };
 
 type CountCheck = {
@@ -168,6 +169,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['content soft-delete columns', 'active same-user content storage uniqueness'],
   },
   {
+    module: 'database',
+    file: '20260623000000-add-storage-object-identity-columns.cjs',
+    verifies: ['storage-object ownerless/federated identity columns and partial lookup index'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -239,6 +245,10 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'autoActionLogs', columns: ['response'], type: 'text'},
   {table: 'userAsyncOperations', columns: ['output'], type: 'text'},
   {table: 'storageObjects', columns: ['isPinned'], type: 'boolean'},
+  {table: 'storageObjects', columns: ['identityType'], type: 'character varying'},
+  {table: 'storageObjects', columns: ['identityId'], type: 'character varying'},
+  {table: 'storageObjects', columns: ['identityUrl'], type: 'text'},
+  {table: 'storageObjects', columns: ['identityUpdatedAt'], type: 'timestamp with time zone'},
   {table: 'storageObjectReferences', columns: ['sourceStorageId'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['targetStorageId'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['referenceType'], type: 'character varying'},
@@ -254,6 +264,12 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'contents_user_manifest_storage_idx', table: 'contents', columns: ['userId', 'manifestStorageId']},
   {name: 'contents_user_storage_unique', table: 'contents', columns: ['userId', 'storageId'], unique: true},
   {name: 'storage_objects_storage_id_unique', table: 'storageObjects', columns: ['storageId'], unique: true},
+  {
+    name: 'storage_objects_identity_idx',
+    table: 'storageObjects',
+    columns: ['identityType', 'identityId'],
+    predicateIncludes: ['"identityType" IS NOT NULL', '"identityId" IS NOT NULL']
+  },
   {name: 'storage_objects_large_preview_storage_idx', table: 'storageObjects', columns: ['largePreviewStorageId']},
   {name: 'storage_objects_medium_preview_storage_idx', table: 'storageObjects', columns: ['mediumPreviewStorageId']},
   {name: 'storage_objects_small_preview_storage_idx', table: 'storageObjects', columns: ['smallPreviewStorageId']},
@@ -348,6 +364,15 @@ const countChecks: CountCheck[] = [
   duplicateCheck('active same-user content storage duplicates', 'contents', ['userId', 'storageId'], '"isDeleted" IS NOT TRUE'),
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),
   duplicateCheck('storage object reference duplicates', 'storageObjectReferences', ['sourceStorageId', 'targetStorageId', 'referenceType']),
+  {
+    name: 'storage object identity pairs are complete',
+    requirements: [{table: 'storageObjects', columns: ['identityType', 'identityId']}],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "storageObjects"
+      WHERE ("identityType" IS NULL) IS DISTINCT FROM ("identityId" IS NULL)
+    `,
+  },
   {
     name: 'content storage IDs have canonical storage object rows',
     requirements: [
@@ -1124,6 +1149,19 @@ async function auditIndexes(schema: SchemaCache): Promise<AuditResult[]> {
       });
 
       continue;
+    }
+
+    if (expected.predicateIncludes?.length) {
+      const missingPredicateParts = expected.predicateIncludes.filter(part => !indexInfo.predicate?.includes(part));
+      if (missingPredicateParts.length) {
+        results.push({
+          status: 'fail',
+          name,
+          details: `index predicate is ${indexInfo.predicate || 'empty'}, missing ${missingPredicateParts.join(', ')}`,
+        });
+
+        continue;
+      }
     }
 
     results.push({
