@@ -25,6 +25,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 
 ## Workflow
 
+- Branch policy: `dev` is the integration/default branch for normal PRs and merges. `master` is the stable release branch; update it only when cutting or promoting a tested release, then tag the release.
 - Use `yarn install` for dependency setup.
 - For targeted work, run the narrow test file first when one maps directly to the touched module.
 - Prefer `npm run test:docker` as the main full-suite verification path. It runs the suite in Docker with Postgres, IPFS, Node 22, and ffmpeg available, and is optimized for warm reruns after source-only changes by reusing dependency and service caches while still rebuilding the source snapshot.
