@@ -73,6 +73,7 @@ describe("content headers", function () {
 	it("returns 404 for allowed HEAD paths missing from storage", async () => {
 		const writes: any = {};
 		let streamRequested = false;
+		let statOptions: any;
 		const content = await contentModule({
 			checkModules: () => null,
 			callHookCheckAllowed: async () => true,
@@ -82,7 +83,10 @@ describe("content headers", function () {
 					getSharedStorageMetadataByStorageId: async () => null
 				},
 				storage: {
-					getFileStat: async () => null,
+					getFileStat: async (_path, options) => {
+						statOptions = options;
+						return null;
+					},
 					getFileStream: async () => {
 						streamRequested = true;
 						return Readable.from(["unexpected"]);
@@ -108,6 +112,7 @@ describe("content headers", function () {
 		assert.equal(writes.headers["Cross-Origin-Resource-Policy"], "cross-origin");
 		assert.equal(writes.ended, true);
 		assert.equal(streamRequested, false);
+		assert.equal(statOptions.attempts, 0);
 	});
 
 	it("returns 423 for forbidden unknown HEAD storage paths before stat lookup", async () => {
@@ -341,6 +346,7 @@ describe("content headers", function () {
 
 	it("returns 404 for allowed storage paths missing from storage", async () => {
 		let streamRequested = false;
+		let statOptions: any;
 		const sends: any[] = [];
 		const content = await contentModule({
 			checkModules: () => null,
@@ -359,7 +365,10 @@ describe("content headers", function () {
 					getSharedStorageMetadataByStorageId: async () => null
 				},
 				storage: {
-					getFileStat: async () => null,
+					getFileStat: async (_path, options) => {
+						statOptions = options;
+						return null;
+					},
 					getFileStream: async () => {
 						streamRequested = true;
 						return Readable.from(["unexpected"]);
@@ -377,6 +386,7 @@ describe("content headers", function () {
 
 		assert.deepEqual(sends, [[404]]);
 		assert.equal(streamRequested, false);
+		assert.equal(statOptions.attempts, 0);
 	});
 
 	it("allows the app published docs storage root without a database content row", async () => {
@@ -496,6 +506,7 @@ describe("content headers", function () {
 
 	it("returns 404 for allowed ranged storage paths missing from storage", async () => {
 		let streamRequested = false;
+		let statOptions: any;
 		const sends: any[] = [];
 		const content = await contentModule({
 			checkModules: () => null,
@@ -514,7 +525,10 @@ describe("content headers", function () {
 					getSharedStorageMetadataByStorageId: async () => null
 				},
 				storage: {
-					getFileStat: async () => null,
+					getFileStat: async (_path, options) => {
+						statOptions = options;
+						return null;
+					},
 					getFileStream: async () => {
 						streamRequested = true;
 						return Readable.from(["unexpected"]);
@@ -532,6 +546,7 @@ describe("content headers", function () {
 
 		assert.deepEqual(sends, [[404]]);
 		assert.equal(streamRequested, false);
+		assert.equal(statOptions.attempts, 0);
 	});
 
 	it("returns 423 for forbidden unknown ranged storage paths before stat lookup", async () => {

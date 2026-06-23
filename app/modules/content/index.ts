@@ -188,6 +188,15 @@ function getModule(app: IGeesomeApp) {
 		return isPublishedAppStorageId(String(dataPath || '').replace(/\/+$/, ''));
 	}
 
+	function getGatewayFileStat(dataPath) {
+		return app.ms.storage.getFileStat(dataPath, {
+			attempts: 0,
+			attemptTimeout: 0,
+			withLocal: true,
+			size: true
+		});
+	}
+
 	function pickPublicContentMetadata(content) {
 		const contentData = toContentPlainObject(content);
 		if (!contentData) {
@@ -1167,6 +1176,16 @@ function getModule(app: IGeesomeApp) {
 			return dataSize;
 		}
 
+		async getGatewayFileSize(dataPath, content) {
+			let dataSize = content ? content.size : null;
+			const stat = await getGatewayFileStat(dataPath);
+			if (!stat) {
+				return null;
+			}
+			dataSize = stat.size;
+			return dataSize;
+		}
+
 		async getDataPath(dataPath) {
 			dataPath = trimStart(dataPath, '/')
 			log('dataPath', dataPath);
@@ -1203,7 +1222,7 @@ function getModule(app: IGeesomeApp) {
 				}
 
 				dataPath = this.prepareContentStoragePathResponse(res, dataPath, content);
-				const fileStat = await app.ms.storage.getFileStat(dataPath);
+				const fileStat = await getGatewayFileStat(dataPath);
 				log('getFileStat', fileStat);
 				if (!fileStat) {
 					return res.send(404);
@@ -1231,7 +1250,7 @@ function getModule(app: IGeesomeApp) {
 
 			const contentStoragePath = dataPath;
 			dataPath = this.prepareContentStorageDataPath(dataPath, content);
-			const dataSize = await this.getFileSize(dataPath, content);
+			const dataSize = await this.getGatewayFileSize(dataPath, content);
 			if (dataSize === null) {
 				return res.send(404);
 			}
@@ -1300,7 +1319,7 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			dataPath = this.prepareContentStoragePathResponse(res, dataPath, content);
-			const fileStat = await app.ms.storage.getFileStat(dataPath);
+			const fileStat = await getGatewayFileStat(dataPath);
 			if (!fileStat) {
 				res.writeHead(404, {'Cross-Origin-Resource-Policy': 'cross-origin'});
 				return res.stream.end();
