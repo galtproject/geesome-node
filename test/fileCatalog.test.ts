@@ -185,9 +185,17 @@ describe("app", function () {
 			storageSpace.queueStorageObjectRemoval = originalQueueStorageObjectRemoval;
 		}
 
-		assert.equal(await app.ms.database.getContent(content.id), null);
+		await assertContentSoftDeleted(app, content.id);
 		assert.deepEqual(queuedStorageIds.map((row) => row.storageId).sort(), [content.storageId, previewStorageId].sort());
 		assert.equal(queuedStorageIds[0].queuedUserId, testUser.id);
+
+		const replacementContent = await app.ms.content.saveData(testUser.id, 'Queued removal body', 'queued-removal-again.txt', {
+			mimeType: 'text/plain'
+		});
+		assert.equal(replacementContent.storageId, content.storageId);
+		assert.notEqual(replacementContent.id, content.id);
+		const activeSameStorageContent = await app.ms.database.getContentByStorageAndUserId(content.storageId, testUser.id);
+		assert.equal(activeSameStorageContent.id, replacementContent.id);
 	});
 
 	it("blocks queued storage removal when database references still exist", async () => {
@@ -247,7 +255,7 @@ describe("app", function () {
 			.map((item) => fileCatalog.deleteFileCatalogItem(testUser.id, item.id)));
 		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
 
-		assert.equal(await app.ms.database.getContent(content.id), null);
+		await assertContentSoftDeleted(app, content.id);
 		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Canonical pinned body');
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 	});
@@ -315,7 +323,7 @@ describe("app", function () {
 
 		await fileCatalog.deleteFileCatalogItem(testUser.id, fileItem.id, {deleteContent: true});
 
-		assert.equal(await app.ms.database.getContent(content.id), null);
+		await assertContentSoftDeleted(app, content.id);
 		assert.equal(await app.ms.storage.getFileData(content.storageId), 'Derived storage ref body');
 		assert.equal(await fileCatalog.getFileCatalogItem(fileItem.id), null);
 
@@ -341,7 +349,7 @@ describe("app", function () {
 
 		await fileCatalog.deleteFileCatalogItem(testUser.id, staticRefFileItem.id, {deleteContent: true});
 
-		assert.equal(await app.ms.database.getContent(staticRefContent.id), null);
+		await assertContentSoftDeleted(app, staticRefContent.id);
 		assert.equal(await app.ms.storage.getFileData(staticRefContent.storageId), 'Static id ref body');
 		assert.equal(await fileCatalog.getFileCatalogItem(staticRefFileItem.id), null);
 	});
@@ -480,3 +488,12 @@ describe("app", function () {
 		assert.equal(gotIndexHtmlByFolder, indexHtml2);
 	});
 });
+
+async function assertContentSoftDeleted(app: IGeesomeApp, contentId: number) {
+	assert.equal(await app.ms.database.getContent(contentId), null);
+	const deletedContent = await app.ms.database.getContent(contentId, {includeDeleted: true});
+	assert.equal(!!deletedContent, true);
+	assert.equal(deletedContent.isDeleted, true);
+	assert.equal(!!deletedContent.deletedAt, true);
+	return deletedContent;
+}

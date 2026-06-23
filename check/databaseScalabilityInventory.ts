@@ -135,6 +135,13 @@ function modelRows(): ModelRow[] {
   const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
     && has(contentSource, "fields: ['userId', 'storageId']")
     && has(contentSource, 'unique: true');
+  const hasContentSoftDeletePolicy = has(contentSource, 'isDeleted')
+    && has(contentSource, 'deletedAt')
+    && has(contentSource, 'allowNull: false')
+    && has(contentSource, 'where: {isDeleted: false}')
+    && has(databaseModuleSource, 'isDeleted: true')
+    && has(databaseModuleSource, 'includeDeleted')
+    && has(fileCatalogSource, 'app.ms.database.deleteContent(content.id)');
   const hasDeterministicSharedContentLookup = has(databaseModuleSource, 'async getSharedContentByStorageId')
     && has(databaseModuleSource, 'async getSharedContentByManifestId')
     && has(databaseModuleSource, "order: [['id', 'ASC']]")
@@ -285,7 +292,9 @@ function modelRows(): ModelRow[] {
       model: 'Content',
       indexes: [
         hasContentUserStorageUnique
-          ? 'userId,storageId unique ownership constraint plus storageId,userId lookup'
+          ? (hasContentSoftDeletePolicy
+            ? 'userId,storageId unique active ownership constraint plus storageId,userId lookup'
+            : 'userId,storageId unique ownership constraint plus storageId,userId lookup')
           : 'storageId,userId non-unique ownership lookup',
         has(contentSource, 'manifestStaticStorageId') && has(contentSource, 'unique: true') ? 'manifestStaticStorageId unique' : 'manifestStaticStorageId uniqueness not found',
         has(contentSource, "fields: ['userId', 'manifestStorageId'") ? 'userId,manifestStorageId actor-scoped lookup' : 'missing actor-scoped manifest lookup index',
@@ -297,11 +306,19 @@ function modelRows(): ModelRow[] {
         hasContentUserStorageUnique && hasDeterministicSharedContentLookup
           ? (hasOwnerlessContentCreateGuard
             ? (hasStorageObjectRegistry
-              ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor'
-              : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist')
-            : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific')
+              ? (hasContentSoftDeletePolicy
+                ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor'
+                : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor')
+              : (hasContentSoftDeletePolicy
+                ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist'
+                : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical assets exist'))
+            : (hasContentSoftDeletePolicy
+              ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, and shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'
+              : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'))
           : (hasContentUserStorageUnique
-          ? 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
+          ? (hasContentSoftDeletePolicy
+            ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness and soft-deleted rows no longer block re-upload; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
+            : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics')
           : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics'),
       ],
     },
@@ -705,6 +722,7 @@ function hotspotRows(): HotspotRow[] {
   const importSource = read('app/modules/socNetImport/index.ts');
   const categorySource = read('app/modules/groupCategory/index.ts');
   const contentSource = read('app/modules/content/index.ts');
+  const contentModelSource = read('app/modules/database/models/content.ts');
   const databaseSource = read('app/modules/database/index.ts');
   const apiSource = read('app/modules/api/api.ts');
   const storageSpaceSource = read('app/modules/storageSpace/index.ts');
@@ -776,6 +794,15 @@ function hotspotRows(): HotspotRow[] {
     && has(fileCatalogSource, 'getContentDeleteSafety(content')
     && has(fileCatalogSource, 'allowedFileCatalogItems: 1')
     && has(fileCatalogSource, 'excludeFileCatalogItemId: fileCatalogItem.id');
+  const hasContentSoftDeletePolicy = has(contentModelSource, 'isDeleted')
+    && has(contentModelSource, 'deletedAt')
+    && has(contentModelSource, 'where: {isDeleted: false}')
+    && has(databaseSource, 'isDeleted: true')
+    && has(databaseSource, 'includeDeleted')
+    && has(fileCatalogSource, 'app.ms.database.deleteContent(content.id)');
+  const hasStorageSpaceActiveContentFilters = has(storageSpaceUsageSource, 'WHERE "isDeleted" IS NOT TRUE')
+    && has(storageSpaceUsageSource, 'content."isDeleted" IS NOT TRUE')
+    && has(storageSpaceUsageSource, 'getStorageSpaceCleanupCandidateContents');
   const hasStorageObjectPinState = has(storageObjectModelSource, 'isPinned')
     && has(databaseSource, 'markStorageObjectPinnedByContent')
     && has(databaseSource, 'pinnedStorageObjects')
@@ -1594,7 +1621,7 @@ function hotspotRows(): HotspotRow[] {
       area: 'Content deletion',
       source: 'app/modules/database/index.ts + app/modules/fileCatalog/index.ts',
       hotspot: 'deleteFileCatalogItem deleteContent',
-      observedPattern: hasContentDeleteSafetyHelper
+      observedPattern: applyContentSoftDeletePolicy(hasContentDeleteSafetyHelper
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
             ? (hasStorageObjectChildReferenceGuard
@@ -1609,7 +1636,8 @@ function hotspotRows(): HotspotRow[] {
               : 'destroys catalog item first; only destroys content/physical storage after DB reference checks, exposing blocker reasons for future delayed-GC or operator reporting; checks include successful remote pins marked on StorageObject.isPinned and Content.isPinned'))
           : 'destroys catalog item first; only destroys content/physical storage after DB reference checks')
         : (has(fileCatalogSource, 'storage.remove(content.storageId)') ? 'unpin/remove physical storage and destroy content row' : 'review deleteContent path'),
-      scalabilityRisk: hasContentDeleteSafetyHelper
+        hasContentSoftDeletePolicy),
+      scalabilityRisk: applyContentSoftDeletePolicy(hasContentDeleteSafetyHelper
         ? (hasPinnedContentDeleteGuard
           ? (hasDerivedStorageDeleteGuard
             ? (hasStorageObjectChildReferenceGuard
@@ -1626,14 +1654,15 @@ function hotspotRows(): HotspotRow[] {
             : (hasPinStorageObjectLedger
               ? 'DB row references, canonical local pin state, and recorded remote pin refs are covered; generated output and async garbage collection still need a fuller lifecycle'
               : 'DB row references and canonical local pin state are covered; generated output, remote pin reconciliation, and async garbage collection still need a fuller lifecycle'))
-          : 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle')
+            : 'DB row references are covered; generated output, durable pin state, and async garbage collection still need a fuller lifecycle')
         : 'same storageId rows, post attachments, generated output, and pins need reference checks before physical deletion',
+        hasContentSoftDeletePolicy),
     },
     {
       area: 'Storage space analysis',
       source: 'app/modules/storageSpace/queryHelpers.ts + app/modules/storageSpace/storageInspectionHelpers.ts + app/modules/storageSpace/api.ts + app/modules/database/models/storageSpaceSnapshot.ts',
       hotspot: 'storage analyzer aggregate helpers',
-      observedPattern: hasStorageSpaceUsageHelpers
+      observedPattern: applyStorageSpaceActiveContentPolicy(hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
             ? (hasStorageSpaceGeneratedOutputs
@@ -1666,7 +1695,8 @@ function hotspotRows(): HotspotRow[] {
             : 'read-only helpers and AdminRead API routes expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
           : 'read-only helpers expose overview totals, MIME/type breakdowns, largest content rows, largest catalog files/folders, largest groups, and largest published posts while separating logical content bytes from deduplicated physical storage bytes')
         : 'storage usage is still inferred from unrelated content, file-catalog, and group screens',
-      scalabilityRisk: hasStorageSpaceUsageHelpers
+        hasStorageSpaceActiveContentFilters),
+      scalabilityRisk: applyStorageSpaceActiveContentPolicy(hasStorageSpaceUsageHelpers
         ? (hasStorageSpaceApi
           ? (hasStorageSpaceSnapshots
             ? (hasStorageSpaceGeneratedOutputs
@@ -1699,6 +1729,7 @@ function hotspotRows(): HotspotRow[] {
             : 'backend aggregate and API seams are present; cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
           : 'first backend aggregate seam is present; API routes, cached/background snapshots, generated-output DAG accounting, and frontend drilldown UI remain')
         : 'operators cannot identify large catalogs/groups/files without ad hoc queries, and duplicate storageId rows risk misleading physical-size reports',
+        hasStorageSpaceActiveContentFilters),
     },
     {
       area: 'File catalog publish',
@@ -1876,6 +1907,36 @@ function hotspotRows(): HotspotRow[] {
         ),
     },
   ];
+}
+
+function applyContentSoftDeletePolicy(text: string, enabled: boolean): string {
+  if (!enabled) {
+    return text;
+  }
+  return text
+    .replace(
+      /destroys catalog item first; only destroys content\/physical storage/g,
+      'destroys catalog item first; soft-deletes unreferenced content rows and only queues/removes physical storage'
+    )
+    .replace(
+      /unpin\/remove physical storage and destroy content row/g,
+      'unpin/remove physical storage and soft-delete content row'
+    )
+    .replace(
+      /async garbage collection still needs a fuller lifecycle/g,
+      'physical garbage collection is queued/rechecked after soft delete; broader lifecycle audit remains'
+    );
+}
+
+function applyStorageSpaceActiveContentPolicy(text: string, enabled: boolean): string {
+  if (!enabled) {
+    return text;
+  }
+  return text
+    .replace(/reporting overview totals/g, 'reporting active-content overview totals')
+    .replace(/expose overview totals/g, 'expose active-content overview totals')
+    .replace(/backend aggregate, API/g, 'active-content-aware backend aggregate, API')
+    .replace(/backend aggregate exists/g, 'active-content-aware backend aggregate exists');
 }
 
 function render(): string {
