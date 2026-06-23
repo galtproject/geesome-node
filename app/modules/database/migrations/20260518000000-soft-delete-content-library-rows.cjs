@@ -5,8 +5,9 @@
  *
  * Content is a user-owned library row. Deleting the last catalog reference
  * should hide the library row first, then let the storage-removal queue remove
- * physical bytes after its final reference check. The active uniqueness index
- * must ignore hidden rows so a user can re-add the same storageId later.
+ * physical bytes after its final reference check. Same-user storage duplicates
+ * are tolerated as legacy data and resolved through actor-scoped deterministic
+ * lookups rather than a Content(userId, storageId) uniqueness constraint.
  */
 
 module.exports = {
@@ -21,14 +22,6 @@ module.exports = {
 
     await queryInterface.sequelize.query(`
       DROP INDEX CONCURRENTLY IF EXISTS contents_user_storage_unique
-    `);
-
-    await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS contents_user_storage_unique
-        ON contents ("userId", "storageId")
-        WHERE "userId" IS NOT NULL
-          AND "storageId" IS NOT NULL
-          AND "isDeleted" IS NOT TRUE
     `);
   },
 
@@ -46,13 +39,6 @@ module.exports = {
       ALTER TABLE contents
         DROP COLUMN IF EXISTS "deletedAt",
         DROP COLUMN IF EXISTS "isDeleted"
-    `);
-
-    await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS contents_user_storage_unique
-        ON contents ("userId", "storageId")
-        WHERE "userId" IS NOT NULL
-          AND "storageId" IS NOT NULL
     `);
   },
 };
