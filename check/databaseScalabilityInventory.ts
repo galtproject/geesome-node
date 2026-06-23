@@ -68,6 +68,7 @@ function modelRows(): ModelRow[] {
   const objectSource = read('app/modules/database/models/object.ts');
   const databaseValuesTestSource = read('test/databaseValues.test.ts');
   const fileCatalogModelSource = read('app/modules/fileCatalog/models.ts');
+  const fileCatalogActivePathMigrationSource = read('app/modules/database/migrations/20260510000001-enforce-file-catalog-active-path-unique.cjs');
   const fileCatalogSource = read('app/modules/fileCatalog/index.ts');
   const groupPermissionSource = read('app/modules/group/models/groupPermission.ts');
   const groupReadSource = read('app/modules/group/models/groupRead.ts');
@@ -180,11 +181,11 @@ function modelRows(): ModelRow[] {
   const hasObjectResolvePropUnique = has(objectSource, 'objects_storage_resolve_prop_unique')
     && has(objectSource, "fields: ['storageId', 'resolveProp']")
     && has(objectSource, 'unique: true');
-  const hasFileCatalogPathUnique = has(fileCatalogModelSource, 'file_catalog_items_child_path_unique')
-    && has(fileCatalogModelSource, 'file_catalog_items_root_path_unique')
-    && has(fileCatalogModelSource, "fields: ['parentItemId', 'userId', 'name']")
-    && has(fileCatalogModelSource, "fields: ['userId', 'name']")
-    && has(fileCatalogModelSource, 'unique: true');
+  const hasFileCatalogPathUnique = has(fileCatalogActivePathMigrationSource, 'file_catalog_items_child_path_unique')
+    && has(fileCatalogActivePathMigrationSource, 'file_catalog_items_root_path_unique')
+    && has(fileCatalogActivePathMigrationSource, 'ON "fileCatalogItems" ("parentItemId", "userId", name)')
+    && has(fileCatalogActivePathMigrationSource, 'ON "fileCatalogItems" ("userId", name)')
+    && has(fileCatalogActivePathMigrationSource, 'CREATE UNIQUE INDEX CONCURRENTLY');
   const hasFileCatalogDefaultFolderRetry = has(fileCatalogSource, 'getOrCreateDefaultFolderFor')
     && has(fileCatalogSource, 'getAvailableFileCatalogItemName(userId, null, folderName)')
     && has(fileCatalogSource, 'isFileCatalogPathUniqueError(e)');
@@ -412,12 +413,12 @@ function modelRows(): ModelRow[] {
     },
     {
       area: 'File catalog',
-      source: 'app/modules/fileCatalog/models.ts',
+      source: 'app/modules/fileCatalog/models.ts + app/modules/database/migrations/20260510000001-enforce-file-catalog-active-path-unique.cjs',
       model: 'FileCatalogItem',
       indexes: [
         has(fileCatalogModelSource, 'file_catalog_items_content_idx') ? 'contentId reverse index' : 'missing contentId reverse index',
         hasFileCatalogParentListIndex ? 'user,parent,isDeleted,type,createdAt,id folder listing index' : 'missing folder listing index',
-        hasFileCatalogPathUnique ? 'cleanup-backed active path uniqueness for child and root rows' : 'missing active path uniqueness',
+        hasFileCatalogPathUnique ? 'migration-backed active path uniqueness for child and root rows' : 'missing active path uniqueness',
       ],
       notes: [
         has(fileCatalogModelSource, 'file_catalog_items_content_idx') && hasFileCatalogParentListIndex && hasFileCatalogPathUnique

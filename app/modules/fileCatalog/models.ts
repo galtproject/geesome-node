@@ -6,7 +6,7 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-import {Sequelize, DataTypes, Op} from 'sequelize';
+import {DataTypes} from 'sequelize';
 
 export default async function (sequelize, appModels) {
 	const FileCatalogItem = sequelize.define('fileCatalogItem', {
@@ -54,28 +54,9 @@ export default async function (sequelize, appModels) {
 			{name: 'file_catalog_items_content_idx', fields: ['contentId']},
 			// Scalability review slice 39 (matched by 20260510000001-enforce-file-catalog-active-path-unique.cjs):
 			{name: 'file_catalog_items_user_parent_list_idx', fields: ['userId', 'parentItemId', 'isDeleted', 'type', 'createdAt', 'id']},
-			{
-				name: 'file_catalog_items_child_path_unique',
-				fields: ['parentItemId', 'userId', 'name'],
-				unique: true,
-				where: {
-					isDeleted: false,
-					parentItemId: {[Op.ne]: null},
-					userId: {[Op.ne]: null},
-					name: {[Op.ne]: null}
-				}
-			},
-			{
-				name: 'file_catalog_items_root_path_unique',
-				fields: ['userId', 'name'],
-				unique: true,
-				where: {
-					isDeleted: false,
-					parentItemId: null,
-					userId: {[Op.ne]: null},
-					name: {[Op.ne]: null}
-				}
-			}
+			// Active path unique indexes are migration-owned. Restored production
+			// data can contain duplicates, so the cleanup migration must run before
+			// those indexes are created.
 		]
 	} as any);
 
