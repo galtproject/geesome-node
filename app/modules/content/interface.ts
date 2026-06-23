@@ -8,6 +8,10 @@ export default interface IGeesomeContentModule {
 
 	getDeletedContentList(adminId, searchString, listParams?: IListParams): Promise<IContentListResponse>;
 
+	getDeletedContentPurgeCandidates(adminId, options?): Promise<IContentTombstonePurgeCandidateListResponse>;
+
+	purgeDeletedContentTombstones(adminId, options?): Promise<IContentTombstonePurgeResult>;
+
 	restoreDeletedContent(adminId, contentId): Promise<IContent>;
 
 	getContent(contentId): Promise<IContent>;
@@ -37,4 +41,33 @@ export default interface IGeesomeContentModule {
 	getFileStreamForApiRequest(req, res, dataPath);
 
 	getContentHead(req, res, hash);
+}
+
+export interface IContentTombstonePurgeCandidate {
+	content: IContent;
+	safety: any;
+	retentionExpired: boolean;
+	storageExists?: boolean;
+	storageCheckError?: string;
+	safeToPurge: boolean;
+	purgeBlockers: string[];
+}
+
+export interface IContentTombstonePurgeCandidateListResponse {
+	list: IContentTombstonePurgeCandidate[];
+	total: number;
+	retentionDays: number;
+	cutoff: Date;
+}
+
+export interface IContentTombstonePurgeRow extends IContentTombstonePurgeCandidate {
+	purged: boolean;
+}
+
+export interface IContentTombstonePurgeResult {
+	list: IContentTombstonePurgeRow[];
+	purged: number;
+	skipped: number;
+	retentionDays: number;
+	cutoff: Date;
 }

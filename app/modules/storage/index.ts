@@ -1,5 +1,6 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeStorageModule from "./interface.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 
 export default async (app: IGeesomeApp, options = {implementation: null}) => {
 	const implementation = options.implementation || app.config.storageConfig.implementation;
@@ -57,8 +58,21 @@ function suppressStoragePinLogs(module: IGeesomeStorageModule): IGeesomeStorageM
 	if (!addPin) {
 		return module;
 	}
-	(module as any).addPin = (...args) => withSuppressedStoragePinLogs(() => addPin(...args));
+	(module as any).addPin = (hash, ...args) => addStoragePinWithoutDependencyLog(module, addPin, hash, args);
 	return module;
+}
+
+async function addStoragePinWithoutDependencyLog(module: IGeesomeStorageModule, addPin, hash, args) {
+	const cid = ipfsHelper.ipfsHashToCid(hash);
+	if ((module as any).node?.pins?.add) {
+		for await (const _value of (module as any).node.pins.add(cid, ...args)) {}
+		return;
+	}
+	if ((module as any).node?.pin?.add) {
+		await (module as any).node.pin.add(cid, ...args);
+		return;
+	}
+	return withSuppressedStoragePinLogs(() => addPin(hash, ...args));
 }
 
 function withSuppressedStoragePinLogs(callback) {

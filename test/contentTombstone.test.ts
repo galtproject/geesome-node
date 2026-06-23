@@ -80,4 +80,58 @@ describe('content tombstones', function () {
 		assert.equal(deletedContent.isDeleted, true);
 		assert.equal(activeContent.id, replacementContent.id);
 	});
+
+	it('purges only expired tombstones whose physical storage is already missing', async () => {
+		const purgeContent = await app.ms.content.saveData(testUser.id, 'purge tombstone body', 'purge.txt', {
+			mimeType: 'text/plain'
+		});
+		const storageExistsContent = await app.ms.content.saveData(testUser.id, 'keep tombstone body', 'keep.txt', {
+			mimeType: 'text/plain'
+		});
+		const deletedAt = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+		const originalGetFileStat = app.ms.storage.getFileStat.bind(app.ms.storage);
+
+		await app.ms.database.models.FileCatalogItem.destroy({where: {contentId: purgeContent.id}});
+		await app.ms.database.deleteContent(purgeContent.id);
+		await app.ms.database.deleteContent(storageExistsContent.id);
+		await app.ms.database.updateContent(purgeContent.id, {deletedAt});
+		await app.ms.database.updateContent(storageExistsContent.id, {deletedAt});
+
+		app.ms.storage.getFileStat = async (storageId, options) => {
+			if (storageId === purgeContent.storageId) {
+				throw new Error('not found');
+			}
+			return originalGetFileStat(storageId, options);
+		};
+
+		try {
+			const candidates = await app.ms.content.getDeletedContentPurgeCandidates(admin.id, {retentionDays: 30, limit: 20});
+			const purgeCandidate = candidates.list.find((row) => row.content.id === purgeContent.id);
+			const blockedCandidate = candidates.list.find((row) => row.content.id === storageExistsContent.id);
+
+			assert.equal(candidates.total, 2);
+			assert.equal(purgeCandidate.safeToPurge, true);
+			assert.equal(purgeCandidate.storageExists, false);
+			assert.equal(blockedCandidate.safeToPurge, false);
+			assert.equal(blockedCandidate.storageExists, true);
+			assert.equal(blockedCandidate.purgeBlockers.includes('storage_exists'), true);
+
+			const result = await app.ms.content.purgeDeletedContentTombstones(admin.id, {retentionDays: 30, limit: 20});
+			const purgedContent = await app.ms.database.getContent(purgeContent.id, {includeDeleted: true});
+			const keptContent = await app.ms.database.getContent(storageExistsContent.id, {includeDeleted: true});
+			const purgedContentActions = await app.ms.database.models.UserContentAction.count({where: {contentId: purgeContent.id}});
+			const userActions = await app.ms.database.models.UserContentAction.count({where: {userId: testUser.id}});
+
+			assert.equal(result.purged, 1);
+			assert.equal(result.skipped, 1);
+			assert.equal(result.list.find((row) => row.content.id === purgeContent.id).purged, true);
+			assert.equal(result.list.find((row) => row.content.id === storageExistsContent.id).purged, false);
+			assert.equal(purgedContent, null);
+			assert.equal(keptContent.isDeleted, true);
+			assert.equal(purgedContentActions, 0);
+			assert.equal(userActions >= 2, true);
+		} finally {
+			app.ms.storage.getFileStat = originalGetFileStat;
+		}
+	});
 });
