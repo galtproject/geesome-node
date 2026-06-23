@@ -10,10 +10,10 @@
   },
   "scripts": {
     "start": "yarn --no-optional -W && ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
-    "in-docker-start": "cd /geesome-node && yarn --no-optional -W && mkdir -p /geesome-node/frontend/docker-dist && rm -rf /geesome-node/frontend/docker-dist/* && UI_DIST=/geesome-node/node_modules/@geesome/ui/dist; UI_ROOT=/geesome-node/node_modules/@geesome/ui; if [ -f \"$UI_DIST/index.html\" ]; then cp -R \"$UI_DIST\"/* /geesome-node/frontend/docker-dist/; else cp -R \"$UI_ROOT\"/* /geesome-node/frontend/docker-dist/; fi && npm run database:sync-models && npm run migrate-all-database; npm run start",
+    "in-docker-start": "cd /geesome-node && yarn --no-optional -W && mkdir -p /geesome-node/frontend/docker-dist && rm -rf /geesome-node/frontend/docker-dist/* && UI_DIST=/geesome-node/node_modules/@geesome/ui/dist; UI_ROOT=/geesome-node/node_modules/@geesome/ui; if [ -f \"$UI_DIST/index.html\" ]; then cp -R \"$UI_DIST\"/* /geesome-node/frontend/docker-dist/; else cp -R \"$UI_ROOT\"/* /geesome-node/frontend/docker-dist/; fi && npm run database:sync-models && npm run migrate-all-database && npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb --if-exists geesome_test && createdb geesome_test",
-    "migrate-all-database": "npm run migrate-database; npm run ssg-migrate-database; npm run sci-migrate-database; npm run group-migrate-database;",
+    "migrate-all-database": "npm run migrate-database && npm run ssg-migrate-database && npm run sci-migrate-database && npm run group-migrate-database",
     "migrate-database": "( cd app/modules/database && ../../../node_modules/.bin/tsx ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
     "create-migration": "./node_modules/.bin/sequelize migration:generate --migrations-path app/modules/database/migrations --name",
     "group-migrate-database": "( cd app/modules/group && ../../../node_modules/.bin/tsx ./writeMigrationConfig.ts && NODE_ENV=production ../../../node_modules/.bin/sequelize db:migrate)",
