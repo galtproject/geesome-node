@@ -25,6 +25,7 @@ import {
   IListParams,
   IListParamsOptions,
   IObject,
+  IStorageObjectIdentityData,
   IStorageObjectReferenceRecord,
   IStorageObjectRecord,
   StorageObjectReferenceType,
@@ -309,20 +310,32 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     if (!storageObjectData?.storageId) {
       return null;
     }
+    const normalizedStorageObjectData = getStorageObjectSyncData(storageObjectData);
     const [storageObject, created] = await this.models.StorageObject.findOrCreate({
-      where: {storageId: storageObjectData.storageId},
-      defaults: storageObjectData,
+      where: {storageId: normalizedStorageObjectData.storageId},
+      defaults: normalizedStorageObjectData,
       transaction: options.transaction
     });
     if (created) {
       return storageObject;
     }
-    const updateData = getStorageObjectUpdateData(storageObject, storageObjectData);
+    const updateData = getStorageObjectUpdateData(storageObject, normalizedStorageObjectData);
     if (!Object.keys(updateData).length) {
       return storageObject;
     }
     await storageObject.update(updateData, {transaction: options.transaction});
     return storageObject;
+  }
+
+  async syncStorageObjectIdentity(storageId: string, identityData: IStorageObjectIdentityData, options: any = {}) {
+    const normalizedIdentityData = getStorageObjectIdentityData(identityData);
+    if (!storageId || !normalizedIdentityData) {
+      return null;
+    }
+    return this.syncStorageObject({
+      storageId,
+      ...normalizedIdentityData,
+    }, options);
   }
 
   async syncStorageObjectReference(referenceData: Partial<IStorageObjectReferenceRecord>, options: any = {}) {
@@ -929,7 +942,17 @@ const storageObjectMetadataFields = [
   'smallPreviewStorageId',
   'smallPreviewSize',
   'previewMimeType',
-  'previewExtension'
+  'previewExtension',
+  'identityType',
+  'identityId',
+  'identityUrl',
+  'identityUpdatedAt'
+];
+const storageObjectIdentityFields = [
+  'identityType',
+  'identityId',
+  'identityUrl',
+  'identityUpdatedAt'
 ];
 
 function getStorageObjectData(content) {
@@ -1046,6 +1069,28 @@ function getStorageObjectUpdateData(storageObject, storageObjectData) {
     updateData.isPinned = true;
   }
   return updateData;
+}
+
+function getStorageObjectSyncData(storageObjectData) {
+  const syncData = {...storageObjectData};
+  storageObjectIdentityFields.forEach(field => delete syncData[field]);
+  const identityData = getStorageObjectIdentityData(storageObjectData);
+  if (identityData) {
+    Object.assign(syncData, identityData);
+  }
+  return syncData;
+}
+
+function getStorageObjectIdentityData(identityData) {
+  if (!identityData?.identityType || !identityData?.identityId) {
+    return null;
+  }
+  return {
+    identityType: identityData.identityType,
+    identityId: identityData.identityId,
+    identityUrl: identityData.identityUrl,
+    identityUpdatedAt: identityData.identityUpdatedAt || new Date(),
+  };
 }
 
 function getEmptyStorageIdReferenceCounts() {
