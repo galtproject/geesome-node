@@ -35,6 +35,8 @@ export default interface IGeesomeStorageSpaceModule {
 
   getStorageSpaceAvailabilityNetworkSamples(listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSampleRow[]>;
 
+  getStorageSpaceAvailabilityNetworkSampleSummary(listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSampleSummaryRow[]>;
+
   refreshStorageSpaceAvailabilityNetworkSamples(userId?: number, listParams?: IListParams): Promise<IStorageSpaceAvailabilityNetworkSampleRefreshResult>;
 
   cleanupStorageSpaceAvailabilityNetworkSamples(options?: any): Promise<number>;
@@ -297,6 +299,28 @@ export interface IStorageSpaceAvailabilityNetworkSampleRow extends IStorageSpace
   sampledAt?: Date | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
+}
+
+export interface IStorageSpaceAvailabilityNetworkSampleSummaryRow {
+  storageId: string;
+  samplesCount: number;
+  providerLookupOkCount: number;
+  retrievalStatOkCount: number;
+  maxProvidersCount: number;
+  firstSampledAt?: Date | null;
+  latestSampleId: number;
+  latestUserId?: number | null;
+  latestProviderLookupOk: boolean;
+  latestProvidersCount: number;
+  latestProvidersTruncated: boolean;
+  latestProviderLookupDurationMs: number;
+  latestProviderLookupErrorMessage?: string | null;
+  latestRetrievalStatOk: boolean;
+  latestRetrievalStatDurationMs: number;
+  latestRetrievalType?: string | null;
+  latestRetrievalMeasuredBytes: number;
+  latestRetrievalErrorMessage?: string | null;
+  latestSampledAt?: Date | null;
 }
 
 export interface IStorageSpaceAvailabilityNetworkSampleRefreshResult {
