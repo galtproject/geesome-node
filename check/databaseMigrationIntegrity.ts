@@ -101,7 +101,7 @@ const coveredMigrations: CoveredMigration[] = [
   {
     module: 'database',
     file: '20260507000002-enforce-content-user-storage-unique.cjs',
-    verifies: ['same-user content storage uniqueness', 'deduped content references'],
+    verifies: ['obsolete same-user content storage unique index is absent'],
   },
   {
     module: 'database',
@@ -166,12 +166,17 @@ const coveredMigrations: CoveredMigration[] = [
   {
     module: 'database',
     file: '20260518000000-soft-delete-content-library-rows.cjs',
-    verifies: ['content soft-delete columns', 'active same-user content storage uniqueness'],
+    verifies: ['content soft-delete columns', 'same-user content storage duplicates remain tolerated'],
   },
   {
     module: 'database',
     file: '20260623000000-add-storage-object-identity-columns.cjs',
     verifies: ['storage-object ownerless/federated identity columns and partial lookup index'],
+  },
+  {
+    module: 'database',
+    file: '20260623000001-drop-content-user-storage-unique.cjs',
+    verifies: ['drops reverted same-user content storage unique index'],
   },
   {
     module: 'group',
@@ -262,7 +267,6 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'contents_user_created_idx', table: 'contents', columns: ['userId', 'createdAt', 'id']},
   {name: 'contents_manifest_storage_idx', table: 'contents', columns: ['manifestStorageId']},
   {name: 'contents_user_manifest_storage_idx', table: 'contents', columns: ['userId', 'manifestStorageId']},
-  {name: 'contents_user_storage_unique', table: 'contents', columns: ['userId', 'storageId'], unique: true},
   {name: 'storage_objects_storage_id_unique', table: 'storageObjects', columns: ['storageId'], unique: true},
   {
     name: 'storage_objects_identity_idx',
@@ -361,7 +365,16 @@ const storageObjectMetadataColumns = [
 ];
 
 const countChecks: CountCheck[] = [
-  duplicateCheck('active same-user content storage duplicates', 'contents', ['userId', 'storageId'], '"isDeleted" IS NOT TRUE'),
+  {
+    name: 'reverted content user/storage unique index is absent',
+    requirements: [{table: 'contents'}],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM pg_class
+      WHERE relkind = 'i'
+        AND relname = 'contents_user_storage_unique'
+    `,
+  },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),
   duplicateCheck('storage object reference duplicates', 'storageObjectReferences', ['sourceStorageId', 'targetStorageId', 'referenceType']),
   {

@@ -132,13 +132,10 @@ function modelRows(): ModelRow[] {
     && has(autoActionIndexSource, 'claimDueForExecution')
     && has(autoActionSource, 'FOR UPDATE SKIP LOCKED')
     && has(autoActionCronSource, 'claimAutoActionsToExecute');
-  const hasContentUserStorageUnique = has(contentSource, 'contents_user_storage_unique')
-    && has(contentSource, "fields: ['userId', 'storageId']")
-    && has(contentSource, 'unique: true');
+  const hasContentUserStorageLookup = has(contentSource, "fields: ['storageId', 'userId']");
   const hasContentSoftDeletePolicy = has(contentSource, 'isDeleted')
     && has(contentSource, 'deletedAt')
     && has(contentSource, 'allowNull: false')
-    && has(contentSource, 'where: {isDeleted: false}')
     && has(databaseModuleSource, 'isDeleted: true')
     && has(databaseModuleSource, 'includeDeleted')
     && has(fileCatalogSource, 'app.ms.database.deleteContent(content.id)');
@@ -302,11 +299,9 @@ function modelRows(): ModelRow[] {
       source: 'app/modules/database/models/content.ts',
       model: 'Content',
       indexes: [
-        hasContentUserStorageUnique
-          ? (hasContentSoftDeletePolicy
-            ? 'userId,storageId unique active ownership constraint plus storageId,userId lookup'
-            : 'userId,storageId unique ownership constraint plus storageId,userId lookup')
-          : 'storageId,userId non-unique ownership lookup',
+        hasContentUserStorageLookup
+          ? 'storageId,userId non-unique ownership lookup'
+          : 'missing storageId,userId ownership lookup',
         has(contentSource, 'manifestStaticStorageId') && has(contentSource, 'unique: true') ? 'manifestStaticStorageId unique' : 'manifestStaticStorageId uniqueness not found',
         has(contentSource, "fields: ['userId', 'manifestStorageId'") ? 'userId,manifestStorageId actor-scoped lookup' : 'missing actor-scoped manifest lookup index',
       ],
@@ -314,23 +309,19 @@ function modelRows(): ModelRow[] {
         has(contentSource, "fields: ['userId'") ? 'has user listing index' : 'missing user/created listing index',
         has(contentSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
         has(contentSource, "fields: ['mediumPreviewStorageId'") ? 'has preview lookup indexes' : 'missing preview lookup indexes for file/header serving',
-        hasContentUserStorageUnique && hasDeterministicSharedContentLookup
+        hasContentUserStorageLookup && hasDeterministicSharedContentLookup
           ? (hasOwnerlessContentCreateGuard
             ? (hasStorageObjectRegistry
               ? (hasContentSoftDeletePolicy
-                ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor'
-                : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage reads prefer storageObject with Content fallback, shared manifest reads use deterministic id ordering, and new library rows require an actor')
+                ? 'same storageId across different users and legacy same-user duplicate rows remain valid; soft-deleted rows no longer block re-upload; actor-scoped helpers and deterministic shared reads handle duplicate candidates; shared storage reads prefer storageObject with Content fallback, shared manifest reads use id ordering, and new library rows require an actor'
+                : 'same storageId across different users and legacy same-user duplicate rows remain valid; actor-scoped helpers and deterministic shared reads handle duplicate candidates; shared storage reads prefer storageObject with Content fallback, shared manifest reads use id ordering, and new library rows require an actor')
               : (hasContentSoftDeletePolicy
-                ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical asset policy uses StorageObject identity'
-                : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical asset policy uses StorageObject identity'))
+                ? 'same storageId across different users and legacy same-user duplicate rows remain valid; soft-deleted rows no longer block re-upload; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical asset policy uses StorageObject identity'
+                : 'same storageId across different users and legacy same-user duplicate rows remain valid; shared storage/manifest reads use deterministic id ordering, and new library rows require an actor until canonical asset policy uses StorageObject identity'))
             : (hasContentSoftDeletePolicy
-              ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness, soft-deleted rows no longer block re-upload, and shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'
-              : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'))
-          : (hasContentUserStorageUnique
-          ? (hasContentSoftDeletePolicy
-            ? 'same storageId across different users remains valid; same-user active duplicates are guarded by cleanup-backed uniqueness and soft-deleted rows no longer block re-upload; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics'
-            : 'same storageId across different users remains valid; same-user duplicates are guarded by cleanup-backed uniqueness; remaining global storage/manifest findOne paths need actor scope or canonical asset semantics')
-          : 'same storageId across different users is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics'),
+              ? 'same storageId across different users and legacy same-user duplicate rows remain valid; soft-deleted rows no longer block re-upload; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'
+              : 'same storageId across different users and legacy same-user duplicate rows remain valid; shared storage/manifest reads use deterministic id ordering while actor/canonical semantics remain caller-specific'))
+          : 'same storageId across users and within legacy same-user data is valid; remaining global storage/manifest findOne paths need caller-specific actor scope or canonical asset semantics',
       ],
     },
     {
