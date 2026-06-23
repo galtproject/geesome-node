@@ -13,6 +13,8 @@ import {pathToFileURL} from 'node:url';
 import {QueryTypes, Sequelize} from 'sequelize';
 import databaseConfig from '../app/modules/database/config.js';
 import {
+  getStorageSpaceAvailabilityNetworkSampleSummary,
+  getStorageSpaceAvailabilitySignals,
   getStorageSpaceFileCatalogFolders,
   getStorageSpaceGeneratedOutputs,
   getStorageSpaceGroupPosts,
@@ -38,6 +40,7 @@ type ReportData = {
   };
   limit: number;
   hasRemotePinRefs: boolean;
+  hasAvailabilitySamples: boolean;
   overview: any;
   typeBreakdown: any[];
   topContents: any[];
@@ -49,6 +52,8 @@ type ReportData = {
   sharedStorageIds: any[];
   pinnedStorageObjects: any[];
   previewStorage: any[];
+  availabilitySignals: any[];
+  availabilityNetworkSampleSummary: any[];
 };
 
 async function run(): Promise<void> {
@@ -67,6 +72,7 @@ async function run(): Promise<void> {
   try {
     await sequelize.authenticate();
     const hasRemotePinRefs = await tableExists(sequelize, 'pinStorageObjects');
+    const hasAvailabilitySamples = await tableExists(sequelize, 'storageSpaceAvailabilitySamples');
     const listParams = {
       limit,
       offset: 0,
@@ -80,6 +86,7 @@ async function run(): Promise<void> {
       database: getDatabaseTarget(),
       limit,
       hasRemotePinRefs,
+      hasAvailabilitySamples,
       overview: await getStorageSpaceOverview(sequelize, {hasRemotePinRefs}),
       typeBreakdown: await getStorageSpaceTypeBreakdown(sequelize, listParams),
       topContents: await getStorageSpaceTopContents(sequelize, listParams),
@@ -91,6 +98,10 @@ async function run(): Promise<void> {
       sharedStorageIds: await getStorageSpaceSharedStorageIds(sequelize, listParams),
       pinnedStorageObjects: await getStorageSpacePinnedStorageObjects(sequelize, listParams),
       previewStorage: await getStorageSpacePreviewStorage(sequelize, listParams),
+      availabilitySignals: await getStorageSpaceAvailabilitySignals(sequelize, listParams),
+      availabilityNetworkSampleSummary: hasAvailabilitySamples
+        ? await getStorageSpaceAvailabilityNetworkSampleSummary(sequelize, listParams)
+        : [],
     };
     const report = renderReport(data);
 
@@ -153,7 +164,7 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return parsed;
 }
 
-function renderReport(data: ReportData): string {
+export function renderReport(data: ReportData): string {
   return [
     '# Storage Space Report',
     '',
@@ -161,6 +172,7 @@ function renderReport(data: ReportData): string {
     `Database: ${data.database.host || 'localhost'}:${data.database.port || 5432}/${data.database.name || ''}`,
     `List limit: ${data.limit}`,
     `Remote pin refs table: ${data.hasRemotePinRefs ? 'present' : 'absent'}`,
+    `Availability samples table: ${data.hasAvailabilitySamples ? 'present' : 'absent'}`,
     '',
     '## Overview',
     '',
@@ -246,6 +258,22 @@ function renderReport(data: ReportData): string {
       row => [row.previewField, row.contentRowsCount, row.storageObjectRowsCount, row.uniqueStorageIdsCount, row.registeredStorageObjectsCount, row.unregisteredStorageIdsCount, formatBytesCell(row.logicalPreviewBytes), formatBytesCell(row.physicalPreviewBytes)],
     ),
     '',
+    '## Availability Signals',
+    '',
+    renderTable(
+      ['Storage ID', 'Physical bytes', 'Content rows', 'Users', 'Catalog refs', 'Post refs', 'Generated refs', 'Local pins', 'Remote pins', 'Max peers', 'Max full peers', 'Latest signal'],
+      data.availabilitySignals,
+      row => [row.storageId, formatBytesCell(row.physicalBytes), row.contentRowsCount, row.usersCount, row.activeFileCatalogRefsCount, row.groupPostRefsCount, row.generatedOutputRefsCount, row.localPinRefsCount, row.remotePinsCount, row.maxPeerCount, row.maxFullyPeerCount, formatDateCell(row.latestSignalAt)],
+    ),
+    '',
+    '## Availability Network Sample Summary',
+    '',
+    renderTable(
+      ['Storage ID', 'Samples', 'Provider OK', 'Retrieval OK', 'Max providers', 'Latest providers', 'Latest retrieval OK', 'Latest measured bytes', 'First sampled', 'Latest sampled'],
+      data.availabilityNetworkSampleSummary,
+      row => [row.storageId, row.samplesCount, row.providerLookupOkCount, row.retrievalStatOkCount, row.maxProvidersCount, row.latestProvidersCount, row.latestRetrievalStatOk, formatBytesCell(row.latestRetrievalMeasuredBytes), formatDateCell(row.firstSampledAt), formatDateCell(row.latestSampledAt)],
+    ),
+    '',
   ].join('\n');
 }
 
@@ -300,6 +328,19 @@ function escapeTableCell(value) {
 function formatBytesCell(value) {
   const bytes = Number(value || 0);
   return `${bytes} (${formatBytes(bytes)})`;
+}
+
+function formatDateCell(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString();
 }
 
 function formatBytes(bytes: number): string {
