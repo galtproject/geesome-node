@@ -125,6 +125,7 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
         COUNT(*)::bigint AS "contentRowsCount",
         COALESCE(SUM(COALESCE(size, 0)), 0)::bigint AS "logicalContentBytes"
       FROM contents
+      WHERE "isDeleted" IS NOT TRUE
     ),
     physical_content AS (
       SELECT
@@ -134,6 +135,7 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
         SELECT "storageId", MAX(COALESCE(size, 0))::bigint AS size
         FROM contents
         WHERE "storageId" IS NOT NULL
+          AND "isDeleted" IS NOT TRUE
         GROUP BY "storageId"
       ) storage_rows
     ),
@@ -145,6 +147,7 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
         SELECT "storageId", COUNT(*)::bigint AS row_count
         FROM contents
         WHERE "storageId" IS NOT NULL
+          AND "isDeleted" IS NOT TRUE
         GROUP BY "storageId"
         HAVING COUNT(*) > 1
       ) duplicates
@@ -157,6 +160,7 @@ export async function getStorageSpaceOverview(sequelize, options: any = {}) {
       LEFT JOIN contents content ON content.id = item."contentId"
       WHERE item."isDeleted" IS NOT TRUE
         AND item.type = :fileType
+        AND content."isDeleted" IS NOT TRUE
     ),
     group_posts AS (
       SELECT
@@ -225,6 +229,7 @@ export async function getStorageSpaceTypeBreakdown(sequelize, listParams: any = 
         COUNT(*)::bigint AS "contentRowsCount",
         COALESCE(SUM(COALESCE(size, 0)), 0)::bigint AS "logicalBytes"
       FROM contents
+      WHERE "isDeleted" IS NOT TRUE
       GROUP BY COALESCE("mimeType", :unknownValue), COALESCE(extension, :unknownValue)
     ),
     physical_type_rows AS (
@@ -235,6 +240,7 @@ export async function getStorageSpaceTypeBreakdown(sequelize, listParams: any = 
         MAX(COALESCE(size, 0))::bigint AS size
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       GROUP BY COALESCE("mimeType", :unknownValue), COALESCE(extension, :unknownValue), "storageId"
     ),
     physical_types AS (
@@ -279,6 +285,7 @@ export async function getStorageSpaceTopContents(sequelize, listParams: any = {}
       COALESCE(size, 0)::bigint AS size,
       "createdAt"
     FROM contents
+    WHERE "isDeleted" IS NOT TRUE
     ORDER BY COALESCE(size, 0) DESC, id ASC
     LIMIT :limit OFFSET :offset
   `, {
@@ -301,7 +308,8 @@ export async function getStorageSpaceCleanupCandidateContents(sequelize, listPar
       COALESCE(size, 0)::bigint AS size,
       "createdAt"
     FROM contents
-    WHERE (:contentId::bigint IS NULL OR id = :contentId::bigint)
+    WHERE "isDeleted" IS NOT TRUE
+      AND (:contentId::bigint IS NULL OR id = :contentId::bigint)
     ORDER BY COALESCE(size, 0) DESC, id ASC
     LIMIT :limit OFFSET :offset
   `, {
@@ -330,6 +338,7 @@ export async function getStorageSpaceTopFileCatalogItems(sequelize, listParams: 
     LEFT JOIN contents content ON content.id = item."contentId"
     WHERE item."isDeleted" IS NOT TRUE
       AND item.type = :fileType
+      AND content."isDeleted" IS NOT TRUE
     ORDER BY COALESCE(content.size, item.size, 0) DESC, item.id ASC
     LIMIT :limit OFFSET :offset
   `, {
@@ -373,9 +382,15 @@ export async function getStorageSpaceFileCatalogFolders(sequelize, listParams: a
     folder_logical_stats AS (
       SELECT
         folder_tree."folderId",
-        COUNT(item.id) FILTER (WHERE item.type = :fileType)::bigint AS "filesCount",
+        COUNT(item.id) FILTER (
+          WHERE item.type = :fileType
+            AND content."isDeleted" IS NOT TRUE
+        )::bigint AS "filesCount",
         COALESCE(
-          SUM(COALESCE(content.size, item.size, 0)) FILTER (WHERE item.type = :fileType),
+          SUM(COALESCE(content.size, item.size, 0)) FILTER (
+            WHERE item.type = :fileType
+              AND content."isDeleted" IS NOT TRUE
+          ),
           0
         )::bigint AS "logicalBytes"
       FROM folder_tree
@@ -393,6 +408,7 @@ export async function getStorageSpaceFileCatalogFolders(sequelize, listParams: a
       JOIN contents content ON content.id = item."contentId"
       WHERE item.type = :fileType
         AND content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY folder_tree."folderId", content."storageId"
     ),
     folder_physical_stats AS (
@@ -490,6 +506,7 @@ export async function getStorageSpaceGroupPosts(sequelize, listParams: any = {})
       FROM scoped_posts
       JOIN "postsContents" post_content ON post_content."postId" = scoped_posts.id
       JOIN contents content ON content.id = post_content."contentId"
+      WHERE content."isDeleted" IS NOT TRUE
     ),
     post_content_stats AS (
       SELECT
@@ -658,6 +675,7 @@ export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any
         (ARRAY_AGG(extension ORDER BY id))[1] AS "contentExtension"
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       GROUP BY "storageId"
       HAVING COUNT(*) > 1
     ),
@@ -669,6 +687,7 @@ export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any
       JOIN contents content ON content.id = item."contentId"
       WHERE item."isDeleted" IS NOT TRUE
         AND content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY content."storageId"
     ),
     group_post_stats AS (
@@ -678,6 +697,7 @@ export async function getStorageSpaceSharedStorageIds(sequelize, listParams: any
       FROM "postsContents" post_content
       JOIN contents content ON content.id = post_content."contentId"
       WHERE content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY content."storageId"
     )
     SELECT
@@ -730,6 +750,7 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
         COUNT(DISTINCT "userId")::bigint AS "usersCount"
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       GROUP BY "storageId"
     ),
     file_catalog_stats AS (
@@ -740,6 +761,7 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
       JOIN contents content ON content.id = item."contentId"
       WHERE item."isDeleted" IS NOT TRUE
         AND content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY content."storageId"
     ),
     group_post_stats AS (
@@ -749,6 +771,7 @@ export async function getStorageSpacePinnedStorageObjects(sequelize, listParams:
       FROM "postsContents" post_content
       JOIN contents content ON content.id = post_content."contentId"
       WHERE content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY content."storageId"
     ),
     ${getGeneratedOutputRefsSql()},
@@ -805,6 +828,7 @@ export async function getStorageSpacePreviewStorage(sequelize, listParams: any =
         COALESCE("largePreviewSize", 0)::bigint AS size
       FROM contents
       WHERE "largePreviewStorageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
 
       UNION ALL
 
@@ -814,6 +838,7 @@ export async function getStorageSpacePreviewStorage(sequelize, listParams: any =
         COALESCE("mediumPreviewSize", 0)::bigint AS size
       FROM contents
       WHERE "mediumPreviewStorageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
 
       UNION ALL
 
@@ -823,6 +848,7 @@ export async function getStorageSpacePreviewStorage(sequelize, listParams: any =
         COALESCE("smallPreviewSize", 0)::bigint AS size
       FROM contents
       WHERE "smallPreviewStorageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
     ),
     storage_object_preview_refs AS (
       SELECT
@@ -942,6 +968,7 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
         MAX("updatedAt") AS "latestContentSignalAt"
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       GROUP BY "storageId"
     ),
     file_catalog_stats AS (
@@ -952,6 +979,7 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
       JOIN contents content ON content.id = item."contentId"
       WHERE item."isDeleted" IS NOT TRUE
         AND content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY content."storageId"
     ),
     post_attachment_stats AS (
@@ -967,6 +995,7 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
       JOIN contents content ON content.id = post_content."contentId"
       WHERE post."isDeleted" IS NOT TRUE
         AND content."storageId" IS NOT NULL
+        AND content."isDeleted" IS NOT TRUE
       GROUP BY content."storageId"
     ),
     post_direct_refs AS (
@@ -1062,6 +1091,7 @@ export async function getStorageSpaceAvailabilitySignals(sequelize, listParams: 
       SELECT "storageId"
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
 
       UNION
 

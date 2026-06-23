@@ -474,7 +474,7 @@ function getModule(app: IGeesomeApp, models) {
 
 			await fileCatalogItem['destroy']();
 			if (deleteSafety.safeToDestroyContent) {
-				await content['destroy']();
+				await app.ms.database.deleteContent(content.id);
 			}
 			if (deleteSafety.safeToRemovePhysical) {
 				await removePhysicalStorageForDeletedContent(app, userId, content);

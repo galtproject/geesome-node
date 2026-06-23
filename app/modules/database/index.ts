@@ -224,7 +224,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async deleteContent(id) {
-    return this.models.Content.destroy({where: {id}})
+    return this.models.Content.update({
+      isDeleted: true,
+      deletedAt: new Date()
+    }, {where: {id, isDeleted: {[Op.ne]: true}}});
   }
 
   async getStorageObjectByStorageId(storageId) {
@@ -353,15 +356,16 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   async getContentList(userId, listParams: IListParams = {}) {
     const {limit, offset} = listParams;
     return this.models.Content.findAll({
-      where: {userId},
+      where: getActiveContentWhere({userId}),
       order: [ ['createdAt', 'DESC'] ],
       limit,
       offset
     });
   }
 
-  async getContent(id) {
-    return this.models.Content.findOne({where: {id}}) as IContent;
+  async getContent(id, options: any = {}) {
+    const where = options.includeDeleted ? {id} : getActiveContentWhere({id});
+    return this.models.Content.findOne({where}) as IContent;
   }
 
   async getContentByStorageId(storageId, findByPreviews = false) {
@@ -375,31 +379,31 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // New physical-object reads should prefer getSharedStorageMetadataByStorageId() so StorageObject
   // can be the canonical source while old rows still fall back to Content.
   async getSharedContentByStorageId(storageId, opts: {includePreviews?: boolean} = {}) {
-    const where = opts.includePreviews
+    const where = getActiveContentWhere(opts.includePreviews
       ? {[Op.or]: [{storageId}, {largePreviewStorageId: storageId}, {mediumPreviewStorageId: storageId}, {smallPreviewStorageId: storageId}]}
-      : {storageId};
+      : {storageId});
     return this.models.Content.findOne({where, order: [['id', 'ASC']]}) as IContent;
   }
 
   async getSharedContentByManifestId(manifestStorageId) {
-    return this.models.Content.findOne({where: {manifestStorageId}, order: [['id', 'ASC']]}) as IContent;
+    return this.models.Content.findOne({where: getActiveContentWhere({manifestStorageId}), order: [['id', 'ASC']]}) as IContent;
   }
 
   // A1 reference-count helper for physical storage objects. Used by deleteFileCatalogItem before
   // unpinning/removing the storage object so a delete by one user cannot break another user's row,
   // a Content row that uses the storageId as a preview, or a future canonical asset.
   async countStorageIdReferences(storageId, excludeContentId?: number, options: IStorageIdReferenceOptions = {}) {
-    const otherContentsWhere: any = {storageId};
+    const otherContentsWhere: any = getActiveContentWhere({storageId});
     if (excludeContentId) {
       otherContentsWhere.id = {[Op.ne]: excludeContentId};
     }
-    const previewRefsWhere: any = {
+    const previewRefsWhere: any = getActiveContentWhere({
       [Op.or]: [
         {largePreviewStorageId: storageId},
         {mediumPreviewStorageId: storageId},
         {smallPreviewStorageId: storageId},
       ],
-    };
+    });
     if (excludeContentId) {
       previewRefsWhere.id = {[Op.ne]: excludeContentId};
     }
@@ -440,7 +444,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       this.models.Group.count({where: {avatarImageId: contentId}}),
       this.models.Group.count({where: {coverImageId: contentId}}),
       this.models.User.count({where: {avatarImageId: contentId}}),
-      this.models.Content.count({where: {id: contentId, isPinned: true}}),
+      this.models.Content.count({where: getActiveContentWhere({id: contentId, isPinned: true})}),
     ]);
     return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
   }
@@ -472,11 +476,11 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getContentByStorageAndUserId(storageId, userId) {
-    return this.models.Content.findOne({where: {storageId, userId}}) as IContent;
+    return this.models.Content.findOne({where: getActiveContentWhere({storageId, userId})}) as IContent;
   }
 
   async getContentByStorageIdListAndUserId(storageIdList, userId) {
-    return this.models.Content.findAll({where: {storageId: {[Op.in]: storageIdList}, userId}}) as IContent;
+    return this.models.Content.findAll({where: getActiveContentWhere({storageId: {[Op.in]: storageIdList}, userId})}) as IContent;
   }
 
   async getContentByManifestId(manifestStorageId) {
@@ -484,7 +488,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   async getContentByManifestAndUserId(manifestStorageId, userId) {
-    return this.models.Content.findOne({where: {manifestStorageId, userId}}) as IContent;
+    return this.models.Content.findOne({where: getActiveContentWhere({manifestStorageId, userId})}) as IContent;
   }
 
   async getObjectByStorageId(storageId, resolveProp = false) {
@@ -643,15 +647,15 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   getAllContentWhere(searchString) {
-    let where = {};
+    let where = getActiveContentWhere();
     if (searchString) {
-      where = {[Op.or]: [{name: searchString}, {manifestStorageId: searchString}, {storageId: searchString}]};
+      where = getActiveContentWhere({[Op.or]: [{name: searchString}, {manifestStorageId: searchString}, {storageId: searchString}]});
     }
     return where;
   }
 
   getUserContentListByIds(userId, contentIds) {
-    return this.models.Content.findAll({where: {userId, id: {[Op.in]: contentIds}}});
+    return this.models.Content.findAll({where: getActiveContentWhere({userId, id: {[Op.in]: contentIds}})});
   }
 
   async getAllContentList(searchString, listParams: IListParams = {}) {
@@ -1025,6 +1029,13 @@ function getContentDeleteBlocker(
 
 function isContentDeleteBlocker(blocker: IContentDeleteSafetyBlocker | null): blocker is IContentDeleteSafetyBlocker {
   return blocker !== null;
+}
+
+function getActiveContentWhere(where: any = {}) {
+  return {
+    ...where,
+    isDeleted: {[Op.ne]: true}
+  };
 }
 
 const storageObjectReferenceMetadataFields = [

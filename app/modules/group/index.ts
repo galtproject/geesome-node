@@ -2073,7 +2073,7 @@ function getModule(app: IGeesomeApp, models) {
 			const {transaction} = options;
 			const desired: Array<{contentId: number; position: number; view: any}> = [];
 			await pIteration.forEach(contents, async (content: IContent, position) => {
-				const contentObj: any = await models.Content.findOne({where: {id: content.id}, transaction});
+				const contentObj: any = await models.Content.findOne({where: {id: content.id, isDeleted: {[Op.ne]: true}}, transaction});
 				if (!contentObj) {
 					return;
 				}

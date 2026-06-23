@@ -163,6 +163,11 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['auto-action log payload columns can store JSON diagnostics'],
   },
   {
+    module: 'database',
+    file: '20260518000000-soft-delete-content-library-rows.cjs',
+    verifies: ['content soft-delete columns', 'active same-user content storage uniqueness'],
+  },
+  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -221,6 +226,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'contents', columns: ['largePreviewSize'], type: 'bigint'},
   {table: 'contents', columns: ['mediumPreviewSize'], type: 'bigint'},
   {table: 'contents', columns: ['smallPreviewSize'], type: 'bigint'},
+  {table: 'contents', columns: ['isDeleted'], type: 'boolean'},
+  {table: 'contents', columns: ['deletedAt'], type: 'timestamp with time zone'},
   {table: 'categories', columns: ['size'], type: 'bigint'},
   {table: 'groupSections', columns: ['size'], type: 'bigint'},
   {table: 'groupReads', columns: ['readPostId'], type: 'integer'},
@@ -338,13 +345,13 @@ const storageObjectMetadataColumns = [
 ];
 
 const countChecks: CountCheck[] = [
-  duplicateCheck('same-user content storage duplicates', 'contents', ['userId', 'storageId']),
+  duplicateCheck('active same-user content storage duplicates', 'contents', ['userId', 'storageId'], '"isDeleted" IS NOT TRUE'),
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),
   duplicateCheck('storage object reference duplicates', 'storageObjectReferences', ['sourceStorageId', 'targetStorageId', 'referenceType']),
   {
     name: 'content storage IDs have canonical storage object rows',
     requirements: [
-      {table: 'contents', columns: ['storageId']},
+      {table: 'contents', columns: ['storageId', 'isDeleted']},
       {table: 'storageObjects', columns: ['storageId']},
     ],
     sql: `
@@ -358,7 +365,7 @@ const countChecks: CountCheck[] = [
   {
     name: 'canonical storage object rows match deterministic content metadata',
     requirements: [
-      {table: 'contents', columns: ['storageId', 'isPinned', ...storageObjectMetadataColumns]},
+      {table: 'contents', columns: ['storageId', 'isDeleted', 'isPinned', ...storageObjectMetadataColumns]},
       {table: 'storageObjects', columns: ['storageId', 'isPinned', ...storageObjectMetadataColumns]},
     ],
     sql: `
@@ -757,6 +764,7 @@ function getCanonicalStorageObjectSql(): string {
         ${contentColumns}
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       ORDER BY "storageId", id ASC
     ),
     pinned_content AS (
@@ -765,6 +773,7 @@ function getCanonicalStorageObjectSql(): string {
         BOOL_OR(COALESCE("isPinned", false)) AS "isPinned"
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       GROUP BY "storageId"
     )
     SELECT

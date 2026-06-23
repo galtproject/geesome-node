@@ -48,6 +48,14 @@ export default async function (sequelize, models) {
     isEncrypted: {
       type: DataTypes.BOOLEAN
     },
+    isDeleted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+    deletedAt: {
+      type: DataTypes.DATE
+    },
     peersCount: {
       type: DataTypes.INTEGER
     },
@@ -103,7 +111,7 @@ export default async function (sequelize, models) {
       // { fields: ['chainAccountAddress'] },
       // { fields: ['tokensAddress'] },
       { fields: ['storageId', 'userId'] },
-      { name: 'contents_user_storage_unique', fields: ['userId', 'storageId'], unique: true },
+      { name: 'contents_user_storage_unique', fields: ['userId', 'storageId'], unique: true, where: {isDeleted: false} },
       // Scalability review slice 9 (matched by 20260506000001-add-content-and-quota-indexes.cjs):
       { name: 'contents_user_created_idx', fields: ['userId', 'createdAt', 'id'] },
       { name: 'contents_manifest_storage_idx', fields: ['manifestStorageId'] },

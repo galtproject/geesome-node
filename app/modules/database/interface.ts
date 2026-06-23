@@ -52,7 +52,7 @@ export interface IGeesomeDatabaseModule {
 
   getUserContentListByIds(userId, contentIds): Promise<IContent[]>;
 
-  getContent(id): Promise<IContent>;
+  getContent(id, options?: {includeDeleted?: boolean}): Promise<IContent>;
 
   getContentByStorageId(storageId, findByPreviews?): Promise<IContent>;
 
@@ -190,6 +190,8 @@ export interface IContent {
   server?: string;
   isPublic?: boolean;
   isPinned?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: Date;
   peersCount?: number;
   userId: number;
   groupId?: number;

@@ -564,6 +564,43 @@ describe("storage space usage", function () {
 		assert.equal(snapshotHistory[0].listLimit, 2);
 		assert.equal(Object.prototype.hasOwnProperty.call(snapshotHistory[0], 'data'), false);
 	});
+
+	it("excludes soft-deleted content rows from storage-space reports", async () => {
+		const user = await app.registerUser({
+			email: 'deleted-content@user.com',
+			name: 'deleted-content-user',
+			password: 'user',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const before = await app.ms.storageSpace.getStorageSpaceOverview();
+		const content = await app.ms.content.saveData(user.id, 'soft deleted analyzer body', 'deleted-analyzer.txt', {
+			mimeType: 'text/plain'
+		});
+		await app.ms['fileCatalog'].saveContentByPath(user.id, '/soft-delete/deleted-analyzer.txt', content.id);
+
+		const withContent = await app.ms.storageSpace.getStorageSpaceOverview();
+		assert.equal(withContent.contentRowsCount - before.contentRowsCount, 1);
+		assert.equal(withContent.logicalContentBytes - before.logicalContentBytes, Number(content.size));
+		assert.equal(withContent.physicalContentBytes - before.physicalContentBytes, Number(content.size));
+
+		await app.ms.database.deleteContent(content.id);
+		const deletedContent = await app.ms.database.getContent(content.id, {includeDeleted: true});
+		assert.equal(!!deletedContent, true);
+		assert.equal(deletedContent.isDeleted, true);
+
+		const after = await app.ms.storageSpace.getStorageSpaceOverview();
+		assert.equal(after.contentRowsCount, before.contentRowsCount);
+		assert.equal(after.logicalContentBytes, before.logicalContentBytes);
+		assert.equal(after.physicalContentBytes, before.physicalContentBytes);
+		assert.equal(after.fileCatalogLogicalBytes, before.fileCatalogLogicalBytes);
+
+		const topContents = await app.ms.storageSpace.getStorageSpaceTopContents({limit: 20});
+		const topCatalogItems = await app.ms.storageSpace.getStorageSpaceTopFileCatalogItems({limit: 20});
+		const cleanupBlockers = await app.ms.storageSpace.getStorageSpaceCleanupBlockers({limit: 20, contentId: content.id});
+		assert.equal(topContents.some(row => row.id === content.id), false);
+		assert.equal(topCatalogItems.some(row => row.contentId === content.id), false);
+		assert.equal(cleanupBlockers.length, 0);
+	});
 });
 
 async function saveGeneratedOutputDirectory(app: IGeesomeApp) {

@@ -256,6 +256,7 @@ function getCanonicalStorageObjectSql(): string {
         ${contentColumns}
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       ORDER BY "storageId", id ASC
     ),
     pinned_content AS (
@@ -264,6 +265,7 @@ function getCanonicalStorageObjectSql(): string {
         BOOL_OR(COALESCE("isPinned", false)) AS "isPinned"
       FROM contents
       WHERE "storageId" IS NOT NULL
+        AND "isDeleted" IS NOT TRUE
       GROUP BY "storageId"
     )
     SELECT
@@ -292,6 +294,7 @@ function getCanonicalPreviewStorageObjectSql(): string {
         SELECT 1
         FROM contents original_content
         WHERE original_content."storageId" = preview_refs."storageId"
+          AND original_content."isDeleted" IS NOT TRUE
       )
     ORDER BY "storageId", "contentId" ASC, "previewOrder" ASC
   `;
@@ -331,6 +334,7 @@ function getContentPreviewReferenceRowsSql(): string {
       'preview' AS "referenceType",
       1 AS "previewOrder"
     FROM contents
+    WHERE "isDeleted" IS NOT TRUE
     UNION ALL
     SELECT
       id AS "contentId",
@@ -345,6 +349,7 @@ function getContentPreviewReferenceRowsSql(): string {
       'preview' AS "referenceType",
       2 AS "previewOrder"
     FROM contents
+    WHERE "isDeleted" IS NOT TRUE
     UNION ALL
     SELECT
       id AS "contentId",
@@ -359,6 +364,7 @@ function getContentPreviewReferenceRowsSql(): string {
       'preview' AS "referenceType",
       3 AS "previewOrder"
     FROM contents
+    WHERE "isDeleted" IS NOT TRUE
   `;
 }
 
