@@ -64,6 +64,11 @@ const adminContentListParams: IListParamsOptions = {
   allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
   maxLimit: 100
 };
+const deletedContentListParams: IListParamsOptions = {
+  sortBy: 'deletedAt',
+  allowedSortBy: ['deletedAt', 'createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+  maxLimit: 100
+};
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -228,6 +233,46 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       isDeleted: true,
       deletedAt: new Date()
     }, {where: {id, isDeleted: {[Op.ne]: true}}});
+  }
+
+  async restoreContent(id) {
+    return this.sequelize.transaction(async (transaction) => {
+      const content = await this.models.Content.findOne({
+        where: {id},
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+      if (!content) {
+        return null;
+      }
+      if (content.isDeleted !== true) {
+        return content;
+      }
+
+      const conflict = await this.getRestoreContentConflict(content, transaction);
+      if (conflict) {
+        throw createContentRestoreConflictError(content, conflict);
+      }
+
+      try {
+        await content.update({isDeleted: false, deletedAt: null}, {transaction});
+      } catch (e) {
+        if (!isContentUserStorageUniqueError(e)) {
+          throw e;
+        }
+        throw createContentRestoreConflictError(content);
+      }
+
+      return this.models.Content.findOne({where: {id}, transaction}) as IContent;
+    });
+  }
+
+  async getRestoreContentConflict(content, transaction) {
+    const where = getContentRestoreConflictWhere(content);
+    if (!where) {
+      return null;
+    }
+    return this.models.Content.findOne({where, transaction});
   }
 
   async getStorageObjectByStorageId(storageId) {
@@ -647,11 +692,11 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   getAllContentWhere(searchString) {
-    let where = getActiveContentWhere();
-    if (searchString) {
-      where = getActiveContentWhere({[Op.or]: [{name: searchString}, {manifestStorageId: searchString}, {storageId: searchString}]});
-    }
-    return where;
+    return getContentSearchWhere(getActiveContentWhere(), searchString);
+  }
+
+  getDeletedContentWhere(searchString) {
+    return getContentSearchWhere(getDeletedOnlyContentWhere(), searchString);
   }
 
   getUserContentListByIds(userId, contentIds) {
@@ -672,6 +717,23 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   async getAllContentCount(searchString) {
     return this.models.Content.count({
       where: this.getAllContentWhere(searchString),
+    });
+  }
+
+  async getDeletedContentList(searchString, listParams: IListParams = {}) {
+    this.setDefaultListParamsValues(listParams, deletedContentListParams);
+    const {sortBy, sortDir, limit, offset} = listParams;
+    return this.models.Content.findAll({
+      where: this.getDeletedContentWhere(searchString),
+      order: [[sortBy, sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getDeletedContentCount(searchString) {
+    return this.models.Content.count({
+      where: this.getDeletedContentWhere(searchString),
     });
   }
 
@@ -1036,6 +1098,50 @@ function getActiveContentWhere(where: any = {}) {
     ...where,
     isDeleted: {[Op.ne]: true}
   };
+}
+
+function getDeletedOnlyContentWhere(where: any = {}) {
+  return {
+    ...where,
+    isDeleted: true
+  };
+}
+
+function getContentSearchWhere(baseWhere: any, searchString) {
+  if (!searchString) {
+    return baseWhere;
+  }
+  return {
+    ...baseWhere,
+    [Op.or]: [
+      {name: searchString},
+      {manifestStorageId: searchString},
+      {storageId: searchString},
+    ]
+  };
+}
+
+function getContentRestoreConflictWhere(content) {
+  if (!content?.userId || !content?.storageId) {
+    return null;
+  }
+  return getActiveContentWhere({
+    id: {[Op.ne]: content.id},
+    userId: content.userId,
+    storageId: content.storageId
+  });
+}
+
+function createContentRestoreConflictError(content, conflict?) {
+  const error = new Error('content_restore_storage_conflict') as Error & {code?: number; contentId?: number; activeContentId?: number};
+  error.code = 409;
+  error.contentId = content?.id;
+  error.activeContentId = conflict?.id;
+  return error;
+}
+
+function isContentUserStorageUniqueError(error) {
+  return error?.name === 'SequelizeUniqueConstraintError';
 }
 
 const storageObjectReferenceMetadataFields = [

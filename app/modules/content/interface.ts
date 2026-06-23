@@ -6,6 +6,10 @@ export default interface IGeesomeContentModule {
 
 	getAllContentList(adminId, searchString, listParams?: IListParams): Promise<IContentListResponse>;
 
+	getDeletedContentList(adminId, searchString, listParams?: IListParams): Promise<IContentListResponse>;
+
+	restoreDeletedContent(adminId, contentId): Promise<IContent>;
+
 	getContent(contentId): Promise<IContent>;
 
 	getPublicContentMetadata(contentId): Promise<Partial<IContent>>;
