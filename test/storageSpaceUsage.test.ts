@@ -506,11 +506,16 @@ describe("storage space usage", function () {
 		const snapshotGrowth = await app.ms.storageSpace.getStorageSpaceSnapshotGrowth({sinceDays: 0});
 		const logicalContentGrowth = snapshotGrowth.overview.find(row => row.key === 'logicalContentBytes');
 		const logicalContentSectionGrowth = snapshotGrowth.sections.find(row => row.key === 'logical-content');
+		const snapshotHistory = await app.ms.storageSpace.getStorageSpaceSnapshotHistory({limit: 2});
 		assert.equal(snapshotGrowth.latestSnapshot.id, growthSnapshot.id);
 		assert.equal(snapshotGrowth.baselineSnapshot.id, growthBaselineSnapshot.id);
 		assert.equal(snapshotGrowth.usedFallbackBaseline, false);
 		assert.equal(logicalContentGrowth.delta, Number(growthContent.size));
 		assert.equal(logicalContentSectionGrowth.delta, Number(growthContent.size));
+		assert.equal(snapshotHistory.length, 2);
+		assert.equal(snapshotHistory[0].id, growthSnapshot.id);
+		assert.equal(snapshotHistory[0].listLimit, 2);
+		assert.equal(Object.prototype.hasOwnProperty.call(snapshotHistory[0], 'data'), false);
 	});
 });
 

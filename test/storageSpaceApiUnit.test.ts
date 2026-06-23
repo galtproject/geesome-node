@@ -166,6 +166,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalled = true;
 						return {};
 					},
+					getStorageSpaceSnapshotHistory: async () => {
+						storageSpaceCalled = true;
+						return {};
+					},
 					getStorageSpaceSnapshotGrowth: async () => {
 						storageSpaceCalled = true;
 						return {};
@@ -210,6 +214,7 @@ describe("storage space admin API", function () {
 			["GET", "admin/storage-space/generated-output-child-inspection"],
 			["POST", "admin/storage-space/generated-output-child-reconcile"],
 			["GET", "admin/storage-space/snapshot"],
+			["GET", "admin/storage-space/snapshots"],
 			["GET", "admin/storage-space/snapshot-growth"],
 			["POST", "admin/storage-space/snapshot/refresh"],
 			["POST", "admin/storage-space/snapshot/refresh-async"],
@@ -250,6 +255,7 @@ describe("storage space admin API", function () {
 			generatedOutputChildInspection: [{source: "staticSite.storageId", storageId: "bafy-site", childrenCount: 1}],
 			generatedOutputChildReconcile: {inspectedParents: 1, inspectedChildren: 1, reconciled: 1, skipped: 0},
 			snapshot: {id: 4, listLimit: 20},
+			snapshotHistory: [{id: 4, listLimit: 20}],
 			snapshotGrowth: {latestSnapshot: {id: 4}, baselineSnapshot: {id: 3}, sections: [{key: "logical-content", delta: 20}]},
 			refreshedSnapshot: {id: 5, listLimit: 5},
 			queuedSnapshot: {id: 6, module: "storage-space-snapshot"},
@@ -353,6 +359,10 @@ describe("storage space admin API", function () {
 						storageSpaceCalls.push(["snapshot"]);
 						return responses.snapshot;
 					},
+					getStorageSpaceSnapshotHistory: async (listParams) => {
+						storageSpaceCalls.push(["snapshotHistory", listParams]);
+						return responses.snapshotHistory;
+					},
 					getStorageSpaceSnapshotGrowth: async (listParams) => {
 						storageSpaceCalls.push(["snapshotGrowth", listParams]);
 						return responses.snapshotGrowth;
@@ -399,6 +409,7 @@ describe("storage space admin API", function () {
 		assert.deepEqual((await call("GET", "admin/storage-space/generated-output-child-inspection", {user: {id: 7}, query: {...query, childLimit: "3"}})).body, responses.generatedOutputChildInspection);
 		assert.deepEqual((await call("POST", "admin/storage-space/generated-output-child-reconcile", {user: {id: 7}, body: {...query, childLimit: "3"}})).body, responses.generatedOutputChildReconcile);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot", {user: {id: 7}})).body, responses.snapshot);
+		assert.deepEqual((await call("GET", "admin/storage-space/snapshots", {user: {id: 7}, query})).body, responses.snapshotHistory);
 		assert.deepEqual((await call("GET", "admin/storage-space/snapshot-growth", {user: {id: 7}, query: {...query, sinceDays: "14"}})).body, responses.snapshotGrowth);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh", {user: {id: 7}, body: query})).body, responses.refreshedSnapshot);
 		assert.deepEqual((await call("POST", "admin/storage-space/snapshot/refresh-async", {user: {id: 7}, apiKey: {id: 12}, body: query})).body, responses.queuedSnapshot);
@@ -430,6 +441,7 @@ describe("storage space admin API", function () {
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
 			[7, CorePermissionName.AdminRead],
+			[7, CorePermissionName.AdminRead],
 		]);
 		assert.deepEqual(storageSpaceCalls, [
 			["overview"],
@@ -455,6 +467,7 @@ describe("storage space admin API", function () {
 			["generatedOutputChildInspection", {...query, childLimit: "3"}],
 			["generatedOutputChildReconcile", {...query, childLimit: "3"}],
 			["snapshot"],
+			["snapshotHistory", query],
 			["snapshotGrowth", {...query, sinceDays: "14"}],
 			["refreshSnapshot", 7, query],
 			["queueSnapshot", 7, 12, query],

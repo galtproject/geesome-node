@@ -462,6 +462,25 @@ export default (app: IGeesomeApp, storageSpaceModule: IGeesomeStorageSpaceModule
   });
 
   /**
+   * @api {get} /v1/admin/storage-space/snapshots Get storage-space snapshot history
+   * @apiName AdminStorageSpaceSnapshots
+   * @apiGroup AdminStorage
+   *
+   * @apiUse ApiKey
+   * @apiUse AuthErrors
+   * @apiUse AdminErrors
+   *
+   * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+   * @apiDescription Lists cached analyzer snapshot metadata newest-first without loading the full snapshot payload. Use the latest snapshot route when the full analyzer data is needed.
+   */
+  app.ms.api.onAuthorizedGet('admin/storage-space/snapshots', async (req, res) => {
+    if (!await canReadAdminStorageSpace(app, req.user.id, res)) {
+      return;
+    }
+    res.send(await storageSpaceModule.getStorageSpaceSnapshotHistory(req.query));
+  });
+
+  /**
    * @api {get} /v1/admin/storage-space/snapshot-growth Get storage-space snapshot growth
    * @apiName AdminStorageSpaceSnapshotGrowth
    * @apiGroup AdminStorage
