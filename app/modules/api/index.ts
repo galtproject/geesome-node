@@ -95,13 +95,19 @@ async function getModule(app: IGeesomeApp, version, port) {
 		}
 		async handleCallback(req, res, callback) {
 			try {
-				await callback(reqToModuleInput(req), resToModuleOutput(res)).catch(error => {
-					console.error(error);
-					return res.send({message: error.message || error, errorCode: 3}, error.code || 500);
-				});
+				await Promise.resolve(callback(reqToModuleInput(req), resToModuleOutput(res)));
 			} catch (error) {
+				const callbackError = error as any;
 				console.error(error);
-				return res.send({message: error.message || error, errorCode: 3}, error.code || 500);
+				if (isResponseClosed(res)) {
+					return;
+				}
+				const statusCode = Number.isInteger(callbackError?.code) ? callbackError.code : 500;
+				const body = {message: callbackError.message || callbackError, errorCode: 3};
+				if (typeof res.status === 'function') {
+					return res.status(statusCode).send(body);
+				}
+				return res.send(body, statusCode);
 			}
 		}
 
@@ -254,6 +260,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 			writeHead: res.writeHead.bind(res),
 			stream: res,
 		};
+	}
+
+	function isResponseClosed(res) {
+		return res.headersSent || res.writableEnded || res.stream?.headersSent || res.stream?.writableEnded;
 	}
 
 	const apiModule = new GeesomeApiModule(port);
