@@ -166,10 +166,21 @@ describe("group", function () {
 		const nullUserRowsBefore = await (app.ms.database as any).models.Content.count({where: {userId: null}});
 
 		assert.equal(sharedContent.id, ownerContent.id);
+		const sharedStorageObject = await app.ms.database.getStorageObjectByStorageId(ownerContent.storageId);
+		assert.equal(sharedStorageObject.identityType, 'geesome-content-manifest');
+		assert.equal(sharedStorageObject.identityId, ownerContent.manifestStorageId);
+		assert.equal(sharedStorageObject.identityUrl, `ipfs://${ownerContent.manifestStorageId}`);
+
 		await assert.rejects(
 			() => app.ms.content.createContentByRemoteStorageId(null, manifestStorageId),
 			(error: Error) => error.message === 'content_actor_required'
 		);
+		const ownerlessStorageObject = await app.ms.database.getStorageObjectByStorageId(storageFile.id);
+		assert.equal(ownerlessStorageObject.storageId, storageFile.id);
+		assert.equal(ownerlessStorageObject.identityType, 'geesome-content-manifest');
+		assert.equal(ownerlessStorageObject.identityId, manifestStorageId);
+		assert.equal(ownerlessStorageObject.identityUrl, `ipfs://${manifestStorageId}`);
+		assert.equal(Number(ownerlessStorageObject.size), Buffer.byteLength(missingBody));
 		assert.equal(await (app.ms.database as any).models.Content.count({where: {userId: null}}), nullUserRowsBefore);
 	});
 

@@ -46,6 +46,8 @@ export interface IGeesomeDatabaseModule {
 
   syncStorageObjectIdentity(storageId: string, identityData: IStorageObjectIdentityData, options?): Promise<IStorageObjectRecord | null>;
 
+  syncStorageObjectForContent(content: Partial<IContent>, options?): Promise<IStorageObjectRecord | null>;
+
   syncStorageObjectReference(referenceData: Partial<IStorageObjectReferenceRecord>, options?): Promise<IStorageObjectReferenceRecord | null>;
 
   replaceStorageObjectReferences(sourceStorageId: string, referenceType: StorageObjectReferenceType, references: Partial<IStorageObjectReferenceRecord>[], options?): Promise<IStorageObjectReferenceRecord[]>;

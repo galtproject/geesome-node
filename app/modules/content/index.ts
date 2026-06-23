@@ -29,7 +29,7 @@ import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
 import {recordMemorySnapshot} from "../../memoryProfiler.js";
 import {rtrim} from "telegram/Utils";
-const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, merge, last, startsWith, trimStart} = _;
+const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, isUndefined, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
 const adminContentListParams: IListParamsOptions = {
@@ -49,6 +49,7 @@ const deletedContentPurgeListParams: IListParamsOptions = {
 	maxLimit: 100
 };
 const contentTombstoneRetentionDays = parseNonNegativeInteger(process.env.CONTENT_TOMBSTONE_RETENTION_DAYS, 30);
+const contentManifestStorageObjectIdentityType = 'geesome-content-manifest';
 const publicStorageMetadataFields = [
 	'storageType',
 	'mimeType',
@@ -78,6 +79,20 @@ const publicLibraryMetadataFields = [
 const publicContentMetadataFields = [
 	...publicStorageMetadataFields,
 	...publicLibraryMetadataFields
+];
+const contentManifestStorageObjectFields = [
+	'storageType',
+	'mimeType',
+	'extension',
+	'size',
+	'largePreviewStorageId',
+	'largePreviewSize',
+	'mediumPreviewStorageId',
+	'mediumPreviewSize',
+	'smallPreviewStorageId',
+	'smallPreviewSize',
+	'previewMimeType',
+	'previewExtension'
 ];
 
 export default async (app: IGeesomeApp) => {
@@ -156,16 +171,6 @@ function getModule(app: IGeesomeApp) {
 		error.contentId = content?.id;
 		error.storageId = content?.storageId;
 		return error;
-	}
-
-	function toContentPlainObject(content) {
-		if (!content) {
-			return null;
-		}
-		if (content.toJSON) {
-			return content.toJSON();
-		}
-		return content;
 	}
 
 	function pickPublicContentMetadata(content) {
@@ -1110,12 +1115,14 @@ function getModule(app: IGeesomeApp) {
 				? await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId)
 				: await app.ms.database.getSharedContentByManifestId(manifestStorageId);
 			if (dbContent) {
+				await syncContentManifestStorageObject(app, dbContent);
 				return dbContent;
 			}
 
 			const contentObject: IContent = await app.ms.entityJsonManifest.manifestIdToDbObject(manifestStorageId, 'content');
 			contentObject.isRemote = true;
 			contentObject.manifestStorageId = contentObject.manifestStorageId || manifestStorageId;
+			await syncContentManifestStorageObject(app, contentObject);
 			return this.createContentByObject(userId, contentObject, options);
 		}
 
@@ -1513,6 +1520,64 @@ function isMissingStorageObjectError(e) {
 		message.includes('not exist') ||
 		message.includes('no such') ||
 		message.includes('missing');
+}
+
+async function syncContentManifestStorageObject(app: IGeesomeApp, contentObject) {
+	const storageObjectData = getContentManifestStorageObjectData(contentObject);
+	if (!storageObjectData) {
+		return null;
+	}
+	return app.ms.database.syncStorageObjectForContent(storageObjectData);
+}
+
+function getContentManifestStorageObjectData(contentObject) {
+	const contentData = toContentPlainObject(contentObject);
+	if (!contentData?.storageId || !contentData?.manifestStorageId) {
+		return null;
+	}
+
+	const storageObjectData: Record<string, any> = {
+		storageId: contentData.storageId,
+		identityType: contentManifestStorageObjectIdentityType,
+		identityId: contentData.manifestStorageId,
+		identityUrl: getStorageObjectIdentityUrl(contentData.manifestStorageId)
+	};
+	contentManifestStorageObjectFields.forEach((field) => {
+		if (!isUndefined(contentData[field])) {
+			storageObjectData[field] = contentData[field];
+		}
+	});
+	if (contentData.isPinned === true) {
+		storageObjectData.isPinned = true;
+	}
+
+	const identityUpdatedAt = getContentManifestStorageObjectIdentityUpdatedAt(contentData);
+	if (identityUpdatedAt) {
+		storageObjectData.identityUpdatedAt = identityUpdatedAt;
+	}
+	return storageObjectData;
+}
+
+function getContentManifestStorageObjectIdentityUpdatedAt(contentData) {
+	const date = getValidDate(contentData.updatedAt || contentData.createdAt);
+	if (!date) {
+		return undefined;
+	}
+	return date;
+}
+
+function getStorageObjectIdentityUrl(manifestStorageId) {
+	return `ipfs://${manifestStorageId}`;
+}
+
+function toContentPlainObject(content) {
+	if (!content) {
+		return null;
+	}
+	if (typeof content.toJSON === 'function') {
+		return content.toJSON();
+	}
+	return content;
 }
 
 interface IStorageFile {
