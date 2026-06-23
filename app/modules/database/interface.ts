@@ -38,6 +38,8 @@ export interface IGeesomeDatabaseModule {
 
   restoreContent(id): Promise<IContent>;
 
+  purgeDeletedContent(id): Promise<number>;
+
   getStorageObjectByStorageId(storageId): Promise<IStorageObjectRecord>;
 
   syncStorageObject(storageObjectData: Partial<IStorageObjectRecord>, options?): Promise<IStorageObjectRecord | null>;
@@ -125,6 +127,10 @@ export interface IGeesomeDatabaseModule {
   getDeletedContentList(searchString, listParams?: IListParams): Promise<IContent[]>;
 
   getDeletedContentCount(searchString): Promise<number>;
+
+  getDeletedContentPurgeCandidateList(cutoff: Date, listParams?: IListParams): Promise<IContent[]>;
+
+  getDeletedContentPurgeCandidateCount(cutoff: Date): Promise<number>;
 
   addUserContentAction(userContentActionData): Promise<IUserContentAction>;
 

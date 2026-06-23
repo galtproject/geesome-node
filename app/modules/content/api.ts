@@ -161,6 +161,51 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
     });
 
     /**
+     * @api {get} /v1/admin/deleted-content/purge-candidates List deleted content purge candidates
+     * @apiName AdminDeletedContentPurgeCandidates
+     * @apiGroup AdminContent
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
+     *
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+     * @apiQuery {Number} [retentionDays=30] Minimum tombstone age before a row can be purged.
+     * @apiSuccess {Object[]} list Candidate rows.
+     * @apiSuccess {Number} total Number of expired tombstones found by the retention cutoff before live storage/reference checks.
+     * @apiSuccess {Number} retentionDays Retention window used for the cutoff.
+     * @apiSuccess {Date} cutoff Tombstones deleted at or before this time are eligible for live purge checks.
+     * @apiDescription Lists expired soft-deleted content rows and explains whether each row can be hard-purged. Purge remains blocked while physical storage still exists, storage status cannot be checked safely, or database references still point at the content row.
+     */
+    app.ms.api.onAuthorizedGet('admin/deleted-content/purge-candidates', async (req, res) => {
+        await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+        res.send(await contentModule.getDeletedContentPurgeCandidates(req.user.id, req.query));
+    });
+
+    /**
+     * @api {post} /v1/admin/deleted-content/purge Purge expired deleted content tombstones
+     * @apiName AdminDeletedContentPurge
+     * @apiGroup AdminContent
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
+     *
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiBody
+     * @apiBody {Number} [retentionDays=30] Minimum tombstone age before a row can be purged.
+     * @apiSuccess {Object[]} list Processed candidate rows with purge result and blocker details.
+     * @apiSuccess {Number} purged Number of tombstones hard-deleted.
+     * @apiSuccess {Number} skipped Number of candidates preserved because a purge blocker remained.
+     * @apiSuccess {Number} retentionDays Retention window used for the cutoff.
+     * @apiSuccess {Date} cutoff Tombstones deleted at or before this time are eligible for live purge checks.
+     * @apiDescription Hard-deletes only expired soft-deleted content rows whose physical storage is already missing and whose content row has no active database references. Upload accounting rows are preserved with their content link detached.
+     */
+    app.ms.api.onAuthorizedPost('admin/deleted-content/purge', async (req, res) => {
+        await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+        res.send(await contentModule.purgeDeletedContentTombstones(req.user.id, req.body));
+    });
+
+    /**
      * @api {post} /v1/admin/content/:contentId/restore Restore deleted content
      * @apiDescription Restores a soft-deleted content library row only while its physical storage still exists and the same user does not already have an active row with the same storage id.
      * @apiName AdminContentRestore

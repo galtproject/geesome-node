@@ -69,6 +69,12 @@ const deletedContentListParams: IListParamsOptions = {
   allowedSortBy: ['deletedAt', 'createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
   maxLimit: 100
 };
+const deletedContentPurgeListParams: IListParamsOptions = {
+  sortBy: 'deletedAt',
+  sortDir: 'ASC',
+  allowedSortBy: ['deletedAt', 'createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+  maxLimit: 100
+};
 
 function parseNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value as any, 10);
@@ -264,6 +270,26 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       }
 
       return this.models.Content.findOne({where: {id}, transaction}) as IContent;
+    });
+  }
+
+  async purgeDeletedContent(id) {
+    return this.sequelize.transaction(async (transaction) => {
+      const content = await this.models.Content.findOne({
+        where: {id, isDeleted: true},
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+      if (!content) {
+        return 0;
+      }
+
+      await this.models.UserContentAction.update({contentId: null}, {
+        where: {contentId: content.id},
+        transaction
+      });
+      await content.destroy({transaction});
+      return 1;
     });
   }
 
@@ -737,6 +763,23 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     });
   }
 
+  async getDeletedContentPurgeCandidateList(cutoff: Date, listParams: IListParams = {}) {
+    this.setDefaultListParamsValues(listParams, deletedContentPurgeListParams);
+    const {sortBy, sortDir, limit, offset} = listParams;
+    return this.models.Content.findAll({
+      where: getDeletedContentPurgeCandidateWhere(cutoff),
+      order: [[sortBy, sortDir.toUpperCase()], ['id', sortDir.toUpperCase()]],
+      limit,
+      offset
+    });
+  }
+
+  async getDeletedContentPurgeCandidateCount(cutoff: Date) {
+    return this.models.Content.count({
+      where: getDeletedContentPurgeCandidateWhere(cutoff),
+    });
+  }
+
   async addUserContentAction(userContentActionData) {
     return this.models.UserContentAction.create(userContentActionData);
   }
@@ -1105,6 +1148,12 @@ function getDeletedOnlyContentWhere(where: any = {}) {
     ...where,
     isDeleted: true
   };
+}
+
+function getDeletedContentPurgeCandidateWhere(cutoff: Date) {
+  return getDeletedOnlyContentWhere({
+    deletedAt: {[Op.lte]: cutoff}
+  });
 }
 
 function getContentSearchWhere(baseWhere: any, searchString) {

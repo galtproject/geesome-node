@@ -42,6 +42,13 @@ const deletedContentListParams: IListParamsOptions = {
 	allowedSortBy: ['deletedAt', 'createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
 	maxLimit: 100
 };
+const deletedContentPurgeListParams: IListParamsOptions = {
+	sortBy: 'deletedAt',
+	sortDir: 'ASC',
+	allowedSortBy: ['deletedAt', 'createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+	maxLimit: 100
+};
+const contentTombstoneRetentionDays = parseNonNegativeInteger(process.env.CONTENT_TOMBSTONE_RETENTION_DAYS, 30);
 const publicStorageMetadataFields = [
 	'storageType',
 	'mimeType',
@@ -229,6 +236,56 @@ function getModule(app: IGeesomeApp) {
 				list: await app.ms.database.getDeletedContentList(searchString, listParams),
 				total: await app.ms.database.getDeletedContentCount(searchString)
 			}
+		}
+
+		async getDeletedContentPurgeCandidates(adminId, options: any = {}) {
+			const retention = getContentTombstoneRetentionOptions(options);
+			const listParams = helpers.prepareListParams(options, deletedContentPurgeListParams);
+			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
+			const list = await app.ms.database.getDeletedContentPurgeCandidateList(retention.cutoff, listParams);
+			return {
+				list: await getContentTombstonePurgeCandidateRows(app, list, retention.cutoff),
+				total: await app.ms.database.getDeletedContentPurgeCandidateCount(retention.cutoff),
+				retentionDays: retention.retentionDays,
+				cutoff: retention.cutoff,
+			};
+		}
+
+		async purgeDeletedContentTombstones(adminId, options: any = {}) {
+			const retention = getContentTombstoneRetentionOptions(options);
+			const listParams = helpers.prepareListParams(options, deletedContentPurgeListParams);
+			await app.checkUserCan(adminId, CorePermissionName.AdminAll);
+			const candidates = await app.ms.database.getDeletedContentPurgeCandidateList(retention.cutoff, listParams);
+			const list = [];
+			let purged = 0;
+			let skipped = 0;
+
+			for (const content of candidates) {
+				const candidate = await getContentTombstonePurgeCandidateRow(app, content, retention.cutoff);
+				if (!candidate.safeToPurge) {
+					list.push({...candidate, purged: false});
+					skipped += 1;
+					continue;
+				}
+
+				const purgeCount = await app.ms.database.purgeDeletedContent(content.id);
+				if (purgeCount <= 0) {
+					list.push({...candidate, purged: false, purgeBlockers: ['already_restored_or_purged']});
+					skipped += 1;
+					continue;
+				}
+
+				list.push({...candidate, purged: true});
+				purged += 1;
+			}
+
+			return {
+				list,
+				purged,
+				skipped,
+				retentionDays: retention.retentionDays,
+				cutoff: retention.cutoff,
+			};
 		}
 
 		async restoreDeletedContent(adminId, contentId) {
@@ -1350,6 +1407,112 @@ function finishStorageFileTemp(storageFile) {
 	} catch (e) {
 		log('storage temp cleanup failed', e);
 	}
+}
+
+function getContentTombstoneRetentionOptions(options: any = {}) {
+	const retentionDays = parseNonNegativeInteger(options.retentionDays, contentTombstoneRetentionDays);
+	const cutoff = getContentTombstoneRetentionCutoff(retentionDays);
+	return {retentionDays, cutoff};
+}
+
+function parseNonNegativeInteger(value, fallback) {
+	const parsed = Number.parseInt(value as any, 10);
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		return fallback;
+	}
+	return parsed;
+}
+
+function getContentTombstoneRetentionCutoff(retentionDays, now = new Date()) {
+	const nowDate = getDateOrNow(now);
+	return new Date(nowDate.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+}
+
+function getDateOrNow(value) {
+	const date = new Date(value || Date.now());
+	if (!Number.isFinite(date.getTime())) {
+		return new Date();
+	}
+	return date;
+}
+
+async function getContentTombstonePurgeCandidateRows(app: IGeesomeApp, contents, cutoff) {
+	const rows = [];
+	for (const content of contents) {
+		rows.push(await getContentTombstonePurgeCandidateRow(app, content, cutoff));
+	}
+	return rows;
+}
+
+async function getContentTombstonePurgeCandidateRow(app: IGeesomeApp, content, cutoff) {
+	const [safety, storageState] = await Promise.all([
+		app.ms.database.getContentDeleteSafety(content),
+		getContentTombstoneStorageState(app, content),
+	]);
+	const retentionExpired = isContentTombstoneRetentionExpired(content, cutoff);
+	const purgeBlockers = getContentTombstonePurgeBlockers(safety, storageState, retentionExpired);
+	return {
+		content,
+		safety,
+		retentionExpired,
+		storageExists: storageState.exists,
+		storageCheckError: storageState.errorMessage,
+		safeToPurge: purgeBlockers.length === 0,
+		purgeBlockers,
+	};
+}
+
+async function getContentTombstoneStorageState(app: IGeesomeApp, content) {
+	if (!content?.storageId) {
+		return {exists: false, errorMessage: null};
+	}
+	try {
+		await app.ms.storage.getFileStat(content.storageId);
+		return {exists: true, errorMessage: null};
+	} catch (e) {
+		if (isMissingStorageObjectError(e)) {
+			return {exists: false, errorMessage: getContentErrorMessage(e)};
+		}
+		return {exists: undefined, errorMessage: getContentErrorMessage(e)};
+	}
+}
+
+function isContentTombstoneRetentionExpired(content, cutoff) {
+	const deletedAt = getValidDate(content?.deletedAt);
+	if (!deletedAt) {
+		return false;
+	}
+	return deletedAt.getTime() <= cutoff.getTime();
+}
+
+function getValidDate(value) {
+	const date = new Date(value);
+	if (!Number.isFinite(date.getTime())) {
+		return null;
+	}
+	return date;
+}
+
+function getContentTombstonePurgeBlockers(safety, storageState, retentionExpired) {
+	const blockers = safety.contentBlockers.map((blocker) => `content:${blocker.key}`);
+	if (!retentionExpired) {
+		blockers.push('retention_active');
+	}
+	if (storageState.exists === true) {
+		blockers.push('storage_exists');
+	}
+	if (storageState.exists === undefined) {
+		blockers.push('storage_check_failed');
+	}
+	return blockers;
+}
+
+function isMissingStorageObjectError(e) {
+	const message = getContentErrorMessage(e)?.toLowerCase() || '';
+	return message.includes('not found') ||
+		message.includes('not exist') ||
+		message.includes('no such') ||
+		message.includes('missing');
 }
 
 interface IStorageFile {
