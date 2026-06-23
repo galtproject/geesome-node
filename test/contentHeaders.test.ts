@@ -379,6 +379,63 @@ describe("content headers", function () {
 		assert.equal(streamRequested, false);
 	});
 
+	it("allows the app published docs storage root without a database content row", async () => {
+		const responseStream = new PassThrough();
+		const finished = new Promise((resolve) => responseStream.on("finish", resolve));
+		const writes: any = {};
+		const sends: any[] = [];
+		let hookCalls = 0;
+		let streamPath = "";
+		responseStream.resume();
+		const content = await contentModule({
+			checkModules: () => null,
+			docsStorageId: "docs-root",
+			callHookCheckAllowed: async () => {
+				hookCalls += 1;
+				return false;
+			},
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => ({size: 5}),
+					getFileStream: async (path) => {
+						streamPath = path;
+						return Readable.from(["hello"]);
+					}
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getFileStreamForApiRequest({
+			headers: {}
+		} as any, {
+			send: (...args) => sends.push(args),
+			setHeader: (name, value) => {
+				writes.headers = writes.headers || {};
+				writes.headers[name] = value;
+			},
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = {
+					...writes.headers,
+					...responseHeaders
+				};
+			},
+			stream: responseStream
+		} as any, "docs-root");
+		await finished;
+
+		assert.equal(writes.status, 200);
+		assert.equal(writes.headers["Content-Type"], "text/html");
+		assert.equal(writes.headers["Content-Length"], 5);
+		assert.equal(streamPath, "docs-root/index.html");
+		assert.equal(hookCalls, 0);
+		assert.deepEqual(sends, []);
+	});
+
 	it("streams non-range content when storage stats do not include a CID", async () => {
 		const responseStream = new PassThrough();
 		const finished = new Promise((resolve) => responseStream.on("finish", resolve));
