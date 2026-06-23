@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import debug from 'debug';
-import {UserLimitName} from "../database/interface.js";
+import {CorePermissionName, UserLimitName} from "../database/interface.js";
 import IGeesomeContentModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import asyncBusboy from "./asyncBusboy.js";
@@ -141,6 +141,44 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      */
     app.ms.api.onAuthorizedGet('admin/all-content', async (req, res) => {
         res.send(await contentModule.getAllContentList(req.user.id, req.query.search, req.query));
+    });
+
+    /**
+     * @api {get} /v1/admin/deleted-content List deleted content tombstones
+     * @apiName AdminDeletedContent
+     * @apiGroup AdminContent
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
+     *
+     * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+     * @apiInterface (../../interface.ts) {IContentListResponse} apiSuccess
+     */
+    app.ms.api.onAuthorizedGet('admin/deleted-content', async (req, res) => {
+        await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+        res.send(await contentModule.getDeletedContentList(req.user.id, req.query.search, req.query));
+    });
+
+    /**
+     * @api {post} /v1/admin/content/:contentId/restore Restore deleted content
+     * @apiDescription Restores a soft-deleted content library row only while its physical storage still exists and the same user does not already have an active row with the same storage id.
+     * @apiName AdminContentRestore
+     * @apiGroup AdminContent
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse AdminErrors
+     *
+     * @apiParam {Number} contentId Content database id.
+     * @apiInterface (../database/interface.ts) {IContent} apiSuccess
+     *
+     * @apiError content_restore_storage_conflict The user already has an active row with the same storage id.
+     * @apiError content_restore_storage_missing The physical storage object has already been removed.
+     */
+    app.ms.api.onAuthorizedPost('admin/content/:contentId/restore', async (req, res) => {
+        await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+        res.send(await contentModule.restoreDeletedContent(req.user.id, req.params.contentId));
     });
 
     /**

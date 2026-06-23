@@ -37,6 +37,11 @@ const adminContentListParams: IListParamsOptions = {
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
 	maxLimit: 100
 };
+const deletedContentListParams: IListParamsOptions = {
+	sortBy: 'deletedAt',
+	allowedSortBy: ['deletedAt', 'createdAt', 'updatedAt', 'id', 'name', 'storageId', 'manifestStorageId', 'size'],
+	maxLimit: 100
+};
 const publicStorageMetadataFields = [
 	'storageType',
 	'mimeType',
@@ -138,6 +143,14 @@ function getModule(app: IGeesomeApp) {
 		return error;
 	}
 
+	function createContentRestoreStorageMissingError(content) {
+		const error = new Error('content_restore_storage_missing') as Error & {code?: number; contentId?: number; storageId?: string};
+		error.code = 409;
+		error.contentId = content?.id;
+		error.storageId = content?.storageId;
+		return error;
+	}
+
 	function toContentPlainObject(content) {
 		if (!content) {
 			return null;
@@ -206,6 +219,38 @@ function getModule(app: IGeesomeApp) {
 			return {
 				list: await app.ms.database.getAllContentList(searchString, listParams),
 				total: await app.ms.database.getAllContentCount(searchString)
+			}
+		}
+
+		async getDeletedContentList(adminId, searchString?, listParams?: IListParams) {
+			listParams = helpers.prepareListParams(listParams, deletedContentListParams);
+			await app.checkUserCan(adminId, CorePermissionName.AdminRead);
+			return {
+				list: await app.ms.database.getDeletedContentList(searchString, listParams),
+				total: await app.ms.database.getDeletedContentCount(searchString)
+			}
+		}
+
+		async restoreDeletedContent(adminId, contentId) {
+			await app.checkUserCan(adminId, CorePermissionName.AdminAll);
+			const content = await app.ms.database.getContent(contentId, {includeDeleted: true});
+			if (!content) {
+				throw createContentNotFoundError();
+			}
+			if (content.isDeleted === true) {
+				await this.ensureRestoreStorageExists(content);
+			}
+			return app.ms.database.restoreContent(contentId);
+		}
+
+		async ensureRestoreStorageExists(content) {
+			if (!content?.storageId) {
+				return;
+			}
+			try {
+				await app.ms.storage.getFileStat(content.storageId);
+			} catch (_e) {
+				throw createContentRestoreStorageMissingError(content);
 			}
 		}
 
