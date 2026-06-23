@@ -139,9 +139,11 @@ Note: You can generate a static site from Geesome groups by UI and get IPNS or I
 ```
 npm run docker-upgrade
 ```
-This runs `bash/docker-rebuild-and-upgrade.sh`: it pulls the latest source, rebuilds the Docker image, restarts the `geesome-docker` systemd service, then prunes dangling images and build cache after the new containers are running.
+This runs `bash/docker-rebuild-and-upgrade.sh`: it pulls the latest source, rebuilds the Docker image, and restarts the `geesome-docker` systemd service.
 
-Warning: the upgrade script reverts uncommitted local git changes before pulling. Commit or stash server-side edits before running it.
+The Docker rebuild keeps dependency and BuildKit caches warm, so source-only updates should not redownload packages. When the Docker builder supports external cache exports, the build also imports/exports `.docker-build-cache`; otherwise it falls back to normal Docker layer caching. If the first build fails, the script prunes Docker caches and retries once.
+
+Warning: the upgrade script refuses to run with uncommitted local git changes. Commit or stash server-side edits before running it.
 
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.

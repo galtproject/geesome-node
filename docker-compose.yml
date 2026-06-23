@@ -1,7 +1,8 @@
 services:
   web:
     container_name: geesome
-    build: .
+    build:
+      context: .
     command: npm run in-docker-start
     restart: always
     ports:

@@ -1,26 +1,23 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# TODO: ask user if there is uncomitted changes
-echo "==> [1/4] Updating source (git pull)..."
-git checkout -- .
-git pull
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+echo "==> [1/3] Updating source (git pull --ff-only)..."
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Refusing to upgrade with uncommitted local changes:"
+  git status --short
+  echo "Commit or stash the local changes, then rerun npm run docker-upgrade."
+  exit 1
+fi
+
+git pull --ff-only
+
+if [ -f .gitmodules ]; then
+  git submodule update --init --recursive
+fi
 
 sudo chmod +x bash/*.sh
 
-echo "==> [2/4] Building geesome-node-web image (--no-cache; can take several minutes)..."
-./bash/docker-build.sh
-
-# Restart BEFORE prune so the new image and base images are held by running
-# containers; otherwise prune would remove the just-built image and force a
-# full rebuild/re-pull on the next start.
-echo "==> [3/4] Restarting geesome-docker (recreating containers with the new image)..."
-systemctl daemon-reload
-systemctl restart geesome-docker
-
-echo "==> [4/4] Pruning dangling images and build cache..."
-./bash/docker-prune.sh
-
-echo "==> Done. Current containers:"
-docker compose ps || true
-echo "Follow node startup with: docker compose logs -f web"
+exec bash "$ROOT_DIR/bash/docker-upgrade-run.sh"
