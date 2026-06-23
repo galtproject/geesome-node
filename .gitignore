@@ -11,6 +11,7 @@ app/modules/socNetImport/config
 docs
 *.sqlite
 .docker-data
+.docker-build-cache
 frontend/.parcel-cache
 *.zip
 .env

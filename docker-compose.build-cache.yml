@@ -1,0 +1,7 @@
+services:
+  web:
+    build:
+      cache_from:
+        - type=local,src=.docker-build-cache
+      cache_to:
+        - type=local,dest=.docker-build-cache,mode=max

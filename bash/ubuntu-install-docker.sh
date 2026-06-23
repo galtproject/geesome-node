@@ -29,7 +29,7 @@ else
   echo "Memory OK: ${TOTAL_MB}MB total (RAM ${MEM_MB}MB + swap ${SWAP_MB}MB)."
 fi
 
-docker compose build --no-cache && mkdir -p .docker-data
+bash bash/docker-build.sh
 
 sudo sed "s|/root/geesome-node|$PWD|g" < bash/geesome-docker.service > /etc/systemd/system/geesome-docker.service
 

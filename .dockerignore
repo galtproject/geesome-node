@@ -1,5 +1,6 @@
 node_modules
 .docker-data
+.docker-build-cache
 .DS_Store
 .env
 .git
@@ -13,6 +14,9 @@ coverage
 .nyc_output
 frontend/.parcel-cache
 app/modules/socNetImport/config
+backups
+.cache
+.local
 test/resources
 test/.geesome-data
 test/.geesome-frontend
