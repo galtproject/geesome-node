@@ -5,7 +5,7 @@
 
 <h3 align="center">File Storage and Social Media Node</h3>
 <div align="center">
-  Current state: 0.4.0 - Beta
+  Current state: 0.4.1 - Beta
 </div>
 
 <br />
