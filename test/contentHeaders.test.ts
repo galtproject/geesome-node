@@ -220,6 +220,62 @@ describe("content headers", function () {
 		);
 	});
 
+	it("returns owner content rows by database id when optional auth user matches", async () => {
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getContent: async () => ({
+						id: 7,
+						userId: 12,
+						name: "private-name.txt",
+						description: "private description",
+						storageId: "private-storage",
+						mimeType: ContentMimeType.Text,
+						propertiesJson: "{\"private\":true}",
+						isPublic: false
+					})
+				},
+				storage: {}
+			}
+		} as unknown as IGeesomeApp);
+
+		const metadata: any = await content.getPublicContentMetadata("7", 12);
+
+		assert.equal(metadata.id, 7);
+		assert.equal(metadata.userId, 12);
+		assert.equal(metadata.name, "private-name.txt");
+		assert.equal(metadata.description, "private description");
+		assert.equal(metadata.storageId, "private-storage");
+		assert.equal(metadata.propertiesJson, "{\"private\":true}");
+	});
+
+	it("does not expose another user's private content by database id with optional auth", async () => {
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getContent: async () => ({
+						id: 7,
+						userId: 12,
+						name: "private-name.txt",
+						storageId: "private-storage",
+						mimeType: ContentMimeType.Text,
+						isPublic: false
+					})
+				},
+				storage: {}
+			}
+		} as unknown as IGeesomeApp);
+
+		await assert.rejects(
+			() => content.getPublicContentMetadata("7", 99),
+			(error: Error & {code?: number}) => error.message === "content_not_found" && error.code === 404
+		);
+	});
+
 	it("returns public-safe storage metadata without private library fields", async () => {
 		const content = await contentModule({
 			checkModules: () => null,

@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import registerContentApi from '../app/modules/content/api.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 
-function createContentApiHarness(contentModuleOverrides: any = {}) {
+function createContentApiHarness(contentModuleOverrides: any = {}, appOverrides: any = {}) {
 	const routes = {};
 	const permissionChecks = [];
 	const module = {
@@ -35,12 +35,15 @@ function createContentApiHarness(contentModuleOverrides: any = {}) {
 		checkUserCan: async (userId, permission) => {
 			permissionChecks.push({userId, permission});
 		},
+		getUserByApiToken: async () => ({user: null, apiKey: null}),
+		...appOverrides,
 	};
 	const contentModule = {
 		getDeletedContentList: async () => null,
 		getDeletedContentPurgeCandidates: async () => null,
 		purgeDeletedContentTombstones: async () => null,
 		restoreDeletedContent: async () => null,
+		getPublicContentMetadata: async () => null,
 		...contentModuleOverrides,
 	};
 
@@ -71,6 +74,53 @@ function createContentApiHarness(contentModuleOverrides: any = {}) {
 }
 
 describe('content admin API', function () {
+	it('passes optional bearer owner id to public content metadata route', async () => {
+		let contentCall;
+		let tokenCall;
+		const {call} = createContentApiHarness({
+			getPublicContentMetadata: async (...args) => {
+				contentCall = args;
+				return {id: 42};
+			},
+		}, {
+			getUserByApiToken: async (token) => {
+				tokenCall = token;
+				return {user: {id: 7}, apiKey: {id: 11, userId: 7}};
+			},
+		});
+
+		const response = await call('GET', 'content/:contentId', {
+			params: {contentId: '42'},
+			token: 'valid-token',
+		});
+
+		assert.equal(tokenCall, 'valid-token');
+		assert.deepEqual(contentCall, ['42', 7]);
+		assert.deepEqual(response, {id: 42});
+	});
+
+	it('ignores invalid optional bearer tokens on public content metadata route', async () => {
+		let contentCall;
+		const {call} = createContentApiHarness({
+			getPublicContentMetadata: async (...args) => {
+				contentCall = args;
+				return {storageId: 'public-storage'};
+			},
+		}, {
+			getUserByApiToken: async () => {
+				throw new Error('bad_token');
+			},
+		});
+
+		const response = await call('GET', 'content/:contentId', {
+			params: {contentId: 'public-storage'},
+			token: 'invalid-token',
+		});
+
+		assert.deepEqual(contentCall, ['public-storage', null]);
+		assert.deepEqual(response, {storageId: 'public-storage'});
+	});
+
 	it('requires AdminRead before listing deleted content tombstones', async () => {
 		let contentCall;
 		const {call, permissionChecks} = createContentApiHarness({
