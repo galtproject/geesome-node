@@ -8,6 +8,7 @@
  */
 
 import assert from "assert";
+import sharp from "sharp";
 import IGeesomeFileCatalogModule, {FileCatalogItemType} from "../app/modules/fileCatalog/interface.js";
 import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
@@ -104,6 +105,74 @@ describe("app", function () {
 		assert.equal(firstFileItem.id, secondFileItem.id);
 		assert.equal(secondFileItem.contentId, secondContent.id);
 		assert.equal(activePathItems.total, 1);
+	});
+
+	it("accepts more than ten browser-style async image uploads into one folder", async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const apiKey = await app.generateUserApiKey(testUser.id, {type: "bulk-upload-test"});
+		const folder = await fileCatalog.createUserFolder(testUser.id, null, 'bulk-upload-test');
+		const baseUrl = `http://127.0.0.1:${app.ms.api.port}/v1`;
+
+		const preflightResponse = await fetch(`${baseUrl}/user/file-catalog/?parentItemId=${folder.id}&type=file&sortBy=updatedAt&sortDir=desc&limit=500&offset=0`, {
+			method: 'OPTIONS',
+			headers: {
+				'Origin': 'https://eraofmeat.com',
+				'Access-Control-Request-Headers': 'authorization',
+				'Access-Control-Request-Method': 'GET'
+			}
+		});
+		assert.equal(preflightResponse.status, 200);
+		assert.match(preflightResponse.headers.get('access-control-allow-headers') || '', /Authorization/);
+
+		const uploadedContentIds: number[] = [];
+		for (let i = 0; i < 20; i++) {
+			const fileName = `dummy-upload-${String(i + 1).padStart(2, '0')}.png`;
+			const imageBuffer = await sharp({
+				create: {
+					width: 2,
+					height: 2,
+					channels: 4,
+					background: {r: i * 10, g: 80, b: 160, alpha: 1}
+				}
+			}).png().toBuffer();
+			const body = new (globalThis as any).FormData();
+			body.append('file', new Blob([imageBuffer], {type: 'image/png'}), fileName);
+			body.append('folderId', String(folder.id));
+			body.append('async', 'true');
+
+			const uploadResponse = await fetch(`${baseUrl}/user/save-file`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${apiKey}`,
+					'Origin': 'https://eraofmeat.com'
+				},
+				body
+			});
+			assert.equal(uploadResponse.status, 200);
+			const uploadResult: any = await uploadResponse.json();
+			assert.equal(typeof uploadResult.asyncOperationId, 'number');
+			const asyncOperation = await waitForAsyncOperation(baseUrl, apiKey, uploadResult.asyncOperationId);
+			assert.equal(asyncOperation.errorMessage, null);
+			assert.equal(typeof asyncOperation.contentId, 'number');
+			uploadedContentIds.push(asyncOperation.contentId);
+		}
+
+		assert.equal(uploadedContentIds.length, 20);
+		assert.equal(new Set(uploadedContentIds).size, 20);
+
+		const listResponse = await fetch(`${baseUrl}/user/file-catalog/?parentItemId=${folder.id}&type=file&sortBy=updatedAt&sortDir=desc&limit=500&offset=0`, {
+			headers: {
+				'Authorization': `Bearer ${apiKey}`,
+				'Origin': 'https://eraofmeat.com'
+			}
+		});
+		assert.equal(listResponse.status, 200);
+		const listResult: any = await listResponse.json();
+		assert.equal(listResult.total, 20);
+		assert.deepEqual(
+			new Set(listResult.list.map((item) => item.contentId)),
+			new Set(uploadedContentIds)
+		);
 	});
 
 	it("keeps content rows that are still referenced by posts when deleting a catalog item", async () => {
@@ -496,4 +565,24 @@ async function assertContentSoftDeleted(app: IGeesomeApp, contentId: number) {
 	assert.equal(deletedContent.isDeleted, true);
 	assert.equal(!!deletedContent.deletedAt, true);
 	return deletedContent;
+}
+
+async function waitForAsyncOperation(baseUrl: string, apiKey: string, operationId: number) {
+	for (let i = 0; i < 100; i++) {
+		const response = await fetch(`${baseUrl}/user/get-async-operation/${operationId}`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${apiKey}`,
+				'Content-Type': 'application/json'
+			},
+			body: '{}'
+		});
+		assert.equal(response.status, 200);
+		const operation: any = await response.json();
+		if (!operation.inProcess) {
+			return operation;
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	assert.fail(`async operation ${operationId} did not finish`);
 }
