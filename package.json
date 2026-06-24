@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "yarn --no-optional -W && ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
-    "in-docker-start": "cd /geesome-node && yarn --no-optional -W && mkdir -p /geesome-node/frontend/docker-dist && rm -rf /geesome-node/frontend/docker-dist/* && UI_DIST=/geesome-node/node_modules/@geesome/ui/dist; UI_ROOT=/geesome-node/node_modules/@geesome/ui; if [ -f \"$UI_DIST/index.html\" ]; then cp -R \"$UI_DIST\"/* /geesome-node/frontend/docker-dist/; else cp -R \"$UI_ROOT\"/* /geesome-node/frontend/docker-dist/; fi && npm run database:sync-models && npm run migrate-all-database && npm run start",
+    "in-docker-start": "cd /geesome-node && yarn --no-optional -W && bash bash/publish-frontend-dist.sh && npm run database:sync-models && npm run migrate-all-database && npm run start",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",
     "recreate-test-database": "dropdb --if-exists geesome_test && createdb geesome_test",
     "migrate-all-database": "npm run migrate-database && npm run ssg-migrate-database && npm run sci-migrate-database && npm run group-migrate-database",
@@ -53,6 +53,7 @@
     "test:docker:cold": "bash bash/docker-test --cold",
     "test:docker:no-build": "bash bash/docker-test --no-build",
     "test:docker:run": "bash bash/docker-test-run.sh",
+    "test:frontend-dist-publish": "bash test/frontendDistPublish.test.sh",
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker compose up",
     "docker-build": "bash/docker-build.sh",

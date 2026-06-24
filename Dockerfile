@@ -29,6 +29,12 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
     yarn -W --no-optional --frozen-lockfile --network-concurrency 1 \
     && npm rebuild youtube-dl
 
+RUN mkdir -p bash
+COPY bash/publish-frontend-dist.sh ./bash/publish-frontend-dist.sh
+RUN GEESOME_FRONTEND_PUBLISH_DIR=/tmp/geesome-frontend-build \
+    bash bash/publish-frontend-dist.sh \
+    && rm -rf /tmp/geesome-frontend-build
+
 COPY . .
 
 ENV STORAGE_MODULE=ipfs-http-client
