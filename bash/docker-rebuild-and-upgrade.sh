@@ -18,6 +18,4 @@ if [ -f .gitmodules ]; then
   git submodule update --init --recursive
 fi
 
-sudo chmod +x bash/*.sh
-
 exec bash "$ROOT_DIR/bash/docker-upgrade-run.sh"
