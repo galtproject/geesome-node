@@ -23,6 +23,12 @@ export default {
             return getRelativeRoot(this.$route.path) + 'content/';
         },
     },
+    methods: {
+        contentUrl(content) {
+            const extension = content.extension ? `.${content.extension}` : '';
+            return this.contentRoot + content.storageId + extension;
+        },
+    },
     template: `
       <layout>
       <template #page>
@@ -46,9 +52,9 @@ export default {
             <div class="post-page-content">
               <div v-for="c in post.contents">
                 <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
-                <img v-if="c.type === 'image'" :src="contentRoot + c.storageId">
+                <img v-if="c.type === 'image'" :src="contentUrl(c)">
                 <video v-if="c.type === 'video'" controls>
-                  <source :src="contentRoot + c.storageId + '.mp4'" type="video/mp4">
+                  <source :src="contentUrl(c)" type="video/mp4">
                   Your browser does not support the video tag.
                 </video>
               </div>
