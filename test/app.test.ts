@@ -403,6 +403,44 @@ describe("app", function () {
 		assert.equal(ipfsHelper.isIpfsHash(contentObj.preview.medium.storageId), true);
 	});
 
+	it('should save converted image metadata using the converted format', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+
+		app.ms.storage.isStreamAddSupport = () => {
+			return false;
+		};
+
+		const pngImagePath = await resourcesHelper.prepare('input-image.png');
+		const imageContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
+			groupId: testGroup.id,
+			waitForPin: true,
+			driver: JSON.stringify({
+				name: 'imageWatermark',
+				module: 'convert',
+				params: {
+					text: 'test.com',
+					color: 'black',
+					background: '#ffffff80',
+					font: 'monospace',
+					spacing: 50,
+					sizeRatio: 1 / 50,
+					extension: 'jpg'
+				}
+			})
+		});
+
+		const properties = JSON.parse(imageContent.propertiesJson);
+		const contentObj = await app.ms.storage.getObject(imageContent.manifestStorageId);
+
+		assert.equal(imageContent.mimeType, 'image/jpeg');
+		assert.equal(imageContent.extension, 'jpg');
+		assert.equal(properties.format, 'jpeg');
+		assert.equal(contentObj.mimeType, 'image/jpeg');
+		assert.equal(contentObj.preview.medium.mimeType, 'image/jpeg');
+		assert.equal(imageContent.previewExtension, 'jpg');
+	});
+
 	it('should correctly save video', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];

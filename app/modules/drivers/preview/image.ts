@@ -22,7 +22,7 @@ export class ImagePreviewDriver extends AbstractDriver {
 
   async processByStream(inputStream, options: any = {}) {
     log('ImagePreviewDriver.processByStream');
-    const extension = options.extension || 'jpg';
+    const extension = normalizeImageExtension(options.extension || 'jpg');
 
     // TODO: get size by settings
     let size = {width: 1024};
@@ -47,8 +47,22 @@ export class ImagePreviewDriver extends AbstractDriver {
 
     return {
       stream: resultStream,
-      type: 'image/' + extension,
+      type: getImageMimeType(extension),
       extension: extension
     };
   }
+}
+
+function normalizeImageExtension(extension) {
+  if (extension === 'jpeg') {
+    return 'jpg';
+  }
+  return extension;
+}
+
+function getImageMimeType(extension) {
+  if (extension === 'jpg') {
+    return 'image/jpeg';
+  }
+  return 'image/' + extension;
 }
