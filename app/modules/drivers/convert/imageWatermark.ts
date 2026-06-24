@@ -10,6 +10,7 @@
 // process.env.FONTCONFIG_PATH = '';
 
 import debug from 'debug';
+import fs from "fs";
 import sharp from "sharp";
 import {Stream} from "stream";
 import {DriverInput, OutputSize} from "../interface.js";
@@ -23,7 +24,8 @@ export class ImageWatermarkDriver extends AbstractDriver {
 
   async processByStream(inputStream, options: any = {}) {
     log('ImagePreviewDriver.processByStream');
-    const path = await helpers.writeStreamToRandomPath(inputStream, options.extension)
+    const outputExtension = normalizeImageExtension(options.extension || 'jpg');
+    const path = await helpers.writeStreamToRandomPath(inputStream, options.inputExtension || options.extension || 'image')
     const metadata = await sharp(path).metadata();
 
     const {color, background, spacing, font, sizeRatio} = options;
@@ -55,19 +57,55 @@ export class ImageWatermarkDriver extends AbstractDriver {
         {input: {text}, left: size, top: metadata.height + padding},
       ])
       .withMetadata()
-      .toFormat(options.extension);
+      .toFormat(outputExtension);
 
-    const resultStream = inputStream.pipe(watermarkStream) as Stream;
+    const resultStream = watermarkStream as Stream;
+    const cleanup = once(() => fs.rm(path, {force: true}, () => {}));
 
     resultStream.on("error", (err) => {
+      cleanup();
+      if (isStreamAbortError(err)) {
+        return;
+      }
       console.error('ImageWatermarkDriver resultStream error', err);
       options.onError && options.onError(err);
     });
+    resultStream.on("end", cleanup);
+    resultStream.on("close", cleanup);
 
-    return {stream: resultStream};
+    return {
+      stream: resultStream,
+      type: getImageMimeType(outputExtension),
+      extension: outputExtension
+    };
   }
 }
 
-function r(number) {
-  return Math.round(number);
+function normalizeImageExtension(extension) {
+  if (extension === 'jpeg') {
+    return 'jpg';
+  }
+  return extension;
+}
+
+function getImageMimeType(extension) {
+  if (extension === 'jpg') {
+    return 'image/jpeg';
+  }
+  return 'image/' + extension;
+}
+
+function once(callback) {
+  let called = false;
+  return () => {
+    if (called) {
+      return;
+    }
+    called = true;
+    callback();
+  };
+}
+
+function isStreamAbortError(error) {
+  return error?.code === 'ABORT_ERR';
 }

@@ -1010,6 +1010,7 @@ function getModule(app: IGeesomeApp) {
 		
 		private async saveFileByStream(stream, mimeType, options, properties, extension, onError, onSuccess) {
 			const {name: driverName, params: driverParams, module: driverModule} = this.getDriverNameAndParams(options);
+			const isConvertDriver = !!(driverName && driverModule === 'convert');
 
 			const storageOptions = {
 				waitForPin: options.waitForPin
@@ -1018,16 +1019,27 @@ function getModule(app: IGeesomeApp) {
 
 			const propertiesPromise = new Promise(async (resolve) => {
 				log('mimeType', mimeType);
-				if (startsWith(mimeType, 'image')) {
+				if (startsWith(mimeType, 'image') && !isConvertDriver) {
 					properties = await app.ms.drivers.metadata['image'].processByStream(stream, {onError});
 					// log('metadata processByStream', properties);
 				}
 				resolve();
 			});
 
-			if (driverName && driverModule === 'convert') {
-				const watermarkResult = await app.ms.drivers.convert[driverName].processByStream(stream, driverParams);
-				stream = watermarkResult.stream;
+			if (isConvertDriver) {
+				const convertResult = await app.ms.drivers.convert[driverName].processByStream(stream, {
+					...driverParams,
+					inputExtension: extension,
+					inputMimeType: mimeType,
+					onError
+				});
+				stream = convertResult.stream;
+				if (convertResult.type) {
+					mimeType = convertResult.type;
+				}
+				if (convertResult.extension) {
+					extension = convertResult.extension;
+				}
 			}
 
 			let resultFile: IStorageFile;
@@ -1086,6 +1098,15 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			await propertiesPromise;
+			if (isConvertDriver && startsWith(mimeType, 'image')) {
+				let propertiesStream;
+				if (resultFile.tempPath) {
+					propertiesStream = fs.createReadStream(resultFile.tempPath);
+				} else {
+					propertiesStream = await this.getFileStream(resultFile.id);
+				}
+				properties = await app.ms.drivers.metadata['image'].processByStream(propertiesStream, {onError});
+			}
 
 			onSuccess({
 				resultFile: resultFile,
