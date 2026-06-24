@@ -23,6 +23,13 @@ describe('staticSiteGenerator streaming render state', function () {
 					view: 'contents',
 					text: 'streamed post body',
 					storageId: 'text-storage-id'
+				},
+				{
+					id: 2,
+					type: 'image',
+					view: 'media',
+					storageId: 'image-storage-id',
+					extension: 'png'
 				}
 			]
 		};
@@ -52,11 +59,13 @@ describe('staticSiteGenerator streaming render state', function () {
 			const indexHtml = await renderPage('/', headers);
 			assert.equal(indexHtml.includes('streamed intro'), true);
 			assert.equal(indexHtml.includes('./post/7/'), true);
+			assert.equal(indexHtml.includes('./content/image-storage-id.png'), true);
 
 			renderData.currentPosts = [];
 			renderData.currentPost = post;
 			const postHtml = await renderPage('/post/7', headers);
 			assert.equal(postHtml.includes('streamed post body'), true);
+			assert.equal(postHtml.includes('../../content/image-storage-id.png'), true);
 		} finally {
 			console.warn = originalWarn;
 		}
