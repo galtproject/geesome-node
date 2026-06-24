@@ -58,6 +58,8 @@ describe("drivers", function () {
         extension: 'jpg'
       });
       // console.log('result', result);
+      assert.equal(result.type, 'image/jpeg');
+      assert.equal(result.extension, 'jpg');
 
       const ouputStreamablePath = resourcesHelper.getOutputDir() + '/output-image.jpg';
       await new Promise(async (resolve, reject) => {
