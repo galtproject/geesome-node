@@ -99,6 +99,8 @@ sudo PORT=4242 bash/ubuntu-set-ssh-port.sh # Change SSH port to custom
 sudo chmod +x bash/*.sh && sudo bash/ubuntu-install-docker.sh
 sudo DOMAIN=geesome.your-site.com EMAIL=your@email.com GATEWAY=1 bash/ubuntu-install-nginx.sh # add CF=1 before script to install for cloudflare
 ```
+The Docker service runs `bash/ipfs-ownership-preflight.sh` before startup. It creates the mounted IPFS data directories for Kubo's `ipfs` user (`1000:100`) and conditionally repairs restored or upgraded repos whose `config`, `repo.lock`, `datastore`, or `blocks` ownership would otherwise crash-loop the IPFS container.
+
 6. Open `geesome.your-site.com/#/setup` to create first admin user
 
 ## Install without domain (IP only)
