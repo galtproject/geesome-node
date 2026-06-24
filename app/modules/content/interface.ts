@@ -16,7 +16,7 @@ export default interface IGeesomeContentModule {
 
 	getContent(contentId): Promise<IContent>;
 
-	getPublicContentMetadata(contentId): Promise<Partial<IContent>>;
+	getPublicContentMetadata(contentId, userId?): Promise<Partial<IContent>>;
 
 	getContentByStorageId(storageId): Promise<IContent>;
 

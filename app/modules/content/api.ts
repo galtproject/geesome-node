@@ -9,6 +9,19 @@ const {pick} = _;
 const log = debug('geesome:content:api');
 
 export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
+    async function getOptionalAuthenticatedUserId(req) {
+        if (!req.token) {
+            return null;
+        }
+        try {
+            const {user} = await app.getUserByApiToken(req.token);
+            return user?.id || null;
+        } catch (e) {
+            log('optional content metadata auth failed', e?.message || e);
+            return null;
+        }
+    }
+
 
     /**
      * @api {post} /v1/user/save-file Save file
@@ -228,7 +241,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {get} /v1/content/:contentId Get public-safe content metadata
-     * @apiDescription Numeric database ids are visible only for public content rows. Storage ids resolve through deterministic shared metadata and omit owner/library-only fields unless the selected row is public.
+     * @apiDescription Numeric database ids are visible only for public content rows unless the request includes a valid bearer token for the content owner. Storage ids resolve through deterministic shared metadata and omit owner/library-only fields unless the selected row is public.
      * @apiName ContentGet
      * @apiGroup Content
      *
@@ -241,14 +254,16 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiSuccess {String} [largePreviewStorageId] Large preview storage id.
      * @apiSuccess {String} [mediumPreviewStorageId] Medium preview storage id.
      * @apiSuccess {String} [smallPreviewStorageId] Small preview storage id.
-     * @apiSuccess {Number} [id] Public content database id, only for public rows.
-     * @apiSuccess {String} [name] Public content name, only for public rows.
-     * @apiSuccess {String} [description] Public content description, only for public rows.
-     * @apiSuccess {String} [manifestStorageId] Public content manifest id, only for public rows.
+     * @apiHeader {String} [Authorization] Optional bearer API key. When present and valid for the content owner, private numeric database ids resolve to the owner's full content metadata for backward compatibility.
+     * @apiSuccess {Number} [id] Public content database id, or owner content database id when authorized.
+     * @apiSuccess {String} [name] Public content name, or owner content name when authorized.
+     * @apiSuccess {String} [description] Public content description, or owner content description when authorized.
+     * @apiSuccess {String} [manifestStorageId] Public content manifest id, or owner content manifest id when authorized.
      * @apiUse ValidationErrors
      */
     app.ms.api.onGet('content/:contentId', async (req, res) => {
-        res.send(await contentModule.getPublicContentMetadata(req.params.contentId));
+        const userId = await getOptionalAuthenticatedUserId(req);
+        res.send(await contentModule.getPublicContentMetadata(req.params.contentId, userId));
     });
 
     /**

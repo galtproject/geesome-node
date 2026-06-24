@@ -348,13 +348,20 @@ function getModule(app: IGeesomeApp) {
 			return app.ms.database.getContent(contentId);
 		}
 
-		async getPublicContentMetadata(contentId) {
+		async getPublicContentMetadata(contentId, userId?) {
 			if (isDatabaseContentId(contentId)) {
 				const content = await app.ms.database.getContent(contentId);
-				if (!content || !content.isPublic) {
+				if (!content) {
 					throw createContentNotFoundError();
 				}
-				return pickPublicContentMetadata(content);
+				const contentData = toContentPlainObject(content);
+				if (contentData.isPublic) {
+					return pickPublicContentMetadata(contentData);
+				}
+				if (helpers.hasId(userId) && Number(contentData.userId) === Number(userId)) {
+					return contentData;
+				}
+				throw createContentNotFoundError();
 			}
 
 			const content = await app.ms.database.getSharedStorageMetadataByStorageId(contentId, {includePreviews: true});
