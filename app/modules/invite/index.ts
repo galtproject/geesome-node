@@ -4,9 +4,10 @@ import commonHelper from "geesome-libs/src/common.js";
 import geesomeMessages from "geesome-libs/src/messages.js";
 import {CorePermissionName, IInvite, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp, IUserInput} from "../../interface.js";
-import IGeesomeInviteModule from "./interface.js";
+import IGeesomeInviteModule, {IInviteStatusOptions} from "./interface.js";
+import {inviteErrors} from "./errors.js";
 import helpers from "../../helpers";
-const {isUndefined, pick} = _;
+const {isUndefined} = _;
 const inviteListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'code', 'isActive'],
@@ -25,17 +26,7 @@ export default async (app: IGeesomeApp) => {
 function getModule(app: IGeesomeApp, models) {
 	class InviteModule implements IGeesomeInviteModule {
 		public async registerUserByInviteCode(inviteCode, userData: IUserInput): Promise<any> {
-			const invite = await this.findInviteByCode(inviteCode);
-			if (!invite) {
-				throw new Error("invite_not_found");
-			}
-			if (!invite.isActive) {
-				throw new Error("invite_not_active");
-			}
-			const joinedByInviteCount = await this.getJoinedByInviteCount(invite.id);
-			if (joinedByInviteCount >= invite.maxCount) {
-				throw new Error("invite_max_count");
-			}
+			const {invite, permissions} = await this.getInvitePreflight(inviteCode, {requiredPermission: null});
 
 			await app.callHook('invite', 'beforeUserRegistering', [null, userData, {
 				checkMessage: await this.getRegisterMessage(inviteCode),
@@ -43,7 +34,7 @@ function getModule(app: IGeesomeApp, models) {
 
 			const user = await app.registerUser({
 				...userData,
-				permissions: JSON.parse(invite.permissions),
+				permissions,
 			});
 
 			await models.JoinedByPivot.create({
@@ -67,7 +58,30 @@ function getModule(app: IGeesomeApp, models) {
 				});
 			}
 
-			return { user, apiKey: await app.generateUserApiKey(user.id, {type: "invite"})};
+			return {
+				user,
+				apiKey: await app.generateUserApiKey(user.id, {type: "invite", permissions}, true),
+				permissions,
+				keyStoreMethod: 'node'
+			};
+		}
+
+		public async getInviteStatus(inviteCode, options: IInviteStatusOptions = {}) {
+			const preflight = await this.getInvitePreflight(inviteCode, options);
+			const response: any = {
+				ok: true,
+				code: inviteCode,
+				publicJoinEnabled: true,
+				active: true,
+				remainingUses: preflight.remainingUses,
+				permissions: preflight.permissions,
+				expiresAt: null,
+				joinPath: `/v1/invite/join/${inviteCode}`
+			};
+			if (options.requiredPermission) {
+				response.requiredPermission = options.requiredPermission;
+			}
+			return response;
 		}
 
 		async getRegisterMessage(inviteCode) {
@@ -129,6 +143,33 @@ function getModule(app: IGeesomeApp, models) {
 			return models.Invite.findOne({where: {code}}) as IInvite;
 		}
 
+		async getInvitePreflight(inviteCode, options: IInviteStatusOptions = {}) {
+			const invite = await this.findInviteByCode(inviteCode);
+			if (!invite) {
+				throw inviteErrors.notFound();
+			}
+			if (!invite.isActive) {
+				throw inviteErrors.notActive();
+			}
+
+			const joinedByInviteCount = await this.getJoinedByInviteCount(invite.id);
+			const maxCount = Number(invite.maxCount || 0);
+			if (joinedByInviteCount >= maxCount) {
+				throw inviteErrors.exhausted();
+			}
+
+			const permissions = parseInvitePermissions(invite);
+			if (options.requiredPermission && !hasRequiredPermission(permissions, options.requiredPermission)) {
+				throw inviteErrors.missingUploadPermission(options.requiredPermission);
+			}
+
+			return {
+				invite,
+				permissions,
+				remainingUses: Math.max(maxCount - joinedByInviteCount, 0)
+			};
+		}
+
 		async getJoinedByInviteCount(joinedByInviteId) {
 			return models.JoinedByPivot.count({ where: {joinedByInviteId} });
 		}
@@ -181,4 +222,32 @@ function getModule(app: IGeesomeApp, models) {
 		}
 	}
 	return new InviteModule();
+}
+
+function parseInvitePermissions(invite) {
+	if (!invite.permissions) {
+		return [];
+	}
+	if (Array.isArray(invite.permissions)) {
+		return invite.permissions;
+	}
+	try {
+		const permissions = JSON.parse(invite.permissions);
+		if (Array.isArray(permissions)) {
+			return permissions;
+		}
+	} catch (e) {
+		throw inviteErrors.invalidPermissions();
+	}
+	throw inviteErrors.invalidPermissions();
+}
+
+function hasRequiredPermission(permissions, requiredPermission) {
+	if (requiredPermission.startsWith('admin:')) {
+		return permissions.includes(CorePermissionName.AdminAll) || permissions.includes(requiredPermission);
+	}
+	if (requiredPermission.startsWith('user:')) {
+		return permissions.includes(CorePermissionName.UserAll) || permissions.includes(requiredPermission);
+	}
+	return permissions.includes(requiredPermission);
 }
