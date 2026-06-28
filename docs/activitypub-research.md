@@ -100,7 +100,7 @@ Suggested WebFinger:
 
 Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
 
-Read-only route status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes with protocol content types. The next implementation slices should add stable actor key storage, HTTP signature verification/signing, follow state, and delivery queues before accepting inbound activities.
+Read-only route and key status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, and reusable outbound RSA-SHA256 HTTP-signature helpers exist. The next implementation slices should add inbound HTTP signature verification, follow state, and delivery queues before accepting inbound activities.
 
 ## Post Mapping
 
@@ -244,7 +244,7 @@ Do not derive canonical actor IDs from `PORT`, internal Docker hostnames, or for
 
 Use ActivityPub-specific models instead of adding many nullable columns to `Group` and `Post`:
 
-- `ActivityPubActor`: local actor binding, `entityType`, `entityId`, `preferredUsername`, `actorUrl`, `inboxUrl`, `outboxUrl`, `followersUrl`, `privateKeyPemEncrypted`, `publicKeyPem`, `isEnabled`.
+- `ActivityPubActor`: local actor binding, `entityType`, `entityId`, `preferredUsername`, `actorUrl`, `inboxUrl`, `outboxUrl`, `followersUrl`, `followingUrl`, `privateKeyPemEncrypted`, `publicKeyPem`, `isEnabled`. Status: local group actor rows and signing keys exist.
 - `ActivityPubRemoteActor`: remote `actorUrl`, `preferredUsername`, `domain`, `inboxUrl`, `sharedInboxUrl`, `publicKeyPem`, `lastFetchedAt`, `rawJson`.
 - `ActivityPubFollow`: local actor id, remote actor id, direction, state, remote activity id, accepted/rejected timestamps.
 - `ActivityPubObject`: local post id or remote object URL, activity id, object id, type, raw JSON, visibility, delivery state.
@@ -330,7 +330,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 
 - Decide whether the ActivityPub actor is `Group`, `Service`, or compatibility `Person`.
 - Decide whether runtime can move to Node 22 for Fedify.
-- Define database records for actor keypairs, remote actors, follows, and delivery attempts.
+- Define database records for actor keypairs, remote actors, follows, and delivery attempts. Status: local actor keypair records exist; remote actor, follow, object, and delivery records remain future work.
 - Document exact public URL shape. Status: group actor and post-object URL helpers now pin the `/ap/groups/{groupName}` and `/ap/groups/{groupName}/posts/{localId}` shapes, plus WebFinger `acct:{groupName}@{domain}` resources. The remaining design decision is whether later route/signature implementation uses Fedify or the minimal custom module.
 
 ### Slice 1: Discovery And Read-Only Federation

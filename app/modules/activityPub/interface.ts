@@ -48,6 +48,34 @@ export interface IActivityPubOutboxOptions {
 	contentsByPostId?: Map<number, IContentData[]>;
 }
 
+export interface IActivityPubActorKey {
+	keyId: string;
+	actorUrl: string;
+	publicKeyPem: string;
+	privateKeyPem: string;
+}
+
+export interface IActivityPubGeneratedKeyPair {
+	publicKeyPem: string;
+	privateKeyPem: string;
+}
+
+export interface IActivityPubSignRequestOptions {
+	method: string;
+	url: string;
+	body?: string | Buffer;
+	date?: Date | string;
+	headers?: Record<string, string | number>;
+	signedHeaders?: string[];
+}
+
+export interface IActivityPubSignedRequest {
+	headers: Record<string, string>;
+	signature: string;
+	signingString: string;
+	signedHeaders: string[];
+}
+
 export type IActivityPubActorObject = Record<string, any>;
 
 export type IActivityPubNoteObject = Record<string, any>;
@@ -66,4 +94,10 @@ export default interface IGeesomeActivityPubModule {
 	getGroupOutbox(groupName: string, listParams?: IListParams): Promise<IActivityPubOutboxCollection>;
 
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
+
+	getGroupActorKey(groupName: string): Promise<IActivityPubActorKey>;
+
+	signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions): Promise<IActivityPubSignedRequest>;
+
+	flushDatabase(): Promise<void>;
 }

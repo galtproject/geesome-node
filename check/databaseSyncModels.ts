@@ -72,6 +72,13 @@ const moduleModelSyncers = [
     },
   },
   {
+    name: 'activityPub',
+    sync: async (sequelize: Sequelize, models: any) => {
+      Object.assign(models, await (await import('../app/modules/activityPub/models.js')).default(sequelize));
+      return models;
+    },
+  },
+  {
     name: 'foreignAccounts',
     sync: async (sequelize: Sequelize, models: any) => {
       Object.assign(models, await (await import('../app/modules/foreignAccounts/models.js')).default(sequelize));

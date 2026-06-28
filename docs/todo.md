@@ -325,7 +325,7 @@ Goal: make GeeSome groups/posts visible and interoperable through ActivityPub wi
 
 This is an important protocol-facing feature, not only a generic integration. The first delivery should define a minimal compatible ActivityPub surface before implementing broad Mastodon-style behavior.
 
-Status: first API prerequisite, public identity helper, read-only serializer, and read-only route slices landed. The API module now supports unversioned JSON `POST` handlers, accepts `application/*+json` payloads, and exposes captured raw JSON bytes for signed/protocol-style posts such as future ActivityPub inbox/shared-inbox routes. ActivityPub config now has explicit `enabled`, `publicUrl`, and `domain` fields sourced from `ACTIVITYPUB_*` env vars, deterministic helpers build group actor, inbox/outbox/followers/following, shared-inbox, post-object, and WebFinger URLs, serializers build group actor, Note/Create, and outbox collection payloads behind public/non-encrypted/published safety gates, and the dedicated `activityPub` module exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes. Next slices should add actor key storage/signatures, inbound inbox verification, follow state, and delivery queues before accepting broad federation activities.
+Status: first API prerequisite, public identity helper, read-only serializer, read-only route, and actor-key/signature slices landed. The API module now supports unversioned JSON `POST` handlers, accepts `application/*+json` payloads, and exposes captured raw JSON bytes for signed/protocol-style posts such as future ActivityPub inbox/shared-inbox routes. ActivityPub config now has explicit `enabled`, `publicUrl`, and `domain` fields sourced from `ACTIVITYPUB_*` env vars, deterministic helpers build group actor, inbox/outbox/followers/following, shared-inbox, post-object, and WebFinger URLs, serializers build group actor, Note/Create, and outbox collection payloads behind public/non-encrypted/published safety gates, the dedicated `activityPub` module exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes, and local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys in actor documents, and reusable outbound HTTP-signature helpers. Next slices should add inbound inbox verification, follow state, and delivery queues before accepting broad federation activities.
 
 Research note: [activitypub-research.md](./activitypub-research.md).
 
@@ -335,7 +335,7 @@ Scope:
 - Expose WebFinger discovery for local actors. The dedicated ActivityPub module now serves public `/.well-known/webfinger` for federatable local group actors.
 - Add actor, outbox, inbox, followers, and following endpoints. Read-only actor, outbox, and post-object routes are exposed; inbox, followers, following, and remote delivery are still future slices.
 - Represent published group posts as ActivityPub `Create` activities with `Note`/attachment objects and stable GeeSome/IPFS links. Read-only serializers now cover Note/Create and outbox collection payloads, and public route wiring dereferences actor, outbox, and Note object URLs.
-- Verify HTTP signatures for inbound activities and sign outbound activities. Raw JSON request bytes are now available to route callbacks for future digest/signature checks.
+- Verify HTTP signatures for inbound activities and sign outbound activities. Raw JSON request bytes are now available to route callbacks for future digest/signature checks; outbound RSA-SHA256 signing helpers and stable local actor keys exist, while inbound verification is still future work.
 - Store inbound follows/accepts and minimal remote actor metadata.
 - Keep moderation, deletes/updates, rich media federation, and full timeline syncing for later slices.
 - Decide whether to adopt Fedify or keep a minimal custom module. The repo now targets Node 22, so the earlier Node-floor concern is gone; the remaining decision is dependency weight, integration shape, and whether Fedify's helpers fit GeeSome's IPFS/IPNS-first identity model.
@@ -346,7 +346,7 @@ Likely modules:
 - `app/modules/group` for local group/post mapping.
 - `app/modules/content` for attachment URLs and media metadata.
 - `app/modules/api` for unversioned POST/raw body support.
-- ActivityPub-specific Sequelize models for actor, remote actor, follow, object, and delivery records.
+- ActivityPub-specific Sequelize models for actor, remote actor, follow, object, and delivery records. The first model-sync `ActivityPubActor` table now stores local group actor URLs and encrypted signing keys; remote actors, follows, objects, and delivery rows are still future slices.
 
 Do not reuse `remoteGroup` as the ActivityPub remote actor store; it is GeeSome/IPFS-manifest oriented, while ActivityPub uses HTTPS actor IDs and signed HTTP.
 
