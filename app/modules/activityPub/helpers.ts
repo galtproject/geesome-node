@@ -9,6 +9,8 @@ import type {
 
 export const activityPubContext = 'https://www.w3.org/ns/activitystreams';
 export const activityPubPublicCollection = 'https://www.w3.org/ns/activitystreams#Public';
+export const activityPubContentType = 'application/activity+json; charset=utf-8';
+export const activityPubWebFingerContentType = 'application/jrd+json; charset=utf-8';
 
 export function resolveActivityPubConfig(config: IActivityPubConfig = {}): IResolvedActivityPubConfig {
 	const parsedPublicUrl = parseActivityPubPublicUrl(config.publicUrl);
@@ -130,7 +132,7 @@ function getActivityPubSharedInboxUrl(config: IResolvedActivityPubConfig): strin
 	return `${config.publicUrl}/ap/shared-inbox`;
 }
 
-function normalizeActivityPubPostLocalId(localId: number | string): string {
+export function normalizeActivityPubPostLocalId(localId: number | string): string {
 	const postLocalId = Number(localId);
 	if (!Number.isInteger(postLocalId) || postLocalId <= 0) {
 		throw new Error('activitypub_post_local_id_invalid');

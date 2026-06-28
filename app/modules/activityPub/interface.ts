@@ -1,5 +1,5 @@
 import type {IGroup} from '../group/interface.js';
-import type {IContentData} from '../database/interface.js';
+import type {IContentData, IListParams} from '../database/interface.js';
 
 export interface IActivityPubConfig {
 	enabled?: boolean | string;
@@ -55,3 +55,15 @@ export type IActivityPubNoteObject = Record<string, any>;
 export type IActivityPubCreateActivity = Record<string, any>;
 
 export type IActivityPubOutboxCollection = Record<string, any>;
+
+export default interface IGeesomeActivityPubModule {
+	isEnabled(): boolean;
+
+	getWebFingerResponse(resource: string): Promise<IActivityPubWebFingerResponse>;
+
+	getGroupActor(groupName: string): Promise<IActivityPubActorObject>;
+
+	getGroupOutbox(groupName: string, listParams?: IListParams): Promise<IActivityPubOutboxCollection>;
+
+	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
+}
