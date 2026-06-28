@@ -22,6 +22,7 @@ import IGeesomeCommunicatorModule from "./modules/communicator/interface.js";
 import IGeesomeStaticIdModule from "./modules/staticId/interface.js";
 import IGeesomeStorageModule from "./modules/storage/interface.js";
 import IGeesomeStorageSpaceModule from "./modules/storageSpace/interface.js";
+import IGeesomeActivityPubModule from "./modules/activityPub/interface.js";
 import IGeesomeDriversModule from "./modules/drivers/interface.js";
 import IGeesomeContentModule from "./modules/content/interface.js";
 import IGeesomeInviteModule from "./modules/invite/interface.js";
@@ -125,6 +126,7 @@ function getModule(config, appPass) {
       communicator: IGeesomeCommunicatorModule,
       storage: IGeesomeStorageModule,
       storageSpace: IGeesomeStorageSpaceModule,
+      activityPub: IGeesomeActivityPubModule,
       entityJsonManifest: IGeesomeEntityJsonManifestModule
     };
 

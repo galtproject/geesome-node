@@ -325,16 +325,16 @@ Goal: make GeeSome groups/posts visible and interoperable through ActivityPub wi
 
 This is an important protocol-facing feature, not only a generic integration. The first delivery should define a minimal compatible ActivityPub surface before implementing broad Mastodon-style behavior.
 
-Status: first API prerequisite, public identity helper, and read-only serializer slices landed. The API module now supports unversioned JSON `POST` handlers, accepts `application/*+json` payloads, and exposes captured raw JSON bytes for signed/protocol-style posts such as future ActivityPub inbox/shared-inbox routes. ActivityPub config now has explicit `enabled`, `publicUrl`, and `domain` fields sourced from `ACTIVITYPUB_*` env vars, deterministic helpers build group actor, inbox/outbox/followers/following, shared-inbox, post-object, and WebFinger URLs, and serializers build group actor, Note/Create, and outbox collection payloads behind public/non-encrypted/published safety gates. Next slices should add read-only WebFinger/actor/outbox routes before accepting inbound federation activities.
+Status: first API prerequisite, public identity helper, read-only serializer, and read-only route slices landed. The API module now supports unversioned JSON `POST` handlers, accepts `application/*+json` payloads, and exposes captured raw JSON bytes for signed/protocol-style posts such as future ActivityPub inbox/shared-inbox routes. ActivityPub config now has explicit `enabled`, `publicUrl`, and `domain` fields sourced from `ACTIVITYPUB_*` env vars, deterministic helpers build group actor, inbox/outbox/followers/following, shared-inbox, post-object, and WebFinger URLs, serializers build group actor, Note/Create, and outbox collection payloads behind public/non-encrypted/published safety gates, and the dedicated `activityPub` module exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes. Next slices should add actor key storage/signatures, inbound inbox verification, follow state, and delivery queues before accepting broad federation activities.
 
 Research note: [activitypub-research.md](./activitypub-research.md).
 
 Scope:
 
 - Map GeeSome identities/groups to ActivityPub actors. Group actor URL helpers now use `/ap/groups/{groupName}` and require GeeSome-valid group names so WebFinger `acct:` handles stay valid.
-- Expose WebFinger discovery for local actors. WebFinger resource/URL/response helpers exist; the route still needs the dedicated ActivityPub module.
-- Add actor, outbox, inbox, followers, and following endpoints. The API layer can now register unversioned POST inbox routes; no ActivityPub route is exposed until the dedicated module lands.
-- Represent published group posts as ActivityPub `Create` activities with `Note`/attachment objects and stable GeeSome/IPFS links. Read-only serializers now cover Note/Create and outbox collection payloads; route wiring still needs the dedicated ActivityPub module.
+- Expose WebFinger discovery for local actors. The dedicated ActivityPub module now serves public `/.well-known/webfinger` for federatable local group actors.
+- Add actor, outbox, inbox, followers, and following endpoints. Read-only actor, outbox, and post-object routes are exposed; inbox, followers, following, and remote delivery are still future slices.
+- Represent published group posts as ActivityPub `Create` activities with `Note`/attachment objects and stable GeeSome/IPFS links. Read-only serializers now cover Note/Create and outbox collection payloads, and public route wiring dereferences actor, outbox, and Note object URLs.
 - Verify HTTP signatures for inbound activities and sign outbound activities. Raw JSON request bytes are now available to route callbacks for future digest/signature checks.
 - Store inbound follows/accepts and minimal remote actor metadata.
 - Keep moderation, deletes/updates, rich media federation, and full timeline syncing for later slices.

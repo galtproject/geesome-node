@@ -100,7 +100,7 @@ Suggested WebFinger:
 
 Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
 
-Read-only serializer status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The next implementation slice should expose those serializers through read-only ActivityPub routes, still without accepting inbound activities.
+Read-only route status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes with protocol content types. The next implementation slices should add stable actor key storage, HTTP signature verification/signing, follow state, and delivery queues before accepting inbound activities.
 
 ## Post Mapping
 
@@ -258,7 +258,7 @@ ActivityPub serializers should depend on module methods rather than raw model qu
 
 - Actor serializer: `group.getGroupByParams({name})` or `group.getGroup(id)` with avatar/cover includes.
 - Outbox serializer: `group.getGroupPosts(group.id, {status: PostStatus.Published, isDeleted: false}, listParams)`.
-- Object serializer: `group.getPostPure(postId)` or `group.getPostByGroupManifestIdAndLocalId(...)`.
+- Object serializer: `group.getGroupPostRefsByLocalIds(...)` to resolve the public local ID, then `group.getGroupPosts(...)` for the hydrated published post.
 - Content serializer: `group.getPostContentDataWithUrl(post, `${publicUrl}/ipfs/`)`.
 
 Use existing `localId` for human-readable/stable post paths. Suggested object URL:
@@ -364,7 +364,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 
 - Unit tests for actor, WebFinger, Note, and Create serializers.
 - Signature fixtures for inbound and outbound HTTP signatures.
-- Route tests for ActivityPub content negotiation and `application/activity+json`.
+- Route tests for ActivityPub content negotiation and `application/activity+json`. Status: focused unit coverage now checks the public WebFinger, actor, outbox, and post-object route registrations and response content types.
 - Fedify testing utilities if Fedify is adopted.
 - Manual/local federation tests with `fedify lookup`, `fedify inbox`, ActivityPub.Academy, and one Mastodon-compatible server.
 
