@@ -71,6 +71,24 @@ describe("app", function () {
 		assert.equal(response.body.joinPath, `/v1/invite/join/${invite.code}`);
 	});
 
+	it('invite codes should be configured length base62 strings', async () => {
+		const seenCodes = new Set<string>();
+		const expectedLength = getExpectedInviteCodeLength();
+		for (let i = 0; i < 20; i++) {
+			const invite = await createInvite(app, admin.id, {
+				title: `generated invite ${i}`,
+				permissions: JSON.stringify([CorePermissionName.UserSaveData]),
+				maxCount: 1,
+				isActive: true
+			});
+
+			assert.equal(invite.code.length, expectedLength);
+			assert.equal(new RegExp(`^[A-Za-z0-9]{${expectedLength}}$`).test(invite.code), true);
+			assert.equal(seenCodes.has(invite.code), false);
+			seenCodes.add(invite.code);
+		}
+	});
+
 	it('invite status should return structured errors for unusable upload invites', async () => {
 		const missingResponse = await requestJson('GET', `/invite/status/${commonHelper.random('hash')}`);
 		assert.equal(missingResponse.status, 404);
@@ -342,6 +360,14 @@ async function createInvite(app: IGeesomeApp, adminId, inviteData) {
 		groupsToJoin: JSON.stringify([]),
 		...inviteData
 	});
+}
+
+function getExpectedInviteCodeLength() {
+	const configuredLength = Number.parseInt(process.env.GEESOME_INVITE_CODE_LENGTH || '', 10);
+	if (!Number.isFinite(configuredLength) || configuredLength <= 0) {
+		return 16;
+	}
+	return Math.max(configuredLength, 16);
 }
 
 async function requestJson(method, path, body?, extraHeaders?) {

@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import pIteration from 'p-iteration';
-import commonHelper from "geesome-libs/src/common.js";
+import {randomInt} from 'node:crypto';
 import geesomeMessages from "geesome-libs/src/messages.js";
 import {CorePermissionName, IInvite, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp, IUserInput} from "../../interface.js";
@@ -8,6 +8,9 @@ import IGeesomeInviteModule, {IInviteStatusOptions} from "./interface.js";
 import {inviteErrors} from "./errors.js";
 import helpers from "../../helpers";
 const {isUndefined} = _;
+const INVITE_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const DEFAULT_INVITE_CODE_LENGTH = 16;
+const MIN_INVITE_CODE_LENGTH = 16;
 const inviteListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'title', 'code', 'isActive'],
@@ -91,7 +94,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async createInvite(userId, inviteData) {
 			await app.checkUserCan(userId, CorePermissionName.AdminAddUser);
-			inviteData.code = commonHelper.makeCode(16);
+			inviteData.code = generateInviteCode();
 			inviteData.createdById = userId;
 			return this.addInvite(inviteData);
 		}
@@ -250,4 +253,20 @@ function hasRequiredPermission(permissions, requiredPermission) {
 		return permissions.includes(CorePermissionName.UserAll) || permissions.includes(requiredPermission);
 	}
 	return permissions.includes(requiredPermission);
+}
+
+function generateInviteCode() {
+	let code = '';
+	const length = getInviteCodeLength();
+	for (let i = 0; i < length; i++) {
+		code += INVITE_CODE_ALPHABET[randomInt(INVITE_CODE_ALPHABET.length)];
+	}
+	return code;
+}
+
+function getInviteCodeLength() {
+	return Math.max(
+		helpers.parsePositiveInteger(process.env.GEESOME_INVITE_CODE_LENGTH, DEFAULT_INVITE_CODE_LENGTH),
+		MIN_INVITE_CODE_LENGTH
+	);
 }
