@@ -2,9 +2,10 @@ import {IGeesomeApp} from '../../interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
-import IGeesomeActivityPubModule, {IResolvedActivityPubConfig} from './interface.js';
+import IGeesomeActivityPubModule, {IActivityPubSignRequestOptions, IResolvedActivityPubConfig} from './interface.js';
 import {
 	buildActivityPubGroupWebFingerResponse,
+	getActivityPubGroupActorUrls,
 	getActivityPubGroupPreferredUsername,
 	isActivityPubEnabled,
 	normalizeActivityPubPostLocalId,
@@ -17,15 +18,17 @@ import {
 	isActivityPubGroupFederatable,
 	isActivityPubPostFederatable
 } from './serializers.js';
+import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from './signatureHelpers.js';
 
-export default async (app: IGeesomeApp) => {
-	app.checkModules(['api', 'group']);
-	const module = getModule(app);
+export default async (app: IGeesomeApp, options: any = {}) => {
+	app.checkModules(['api', 'group', 'database']);
+	const models = options.models || await (await import('./models.js')).default(app.ms.database.sequelize);
+	const module = getModule(app, models);
 	(await import('./api.js')).default(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp): IGeesomeActivityPubModule {
+function getModule(app: IGeesomeApp, models): IGeesomeActivityPubModule {
 	class ActivityPubModule implements IGeesomeActivityPubModule {
 		isEnabled(): boolean {
 			return isActivityPubEnabled(app.config.activityPubConfig);
@@ -45,9 +48,10 @@ function getModule(app: IGeesomeApp): IGeesomeActivityPubModule {
 		async getGroupActor(groupName: string) {
 			const config = getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
 			const actorGroup = await getGroupWithProjectedImages(app, group, config);
 
-			return buildActivityPubGroupActor(config, actorGroup);
+			return buildActivityPubGroupActor(config, actorGroup, {publicKeyPem: actorRecord.publicKeyPem});
 		}
 
 		async getGroupOutbox(groupName: string, listParams: IListParams = {}) {
@@ -73,45 +77,26 @@ function getModule(app: IGeesomeApp): IGeesomeActivityPubModule {
 
 			return buildActivityPubPostNote(config, group, post, {contents});
 		}
+
+		async getGroupActorKey(groupName: string) {
+			const config = getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+
+			return getActorKeyFromRecord(app, actorRecord);
+		}
+
+		async signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions) {
+			const actorKey = await this.getGroupActorKey(groupName);
+			return signActivityPubRequestWithKey(actorKey, options);
+		}
+
+		async flushDatabase() {
+			await models.ActivityPubActor.destroy({where: {}});
+		}
 	}
 
 	return new ActivityPubModule();
-}
-
-function parseWebFingerResource(resource: string) {
-	const rawResource = String(resource || '').trim();
-	const match = rawResource.match(/^acct:([^@]+)@([^@]+)$/);
-	if (!match) {
-		throwActivityPubNotFound();
-	}
-
-	return {
-		preferredUsername: match[1],
-		domain: match[2].toLowerCase()
-	};
-}
-
-function getPreferredUsernameForRoute(groupName: string): string {
-	try {
-		return getActivityPubGroupPreferredUsername(groupName);
-	} catch (e) {
-		throwActivityPubNotFound();
-	}
-}
-
-function getPostLocalIdForRoute(localId: number | string): string {
-	try {
-		return normalizeActivityPubPostLocalId(localId);
-	} catch (e) {
-		throwActivityPubNotFound();
-	}
-}
-
-function getResolvedActivityPubConfig(app: IGeesomeApp): IResolvedActivityPubConfig {
-	if (!isActivityPubEnabled(app.config.activityPubConfig)) {
-		throwActivityPubNotFound();
-	}
-	return resolveActivityPubConfig(app.config.activityPubConfig);
 }
 
 async function getFederatableGroup(app: IGeesomeApp, groupName: string): Promise<IGroup> {
@@ -186,8 +171,139 @@ async function getContentDataWithUrl(app: IGeesomeApp, content, config: IResolve
 	});
 }
 
+async function getOrCreateGroupActorRecord(app: IGeesomeApp, models, config: IResolvedActivityPubConfig, group: IGroup) {
+	const actorData = getGroupActorRecordData(config, group);
+	const existingActor = await getGroupActorRecord(models, group);
+	if (existingActor) {
+		return syncEnabledGroupActorRecord(existingActor, actorData);
+	}
+
+	const keyPair = generateActivityPubRsaKeyPair();
+	const privateKeyPemEncrypted = await app.encryptTextWithAppPass(keyPair.privateKeyPem);
+	try {
+		return await models.ActivityPubActor.create({
+			...actorData,
+			publicKeyPem: keyPair.publicKeyPem,
+			privateKeyPemEncrypted,
+			isEnabled: true
+		});
+	} catch (e) {
+		if (!isActivityPubActorUniqueError(e)) {
+			throw e;
+		}
+		const createdActor = await getGroupActorRecord(models, group);
+		if (!createdActor) {
+			throw e;
+		}
+		return syncEnabledGroupActorRecord(createdActor, actorData);
+	}
+}
+
+async function getActorKeyFromRecord(app: IGeesomeApp, actorRecord) {
+	return {
+		keyId: getActorKeyId(actorRecord),
+		actorUrl: actorRecord.actorUrl,
+		publicKeyPem: actorRecord.publicKeyPem,
+		privateKeyPem: await app.decryptTextWithAppPass(actorRecord.privateKeyPemEncrypted)
+	};
+}
+
+async function getGroupActorRecord(models, group: IGroup) {
+	return models.ActivityPubActor.findOne({
+		where: {
+			entityType: 'group',
+			entityId: group.id
+		}
+	});
+}
+
+async function syncEnabledGroupActorRecord(actorRecord, actorData) {
+	if (actorRecord.isEnabled === false) {
+		throwActivityPubNotFound();
+	}
+	return syncGroupActorRecord(actorRecord, actorData);
+}
+
+async function syncGroupActorRecord(actorRecord, actorData) {
+	const updateData = getChangedActorData(actorRecord, actorData);
+	if (!Object.keys(updateData).length) {
+		return actorRecord;
+	}
+	await actorRecord.update(updateData);
+	return actorRecord;
+}
+
+function getGroupActorRecordData(config: IResolvedActivityPubConfig, group: IGroup) {
+	const urls = getActivityPubGroupActorUrls(config, group);
+	return {
+		entityType: 'group',
+		entityId: group.id,
+		preferredUsername: getActivityPubGroupPreferredUsername(group),
+		actorUrl: urls.actorUrl,
+		inboxUrl: urls.inboxUrl,
+		outboxUrl: urls.outboxUrl,
+		followersUrl: urls.followersUrl,
+		followingUrl: urls.followingUrl
+	};
+}
+
+function getChangedActorData(actorRecord, actorData) {
+	const updateData = {};
+	Object.keys(actorData).forEach((key) => {
+		if (actorRecord[key] === actorData[key]) {
+			return;
+		}
+		updateData[key] = actorData[key];
+	});
+	return updateData;
+}
+
+function parseWebFingerResource(resource: string) {
+	const rawResource = String(resource || '').trim();
+	const match = rawResource.match(/^acct:([^@]+)@([^@]+)$/);
+	if (!match) {
+		throwActivityPubNotFound();
+	}
+
+	return {
+		preferredUsername: match[1],
+		domain: match[2].toLowerCase()
+	};
+}
+
+function getPreferredUsernameForRoute(groupName: string): string {
+	try {
+		return getActivityPubGroupPreferredUsername(groupName);
+	} catch (e) {
+		throwActivityPubNotFound();
+	}
+}
+
+function getPostLocalIdForRoute(localId: number | string): string {
+	try {
+		return normalizeActivityPubPostLocalId(localId);
+	} catch (e) {
+		throwActivityPubNotFound();
+	}
+}
+
+function getResolvedActivityPubConfig(app: IGeesomeApp): IResolvedActivityPubConfig {
+	if (!isActivityPubEnabled(app.config.activityPubConfig)) {
+		throwActivityPubNotFound();
+	}
+	return resolveActivityPubConfig(app.config.activityPubConfig);
+}
+
 function getContentBaseUrl(config: IResolvedActivityPubConfig): string {
 	return `${config.publicUrl}/ipfs/`;
+}
+
+function isActivityPubActorUniqueError(error): boolean {
+	return error?.name === 'SequelizeUniqueConstraintError';
+}
+
+function getActorKeyId(actorRecord): string {
+	return `${actorRecord.actorUrl}#main-key`;
 }
 
 function throwActivityPubNotFound(): never {

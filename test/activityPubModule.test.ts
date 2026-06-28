@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import crypto from 'node:crypto';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
@@ -23,6 +24,9 @@ describe('activityPub module', () => {
 
 		const actor = await module.getGroupActor('test-channel');
 		assert.equal(actor.id, 'https://social.example/ap/groups/test-channel');
+		assert.equal(actor.publicKey.id, 'https://social.example/ap/groups/test-channel#main-key');
+		assert.equal(actor.publicKey.owner, 'https://social.example/ap/groups/test-channel');
+		assert.match(actor.publicKey.publicKeyPem, /^-----BEGIN PUBLIC KEY-----/);
 		assert.deepEqual(actor.icon, {
 			type: 'Image',
 			mediaType: ContentMimeType.ImagePng,
@@ -44,12 +48,53 @@ describe('activityPub module', () => {
 		assert.equal(note.attachment[0].url, 'https://social.example/ipfs/image-storage');
 	});
 
+	it('keeps a stable encrypted actor key and signs outbound requests', async () => {
+		const {module, models} = await createActivityPubHarness();
+
+		const firstActor = await module.getGroupActor('test-channel');
+		const secondActor = await module.getGroupActor('test-channel');
+		assert.equal(firstActor.publicKey.publicKeyPem, secondActor.publicKey.publicKeyPem);
+		assert.equal(models.ActivityPubActor.rows.length, 1);
+		assert.notEqual(models.ActivityPubActor.rows[0].privateKeyPemEncrypted, (await module.getGroupActorKey('test-channel')).privateKeyPem);
+		assert.match(models.ActivityPubActor.rows[0].privateKeyPemEncrypted, /^encrypted:/);
+
+		const body = JSON.stringify({type: 'Follow'});
+		const signedRequest = await module.signGroupRequest('test-channel', {
+			method: 'POST',
+			url: 'https://remote.example/inbox?x=1',
+			body,
+			date: new Date('2026-06-01T12:00:00Z')
+		});
+		const signature = parseSignatureHeader(signedRequest.headers.Signature);
+		const verified = crypto
+			.createVerify('RSA-SHA256')
+			.update(signedRequest.signingString)
+			.end()
+			.verify(firstActor.publicKey.publicKeyPem, signature.signature, 'base64');
+
+		assert.equal(verified, true);
+		assert.equal(signature.keyId, 'https://social.example/ap/groups/test-channel#main-key');
+		assert.deepEqual(signedRequest.signedHeaders, ['(request-target)', 'host', 'date', 'digest']);
+		assert.equal(signedRequest.headers.Host, 'remote.example');
+		assert.equal(signedRequest.headers.Date, 'Mon, 01 Jun 2026 12:00:00 GMT');
+		assert.match(signedRequest.headers.Digest, /^SHA-256=/);
+		await assert.rejects(() => module.signGroupRequest('test-channel', {
+			method: 'GET',
+			url: 'https://remote.example/inbox',
+			date: 'invalid-date'
+		}), /activitypub_signature_date_invalid/);
+	});
+
 	it('returns not found for disabled, mismatched, private, and invalid resources', async () => {
 		const {module} = await createActivityPubHarness();
 
 		await assert.rejects(() => module.getWebFingerResponse('acct:test-channel@other.example'), hasNotFoundCode);
 		await assert.rejects(() => module.getGroupActor('private-channel'), hasNotFoundCode);
 		await assert.rejects(() => module.getGroupPostNote('test-channel', 0), hasNotFoundCode);
+
+		const disabledActor = await createActivityPubHarness();
+		disabledActor.models.ActivityPubActor.rows.push(getActivityPubActorRow({isEnabled: false}));
+		await assert.rejects(() => disabledActor.module.getGroupActor('test-channel'), hasNotFoundCode);
 
 		const disabled = await createActivityPubHarness({
 			config: {
@@ -97,6 +142,7 @@ describe('activityPub API', () => {
 
 async function createActivityPubHarness(overrides: any = {}) {
 	const routes = {};
+	const models = getModelsStub();
 	const calls: any = {
 		getGroupByParams: [],
 		getGroupPosts: []
@@ -112,10 +158,13 @@ async function createActivityPubHarness(overrides: any = {}) {
 			}
 		},
 		checkModules(modules) {
-			assert.deepEqual(modules, ['api', 'group']);
+			assert.deepEqual(modules, ['api', 'group', 'database']);
 		},
+		encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
+		decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
 		ms: {
 			api: getApiStub(routes),
+			database: {},
 			group: {
 				async getGroupByParams(params) {
 					calls.getGroupByParams.push(params);
@@ -155,9 +204,10 @@ async function createActivityPubHarness(overrides: any = {}) {
 	};
 
 	return {
-		module: await activityPubModule(app as any),
+		module: await activityPubModule(app as any, {models}),
 		routes,
-		calls
+		calls,
+		models
 	};
 }
 
@@ -192,6 +242,67 @@ async function callRoute(routes, key: string, req: any) {
 
 function hasNotFoundCode(error) {
 	return error?.code === 404 && error?.message === 'activitypub_resource_not_found';
+}
+
+function getModelsStub() {
+	const rows: any[] = [];
+	return {
+		ActivityPubActor: {
+			rows,
+			async findOne({where}) {
+				return rows.find((row) => {
+					return Object.keys(where).every((key) => row[key] === where[key]);
+				}) || null;
+			},
+			async create(data) {
+				const row = {
+					...data,
+					id: rows.length + 1,
+					async update(updateData) {
+						Object.assign(this, updateData);
+						return this;
+					}
+				};
+				rows.push(row);
+				return row;
+			},
+			async destroy() {
+				rows.length = 0;
+			}
+		}
+	};
+}
+
+function getActivityPubActorRow(overrides: any = {}) {
+	return {
+		id: 1,
+		entityType: 'group',
+		entityId: 3,
+		preferredUsername: 'test-channel',
+		actorUrl: 'https://social.example/ap/groups/test-channel',
+		inboxUrl: 'https://social.example/ap/groups/test-channel/inbox',
+		outboxUrl: 'https://social.example/ap/groups/test-channel/outbox',
+		followersUrl: 'https://social.example/ap/groups/test-channel/followers',
+		followingUrl: 'https://social.example/ap/groups/test-channel/following',
+		publicKeyPem: 'public-key',
+		privateKeyPemEncrypted: 'encrypted:private-key',
+		isEnabled: true,
+		async update(updateData) {
+			Object.assign(this, updateData);
+			return this;
+		},
+		...overrides
+	};
+}
+
+function parseSignatureHeader(value: string) {
+	return value.split(',').reduce((result, item) => {
+		const separatorIndex = item.indexOf('=');
+		const rawKey = item.slice(0, separatorIndex);
+		const rawValue = item.slice(separatorIndex + 1);
+		result[rawKey] = rawValue.replace(/^"|"$/g, '');
+		return result;
+	}, {});
 }
 
 function getGroup() {
