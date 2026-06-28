@@ -29,5 +29,10 @@ export default {
     },
     goNode: {url: process.env.STORAGE_URL || 'http://127.0.0.1:5001'}
   },
+  activityPubConfig: {
+    enabled: process.env.ACTIVITYPUB_ENABLED === '1',
+    publicUrl: process.env.ACTIVITYPUB_PUBLIC_URL || '',
+    domain: process.env.ACTIVITYPUB_DOMAIN || ''
+  },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };

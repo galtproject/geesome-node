@@ -98,6 +98,8 @@ Suggested WebFinger:
 - `/.well-known/webfinger?resource=acct:{groupName}@{nodeDomain}`
 - Return `application/activity+json` self link to the actor URL.
 
+Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
+
 ## Post Mapping
 
 GeeSome public post to ActivityPub:
@@ -327,7 +329,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Decide whether the ActivityPub actor is `Group`, `Service`, or compatibility `Person`.
 - Decide whether runtime can move to Node 22 for Fedify.
 - Define database records for actor keypairs, remote actors, follows, and delivery attempts.
-- Document exact public URL shape.
+- Document exact public URL shape. Status: group actor and post-object URL helpers now pin the `/ap/groups/{groupName}` and `/ap/groups/{groupName}/posts/{localId}` shapes, plus WebFinger `acct:{groupName}@{domain}` resources. The remaining design decision is whether later route/signature implementation uses Fedify or the minimal custom module.
 
 ### Slice 1: Discovery And Read-Only Federation
 
