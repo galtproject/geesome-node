@@ -1,4 +1,5 @@
 import type {IGroup} from '../group/interface.js';
+import type {IContentData} from '../database/interface.js';
 
 export interface IActivityPubConfig {
 	enabled?: boolean | string;
@@ -34,3 +35,23 @@ export interface IActivityPubWebFingerResponse {
 }
 
 export type IActivityPubGroupInput = IGroup | string;
+
+export interface IActivityPubActorOptions {
+	publicKeyPem?: string;
+}
+
+export interface IActivityPubPostSerializerOptions {
+	contents?: IContentData[];
+}
+
+export interface IActivityPubOutboxOptions {
+	contentsByPostId?: Map<number, IContentData[]>;
+}
+
+export type IActivityPubActorObject = Record<string, any>;
+
+export type IActivityPubNoteObject = Record<string, any>;
+
+export type IActivityPubCreateActivity = Record<string, any>;
+
+export type IActivityPubOutboxCollection = Record<string, any>;

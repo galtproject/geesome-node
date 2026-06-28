@@ -7,6 +7,9 @@ import type {
 	IResolvedActivityPubConfig
 } from './interface.js';
 
+export const activityPubContext = 'https://www.w3.org/ns/activitystreams';
+export const activityPubPublicCollection = 'https://www.w3.org/ns/activitystreams#Public';
+
 export function resolveActivityPubConfig(config: IActivityPubConfig = {}): IResolvedActivityPubConfig {
 	const parsedPublicUrl = parseActivityPubPublicUrl(config.publicUrl);
 
