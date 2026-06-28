@@ -2,6 +2,13 @@ import {IGeesomeApp} from "../../interface.js";
 import IGeesomeInviteModule from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {inviteApiErrorBody, normalizeInviteApiError} from "./errors.js";
+import {
+	assertInviteFailedJoinRateLimit,
+	assertInviteStatusRateLimit,
+	getInviteRequestIp,
+	isInviteRateLimitError,
+	recordFailedInviteJoin
+} from "./rateLimit.js";
 
 export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
 
@@ -25,12 +32,15 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      * @apiError (410) invite_not_active Invite exists but is inactive.
      * @apiError (410) invite_exhausted Invite has no remaining uses.
      * @apiError (422) invite_missing_upload_permission Invite does not grant the requested permission.
+     * @apiError (429) invite_rate_limited Too many invite checks from this IP address.
      *
      * @apiExample {curl} Example usage
      *   curl http://localhost:2052/v1/invite/status/INVITE-CODE
      */
     app.ms.api.onGet('invite/status/:code', async (req, res) => {
+        const ipAddress = getInviteRequestIp(req);
         return withInviteErrorResponse(res, async () => {
+            assertInviteStatusRateLimit(ipAddress);
             const requiredPermission = req.query.requiredPermission || CorePermissionName.UserSaveData;
             res.send(await inviteModule.getInviteStatus(req.params.code, {requiredPermission}));
         });
@@ -52,6 +62,7 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      * @apiError (404) invite_not_found Invite code is unknown.
      * @apiError (410) invite_not_active Invite exists but is inactive.
      * @apiError (410) invite_exhausted Invite has no remaining uses.
+     * @apiError (429) invite_rate_limited Too many failed invite joins from this IP address.
      *
      * @apiExample {curl} Example usage
      *   curl -X POST http://localhost:2052/v1/invite/join/INVITE-CODE \
@@ -59,8 +70,17 @@ export default (app: IGeesomeApp, inviteModule: IGeesomeInviteModule) => {
      *     -d '{"username":"new-user","password":"secret","email":"user@example.com"}'
      */
     app.ms.api.onPost('invite/join/:code', async (req, res) => {
+        const ipAddress = getInviteRequestIp(req);
         return withInviteErrorResponse(res, async () => {
-            res.send(await inviteModule.registerUserByInviteCode(req.params.code, req.body));
+            assertInviteFailedJoinRateLimit(ipAddress);
+            try {
+                res.send(await inviteModule.registerUserByInviteCode(req.params.code, req.body));
+            } catch (error) {
+                if (!isInviteRateLimitError(error)) {
+                    recordFailedInviteJoin(ipAddress);
+                }
+                throw error;
+            }
         });
     });
 

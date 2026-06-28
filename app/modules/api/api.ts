@@ -346,71 +346,6 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 		res.send(await app.generateUserApiKey(req.body.userId, req.body, true));
 	});
 	/**
-	 * @api {post} /v1/admin/provision-upload-user Provision upload-only user
-	 * @apiDescription Explicit maintenance fallback for agent upload bootstrap when public invite registration is unavailable. This endpoint only creates users and API keys scoped to `user:save_data`.
-	 * @apiName AdminProvisionUploadUser
-	 * @apiGroup AdminUser
-	 *
-	 * @apiUse ApiKey
-	 * @apiUse AuthErrors
-	 * @apiUse AdminErrors
-	 *
-	 * @apiBody {String} name User name.
-	 * @apiBody {String} email User email.
-	 * @apiBody {String} [password] User password.
-	 * @apiBody {String[]} permissions Optional. Must contain only `user:save_data` when supplied; defaults to that permission.
-	 * @apiBody {String} [apiKeyType=agent_upload] API key type metadata.
-	 * @apiSuccess {Object} user Created user.
-	 * @apiSuccess {String} apiKey Upload-scoped API key.
-	 * @apiSuccess {String[]} permissions Granted permissions.
-	 * @apiSuccess {String} keyStoreMethod API key storage method.
-	 * @apiError (422) upload_user_permissions_must_be_save_only Broader permissions are not allowed for this maintenance path.
-	 */
-	module.onAuthorizedPost('admin/provision-upload-user', async (req, res) => {
-		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminAddUser)) {
-			return res.send(403);
-		}
-		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminSetPermissions)) {
-			return res.send(403);
-		}
-		if (!await app.isAdminCan(req.user.id, CorePermissionName.AdminAddUserApiKey)) {
-			return res.send(403);
-		}
-
-		const body = req.body || {};
-		const permissions = normalizeUploadUserPermissions(body.permissions);
-		if (!permissions) {
-			return sendWithStatus(res, {
-				error: {
-					code: 'upload_user_permissions_must_be_save_only',
-					message: 'Upload maintenance users can only receive user:save_data.',
-					retryable: false,
-					agentAction: 'use_admin_add_user_for_broader_permissions'
-				}
-			}, 422);
-		}
-
-		const apiKeyType = body.apiKeyType;
-		const userData = {...body};
-		delete userData.apiKeyType;
-		delete userData.permissions;
-		const user = await app.registerUser({
-			...userData,
-			permissions
-		});
-		const apiKey = await app.generateUserApiKey(user.id, {
-			type: apiKeyType || 'agent_upload',
-			permissions
-		}, true);
-
-		res.send({
-			user,
-			apiKey,
-			permissions,
-			keyStoreMethod: 'node'
-		});
-	});
-	/**
 	 * @api {post} /v1/admin/set-user-limit Set user limit
 	 * @apiName AdminSetUserLimit
 	 * @apiGroup AdminUser
@@ -656,39 +591,4 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 			res.send(null, 500)
 		});
 	});
-}
-
-function normalizeUploadUserPermissions(inputPermissions) {
-	if (!inputPermissions) {
-		return [CorePermissionName.UserSaveData];
-	}
-
-	let permissions = inputPermissions;
-	if (typeof permissions === 'string') {
-		try {
-			permissions = JSON.parse(permissions);
-		} catch (e) {
-			permissions = [permissions];
-		}
-	}
-
-	if (!Array.isArray(permissions)) {
-		return null;
-	}
-
-	const uniquePermissions = Array.from(new Set(permissions));
-	if (uniquePermissions.length !== 1) {
-		return null;
-	}
-	if (uniquePermissions[0] !== CorePermissionName.UserSaveData) {
-		return null;
-	}
-	return uniquePermissions;
-}
-
-function sendWithStatus(res, body, statusCode) {
-	if (res.stream && typeof res.stream.status === 'function') {
-		return res.stream.status(statusCode).send(body);
-	}
-	return res.send(body, statusCode);
 }

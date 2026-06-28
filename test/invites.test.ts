@@ -18,7 +18,7 @@ import {IGeesomeApp} from "../app/interface.js";
 describe("app", function () {
 	this.timeout(60000);
 
-	let admin, adminApiKey, app: IGeesomeApp, foreignAccounts: IGeesomeForeignAccountsModule;
+	let admin, app: IGeesomeApp, foreignAccounts: IGeesomeForeignAccountsModule;
 	beforeEach(async () => {
 		const appConfig: any = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
@@ -29,7 +29,6 @@ describe("app", function () {
 
 			const setupResult = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
 			admin = setupResult.user;
-			adminApiKey = setupResult.apiKey;
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -112,7 +111,21 @@ describe("app", function () {
 		const wrongScopeResponse = await requestJson('GET', `/invite/status/${wrongScopeInvite.code}`);
 		assert.equal(wrongScopeResponse.status, 422);
 		assert.equal(wrongScopeResponse.body.error.code, 'invite_missing_upload_permission');
-		assert.equal(wrongScopeResponse.body.error.agentAction, 'use_upload_scoped_invite_or_admin_provisioning');
+		assert.equal(wrongScopeResponse.body.error.agentAction, 'use_upload_scoped_invite_or_existing_admin_user_provisioning');
+	});
+
+	it('invite status should rate limit repeated checks by ip', async () => {
+		const headers = {'x-forwarded-for': '198.51.100.10'};
+		for (let i = 0; i < 30; i++) {
+			const response = await requestJson('GET', `/invite/status/${commonHelper.random('hash')}`, null, headers);
+			assert.equal(response.status, 404);
+		}
+
+		const limitedResponse = await requestJson('GET', `/invite/status/${commonHelper.random('hash')}`, null, headers);
+		assert.equal(limitedResponse.status, 429);
+		assert.equal(limitedResponse.body.error.code, 'invite_rate_limited');
+		assert.equal(limitedResponse.body.error.retryable, true);
+		assert.equal(limitedResponse.body.error.retryAfterSeconds, 600);
 	});
 
 	it('invite join should return the documented credential shape and structured errors', async () => {
@@ -143,33 +156,24 @@ describe("app", function () {
 		assert.equal(exhaustedResponse.body.error.code, 'invite_exhausted');
 	});
 
-	it('admin upload provisioning should create only upload-scoped users', async () => {
-		const provisionResponse = await requestJson('POST', '/admin/provision-upload-user', {
-			email: 'agent-upload@user.com',
-			name: 'agent-upload',
-			password: 'agent-upload',
-			apiKeyType: 'agent_upload'
-		}, adminApiKey);
+	it('invite join should rate limit repeated failed registrations by ip', async () => {
+		const headers = {'x-forwarded-for': '198.51.100.20'};
+		for (let i = 0; i < 10; i++) {
+			const response = await requestJson('POST', `/invite/join/${commonHelper.random('hash')}`, {
+				email: `missing-${i}@user.com`,
+				name: `missing-${i}`,
+				password: `missing-${i}`
+			}, headers);
+			assert.equal(response.status, 404);
+		}
 
-		assert.equal(provisionResponse.status, 200);
-		assert.equal(provisionResponse.body.user.name, 'agent-upload');
-		assert.deepEqual(provisionResponse.body.permissions, [CorePermissionName.UserSaveData]);
-		assert.equal(provisionResponse.body.keyStoreMethod, 'node');
-
-		const {user, apiKey} = await app.getUserByApiToken(provisionResponse.body.apiKey);
-		assert.equal(user.id, provisionResponse.body.user.id);
-		await app.runWithApiKey(apiKey, async () => {
-			assert.equal(await app.isUserCan(user.id, CorePermissionName.UserSaveData), true);
-			assert.equal(await app.isUserCan(user.id, CorePermissionName.UserGroupManagement), false);
-		});
-
-		const broadResponse = await requestJson('POST', '/admin/provision-upload-user', {
-			email: 'agent-admin@user.com',
-			name: 'agent-admin',
-			permissions: [CorePermissionName.UserAll]
-		}, adminApiKey);
-		assert.equal(broadResponse.status, 422);
-		assert.equal(broadResponse.body.error.code, 'upload_user_permissions_must_be_save_only');
+		const limitedResponse = await requestJson('POST', `/invite/join/${commonHelper.random('hash')}`, {
+			email: 'missing-limited@user.com',
+			name: 'missing-limited',
+			password: 'missing-limited'
+		}, headers);
+		assert.equal(limitedResponse.status, 429);
+		assert.equal(limitedResponse.body.error.code, 'invite_rate_limited');
 	});
 
 	it('user invites should work properly', async () => {
@@ -340,13 +344,13 @@ async function createInvite(app: IGeesomeApp, adminId, inviteData) {
 	});
 }
 
-async function requestJson(method, path, body?, apiKey?) {
+async function requestJson(method, path, body?, extraHeaders?) {
 	const headers: any = {};
 	if (body) {
 		headers['Content-Type'] = 'application/json';
 	}
-	if (apiKey) {
-		headers.Authorization = `Bearer ${apiKey}`;
+	if (extraHeaders) {
+		Object.assign(headers, extraHeaders);
 	}
 	const port = process.env.PORT || 7771;
 	const response = await fetch(`http://127.0.0.1:${port}/v1${path}`, {

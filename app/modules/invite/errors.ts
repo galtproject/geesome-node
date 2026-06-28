@@ -4,6 +4,7 @@ export type InviteApiErrorInput = {
 	statusCode: number;
 	agentAction: string;
 	retryable?: boolean;
+	retryAfterSeconds?: number;
 };
 
 export class InviteApiError extends Error {
@@ -11,6 +12,7 @@ export class InviteApiError extends Error {
 	statusCode: number;
 	agentAction: string;
 	retryable: boolean;
+	retryAfterSeconds?: number;
 
 	constructor(input: InviteApiErrorInput) {
 		super(input.message);
@@ -18,6 +20,7 @@ export class InviteApiError extends Error {
 		this.statusCode = input.statusCode;
 		this.agentAction = input.agentAction;
 		this.retryable = input.retryable || false;
+		this.retryAfterSeconds = input.retryAfterSeconds;
 	}
 }
 
@@ -54,7 +57,7 @@ export const inviteErrors = {
 			publicCode: 'invite_missing_upload_permission',
 			message: `Invite does not grant ${requiredPermission}.`,
 			statusCode: 422,
-			agentAction: 'use_upload_scoped_invite_or_admin_provisioning'
+			agentAction: 'use_upload_scoped_invite_or_existing_admin_user_provisioning'
 		});
 	},
 
@@ -72,7 +75,18 @@ export const inviteErrors = {
 			publicCode: 'invite_join_not_permitted',
 			message: 'Invite join is not permitted on this node.',
 			statusCode: 403,
-			agentAction: 'check_invite_join_configuration_or_use_admin_provisioning'
+			agentAction: 'check_invite_join_configuration_or_use_existing_admin_user_provisioning'
+		});
+	},
+
+	rateLimited(retryAfterSeconds) {
+		return new InviteApiError({
+			publicCode: 'invite_rate_limited',
+			message: 'Too many invite attempts from this IP address.',
+			statusCode: 429,
+			agentAction: 'retry_after_rate_limit_window',
+			retryable: true,
+			retryAfterSeconds
 		});
 	}
 };
@@ -95,7 +109,7 @@ export function normalizeInviteApiError(error) {
 }
 
 export function inviteApiErrorBody(error: InviteApiError) {
-	return {
+	const body: any = {
 		error: {
 			code: error.publicCode,
 			message: error.message,
@@ -103,6 +117,10 @@ export function inviteApiErrorBody(error: InviteApiError) {
 			agentAction: error.agentAction
 		}
 	};
+	if (error.retryAfterSeconds) {
+		body.error.retryAfterSeconds = error.retryAfterSeconds;
+	}
+	return body;
 }
 
 function getErrorMessage(error) {
