@@ -150,6 +150,9 @@ Warning: the upgrade script refuses to run with uncommitted local git changes. C
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
 
+# Invite code security
+Invite codes are generated as crypto-random base62 strings. The default length is 16 characters; set `GEESOME_INVITE_CODE_LENGTH` before startup to use a longer code. Values below 16 are ignored.
+
 # Debugging and logs
 Logs are quiet by default. See [DEBUG.md](DEBUG.md) for debug namespaces, log flags, and memory profiling (including how to dump per-process memory to a file for sizing hardware requirements).
 
