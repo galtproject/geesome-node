@@ -100,7 +100,7 @@ Suggested WebFinger:
 
 Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
 
-Read-only route and key status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, and post-object routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, and reusable outbound RSA-SHA256 HTTP-signature helpers exist. The next implementation slices should add inbound HTTP signature verification, follow state, and delivery queues before accepting inbound activities.
+Read-only route, key, and inbound verification status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, post-object, group inbox, and shared-inbox routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, reusable outbound RSA-SHA256 HTTP-signature helpers exist, and inbound requests can be checked for HTTP Signature, `Digest`, and Date freshness through an injectable remote actor key resolver. The inbox routes verify requests and then return not-implemented until remote actor fetching/caching and follow state land.
 
 ## Post Mapping
 
@@ -221,7 +221,7 @@ ActivityPub needs unversioned POST for actor inbox and shared inbox routes:
 
 `IGeesomeApiModule.onUnversionPost()` is available for these routes and through `prefix()`.
 
-Signed POST verification needs the raw request body to verify `Digest`/`Content-Digest`. The JSON parser now accepts `application/*+json` payloads and captures raw request bytes for signed/protocol-style JSON posts such as `/ap/*`, exposing them as `req.rawBody` on module inputs. Future ActivityPub inbox code should use that exact buffer for HTTP digest/signature verification instead of serializing the parsed body again.
+Signed POST verification needs the raw request body to verify `Digest`/`Content-Digest`. The JSON parser now accepts `application/*+json` payloads and captures raw request bytes for signed/protocol-style JSON posts such as `/ap/*`, exposing them as `req.rawBody` on module inputs. ActivityPub inbox verification uses that exact buffer for HTTP digest/signature verification instead of serializing the parsed body again; `Content-Digest` support remains future work.
 
 ActivityPub responses should set:
 
@@ -331,7 +331,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Decide whether the ActivityPub actor is `Group`, `Service`, or compatibility `Person`.
 - Decide whether runtime can move to Node 22 for Fedify.
 - Define database records for actor keypairs, remote actors, follows, and delivery attempts. Status: local actor keypair records exist; remote actor, follow, object, and delivery records remain future work.
-- Document exact public URL shape. Status: group actor and post-object URL helpers now pin the `/ap/groups/{groupName}` and `/ap/groups/{groupName}/posts/{localId}` shapes, plus WebFinger `acct:{groupName}@{domain}` resources. The remaining design decision is whether later route/signature implementation uses Fedify or the minimal custom module.
+- Document exact public URL shape. Status: group actor and post-object URL helpers now pin the `/ap/groups/{groupName}` and `/ap/groups/{groupName}/posts/{localId}` shapes, group inbox uses `/ap/groups/{groupName}/inbox`, shared inbox uses `/ap/shared-inbox`, and WebFinger uses `acct:{groupName}@{domain}` resources. The remaining design decision is whether later remote actor/follow/delivery implementation uses Fedify or the minimal custom module.
 
 ### Slice 1: Discovery And Read-Only Federation
 
@@ -363,8 +363,8 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 ## Test Strategy
 
 - Unit tests for actor, WebFinger, Note, and Create serializers.
-- Signature fixtures for inbound and outbound HTTP signatures.
-- Route tests for ActivityPub content negotiation and `application/activity+json`. Status: focused unit coverage now checks the public WebFinger, actor, outbox, and post-object route registrations and response content types.
+- Signature fixtures for inbound and outbound HTTP signatures. Status: focused unit coverage now checks outbound signing plus inbound RSA-SHA256 signature, `Digest`, and Date-window verification with tamper/stale-date rejection.
+- Route tests for ActivityPub content negotiation and `application/activity+json`. Status: focused unit coverage now checks the public WebFinger, actor, outbox, post-object, group inbox, and shared-inbox route registrations and response content types.
 - Fedify testing utilities if Fedify is adopted.
 - Manual/local federation tests with `fedify lookup`, `fedify inbox`, ActivityPub.Academy, and one Mastodon-compatible server.
 

@@ -85,6 +85,12 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('webhook')) {
     notes.add('webhook/token-in-path review');
   }
+  if (routeLower.startsWith('/ap/') || routeLower === '/.well-known/webfinger') {
+    notes.add('ActivityPub federation boundary');
+  }
+  if (routeLower.includes('inbox')) {
+    notes.add('signature/digest verification boundary');
+  }
   if (routeLower.includes('/pin/') || blockLower.includes('secretapikey')) {
     notes.add('external service secret boundary');
   }
@@ -120,7 +126,7 @@ function parseFile(filePath: string): RouteRow[] {
     aliases.set(match[1], match[2]);
   }
 
-  const routeRegex = /(?:(app\.ms\.api)|(\w+))\.(onAuthorizedGet|onAuthorizedPost|onUnversionGet|onUnversionHead|onGet|onPost|onHead)\(\s*['"`]([^'"`]+)['"`]/g;
+  const routeRegex = /(?:(app\.ms\.api)|(\w+))\.(onAuthorizedGet|onAuthorizedPost|onUnversionGet|onUnversionPost|onUnversionHead|onGet|onPost|onHead)\(\s*['"`]([^'"`]+)['"`]/g;
   for (const match of source.matchAll(routeRegex)) {
     const alias = match[2];
     if (alias && !aliases.has(alias) && !localApiRegistrars.has(alias)) {

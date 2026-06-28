@@ -1,6 +1,6 @@
 import {IGeesomeApp} from '../../interface.js';
-import {IApiModuleCommonOutput} from '../api/interface.js';
-import IGeesomeActivityPubModule from './interface.js';
+import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
+import IGeesomeActivityPubModule, {IActivityPubInboundRequest} from './interface.js';
 import {activityPubContentType, activityPubWebFingerContentType} from './helpers.js';
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
@@ -62,6 +62,86 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 		setActivityPubHeaders(res);
 		return res.send(await activityPubModule.getGroupPostNote(req.params.groupName, req.params.localId), 200);
 	});
+
+	/**
+	 * @api {post} /ap/groups/:groupName/inbox Verify ActivityPub group inbox request
+	 * @apiName ActivityPubGroupInbox
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. This slice verifies HTTP signatures and request digests but does not yet accept or persist ActivityPub activities.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
+	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiBody {Object} activity ActivityStreams activity payload.
+	 * @apiSuccess {Boolean} accepted Always `false` until follow/delivery state is implemented.
+	 */
+	app.ms.api.onUnversionPost('ap/groups/:groupName/inbox', async (req, res) => {
+		return handleActivityPubInboxRequest(res, async () => {
+			await activityPubModule.verifyGroupInboxRequest(req.params.groupName, getInboundRequest(req));
+		});
+	});
+
+	/**
+	 * @api {post} /ap/shared-inbox Verify ActivityPub shared inbox request
+	 * @apiName ActivityPubSharedInbox
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. This slice verifies HTTP signatures and request digests but does not yet accept or persist ActivityPub activities.
+	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
+	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiBody {Object} activity ActivityStreams activity payload.
+	 * @apiSuccess {Boolean} accepted Always `false` until follow/delivery state is implemented.
+	 */
+	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
+		return handleActivityPubInboxRequest(res, async () => {
+			await activityPubModule.verifySharedInboxRequest(getInboundRequest(req));
+		});
+	});
+}
+
+async function handleActivityPubInboxRequest(res: IApiModuleCommonOutput, verify: () => Promise<void>) {
+	setActivityPubHeaders(res);
+	try {
+		await verify();
+		return res.send({
+			ok: false,
+			accepted: false,
+			message: 'activitypub_inbox_not_implemented'
+		}, 501);
+	} catch (e) {
+		if (!isExpectedActivityPubInboxError(e)) {
+			throw e;
+		}
+		return res.send({
+			ok: false,
+			accepted: false,
+			message: e.message
+		}, getActivityPubInboxErrorStatus(e));
+	}
+}
+
+function getInboundRequest(req: IApiModulePotInput): IActivityPubInboundRequest {
+	return {
+		method: 'POST',
+		url: req.fullRoute || req.route,
+		headers: req.headers,
+		rawBody: req.rawBody,
+		body: req.body
+	};
+}
+
+function isExpectedActivityPubInboxError(error): error is Error & {code?: number} {
+	return typeof error?.message === 'string' && error.message.startsWith('activitypub_');
+}
+
+function getActivityPubInboxErrorStatus(error: Error & {code?: number}): number {
+	if (Number.isInteger(error.code)) {
+		return error.code as number;
+	}
+	if (error.message.includes('signature') || error.message.includes('digest')) {
+		return 401;
+	}
+	return 400;
 }
 
 function setActivityPubHeaders(res: IApiModuleCommonOutput): void {

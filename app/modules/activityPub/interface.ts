@@ -55,6 +55,12 @@ export interface IActivityPubActorKey {
 	privateKeyPem: string;
 }
 
+export interface IActivityPubRemoteActorKey {
+	keyId: string;
+	actorUrl?: string;
+	publicKeyPem: string;
+}
+
 export interface IActivityPubGeneratedKeyPair {
 	publicKeyPem: string;
 	privateKeyPem: string;
@@ -69,12 +75,56 @@ export interface IActivityPubSignRequestOptions {
 	signedHeaders?: string[];
 }
 
+export interface IActivityPubVerifyRequestOptions {
+	method: string;
+	url: string;
+	body?: string | Buffer;
+	headers?: Record<string, string | number | string[] | undefined>;
+	now?: Date | string;
+	maxClockSkewMs?: number;
+	requiredSignedHeaders?: string[];
+}
+
 export interface IActivityPubSignedRequest {
 	headers: Record<string, string>;
 	signature: string;
 	signingString: string;
 	signedHeaders: string[];
 }
+
+export interface IActivityPubRequestSignatureInfo {
+	keyId: string;
+	algorithm: string;
+	signature: string;
+	signedHeaders: string[];
+}
+
+export interface IActivityPubVerifiedRequest extends IActivityPubRequestSignatureInfo {
+	signingString: string;
+	digestVerified: boolean;
+}
+
+export interface IActivityPubInboundRequest {
+	method: string;
+	url: string;
+	headers?: Record<string, string | number | string[] | undefined>;
+	rawBody?: Buffer;
+	body?: any;
+	now?: Date | string;
+	maxClockSkewMs?: number;
+}
+
+export interface IActivityPubInboxVerification extends IActivityPubVerifiedRequest {
+	localActorUrl?: string;
+	activityType?: string;
+	actor?: string;
+}
+
+export type IActivityPubRemoteActorKeyResolver = (input: {
+	keyId: string;
+	actor?: string;
+	activity?: any;
+}) => Promise<IActivityPubRemoteActorKey | null> | IActivityPubRemoteActorKey | null;
 
 export type IActivityPubActorObject = Record<string, any>;
 
@@ -98,6 +148,10 @@ export default interface IGeesomeActivityPubModule {
 	getGroupActorKey(groupName: string): Promise<IActivityPubActorKey>;
 
 	signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions): Promise<IActivityPubSignedRequest>;
+
+	verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxVerification>;
+
+	verifySharedInboxRequest(request: IActivityPubInboundRequest): Promise<IActivityPubInboxVerification>;
 
 	flushDatabase(): Promise<void>;
 }

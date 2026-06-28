@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import crypto from 'node:crypto';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
+import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 
@@ -107,10 +108,52 @@ describe('activityPub module', () => {
 		});
 		await assert.rejects(() => disabled.module.getGroupActor('test-channel'), hasNotFoundCode);
 	});
+
+	it('verifies signed group and shared inbox requests before activity handling', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const resolverCalls: any[] = [];
+		const {module} = await createActivityPubHarness({
+			resolveRemoteActorKey: async (input) => {
+				resolverCalls.push(input);
+				return {
+					keyId: remoteActorKey.keyId,
+					actorUrl: remoteActorKey.actorUrl,
+					publicKeyPem: remoteActorKey.publicKeyPem
+				};
+			}
+		});
+		const activity = {
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+		const request = getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity);
+		const verified = await module.verifyGroupInboxRequest('test-channel', request);
+		const sharedVerified = await module.verifySharedInboxRequest({
+			...getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity),
+			url: '/ap/shared-inbox'
+		});
+
+		assert.equal(verified.keyId, remoteActorKey.keyId);
+		assert.equal(verified.localActorUrl, 'https://social.example/ap/groups/test-channel');
+		assert.equal(verified.activityType, 'Follow');
+		assert.equal(verified.actor, remoteActorKey.actorUrl);
+		assert.equal(sharedVerified.keyId, remoteActorKey.keyId);
+		assert.equal(resolverCalls.length, 2);
+		assert.deepEqual(resolverCalls[0], {
+			keyId: remoteActorKey.keyId,
+			actor: remoteActorKey.actorUrl,
+			activity
+		});
+		await assert.rejects(() => module.verifyGroupInboxRequest('test-channel', {
+			...request,
+			rawBody: Buffer.from(JSON.stringify({...activity, type: 'Undo'}))
+		}), /activitypub_digest_mismatch/);
+	});
 });
 
 describe('activityPub API', () => {
-	it('registers read-only unversioned routes with protocol content types', async () => {
+	it('registers public unversioned routes with protocol content types', async () => {
 		const routes = {};
 		registerActivityPubApi({
 			ms: {
@@ -120,7 +163,9 @@ describe('activityPub API', () => {
 			getWebFingerResponse: async () => ({subject: 'acct:test-channel@example.com'}),
 			getGroupActor: async () => ({id: 'https://social.example/ap/groups/test-channel'}),
 			getGroupOutbox: async () => ({id: 'https://social.example/ap/groups/test-channel/outbox'}),
-			getGroupPostNote: async () => ({id: 'https://social.example/ap/groups/test-channel/posts/7'})
+			getGroupPostNote: async () => ({id: 'https://social.example/ap/groups/test-channel/posts/7'}),
+			verifyGroupInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'}),
+			verifySharedInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'})
 		} as any);
 
 		const webFinger = await callRoute(routes, 'GET .well-known/webfinger', {
@@ -137,6 +182,46 @@ describe('activityPub API', () => {
 
 		assert.ok(routes['GET ap/groups/:groupName/outbox']);
 		assert.ok(routes['GET ap/groups/:groupName/posts/:localId']);
+
+		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
+			params: {groupName: 'test-channel'},
+			headers: {},
+			body: {type: 'Follow'},
+			rawBody: Buffer.from('{"type":"Follow"}')
+		});
+		assert.equal(groupInbox.headers['Content-Type'], 'application/activity+json; charset=utf-8');
+		assert.equal(groupInbox.status, 501);
+		assert.deepEqual(groupInbox.body, {
+			ok: false,
+			accepted: false,
+			message: 'activitypub_inbox_not_implemented'
+		});
+
+		const routesWithError = {};
+		registerActivityPubApi({
+			ms: {
+				api: getApiStub(routesWithError)
+			}
+		} as any, {
+			verifyGroupInboxRequest: async () => {
+				const error = new Error('activitypub_signature_required') as Error & {code?: number};
+				error.code = 401;
+				throw error;
+			},
+			verifySharedInboxRequest: async () => ({})
+		} as any);
+		const rejectedInbox = await callRoute(routesWithError, 'POST ap/groups/:groupName/inbox', {
+			params: {groupName: 'test-channel'},
+			headers: {},
+			body: {type: 'Follow'},
+			rawBody: Buffer.from('{"type":"Follow"}')
+		});
+		assert.equal(rejectedInbox.status, 401);
+		assert.deepEqual(rejectedInbox.body, {
+			ok: false,
+			accepted: false,
+			message: 'activitypub_signature_required'
+		});
 	});
 });
 
@@ -204,7 +289,10 @@ async function createActivityPubHarness(overrides: any = {}) {
 	};
 
 	return {
-		module: await activityPubModule(app as any, {models}),
+		module: await activityPubModule(app as any, {
+			models,
+			resolveRemoteActorKey: overrides.resolveRemoteActorKey
+		}),
 		routes,
 		calls,
 		models
@@ -215,6 +303,9 @@ function getApiStub(routes) {
 	return {
 		onUnversionGet(path, handler) {
 			routes[`GET ${path}`] = handler;
+		},
+		onUnversionPost(path, handler) {
+			routes[`POST ${path}`] = handler;
 		}
 	};
 }
@@ -292,6 +383,37 @@ function getActivityPubActorRow(overrides: any = {}) {
 			return this;
 		},
 		...overrides
+	};
+}
+
+function getRemoteActorKey() {
+	const keyPair = generateActivityPubRsaKeyPair();
+
+	return {
+		keyId: 'https://remote.example/users/alice#main-key',
+		actorUrl: 'https://remote.example/users/alice',
+		publicKeyPem: keyPair.publicKeyPem,
+		privateKeyPem: keyPair.privateKeyPem
+	};
+}
+
+function getSignedInboxRequest(actorKey, path: string, activity: any) {
+	const body = JSON.stringify(activity);
+	const date = new Date('2026-06-01T12:00:00Z');
+	const signedRequest = signActivityPubRequestWithKey(actorKey, {
+		method: 'POST',
+		url: `https://social.example${path}`,
+		body,
+		date
+	});
+
+	return {
+		method: 'POST',
+		url: path,
+		headers: signedRequest.headers,
+		body: activity,
+		rawBody: Buffer.from(body),
+		now: date
 	};
 }
 
