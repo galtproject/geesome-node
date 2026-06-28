@@ -205,19 +205,19 @@ Do not federate directly from the existing public `group/:groupId/posts` endpoin
 
 ### API Layer Changes Needed
 
-The current API wrapper in `app/modules/api/index.ts` supports:
+The API wrapper in `app/modules/api/index.ts` supports:
 
 - versioned GET/POST/HEAD through `/v1/...`
-- unversioned GET/HEAD through `/...`
+- unversioned GET/POST/HEAD through `/...`
 
 ActivityPub needs unversioned POST for actor inbox and shared inbox routes:
 
 - `POST /ap/groups/:groupName/inbox`
 - `POST /ap/shared-inbox`
 
-So add `onUnversionPost()` to `IGeesomeApiModule`, implement it in `app/modules/api/index.ts`, and expose it through `prefix()` if useful.
+`IGeesomeApiModule.onUnversionPost()` is available for these routes and through `prefix()`.
 
-Signed POST verification also needs the raw request body to verify `Digest`/`Content-Digest`. The current global `bodyParser.json()` consumes JSON before modules see the stream. Add raw-body capture in the JSON parser `verify` option, e.g. attach `req.rawBody = buf`, then include `rawBody` in `reqToModuleInput()`. Without this, inbound HTTP signature verification will be fragile or impossible.
+Signed POST verification needs the raw request body to verify `Digest`/`Content-Digest`. The JSON parser now accepts `application/*+json` payloads and captures raw request bytes for signed/protocol-style JSON posts such as `/ap/*`, exposing them as `req.rawBody` on module inputs. Future ActivityPub inbox code should use that exact buffer for HTTP digest/signature verification instead of serializing the parsed body again.
 
 ActivityPub responses should set:
 

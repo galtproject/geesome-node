@@ -325,18 +325,20 @@ Goal: make GeeSome groups/posts visible and interoperable through ActivityPub wi
 
 This is an important protocol-facing feature, not only a generic integration. The first delivery should define a minimal compatible ActivityPub surface before implementing broad Mastodon-style behavior.
 
+Status: first API prerequisite slice landed. The API module now supports unversioned JSON `POST` handlers, accepts `application/*+json` payloads, and exposes captured raw JSON bytes for signed/protocol-style posts such as future ActivityPub inbox/shared-inbox routes. Next slices should add explicit ActivityPub config, local actor URL helpers, and read-only WebFinger/actor/outbox serializers before accepting inbound federation activities.
+
 Research note: [activitypub-research.md](./activitypub-research.md).
 
 Scope:
 
 - Map GeeSome identities/groups to ActivityPub actors.
 - Expose WebFinger discovery for local actors.
-- Add actor, outbox, inbox, followers, and following endpoints.
+- Add actor, outbox, inbox, followers, and following endpoints. The API layer can now register unversioned POST inbox routes; no ActivityPub route is exposed until the dedicated module lands.
 - Represent published group posts as ActivityPub `Create` activities with `Note`/attachment objects and stable GeeSome/IPFS links.
-- Verify HTTP signatures for inbound activities and sign outbound activities.
+- Verify HTTP signatures for inbound activities and sign outbound activities. Raw JSON request bytes are now available to route callbacks for future digest/signature checks.
 - Store inbound follows/accepts and minimal remote actor metadata.
 - Keep moderation, deletes/updates, rich media federation, and full timeline syncing for later slices.
-- Decide whether to adopt Fedify. Current Fedify 2.2.0 covers WebFinger, ActivityStreams vocabulary, HTTP Signatures, HTTP Message Signatures, testing, and Express integration, but declares Node `>=22`; this repo currently declares Node `>=18`.
+- Decide whether to adopt Fedify or keep a minimal custom module. The repo now targets Node 22, so the earlier Node-floor concern is gone; the remaining decision is dependency weight, integration shape, and whether Fedify's helpers fit GeeSome's IPFS/IPNS-first identity model.
 
 Likely modules:
 

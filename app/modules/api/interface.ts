@@ -8,6 +8,8 @@ export default interface IGeesomeApiModule {
 
 	onUnversionGet(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
+	onUnversionPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any): any;
+
 	onHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
 	onUnversionHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
@@ -49,6 +51,7 @@ export interface IApiModuleCommonInput {
 	user?: IUser;
 	apiKey?: IUserApiKey;
 	query?: any;
+	rawBody?: Buffer;
 	stream: Stream;
 }
 
