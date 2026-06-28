@@ -100,6 +100,8 @@ Suggested WebFinger:
 
 Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
 
+Read-only serializer status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The next implementation slice should expose those serializers through read-only ActivityPub routes, still without accepting inbound activities.
+
 ## Post Mapping
 
 GeeSome public post to ActivityPub:
