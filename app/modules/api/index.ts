@@ -37,7 +37,11 @@ async function getModule(app: IGeesomeApp, version, port) {
 
 	const maxBodySizeMb = 2000;
 	service.use(express.static('frontend/dist'));
-	service.use(bodyParser.json({limit: maxBodySizeMb + 'mb'}));
+	service.use(bodyParser.json({
+		limit: maxBodySizeMb + 'mb',
+		type: ['application/json', 'application/*+json'],
+		verify: captureRawBody
+	}));
 	service.use(bodyParser.urlencoded({extended: true}));
 	service.use(bearerToken());
 	if (helpers.isAccessLogEnabled()) {
@@ -123,6 +127,12 @@ async function getModule(app: IGeesomeApp, version, port) {
 			service.get(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
+		onUnversionPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
+			routeName = trimStart(routeName, '/');
+			trackRoute('POST', `/${routeName}`);
+			service.post(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
+		}
+
 		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
 			trackRoute('POST', `/${version}/${routeName}`);
@@ -192,11 +202,20 @@ async function getModule(app: IGeesomeApp, version, port) {
 				onGet: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onGet(routePrefix + routeName, callback);
 				},
+				onUnversionGet: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
+					return this.onUnversionGet(routePrefix + routeName, callback);
+				},
 				onPost: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onPost(routePrefix + routeName, callback);
 				},
+				onUnversionPost: (routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) => {
+					return this.onUnversionPost(routePrefix + routeName, callback);
+				},
 				onHead: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onHead(routePrefix + routeName, callback);
+				},
+				onUnversionHead: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
+					return this.onUnversionHead(routePrefix + routeName, callback);
 				},
 				onAuthorizedGet: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onAuthorizedGet(routePrefix + routeName, callback);
@@ -247,6 +266,9 @@ async function getModule(app: IGeesomeApp, version, port) {
 		if (req.body) {
 			input['body'] = req.body;
 		}
+		if (req.rawBody) {
+			input['rawBody'] = req.rawBody;
+		}
 		return input;
 	}
 
@@ -264,6 +286,26 @@ async function getModule(app: IGeesomeApp, version, port) {
 
 	function isResponseClosed(res) {
 		return res.headersSent || res.writableEnded || res.stream?.headersSent || res.stream?.writableEnded;
+	}
+
+	function captureRawBody(req, _res, buf) {
+		if (!shouldCaptureRawBody(req)) {
+			return;
+		}
+		req.rawBody = buf;
+	}
+
+	function shouldCaptureRawBody(req) {
+		const method = String(req.method || '').toUpperCase();
+		if (method !== 'POST') {
+			return false;
+		}
+		const url = String(req.originalUrl || req.url || '');
+		const path = url.split('?')[0];
+		if (path.startsWith('/ap/')) {
+			return true;
+		}
+		return Boolean(req.headers?.signature || req.headers?.digest || req.headers?.['content-digest']);
 	}
 
 	const apiModule = new GeesomeApiModule(port);
