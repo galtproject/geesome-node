@@ -438,6 +438,7 @@ Verification:
 These are still valid but not fast-delivery work:
 
 - Production secure chat groups after the design note: client-side E2EE, device keys, trust UX, and group key rotation.
+- Additional `StorageObject` identity producers for generated/static outputs, ActivityPub objects, or other protocol-owned objects after the product identity/trust policy is clear. Each producer needs a stable identity type, ownership/trust boundary, import/update semantics, delete-safety behavior, and public UI/API meaning before it seeds canonical identity metadata.
 - Local/in-browser IPNS accounts and client signing: [#115](https://github.com/galtproject/geesome-node/issues/115).
 - PubSub/service communication and remote node backup.
 - Matrix, Filecoin, Yacy/search integration: [#619](https://github.com/galtproject/geesome-node/issues/619), [#617](https://github.com/galtproject/geesome-node/issues/617), [#603](https://github.com/galtproject/geesome-node/issues/603).
