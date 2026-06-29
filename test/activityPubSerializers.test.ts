@@ -2,6 +2,7 @@ import assert from 'assert';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {
+	buildActivityPubFollowAcceptActivity,
 	buildActivityPubFollowersCollection,
 	buildActivityPubGroupActor,
 	buildActivityPubOutboxCollection,
@@ -97,6 +98,26 @@ describe('activityPub serializers', () => {
 		assert.equal(outbox.orderedItems.length, 1);
 		assert.equal(outbox.orderedItems[0].object.id, 'https://social.example/ap/groups/test-channel/posts/7');
 		assert.equal(outbox.orderedItems[0].object.content, 'Hello &lt;fediverse&gt;<br>from GeeSome');
+	});
+
+	it('builds an Accept activity for inbound Follow requests', () => {
+		const followActivity = {
+			id: 'https://remote.example/activities/follow-1',
+			type: 'Follow',
+			actor: 'https://remote.example/users/alice',
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+		const accept = buildActivityPubFollowAcceptActivity(getConfig(), getGroup(), followActivity, {
+			activityId: 'https://social.example/ap/groups/test-channel/activities/follows/1/accept'
+		});
+
+		assert.deepEqual(accept, {
+			'@context': 'https://www.w3.org/ns/activitystreams',
+			id: 'https://social.example/ap/groups/test-channel/activities/follows/1/accept',
+			type: 'Accept',
+			actor: 'https://social.example/ap/groups/test-channel',
+			object: followActivity
+		});
 	});
 
 	it('builds a followers collection from accepted remote actor URLs', () => {

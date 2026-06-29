@@ -8,10 +8,12 @@ import {
 	getActivityPubGroupPostObjectUrl
 } from './helpers.js';
 import type {
+	IActivityPubAcceptActivity,
 	IActivityPubActorObject,
 	IActivityPubActorOptions,
 	IActivityPubConfig,
 	IActivityPubCreateActivity,
+	IActivityPubFollowAcceptOptions,
 	IActivityPubFollowersCollection,
 	IActivityPubFollowersCollectionOptions,
 	IActivityPubNoteObject,
@@ -94,6 +96,19 @@ export function buildActivityPubPostCreateActivity(config: IActivityPubConfig, g
 		cc: object.cc,
 		published: object.published,
 		object
+	};
+}
+
+export function buildActivityPubFollowAcceptActivity(config: IActivityPubConfig, group: IGroup, followActivity: any, options: IActivityPubFollowAcceptOptions): IActivityPubAcceptActivity {
+	assertActivityPubGroupFederatable(group);
+	const urls = getActivityPubGroupActorUrls(config, group);
+
+	return {
+		'@context': activityPubContext,
+		id: options.activityId,
+		type: 'Accept',
+		actor: urls.actorUrl,
+		object: followActivity
 	};
 }
 

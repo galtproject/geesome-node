@@ -200,6 +200,8 @@ describe('activityPub module', () => {
 		const firstResult = await module.handleGroupInboxRequest('test-channel', request);
 		const secondResult = await module.handleGroupInboxRequest('test-channel', request);
 		const follow = models.ActivityPubFollow.rows[0];
+		const delivery = models.ActivityPubDelivery.rows[0];
+		const deliveryBody = JSON.parse(delivery.bodyJson);
 
 		assert.equal(firstResult.ok, true);
 		assert.equal(firstResult.accepted, true);
@@ -208,7 +210,9 @@ describe('activityPub module', () => {
 		assert.equal(firstResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstResult.followState, ActivityPubFollowState.Accepted);
 		assert.equal(secondResult.followId, firstResult.followId);
+		assert.equal(secondResult.deliveryId, firstResult.deliveryId);
 		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(models.ActivityPubDelivery.rows.length, 1);
 		assert.equal(follow.localActorId, models.ActivityPubActor.rows[0].id);
 		assert.equal(follow.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
 		assert.equal(follow.direction, ActivityPubFollowDirection.Inbound);
@@ -216,6 +220,17 @@ describe('activityPub module', () => {
 		assert.equal(follow.remoteActivityId, activity.id);
 		assert.equal(follow.acceptedAt.toISOString(), '2026-06-01T12:00:00.000Z');
 		assert.equal(JSON.parse(follow.rawActivityJson).id, activity.id);
+		assert.equal(delivery.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(delivery.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(delivery.followId, follow.id);
+		assert.equal(delivery.activityType, 'Accept');
+		assert.equal(delivery.activityId, 'https://social.example/ap/groups/test-channel/activities/follows/1/accept');
+		assert.equal(delivery.inboxUrl, 'https://remote.example/inbox');
+		assert.equal(delivery.state, 'pending');
+		assert.equal(delivery.nextAttemptAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(deliveryBody.type, 'Accept');
+		assert.equal(deliveryBody.actor, 'https://social.example/ap/groups/test-channel');
+		assert.deepEqual(deliveryBody.object, activity);
 	});
 
 	it('rejects signed Follow activities for a different local actor object', async () => {
@@ -497,7 +512,8 @@ function getModelsStub() {
 	return {
 		ActivityPubActor: getModelStub(),
 		ActivityPubRemoteActor: getModelStub(),
-		ActivityPubFollow: getModelStub()
+		ActivityPubFollow: getModelStub(),
+		ActivityPubDelivery: getModelStub()
 	};
 }
 

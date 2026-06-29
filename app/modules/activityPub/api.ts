@@ -94,6 +94,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {String} message Processing result code.
 	 * @apiSuccess {String} activityType Activity type that was processed.
 	 * @apiSuccess {String} followState Stored follow state.
+	 * @apiSuccess {Number} [deliveryId] Queued outbound `Accept` delivery id when the follow was accepted immediately.
 	 */
 	app.ms.api.onUnversionPost('ap/groups/:groupName/inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {

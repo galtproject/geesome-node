@@ -88,6 +88,12 @@ export enum ActivityPubFollowState {
 	Rejected = 'rejected'
 }
 
+export enum ActivityPubDeliveryState {
+	Pending = 'pending',
+	Delivered = 'delivered',
+	Failed = 'failed'
+}
+
 export interface IActivityPubFollow {
 	localActorId: number;
 	remoteActorId: number;
@@ -97,6 +103,25 @@ export interface IActivityPubFollow {
 	acceptedAt?: Date;
 	rejectedAt?: Date;
 	rawActivityJson: string;
+}
+
+export interface IActivityPubDelivery {
+	localActorId: number;
+	remoteActorId: number;
+	followId?: number;
+	activityId: string;
+	activityType: string;
+	inboxUrl: string;
+	bodyJson: string;
+	state: ActivityPubDeliveryState;
+	attempts: number;
+	nextAttemptAt: Date;
+	deliveredAt?: Date;
+	lastError?: string;
+}
+
+export interface IActivityPubFollowAcceptOptions {
+	activityId: string;
 }
 
 export interface IActivityPubGeneratedKeyPair {
@@ -164,6 +189,7 @@ export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerifi
 	message: string;
 	followId?: number;
 	followState?: ActivityPubFollowState;
+	deliveryId?: number;
 }
 
 export type IActivityPubRemoteActorKeyResolver = (input: {
@@ -179,6 +205,8 @@ export type IActivityPubActorObject = Record<string, any>;
 export type IActivityPubNoteObject = Record<string, any>;
 
 export type IActivityPubCreateActivity = Record<string, any>;
+
+export type IActivityPubAcceptActivity = Record<string, any>;
 
 export type IActivityPubOutboxCollection = Record<string, any>;
 

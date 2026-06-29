@@ -38,6 +38,7 @@ import {
 import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
 import {recordInboundActivityPubFollow} from './followState.js';
+import {enqueueActivityPubFollowAcceptDelivery} from './deliveryState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
@@ -158,8 +159,16 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				activity: request.body,
 				now: request.now
 			});
+			const delivery = await enqueueActivityPubFollowAcceptDelivery(models, {
+				config,
+				group,
+				localActorRecord: actorRecord,
+				followRecord: follow,
+				followActivity: request.body,
+				now: request.now
+			});
 
-			return getFollowInboxResult(verification, follow, localActorUrl, remoteActorUrl);
+			return getFollowInboxResult(verification, follow, localActorUrl, remoteActorUrl, delivery);
 		}
 
 		async verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest) {
@@ -187,6 +196,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		}
 
 		async flushDatabase() {
+			await models.ActivityPubDelivery.destroy({where: {}});
 			await models.ActivityPubFollow.destroy({where: {}});
 			await models.ActivityPubActor.destroy({where: {}});
 			await models.ActivityPubRemoteActor.destroy({where: {}});
@@ -502,7 +512,7 @@ function getActivityObjectId(activity): string | undefined {
 	return undefined;
 }
 
-function getFollowInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string): IActivityPubInboxResult {
+function getFollowInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string, delivery): IActivityPubInboxResult {
 	const accepted = follow.state === ActivityPubFollowState.Accepted;
 
 	return {
@@ -514,7 +524,8 @@ function getFollowInboxResult(verification, follow, localActorUrl: string, remot
 		activityType: 'Follow',
 		actor: remoteActorUrl,
 		followId: follow.id,
-		followState: follow.state
+		followState: follow.state,
+		deliveryId: delivery?.id
 	};
 }
 
