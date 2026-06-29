@@ -2,7 +2,12 @@ import {IGeesomeApp} from '../../interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
-import IGeesomeActivityPubModule, {IActivityPubSignRequestOptions, IResolvedActivityPubConfig} from './interface.js';
+import IGeesomeActivityPubModule, {
+	IActivityPubInboundRequest,
+	IActivityPubRemoteActorKeyResolver,
+	IActivityPubSignRequestOptions,
+	IResolvedActivityPubConfig
+} from './interface.js';
 import {
 	buildActivityPubGroupWebFingerResponse,
 	getActivityPubGroupActorUrls,
@@ -18,17 +23,24 @@ import {
 	isActivityPubGroupFederatable,
 	isActivityPubPostFederatable
 } from './serializers.js';
-import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from './signatureHelpers.js';
+import {
+	generateActivityPubRsaKeyPair,
+	getActivityPubRequestSignatureInfo,
+	signActivityPubRequestWithKey,
+	verifyActivityPubRequestWithKey
+} from './signatureHelpers.js';
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database']);
 	const models = options.models || await (await import('./models.js')).default(app.ms.database.sequelize);
-	const module = getModule(app, models);
+	const module = getModule(app, models, options);
 	(await import('./api.js')).default(app, module);
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models): IGeesomeActivityPubModule {
+function getModule(app: IGeesomeApp, models, options: {resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver}): IGeesomeActivityPubModule {
+	const resolveRemoteActorKey = options.resolveRemoteActorKey || resolveMissingRemoteActorKey;
+
 	class ActivityPubModule implements IGeesomeActivityPubModule {
 		isEnabled(): boolean {
 			return isActivityPubEnabled(app.config.activityPubConfig);
@@ -89,6 +101,30 @@ function getModule(app: IGeesomeApp, models): IGeesomeActivityPubModule {
 		async signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions) {
 			const actorKey = await this.getGroupActorKey(groupName);
 			return signActivityPubRequestWithKey(actorKey, options);
+		}
+
+		async verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest) {
+			const config = getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const verification = await verifyInboundRequest(resolveRemoteActorKey, request);
+
+			return {
+				...verification,
+				localActorUrl: getActivityPubGroupActorUrls(config, group).actorUrl,
+				activityType: getActivityType(request.body),
+				actor: getActivityActor(request.body)
+			};
+		}
+
+		async verifySharedInboxRequest(request: IActivityPubInboundRequest) {
+			getResolvedActivityPubConfig(app);
+			const verification = await verifyInboundRequest(resolveRemoteActorKey, request);
+
+			return {
+				...verification,
+				activityType: getActivityType(request.body),
+				actor: getActivityActor(request.body)
+			};
 		}
 
 		async flushDatabase() {
@@ -168,6 +204,34 @@ async function getContentDataWithUrl(app: IGeesomeApp, content, config: IResolve
 	return app.ms.group.prepareContentDataWithUrl(content, getContentBaseUrl(config), {
 		includeText: false,
 		includeJson: false
+	});
+}
+
+async function verifyInboundRequest(resolveRemoteActorKey: IActivityPubRemoteActorKeyResolver, request: IActivityPubInboundRequest) {
+	const body = getInboundRequestBody(request);
+	const signatureInfo = getActivityPubRequestSignatureInfo({
+		method: request.method,
+		url: request.url,
+		headers: request.headers,
+		body,
+		now: request.now,
+		maxClockSkewMs: request.maxClockSkewMs
+	});
+	const actorKey = await resolveRemoteActorKey({
+		keyId: signatureInfo.keyId,
+		actor: getActivityActor(request.body),
+		activity: request.body
+	});
+	if (!actorKey) {
+		throwActivityPubError('activitypub_remote_actor_key_not_found', 401);
+	}
+	return verifyActivityPubRequestWithKey(actorKey, {
+		method: request.method,
+		url: request.url,
+		headers: request.headers,
+		body,
+		now: request.now,
+		maxClockSkewMs: request.maxClockSkewMs
 	});
 }
 
@@ -258,6 +322,33 @@ function getChangedActorData(actorRecord, actorData) {
 	return updateData;
 }
 
+function getInboundRequestBody(request: IActivityPubInboundRequest): Buffer | string | undefined {
+	if (request.rawBody) {
+		return request.rawBody;
+	}
+	if (request.body === undefined || request.body === null) {
+		return undefined;
+	}
+	if (typeof request.body === 'string' || Buffer.isBuffer(request.body)) {
+		return request.body;
+	}
+	return JSON.stringify(request.body);
+}
+
+function getActivityType(activity): string | undefined {
+	return typeof activity?.type === 'string' ? activity.type : undefined;
+}
+
+function getActivityActor(activity): string | undefined {
+	if (typeof activity?.actor === 'string') {
+		return activity.actor;
+	}
+	if (typeof activity?.actor?.id === 'string') {
+		return activity.actor.id;
+	}
+	return undefined;
+}
+
 function parseWebFingerResource(resource: string) {
 	const rawResource = String(resource || '').trim();
 	const match = rawResource.match(/^acct:([^@]+)@([^@]+)$/);
@@ -306,8 +397,16 @@ function getActorKeyId(actorRecord): string {
 	return `${actorRecord.actorUrl}#main-key`;
 }
 
+async function resolveMissingRemoteActorKey(): Promise<null> {
+	throwActivityPubError('activitypub_remote_actor_key_resolver_required', 501);
+}
+
 function throwActivityPubNotFound(): never {
-	const error = new Error('activitypub_resource_not_found') as Error & {code?: number};
-	error.code = 404;
+	throwActivityPubError('activitypub_resource_not_found', 404);
+}
+
+function throwActivityPubError(message: string, code: number): never {
+	const error = new Error(message) as Error & {code?: number};
+	error.code = code;
 	throw error;
 }
