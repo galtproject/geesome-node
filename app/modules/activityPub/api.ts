@@ -49,6 +49,22 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {get} /ap/groups/:groupName/followers Get ActivityPub group followers
+	 * @apiName ActivityPubGroupFollowers
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public read-only ActivityStreams followers collection for a local federatable GeeSome group. It lists accepted inbound ActivityPub follower actor URLs.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiQuery {Number} [limit=20] Maximum accepted followers to include, capped at 100.
+	 * @apiQuery {Number} [offset=0] Offset for the current followers page.
+	 * @apiSuccess {Object} result ActivityStreams ordered collection of accepted follower actor URLs.
+	 */
+	app.ms.api.onUnversionGet('ap/groups/:groupName/followers', async (req, res) => {
+		setActivityPubHeaders(res);
+		return res.send(await activityPubModule.getGroupFollowers(req.params.groupName, req.query), 200);
+	});
+
+	/**
 	 * @api {get} /ap/groups/:groupName/posts/:localId Get ActivityPub post object
 	 * @apiName ActivityPubGroupPostObject
 	 * @apiGroup ActivityPub

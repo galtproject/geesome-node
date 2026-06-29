@@ -1,8 +1,11 @@
+import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
+import helpers from '../../helpers.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import IGeesomeActivityPubModule, {
+	ActivityPubFollowDirection,
 	ActivityPubFollowState,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
@@ -19,6 +22,7 @@ import {
 	resolveActivityPubConfig
 } from './helpers.js';
 import {
+	buildActivityPubFollowersCollection,
 	buildActivityPubGroupActor,
 	buildActivityPubOutboxCollection,
 	buildActivityPubPostNote,
@@ -38,6 +42,14 @@ import {recordInboundActivityPubFollow} from './followState.js';
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
 	resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver;
+};
+
+const activityPubFollowerListParams = {
+	limit: 20,
+	sortBy: 'acceptedAt',
+	sortDir: 'DESC',
+	allowedSortBy: ['acceptedAt', 'createdAt', 'updatedAt', 'id'],
+	maxLimit: 100
 };
 
 export default async (app: IGeesomeApp, options: any = {}) => {
@@ -89,6 +101,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			const contentsByPostId = await getContentsByPostId(app, groupPosts.list, config);
 
 			return buildActivityPubOutboxCollection(config, group, groupPosts.list, {contentsByPostId});
+		}
+
+		async getGroupFollowers(groupName: string, listParams: IListParams = {}) {
+			const config = getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+			const followers = await getGroupFollowerActorUrls(app, models, actorRecord, listParams);
+
+			return buildActivityPubFollowersCollection(config, group, followers.actorUrls, {
+				totalItems: followers.total
+			});
 		}
 
 		async getGroupPostNote(groupName: string, localId: number | string) {
@@ -243,6 +266,66 @@ async function getContentDataWithUrl(app: IGeesomeApp, content, config: IResolve
 		includeText: false,
 		includeJson: false
 	});
+}
+
+async function getGroupFollowerActorUrls(app: IGeesomeApp, models, actorRecord, listParams: IListParams) {
+	const preparedListParams = {
+		...listParams
+	};
+	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubFollowerListParams);
+	const followerPage = await models.ActivityPubFollow.findAndCountAll({
+		where: {
+			localActorId: actorRecord.id,
+			direction: ActivityPubFollowDirection.Inbound,
+			state: ActivityPubFollowState.Accepted
+		},
+		order: [[preparedListParams.sortBy, getListSortDirection(preparedListParams)]],
+		limit: preparedListParams.limit,
+		offset: preparedListParams.offset
+	});
+	const remoteActors = await getRemoteActorRecordsByIds(models, followerPage.rows.map((follow) => follow.remoteActorId));
+	const actorUrlById = getRemoteActorUrlById(remoteActors);
+
+	return {
+		actorUrls: followerPage.rows.map((follow) => actorUrlById.get(Number(follow.remoteActorId))).filter(Boolean),
+		total: getFollowerPageCount(followerPage.count)
+	};
+}
+
+async function getRemoteActorRecordsByIds(models, remoteActorIds) {
+	const ids = helpers.normalizeUniqueIds(remoteActorIds);
+	if (!ids.length) {
+		return [];
+	}
+	return models.ActivityPubRemoteActor.findAll({
+		where: {
+			id: {
+				[Op.in]: ids
+			}
+		}
+	});
+}
+
+function getRemoteActorUrlById(remoteActors) {
+	return new Map(remoteActors.map((remoteActor) => [Number(remoteActor.id), remoteActor.actorUrl]));
+}
+
+function getFollowerPageCount(count): number {
+	if (typeof count === 'number') {
+		return count;
+	}
+	const parsed = Number(count);
+	if (Number.isFinite(parsed)) {
+		return parsed;
+	}
+	return 0;
+}
+
+function getListSortDirection(listParams: IListParams): string {
+	if (String(listParams.sortDir).toUpperCase() === 'ASC') {
+		return 'ASC';
+	}
+	return 'DESC';
 }
 
 async function verifyInboundRequest(resolveRemoteActorKey: IActivityPubRemoteActorKeyResolver, request: IActivityPubInboundRequest) {
