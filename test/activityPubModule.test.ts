@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
+import {ActivityPubFollowDirection, ActivityPubFollowState} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 
@@ -183,6 +184,58 @@ describe('activityPub module', () => {
 		assert.equal(remoteActor.sharedInboxUrl, 'https://remote.example/inbox');
 		assert.equal(JSON.parse(remoteActor.rawJson).id, remoteActorKey.actorUrl);
 	});
+
+	it('records signed Follow activities for group inboxes idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-1',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+		const request = getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity);
+		const firstResult = await module.handleGroupInboxRequest('test-channel', request);
+		const secondResult = await module.handleGroupInboxRequest('test-channel', request);
+		const follow = models.ActivityPubFollow.rows[0];
+
+		assert.equal(firstResult.ok, true);
+		assert.equal(firstResult.accepted, true);
+		assert.equal(firstResult.message, 'activitypub_follow_accepted');
+		assert.equal(firstResult.activityType, 'Follow');
+		assert.equal(firstResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstResult.followState, ActivityPubFollowState.Accepted);
+		assert.equal(secondResult.followId, firstResult.followId);
+		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(follow.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(follow.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(follow.direction, ActivityPubFollowDirection.Inbound);
+		assert.equal(follow.state, ActivityPubFollowState.Accepted);
+		assert.equal(follow.remoteActivityId, activity.id);
+		assert.equal(follow.acceptedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(JSON.parse(follow.rawActivityJson).id, activity.id);
+	});
+
+	it('rejects signed Follow activities for a different local actor object', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-2',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/other-channel'
+		};
+
+		await assert.rejects(() => module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		), /activitypub_follow_object_mismatch/);
+		assert.equal(models.ActivityPubFollow.rows.length, 0);
+	});
 });
 
 describe('activityPub API', () => {
@@ -197,6 +250,13 @@ describe('activityPub API', () => {
 			getGroupActor: async () => ({id: 'https://social.example/ap/groups/test-channel'}),
 			getGroupOutbox: async () => ({id: 'https://social.example/ap/groups/test-channel/outbox'}),
 			getGroupPostNote: async () => ({id: 'https://social.example/ap/groups/test-channel/posts/7'}),
+			handleGroupInboxRequest: async () => ({
+				ok: true,
+				accepted: true,
+				message: 'activitypub_follow_accepted',
+				activityType: 'Follow',
+				followState: ActivityPubFollowState.Accepted
+			}),
 			verifyGroupInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'}),
 			verifySharedInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'})
 		} as any);
@@ -223,8 +283,22 @@ describe('activityPub API', () => {
 			rawBody: Buffer.from('{"type":"Follow"}')
 		});
 		assert.equal(groupInbox.headers['Content-Type'], 'application/activity+json; charset=utf-8');
-		assert.equal(groupInbox.status, 501);
+		assert.equal(groupInbox.status, 202);
 		assert.deepEqual(groupInbox.body, {
+			ok: true,
+			accepted: true,
+			message: 'activitypub_follow_accepted',
+			activityType: 'Follow',
+			followState: ActivityPubFollowState.Accepted
+		});
+
+		const sharedInbox = await callRoute(routes, 'POST ap/shared-inbox', {
+			headers: {},
+			body: {type: 'Follow'},
+			rawBody: Buffer.from('{"type":"Follow"}')
+		});
+		assert.equal(sharedInbox.status, 501);
+		assert.deepEqual(sharedInbox.body, {
 			ok: false,
 			accepted: false,
 			message: 'activitypub_inbox_not_implemented'
@@ -236,7 +310,7 @@ describe('activityPub API', () => {
 				api: getApiStub(routesWithError)
 			}
 		} as any, {
-			verifyGroupInboxRequest: async () => {
+			handleGroupInboxRequest: async () => {
 				const error = new Error('activitypub_signature_required') as Error & {code?: number};
 				error.code = 401;
 				throw error;
@@ -373,7 +447,8 @@ function hasNotFoundCode(error) {
 function getModelsStub() {
 	return {
 		ActivityPubActor: getModelStub(),
-		ActivityPubRemoteActor: getModelStub()
+		ActivityPubRemoteActor: getModelStub(),
+		ActivityPubFollow: getModelStub()
 	};
 }
 

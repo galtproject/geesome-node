@@ -73,6 +73,28 @@ export interface IActivityPubRemoteActor {
 	rawJson: string;
 }
 
+export enum ActivityPubFollowDirection {
+	Inbound = 'inbound',
+	Outbound = 'outbound'
+}
+
+export enum ActivityPubFollowState {
+	Pending = 'pending',
+	Accepted = 'accepted',
+	Rejected = 'rejected'
+}
+
+export interface IActivityPubFollow {
+	localActorId: number;
+	remoteActorId: number;
+	direction: ActivityPubFollowDirection;
+	state: ActivityPubFollowState;
+	remoteActivityId?: string;
+	acceptedAt?: Date;
+	rejectedAt?: Date;
+	rawActivityJson: string;
+}
+
 export interface IActivityPubGeneratedKeyPair {
 	publicKeyPem: string;
 	privateKeyPem: string;
@@ -132,6 +154,14 @@ export interface IActivityPubInboxVerification extends IActivityPubVerifiedReque
 	actor?: string;
 }
 
+export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerification> {
+	ok: boolean;
+	accepted: boolean;
+	message: string;
+	followId?: number;
+	followState?: ActivityPubFollowState;
+}
+
 export type IActivityPubRemoteActorKeyResolver = (input: {
 	keyId: string;
 	actor?: string;
@@ -164,6 +194,8 @@ export default interface IGeesomeActivityPubModule {
 	signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions): Promise<IActivityPubSignedRequest>;
 
 	getRemoteActorKey(input: {keyId: string; actor?: string; activity?: any}): Promise<IActivityPubRemoteActorKey | null>;
+
+	handleGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult>;
 
 	verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxVerification>;
 
