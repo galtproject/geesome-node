@@ -54,7 +54,53 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ActivityPubRemoteActor = sequelize.define('activityPubRemoteActor', {
+		actorUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		publicKeyId: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		preferredUsername: {
+			type: DataTypes.STRING(200),
+			allowNull: true
+		},
+		domain: {
+			type: DataTypes.STRING(255),
+			allowNull: false
+		},
+		inboxUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: true
+		},
+		sharedInboxUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: true
+		},
+		publicKeyPem: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		lastFetchedAt: {
+			type: DataTypes.DATE,
+			allowNull: false
+		},
+		rawJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_remote_actors_actor_url_unique', fields: ['actorUrl'], unique: true},
+			{name: 'activity_pub_remote_actors_public_key_id_unique', fields: ['publicKeyId'], unique: true},
+			{name: 'activity_pub_remote_actors_domain_username_idx', fields: ['domain', 'preferredUsername']}
+		]
+	} as any);
+
 	return {
-		ActivityPubActor: await ActivityPubActor.sync({})
+		ActivityPubActor: await ActivityPubActor.sync({}),
+		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({})
 	};
 }

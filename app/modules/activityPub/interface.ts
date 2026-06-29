@@ -61,6 +61,18 @@ export interface IActivityPubRemoteActorKey {
 	publicKeyPem: string;
 }
 
+export interface IActivityPubRemoteActor {
+	actorUrl: string;
+	publicKeyId: string;
+	preferredUsername?: string;
+	domain: string;
+	inboxUrl?: string;
+	sharedInboxUrl?: string;
+	publicKeyPem: string;
+	lastFetchedAt: Date;
+	rawJson: string;
+}
+
 export interface IActivityPubGeneratedKeyPair {
 	publicKeyPem: string;
 	privateKeyPem: string;
@@ -126,6 +138,8 @@ export type IActivityPubRemoteActorKeyResolver = (input: {
 	activity?: any;
 }) => Promise<IActivityPubRemoteActorKey | null> | IActivityPubRemoteActorKey | null;
 
+export type IActivityPubRemoteActorFetcher = (actorUrl: string) => Promise<any>;
+
 export type IActivityPubActorObject = Record<string, any>;
 
 export type IActivityPubNoteObject = Record<string, any>;
@@ -148,6 +162,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupActorKey(groupName: string): Promise<IActivityPubActorKey>;
 
 	signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions): Promise<IActivityPubSignedRequest>;
+
+	getRemoteActorKey(input: {keyId: string; actor?: string; activity?: any}): Promise<IActivityPubRemoteActorKey | null>;
 
 	verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxVerification>;
 
