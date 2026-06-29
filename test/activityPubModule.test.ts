@@ -286,6 +286,110 @@ describe('activityPub module', () => {
 		assert.equal(followers.totalItems, 1);
 		assert.deepEqual(followers.orderedItems, [remoteActorKey.actorUrl]);
 	});
+
+	it('processes due delivery rows and marks successful sends delivered', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const deliveryRequests: any[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey),
+			deliverActivityPubRequest: async (request) => {
+				deliveryRequests.push(request);
+				return {ok: true, status: 202};
+			}
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-4',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
+		const result = await module.processDeliveryQueue({now: new Date('2026-06-01T12:00:00Z')});
+		const delivery = models.ActivityPubDelivery.rows[0];
+		const sentRequest = deliveryRequests[0];
+
+		assert.deepEqual(result, {processed: 1, delivered: 1, failed: 0});
+		assert.equal(deliveryRequests.length, 1);
+		assert.equal(sentRequest.method, 'POST');
+		assert.equal(sentRequest.url, 'https://remote.example/inbox');
+		assert.match(sentRequest.headers.Signature, /keyId="https:\/\/social\.example\/ap\/groups\/test-channel#main-key"/);
+		assert.equal(sentRequest.headers['Content-Type'], 'application/activity+json; charset=utf-8');
+		assert.match(sentRequest.headers.Digest, /^SHA-256=/);
+		assert.equal(JSON.parse(sentRequest.body).type, 'Accept');
+		assert.equal(delivery.state, 'delivered');
+		assert.equal(delivery.attempts, 1);
+		assert.equal(delivery.deliveredAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(delivery.lastError, null);
+	});
+
+	it('reschedules failed deliveries with retry metadata', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey),
+			deliverActivityPubRequest: async () => ({ok: false, status: 503})
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-5',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
+		const result = await module.processDeliveryQueue({
+			now: new Date('2026-06-01T12:00:00Z'),
+			retryDelayMs: 1000,
+			maxAttempts: 2
+		});
+		const delivery = models.ActivityPubDelivery.rows[0];
+
+		assert.deepEqual(result, {processed: 1, delivered: 0, failed: 1});
+		assert.equal(delivery.state, 'pending');
+		assert.equal(delivery.attempts, 1);
+		assert.equal(delivery.nextAttemptAt.toISOString(), '2026-06-01T12:00:01.000Z');
+		assert.equal(delivery.deliveredAt, null);
+		assert.match(delivery.lastError, /activitypub_delivery_request_failed:503/);
+	});
+
+	it('marks delivery rows failed after max attempts', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey),
+			deliverActivityPubRequest: async () => {
+				throw new Error('remote inbox unavailable');
+			}
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-6',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
+		const result = await module.processDeliveryQueue({
+			now: new Date('2026-06-01T12:00:00Z'),
+			maxAttempts: 1
+		});
+		const delivery = models.ActivityPubDelivery.rows[0];
+
+		assert.deepEqual(result, {processed: 1, delivered: 0, failed: 1});
+		assert.equal(delivery.state, 'failed');
+		assert.equal(delivery.attempts, 1);
+		assert.equal(delivery.nextAttemptAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(delivery.deliveredAt, null);
+		assert.match(delivery.lastError, /remote inbox unavailable/);
+	});
 });
 
 describe('activityPub API', () => {
@@ -464,7 +568,8 @@ async function createActivityPubHarness(overrides: any = {}) {
 			models,
 			resolveRemoteActorKey: overrides.resolveRemoteActorKey,
 			fetchRemoteActor: overrides.fetchRemoteActor,
-			remoteActorCacheMaxAgeMs: overrides.remoteActorCacheMaxAgeMs
+			remoteActorCacheMaxAgeMs: overrides.remoteActorCacheMaxAgeMs,
+			deliverActivityPubRequest: overrides.deliverActivityPubRequest
 		}),
 		routes,
 		calls,
@@ -565,6 +670,10 @@ function valueMatchesWhere(value, condition) {
 		const key = Reflect.ownKeys(condition)[0];
 		return condition[key as any].includes(value);
 	}
+	if (isLteCondition(condition)) {
+		const key = Reflect.ownKeys(condition)[0];
+		return compareValues(value, condition[key as any]) <= 0;
+	}
 	return value === condition;
 }
 
@@ -577,6 +686,34 @@ function isInCondition(condition): boolean {
 		return false;
 	}
 	return Array.isArray(condition[keys[0] as any]);
+}
+
+function isLteCondition(condition): boolean {
+	if (!condition || typeof condition !== 'object') {
+		return false;
+	}
+	const keys = Reflect.ownKeys(condition);
+	if (keys.length !== 1) {
+		return false;
+	}
+	return String(keys[0]).includes('lte');
+}
+
+function compareValues(left, right): number {
+	const leftTime = toComparableTime(left);
+	const rightTime = toComparableTime(right);
+	if (leftTime !== null && rightTime !== null) {
+		return leftTime - rightTime;
+	}
+	return Number(left) - Number(right);
+}
+
+function toComparableTime(value): number | null {
+	const time = new Date(value).getTime();
+	if (Number.isNaN(time)) {
+		return null;
+	}
+	return time;
 }
 
 function getActivityPubActorRow(overrides: any = {}) {
