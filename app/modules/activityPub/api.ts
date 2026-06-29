@@ -1,6 +1,6 @@
 import {IGeesomeApp} from '../../interface.js';
 import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
-import IGeesomeActivityPubModule, {IActivityPubInboundRequest} from './interface.js';
+import IGeesomeActivityPubModule, {IActivityPubInboxResult, IActivityPubInboundRequest} from './interface.js';
 import {activityPubContentType, activityPubWebFingerContentType} from './helpers.js';
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
@@ -68,16 +68,20 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubGroupInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. This slice verifies HTTP signatures and request digests but does not yet accept or persist ActivityPub activities.
+	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
-	 * @apiSuccess {Boolean} accepted Always `false` until follow/delivery state is implemented.
+	 * @apiSuccess {Boolean} ok Whether the signed activity was processed.
+	 * @apiSuccess {Boolean} accepted Whether the follow was accepted immediately.
+	 * @apiSuccess {String} message Processing result code.
+	 * @apiSuccess {String} activityType Activity type that was processed.
+	 * @apiSuccess {String} followState Stored follow state.
 	 */
 	app.ms.api.onUnversionPost('ap/groups/:groupName/inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {
-			await activityPubModule.verifyGroupInboxRequest(req.params.groupName, getInboundRequest(req));
+			return activityPubModule.handleGroupInboxRequest(req.params.groupName, getInboundRequest(req));
 		});
 	});
 
@@ -95,19 +99,16 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {
 			await activityPubModule.verifySharedInboxRequest(getInboundRequest(req));
+			return getActivityPubInboxNotImplementedResult();
 		});
 	});
 }
 
-async function handleActivityPubInboxRequest(res: IApiModuleCommonOutput, verify: () => Promise<void>) {
+async function handleActivityPubInboxRequest(res: IApiModuleCommonOutput, processActivity: () => Promise<IActivityPubInboxResult>) {
 	setActivityPubHeaders(res);
 	try {
-		await verify();
-		return res.send({
-			ok: false,
-			accepted: false,
-			message: 'activitypub_inbox_not_implemented'
-		}, 501);
+		const result = await processActivity();
+		return res.send(result, getActivityPubInboxSuccessStatus(result));
 	} catch (e) {
 		if (!isExpectedActivityPubInboxError(e)) {
 			throw e;
@@ -118,6 +119,21 @@ async function handleActivityPubInboxRequest(res: IApiModuleCommonOutput, verify
 			message: e.message
 		}, getActivityPubInboxErrorStatus(e));
 	}
+}
+
+function getActivityPubInboxNotImplementedResult(): IActivityPubInboxResult {
+	return {
+		ok: false,
+		accepted: false,
+		message: 'activitypub_inbox_not_implemented'
+	};
+}
+
+function getActivityPubInboxSuccessStatus(result: IActivityPubInboxResult): number {
+	if (result.ok) {
+		return 202;
+	}
+	return 501;
 }
 
 function getInboundRequest(req: IApiModulePotInput): IActivityPubInboundRequest {

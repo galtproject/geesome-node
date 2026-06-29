@@ -100,7 +100,7 @@ Suggested WebFinger:
 
 Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
 
-Read-only route, key, and inbound verification status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, post-object, group inbox, and shared-inbox routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, reusable outbound RSA-SHA256 HTTP-signature helpers exist, inbound requests can be checked for HTTP Signature, `Digest`, and Date freshness, and `ActivityPubRemoteActor` caches fetched remote actor key/inbox metadata for signature verification. The inbox routes verify requests and then return not-implemented until follow state and accept/reject delivery land.
+Read-only route, key, and inbound verification status: group actor, Note, Create, and outbox collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, post-object, group inbox, and shared-inbox routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, reusable outbound RSA-SHA256 HTTP-signature helpers exist, inbound requests can be checked for HTTP Signature, `Digest`, and Date freshness, `ActivityPubRemoteActor` caches fetched remote actor key/inbox metadata for signature verification, and `ActivityPubFollow` stores idempotent inbound group-inbox `Follow` state. Follow `Accept`/`Reject` delivery, shared-inbox object routing, and followers collection output remain future slices.
 
 ## Post Mapping
 
@@ -246,7 +246,7 @@ Use ActivityPub-specific models instead of adding many nullable columns to `Grou
 
 - `ActivityPubActor`: local actor binding, `entityType`, `entityId`, `preferredUsername`, `actorUrl`, `inboxUrl`, `outboxUrl`, `followersUrl`, `followingUrl`, `privateKeyPemEncrypted`, `publicKeyPem`, `isEnabled`. Status: local group actor rows and signing keys exist.
 - `ActivityPubRemoteActor`: remote `actorUrl`, `publicKeyId`, `preferredUsername`, `domain`, `inboxUrl`, `sharedInboxUrl`, `publicKeyPem`, `lastFetchedAt`, `rawJson`. Status: fetched remote actor key/inbox metadata is cached for inbox signature verification.
-- `ActivityPubFollow`: local actor id, remote actor id, direction, state, remote activity id, accepted/rejected timestamps.
+- `ActivityPubFollow`: local actor id, remote actor id, direction, state, remote activity id, accepted/rejected timestamps. Status: signed inbound group-inbox `Follow` activities are persisted idempotently; outbound `Accept`/`Reject` delivery is still future work.
 - `ActivityPubObject`: local post id or remote object URL, activity id, object id, type, raw JSON, visibility, delivery state.
 - `ActivityPubDelivery`: activity id/object id, remote inbox URL, attempts, nextAttemptAt, lastError, deliveredAt.
 
@@ -277,7 +277,8 @@ If implementation needs a shortcut for the first outbound delivery spike, `async
 
 Inbound `Follow` can map to GeeSome group followers without making the remote actor a GeeSome group. For the first slice:
 
-- Resolve and store remote actor metadata in `ActivityPubRemoteActor`. Status: key/inbox metadata is cached; follow request state is still future work.
+- Resolve and store remote actor metadata in `ActivityPubRemoteActor`. Status: key/inbox metadata is cached.
+- Store idempotent inbound follow state in `ActivityPubFollow`. Status: group inbox `Follow` activities are persisted when the signed actor matches a fetched remote actor and the `object` is the local group actor.
 - If local group is public, auto-accept and create `ActivityPubFollow`.
 - If local group is not public, reject or leave pending until moderation UI exists.
 
@@ -330,7 +331,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 
 - Decide whether the ActivityPub actor is `Group`, `Service`, or compatibility `Person`.
 - Decide whether runtime can move to Node 22 for Fedify.
-- Define database records for actor keypairs, remote actors, follows, and delivery attempts. Status: local actor keypair records and remote actor key/inbox cache records exist; follow, object, and delivery records remain future work.
+- Define database records for actor keypairs, remote actors, follows, and delivery attempts. Status: local actor keypair records, remote actor key/inbox cache records, and inbound follow-state records exist; object and delivery records remain future work.
 - Document exact public URL shape. Status: group actor and post-object URL helpers now pin the `/ap/groups/{groupName}` and `/ap/groups/{groupName}/posts/{localId}` shapes, group inbox uses `/ap/groups/{groupName}/inbox`, shared inbox uses `/ap/shared-inbox`, and WebFinger uses `acct:{groupName}@{domain}` resources. The remaining design decision is whether later remote actor/follow/delivery implementation uses Fedify or the minimal custom module.
 
 ### Slice 1: Discovery And Read-Only Federation

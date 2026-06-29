@@ -3,6 +3,8 @@ import type {IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import IGeesomeActivityPubModule, {
+	ActivityPubFollowState,
+	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
 	IActivityPubRemoteActorKeyResolver,
 	IActivityPubSignRequestOptions,
@@ -31,6 +33,7 @@ import {
 } from './signatureHelpers.js';
 import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
+import {recordInboundActivityPubFollow} from './followState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
@@ -114,6 +117,28 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return resolveRemoteActorKey(input);
 		}
 
+		async handleGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult> {
+			const config = getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const localActorUrl = getActivityPubGroupActorUrls(config, group).actorUrl;
+			const verification = await verifyInboundRequest(resolveRemoteActorKey, request);
+			const remoteActorUrl = getRequiredActivityActor(request.body);
+
+			assertSupportedInboxActivity(request.body);
+			assertInboundFollowObject(request.body, localActorUrl);
+
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+			const follow = await recordInboundActivityPubFollow(models, {
+				group,
+				localActorRecord: actorRecord,
+				remoteActorUrl,
+				activity: request.body,
+				now: request.now
+			});
+
+			return getFollowInboxResult(verification, follow, localActorUrl, remoteActorUrl);
+		}
+
 		async verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest) {
 			const config = getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
@@ -139,6 +164,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		}
 
 		async flushDatabase() {
+			await models.ActivityPubFollow.destroy({where: {}});
 			await models.ActivityPubActor.destroy({where: {}});
 			await models.ActivityPubRemoteActor.destroy({where: {}});
 		}
@@ -359,6 +385,61 @@ function getActivityActor(activity): string | undefined {
 		return activity.actor.id;
 	}
 	return undefined;
+}
+
+function getRequiredActivityActor(activity): string {
+	const actor = getActivityActor(activity);
+	if (actor) {
+		return actor;
+	}
+	throwActivityPubError('activitypub_activity_actor_required', 400);
+}
+
+function assertSupportedInboxActivity(activity): void {
+	if (getActivityType(activity) === 'Follow') {
+		return;
+	}
+	throwActivityPubError('activitypub_activity_not_supported', 501);
+}
+
+function assertInboundFollowObject(activity, localActorUrl: string): void {
+	if (getActivityObjectId(activity) === localActorUrl) {
+		return;
+	}
+	throwActivityPubError('activitypub_follow_object_mismatch', 400);
+}
+
+function getActivityObjectId(activity): string | undefined {
+	if (typeof activity?.object === 'string') {
+		return activity.object;
+	}
+	if (typeof activity?.object?.id === 'string') {
+		return activity.object.id;
+	}
+	return undefined;
+}
+
+function getFollowInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string): IActivityPubInboxResult {
+	const accepted = follow.state === ActivityPubFollowState.Accepted;
+
+	return {
+		...verification,
+		ok: true,
+		accepted,
+		message: getFollowInboxMessage(follow),
+		localActorUrl,
+		activityType: 'Follow',
+		actor: remoteActorUrl,
+		followId: follow.id,
+		followState: follow.state
+	};
+}
+
+function getFollowInboxMessage(follow): string {
+	if (follow.state === ActivityPubFollowState.Pending) {
+		return 'activitypub_follow_pending';
+	}
+	return 'activitypub_follow_accepted';
 }
 
 function parseWebFingerResource(resource: string) {

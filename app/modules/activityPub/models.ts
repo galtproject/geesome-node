@@ -99,8 +99,50 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ActivityPubFollow = sequelize.define('activityPubFollow', {
+		localActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		direction: {
+			type: DataTypes.STRING(20),
+			allowNull: false
+		},
+		state: {
+			type: DataTypes.STRING(30),
+			allowNull: false
+		},
+		remoteActivityId: {
+			type: DataTypes.STRING(500),
+			allowNull: true
+		},
+		acceptedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		rejectedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		rawActivityJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_follows_local_remote_direction_unique', fields: ['localActorId', 'remoteActorId', 'direction'], unique: true},
+			{name: 'activity_pub_follows_remote_activity_idx', fields: ['remoteActivityId']},
+			{name: 'activity_pub_follows_state_idx', fields: ['state']}
+		]
+	} as any);
+
 	return {
 		ActivityPubActor: await ActivityPubActor.sync({}),
-		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({})
+		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
+		ActivityPubFollow: await ActivityPubFollow.sync({})
 	};
 }
