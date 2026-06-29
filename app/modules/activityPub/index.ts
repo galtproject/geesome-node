@@ -29,6 +29,13 @@ import {
 	signActivityPubRequestWithKey,
 	verifyActivityPubRequestWithKey
 } from './signatureHelpers.js';
+import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
+import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
+
+type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
+	models?: any;
+	resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver;
+};
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database']);
@@ -38,8 +45,8 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models, options: {resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver}): IGeesomeActivityPubModule {
-	const resolveRemoteActorKey = options.resolveRemoteActorKey || resolveMissingRemoteActorKey;
+function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions): IGeesomeActivityPubModule {
+	const resolveRemoteActorKey = options.resolveRemoteActorKey || ((input) => getActivityPubRemoteActorKey(models, input, options));
 
 	class ActivityPubModule implements IGeesomeActivityPubModule {
 		isEnabled(): boolean {
@@ -103,6 +110,10 @@ function getModule(app: IGeesomeApp, models, options: {resolveRemoteActorKey?: I
 			return signActivityPubRequestWithKey(actorKey, options);
 		}
 
+		async getRemoteActorKey(input: {keyId: string; actor?: string; activity?: any}) {
+			return resolveRemoteActorKey(input);
+		}
+
 		async verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest) {
 			const config = getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
@@ -129,6 +140,7 @@ function getModule(app: IGeesomeApp, models, options: {resolveRemoteActorKey?: I
 
 		async flushDatabase() {
 			await models.ActivityPubActor.destroy({where: {}});
+			await models.ActivityPubRemoteActor.destroy({where: {}});
 		}
 	}
 
@@ -395,10 +407,6 @@ function isActivityPubActorUniqueError(error): boolean {
 
 function getActorKeyId(actorRecord): string {
 	return `${actorRecord.actorUrl}#main-key`;
-}
-
-async function resolveMissingRemoteActorKey(): Promise<null> {
-	throwActivityPubError('activitypub_remote_actor_key_resolver_required', 501);
 }
 
 function throwActivityPubNotFound(): never {

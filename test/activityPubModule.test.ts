@@ -150,6 +150,39 @@ describe('activityPub module', () => {
 			rawBody: Buffer.from(JSON.stringify({...activity, type: 'Undo'}))
 		}), /activitypub_digest_mismatch/);
 	});
+
+	it('fetches and caches remote actor keys for signed inbox requests', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchCalls: string[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				fetchCalls.push(actorUrl);
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+		const activity = {
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+		const firstRequest = getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity);
+		const secondRequest = getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity);
+		const firstVerified = await module.verifyGroupInboxRequest('test-channel', firstRequest);
+		const secondVerified = await module.verifySharedInboxRequest(secondRequest);
+		const remoteActor = models.ActivityPubRemoteActor.rows[0];
+
+		assert.equal(firstVerified.keyId, remoteActorKey.keyId);
+		assert.equal(secondVerified.keyId, remoteActorKey.keyId);
+		assert.deepEqual(fetchCalls, [remoteActorKey.actorUrl]);
+		assert.equal(models.ActivityPubRemoteActor.rows.length, 1);
+		assert.equal(remoteActor.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(remoteActor.publicKeyId, remoteActorKey.keyId);
+		assert.equal(remoteActor.preferredUsername, 'alice');
+		assert.equal(remoteActor.domain, 'remote.example');
+		assert.equal(remoteActor.inboxUrl, 'https://remote.example/users/alice/inbox');
+		assert.equal(remoteActor.sharedInboxUrl, 'https://remote.example/inbox');
+		assert.equal(JSON.parse(remoteActor.rawJson).id, remoteActorKey.actorUrl);
+	});
 });
 
 describe('activityPub API', () => {
@@ -291,7 +324,9 @@ async function createActivityPubHarness(overrides: any = {}) {
 	return {
 		module: await activityPubModule(app as any, {
 			models,
-			resolveRemoteActorKey: overrides.resolveRemoteActorKey
+			resolveRemoteActorKey: overrides.resolveRemoteActorKey,
+			fetchRemoteActor: overrides.fetchRemoteActor,
+			remoteActorCacheMaxAgeMs: overrides.remoteActorCacheMaxAgeMs
 		}),
 		routes,
 		calls,
@@ -336,30 +371,35 @@ function hasNotFoundCode(error) {
 }
 
 function getModelsStub() {
+	return {
+		ActivityPubActor: getModelStub(),
+		ActivityPubRemoteActor: getModelStub()
+	};
+}
+
+function getModelStub() {
 	const rows: any[] = [];
 	return {
-		ActivityPubActor: {
-			rows,
-			async findOne({where}) {
-				return rows.find((row) => {
-					return Object.keys(where).every((key) => row[key] === where[key]);
-				}) || null;
-			},
-			async create(data) {
-				const row = {
-					...data,
-					id: rows.length + 1,
-					async update(updateData) {
-						Object.assign(this, updateData);
-						return this;
-					}
-				};
-				rows.push(row);
-				return row;
-			},
-			async destroy() {
-				rows.length = 0;
-			}
+		rows,
+		async findOne({where}) {
+			return rows.find((row) => {
+				return Object.keys(where).every((key) => row[key] === where[key]);
+			}) || null;
+		},
+		async create(data) {
+			const row = {
+				...data,
+				id: rows.length + 1,
+				async update(updateData) {
+					Object.assign(this, updateData);
+					return this;
+				}
+			};
+			rows.push(row);
+			return row;
+		},
+		async destroy() {
+			rows.length = 0;
 		}
 	};
 }
@@ -394,6 +434,24 @@ function getRemoteActorKey() {
 		actorUrl: 'https://remote.example/users/alice',
 		publicKeyPem: keyPair.publicKeyPem,
 		privateKeyPem: keyPair.privateKeyPem
+	};
+}
+
+function getRemoteActorDocument(actorKey) {
+	return {
+		'@context': 'https://www.w3.org/ns/activitystreams',
+		id: actorKey.actorUrl,
+		type: 'Person',
+		preferredUsername: 'alice',
+		inbox: 'https://remote.example/users/alice/inbox',
+		endpoints: {
+			sharedInbox: 'https://remote.example/inbox'
+		},
+		publicKey: {
+			id: actorKey.keyId,
+			owner: actorKey.actorUrl,
+			publicKeyPem: actorKey.publicKeyPem
+		}
 	};
 }
 
