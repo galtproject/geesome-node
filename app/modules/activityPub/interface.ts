@@ -48,6 +48,10 @@ export interface IActivityPubOutboxOptions {
 	contentsByPostId?: Map<number, IContentData[]>;
 }
 
+export interface IActivityPubFollowersCollectionOptions {
+	totalItems?: number;
+}
+
 export interface IActivityPubActorKey {
 	keyId: string;
 	actorUrl: string;
@@ -178,6 +182,8 @@ export type IActivityPubCreateActivity = Record<string, any>;
 
 export type IActivityPubOutboxCollection = Record<string, any>;
 
+export type IActivityPubFollowersCollection = Record<string, any>;
+
 export default interface IGeesomeActivityPubModule {
 	isEnabled(): boolean;
 
@@ -186,6 +192,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupActor(groupName: string): Promise<IActivityPubActorObject>;
 
 	getGroupOutbox(groupName: string, listParams?: IListParams): Promise<IActivityPubOutboxCollection>;
+
+	getGroupFollowers(groupName: string, listParams?: IListParams): Promise<IActivityPubFollowersCollection>;
 
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
 

@@ -12,6 +12,8 @@ import type {
 	IActivityPubActorOptions,
 	IActivityPubConfig,
 	IActivityPubCreateActivity,
+	IActivityPubFollowersCollection,
+	IActivityPubFollowersCollectionOptions,
 	IActivityPubNoteObject,
 	IActivityPubOutboxCollection,
 	IActivityPubOutboxOptions,
@@ -110,6 +112,19 @@ export function buildActivityPubOutboxCollection(config: IActivityPubConfig, gro
 		type: 'OrderedCollection',
 		totalItems: orderedItems.length,
 		orderedItems
+	};
+}
+
+export function buildActivityPubFollowersCollection(config: IActivityPubConfig, group: IGroup, actorUrls: string[] = [], options: IActivityPubFollowersCollectionOptions = {}): IActivityPubFollowersCollection {
+	assertActivityPubGroupFederatable(group);
+	const urls = getActivityPubGroupActorUrls(config, group);
+
+	return {
+		'@context': activityPubContext,
+		id: urls.followersUrl,
+		type: 'OrderedCollection',
+		totalItems: options.totalItems ?? actorUrls.length,
+		orderedItems: actorUrls
 	};
 }
 

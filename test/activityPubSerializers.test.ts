@@ -2,6 +2,7 @@ import assert from 'assert';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {
+	buildActivityPubFollowersCollection,
 	buildActivityPubGroupActor,
 	buildActivityPubOutboxCollection,
 	buildActivityPubPostCreateActivity,
@@ -96,6 +97,22 @@ describe('activityPub serializers', () => {
 		assert.equal(outbox.orderedItems.length, 1);
 		assert.equal(outbox.orderedItems[0].object.id, 'https://social.example/ap/groups/test-channel/posts/7');
 		assert.equal(outbox.orderedItems[0].object.content, 'Hello &lt;fediverse&gt;<br>from GeeSome');
+	});
+
+	it('builds a followers collection from accepted remote actor URLs', () => {
+		const followers = buildActivityPubFollowersCollection(getConfig(), getGroup(), [
+			'https://remote.example/users/alice'
+		], {
+			totalItems: 2
+		});
+
+		assert.deepEqual(followers, {
+			'@context': 'https://www.w3.org/ns/activitystreams',
+			id: 'https://social.example/ap/groups/test-channel/followers',
+			type: 'OrderedCollection',
+			totalItems: 2,
+			orderedItems: ['https://remote.example/users/alice']
+		});
 	});
 
 	it('rejects private, encrypted, remote, deleted, and chat-only data', () => {

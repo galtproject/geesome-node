@@ -236,6 +236,41 @@ describe('activityPub module', () => {
 		), /activitypub_follow_object_mismatch/);
 		assert.equal(models.ActivityPubFollow.rows.length, 0);
 	});
+
+	it('lists accepted inbound followers for a group actor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-3',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
+		models.ActivityPubRemoteActor.rows.push(getActivityPubRemoteActorRow({
+			id: 99,
+			actorUrl: 'https://remote.example/users/pending'
+		}));
+		models.ActivityPubFollow.rows.push(getActivityPubFollowRow({
+			id: 99,
+			localActorId: models.ActivityPubActor.rows[0].id,
+			remoteActorId: 99,
+			state: ActivityPubFollowState.Pending
+		}));
+
+		const followers = await module.getGroupFollowers('test-channel', {limit: 10});
+
+		assert.equal(followers.id, 'https://social.example/ap/groups/test-channel/followers');
+		assert.equal(followers.type, 'OrderedCollection');
+		assert.equal(followers.totalItems, 1);
+		assert.deepEqual(followers.orderedItems, [remoteActorKey.actorUrl]);
+	});
 });
 
 describe('activityPub API', () => {
@@ -249,6 +284,7 @@ describe('activityPub API', () => {
 			getWebFingerResponse: async () => ({subject: 'acct:test-channel@example.com'}),
 			getGroupActor: async () => ({id: 'https://social.example/ap/groups/test-channel'}),
 			getGroupOutbox: async () => ({id: 'https://social.example/ap/groups/test-channel/outbox'}),
+			getGroupFollowers: async () => ({id: 'https://social.example/ap/groups/test-channel/followers'}),
 			getGroupPostNote: async () => ({id: 'https://social.example/ap/groups/test-channel/posts/7'}),
 			handleGroupInboxRequest: async () => ({
 				ok: true,
@@ -274,6 +310,12 @@ describe('activityPub API', () => {
 		assert.deepEqual(actor.body, {id: 'https://social.example/ap/groups/test-channel'});
 
 		assert.ok(routes['GET ap/groups/:groupName/outbox']);
+		const followers = await callRoute(routes, 'GET ap/groups/:groupName/followers', {
+			params: {groupName: 'test-channel'}
+		});
+		assert.equal(followers.headers['Content-Type'], 'application/activity+json; charset=utf-8');
+		assert.deepEqual(followers.body, {id: 'https://social.example/ap/groups/test-channel/followers'});
+
 		assert.ok(routes['GET ap/groups/:groupName/posts/:localId']);
 
 		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
@@ -356,7 +398,14 @@ async function createActivityPubHarness(overrides: any = {}) {
 		decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
 		ms: {
 			api: getApiStub(routes),
-			database: {},
+			database: {
+				setDefaultListParamsValues(listParams, defaults = {}) {
+					listParams.limit = Number(listParams.limit || defaults.limit || 20);
+					listParams.offset = Number(listParams.offset || defaults.offset || 0);
+					listParams.sortBy = listParams.sortBy || defaults.sortBy || 'createdAt';
+					listParams.sortDir = listParams.sortDir || defaults.sortDir || 'DESC';
+				}
+			},
 			group: {
 				async getGroupByParams(params) {
 					calls.getGroupByParams.push(params);
@@ -458,8 +507,18 @@ function getModelStub() {
 		rows,
 		async findOne({where}) {
 			return rows.find((row) => {
-				return Object.keys(where).every((key) => row[key] === where[key]);
+				return rowMatchesWhere(row, where);
 			}) || null;
+		},
+		async findAll({where} = {}) {
+			return rows.filter((row) => rowMatchesWhere(row, where || {}));
+		},
+		async findAndCountAll({where, limit, offset} = {}) {
+			const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
+			return {
+				rows: matchingRows.slice(offset || 0, (offset || 0) + (limit || matchingRows.length)),
+				count: matchingRows.length
+			};
 		},
 		async create(data) {
 			const row = {
@@ -477,6 +536,31 @@ function getModelStub() {
 			rows.length = 0;
 		}
 	};
+}
+
+function rowMatchesWhere(row, where) {
+	return Reflect.ownKeys(where).every((key) => {
+		return valueMatchesWhere(row[key as any], where[key as any]);
+	});
+}
+
+function valueMatchesWhere(value, condition) {
+	if (isInCondition(condition)) {
+		const key = Reflect.ownKeys(condition)[0];
+		return condition[key as any].includes(value);
+	}
+	return value === condition;
+}
+
+function isInCondition(condition): boolean {
+	if (!condition || typeof condition !== 'object') {
+		return false;
+	}
+	const keys = Reflect.ownKeys(condition);
+	if (keys.length !== 1) {
+		return false;
+	}
+	return Array.isArray(condition[keys[0] as any]);
 }
 
 function getActivityPubActorRow(overrides: any = {}) {
@@ -497,6 +581,37 @@ function getActivityPubActorRow(overrides: any = {}) {
 			Object.assign(this, updateData);
 			return this;
 		},
+		...overrides
+	};
+}
+
+function getActivityPubRemoteActorRow(overrides: any = {}) {
+	return {
+		id: 1,
+		actorUrl: 'https://remote.example/users/alice',
+		publicKeyId: 'https://remote.example/users/alice#main-key',
+		preferredUsername: 'alice',
+		domain: 'remote.example',
+		inboxUrl: 'https://remote.example/users/alice/inbox',
+		sharedInboxUrl: 'https://remote.example/inbox',
+		publicKeyPem: 'public-key',
+		lastFetchedAt: new Date('2026-06-01T12:00:00Z'),
+		rawJson: '{}',
+		...overrides
+	};
+}
+
+function getActivityPubFollowRow(overrides: any = {}) {
+	return {
+		id: 1,
+		localActorId: 1,
+		remoteActorId: 1,
+		direction: ActivityPubFollowDirection.Inbound,
+		state: ActivityPubFollowState.Accepted,
+		remoteActivityId: 'https://remote.example/activities/follow',
+		acceptedAt: new Date('2026-06-01T12:00:00Z'),
+		rejectedAt: null,
+		rawActivityJson: '{}',
 		...overrides
 	};
 }
