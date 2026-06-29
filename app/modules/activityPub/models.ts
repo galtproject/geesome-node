@@ -140,9 +140,68 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ActivityPubDelivery = sequelize.define('activityPubDelivery', {
+		localActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		followId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		activityId: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		activityType: {
+			type: DataTypes.STRING(50),
+			allowNull: false
+		},
+		inboxUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		bodyJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		state: {
+			type: DataTypes.STRING(30),
+			allowNull: false
+		},
+		attempts: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+			defaultValue: 0
+		},
+		nextAttemptAt: {
+			type: DataTypes.DATE,
+			allowNull: false
+		},
+		deliveredAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_deliveries_activity_inbox_unique', fields: ['activityId', 'inboxUrl'], unique: true},
+			{name: 'activity_pub_deliveries_next_attempt_idx', fields: ['state', 'nextAttemptAt']},
+			{name: 'activity_pub_deliveries_follow_idx', fields: ['followId']}
+		]
+	} as any);
+
 	return {
 		ActivityPubActor: await ActivityPubActor.sync({}),
 		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
-		ActivityPubFollow: await ActivityPubFollow.sync({})
+		ActivityPubFollow: await ActivityPubFollow.sync({}),
+		ActivityPubDelivery: await ActivityPubDelivery.sync({})
 	};
 }
