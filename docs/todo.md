@@ -337,6 +337,7 @@ Scope:
 - Represent published group posts as ActivityPub `Create` activities with `Note`/attachment objects and stable GeeSome/IPFS links. Read-only serializers now cover Note/Create and outbox collection payloads, and public route wiring dereferences actor, outbox, and Note object URLs.
 - Verify HTTP signatures for inbound activities and sign outbound activities. Raw JSON request bytes are now available to route callbacks for digest/signature checks; outbound RSA-SHA256 signing helpers, stable local actor keys, and inbound signature/Digest/Date verification exist. Actual inbox activity acceptance still waits for remote actor cache/follow state.
 - Store inbound/outbound follow state and minimal remote actor metadata. Remote actor key/inbox metadata is now cached for signature verification and outbound follow requests, signed inbound `Follow` activities are persisted idempotently for group inboxes, signed embedded `Undo(Follow)` cancels stored inbound follows, accepted follows enqueue outbound `Accept(Follow)` delivery rows, admin-triggered outbound follows enqueue signed `Follow` delivery rows, signed remote `Accept`/`Reject` responses update outbound follow state, published local posts enqueue outbound `Create(Note)` delivery rows, and the opt-in delivery worker can claim/sign/send/retry queued rows.
+- Before cached remote ActivityPub objects become visible posts, audit how posts render in webviews/static sites because post text is HTML. Define the sanitization/escaping and allowlist policy for local text posts, ActivityStreams `content`, admin review previews, links/media embeds, IPFS/IPNS URLs, and dangerous markup such as scripts, event handlers, `javascript:` URLs, iframes, CSS injection, malformed HTML, and oversized markup.
 - Keep moderation, deletes/updates, rich media federation, and full timeline syncing for later slices.
 - Decide whether to adopt Fedify or keep a minimal custom module. The repo now targets Node 22, so the earlier Node-floor concern is gone; the remaining decision is dependency weight, integration shape, and whether Fedify's helpers fit GeeSome's IPFS/IPNS-first identity model.
 
@@ -358,12 +359,14 @@ First deliverable:
 - Implement read-only actor/outbox/WebFinger for one local group.
 - Add tests with deterministic JSON-LD payloads and signature fixtures.
 - Reuse the shared deterministic ActivityPub helper contract from `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121) for actor, WebFinger, Note/Create, digest, and request-signature fixtures.
+- Before remote object moderation can create visible posts, add HTML render-path tests that prove untrusted ActivityPub/local post HTML is sanitized or escaped consistently in API/webview/static-site/admin preview surfaces.
 
 Verification:
 
 - New module tests for actor serialization, WebFinger, and outbox payloads.
 - Existing `test/group.test.ts` for post compatibility.
 - Later integration smoke against a local ActivityPub test server.
+- Later Bluesky data-exchange smoke with the protocol boundary explicit: ActivityPub interop should use a bridge such as Bridgy Fed, while direct Bluesky/ATProto import or cross-post testing should use a seeded test `socNetAccount` database row for the Bluesky account and verify ownership, credential handling, idempotency, and moderation/signature boundaries.
 
 ### 11. Database Scalability For Large Groups
 

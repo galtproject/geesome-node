@@ -293,6 +293,8 @@ Remote `Create(Note)` replies and mentions are currently stored only as `Activit
 - `sourcePostId`: remote object URL
 - `replyToId`: mapped local post if `inReplyTo` matches a known ActivityPub object
 
+Before any remote ActivityPub object becomes a visible GeeSome/webview post, review the existing post rendering path because post bodies are HTML. Store the remote raw object for audit, but render only sanitized/escaped content with an explicit allowlist for tags, attributes, links, media embeds, and IPFS/IPNS URLs. The safety pass should cover local text posts, remote ActivityStreams `content`, static-site/webview rendering, and admin remote-object previews, with regression fixtures for `<script>`, event handlers, `javascript:` URLs, iframe/object/embed tags, CSS injection, malformed HTML, and oversized markup.
+
 Attachments can be represented first as remote URLs in `propertiesJson`; importing them into GeeSome/IPFS content should be a later, explicit backup feature.
 
 ## Implementation Options
@@ -365,6 +367,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 ### Slice 4: Remote Replies And Moderation
 
 - Process remote `Create(Note)` replies/mentions. Status: signed replies to known local objects and mentions of known local group actors are stored idempotently as `ActivityPubObject` rows and exposed through an AdminRead remote-object list; moderation and GeeSome post creation remain future work.
+- Define and test the HTML rendering/sanitization boundary before turning cached remote objects into visible GeeSome posts. This must cover webview/static-site post rendering, admin review previews, ActivityStreams `content`, local text posts, allowed HTML/media/link policy, and XSS fixtures.
 - Add moderation controls.
 - Handle remote `Update(Note)`. Status: signed shared-inbox `Update(Note)` mutates cached remote object rows from the same actor; updating visible GeeSome posts from remote objects remains future moderation work.
 - Handle remote `Delete`. Status: signed shared-inbox `Delete` tombstones cached remote object rows from the same actor; deleting visible GeeSome posts from remote objects remains future moderation work.
@@ -379,6 +382,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Route tests for ActivityPub content negotiation and `application/activity+json`. Status: focused unit coverage now checks the public WebFinger, actor, outbox, post-object, group inbox, and shared-inbox route registrations and response content types.
 - Fedify testing utilities if Fedify is adopted.
 - Manual/local federation tests with `fedify lookup`, `fedify inbox`, ActivityPub.Academy, and one Mastodon-compatible server.
+- Bluesky compatibility smoke must be explicit about protocol boundaries. Bluesky uses AT Protocol, so ActivityPub exchange should be tested through a bridge such as Bridgy Fed: local GeeSome group post delivery should appear on the bridged Bluesky side, and a Bluesky reply/mention should come back as a signed ActivityPub inbox/shared-inbox activity that GeeSome stores as a remote object. Separately, test any direct Bluesky/ATProto data exchange through the socNet account path with a test `socNetAccount` database row (`socNet` set to the final Bluesky module name, test account identity, and non-production app password/OAuth credentials), verifying credential ownership, import/cross-post semantics, idempotency, and that the direct ATProto path does not bypass ActivityPub signature/moderation gates.
 
 ## Sources
 
@@ -390,3 +394,5 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Mastodon WebFinger documentation: https://docs.joinmastodon.org/spec/webfinger/
 - Mastodon security/signature documentation: https://docs.joinmastodon.org/spec/security/
 - Fedify documentation: https://fedify.dev/
+- Bluesky AT Protocol documentation: https://docs.bsky.app/docs/advanced-guides/atproto
+- Bridgy Fed bridge documentation: https://fed.brid.gy/docs
