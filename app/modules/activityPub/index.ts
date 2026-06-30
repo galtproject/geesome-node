@@ -14,6 +14,8 @@ import IGeesomeActivityPubModule, {
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
 	IActivityPubDeliveryProcessOptions,
+	IActivityPubOutboundFollowOptions,
+	IActivityPubOutboundFollowResult,
 	IActivityPubRemoteActorKeyResolver,
 	IActivityPubDeliveryRequestSender,
 	IActivityPubSignRequestOptions,
@@ -30,6 +32,7 @@ import {
 import {
 	buildActivityPubFollowersCollection,
 	buildActivityPubFollowingCollection,
+	buildActivityPubFollowActivity,
 	buildActivityPubGroupActor,
 	buildActivityPubOutboxCollection,
 	buildActivityPubPostNote,
@@ -42,16 +45,18 @@ import {
 	signActivityPubRequestWithKey,
 	verifyActivityPubRequestWithKey
 } from './signatureHelpers.js';
-import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
+import {getActivityPubRemoteActorKey, getActivityPubRemoteActorRecord} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
 import {
 	recordInboundActivityPubBlock,
 	recordInboundActivityPubFollow,
-	recordInboundActivityPubFollowUndo
+	recordInboundActivityPubFollowUndo,
+	recordOutboundActivityPubFollow
 } from './followState.js';
 import {recordInboundActivityPubFlag} from './flagState.js';
 import {
 	enqueueActivityPubPostCreateDeliveries,
+	enqueueActivityPubFollowDelivery,
 	enqueueActivityPubFollowAcceptDelivery,
 	processActivityPubDeliveryQueue
 } from './deliveryState.js';
@@ -156,11 +161,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			});
 		}
 
-		async getGroupFollowing(groupName: string) {
+		async getGroupFollowing(groupName: string, listParams: IListParams = {}) {
 			const config = getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			const following = actorRecord
+				? await getGroupFollowingActorUrls(app, models, actorRecord, listParams)
+				: getEmptyActorUrlPage();
 
-			return buildActivityPubFollowingCollection(config, group);
+			return buildActivityPubFollowingCollection(config, group, following.actorUrls, {
+				totalItems: following.total
+			});
 		}
 
 		async getGroupPostNote(groupName: string, localId: number | string) {
@@ -206,6 +217,31 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			}
 
 			return getActivityPubFlagReportWithRemoteActor(models, flag);
+		}
+
+		async followRemoteActor(groupName: string, remoteActorUrl: string, followOptions: IActivityPubOutboundFollowOptions = {}): Promise<IActivityPubOutboundFollowResult> {
+			const config = getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const localActorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+			const remoteActorRecord = await getActivityPubRemoteActorRecord(models, remoteActorUrl, options);
+			const activity = buildActivityPubFollowActivity(config, group, remoteActorRecord.actorUrl, {
+				activityId: getOutboundFollowActivityId(config, group, remoteActorRecord)
+			});
+			const follow = await recordOutboundActivityPubFollow(models, {
+				localActorRecord,
+				remoteActorRecord,
+				activity,
+				now: followOptions.now
+			});
+			const delivery = await enqueueActivityPubFollowDelivery(models, {
+				localActorRecord,
+				remoteActorRecord,
+				followRecord: follow,
+				followActivity: activity,
+				now: followOptions.now
+			});
+
+			return getOutboundFollowResult(config, group, remoteActorRecord, follow, delivery);
 		}
 
 		async getGroupActorKey(groupName: string) {
@@ -551,6 +587,30 @@ async function getGroupFollowerActorUrls(app: IGeesomeApp, models, actorRecord, 
 	};
 }
 
+async function getGroupFollowingActorUrls(app: IGeesomeApp, models, actorRecord, listParams: IListParams) {
+	const preparedListParams = {
+		...listParams
+	};
+	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubFollowerListParams);
+	const followingPage = await models.ActivityPubFollow.findAndCountAll({
+		where: {
+			localActorId: actorRecord.id,
+			direction: ActivityPubFollowDirection.Outbound,
+			state: ActivityPubFollowState.Accepted
+		},
+		order: [[preparedListParams.sortBy, getListSortDirection(preparedListParams)]],
+		limit: preparedListParams.limit,
+		offset: preparedListParams.offset
+	});
+	const remoteActors = await getRemoteActorRecordsByIds(models, followingPage.rows.map((follow) => follow.remoteActorId));
+	const actorUrlById = getRemoteActorUrlById(remoteActors);
+
+	return {
+		actorUrls: followingPage.rows.map((follow) => actorUrlById.get(Number(follow.remoteActorId))).filter(Boolean),
+		total: getListPageCount(followingPage.count)
+	};
+}
+
 async function getRemoteActorRecordsByIds(models, remoteActorIds) {
 	const ids = helpers.normalizeUniqueIds(remoteActorIds);
 	if (!ids.length) {
@@ -693,6 +753,13 @@ function getEmptyFlagReportList(): IActivityPubFlagReportListResponse {
 	};
 }
 
+function getEmptyActorUrlPage() {
+	return {
+		actorUrls: [],
+		total: 0
+	};
+}
+
 function getListPageCount(count): number {
 	if (typeof count === 'number') {
 		return count;
@@ -820,6 +887,10 @@ function getGroupActorRecordData(config: IResolvedActivityPubConfig, group: IGro
 		followersUrl: urls.followersUrl,
 		followingUrl: urls.followingUrl
 	};
+}
+
+function getOutboundFollowActivityId(config: IResolvedActivityPubConfig, group: IGroup, remoteActorRecord): string {
+	return `${getActivityPubGroupActorUrls(config, group).actorUrl}/activities/follows/${remoteActorRecord.id}`;
 }
 
 function getChangedActorData(actorRecord, actorData) {
@@ -1110,6 +1181,24 @@ function getFollowInboxMessage(follow): string {
 		return 'activitypub_follow_cancelled';
 	}
 	return 'activitypub_follow_accepted';
+}
+
+function getOutboundFollowResult(
+	config: IResolvedActivityPubConfig,
+	group: IGroup,
+	remoteActorRecord,
+	follow,
+	delivery
+): IActivityPubOutboundFollowResult {
+	return {
+		ok: true,
+		message: 'activitypub_follow_delivery_queued',
+		localActorUrl: getActivityPubGroupActorUrls(config, group).actorUrl,
+		remoteActorUrl: remoteActorRecord.actorUrl,
+		followId: follow.id,
+		followState: follow.state,
+		deliveryId: delivery?.id
+	};
 }
 
 function getBlockInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string): IActivityPubInboxResult {

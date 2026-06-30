@@ -70,13 +70,15 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubGroupFollowing
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public read-only ActivityStreams following collection for a local federatable GeeSome group. Outbound ActivityPub follows are not supported yet, so this collection is currently empty.
+	 * @apiDescription Public read-only ActivityStreams following collection for a local federatable GeeSome group. Pending outbound follows are hidden until a remote `Accept` is recorded.
 	 * @apiParam {String} groupName GeeSome group name.
-	 * @apiSuccess {Object} result Empty ActivityStreams ordered collection.
+	 * @apiQuery {Number} [limit=20] Maximum accepted following actors to include, capped at 100.
+	 * @apiQuery {Number} [offset=0] Offset for the current following page.
+	 * @apiSuccess {Object} result ActivityStreams ordered collection of accepted following actor URLs.
 	 */
 	app.ms.api.onUnversionGet('ap/groups/:groupName/following', async (req, res) => {
 		setActivityPubHeaders(res);
-		return res.send(await activityPubModule.getGroupFollowing(req.params.groupName), 200);
+		return res.send(await activityPubModule.getGroupFollowing(req.params.groupName, req.query), 200);
 	});
 
 	/**
@@ -120,6 +122,31 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/flags/:flagId/state', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
 		return res.send(await activityPubModule.setGroupFlagReportState(req.params.groupName, req.params.flagId, req.body.state));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/groups/:groupName/follow Request ActivityPub outbound follow
+	 * @apiName AdminActivityPubGroupFollow
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Fetches a remote ActivityPub actor, records a pending outbound follow for the local group actor, and queues a signed `Follow` delivery to the remote actor inbox/shared inbox. The public following collection lists the remote actor only after a later `Accept` activity is recorded.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiBody {String} actorUrl Remote ActivityPub actor URL to follow.
+	 * @apiSuccess {Boolean} ok Whether the follow request was recorded and queued.
+	 * @apiSuccess {String} message Processing result code.
+	 * @apiSuccess {String} localActorUrl Local group actor URL.
+	 * @apiSuccess {String} remoteActorUrl Remote actor URL.
+	 * @apiSuccess {Number} followId Stored outbound follow row id.
+	 * @apiSuccess {String} followState Stored follow state.
+	 * @apiSuccess {Number} deliveryId Queued outbound `Follow` delivery id.
+	*/
+	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/follow', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.followRemoteActor(req.params.groupName, req.body?.actorUrl));
 	});
 
 	/**

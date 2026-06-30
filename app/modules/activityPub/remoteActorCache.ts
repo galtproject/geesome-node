@@ -28,6 +28,22 @@ export async function getActivityPubRemoteActorKey(
 	return getRemoteActorKeyFromRecord(actorRecord);
 }
 
+export async function getActivityPubRemoteActorRecord(
+	models,
+	actorUrl: string,
+	options: IActivityPubRemoteActorCacheOptions = {}
+) {
+	const lookupActorUrl = normalizeRemoteActorUrl(actorUrl);
+	const cachedActor = await getRemoteActorRecordByActorUrl(models, lookupActorUrl);
+	if (canUseRemoteActorRecordByActorUrl(cachedActor, options)) {
+		return cachedActor;
+	}
+
+	const actorJson = await fetchRemoteActorJson(lookupActorUrl, options.fetchRemoteActor);
+	const actorData = getRemoteActorRecordData(actorJson, undefined, lookupActorUrl);
+	return syncRemoteActorRecord(models, cachedActor, actorData);
+}
+
 async function getCachedRemoteActorRecord(models, input: {keyId: string; actor?: string}) {
 	const byKey = await getRemoteActorRecordByPublicKeyId(models, input.keyId);
 	if (byKey) {
@@ -114,7 +130,7 @@ async function fetchRemoteActorResponse(actorUrl: string) {
 	}
 }
 
-function getRemoteActorRecordData(actorJson, expectedKeyId: string, lookupActorUrl: string) {
+function getRemoteActorRecordData(actorJson, expectedKeyId: string | undefined, lookupActorUrl: string) {
 	const actorUrl = getRemoteActorUrl(actorJson, lookupActorUrl);
 	assertRemoteActorUrlMatchesLookup(actorUrl, lookupActorUrl);
 	const publicKey = getRemoteActorPublicKey(actorJson, expectedKeyId);
@@ -149,6 +165,13 @@ function canUseRemoteActorRecord(actorRecord, input: {keyId: string}, options: I
 		return false;
 	}
 	if (actorRecord.publicKeyId !== input.keyId) {
+		return false;
+	}
+	return !isRemoteActorRecordExpired(actorRecord, options);
+}
+
+function canUseRemoteActorRecordByActorUrl(actorRecord, options: IActivityPubRemoteActorCacheOptions): boolean {
+	if (!actorRecord) {
 		return false;
 	}
 	return !isRemoteActorRecordExpired(actorRecord, options);
@@ -225,9 +248,9 @@ function assertRemoteActorUrlMatchesLookup(actorUrl: string, lookupActorUrl: str
 	throwActivityPubError('activitypub_remote_actor_id_mismatch', 401);
 }
 
-function getRemoteActorPublicKey(actorJson, expectedKeyId: string) {
+function getRemoteActorPublicKey(actorJson, expectedKeyId?: string) {
 	const publicKeys = getRemoteActorPublicKeys(actorJson);
-	const publicKey = publicKeys.find((item) => item.id === expectedKeyId);
+	const publicKey = getMatchingRemoteActorPublicKey(publicKeys, expectedKeyId);
 	if (!publicKey) {
 		throwActivityPubError('activitypub_remote_actor_public_key_not_found', 401);
 	}
@@ -235,6 +258,13 @@ function getRemoteActorPublicKey(actorJson, expectedKeyId: string) {
 		throwActivityPubError('activitypub_remote_actor_public_key_pem_required', 401);
 	}
 	return publicKey;
+}
+
+function getMatchingRemoteActorPublicKey(publicKeys: any[], expectedKeyId?: string) {
+	if (expectedKeyId) {
+		return publicKeys.find((item) => item.id === expectedKeyId);
+	}
+	return publicKeys.find((item) => typeof item?.id === 'string' && item.id);
 }
 
 function getRemoteActorPublicKeys(actorJson): any[] {

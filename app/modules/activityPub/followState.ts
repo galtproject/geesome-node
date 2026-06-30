@@ -20,6 +20,13 @@ type IRecordInboundFollowUndoOptions = {
 	now?: Date | string;
 };
 
+type IRecordOutboundFollowOptions = {
+	localActorRecord: any;
+	remoteActorRecord: any;
+	activity: any;
+	now?: Date | string;
+};
+
 type IRecordInboundBlockOptions = {
 	localActorRecord: any;
 	remoteActorUrl: string;
@@ -33,7 +40,7 @@ export async function recordInboundActivityPubFollow(models, options: IRecordInb
 		throwActivityPubError('activitypub_remote_actor_record_required', 401);
 	}
 	const followData = getInboundFollowRecordData(options, remoteActorRecord);
-	return syncInboundFollowRecord(models, followData);
+	return syncFollowRecord(models, followData);
 }
 
 export async function recordInboundActivityPubFollowUndo(models, options: IRecordInboundFollowUndoOptions) {
@@ -42,7 +49,7 @@ export async function recordInboundActivityPubFollowUndo(models, options: IRecor
 		throwActivityPubError('activitypub_remote_actor_record_required', 401);
 	}
 	const followData = getInboundFollowUndoRecordData(options, remoteActorRecord);
-	return syncInboundFollowRecord(models, followData);
+	return syncFollowRecord(models, followData);
 }
 
 export async function recordInboundActivityPubBlock(models, options: IRecordInboundBlockOptions) {
@@ -51,11 +58,16 @@ export async function recordInboundActivityPubBlock(models, options: IRecordInbo
 		throwActivityPubError('activitypub_remote_actor_record_required', 401);
 	}
 	const followData = getInboundBlockRecordData(options, remoteActorRecord);
-	return syncInboundFollowRecord(models, followData);
+	return syncFollowRecord(models, followData);
 }
 
-async function syncInboundFollowRecord(models, followData) {
-	const existingFollow = await getInboundFollowRecord(models, followData);
+export async function recordOutboundActivityPubFollow(models, options: IRecordOutboundFollowOptions) {
+	const followData = getOutboundFollowRecordData(options);
+	return syncFollowRecord(models, followData);
+}
+
+async function syncFollowRecord(models, followData) {
+	const existingFollow = await getActivityPubFollowRecord(models, followData);
 	if (existingFollow) {
 		return updateFollowRecord(existingFollow, followData);
 	}
@@ -66,7 +78,7 @@ async function syncInboundFollowRecord(models, followData) {
 		if (!isActivityPubFollowUniqueError(e)) {
 			throw e;
 		}
-		const createdFollow = await getInboundFollowRecord(models, followData);
+		const createdFollow = await getActivityPubFollowRecord(models, followData);
 		if (!createdFollow) {
 			throw e;
 		}
@@ -83,12 +95,12 @@ async function updateFollowRecord(followRecord, followData) {
 	return followRecord;
 }
 
-async function getInboundFollowRecord(models, followData) {
+async function getActivityPubFollowRecord(models, followData) {
 	return models.ActivityPubFollow.findOne({
 		where: {
 			localActorId: followData.localActorId,
 			remoteActorId: followData.remoteActorId,
-			direction: ActivityPubFollowDirection.Inbound
+			direction: followData.direction
 		}
 	});
 }
@@ -112,6 +124,19 @@ function getInboundFollowRecordData(options: IRecordInboundFollowOptions, remote
 		state,
 		remoteActivityId: getActivityId(options.activity),
 		acceptedAt: state === ActivityPubFollowState.Accepted ? now : null,
+		rejectedAt: null,
+		rawActivityJson: JSON.stringify(options.activity)
+	};
+}
+
+function getOutboundFollowRecordData(options: IRecordOutboundFollowOptions) {
+	return {
+		localActorId: options.localActorRecord.id,
+		remoteActorId: options.remoteActorRecord.id,
+		direction: ActivityPubFollowDirection.Outbound,
+		state: ActivityPubFollowState.Pending,
+		remoteActivityId: getActivityId(options.activity),
+		acceptedAt: null,
 		rejectedAt: null,
 		rawActivityJson: JSON.stringify(options.activity)
 	};
@@ -161,6 +186,13 @@ function getChangedFollowData(followRecord, followData) {
 }
 
 function getStableFollowUpdateData(followRecord, followData) {
+	if (shouldKeepAcceptedOutboundFollow(followRecord, followData)) {
+		return {
+			...followData,
+			state: followRecord.state,
+			acceptedAt: followRecord.acceptedAt
+		};
+	}
 	if (followRecord.rejectedAt && followData.rejectedAt && followRecord.state === followData.state) {
 		return {
 			...followData,
@@ -174,6 +206,12 @@ function getStableFollowUpdateData(followRecord, followData) {
 		...followData,
 		acceptedAt: followRecord.acceptedAt
 	};
+}
+
+function shouldKeepAcceptedOutboundFollow(followRecord, followData): boolean {
+	return followRecord.direction === ActivityPubFollowDirection.Outbound
+		&& followRecord.state === ActivityPubFollowState.Accepted
+		&& followData.state === ActivityPubFollowState.Pending;
 }
 
 function isSameFollowValue(left, right): boolean {

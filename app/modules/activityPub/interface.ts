@@ -56,6 +56,24 @@ export interface IActivityPubFollowersCollectionOptions {
 	totalItems?: number;
 }
 
+export interface IActivityPubFollowActivityOptions {
+	activityId: string;
+}
+
+export interface IActivityPubOutboundFollowOptions {
+	now?: Date | string;
+}
+
+export interface IActivityPubOutboundFollowResult {
+	ok: boolean;
+	message: string;
+	localActorUrl: string;
+	remoteActorUrl: string;
+	followId: number;
+	followState: ActivityPubFollowState;
+	deliveryId?: number;
+}
+
 export interface IActivityPubActorKey {
 	keyId: string;
 	actorUrl: string;
@@ -331,6 +349,8 @@ export type IActivityPubNoteObject = Record<string, any>;
 
 export type IActivityPubCreateActivity = Record<string, any>;
 
+export type IActivityPubFollowActivity = Record<string, any>;
+
 export type IActivityPubAcceptActivity = Record<string, any>;
 
 export type IActivityPubOutboxCollection = Record<string, any>;
@@ -350,13 +370,15 @@ export default interface IGeesomeActivityPubModule {
 
 	getGroupFollowers(groupName: string, listParams?: IListParams): Promise<IActivityPubFollowersCollection>;
 
-	getGroupFollowing(groupName: string): Promise<IActivityPubFollowingCollection>;
+	getGroupFollowing(groupName: string, listParams?: IListParams): Promise<IActivityPubFollowingCollection>;
 
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
 
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
 
 	setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport>;
+
+	followRemoteActor(groupName: string, remoteActorUrl: string, options?: IActivityPubOutboundFollowOptions): Promise<IActivityPubOutboundFollowResult>;
 
 	getGroupActorKey(groupName: string): Promise<IActivityPubActorKey>;
 
