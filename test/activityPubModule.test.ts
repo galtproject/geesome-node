@@ -720,6 +720,105 @@ describe('activityPub module', () => {
 		), /activitypub_delete_object_actor_mismatch/);
 		assert.equal(models.ActivityPubObject.rows.find((row) => row.origin === 'remote').objectType, 'Note');
 	});
+
+	it('tombstones signed shared-inbox Undo(Create) for cached remote objects idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const createActivity = {
+			id: 'https://remote.example/activities/create-reply-undo-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/reply-undo-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				content: 'Remote reply to undo'
+			}
+		};
+		const undoActivity = {
+			id: 'https://remote.example/activities/undo-create-reply-1',
+			type: 'Undo',
+			actor: remoteActorKey.actorUrl,
+			object: createActivity
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		);
+		const firstUndoResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', undoActivity)
+		);
+		const secondUndoResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', undoActivity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+
+		assert.equal(firstUndoResult.ok, true);
+		assert.equal(firstUndoResult.accepted, true);
+		assert.equal(firstUndoResult.message, 'activitypub_undo_create_object_tombstoned');
+		assert.equal(firstUndoResult.activityType, 'Undo');
+		assert.equal(firstUndoResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstUndoResult.objectId, createActivity.object.id);
+		assert.equal(secondUndoResult.activityPubObjectId, firstUndoResult.activityPubObjectId);
+		assert.equal(models.ActivityPubObject.rows.length, 2);
+		assert.equal(remoteObject.objectId, createActivity.object.id);
+		assert.equal(remoteObject.objectType, 'Tombstone');
+		assert.equal(remoteObject.activityId, undoActivity.id);
+		assert.equal(JSON.parse(remoteObject.rawJson).id, undoActivity.id);
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		), /activitypub_object_tombstoned/);
+	});
+
+	it('rejects shared-inbox Undo(Create) for another remote actor object', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const otherRemoteActorKey = {
+			...getRemoteActorKey(),
+			actorUrl: 'https://remote.example/users/bob',
+			keyId: 'https://remote.example/users/bob#main-key'
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				if (actorUrl === otherRemoteActorKey.actorUrl) {
+					return getRemoteActorDocument(otherRemoteActorKey);
+				}
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const createActivity = {
+			id: 'https://remote.example/activities/create-reply-undo-2',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/reply-undo-2',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				content: 'Remote reply'
+			}
+		};
+		const undoActivity = {
+			id: 'https://remote.example/activities/undo-create-reply-2',
+			type: 'Undo',
+			actor: otherRemoteActorKey.actorUrl,
+			object: createActivity
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		);
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(otherRemoteActorKey, '/ap/shared-inbox', undoActivity)
+		), /activitypub_undo_create_actor_mismatch/);
+		assert.equal(models.ActivityPubObject.rows.find((row) => row.origin === 'remote').objectType, 'Note');
+	});
 });
 
 describe('activityPub API', () => {

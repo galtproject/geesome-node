@@ -26,6 +26,9 @@ type ISyncRemoteActivityPubObjectOptions = {
 type ITombstoneRemoteActivityPubObjectOptions = {
 	remoteActorRecord: any;
 	activity: any;
+	objectId?: string;
+	objectNotFoundMessage?: string;
+	actorMismatchMessage?: string;
 };
 
 const activityPubTombstoneObjectType = 'Tombstone';
@@ -78,13 +81,13 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 }
 
 export async function tombstoneRemoteActivityPubObject(models, options: ITombstoneRemoteActivityPubObjectOptions) {
-	const objectId = getRequiredActivityPubActivityObjectId(options.activity);
+	const objectId = options.objectId || getRequiredActivityPubActivityObjectId(options.activity);
 	const existingObject = await getRemoteActivityPubObjectRecordByObjectId(models, objectId);
 	if (!existingObject) {
-		throwActivityPubObjectError('activitypub_delete_object_not_found', 404);
+		throwActivityPubObjectError(options.objectNotFoundMessage || 'activitypub_delete_object_not_found', 404);
 	}
 	if (Number(existingObject.remoteActorId) !== Number(options.remoteActorRecord.id)) {
-		throwActivityPubObjectError('activitypub_delete_object_actor_mismatch', 400);
+		throwActivityPubObjectError(options.actorMismatchMessage || 'activitypub_delete_object_actor_mismatch', 400);
 	}
 
 	return updateActivityPubObjectRecord(existingObject, {
