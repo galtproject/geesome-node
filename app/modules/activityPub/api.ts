@@ -65,6 +65,20 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {get} /ap/groups/:groupName/following Get ActivityPub group following
+	 * @apiName ActivityPubGroupFollowing
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public read-only ActivityStreams following collection for a local federatable GeeSome group. Outbound ActivityPub follows are not supported yet, so this collection is currently empty.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiSuccess {Object} result Empty ActivityStreams ordered collection.
+	 */
+	app.ms.api.onUnversionGet('ap/groups/:groupName/following', async (req, res) => {
+		setActivityPubHeaders(res);
+		return res.send(await activityPubModule.getGroupFollowing(req.params.groupName), 200);
+	});
+
+	/**
 	 * @api {get} /ap/groups/:groupName/posts/:localId Get ActivityPub post object
 	 * @apiName ActivityPubGroupPostObject
 	 * @apiGroup ActivityPub

@@ -25,6 +25,7 @@ import {
 } from './helpers.js';
 import {
 	buildActivityPubFollowersCollection,
+	buildActivityPubFollowingCollection,
 	buildActivityPubGroupActor,
 	buildActivityPubOutboxCollection,
 	buildActivityPubPostNote,
@@ -137,6 +138,13 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return buildActivityPubFollowersCollection(config, group, followers.actorUrls, {
 				totalItems: followers.total
 			});
+		}
+
+		async getGroupFollowing(groupName: string) {
+			const config = getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+
+			return buildActivityPubFollowingCollection(config, group);
 		}
 
 		async getGroupPostNote(groupName: string, localId: number | string) {

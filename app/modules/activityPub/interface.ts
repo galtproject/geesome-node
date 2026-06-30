@@ -284,6 +284,8 @@ export type IActivityPubOutboxCollection = Record<string, any>;
 
 export type IActivityPubFollowersCollection = Record<string, any>;
 
+export type IActivityPubFollowingCollection = Record<string, any>;
+
 export default interface IGeesomeActivityPubModule {
 	isEnabled(): boolean;
 
@@ -294,6 +296,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupOutbox(groupName: string, listParams?: IListParams): Promise<IActivityPubOutboxCollection>;
 
 	getGroupFollowers(groupName: string, listParams?: IListParams): Promise<IActivityPubFollowersCollection>;
+
+	getGroupFollowing(groupName: string): Promise<IActivityPubFollowingCollection>;
 
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
 
