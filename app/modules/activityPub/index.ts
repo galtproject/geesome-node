@@ -59,7 +59,8 @@ import {
 	getLocalActivityPubObjectByObjectId,
 	syncLocalPostActivityPubObject,
 	syncRemoteActivityPubObject,
-	tombstoneRemoteActivityPubObject
+	tombstoneRemoteActivityPubObject,
+	updateRemoteActivityPubObject
 } from './objectState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
@@ -389,6 +390,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				});
 
 				return getSharedInboxUndoResult(verification, remoteActorUrl, objectRecord);
+			}
+			if (isUpdateActivity(request.body)) {
+				const object = getRequiredSharedInboxUpdateObject(request.body);
+				assertActivityPubObjectActorMatches(object, remoteActorUrl, 'activitypub_update_object_actor_mismatch');
+				const objectRecord = await updateRemoteActivityPubObject(models, {
+					remoteActorRecord,
+					activity: request.body,
+					object
+				});
+
+				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord);
 			}
 			const object = getRequiredSharedInboxCreateObject(request.body);
 			const inReplyTo = getRequiredActivityObjectInReplyTo(object);
@@ -850,6 +862,10 @@ function isDeleteActivity(activity): boolean {
 	return getActivityType(activity) === 'Delete';
 }
 
+function isUpdateActivity(activity): boolean {
+	return getActivityType(activity) === 'Update';
+}
+
 function isBlockActivity(activity): boolean {
 	return getActivityType(activity) === 'Block';
 }
@@ -925,6 +941,19 @@ function getRequiredSharedInboxCreateObject(activity) {
 	return activity.object;
 }
 
+function getRequiredSharedInboxUpdateObject(activity) {
+	if (!isUpdateActivity(activity)) {
+		throwActivityPubError('activitypub_activity_not_supported', 501);
+	}
+	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
+		throwActivityPubError('activitypub_update_object_required', 400);
+	}
+	if (activity.object.type !== 'Note') {
+		throwActivityPubError('activitypub_update_object_not_supported', 501);
+	}
+	return activity.object;
+}
+
 function getRequiredSharedInboxUndoCreateObject(activity, remoteActorUrl: string) {
 	const createActivity = getRequiredSharedInboxUndoCreateActivity(activity);
 	if (getActivityActor(createActivity) !== remoteActorUrl) {
@@ -965,12 +994,12 @@ function getRequiredObjectId(object, message: string): string {
 	throwActivityPubError(message, 400);
 }
 
-function assertActivityPubObjectActorMatches(object, remoteActorUrl: string): void {
+function assertActivityPubObjectActorMatches(object, remoteActorUrl: string, message = 'activitypub_create_object_actor_mismatch'): void {
 	const objectActor = getObjectActor(object);
 	if (!objectActor || objectActor === remoteActorUrl) {
 		return;
 	}
-	throwActivityPubError('activitypub_create_object_actor_mismatch', 400);
+	throwActivityPubError(message, 400);
 }
 
 function assertInboundFollowUndoObject(followActivity, remoteActorUrl: string, localActorUrl: string): void {
@@ -1146,6 +1175,19 @@ function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRe
 		accepted: true,
 		message: 'activitypub_undo_create_object_tombstoned',
 		activityType: 'Undo',
+		actor: remoteActorUrl,
+		activityPubObjectId: objectRecord.id,
+		objectId: objectRecord.objectId
+	};
+}
+
+function getSharedInboxUpdateResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+	return {
+		...verification,
+		ok: true,
+		accepted: true,
+		message: 'activitypub_update_object_recorded',
+		activityType: 'Update',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
 		objectId: objectRecord.objectId

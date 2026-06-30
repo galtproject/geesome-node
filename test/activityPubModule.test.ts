@@ -831,6 +831,122 @@ describe('activityPub module', () => {
 		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply');
 	});
 
+	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const createActivity = {
+			id: 'https://remote.example/activities/create-reply-update-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-update-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				url: 'https://remote.example/@alice/reply-update-1',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply before update',
+				published: '2026-06-01T12:05:00Z'
+			}
+		};
+		const updateActivity = {
+			id: 'https://remote.example/activities/update-reply-1',
+			type: 'Update',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: createActivity.object.id,
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: createActivity.object.inReplyTo,
+				content: 'Remote reply after update'
+			}
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		);
+		const firstUpdateResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', updateActivity)
+		);
+		const secondUpdateResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', updateActivity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+
+		assert.equal(firstUpdateResult.ok, true);
+		assert.equal(firstUpdateResult.accepted, true);
+		assert.equal(firstUpdateResult.message, 'activitypub_update_object_recorded');
+		assert.equal(firstUpdateResult.activityType, 'Update');
+		assert.equal(firstUpdateResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstUpdateResult.objectId, createActivity.object.id);
+		assert.equal(secondUpdateResult.activityPubObjectId, firstUpdateResult.activityPubObjectId);
+		assert.equal(models.ActivityPubObject.rows.length, 2);
+		assert.equal(remoteObject.remoteObjectUrl, 'https://remote.example/@alice/reply-update-1');
+		assert.equal(remoteObject.activityId, updateActivity.id);
+		assert.equal(remoteObject.objectId, createActivity.object.id);
+		assert.equal(remoteObject.objectType, 'Note');
+		assert.equal(remoteObject.visibility, 'public');
+		assert.equal(remoteObject.publishedAt.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply after update');
+	});
+
+	it('rejects shared-inbox Update for another remote actor object', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const otherRemoteActorKey = {
+			...getRemoteActorKey(),
+			actorUrl: 'https://remote.example/users/bob',
+			keyId: 'https://remote.example/users/bob#main-key'
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				if (actorUrl === otherRemoteActorKey.actorUrl) {
+					return getRemoteActorDocument(otherRemoteActorKey);
+				}
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const createActivity = {
+			id: 'https://remote.example/activities/create-reply-update-2',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/reply-update-2',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				content: 'Remote reply before rejected update'
+			}
+		};
+		const updateActivity = {
+			id: 'https://remote.example/activities/update-reply-2',
+			type: 'Update',
+			actor: otherRemoteActorKey.actorUrl,
+			object: {
+				id: createActivity.object.id,
+				type: 'Note',
+				attributedTo: otherRemoteActorKey.actorUrl,
+				content: 'Remote reply from wrong actor'
+			}
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		);
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(otherRemoteActorKey, '/ap/shared-inbox', updateActivity)
+		), /activitypub_update_object_actor_mismatch/);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		assert.equal(remoteObject.activityId, createActivity.id);
+		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply before rejected update');
+	});
+
 	it('tombstones signed shared-inbox Delete for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
