@@ -89,7 +89,8 @@ export enum ActivityPubFollowDirection {
 export enum ActivityPubFollowState {
 	Pending = 'pending',
 	Accepted = 'accepted',
-	Rejected = 'rejected'
+	Rejected = 'rejected',
+	Cancelled = 'cancelled'
 }
 
 export enum ActivityPubDeliveryState {

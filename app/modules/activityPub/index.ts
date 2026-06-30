@@ -39,7 +39,10 @@ import {
 } from './signatureHelpers.js';
 import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
-import {recordInboundActivityPubFollow} from './followState.js';
+import {
+	recordInboundActivityPubFollow,
+	recordInboundActivityPubFollowUndo
+} from './followState.js';
 import {
 	enqueueActivityPubPostCreateDeliveries,
 	enqueueActivityPubFollowAcceptDelivery,
@@ -223,8 +226,23 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			const remoteActorUrl = getRequiredActivityActor(request.body);
 
 			assertSupportedInboxActivity(request.body);
-			assertInboundFollowObject(request.body, localActorUrl);
 
+			if (!isFollowActivity(request.body)) {
+				const followActivity = getRequiredUndoFollowActivity(request.body);
+				assertInboundFollowUndoObject(followActivity, remoteActorUrl, localActorUrl);
+				const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+				const follow = await recordInboundActivityPubFollowUndo(models, {
+					localActorRecord: actorRecord,
+					remoteActorUrl,
+					undoActivity: request.body,
+					followActivity,
+					now: request.now
+				});
+
+				return getFollowInboxResult(verification, follow, localActorUrl, remoteActorUrl, null, 'Undo');
+			}
+
+			assertInboundFollowObject(request.body, localActorUrl);
 			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
 			const follow = await recordInboundActivityPubFollow(models, {
 				group,
@@ -608,6 +626,14 @@ function getActivityType(activity): string | undefined {
 	return typeof activity?.type === 'string' ? activity.type : undefined;
 }
 
+function isFollowActivity(activity): boolean {
+	return getActivityType(activity) === 'Follow';
+}
+
+function isUndoActivity(activity): boolean {
+	return getActivityType(activity) === 'Undo';
+}
+
 function getActivityActor(activity): string | undefined {
 	if (typeof activity?.actor === 'string') {
 		return activity.actor;
@@ -643,10 +669,23 @@ function getRequiredActivityActor(activity): string {
 }
 
 function assertSupportedInboxActivity(activity): void {
-	if (getActivityType(activity) === 'Follow') {
+	if (isFollowActivity(activity) || isUndoActivity(activity)) {
 		return;
 	}
 	throwActivityPubError('activitypub_activity_not_supported', 501);
+}
+
+function getRequiredUndoFollowActivity(activity) {
+	if (!isUndoActivity(activity)) {
+		throwActivityPubError('activitypub_activity_not_supported', 501);
+	}
+	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
+		throwActivityPubError('activitypub_undo_follow_object_required', 400);
+	}
+	if (!isFollowActivity(activity.object)) {
+		throwActivityPubError('activitypub_undo_follow_object_not_supported', 501);
+	}
+	return activity.object;
 }
 
 function getRequiredSharedInboxCreateObject(activity) {
@@ -680,6 +719,13 @@ function assertActivityPubObjectActorMatches(object, remoteActorUrl: string): vo
 	throwActivityPubError('activitypub_create_object_actor_mismatch', 400);
 }
 
+function assertInboundFollowUndoObject(followActivity, remoteActorUrl: string, localActorUrl: string): void {
+	if (getActivityActor(followActivity) !== remoteActorUrl) {
+		throwActivityPubError('activitypub_undo_follow_actor_mismatch', 400);
+	}
+	assertInboundFollowObject(followActivity, localActorUrl);
+}
+
 function assertInboundFollowObject(activity, localActorUrl: string): void {
 	if (getActivityObjectId(activity) === localActorUrl) {
 		return;
@@ -697,7 +743,7 @@ function getActivityObjectId(activity): string | undefined {
 	return undefined;
 }
 
-function getFollowInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string, delivery): IActivityPubInboxResult {
+function getFollowInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string, delivery, activityType = 'Follow'): IActivityPubInboxResult {
 	const accepted = follow.state === ActivityPubFollowState.Accepted;
 
 	return {
@@ -706,7 +752,7 @@ function getFollowInboxResult(verification, follow, localActorUrl: string, remot
 		accepted,
 		message: getFollowInboxMessage(follow),
 		localActorUrl,
-		activityType: 'Follow',
+		activityType,
 		actor: remoteActorUrl,
 		followId: follow.id,
 		followState: follow.state,
@@ -717,6 +763,9 @@ function getFollowInboxResult(verification, follow, localActorUrl: string, remot
 function getFollowInboxMessage(follow): string {
 	if (follow.state === ActivityPubFollowState.Pending) {
 		return 'activitypub_follow_pending';
+	}
+	if (follow.state === ActivityPubFollowState.Cancelled) {
+		return 'activitypub_follow_cancelled';
 	}
 	return 'activitypub_follow_accepted';
 }
