@@ -100,7 +100,7 @@ Suggested WebFinger:
 
 Implementation status: the first config/helper slice added explicit `activityPubConfig.enabled`, `activityPubConfig.publicUrl`, and `activityPubConfig.domain` values, sourced from `ACTIVITYPUB_ENABLED`, `ACTIVITYPUB_PUBLIC_URL`, and `ACTIVITYPUB_DOMAIN`. `ACTIVITYPUB_DELIVERY_WORKER=1` enables the delivery worker, with optional `ACTIVITYPUB_DELIVERY_WORKER_INTERVAL_MS`, `ACTIVITYPUB_DELIVERY_WORKER_LIMIT`, and `ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS` tuning. The helper layer normalizes the public URL, derives the domain from it when needed, and builds group actor, inbox/outbox/followers/following, shared-inbox, post-object, WebFinger resource, WebFinger URL, and WebFinger response data. It requires the group name to pass GeeSome username validation before producing an `acct:` handle.
 
-Read-only route, key, object-record, and inbound verification status: group actor, Note, Create, `Accept(Follow)`, outbox collection, and followers collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, followers, post-object, group inbox, and shared-inbox routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, reusable outbound RSA-SHA256 HTTP-signature helpers exist, inbound requests can be checked for HTTP Signature, `Digest`, and Date freshness, `ActivityPubRemoteActor` caches fetched remote actor key/inbox metadata for signature verification, `ActivityPubFollow` stores idempotent inbound group-inbox `Follow` state, `ActivityPubObject` records local post Note/Create IDs when outbox or post-object serializers run, and `ActivityPubDelivery` stores queued outbound follow `Accept` payloads. Followers routes list accepted inbound remote actor URLs, and `processDeliveryQueue` signs due delivery rows, sends them through an injectable/default sender, and marks them delivered, retry-pending, or failed after bounded attempts. The opt-in delivery worker drains that processor on an interval and uses DB-backed `FOR UPDATE SKIP LOCKED` claims when the model-synced claim shape is active; shared-inbox object routing remains a future slice.
+Read-only route, key, object-record, and inbound verification status: group actor, Note, Create, `Accept(Follow)`, outbox collection, and followers collection payload builders exist behind safety gates that reject private, encrypted, remote, deleted, draft, and personal-chat data. The dedicated `activityPub` module now exposes disabled-by-default public WebFinger, actor, outbox, followers, post-object, group inbox, and shared-inbox routes with protocol content types. Local group actors now get model-sync-created `ActivityPubActor` records with encrypted RSA private keys, public keys are embedded in actor documents, reusable outbound RSA-SHA256 HTTP-signature helpers exist, inbound requests can be checked for HTTP Signature, `Digest`, and Date freshness, `ActivityPubRemoteActor` caches fetched remote actor key/inbox metadata for signature verification, `ActivityPubFollow` stores idempotent inbound group-inbox `Follow` state, `ActivityPubObject` records local post Note/Create IDs when outbox, post-object, or publish hooks run, and `ActivityPubDelivery` stores queued outbound follow `Accept` and local post `Create(Note)` payloads. Followers routes list accepted inbound remote actor URLs, post manifest updates enqueue `Create(Note)` delivery rows for accepted followers, and `processDeliveryQueue` signs due delivery rows, sends them through an injectable/default sender, and marks them delivered, retry-pending, or failed after bounded attempts. The opt-in delivery worker drains that processor on an interval and uses DB-backed `FOR UPDATE SKIP LOCKED` claims when the model-synced claim shape is active; shared-inbox object routing remains a future slice.
 
 ## Post Mapping
 
@@ -152,11 +152,11 @@ Read-only first:
 
 Delivery second:
 
-- On post publish, create `Create(Note)` and deliver to followers.
-- Use shared inbox when available.
-- Queue delivery through `asyncOperation` or a dedicated queue so publish actions do not block on remote servers.
+- On post publish, create `Create(Note)` and deliver to followers. Status: post manifest completion calls an ActivityPub hook that records the local object and queues one delivery row per accepted follower.
+- Use shared inbox when available. Status: delivery rows prefer remote `sharedInboxUrl` and fall back to actor `inboxUrl`.
+- Queue delivery through a dedicated queue so publish actions do not block on remote servers. Status: publishing enqueues `ActivityPubDelivery` rows; the opt-in worker sends them later.
 
-In this repo, start with read-only outbox endpoints and add delivery after that. `createPost()` is the eventual publish-time integration point, but it currently has no generic `afterPostPublish` hook. Add a small hook or event after `updatePostManifest()` completes for published, public, non-encrypted posts, then let the ActivityPub module enqueue delivery. Do not send federation requests inline from `createPost()`.
+In this repo, start with read-only outbox endpoints and add delivery after that. `updatePostManifest()` now calls a post-manifest hook after the post/group manifests are refreshed; the ActivityPub module uses that hook to enqueue delivery for published, public, non-encrypted posts. Do not send federation requests inline from `createPost()`.
 
 Only federate posts that satisfy all of these conditions in the first slice:
 
@@ -269,7 +269,7 @@ Keep `post.manifestStorageId`, `post.directoryStorageId`, and content `storageId
 
 ### Delivery Queue
 
-`asyncOperation` is user-facing and useful for long-running imports/renders, but ActivityPub delivery is service-level retry work. Keep the dedicated `ActivityPubDelivery` queue, `processDeliveryQueue` processor, and opt-in `activityPub/cron.ts` worker. The worker is disabled by default and enabled with `ACTIVITYPUB_DELIVERY_WORKER=1`.
+`asyncOperation` is user-facing and useful for long-running imports/renders, but ActivityPub delivery is service-level retry work. Keep the dedicated `ActivityPubDelivery` queue, `processDeliveryQueue` processor, and opt-in `activityPub/cron.ts` worker for both `Accept(Follow)` and `Create(Note)` delivery. The worker is disabled by default and enabled with `ACTIVITYPUB_DELIVERY_WORKER=1`.
 
 Delivery claims mirror the auto-action claim pattern for row selection. Fresh model-sync tables include the claim columns/index; older dev/local tables without the unreleased claim shape keep the previous bounded fallback path until recreated or adjusted before release. With claims active, due delivery selection uses `FOR UPDATE SKIP LOCKED`.
 
@@ -347,15 +347,15 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 ### Slice 2: Follow Graph
 
 - Accept inbound `Follow` for public groups. Status: signed group-inbox `Follow` activities are stored idempotently.
-- Send `Accept`. Status: accepted follows enqueue an `Accept(Follow)` delivery row targeting the remote shared inbox or actor inbox; worker delivery remains future work.
+- Send `Accept`. Status: accepted follows enqueue an `Accept(Follow)` delivery row targeting the remote shared inbox or actor inbox, and the opt-in worker can sign/send/retry queued rows.
 - Store followers and remote actor metadata. Status: remote actor cache records and inbound follow records exist.
 - Expose followers collection. Status: public followers route lists accepted inbound remote actor URLs.
 
 ### Slice 3: Outbound Delivery
 
 - Sign POST requests.
-- Deliver `Create(Note)` to follower inbox/sharedInbox.
-- Queue retries and record delivery failures.
+- Deliver `Create(Note)` to follower inbox/sharedInbox. Status: post manifest updates enqueue idempotent `Create(Note)` delivery rows for accepted followers.
+- Queue retries and record delivery failures. Status: the shared delivery processor handles bounded attempts and retry/failure metadata.
 
 ### Slice 4: Remote Replies And Moderation
 

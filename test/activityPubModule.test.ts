@@ -438,6 +438,43 @@ describe('activityPub module', () => {
 		assert.equal(delivery.deliveryClaimExpiresAt, null);
 		assert.equal(delivery.state, ActivityPubDeliveryState.Delivered);
 	});
+
+	it('queues outbound Create delivery for accepted followers after post manifest updates', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const followActivity = {
+			id: 'https://remote.example/activities/follow-8',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', followActivity)
+		);
+		const firstResult = await module.afterPostManifestUpdate(1, 11);
+		const secondResult = await module.afterPostManifestUpdate(1, 11);
+		const createDelivery = models.ActivityPubDelivery.rows.find((delivery) => delivery.activityType === 'Create');
+		const deliveryBody = JSON.parse(createDelivery.bodyJson);
+
+		assert.equal(firstResult.queued, 1);
+		assert.deepEqual(secondResult.deliveryIds, firstResult.deliveryIds);
+		assert.equal(models.ActivityPubObject.rows.length, 1);
+		assert.equal(models.ActivityPubDelivery.rows.length, 2);
+		assert.equal(createDelivery.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(createDelivery.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(createDelivery.followId, models.ActivityPubFollow.rows[0].id);
+		assert.equal(createDelivery.activityId, 'https://social.example/ap/groups/test-channel/posts/7/activity/create');
+		assert.equal(createDelivery.inboxUrl, 'https://remote.example/inbox');
+		assert.equal(createDelivery.state, ActivityPubDeliveryState.Pending);
+		assert.equal(deliveryBody.type, 'Create');
+		assert.equal(deliveryBody.actor, 'https://social.example/ap/groups/test-channel');
+		assert.equal(deliveryBody.object.id, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.equal(deliveryBody.object.content, 'Hello fediverse');
+	});
 });
 
 describe('activityPub API', () => {
@@ -600,6 +637,15 @@ async function createActivityPubHarness(overrides: any = {}) {
 						return [];
 					}
 					return [publishedPost];
+				},
+				async getPostPure(postId) {
+					if (Number(postId) !== publishedPost.id) {
+						return null;
+					}
+					return {
+						...publishedPost,
+						group
+					};
 				},
 				async getPostContentDataWithUrl(_post, baseStorageUri) {
 					return getContents(baseStorageUri);

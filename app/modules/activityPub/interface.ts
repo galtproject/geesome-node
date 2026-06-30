@@ -180,6 +180,12 @@ export interface IActivityPubDeliveryProcessResult {
 	failed: number;
 }
 
+export interface IActivityPubPostDeliveryResult {
+	objectId?: number;
+	queued: number;
+	deliveryIds: number[];
+}
+
 export type IActivityPubDeliveryRequestSender = (request: IActivityPubDeliveryRequest) => Promise<IActivityPubDeliveryResponse | void> | IActivityPubDeliveryResponse | void;
 
 export interface IActivityPubFollowAcceptOptions {
@@ -294,6 +300,8 @@ export default interface IGeesomeActivityPubModule {
 	getRemoteActorKey(input: {keyId: string; actor?: string; activity?: any}): Promise<IActivityPubRemoteActorKey | null>;
 
 	processDeliveryQueue(options?: IActivityPubDeliveryProcessOptions): Promise<IActivityPubDeliveryProcessResult>;
+
+	afterPostManifestUpdate(userId: number, postId: number): Promise<IActivityPubPostDeliveryResult>;
 
 	handleGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult>;
 

@@ -1,10 +1,13 @@
 import {Op} from 'sequelize';
 import type {IGroup} from '../group/interface.js';
+import type {IContentData} from '../database/interface.js';
+import helpers from '../../helpers.js';
 import {activityPubContentType, getActivityPubGroupActorUrls} from './helpers.js';
-import {buildActivityPubFollowAcceptActivity} from './serializers.js';
+import {buildActivityPubFollowAcceptActivity, buildActivityPubPostCreateActivity} from './serializers.js';
 import {signActivityPubRequestWithKey} from './signatureHelpers.js';
 import {
 	ActivityPubDeliveryState,
+	ActivityPubFollowDirection,
 	ActivityPubFollowState,
 	IActivityPubDeliveryProcessOptions,
 	IActivityPubDeliveryProcessResult,
@@ -24,6 +27,15 @@ type IEnqueueFollowAcceptDeliveryOptions = {
 	localActorRecord: any;
 	followRecord: any;
 	followActivity: any;
+	now?: Date | string;
+};
+
+type IEnqueuePostCreateDeliveryOptions = {
+	config: IResolvedActivityPubConfig;
+	group: IGroup;
+	post: any;
+	contents?: IContentData[];
+	localActorRecord: any;
 	now?: Date | string;
 };
 
@@ -56,6 +68,38 @@ export async function enqueueActivityPubFollowAcceptDelivery(models, options: IE
 	};
 
 	return syncActivityPubDeliveryRecord(models, deliveryData);
+}
+
+export async function enqueueActivityPubPostCreateDeliveries(models, options: IEnqueuePostCreateDeliveryOptions) {
+	const acceptedFollows = await getAcceptedInboundActivityPubFollows(models, options.localActorRecord.id);
+	const remoteActorById = await getRemoteActorRecordByIdMap(models, acceptedFollows.map((follow) => follow.remoteActorId));
+	const createActivity = buildActivityPubPostCreateActivity(options.config, options.group, options.post, {
+		contents: options.contents || []
+	});
+	const deliveries: any[] = [];
+
+	for (const followRecord of acceptedFollows) {
+		const remoteActorRecord = remoteActorById.get(Number(followRecord.remoteActorId));
+		if (!remoteActorRecord) {
+			continue;
+		}
+		deliveries.push(await syncActivityPubDeliveryRecord(models, {
+			localActorId: options.localActorRecord.id,
+			remoteActorId: remoteActorRecord.id,
+			followId: followRecord.id,
+			activityId: createActivity.id,
+			activityType: 'Create',
+			inboxUrl: getRemoteActorDeliveryInboxUrl(remoteActorRecord),
+			bodyJson: JSON.stringify(createActivity),
+			state: ActivityPubDeliveryState.Pending,
+			attempts: 0,
+			nextAttemptAt: getDeliveryAttemptDate(options.now),
+			deliveredAt: null,
+			lastError: null
+		}));
+	}
+
+	return deliveries;
 }
 
 export async function processActivityPubDeliveryQueue(models, options: IProcessActivityPubDeliveryQueueOptions): Promise<IActivityPubDeliveryProcessResult> {
@@ -199,6 +243,36 @@ async function getRemoteActorRecord(models, remoteActorId: number) {
 		throwActivityPubError('activitypub_delivery_remote_actor_required', 400);
 	}
 	return remoteActorRecord;
+}
+
+async function getAcceptedInboundActivityPubFollows(models, localActorId: number) {
+	return models.ActivityPubFollow.findAll({
+		where: {
+			localActorId,
+			direction: ActivityPubFollowDirection.Inbound,
+			state: ActivityPubFollowState.Accepted
+		},
+		order: [['id', 'ASC']]
+	});
+}
+
+async function getRemoteActorRecordsByIds(models, remoteActorIds) {
+	const ids = helpers.normalizeUniqueIds(remoteActorIds);
+	if (!ids.length) {
+		return [];
+	}
+	return models.ActivityPubRemoteActor.findAll({
+		where: {
+			id: {
+				[Op.in]: ids
+			}
+		}
+	});
+}
+
+async function getRemoteActorRecordByIdMap(models, remoteActorIds) {
+	const remoteActors = await getRemoteActorRecordsByIds(models, remoteActorIds);
+	return new Map(remoteActors.map((remoteActor) => [Number(remoteActor.id), remoteActor]));
 }
 
 function getRemoteActorDeliveryInboxUrl(remoteActorRecord): string {
