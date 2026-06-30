@@ -180,6 +180,10 @@ export interface IActivityPubFlagReportFilters {
 	remoteActorId?: number | string;
 }
 
+export interface IActivityPubFlagReportStateInput {
+	state: ActivityPubFlagState | string;
+}
+
 export interface IActivityPubFlagReportListResponse {
 	list: IActivityPubFlagReport[];
 	total: number;
@@ -351,6 +355,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
 
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
+
+	setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport>;
 
 	getGroupActorKey(groupName: string): Promise<IActivityPubActorKey>;
 

@@ -472,6 +472,38 @@ describe('activityPub module', () => {
 		assert.equal(report.remoteActor?.domain, 'remote.example');
 	});
 
+	it('updates ActivityPub flag report state for admin moderation bookkeeping', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const flagActivity = {
+			id: 'https://remote.example/activities/flag-post-state-1',
+			type: 'Flag',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel/posts/7'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', flagActivity)
+		);
+		const resolvedReport = await module.setGroupFlagReportState('test-channel', 1, ActivityPubFlagState.Resolved);
+		const resolvedReports = await module.getGroupFlagReports('test-channel', {state: ActivityPubFlagState.Resolved}, {limit: 10});
+		const pendingReports = await module.getGroupFlagReports('test-channel', {state: ActivityPubFlagState.Pending}, {limit: 10});
+
+		assert.equal(resolvedReport.id, 1);
+		assert.equal(resolvedReport.state, ActivityPubFlagState.Resolved);
+		assert.equal(resolvedReport.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(models.ActivityPubFlag.rows[0].state, ActivityPubFlagState.Resolved);
+		assert.equal(resolvedReports.total, 1);
+		assert.equal(pendingReports.total, 0);
+		await assert.rejects(() => module.setGroupFlagReportState('test-channel', 1, 'hidden'), /activitypub_flag_state_invalid/);
+		await assert.rejects(() => module.setGroupFlagReportState('test-channel', 999, ActivityPubFlagState.Resolved), /activitypub_flag_report_not_found/);
+	});
+
 	it('rejects signed Flag activities for unknown local targets', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -1024,6 +1056,10 @@ describe('activityPub API', () => {
 				list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
 				total: 1
 			}),
+			setGroupFlagReportState: async () => ({
+				id: 1,
+				state: ActivityPubFlagState.Resolved
+			}),
 			handleGroupInboxRequest: async () => ({
 				ok: true,
 				accepted: true,
@@ -1077,6 +1113,17 @@ describe('activityPub API', () => {
 		assert.deepEqual(flagReports.body, {
 			list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
 			total: 1
+		});
+
+		const flagReportState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/flags/:flagId/state', {
+			params: {groupName: 'test-channel', flagId: '1'},
+			body: {state: ActivityPubFlagState.Resolved},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[1], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(flagReportState.body, {
+			id: 1,
+			state: ActivityPubFlagState.Resolved
 		});
 
 		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
@@ -1244,6 +1291,9 @@ function getApiStub(routes) {
 		},
 		onAuthorizedGet(path, handler) {
 			routes[`AUTH GET ${path}`] = handler;
+		},
+		onAuthorizedPost(path, handler) {
+			routes[`AUTH POST ${path}`] = handler;
 		}
 	};
 }
