@@ -16,6 +16,7 @@ import {
 const defaultActivityPubDeliveryLimit = 20;
 const defaultActivityPubDeliveryRetryDelayMs = 5 * 60 * 1000;
 const defaultActivityPubDeliveryMaxAttempts = 5;
+const defaultActivityPubDeliveryClaimTtlMs = 5 * 60 * 1000;
 
 type IEnqueueFollowAcceptDeliveryOptions = {
 	config: IResolvedActivityPubConfig;
@@ -28,6 +29,7 @@ type IEnqueueFollowAcceptDeliveryOptions = {
 
 type IProcessActivityPubDeliveryQueueOptions = IActivityPubDeliveryProcessOptions & {
 	getActorKey: (actorRecord: any) => Promise<any>;
+	deliveryClaimsSupported?: boolean;
 };
 
 export async function enqueueActivityPubFollowAcceptDelivery(models, options: IEnqueueFollowAcceptDeliveryOptions) {
@@ -58,7 +60,11 @@ export async function enqueueActivityPubFollowAcceptDelivery(models, options: IE
 
 export async function processActivityPubDeliveryQueue(models, options: IProcessActivityPubDeliveryQueueOptions): Promise<IActivityPubDeliveryProcessResult> {
 	const now = getDeliveryAttemptDate(options.now);
-	const deliveries = await getDueActivityPubDeliveries(models, now, options);
+	const processOptions = {
+		...options,
+		deliveryClaimsSupported: hasActivityPubDeliveryClaims(models)
+	};
+	const deliveries = await getDueActivityPubDeliveries(models, now, processOptions);
 	const result = {
 		processed: 0,
 		delivered: 0,
@@ -67,7 +73,7 @@ export async function processActivityPubDeliveryQueue(models, options: IProcessA
 
 	for (const deliveryRecord of deliveries) {
 		result.processed += 1;
-		if (await processActivityPubDelivery(models, deliveryRecord, now, options)) {
+		if (await processActivityPubDelivery(models, deliveryRecord, now, processOptions)) {
 			result.delivered += 1;
 		} else {
 			result.failed += 1;
@@ -115,7 +121,15 @@ async function getActivityPubDeliveryRecord(models, deliveryData) {
 	});
 }
 
-async function getDueActivityPubDeliveries(models, now: Date, options: IActivityPubDeliveryProcessOptions) {
+async function getDueActivityPubDeliveries(models, now: Date, options: IProcessActivityPubDeliveryQueueOptions) {
+	if (options.deliveryClaimsSupported) {
+		return models.ActivityPubDelivery.claimDueForDelivery({
+			now,
+			claimExpiresAt: getDeliveryClaimExpiresAt(now, options),
+			limit: getDeliveryProcessLimit(options)
+		});
+	}
+
 	return models.ActivityPubDelivery.findAll({
 		where: {
 			state: ActivityPubDeliveryState.Pending,
@@ -133,7 +147,7 @@ async function processActivityPubDelivery(models, deliveryRecord, now: Date, opt
 		const request = await getSignedActivityPubDeliveryRequest(models, deliveryRecord, now, options);
 		const response = await getDeliveryRequestSender(options)(request);
 		assertActivityPubDeliveryResponseOk(response);
-		await markActivityPubDeliveryDelivered(deliveryRecord, now);
+		await markActivityPubDeliveryDelivered(deliveryRecord, now, options);
 		return true;
 	} catch (e) {
 		await markActivityPubDeliveryFailed(deliveryRecord, now, e, options);
@@ -201,23 +215,25 @@ function getFollowAcceptActivityId(config: IResolvedActivityPubConfig, group: IG
 	return `${getActivityPubGroupActorUrls(config, group).actorUrl}/activities/follows/${followRecord.id}/accept`;
 }
 
-async function markActivityPubDeliveryDelivered(deliveryRecord, now: Date) {
+async function markActivityPubDeliveryDelivered(deliveryRecord, now: Date, options: IProcessActivityPubDeliveryQueueOptions) {
 	await deliveryRecord.update({
 		state: ActivityPubDeliveryState.Delivered,
 		attempts: getDeliveryAttempts(deliveryRecord) + 1,
 		deliveredAt: now,
-		lastError: null
+		lastError: null,
+		...getDeliveryClaimReleaseData(options)
 	});
 }
 
-async function markActivityPubDeliveryFailed(deliveryRecord, now: Date, error, options: IActivityPubDeliveryProcessOptions) {
+async function markActivityPubDeliveryFailed(deliveryRecord, now: Date, error, options: IProcessActivityPubDeliveryQueueOptions) {
 	const attempts = getDeliveryAttempts(deliveryRecord) + 1;
 	const permanentlyFailed = attempts >= getDeliveryMaxAttempts(options);
 	await deliveryRecord.update({
 		state: permanentlyFailed ? ActivityPubDeliveryState.Failed : ActivityPubDeliveryState.Pending,
 		attempts,
 		nextAttemptAt: permanentlyFailed ? deliveryRecord.nextAttemptAt : getNextDeliveryAttemptAt(now, attempts, options),
-		lastError: getDeliveryErrorMessage(error)
+		lastError: getDeliveryErrorMessage(error),
+		...getDeliveryClaimReleaseData(options)
 	});
 }
 
@@ -263,6 +279,10 @@ function getNextDeliveryAttemptAt(now: Date, attempts: number, options: IActivit
 	return new Date(now.getTime() + getDeliveryRetryDelayMs(options) * attempts);
 }
 
+function getDeliveryClaimExpiresAt(now: Date, options: IActivityPubDeliveryProcessOptions): Date {
+	return new Date(now.getTime() + getDeliveryClaimTtlMs(options));
+}
+
 function getDeliveryAttempts(deliveryRecord): number {
 	const attempts = Number(deliveryRecord.attempts);
 	if (Number.isFinite(attempts) && attempts >= 0) {
@@ -281,6 +301,10 @@ function getDeliveryRetryDelayMs(options: IActivityPubDeliveryProcessOptions): n
 
 function getDeliveryMaxAttempts(options: IActivityPubDeliveryProcessOptions): number {
 	return parsePositiveInteger(options.maxAttempts, defaultActivityPubDeliveryMaxAttempts);
+}
+
+function getDeliveryClaimTtlMs(options: IActivityPubDeliveryProcessOptions): number {
+	return parsePositiveInteger(options.claimTtlMs, defaultActivityPubDeliveryClaimTtlMs);
 }
 
 function parsePositiveInteger(value, fallback: number): number {
@@ -304,6 +328,21 @@ function toDateTime(value): number | null {
 
 function isActivityPubDeliveryUniqueError(error): boolean {
 	return error?.name === 'SequelizeUniqueConstraintError';
+}
+
+function hasActivityPubDeliveryClaims(models): boolean {
+	return models.activityPubDeliveryClaimsSupported === true
+		&& typeof models.ActivityPubDelivery?.claimDueForDelivery === 'function';
+}
+
+function getDeliveryClaimReleaseData(options: IProcessActivityPubDeliveryQueueOptions) {
+	if (!options.deliveryClaimsSupported) {
+		return {};
+	}
+	return {
+		deliveryClaimedAt: null,
+		deliveryClaimExpiresAt: null
+	};
 }
 
 function getDeliveryRequestSender(options: IActivityPubDeliveryProcessOptions): IActivityPubDeliveryRequestSender {

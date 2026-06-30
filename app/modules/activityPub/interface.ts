@@ -5,6 +5,10 @@ export interface IActivityPubConfig {
 	enabled?: boolean | string;
 	publicUrl?: string;
 	domain?: string;
+	deliveryWorker?: boolean | string;
+	deliveryWorkerIntervalMs?: number | string;
+	deliveryWorkerLimit?: number | string;
+	deliveryClaimTtlMs?: number | string;
 }
 
 export interface IResolvedActivityPubConfig {
@@ -118,6 +122,8 @@ export interface IActivityPubDelivery {
 	nextAttemptAt: Date;
 	deliveredAt?: Date;
 	lastError?: string;
+	deliveryClaimedAt?: Date;
+	deliveryClaimExpiresAt?: Date;
 }
 
 export interface IActivityPubDeliveryRequest {
@@ -139,6 +145,7 @@ export interface IActivityPubDeliveryProcessOptions {
 	now?: Date | string;
 	maxAttempts?: number;
 	retryDelayMs?: number;
+	claimTtlMs?: number;
 	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
 }
 
