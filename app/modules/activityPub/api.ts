@@ -70,7 +70,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubGroupFollowing
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public read-only ActivityStreams following collection for a local federatable GeeSome group. Pending outbound follows are hidden until a remote `Accept` is recorded.
+	 * @apiDescription Public read-only ActivityStreams following collection for a local federatable GeeSome group. Pending outbound follows are hidden until a signed remote `Accept` is recorded; rejected outbound follows stay hidden.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiQuery {Number} [limit=20] Maximum accepted following actors to include, capped at 100.
 	 * @apiQuery {Number} [offset=0] Offset for the current following page.
@@ -133,7 +133,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Fetches a remote ActivityPub actor, records a pending outbound follow for the local group actor, and queues a signed `Follow` delivery to the remote actor inbox/shared inbox. The public following collection lists the remote actor only after a later `Accept` activity is recorded.
+	 * @apiDescription Fetches a remote ActivityPub actor, records a pending outbound follow for the local group actor, and queues a signed `Follow` delivery to the remote actor inbox/shared inbox. The public following collection lists the remote actor only after a signed remote `Accept` activity is recorded; signed remote `Reject` activities mark the outbound follow rejected.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiBody {String} actorUrl Remote ActivityPub actor URL to follow.
 	 * @apiSuccess {Boolean} ok Whether the follow request was recorded and queued.
@@ -169,7 +169,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubGroupInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed embedded `Undo(Follow)` activities cancel that follow state, signed `Block` activities cancel follower state so future local post delivery skips that remote actor, and signed `Flag` activities store pending moderation reports for the local actor or known local objects. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed remote `Accept(Follow)` and `Reject(Follow)` activities update matching outbound follow requests, signed embedded `Undo(Follow)` activities cancel inbound follow state, signed `Block` activities cancel follower state so future local post delivery skips that remote actor, and signed `Flag` activities store pending moderation reports for the local actor or known local objects. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.

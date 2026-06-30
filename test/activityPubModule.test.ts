@@ -671,6 +671,121 @@ describe('activityPub module', () => {
 		assert.equal(follow.acceptedAt.toISOString(), '2026-06-01T12:05:00.000Z');
 	});
 
+	it('records signed Accept responses for outbound follows idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.followRemoteActor('test-channel', remoteActorKey.actorUrl, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const follow = models.ActivityPubFollow.rows[0];
+		const followActivity = JSON.parse(follow.rawActivityJson);
+		const acceptActivity = {
+			id: 'https://remote.example/activities/accept-follow-1',
+			type: 'Accept',
+			actor: remoteActorKey.actorUrl,
+			object: followActivity
+		};
+		const firstResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', acceptActivity)
+		);
+		const secondResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', acceptActivity)
+		);
+		const following = await module.getGroupFollowing('test-channel', {limit: 10});
+
+		assert.equal(firstResult.ok, true);
+		assert.equal(firstResult.accepted, true);
+		assert.equal(firstResult.message, 'activitypub_outbound_follow_accepted');
+		assert.equal(firstResult.activityType, 'Accept');
+		assert.equal(firstResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstResult.followId, follow.id);
+		assert.equal(firstResult.followState, ActivityPubFollowState.Accepted);
+		assert.equal(secondResult.followId, firstResult.followId);
+		assert.equal(secondResult.followState, ActivityPubFollowState.Accepted);
+		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(follow.direction, ActivityPubFollowDirection.Outbound);
+		assert.equal(follow.state, ActivityPubFollowState.Accepted);
+		assert.equal(follow.remoteActivityId, followActivity.id);
+		assert.equal(follow.acceptedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(follow.rejectedAt, null);
+		assert.equal(JSON.parse(follow.rawActivityJson).id, acceptActivity.id);
+		assert.equal(following.totalItems, 1);
+		assert.deepEqual(following.orderedItems, [remoteActorKey.actorUrl]);
+	});
+
+	it('records signed Reject responses for outbound follows by activity id', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.followRemoteActor('test-channel', remoteActorKey.actorUrl, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const follow = models.ActivityPubFollow.rows[0];
+		const rejectActivity = {
+			id: 'https://remote.example/activities/reject-follow-1',
+			type: 'Reject',
+			actor: remoteActorKey.actorUrl,
+			object: follow.remoteActivityId
+		};
+		const result = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', rejectActivity)
+		);
+		const following = await module.getGroupFollowing('test-channel', {limit: 10});
+
+		assert.equal(result.ok, true);
+		assert.equal(result.accepted, false);
+		assert.equal(result.message, 'activitypub_outbound_follow_rejected');
+		assert.equal(result.activityType, 'Reject');
+		assert.equal(result.actor, remoteActorKey.actorUrl);
+		assert.equal(result.followId, follow.id);
+		assert.equal(result.followState, ActivityPubFollowState.Rejected);
+		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(follow.direction, ActivityPubFollowDirection.Outbound);
+		assert.equal(follow.state, ActivityPubFollowState.Rejected);
+		assert.equal(follow.remoteActivityId, 'https://social.example/ap/groups/test-channel/activities/follows/1');
+		assert.equal(follow.acceptedAt, null);
+		assert.equal(follow.rejectedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(JSON.parse(follow.rawActivityJson).id, rejectActivity.id);
+		assert.equal(following.totalItems, 0);
+		assert.deepEqual(following.orderedItems, []);
+	});
+
+	it('rejects signed Accept responses for a different outbound follow object', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.followRemoteActor('test-channel', remoteActorKey.actorUrl, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const acceptActivity = {
+			id: 'https://remote.example/activities/accept-follow-2',
+			type: 'Accept',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://social.example/ap/groups/test-channel/activities/follows/999',
+				type: 'Follow',
+				actor: 'https://social.example/ap/groups/test-channel',
+				object: remoteActorKey.actorUrl
+			}
+		};
+
+		await assert.rejects(() => module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', acceptActivity)
+		), /activitypub_outbound_follow_response_mismatch/);
+		assert.equal(models.ActivityPubFollow.rows[0].state, ActivityPubFollowState.Pending);
+	});
+
 	it('processes due delivery rows and marks successful sends delivered', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const deliveryRequests: any[] = [];
