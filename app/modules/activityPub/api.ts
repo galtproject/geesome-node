@@ -1,5 +1,6 @@
 import {IGeesomeApp} from '../../interface.js';
 import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
+import {CorePermissionName} from '../database/interface.js';
 import IGeesomeActivityPubModule, {IActivityPubInboxResult, IActivityPubInboundRequest} from './interface.js';
 import {activityPubContentType, activityPubWebFingerContentType} from './helpers.js';
 
@@ -76,6 +77,29 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onUnversionGet('ap/groups/:groupName/following', async (req, res) => {
 		setActivityPubHeaders(res);
 		return res.send(await activityPubModule.getGroupFollowing(req.params.groupName), 200);
+	});
+
+	/**
+	 * @api {get} /v1/admin/activity-pub/groups/:groupName/flags List ActivityPub flag reports
+	 * @apiName AdminActivityPubFlagReports
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Reports are read-only in this slice; resolving or moderating them is handled by later moderation actions.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="pending","resolved"} [state] Filter by report state.
+	 * @apiQuery {String} [objectId] Filter by reported ActivityPub actor/object id.
+	 * @apiQuery {Number} [remoteActorId] Filter by reporting remote actor database id.
+	 * @apiSuccess {Object[]} list Flag report rows.
+	 * @apiSuccess {Number} total Total matching reports.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/flags', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getGroupFlagReports(req.params.groupName, req.query, req.query));
 	});
 
 	/**

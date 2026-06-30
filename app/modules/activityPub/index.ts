@@ -6,7 +6,11 @@ import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import IGeesomeActivityPubModule, {
 	ActivityPubFollowDirection,
+	ActivityPubFlagState,
 	ActivityPubFollowState,
+	IActivityPubFlagReport,
+	IActivityPubFlagReportFilters,
+	IActivityPubFlagReportListResponse,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
 	IActivityPubDeliveryProcessOptions,
@@ -69,6 +73,14 @@ const activityPubFollowerListParams = {
 	sortBy: 'acceptedAt',
 	sortDir: 'DESC',
 	allowedSortBy: ['acceptedAt', 'createdAt', 'updatedAt', 'id'],
+	maxLimit: 100
+};
+
+const activityPubFlagReportListParams = {
+	limit: 20,
+	sortBy: 'createdAt',
+	sortDir: 'DESC',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'state'],
 	maxLimit: 100
 };
 
@@ -166,6 +178,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				localActorRecord: actorRecord
 			});
 			return note;
+		}
+
+		async getGroupFlagReports(groupName: string, filters: IActivityPubFlagReportFilters = {}, listParams: IListParams = {}): Promise<IActivityPubFlagReportListResponse> {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			if (!actorRecord) {
+				return getEmptyFlagReportList();
+			}
+
+			return getGroupFlagReportList(app, models, actorRecord, filters, listParams);
 		}
 
 		async getGroupActorKey(groupName: string) {
@@ -496,7 +519,7 @@ async function getGroupFollowerActorUrls(app: IGeesomeApp, models, actorRecord, 
 
 	return {
 		actorUrls: followerPage.rows.map((follow) => actorUrlById.get(Number(follow.remoteActorId))).filter(Boolean),
-		total: getFollowerPageCount(followerPage.count)
+		total: getListPageCount(followerPage.count)
 	};
 }
 
@@ -526,7 +549,98 @@ function getRemoteActorUrlById(remoteActors) {
 	return new Map(remoteActors.map((remoteActor) => [Number(remoteActor.id), remoteActor.actorUrl]));
 }
 
-function getFollowerPageCount(count): number {
+async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, filters: IActivityPubFlagReportFilters, listParams: IListParams): Promise<IActivityPubFlagReportListResponse> {
+	const preparedListParams = {
+		...listParams
+	};
+	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubFlagReportListParams);
+	const reportPage = await models.ActivityPubFlag.findAndCountAll({
+		where: getActivityPubFlagReportWhere(actorRecord, filters),
+		order: [[preparedListParams.sortBy, getListSortDirection(preparedListParams)]],
+		limit: preparedListParams.limit,
+		offset: preparedListParams.offset
+	});
+	const remoteActors = await getRemoteActorRecordsByIds(models, reportPage.rows.map((flag) => flag.remoteActorId));
+	const remoteActorById = getRemoteActorById(remoteActors);
+
+	return {
+		list: reportPage.rows.map((flag) => getActivityPubFlagReport(flag, remoteActorById)),
+		total: getListPageCount(reportPage.count)
+	};
+}
+
+function getActivityPubFlagReportWhere(actorRecord, filters: IActivityPubFlagReportFilters = {}) {
+	const where: any = {
+		localActorId: actorRecord.id
+	};
+	if (isKnownActivityPubFlagState(filters.state)) {
+		where.state = filters.state;
+	}
+	if (typeof filters.objectId === 'string' && filters.objectId) {
+		where.objectId = filters.objectId;
+	}
+	const remoteActorId = helpers.normalizeUniqueIds(filters.remoteActorId)[0];
+	if (remoteActorId) {
+		where.remoteActorId = remoteActorId;
+	}
+	return where;
+}
+
+function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IActivityPubFlagReport {
+	const remoteActor = remoteActorById.get(Number(flag.remoteActorId));
+
+	return {
+		id: flag.id,
+		localActorId: flag.localActorId,
+		remoteActorId: flag.remoteActorId,
+		remoteActor: getActivityPubFlagRemoteActorReport(remoteActor),
+		activityId: flag.activityId,
+		objectId: flag.objectId,
+		state: flag.state,
+		activity: parseActivityPubFlagActivity(flag.rawActivityJson),
+		createdAt: flag.createdAt,
+		updatedAt: flag.updatedAt
+	};
+}
+
+function getActivityPubFlagRemoteActorReport(remoteActor) {
+	if (!remoteActor) {
+		return undefined;
+	}
+	return {
+		id: remoteActor.id,
+		actorUrl: remoteActor.actorUrl,
+		preferredUsername: remoteActor.preferredUsername,
+		domain: remoteActor.domain,
+		inboxUrl: remoteActor.inboxUrl,
+		sharedInboxUrl: remoteActor.sharedInboxUrl
+	};
+}
+
+function getRemoteActorById(remoteActors) {
+	return new Map(remoteActors.map((remoteActor) => [Number(remoteActor.id), remoteActor]));
+}
+
+function isKnownActivityPubFlagState(state): state is ActivityPubFlagState {
+	return Object.values(ActivityPubFlagState).includes(state);
+}
+
+function parseActivityPubFlagActivity(rawActivityJson: string) {
+	try {
+		return JSON.parse(rawActivityJson);
+	} catch (e) {
+		return null;
+	}
+}
+
+function getEmptyFlagReportList(): IActivityPubFlagReportListResponse {
+	return {
+		list: [],
+		total: 0
+	};
+}
+
+function getListPageCount(count): number {
 	if (typeof count === 'number') {
 		return count;
 	}
