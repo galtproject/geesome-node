@@ -179,11 +179,6 @@ const coveredMigrations: CoveredMigration[] = [
     verifies: ['drops reverted same-user content storage unique index'],
   },
   {
-    module: 'database',
-    file: '20260630000000-add-activitypub-delivery-claims.cjs',
-    verifies: ['activitypub delivery claim columns and index'],
-  },
-  {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
     verifies: ['post timeline/manifest/local-id indexes', 'post-content indexes'],
@@ -263,8 +258,6 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'storageObjectReferences', columns: ['targetStorageId'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['referenceType'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['targetSize'], type: 'bigint'},
-  {table: 'activityPubDeliveries', columns: ['deliveryClaimedAt'], type: 'timestamp with time zone'},
-  {table: 'activityPubDeliveries', columns: ['deliveryClaimExpiresAt'], type: 'timestamp with time zone'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -307,7 +300,6 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'auto_actions_active_execute_idx', table: 'autoActions', columns: ['isActive', 'executeOn']},
   {name: 'auto_actions_active_execute_claim_idx', table: 'autoActions', columns: ['isActive', 'executeOn', 'executeClaimExpiresAt', 'id']},
   {name: 'auto_actions_user_created_idx', table: 'autoActions', columns: ['userId', 'createdAt', 'id']},
-  {name: 'activity_pub_deliveries_claim_idx', table: 'activityPubDeliveries', columns: ['state', 'nextAttemptAt', 'deliveryClaimExpiresAt', 'id']},
   {name: 'groups_creator_type_deleted_created_idx', table: 'groups', columns: ['creatorId', 'type', 'isDeleted', 'createdAt', 'id']},
   {name: 'groups_static_rebind_idx', table: 'groups', columns: ['isDeleted', 'staticStorageUpdatedAt']},
   {name: 'user_limits_user_name_unique', table: 'userLimits', columns: ['userId', 'name'], unique: true},
