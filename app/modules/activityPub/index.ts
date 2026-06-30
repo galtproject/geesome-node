@@ -9,7 +9,9 @@ import IGeesomeActivityPubModule, {
 	ActivityPubFollowState,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
+	IActivityPubDeliveryProcessOptions,
 	IActivityPubRemoteActorKeyResolver,
+	IActivityPubDeliveryRequestSender,
 	IActivityPubSignRequestOptions,
 	IResolvedActivityPubConfig
 } from './interface.js';
@@ -38,11 +40,15 @@ import {
 import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
 import {recordInboundActivityPubFollow} from './followState.js';
-import {enqueueActivityPubFollowAcceptDelivery} from './deliveryState.js';
+import {
+	enqueueActivityPubFollowAcceptDelivery,
+	processActivityPubDeliveryQueue
+} from './deliveryState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
 	resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver;
+	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
 };
 
 const activityPubFollowerListParams = {
@@ -139,6 +145,16 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 		async getRemoteActorKey(input: {keyId: string; actor?: string; activity?: any}) {
 			return resolveRemoteActorKey(input);
+		}
+
+		async processDeliveryQueue(processOptions: IActivityPubDeliveryProcessOptions = {}) {
+			getResolvedActivityPubConfig(app);
+
+			return processActivityPubDeliveryQueue(models, {
+				...processOptions,
+				deliverActivityPubRequest: processOptions.deliverActivityPubRequest || options.deliverActivityPubRequest,
+				getActorKey: (actorRecord) => getActorKeyFromRecord(app, actorRecord)
+			});
 		}
 
 		async handleGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult> {

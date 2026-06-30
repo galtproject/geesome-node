@@ -120,6 +120,36 @@ export interface IActivityPubDelivery {
 	lastError?: string;
 }
 
+export interface IActivityPubDeliveryRequest {
+	delivery: any;
+	method: string;
+	url: string;
+	headers: Record<string, string>;
+	body: string;
+}
+
+export interface IActivityPubDeliveryResponse {
+	ok?: boolean;
+	status?: number;
+	statusText?: string;
+}
+
+export interface IActivityPubDeliveryProcessOptions {
+	limit?: number;
+	now?: Date | string;
+	maxAttempts?: number;
+	retryDelayMs?: number;
+	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
+}
+
+export interface IActivityPubDeliveryProcessResult {
+	processed: number;
+	delivered: number;
+	failed: number;
+}
+
+export type IActivityPubDeliveryRequestSender = (request: IActivityPubDeliveryRequest) => Promise<IActivityPubDeliveryResponse | void> | IActivityPubDeliveryResponse | void;
+
 export interface IActivityPubFollowAcceptOptions {
 	activityId: string;
 }
@@ -230,6 +260,8 @@ export default interface IGeesomeActivityPubModule {
 	signGroupRequest(groupName: string, options: IActivityPubSignRequestOptions): Promise<IActivityPubSignedRequest>;
 
 	getRemoteActorKey(input: {keyId: string; actor?: string; activity?: any}): Promise<IActivityPubRemoteActorKey | null>;
+
+	processDeliveryQueue(options?: IActivityPubDeliveryProcessOptions): Promise<IActivityPubDeliveryProcessResult>;
 
 	handleGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult>;
 

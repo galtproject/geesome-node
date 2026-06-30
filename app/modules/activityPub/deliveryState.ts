@@ -1,11 +1,21 @@
+import {Op} from 'sequelize';
 import type {IGroup} from '../group/interface.js';
-import {getActivityPubGroupActorUrls} from './helpers.js';
+import {activityPubContentType, getActivityPubGroupActorUrls} from './helpers.js';
 import {buildActivityPubFollowAcceptActivity} from './serializers.js';
+import {signActivityPubRequestWithKey} from './signatureHelpers.js';
 import {
 	ActivityPubDeliveryState,
 	ActivityPubFollowState,
+	IActivityPubDeliveryProcessOptions,
+	IActivityPubDeliveryProcessResult,
+	IActivityPubDeliveryRequest,
+	IActivityPubDeliveryRequestSender,
 	IResolvedActivityPubConfig
 } from './interface.js';
+
+const defaultActivityPubDeliveryLimit = 20;
+const defaultActivityPubDeliveryRetryDelayMs = 5 * 60 * 1000;
+const defaultActivityPubDeliveryMaxAttempts = 5;
 
 type IEnqueueFollowAcceptDeliveryOptions = {
 	config: IResolvedActivityPubConfig;
@@ -14,6 +24,10 @@ type IEnqueueFollowAcceptDeliveryOptions = {
 	followRecord: any;
 	followActivity: any;
 	now?: Date | string;
+};
+
+type IProcessActivityPubDeliveryQueueOptions = IActivityPubDeliveryProcessOptions & {
+	getActorKey: (actorRecord: any) => Promise<any>;
 };
 
 export async function enqueueActivityPubFollowAcceptDelivery(models, options: IEnqueueFollowAcceptDeliveryOptions) {
@@ -40,6 +54,27 @@ export async function enqueueActivityPubFollowAcceptDelivery(models, options: IE
 	};
 
 	return syncActivityPubDeliveryRecord(models, deliveryData);
+}
+
+export async function processActivityPubDeliveryQueue(models, options: IProcessActivityPubDeliveryQueueOptions): Promise<IActivityPubDeliveryProcessResult> {
+	const now = getDeliveryAttemptDate(options.now);
+	const deliveries = await getDueActivityPubDeliveries(models, now, options);
+	const result = {
+		processed: 0,
+		delivered: 0,
+		failed: 0
+	};
+
+	for (const deliveryRecord of deliveries) {
+		result.processed += 1;
+		if (await processActivityPubDelivery(models, deliveryRecord, now, options)) {
+			result.delivered += 1;
+		} else {
+			result.failed += 1;
+		}
+	}
+
+	return result;
 }
 
 async function syncActivityPubDeliveryRecord(models, deliveryData) {
@@ -80,6 +115,66 @@ async function getActivityPubDeliveryRecord(models, deliveryData) {
 	});
 }
 
+async function getDueActivityPubDeliveries(models, now: Date, options: IActivityPubDeliveryProcessOptions) {
+	return models.ActivityPubDelivery.findAll({
+		where: {
+			state: ActivityPubDeliveryState.Pending,
+			nextAttemptAt: {
+				[Op.lte]: now
+			}
+		},
+		order: [['nextAttemptAt', 'ASC'], ['id', 'ASC']],
+		limit: getDeliveryProcessLimit(options)
+	});
+}
+
+async function processActivityPubDelivery(models, deliveryRecord, now: Date, options: IProcessActivityPubDeliveryQueueOptions): Promise<boolean> {
+	try {
+		const request = await getSignedActivityPubDeliveryRequest(models, deliveryRecord, now, options);
+		const response = await getDeliveryRequestSender(options)(request);
+		assertActivityPubDeliveryResponseOk(response);
+		await markActivityPubDeliveryDelivered(deliveryRecord, now);
+		return true;
+	} catch (e) {
+		await markActivityPubDeliveryFailed(deliveryRecord, now, e, options);
+		return false;
+	}
+}
+
+async function getSignedActivityPubDeliveryRequest(models, deliveryRecord, now: Date, options: IProcessActivityPubDeliveryQueueOptions): Promise<IActivityPubDeliveryRequest> {
+	const actorRecord = await getLocalActorRecord(models, deliveryRecord.localActorId);
+	const actorKey = await options.getActorKey(actorRecord);
+	const signedRequest = signActivityPubRequestWithKey(actorKey, {
+		method: 'POST',
+		url: deliveryRecord.inboxUrl,
+		body: deliveryRecord.bodyJson,
+		date: now,
+		headers: {
+			'Content-Type': activityPubContentType
+		}
+	});
+
+	return {
+		delivery: deliveryRecord,
+		method: 'POST',
+		url: deliveryRecord.inboxUrl,
+		headers: signedRequest.headers,
+		body: deliveryRecord.bodyJson
+	};
+}
+
+async function getLocalActorRecord(models, localActorId: number) {
+	const actorRecord = await models.ActivityPubActor.findOne({
+		where: {
+			id: localActorId
+		}
+	});
+	if (!actorRecord) {
+		throwActivityPubError('activitypub_delivery_local_actor_required', 400);
+	}
+	return actorRecord;
+}
+
 async function getRemoteActorRecord(models, remoteActorId: number) {
 	const remoteActorRecord = await models.ActivityPubRemoteActor.findOne({
 		where: {
@@ -104,6 +199,26 @@ function getRemoteActorDeliveryInboxUrl(remoteActorRecord): string {
 
 function getFollowAcceptActivityId(config: IResolvedActivityPubConfig, group: IGroup, followRecord): string {
 	return `${getActivityPubGroupActorUrls(config, group).actorUrl}/activities/follows/${followRecord.id}/accept`;
+}
+
+async function markActivityPubDeliveryDelivered(deliveryRecord, now: Date) {
+	await deliveryRecord.update({
+		state: ActivityPubDeliveryState.Delivered,
+		attempts: getDeliveryAttempts(deliveryRecord) + 1,
+		deliveredAt: now,
+		lastError: null
+	});
+}
+
+async function markActivityPubDeliveryFailed(deliveryRecord, now: Date, error, options: IActivityPubDeliveryProcessOptions) {
+	const attempts = getDeliveryAttempts(deliveryRecord) + 1;
+	const permanentlyFailed = attempts >= getDeliveryMaxAttempts(options);
+	await deliveryRecord.update({
+		state: permanentlyFailed ? ActivityPubDeliveryState.Failed : ActivityPubDeliveryState.Pending,
+		attempts,
+		nextAttemptAt: permanentlyFailed ? deliveryRecord.nextAttemptAt : getNextDeliveryAttemptAt(now, attempts, options),
+		lastError: getDeliveryErrorMessage(error)
+	});
 }
 
 function getChangedDeliveryData(deliveryRecord, deliveryData) {
@@ -144,6 +259,38 @@ function getDeliveryAttemptDate(value?: Date | string): Date {
 	return new Date();
 }
 
+function getNextDeliveryAttemptAt(now: Date, attempts: number, options: IActivityPubDeliveryProcessOptions): Date {
+	return new Date(now.getTime() + getDeliveryRetryDelayMs(options) * attempts);
+}
+
+function getDeliveryAttempts(deliveryRecord): number {
+	const attempts = Number(deliveryRecord.attempts);
+	if (Number.isFinite(attempts) && attempts >= 0) {
+		return attempts;
+	}
+	return 0;
+}
+
+function getDeliveryProcessLimit(options: IActivityPubDeliveryProcessOptions): number {
+	return parsePositiveInteger(options.limit, defaultActivityPubDeliveryLimit);
+}
+
+function getDeliveryRetryDelayMs(options: IActivityPubDeliveryProcessOptions): number {
+	return parsePositiveInteger(options.retryDelayMs, defaultActivityPubDeliveryRetryDelayMs);
+}
+
+function getDeliveryMaxAttempts(options: IActivityPubDeliveryProcessOptions): number {
+	return parsePositiveInteger(options.maxAttempts, defaultActivityPubDeliveryMaxAttempts);
+}
+
+function parsePositiveInteger(value, fallback: number): number {
+	const parsed = Number.parseInt(value as any, 10);
+	if (Number.isFinite(parsed) && parsed > 0) {
+		return parsed;
+	}
+	return fallback;
+}
+
 function toDateTime(value): number | null {
 	if (!value) {
 		return null;
@@ -157,6 +304,48 @@ function toDateTime(value): number | null {
 
 function isActivityPubDeliveryUniqueError(error): boolean {
 	return error?.name === 'SequelizeUniqueConstraintError';
+}
+
+function getDeliveryRequestSender(options: IActivityPubDeliveryProcessOptions): IActivityPubDeliveryRequestSender {
+	return options.deliverActivityPubRequest || deliverActivityPubRequestWithFetch;
+}
+
+async function deliverActivityPubRequestWithFetch(request: IActivityPubDeliveryRequest) {
+	if (typeof globalThis.fetch !== 'function') {
+		throwActivityPubError('activitypub_delivery_fetch_unavailable', 501);
+	}
+	const response = await globalThis.fetch(request.url, {
+		method: request.method,
+		headers: request.headers,
+		body: request.body
+	});
+
+	return {
+		ok: response.ok,
+		status: response.status,
+		statusText: response.statusText
+	};
+}
+
+function assertActivityPubDeliveryResponseOk(response): void {
+	if (response === undefined || response === null) {
+		return;
+	}
+	if (response.ok === true) {
+		return;
+	}
+	const status = Number(response.status);
+	if (Number.isFinite(status) && status >= 200 && status < 300) {
+		return;
+	}
+	throwActivityPubError(`activitypub_delivery_request_failed:${response.status || 'unknown'}`, 502);
+}
+
+function getDeliveryErrorMessage(error): string {
+	if (typeof error?.message === 'string') {
+		return error.message;
+	}
+	return String(error || 'activitypub_delivery_unknown_error');
 }
 
 function throwActivityPubError(message: string, code: number): never {
