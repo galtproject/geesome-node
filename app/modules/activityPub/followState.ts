@@ -20,6 +20,13 @@ type IRecordInboundFollowUndoOptions = {
 	now?: Date | string;
 };
 
+type IRecordInboundBlockOptions = {
+	localActorRecord: any;
+	remoteActorUrl: string;
+	activity: any;
+	now?: Date | string;
+};
+
 export async function recordInboundActivityPubFollow(models, options: IRecordInboundFollowOptions) {
 	const remoteActorRecord = await getRemoteActorRecord(models, options.remoteActorUrl);
 	if (!remoteActorRecord) {
@@ -35,6 +42,15 @@ export async function recordInboundActivityPubFollowUndo(models, options: IRecor
 		throwActivityPubError('activitypub_remote_actor_record_required', 401);
 	}
 	const followData = getInboundFollowUndoRecordData(options, remoteActorRecord);
+	return syncInboundFollowRecord(models, followData);
+}
+
+export async function recordInboundActivityPubBlock(models, options: IRecordInboundBlockOptions) {
+	const remoteActorRecord = await getRemoteActorRecord(models, options.remoteActorUrl);
+	if (!remoteActorRecord) {
+		throwActivityPubError('activitypub_remote_actor_record_required', 401);
+	}
+	const followData = getInboundBlockRecordData(options, remoteActorRecord);
 	return syncInboundFollowRecord(models, followData);
 }
 
@@ -113,6 +129,21 @@ function getInboundFollowUndoRecordData(options: IRecordInboundFollowUndoOptions
 		acceptedAt: null,
 		rejectedAt: now,
 		rawActivityJson: JSON.stringify(options.undoActivity)
+	};
+}
+
+function getInboundBlockRecordData(options: IRecordInboundBlockOptions, remoteActorRecord) {
+	const now = getFollowEventDate(options.now);
+
+	return {
+		localActorId: options.localActorRecord.id,
+		remoteActorId: remoteActorRecord.id,
+		direction: ActivityPubFollowDirection.Inbound,
+		state: ActivityPubFollowState.Cancelled,
+		remoteActivityId: getActivityId(options.activity),
+		acceptedAt: null,
+		rejectedAt: now,
+		rawActivityJson: JSON.stringify(options.activity)
 	};
 }
 
