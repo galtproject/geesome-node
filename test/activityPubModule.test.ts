@@ -475,6 +475,57 @@ describe('activityPub module', () => {
 		assert.equal(deliveryBody.object.id, 'https://social.example/ap/groups/test-channel/posts/7');
 		assert.equal(deliveryBody.object.content, 'Hello fediverse');
 	});
+
+	it('records signed shared-inbox Create replies to known local objects idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const activity = {
+			id: 'https://remote.example/activities/create-reply-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply',
+				published: '2026-06-01T12:05:00Z'
+			}
+		};
+		const firstResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const secondResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+
+		assert.equal(firstResult.ok, true);
+		assert.equal(firstResult.accepted, true);
+		assert.equal(firstResult.message, 'activitypub_create_object_recorded');
+		assert.equal(firstResult.activityType, 'Create');
+		assert.equal(firstResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstResult.objectId, 'https://remote.example/objects/reply-1');
+		assert.equal(firstResult.inReplyTo, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.equal(secondResult.activityPubObjectId, firstResult.activityPubObjectId);
+		assert.equal(models.ActivityPubObject.rows.length, 2);
+		assert.equal(remoteObject.localActorId, models.ActivityPubObject.rows[0].localActorId);
+		assert.equal(remoteObject.localPostId, null);
+		assert.equal(remoteObject.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(remoteObject.remoteObjectUrl, 'https://remote.example/objects/reply-1');
+		assert.equal(remoteObject.activityId, activity.id);
+		assert.equal(remoteObject.objectId, activity.object.id);
+		assert.equal(remoteObject.objectType, 'Note');
+		assert.equal(remoteObject.visibility, 'public');
+		assert.equal(remoteObject.publishedAt.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply');
+	});
 });
 
 describe('activityPub API', () => {
@@ -498,7 +549,13 @@ describe('activityPub API', () => {
 				followState: ActivityPubFollowState.Accepted
 			}),
 			verifyGroupInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'}),
-			verifySharedInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'})
+			verifySharedInboxRequest: async () => ({keyId: 'https://remote.example/users/alice#main-key'}),
+			handleSharedInboxRequest: async () => ({
+				ok: true,
+				accepted: true,
+				message: 'activitypub_create_object_recorded',
+				activityType: 'Create'
+			})
 		} as any);
 
 		const webFinger = await callRoute(routes, 'GET .well-known/webfinger', {
@@ -540,14 +597,15 @@ describe('activityPub API', () => {
 
 		const sharedInbox = await callRoute(routes, 'POST ap/shared-inbox', {
 			headers: {},
-			body: {type: 'Follow'},
-			rawBody: Buffer.from('{"type":"Follow"}')
+			body: {type: 'Create'},
+			rawBody: Buffer.from('{"type":"Create"}')
 		});
-		assert.equal(sharedInbox.status, 501);
+		assert.equal(sharedInbox.status, 202);
 		assert.deepEqual(sharedInbox.body, {
-			ok: false,
-			accepted: false,
-			message: 'activitypub_inbox_not_implemented'
+			ok: true,
+			accepted: true,
+			message: 'activitypub_create_object_recorded',
+			activityType: 'Create'
 		});
 
 		const routesWithError = {};
@@ -561,7 +619,8 @@ describe('activityPub API', () => {
 				error.code = 401;
 				throw error;
 			},
-			verifySharedInboxRequest: async () => ({})
+			verifySharedInboxRequest: async () => ({}),
+			handleSharedInboxRequest: async () => ({})
 		} as any);
 		const rejectedInbox = await callRoute(routesWithError, 'POST ap/groups/:groupName/inbox', {
 			params: {groupName: 'test-channel'},

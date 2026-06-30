@@ -258,6 +258,9 @@ export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerifi
 	followId?: number;
 	followState?: ActivityPubFollowState;
 	deliveryId?: number;
+	activityPubObjectId?: number;
+	objectId?: string;
+	inReplyTo?: string;
 }
 
 export type IActivityPubRemoteActorKeyResolver = (input: {
@@ -308,6 +311,8 @@ export default interface IGeesomeActivityPubModule {
 	verifyGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxVerification>;
 
 	verifySharedInboxRequest(request: IActivityPubInboundRequest): Promise<IActivityPubInboxVerification>;
+
+	handleSharedInboxRequest(request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult>;
 
 	flushDatabase(): Promise<void>;
 }

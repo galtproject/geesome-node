@@ -107,16 +107,15 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. This slice verifies HTTP signatures and request digests but does not yet accept or persist ActivityPub activities.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
-	 * @apiSuccess {Boolean} accepted Always `false` until follow/delivery state is implemented.
+	 * @apiSuccess {Boolean} accepted Whether the activity was accepted and stored.
 	 */
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {
-			await activityPubModule.verifySharedInboxRequest(getInboundRequest(req));
-			return getActivityPubInboxNotImplementedResult();
+			return activityPubModule.handleSharedInboxRequest(getInboundRequest(req));
 		});
 	});
 }
@@ -136,14 +135,6 @@ async function handleActivityPubInboxRequest(res: IApiModuleCommonOutput, proces
 			message: e.message
 		}, getActivityPubInboxErrorStatus(e));
 	}
-}
-
-function getActivityPubInboxNotImplementedResult(): IActivityPubInboxResult {
-	return {
-		ok: false,
-		accepted: false,
-		message: 'activitypub_inbox_not_implemented'
-	};
 }
 
 function getActivityPubInboxSuccessStatus(result: IActivityPubInboxResult): number {
