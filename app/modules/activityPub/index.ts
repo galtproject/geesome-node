@@ -41,6 +41,7 @@ import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
 import {recordInboundActivityPubFollow} from './followState.js';
 import {
+	enqueueActivityPubPostCreateDeliveries,
 	enqueueActivityPubFollowAcceptDelivery,
 	processActivityPubDeliveryQueue
 } from './deliveryState.js';
@@ -174,6 +175,40 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				deliverActivityPubRequest: processOptions.deliverActivityPubRequest || options.deliverActivityPubRequest,
 				getActorKey: (actorRecord) => getActorKeyFromRecord(app, actorRecord)
 			});
+		}
+
+		async afterPostManifestUpdate(_userId: number, postId: number) {
+			if (!this.isEnabled()) {
+				return getEmptyPostDeliveryResult();
+			}
+			const config = getResolvedActivityPubConfig(app);
+			const post = await app.ms.group.getPostPure(postId);
+			const group = post?.group;
+			if (!isActivityPubPostFederatable(group, post)) {
+				return getEmptyPostDeliveryResult();
+			}
+			const contents = await getPostContents(app, post, config);
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+			const objectRecord = await syncLocalPostActivityPubObject(models, {
+				config,
+				group,
+				post,
+				contents,
+				localActorRecord: actorRecord
+			});
+			const deliveries = await enqueueActivityPubPostCreateDeliveries(models, {
+				config,
+				group,
+				post,
+				contents,
+				localActorRecord: actorRecord
+			});
+
+			return {
+				objectId: objectRecord?.id,
+				queued: deliveries.length,
+				deliveryIds: deliveries.map((delivery) => delivery.id)
+			};
 		}
 
 		async handleGroupInboxRequest(groupName: string, request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult> {
@@ -388,6 +423,13 @@ function getFollowerPageCount(count): number {
 		return parsed;
 	}
 	return 0;
+}
+
+function getEmptyPostDeliveryResult() {
+	return {
+		queued: 0,
+		deliveryIds: []
+	};
 }
 
 function getListSortDirection(listParams: IListParams): string {
