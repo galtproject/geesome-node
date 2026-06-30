@@ -34,6 +34,13 @@ describe('activityPub module', () => {
 		});
 		assert.equal(models.ActivityPubActor.rows.length, 0);
 
+		const emptyFlagReports = await module.getGroupFlagReports('test-channel', {}, {limit: 5});
+		assert.deepEqual(emptyFlagReports, {
+			list: [],
+			total: 0
+		});
+		assert.equal(models.ActivityPubActor.rows.length, 0);
+
 		const actor = await module.getGroupActor('test-channel');
 		assert.equal(actor.id, 'https://social.example/ap/groups/test-channel');
 		assert.equal(actor.publicKey.id, 'https://social.example/ap/groups/test-channel#main-key');
@@ -427,6 +434,42 @@ describe('activityPub module', () => {
 		assert.equal(flag.state, ActivityPubFlagState.Pending);
 		assert.equal(JSON.parse(flag.rawActivityJson).id, flagActivity.id);
 		assert.equal(models.ActivityPubFollow.rows.length, 0);
+	});
+
+	it('lists ActivityPub flag reports for admin moderation review', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const flagActivity = {
+			id: 'https://remote.example/activities/flag-post-list-1',
+			type: 'Flag',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel/posts/7',
+			content: 'Remote moderation report'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', flagActivity)
+		);
+		const reportPage = await module.getGroupFlagReports('test-channel', {
+			state: ActivityPubFlagState.Pending,
+			remoteActorId: 1
+		}, {limit: 10});
+		const report = reportPage.list[0];
+
+		assert.equal(reportPage.total, 1);
+		assert.equal(report.id, 1);
+		assert.equal(report.activityId, flagActivity.id);
+		assert.equal(report.objectId, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.equal(report.state, ActivityPubFlagState.Pending);
+		assert.equal(report.activity?.id, flagActivity.id);
+		assert.equal(report.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(report.remoteActor?.preferredUsername, 'alice');
+		assert.equal(report.remoteActor?.domain, 'remote.example');
 	});
 
 	it('rejects signed Flag activities for unknown local targets', async () => {
@@ -962,7 +1005,11 @@ describe('activityPub module', () => {
 describe('activityPub API', () => {
 	it('registers public unversioned routes with protocol content types', async () => {
 		const routes = {};
+		const permissionChecks: any[] = [];
 		registerActivityPubApi({
+			checkUserCan: async (userId, permission) => {
+				permissionChecks.push({userId, permission});
+			},
 			ms: {
 				api: getApiStub(routes)
 			}
@@ -973,6 +1020,10 @@ describe('activityPub API', () => {
 			getGroupFollowers: async () => ({id: 'https://social.example/ap/groups/test-channel/followers'}),
 			getGroupFollowing: async () => ({id: 'https://social.example/ap/groups/test-channel/following'}),
 			getGroupPostNote: async () => ({id: 'https://social.example/ap/groups/test-channel/posts/7'}),
+			getGroupFlagReports: async () => ({
+				list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
+				total: 1
+			}),
 			handleGroupInboxRequest: async () => ({
 				ok: true,
 				accepted: true,
@@ -1016,6 +1067,17 @@ describe('activityPub API', () => {
 		assert.deepEqual(following.body, {id: 'https://social.example/ap/groups/test-channel/following'});
 
 		assert.ok(routes['GET ap/groups/:groupName/posts/:localId']);
+
+		const flagReports = await callRoute(routes, 'AUTH GET admin/activity-pub/groups/:groupName/flags', {
+			params: {groupName: 'test-channel'},
+			query: {state: ActivityPubFlagState.Pending},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks, [{userId: 1, permission: 'admin:read'}]);
+		assert.deepEqual(flagReports.body, {
+			list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
+			total: 1
+		});
 
 		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
 			params: {groupName: 'test-channel'},
@@ -1179,6 +1241,9 @@ function getApiStub(routes) {
 		},
 		onUnversionPost(path, handler) {
 			routes[`POST ${path}`] = handler;
+		},
+		onAuthorizedGet(path, handler) {
+			routes[`AUTH GET ${path}`] = handler;
 		}
 	};
 }

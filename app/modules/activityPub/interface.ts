@@ -152,6 +152,39 @@ export interface IActivityPubFlag {
 	rawActivityJson: string;
 }
 
+export interface IActivityPubFlagReportRemoteActor {
+	id?: number;
+	actorUrl?: string;
+	preferredUsername?: string;
+	domain?: string;
+	inboxUrl?: string;
+	sharedInboxUrl?: string;
+}
+
+export interface IActivityPubFlagReport {
+	id?: number;
+	localActorId: number;
+	remoteActorId: number;
+	remoteActor?: IActivityPubFlagReportRemoteActor;
+	activityId: string;
+	objectId: string;
+	state: ActivityPubFlagState;
+	activity?: Record<string, any> | null;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface IActivityPubFlagReportFilters {
+	state?: ActivityPubFlagState | string;
+	objectId?: string;
+	remoteActorId?: number | string;
+}
+
+export interface IActivityPubFlagReportListResponse {
+	list: IActivityPubFlagReport[];
+	total: number;
+}
+
 export interface IActivityPubObject {
 	localActorId?: number;
 	localPostId?: number;
@@ -316,6 +349,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupFollowing(groupName: string): Promise<IActivityPubFollowingCollection>;
 
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
+
+	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
 
 	getGroupActorKey(groupName: string): Promise<IActivityPubActorKey>;
 
