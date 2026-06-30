@@ -382,6 +382,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Route tests for ActivityPub content negotiation and `application/activity+json`. Status: focused unit coverage now checks the public WebFinger, actor, outbox, post-object, group inbox, and shared-inbox route registrations and response content types.
 - Fedify testing utilities if Fedify is adopted.
 - Manual/local federation tests with `fedify lookup`, `fedify inbox`, ActivityPub.Academy, and one Mastodon-compatible server.
+- Bluesky compatibility smoke must be explicit about protocol boundaries. Bluesky uses AT Protocol, so ActivityPub exchange should be tested through a bridge such as Bridgy Fed: local GeeSome group post delivery should appear on the bridged Bluesky side, and a Bluesky reply/mention should come back as a signed ActivityPub inbox/shared-inbox activity that GeeSome stores as a remote object. Separately, test any direct Bluesky/ATProto data exchange through the socNet account path with a test `socNetAccount` database row (`socNet` set to the final Bluesky module name, test account identity, and non-production app password/OAuth credentials), verifying credential ownership, import/cross-post semantics, idempotency, and that the direct ATProto path does not bypass ActivityPub signature/moderation gates.
 
 ## Sources
 
@@ -393,3 +394,5 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Mastodon WebFinger documentation: https://docs.joinmastodon.org/spec/webfinger/
 - Mastodon security/signature documentation: https://docs.joinmastodon.org/spec/security/
 - Fedify documentation: https://fedify.dev/
+- Bluesky AT Protocol documentation: https://docs.bsky.app/docs/advanced-guides/atproto
+- Bridgy Fed bridge documentation: https://fed.brid.gy/docs

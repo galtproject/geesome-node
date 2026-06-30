@@ -366,6 +366,7 @@ Verification:
 - New module tests for actor serialization, WebFinger, and outbox payloads.
 - Existing `test/group.test.ts` for post compatibility.
 - Later integration smoke against a local ActivityPub test server.
+- Later Bluesky data-exchange smoke with the protocol boundary explicit: ActivityPub interop should use a bridge such as Bridgy Fed, while direct Bluesky/ATProto import or cross-post testing should use a seeded test `socNetAccount` database row for the Bluesky account and verify ownership, credential handling, idempotency, and moderation/signature boundaries.
 
 ### 11. Database Scalability For Large Groups
 
