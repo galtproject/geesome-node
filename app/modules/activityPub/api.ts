@@ -88,7 +88,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Reports are read-only in this slice; resolving or moderating them is handled by later moderation actions.
+	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Report state can be marked pending or resolved separately; content moderation actions are handled by later moderation flows.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String="pending","resolved"} [state] Filter by report state.
@@ -100,6 +100,26 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/flags', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
 		return res.send(await activityPubModule.getGroupFlagReports(req.params.groupName, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/groups/:groupName/flags/:flagId/state Set ActivityPub flag report state
+	 * @apiName AdminActivityPubFlagReportState
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates moderation bookkeeping for a stored inbound ActivityPub `Flag` report. This does not hide, delete, or federate any content; it only marks the report pending or resolved.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} flagId Flag report database id.
+	 * @apiBody {String="pending","resolved"} state New report state.
+	 * @apiSuccess {Object} result Updated flag report row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/flags/:flagId/state', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.setGroupFlagReportState(req.params.groupName, req.params.flagId, req.body.state));
 	});
 
 	/**

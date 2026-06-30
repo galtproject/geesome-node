@@ -191,6 +191,22 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return getGroupFlagReportList(app, models, actorRecord, filters, listParams);
 		}
 
+		async setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport> {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			const flag = actorRecord ? await getGroupFlagReportRecord(models, actorRecord, flagId) : null;
+			if (!flag) {
+				throwActivityPubError('activitypub_flag_report_not_found', 404);
+			}
+			const reportState = getRequiredActivityPubFlagState(state);
+			if (flag.state !== reportState) {
+				await flag.update({state: reportState});
+			}
+
+			return getActivityPubFlagReportWithRemoteActor(models, flag);
+		}
+
 		async getGroupActorKey(groupName: string) {
 			const config = getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
@@ -549,6 +565,11 @@ function getRemoteActorUrlById(remoteActors) {
 	return new Map(remoteActors.map((remoteActor) => [Number(remoteActor.id), remoteActor.actorUrl]));
 }
 
+async function getActivityPubFlagReportWithRemoteActor(models, flag): Promise<IActivityPubFlagReport> {
+	const remoteActors = await getRemoteActorRecordsByIds(models, [flag.remoteActorId]);
+	return getActivityPubFlagReport(flag, getRemoteActorById(remoteActors));
+}
+
 async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, filters: IActivityPubFlagReportFilters, listParams: IListParams): Promise<IActivityPubFlagReportListResponse> {
 	const preparedListParams = {
 		...listParams
@@ -584,6 +605,19 @@ function getActivityPubFlagReportWhere(actorRecord, filters: IActivityPubFlagRep
 		where.remoteActorId = remoteActorId;
 	}
 	return where;
+}
+
+async function getGroupFlagReportRecord(models, actorRecord, flagId) {
+	const id = helpers.normalizeUniqueIds(flagId)[0];
+	if (!id) {
+		return null;
+	}
+	return models.ActivityPubFlag.findOne({
+		where: {
+			id,
+			localActorId: actorRecord.id
+		}
+	});
 }
 
 function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IActivityPubFlagReport {
@@ -623,6 +657,13 @@ function getRemoteActorById(remoteActors) {
 
 function isKnownActivityPubFlagState(state): state is ActivityPubFlagState {
 	return Object.values(ActivityPubFlagState).includes(state);
+}
+
+function getRequiredActivityPubFlagState(state): ActivityPubFlagState {
+	if (isKnownActivityPubFlagState(state)) {
+		return state;
+	}
+	throwActivityPubError('activitypub_flag_state_invalid', 400);
 }
 
 function parseActivityPubFlagActivity(rawActivityJson: string) {
