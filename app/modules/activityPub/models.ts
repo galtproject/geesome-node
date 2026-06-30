@@ -143,6 +143,60 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ActivityPubObject = sequelize.define('activityPubObject', {
+		localActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		localPostId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		remoteObjectUrl: {
+			type: DataTypes.STRING(700),
+			allowNull: true
+		},
+		activityId: {
+			type: DataTypes.STRING(700),
+			allowNull: true
+		},
+		objectId: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		objectType: {
+			type: DataTypes.STRING(50),
+			allowNull: false
+		},
+		origin: {
+			type: DataTypes.STRING(20),
+			allowNull: false
+		},
+		visibility: {
+			type: DataTypes.STRING(30),
+			allowNull: false
+		},
+		publishedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		rawJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_objects_object_id_unique', fields: ['objectId'], unique: true},
+			{name: 'activity_pub_objects_activity_id_unique', fields: ['activityId'], unique: true},
+			{name: 'activity_pub_objects_local_post_unique', fields: ['localActorId', 'localPostId'], unique: true},
+			{name: 'activity_pub_objects_remote_object_unique', fields: ['remoteObjectUrl'], unique: true}
+		]
+	} as any);
+
 	const ActivityPubDelivery = sequelize.define('activityPubDelivery', getActivityPubDeliveryAttributes(includeDeliveryClaimColumns), {
 		indexes: getActivityPubDeliveryIndexes(includeDeliveryClaimIndex)
 	} as any);
@@ -152,6 +206,7 @@ export default async function (sequelize: Sequelize) {
 		ActivityPubActor: await ActivityPubActor.sync({}),
 		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
 		ActivityPubFollow: await ActivityPubFollow.sync({}),
+		ActivityPubObject: await ActivityPubObject.sync({}),
 		ActivityPubDelivery: await ActivityPubDelivery.sync({}),
 		activityPubDeliveryClaimsSupported: includeDeliveryClaimColumns
 	};

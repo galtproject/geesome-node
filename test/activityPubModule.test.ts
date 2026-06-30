@@ -9,7 +9,7 @@ import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.j
 
 describe('activityPub module', () => {
 	it('resolves WebFinger, actor, outbox, and post Note payloads for public groups', async () => {
-		const {module, calls} = await createActivityPubHarness();
+		const {module, calls, models} = await createActivityPubHarness();
 
 		assert.equal(module.isEnabled(), true);
 		assert.deepEqual(await module.getWebFingerResponse('acct:test-channel@example.com'), {
@@ -39,6 +39,16 @@ describe('activityPub module', () => {
 		assert.equal(outbox.id, 'https://social.example/ap/groups/test-channel/outbox');
 		assert.equal(outbox.orderedItems.length, 1);
 		assert.equal(outbox.orderedItems[0].object.content, 'Hello fediverse');
+		assert.equal(models.ActivityPubObject.rows.length, 1);
+		assert.equal(models.ActivityPubObject.rows[0].localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(models.ActivityPubObject.rows[0].localPostId, 11);
+		assert.equal(models.ActivityPubObject.rows[0].activityId, 'https://social.example/ap/groups/test-channel/posts/7/activity/create');
+		assert.equal(models.ActivityPubObject.rows[0].objectId, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.equal(models.ActivityPubObject.rows[0].objectType, 'Note');
+		assert.equal(models.ActivityPubObject.rows[0].origin, 'local');
+		assert.equal(models.ActivityPubObject.rows[0].visibility, 'public');
+		assert.equal(models.ActivityPubObject.rows[0].publishedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(JSON.parse(models.ActivityPubObject.rows[0].rawJson).content, 'Hello fediverse');
 		assert.deepEqual(calls.getGroupPosts[0].filters, {
 			status: PostStatus.Published,
 			isDeleted: false
@@ -48,6 +58,7 @@ describe('activityPub module', () => {
 		const note = await module.getGroupPostNote('test-channel', 7);
 		assert.equal(note.id, 'https://social.example/ap/groups/test-channel/posts/7');
 		assert.equal(note.attachment[0].url, 'https://social.example/ipfs/image-storage');
+		assert.equal(models.ActivityPubObject.rows.length, 1);
 	});
 
 	it('keeps a stable encrypted actor key and signs outbound requests', async () => {
@@ -659,6 +670,7 @@ function getModelsStub() {
 		ActivityPubActor: getModelStub(),
 		ActivityPubRemoteActor: getModelStub(),
 		ActivityPubFollow: getModelStub(),
+		ActivityPubObject: getModelStub(),
 		ActivityPubDelivery: getModelStub()
 	};
 

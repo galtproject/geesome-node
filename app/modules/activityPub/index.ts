@@ -44,6 +44,7 @@ import {
 	enqueueActivityPubFollowAcceptDelivery,
 	processActivityPubDeliveryQueue
 } from './deliveryState.js';
+import {syncLocalPostActivityPubObject} from './objectState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
@@ -107,6 +108,14 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				includeTotal: false
 			});
 			const contentsByPostId = await getContentsByPostId(app, groupPosts.list, config);
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+			await syncLocalPostActivityPubObjects(models, {
+				config,
+				group,
+				posts: groupPosts.list,
+				contentsByPostId,
+				localActorRecord: actorRecord
+			});
 
 			return buildActivityPubOutboxCollection(config, group, groupPosts.list, {contentsByPostId});
 		}
@@ -127,8 +136,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			const group = await getFederatableGroup(app, groupName);
 			const post = await getFederatablePostByLocalId(app, group, localId);
 			const contents = await getPostContents(app, post, config);
+			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+			const note = buildActivityPubPostNote(config, group, post, {contents});
 
-			return buildActivityPubPostNote(config, group, post, {contents});
+			await syncLocalPostActivityPubObject(models, {
+				config,
+				group,
+				post,
+				contents,
+				localActorRecord: actorRecord
+			});
+			return note;
 		}
 
 		async getGroupActorKey(groupName: string) {
@@ -214,6 +232,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 		async flushDatabase() {
 			await models.ActivityPubDelivery.destroy({where: {}});
+			await models.ActivityPubObject.destroy({where: {}});
 			await models.ActivityPubFollow.destroy({where: {}});
 			await models.ActivityPubActor.destroy({where: {}});
 			await models.ActivityPubRemoteActor.destroy({where: {}});
@@ -281,8 +300,31 @@ async function getContentsByPostId(app: IGeesomeApp, posts: IPost[], config: IRe
 	return result;
 }
 
+async function syncLocalPostActivityPubObjects(models, options: {
+	config: IResolvedActivityPubConfig;
+	group: IGroup;
+	posts: IPost[];
+	contentsByPostId: Map<number, IContentData[]>;
+	localActorRecord: any;
+}) {
+	await Promise.all(options.posts.map((post) => syncLocalPostActivityPubObject(models, {
+		config: options.config,
+		group: options.group,
+		post,
+		contents: getPostContentsFromMap(options.contentsByPostId, post),
+		localActorRecord: options.localActorRecord
+	})));
+}
+
 async function getPostContents(app: IGeesomeApp, post: IPost, config: IResolvedActivityPubConfig): Promise<IContentData[]> {
 	return app.ms.group.getPostContentDataWithUrl(post, getContentBaseUrl(config));
+}
+
+function getPostContentsFromMap(contentsByPostId: Map<number, IContentData[]>, post: IPost): IContentData[] {
+	if (!post?.id) {
+		return [];
+	}
+	return contentsByPostId.get(post.id) || [];
 }
 
 async function getContentDataWithUrl(app: IGeesomeApp, content, config: IResolvedActivityPubConfig): Promise<IContentData | null> {
