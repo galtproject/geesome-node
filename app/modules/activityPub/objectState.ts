@@ -18,7 +18,8 @@ type ISyncLocalPostActivityPubObjectOptions = {
 
 type ISyncRemoteActivityPubObjectOptions = {
 	remoteActorRecord: any;
-	targetObjectRecord: any;
+	targetObjectRecord?: any;
+	localActorRecord?: any;
 	activity: any;
 	object: any;
 };
@@ -158,7 +159,7 @@ function getRemoteActivityPubObjectData(options: ISyncRemoteActivityPubObjectOpt
 	const objectId = getRequiredActivityPubObjectId(options.object);
 
 	return {
-		localActorId: options.targetObjectRecord.localActorId || null,
+		localActorId: getRemoteActivityPubObjectLocalActorId(options),
 		localPostId: null,
 		remoteActorId: options.remoteActorRecord.id,
 		remoteObjectUrl: getActivityPubObjectUrl(options.object, objectId),
@@ -170,6 +171,10 @@ function getRemoteActivityPubObjectData(options: ISyncRemoteActivityPubObjectOpt
 		publishedAt: getActivityPubObjectPublishedAt(options.object),
 		rawJson: JSON.stringify(options.object)
 	};
+}
+
+function getRemoteActivityPubObjectLocalActorId(options: ISyncRemoteActivityPubObjectOptions): number | null {
+	return options.targetObjectRecord?.localActorId || options.localActorRecord?.id || null;
 }
 
 function getRemoteActivityPubObjectUpdateData(existingObject, options: IUpdateRemoteActivityPubObjectOptions) {

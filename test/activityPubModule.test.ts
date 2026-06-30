@@ -1015,6 +1015,84 @@ describe('activityPub module', () => {
 		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply');
 	});
 
+	it('records signed shared-inbox Create mentions to known local group actors', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupActor('test-channel');
+		const activity = {
+			id: 'https://remote.example/activities/create-mention-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/mention-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				to: ['https://social.example/ap/groups/test-channel'],
+				tag: [{
+					type: 'Mention',
+					href: 'https://social.example/ap/groups/test-channel',
+					name: '@test-channel@example.com'
+				}],
+				content: 'Remote mention',
+				published: '2026-06-01T12:07:00Z'
+			}
+		};
+		const result = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const objectPage = await module.getGroupRemoteObjects('test-channel', {
+			objectType: 'Note',
+			visibility: 'followers'
+		}, {limit: 10});
+
+		assert.equal(result.ok, true);
+		assert.equal(result.accepted, true);
+		assert.equal(result.message, 'activitypub_create_object_recorded');
+		assert.equal(result.activityType, 'Create');
+		assert.equal(result.actor, remoteActorKey.actorUrl);
+		assert.equal(result.objectId, activity.object.id);
+		assert.equal(result.inReplyTo, undefined);
+		assert.equal(models.ActivityPubObject.rows.length, 1);
+		assert.equal(remoteObject.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(remoteObject.localPostId, null);
+		assert.equal(remoteObject.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(remoteObject.objectId, activity.object.id);
+		assert.equal(remoteObject.objectType, 'Note');
+		assert.equal(remoteObject.visibility, 'followers');
+		assert.equal(remoteObject.publishedAt.toISOString(), '2026-06-01T12:07:00.000Z');
+		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote mention');
+		assert.equal(objectPage.total, 1);
+		assert.equal(objectPage.list[0].objectId, activity.object.id);
+	});
+
+	it('rejects signed shared-inbox Create notes without a known local target', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/create-mention-2',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/mention-2',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				to: ['https://social.example/ap/groups/unknown-channel'],
+				content: 'Remote mention with unknown target'
+			}
+		};
+
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		), /activitypub_object_target_not_found/);
+		assert.equal(models.ActivityPubObject.rows.length, 0);
+	});
+
 	it('lists cached remote ActivityPub objects for admin review', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({

@@ -479,20 +479,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord);
 			}
 			const object = getRequiredSharedInboxCreateObject(request.body);
-			const inReplyTo = getRequiredActivityObjectInReplyTo(object);
-			const targetObject = await getLocalActivityPubObjectByObjectId(models, inReplyTo);
-			if (!targetObject) {
-				throwActivityPubError('activitypub_object_target_not_found', 404);
-			}
+			const target = await getRequiredSharedInboxCreateTarget(models, request.body, object);
 			assertActivityPubObjectActorMatches(object, remoteActorUrl);
 			const objectRecord = await syncRemoteActivityPubObject(models, {
 				remoteActorRecord,
-				targetObjectRecord: targetObject,
+				targetObjectRecord: target.objectRecord,
+				localActorRecord: target.actorRecord,
 				activity: request.body,
 				object
 			});
 
-			return getSharedInboxCreateResult(verification, remoteActorUrl, objectRecord, inReplyTo);
+			return getSharedInboxCreateResult(verification, remoteActorUrl, objectRecord, target.inReplyTo);
 		}
 
 		async flushDatabase() {
@@ -1180,6 +1177,27 @@ function getRequiredSharedInboxUpdateObject(activity) {
 	return activity.object;
 }
 
+async function getRequiredSharedInboxCreateTarget(models, activity, object) {
+	const inReplyTo = getActivityObjectInReplyTo(object);
+	if (inReplyTo) {
+		const objectRecord = await getLocalActivityPubObjectByObjectId(models, inReplyTo);
+		if (objectRecord) {
+			return {
+				objectRecord,
+				inReplyTo
+			};
+		}
+	}
+	const actorRecord = await getLocalActivityPubActorByUrls(models, getSharedInboxCreateTargetActorUrls(activity, object));
+	if (actorRecord) {
+		return {
+			actorRecord,
+			inReplyTo
+		};
+	}
+	throwActivityPubError('activitypub_object_target_not_found', 404);
+}
+
 function getRequiredSharedInboxUndoCreateObject(activity, remoteActorUrl: string) {
 	const createActivity = getRequiredSharedInboxUndoCreateActivity(activity);
 	if (getActivityActor(createActivity) !== remoteActorUrl) {
@@ -1203,14 +1221,14 @@ function getRequiredSharedInboxUndoCreateActivity(activity) {
 	return activity.object;
 }
 
-function getRequiredActivityObjectInReplyTo(object): string {
+function getActivityObjectInReplyTo(object): string | undefined {
 	if (typeof object?.inReplyTo === 'string' && object.inReplyTo) {
 		return object.inReplyTo;
 	}
 	if (typeof object?.inReplyTo?.id === 'string' && object.inReplyTo.id) {
 		return object.inReplyTo.id;
 	}
-	throwActivityPubError('activitypub_create_in_reply_to_required', 400);
+	return undefined;
 }
 
 function getRequiredObjectId(object, message: string): string {
@@ -1284,6 +1302,35 @@ async function getRequiredInboundFlagTarget(models, activity, localActorUrl: str
 	throwActivityPubError('activitypub_flag_object_mismatch', 400);
 }
 
+async function getLocalActivityPubActorByUrls(models, actorUrls: string[]) {
+	if (!actorUrls.length) {
+		return null;
+	}
+	return models.ActivityPubActor.findOne({
+		where: {
+			entityType: 'group',
+			isEnabled: true,
+			actorUrl: {
+				[Op.in]: actorUrls
+			}
+		}
+	});
+}
+
+function getSharedInboxCreateTargetActorUrls(activity, object): string[] {
+	const actorUrls = [
+		...getActivityReferenceIds(activity?.to),
+		...getActivityReferenceIds(activity?.cc),
+		...getActivityReferenceIds(activity?.target),
+		...getActivityReferenceIds(object?.to),
+		...getActivityReferenceIds(object?.cc),
+		...getActivityReferenceIds(object?.tag),
+		...getActivityHrefReferenceIds(object?.tag)
+	];
+
+	return [...new Set(actorUrls)];
+}
+
 function assertInboundFlagTargetActorMatches(flagTarget, localActorRecord): void {
 	if (flagTarget.localActorId === null || Number(flagTarget.localActorId) === Number(localActorRecord.id)) {
 		return;
@@ -1336,6 +1383,16 @@ function getActivityReferenceIds(value): string[] {
 	}
 	if (typeof value?.id === 'string' && value.id) {
 		return [value.id];
+	}
+	return [];
+}
+
+function getActivityHrefReferenceIds(value): string[] {
+	if (Array.isArray(value)) {
+		return value.flatMap(item => getActivityHrefReferenceIds(item));
+	}
+	if (typeof value?.href === 'string' && value.href) {
+		return [value.href];
 	}
 	return [];
 }
@@ -1435,7 +1492,7 @@ function getFlagInboxResult(verification, flag, localActorUrl: string, remoteAct
 	};
 }
 
-function getSharedInboxCreateResult(verification, remoteActorUrl: string, objectRecord, inReplyTo: string): IActivityPubInboxResult {
+function getSharedInboxCreateResult(verification, remoteActorUrl: string, objectRecord, inReplyTo?: string): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
