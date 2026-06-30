@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
-import {ActivityPubFollowDirection, ActivityPubFollowState} from '../app/modules/activityPub/interface.js';
+import {ActivityPubDeliveryState, ActivityPubFollowDirection, ActivityPubFollowState} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 
@@ -390,6 +390,43 @@ describe('activityPub module', () => {
 		assert.equal(delivery.deliveredAt, null);
 		assert.match(delivery.lastError, /remote inbox unavailable/);
 	});
+
+	it('claims due delivery rows before sending when claim columns are available', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const deliveryRequests: any[] = [];
+		const {module, models} = await createActivityPubHarness({
+			deliveryClaimsSupported: true,
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey),
+			deliverActivityPubRequest: async (request) => {
+				deliveryRequests.push(request);
+				assert.equal(request.delivery.deliveryClaimedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+				assert.equal(request.delivery.deliveryClaimExpiresAt.toISOString(), '2026-06-01T12:00:02.000Z');
+				return {ok: true, status: 202};
+			}
+		});
+		const activity = {
+			id: 'https://remote.example/activities/follow-7',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
+		const result = await module.processDeliveryQueue({
+			now: new Date('2026-06-01T12:00:00Z'),
+			claimTtlMs: 2000
+		});
+		const delivery = models.ActivityPubDelivery.rows[0];
+
+		assert.deepEqual(result, {processed: 1, delivered: 1, failed: 0});
+		assert.equal(deliveryRequests.length, 1);
+		assert.equal(delivery.deliveryClaimedAt, null);
+		assert.equal(delivery.deliveryClaimExpiresAt, null);
+		assert.equal(delivery.state, ActivityPubDeliveryState.Delivered);
+	});
 });
 
 describe('activityPub API', () => {
@@ -496,6 +533,9 @@ describe('activityPub API', () => {
 async function createActivityPubHarness(overrides: any = {}) {
 	const routes = {};
 	const models = getModelsStub();
+	if (overrides.deliveryClaimsSupported) {
+		setupActivityPubDeliveryClaims(models);
+	}
 	const calls: any = {
 		getGroupByParams: [],
 		getGroupPosts: []
@@ -507,7 +547,8 @@ async function createActivityPubHarness(overrides: any = {}) {
 			activityPubConfig: {
 				enabled: true,
 				publicUrl: 'https://social.example',
-				domain: 'example.com'
+				domain: 'example.com',
+				deliveryWorker: false
 			}
 		},
 		checkModules(modules) {
@@ -614,12 +655,56 @@ function hasNotFoundCode(error) {
 }
 
 function getModelsStub() {
-	return {
+	const models = {
 		ActivityPubActor: getModelStub(),
 		ActivityPubRemoteActor: getModelStub(),
 		ActivityPubFollow: getModelStub(),
 		ActivityPubDelivery: getModelStub()
 	};
+
+	return models;
+}
+
+function setupActivityPubDeliveryClaims(models) {
+	models.activityPubDeliveryClaimsSupported = true;
+	models.ActivityPubDelivery.claimDueForDelivery = async ({now, claimExpiresAt, limit}) => {
+		const claimedDeliveries = [];
+		const dueDeliveries = [...models.ActivityPubDelivery.rows]
+			.filter((delivery) => isDeliveryClaimable(delivery, now))
+			.sort(compareDeliveryClaimOrder);
+
+		for (const delivery of dueDeliveries) {
+			if (claimedDeliveries.length >= limit) {
+				break;
+			}
+			delivery.deliveryClaimedAt = now;
+			delivery.deliveryClaimExpiresAt = claimExpiresAt;
+			claimedDeliveries.push(delivery);
+		}
+
+		return claimedDeliveries;
+	};
+}
+
+function isDeliveryClaimable(delivery, now: Date): boolean {
+	if (delivery.state !== ActivityPubDeliveryState.Pending) {
+		return false;
+	}
+	if (compareValues(delivery.nextAttemptAt, now) > 0) {
+		return false;
+	}
+	if (!delivery.deliveryClaimExpiresAt) {
+		return true;
+	}
+	return compareValues(delivery.deliveryClaimExpiresAt, now) <= 0;
+}
+
+function compareDeliveryClaimOrder(left, right): number {
+	const nextAttemptDiff = compareValues(left.nextAttemptAt, right.nextAttemptAt);
+	if (nextAttemptDiff !== 0) {
+		return nextAttemptDiff;
+	}
+	return Number(left.id) - Number(right.id);
 }
 
 function getModelStub() {

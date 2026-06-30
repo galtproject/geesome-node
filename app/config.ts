@@ -32,7 +32,11 @@ export default {
   activityPubConfig: {
     enabled: process.env.ACTIVITYPUB_ENABLED === '1',
     publicUrl: process.env.ACTIVITYPUB_PUBLIC_URL || '',
-    domain: process.env.ACTIVITYPUB_DOMAIN || ''
+    domain: process.env.ACTIVITYPUB_DOMAIN || '',
+    deliveryWorker: process.env.ACTIVITYPUB_DELIVERY_WORKER === '1',
+    deliveryWorkerIntervalMs: process.env.ACTIVITYPUB_DELIVERY_WORKER_INTERVAL_MS,
+    deliveryWorkerLimit: process.env.ACTIVITYPUB_DELIVERY_WORKER_LIMIT,
+    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };

@@ -64,6 +64,7 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 	const models = options.models || await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models, options);
 	(await import('./api.js')).default(app, module);
+	(await import('./cron.js')).default(app, module);
 	return module;
 }
 

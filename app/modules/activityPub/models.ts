@@ -1,6 +1,9 @@
-import {DataTypes, Sequelize} from 'sequelize';
+import {DataTypes, Op, QueryTypes, Sequelize} from 'sequelize';
 
 export default async function (sequelize: Sequelize) {
+	const deliveryClaimSchemaState = await getActivityPubDeliveryClaimSchemaState(sequelize);
+	const includeDeliveryClaimColumns = !deliveryClaimSchemaState.tableExists || deliveryClaimSchemaState.hasDeliveryClaimColumns;
+	const includeDeliveryClaimIndex = !deliveryClaimSchemaState.tableExists;
 	const ActivityPubActor = sequelize.define('activityPubActor', {
 		entityType: {
 			type: DataTypes.STRING(50),
@@ -140,7 +143,50 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
-	const ActivityPubDelivery = sequelize.define('activityPubDelivery', {
+	const ActivityPubDelivery = sequelize.define('activityPubDelivery', getActivityPubDeliveryAttributes(includeDeliveryClaimColumns), {
+		indexes: getActivityPubDeliveryIndexes(includeDeliveryClaimIndex)
+	} as any);
+	(ActivityPubDelivery as any).claimDueForDelivery = (claimOptions) => claimDueActivityPubDeliveries(sequelize, ActivityPubDelivery, claimOptions);
+
+	return {
+		ActivityPubActor: await ActivityPubActor.sync({}),
+		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
+		ActivityPubFollow: await ActivityPubFollow.sync({}),
+		ActivityPubDelivery: await ActivityPubDelivery.sync({}),
+		activityPubDeliveryClaimsSupported: includeDeliveryClaimColumns
+	};
+}
+
+async function getActivityPubDeliveryClaimSchemaState(sequelize: Sequelize) {
+	const [rows] = await sequelize.query(`
+		SELECT
+			to_regclass('"activityPubDeliveries"') IS NOT NULL AS "tableExists",
+			EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+					AND table_name = 'activityPubDeliveries'
+					AND column_name = 'deliveryClaimedAt'
+			) AS "hasDeliveryClaimedAt",
+			EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+					AND table_name = 'activityPubDeliveries'
+					AND column_name = 'deliveryClaimExpiresAt'
+			) AS "hasDeliveryClaimExpiresAt"
+	`);
+	const row = (rows as any[])[0] || {};
+	const hasDeliveryClaimColumns = row.hasDeliveryClaimedAt === true && row.hasDeliveryClaimExpiresAt === true;
+
+	return {
+		tableExists: row.tableExists === true,
+		hasDeliveryClaimColumns,
+	};
+}
+
+function getActivityPubDeliveryAttributes(includeDeliveryClaimColumns: boolean) {
+	const attributes = {
 		localActorId: {
 			type: DataTypes.INTEGER,
 			allowNull: false
@@ -190,18 +236,79 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.TEXT,
 			allowNull: true
 		}
-	} as any, {
-		indexes: [
-			{name: 'activity_pub_deliveries_activity_inbox_unique', fields: ['activityId', 'inboxUrl'], unique: true},
-			{name: 'activity_pub_deliveries_next_attempt_idx', fields: ['state', 'nextAttemptAt']},
-			{name: 'activity_pub_deliveries_follow_idx', fields: ['followId']}
-		]
-	} as any);
+	} as any;
 
-	return {
-		ActivityPubActor: await ActivityPubActor.sync({}),
-		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
-		ActivityPubFollow: await ActivityPubFollow.sync({}),
-		ActivityPubDelivery: await ActivityPubDelivery.sync({})
-	};
+	if (includeDeliveryClaimColumns) {
+		attributes.deliveryClaimedAt = {
+			type: DataTypes.DATE,
+			allowNull: true
+		};
+		attributes.deliveryClaimExpiresAt = {
+			type: DataTypes.DATE,
+			allowNull: true
+		};
+	}
+
+	return attributes;
+}
+
+function getActivityPubDeliveryIndexes(includeDeliveryClaimIndex: boolean) {
+	const indexes = [
+		{name: 'activity_pub_deliveries_activity_inbox_unique', fields: ['activityId', 'inboxUrl'], unique: true},
+		{name: 'activity_pub_deliveries_next_attempt_idx', fields: ['state', 'nextAttemptAt']},
+		{name: 'activity_pub_deliveries_follow_idx', fields: ['followId']}
+	];
+
+	if (includeDeliveryClaimIndex) {
+		indexes.push({
+			name: 'activity_pub_deliveries_claim_idx',
+			fields: ['state', 'nextAttemptAt', 'deliveryClaimExpiresAt', 'id']
+		} as any);
+	}
+
+	return indexes;
+}
+
+async function claimDueActivityPubDeliveries(sequelize: Sequelize, ActivityPubDelivery, {now, claimExpiresAt, limit}) {
+	const claimedRows = await sequelize.query<{id: number}>(`
+		WITH due_deliveries AS (
+			SELECT id
+			FROM "activityPubDeliveries"
+			WHERE state = 'pending'
+				AND "nextAttemptAt" <= :now
+				AND ("deliveryClaimExpiresAt" IS NULL OR "deliveryClaimExpiresAt" <= :now)
+			ORDER BY "nextAttemptAt" ASC, id ASC
+			FOR UPDATE SKIP LOCKED
+			LIMIT :limit
+		)
+		UPDATE "activityPubDeliveries" AS "activityPubDelivery"
+		SET
+			"deliveryClaimedAt" = :now,
+			"deliveryClaimExpiresAt" = :claimExpiresAt,
+			"updatedAt" = :now
+		FROM due_deliveries
+		WHERE "activityPubDelivery".id = due_deliveries.id
+		RETURNING "activityPubDelivery".id
+	`, {
+		replacements: {
+			now,
+			claimExpiresAt,
+			limit
+		},
+		type: QueryTypes.SELECT
+	});
+	const claimedIds = claimedRows.map((row) => row.id);
+	if (!claimedIds.length) {
+		return [];
+	}
+	const deliveries = await ActivityPubDelivery.findAll({
+		where: {
+			id: {
+				[Op.in]: claimedIds
+			}
+		}
+	});
+	const deliveryById = new Map(deliveries.map((delivery) => [Number(delivery.id), delivery]));
+
+	return claimedIds.map((id) => deliveryById.get(Number(id))).filter(Boolean);
 }
