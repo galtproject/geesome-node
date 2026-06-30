@@ -23,6 +23,12 @@ type ISyncRemoteActivityPubObjectOptions = {
 	object: any;
 };
 
+type IUpdateRemoteActivityPubObjectOptions = {
+	remoteActorRecord: any;
+	activity: any;
+	object: any;
+};
+
 type ITombstoneRemoteActivityPubObjectOptions = {
 	remoteActorRecord: any;
 	activity: any;
@@ -61,6 +67,7 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 	const objectData = getRemoteActivityPubObjectData(options);
 	const existingObject = await getActivityPubObjectRecord(models, objectData);
 	if (existingObject) {
+		assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, 'activitypub_create_object_actor_mismatch');
 		assertActivityPubObjectNotTombstoned(existingObject);
 		return updateActivityPubObjectRecord(existingObject, objectData);
 	}
@@ -75,9 +82,22 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 		if (!createdObject) {
 			throw e;
 		}
+		assertRemoteActivityPubObjectActor(createdObject, options.remoteActorRecord, 'activitypub_create_object_actor_mismatch');
 		assertActivityPubObjectNotTombstoned(createdObject);
 		return updateActivityPubObjectRecord(createdObject, objectData);
 	}
+}
+
+export async function updateRemoteActivityPubObject(models, options: IUpdateRemoteActivityPubObjectOptions) {
+	const objectId = getRequiredActivityPubObjectId(options.object);
+	const existingObject = await getRemoteActivityPubObjectRecordByObjectId(models, objectId);
+	if (!existingObject) {
+		throwActivityPubObjectError('activitypub_update_object_not_found', 404);
+	}
+	assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, 'activitypub_update_object_actor_mismatch');
+	assertActivityPubObjectNotTombstoned(existingObject);
+
+	return updateActivityPubObjectRecord(existingObject, getRemoteActivityPubObjectUpdateData(existingObject, options));
 }
 
 export async function tombstoneRemoteActivityPubObject(models, options: ITombstoneRemoteActivityPubObjectOptions) {
@@ -86,9 +106,7 @@ export async function tombstoneRemoteActivityPubObject(models, options: ITombsto
 	if (!existingObject) {
 		throwActivityPubObjectError(options.objectNotFoundMessage || 'activitypub_delete_object_not_found', 404);
 	}
-	if (Number(existingObject.remoteActorId) !== Number(options.remoteActorRecord.id)) {
-		throwActivityPubObjectError(options.actorMismatchMessage || 'activitypub_delete_object_actor_mismatch', 400);
-	}
+	assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, options.actorMismatchMessage || 'activitypub_delete_object_actor_mismatch');
 
 	return updateActivityPubObjectRecord(existingObject, {
 		activityId: getRequiredActivityPubActivityId(options.activity),
@@ -154,6 +172,19 @@ function getRemoteActivityPubObjectData(options: ISyncRemoteActivityPubObjectOpt
 	};
 }
 
+function getRemoteActivityPubObjectUpdateData(existingObject, options: IUpdateRemoteActivityPubObjectOptions) {
+	const objectId = getRequiredActivityPubObjectId(options.object);
+
+	return {
+		remoteObjectUrl: getUpdatedActivityPubObjectUrl(existingObject, options.object, objectId),
+		activityId: getRequiredActivityPubActivityId(options.activity),
+		objectType: getRequiredActivityPubObjectType(options.object),
+		visibility: getUpdatedActivityPubObjectVisibility(existingObject, options.activity, options.object),
+		publishedAt: getUpdatedActivityPubObjectPublishedAt(existingObject, options.object),
+		rawJson: JSON.stringify(options.object)
+	};
+}
+
 async function updateActivityPubObjectRecord(objectRecord, objectData) {
 	const updateData = getChangedActivityPubObjectData(objectRecord, objectData);
 	if (!Object.keys(updateData).length) {
@@ -191,6 +222,10 @@ function getActivityPubObjectPublishedAt(noteObject): Date | null {
 		return null;
 	}
 	return publishedAt;
+}
+
+function getUpdatedActivityPubObjectPublishedAt(existingObject, object): Date | null {
+	return getActivityPubObjectPublishedAt(object) || existingObject.publishedAt || null;
 }
 
 function getRequiredActivityPubActivityId(activity): string {
@@ -231,7 +266,22 @@ function getActivityPubObjectUrl(object, objectId: string): string {
 	return objectId;
 }
 
+function getUpdatedActivityPubObjectUrl(existingObject, object, objectId: string): string {
+	if (typeof object?.url === 'string' && object.url) {
+		return object.url;
+	}
+	return existingObject.remoteObjectUrl || objectId;
+}
+
 function getActivityPubObjectVisibility(activity, object): ActivityPubObjectVisibility {
+	return getActivityPubObjectAudienceVisibility(activity, object) || ActivityPubObjectVisibility.Direct;
+}
+
+function getUpdatedActivityPubObjectVisibility(existingObject, activity, object): ActivityPubObjectVisibility {
+	return getActivityPubObjectAudienceVisibility(activity, object) || existingObject.visibility || ActivityPubObjectVisibility.Direct;
+}
+
+function getActivityPubObjectAudienceVisibility(activity, object): ActivityPubObjectVisibility | null {
 	const audience = [
 		...getActivityPubAudienceValues(activity?.to),
 		...getActivityPubAudienceValues(activity?.cc),
@@ -244,7 +294,7 @@ function getActivityPubObjectVisibility(activity, object): ActivityPubObjectVisi
 	if (audience.length) {
 		return ActivityPubObjectVisibility.Followers;
 	}
-	return ActivityPubObjectVisibility.Direct;
+	return null;
 }
 
 function getActivityPubAudienceValues(value): string[] {
@@ -277,6 +327,16 @@ function getComparableDateValue(value): number | null {
 
 function isActivityPubObjectUniqueError(error): boolean {
 	return error?.name === 'SequelizeUniqueConstraintError';
+}
+
+function assertRemoteActivityPubObjectActor(objectRecord, remoteActorRecord, message: string): void {
+	if (
+		objectRecord.origin === ActivityPubObjectOrigin.Remote &&
+		Number(objectRecord.remoteActorId) === Number(remoteActorRecord.id)
+	) {
+		return;
+	}
+	throwActivityPubObjectError(message, 400);
 }
 
 function assertActivityPubObjectNotTombstoned(objectRecord): void {
