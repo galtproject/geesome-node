@@ -27,6 +27,15 @@ type IRecordOutboundFollowOptions = {
 	now?: Date | string;
 };
 
+type IRecordOutboundFollowResponseOptions = {
+	localActorRecord: any;
+	remoteActorUrl: string;
+	activity: any;
+	followActivityId?: string;
+	state: ActivityPubFollowState.Accepted | ActivityPubFollowState.Rejected;
+	now?: Date | string;
+};
+
 type IRecordInboundBlockOptions = {
 	localActorRecord: any;
 	remoteActorUrl: string;
@@ -64,6 +73,20 @@ export async function recordInboundActivityPubBlock(models, options: IRecordInbo
 export async function recordOutboundActivityPubFollow(models, options: IRecordOutboundFollowOptions) {
 	const followData = getOutboundFollowRecordData(options);
 	return syncFollowRecord(models, followData);
+}
+
+export async function recordOutboundActivityPubFollowResponse(models, options: IRecordOutboundFollowResponseOptions) {
+	const remoteActorRecord = await getRemoteActorRecord(models, options.remoteActorUrl);
+	if (!remoteActorRecord) {
+		throwActivityPubError('activitypub_remote_actor_record_required', 401);
+	}
+	const followRecord = await getOutboundFollowRecord(models, options.localActorRecord.id, remoteActorRecord.id);
+	if (!followRecord) {
+		throwActivityPubError('activitypub_outbound_follow_not_found', 404);
+	}
+	assertOutboundFollowActivityIdMatches(followRecord, options.followActivityId);
+	const followData = getOutboundFollowResponseRecordData(options, remoteActorRecord, followRecord);
+	return updateFollowRecord(followRecord, followData);
 }
 
 async function syncFollowRecord(models, followData) {
@@ -105,6 +128,16 @@ async function getActivityPubFollowRecord(models, followData) {
 	});
 }
 
+async function getOutboundFollowRecord(models, localActorId: number, remoteActorId: number) {
+	return models.ActivityPubFollow.findOne({
+		where: {
+			localActorId,
+			remoteActorId,
+			direction: ActivityPubFollowDirection.Outbound
+		}
+	});
+}
+
 async function getRemoteActorRecord(models, actorUrl: string) {
 	return models.ActivityPubRemoteActor.findOne({
 		where: {
@@ -138,6 +171,25 @@ function getOutboundFollowRecordData(options: IRecordOutboundFollowOptions) {
 		remoteActivityId: getActivityId(options.activity),
 		acceptedAt: null,
 		rejectedAt: null,
+		rawActivityJson: JSON.stringify(options.activity)
+	};
+}
+
+function getOutboundFollowResponseRecordData(
+	options: IRecordOutboundFollowResponseOptions,
+	remoteActorRecord,
+	followRecord
+) {
+	const now = getFollowEventDate(options.now);
+
+	return {
+		localActorId: options.localActorRecord.id,
+		remoteActorId: remoteActorRecord.id,
+		direction: ActivityPubFollowDirection.Outbound,
+		state: options.state,
+		remoteActivityId: followRecord.remoteActivityId || options.followActivityId,
+		acceptedAt: options.state === ActivityPubFollowState.Accepted ? now : null,
+		rejectedAt: options.state === ActivityPubFollowState.Rejected ? now : null,
 		rawActivityJson: JSON.stringify(options.activity)
 	};
 }
@@ -212,6 +264,13 @@ function shouldKeepAcceptedOutboundFollow(followRecord, followData): boolean {
 	return followRecord.direction === ActivityPubFollowDirection.Outbound
 		&& followRecord.state === ActivityPubFollowState.Accepted
 		&& followData.state === ActivityPubFollowState.Pending;
+}
+
+function assertOutboundFollowActivityIdMatches(followRecord, followActivityId?: string): void {
+	if (!followActivityId || !followRecord.remoteActivityId || followRecord.remoteActivityId === followActivityId) {
+		return;
+	}
+	throwActivityPubError('activitypub_outbound_follow_response_mismatch', 400);
 }
 
 function isSameFollowValue(left, right): boolean {

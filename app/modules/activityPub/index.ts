@@ -51,7 +51,8 @@ import {
 	recordInboundActivityPubBlock,
 	recordInboundActivityPubFollow,
 	recordInboundActivityPubFollowUndo,
-	recordOutboundActivityPubFollow
+	recordOutboundActivityPubFollow,
+	recordOutboundActivityPubFollowResponse
 } from './followState.js';
 import {recordInboundActivityPubFlag} from './flagState.js';
 import {
@@ -314,6 +315,21 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 			assertSupportedInboxActivity(request.body);
 
+			if (isFollowResponseActivity(request.body)) {
+				const followActivity = getRequiredOutboundFollowResponseObject(request.body);
+				assertOutboundFollowResponseObject(followActivity, localActorUrl, remoteActorUrl);
+				const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+				const follow = await recordOutboundActivityPubFollowResponse(models, {
+					localActorRecord: actorRecord,
+					remoteActorUrl,
+					activity: request.body,
+					followActivityId: getOutboundFollowResponseObjectId(followActivity),
+					state: getOutboundFollowResponseState(request.body),
+					now: request.now
+				});
+
+				return getFollowResponseInboxResult(verification, follow, localActorUrl, remoteActorUrl, request.body);
+			}
 			if (isUndoActivity(request.body)) {
 				const followActivity = getRequiredUndoFollowActivity(request.body);
 				assertInboundFollowUndoObject(followActivity, remoteActorUrl, localActorUrl);
@@ -929,6 +945,18 @@ function isUndoActivity(activity): boolean {
 	return getActivityType(activity) === 'Undo';
 }
 
+function isAcceptActivity(activity): boolean {
+	return getActivityType(activity) === 'Accept';
+}
+
+function isRejectActivity(activity): boolean {
+	return getActivityType(activity) === 'Reject';
+}
+
+function isFollowResponseActivity(activity): boolean {
+	return isAcceptActivity(activity) || isRejectActivity(activity);
+}
+
 function isDeleteActivity(activity): boolean {
 	return getActivityType(activity) === 'Delete';
 }
@@ -980,10 +1008,32 @@ function getRequiredActivityActor(activity): string {
 }
 
 function assertSupportedInboxActivity(activity): void {
-	if (isFollowActivity(activity) || isUndoActivity(activity) || isBlockActivity(activity) || isFlagActivity(activity)) {
+	if (
+		isFollowActivity(activity)
+		|| isFollowResponseActivity(activity)
+		|| isUndoActivity(activity)
+		|| isBlockActivity(activity)
+		|| isFlagActivity(activity)
+	) {
 		return;
 	}
 	throwActivityPubError('activitypub_activity_not_supported', 501);
+}
+
+function getRequiredOutboundFollowResponseObject(activity) {
+	if (!isFollowResponseActivity(activity)) {
+		throwActivityPubError('activitypub_activity_not_supported', 501);
+	}
+	if (typeof activity?.object === 'string' && activity.object) {
+		return activity.object;
+	}
+	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
+		throwActivityPubError('activitypub_follow_response_object_required', 400);
+	}
+	if (!isFollowActivity(activity.object)) {
+		throwActivityPubError('activitypub_follow_response_object_not_supported', 501);
+	}
+	return activity.object;
 }
 
 function getRequiredUndoFollowActivity(activity) {
@@ -1080,6 +1130,18 @@ function assertInboundFollowUndoObject(followActivity, remoteActorUrl: string, l
 	assertInboundFollowObject(followActivity, localActorUrl);
 }
 
+function assertOutboundFollowResponseObject(followActivity, localActorUrl: string, remoteActorUrl: string): void {
+	if (typeof followActivity === 'string') {
+		return;
+	}
+	if (getActivityActor(followActivity) !== localActorUrl) {
+		throwActivityPubError('activitypub_follow_response_actor_mismatch', 400);
+	}
+	if (getActivityObjectId(followActivity) !== remoteActorUrl) {
+		throwActivityPubError('activitypub_follow_response_object_mismatch', 400);
+	}
+}
+
 function assertInboundFollowObject(activity, localActorUrl: string): void {
 	if (getActivityObjectId(activity) === localActorUrl) {
 		return;
@@ -1134,6 +1196,23 @@ function getActivityObjectId(activity): string | undefined {
 	return undefined;
 }
 
+function getOutboundFollowResponseObjectId(followActivity): string | undefined {
+	if (typeof followActivity === 'string' && followActivity) {
+		return followActivity;
+	}
+	if (typeof followActivity?.id === 'string' && followActivity.id) {
+		return followActivity.id;
+	}
+	return undefined;
+}
+
+function getOutboundFollowResponseState(activity): ActivityPubFollowState.Accepted | ActivityPubFollowState.Rejected {
+	if (isAcceptActivity(activity)) {
+		return ActivityPubFollowState.Accepted;
+	}
+	return ActivityPubFollowState.Rejected;
+}
+
 function getInboundFlagObjectIds(activity): string[] {
 	const objectIds = [
 		...getActivityReferenceIds(activity?.object),
@@ -1181,6 +1260,27 @@ function getFollowInboxMessage(follow): string {
 		return 'activitypub_follow_cancelled';
 	}
 	return 'activitypub_follow_accepted';
+}
+
+function getFollowResponseInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string, activity): IActivityPubInboxResult {
+	return {
+		...verification,
+		ok: true,
+		accepted: follow.state === ActivityPubFollowState.Accepted,
+		message: getFollowResponseInboxMessage(follow),
+		localActorUrl,
+		activityType: getActivityType(activity),
+		actor: remoteActorUrl,
+		followId: follow.id,
+		followState: follow.state
+	};
+}
+
+function getFollowResponseInboxMessage(follow): string {
+	if (follow.state === ActivityPubFollowState.Accepted) {
+		return 'activitypub_outbound_follow_accepted';
+	}
+	return 'activitypub_outbound_follow_rejected';
 }
 
 function getOutboundFollowResult(
