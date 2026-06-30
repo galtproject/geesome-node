@@ -244,6 +244,87 @@ describe('activityPub module', () => {
 		assert.deepEqual(deliveryBody.object, activity);
 	});
 
+	it('records signed Undo(Follow) activities and stops future post delivery', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const followActivity = {
+			id: 'https://remote.example/activities/follow-undo-1',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+		const undoActivity = {
+			id: 'https://remote.example/activities/undo-follow-1',
+			type: 'Undo',
+			actor: remoteActorKey.actorUrl,
+			object: followActivity
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', followActivity)
+		);
+		const firstUndoResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', undoActivity)
+		);
+		const secondUndoResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', undoActivity)
+		);
+		const followers = await module.getGroupFollowers('test-channel', {limit: 10});
+		const postDeliveryResult = await module.afterPostManifestUpdate(1, 11);
+		const follow = models.ActivityPubFollow.rows[0];
+
+		assert.equal(firstUndoResult.ok, true);
+		assert.equal(firstUndoResult.accepted, false);
+		assert.equal(firstUndoResult.message, 'activitypub_follow_cancelled');
+		assert.equal(firstUndoResult.activityType, 'Undo');
+		assert.equal(firstUndoResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstUndoResult.followState, ActivityPubFollowState.Cancelled);
+		assert.equal(secondUndoResult.followId, firstUndoResult.followId);
+		assert.equal(secondUndoResult.followState, ActivityPubFollowState.Cancelled);
+		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(models.ActivityPubDelivery.rows.length, 1);
+		assert.equal(follow.state, ActivityPubFollowState.Cancelled);
+		assert.equal(follow.remoteActivityId, followActivity.id);
+		assert.equal(follow.acceptedAt, null);
+		assert.equal(follow.rejectedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(JSON.parse(follow.rawActivityJson).id, undoActivity.id);
+		assert.equal(followers.totalItems, 0);
+		assert.deepEqual(followers.orderedItems, []);
+		assert.equal(postDeliveryResult.queued, 0);
+		assert.deepEqual(postDeliveryResult.deliveryIds, []);
+		assert.equal(models.ActivityPubDelivery.rows.length, 1);
+	});
+
+	it('rejects signed Undo(Follow) activities for a different remote actor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/undo-follow-2',
+			type: 'Undo',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/activities/follow-undo-2',
+				type: 'Follow',
+				actor: 'https://remote.example/users/bob',
+				object: 'https://social.example/ap/groups/test-channel'
+			}
+		};
+
+		await assert.rejects(() => module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		), /activitypub_undo_follow_actor_mismatch/);
+		assert.equal(models.ActivityPubFollow.rows.length, 0);
+		assert.equal(models.ActivityPubActor.rows.length, 0);
+	});
+
 	it('rejects signed Follow activities for a different local actor object', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({

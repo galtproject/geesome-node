@@ -12,12 +12,29 @@ type IRecordInboundFollowOptions = {
 	now?: Date | string;
 };
 
+type IRecordInboundFollowUndoOptions = {
+	localActorRecord: any;
+	remoteActorUrl: string;
+	undoActivity: any;
+	followActivity: any;
+	now?: Date | string;
+};
+
 export async function recordInboundActivityPubFollow(models, options: IRecordInboundFollowOptions) {
 	const remoteActorRecord = await getRemoteActorRecord(models, options.remoteActorUrl);
 	if (!remoteActorRecord) {
 		throwActivityPubError('activitypub_remote_actor_record_required', 401);
 	}
 	const followData = getInboundFollowRecordData(options, remoteActorRecord);
+	return syncInboundFollowRecord(models, followData);
+}
+
+export async function recordInboundActivityPubFollowUndo(models, options: IRecordInboundFollowUndoOptions) {
+	const remoteActorRecord = await getRemoteActorRecord(models, options.remoteActorUrl);
+	if (!remoteActorRecord) {
+		throwActivityPubError('activitypub_remote_actor_record_required', 401);
+	}
+	const followData = getInboundFollowUndoRecordData(options, remoteActorRecord);
 	return syncInboundFollowRecord(models, followData);
 }
 
@@ -84,6 +101,21 @@ function getInboundFollowRecordData(options: IRecordInboundFollowOptions, remote
 	};
 }
 
+function getInboundFollowUndoRecordData(options: IRecordInboundFollowUndoOptions, remoteActorRecord) {
+	const now = getFollowEventDate(options.now);
+
+	return {
+		localActorId: options.localActorRecord.id,
+		remoteActorId: remoteActorRecord.id,
+		direction: ActivityPubFollowDirection.Inbound,
+		state: ActivityPubFollowState.Cancelled,
+		remoteActivityId: getActivityId(options.followActivity) || getActivityId(options.undoActivity),
+		acceptedAt: null,
+		rejectedAt: now,
+		rawActivityJson: JSON.stringify(options.undoActivity)
+	};
+}
+
 function getChangedFollowData(followRecord, followData) {
 	const updateData = {};
 	const normalizedFollowData = getStableFollowUpdateData(followRecord, followData);
@@ -98,6 +130,12 @@ function getChangedFollowData(followRecord, followData) {
 }
 
 function getStableFollowUpdateData(followRecord, followData) {
+	if (followRecord.rejectedAt && followData.rejectedAt && followRecord.state === followData.state) {
+		return {
+			...followData,
+			rejectedAt: followRecord.rejectedAt
+		};
+	}
 	if (!followRecord.acceptedAt || !followData.acceptedAt) {
 		return followData;
 	}

@@ -84,13 +84,13 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubGroupInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, and signed embedded `Undo(Follow)` activities cancel that follow state. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} ok Whether the signed activity was processed.
-	 * @apiSuccess {Boolean} accepted Whether the follow was accepted immediately.
+	 * @apiSuccess {Boolean} accepted Whether the activity leaves the follow accepted immediately.
 	 * @apiSuccess {String} message Processing result code.
 	 * @apiSuccess {String} activityType Activity type that was processed.
 	 * @apiSuccess {String} followState Stored follow state.
