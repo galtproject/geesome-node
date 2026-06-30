@@ -13,6 +13,8 @@ import type {
 	IActivityPubActorOptions,
 	IActivityPubConfig,
 	IActivityPubCreateActivity,
+	IActivityPubFollowActivity,
+	IActivityPubFollowActivityOptions,
 	IActivityPubFollowAcceptOptions,
 	IActivityPubFollowersCollection,
 	IActivityPubFollowersCollectionOptions,
@@ -100,6 +102,19 @@ export function buildActivityPubPostCreateActivity(config: IActivityPubConfig, g
 	};
 }
 
+export function buildActivityPubFollowActivity(config: IActivityPubConfig, group: IGroup, remoteActorUrl: string, options: IActivityPubFollowActivityOptions): IActivityPubFollowActivity {
+	assertActivityPubGroupFederatable(group);
+	const urls = getActivityPubGroupActorUrls(config, group);
+
+	return {
+		'@context': activityPubContext,
+		id: options.activityId,
+		type: 'Follow',
+		actor: urls.actorUrl,
+		object: remoteActorUrl
+	};
+}
+
 export function buildActivityPubFollowAcceptActivity(config: IActivityPubConfig, group: IGroup, followActivity: any, options: IActivityPubFollowAcceptOptions): IActivityPubAcceptActivity {
 	assertActivityPubGroupFederatable(group);
 	const urls = getActivityPubGroupActorUrls(config, group);
@@ -144,7 +159,7 @@ export function buildActivityPubFollowersCollection(config: IActivityPubConfig, 
 	};
 }
 
-export function buildActivityPubFollowingCollection(config: IActivityPubConfig, group: IGroup): IActivityPubFollowingCollection {
+export function buildActivityPubFollowingCollection(config: IActivityPubConfig, group: IGroup, actorUrls: string[] = [], options: IActivityPubFollowersCollectionOptions = {}): IActivityPubFollowingCollection {
 	assertActivityPubGroupFederatable(group);
 	const urls = getActivityPubGroupActorUrls(config, group);
 
@@ -152,8 +167,8 @@ export function buildActivityPubFollowingCollection(config: IActivityPubConfig, 
 		'@context': activityPubContext,
 		id: urls.followingUrl,
 		type: 'OrderedCollection',
-		totalItems: 0,
-		orderedItems: []
+		totalItems: options.totalItems ?? actorUrls.length,
+		orderedItems: actorUrls
 	};
 }
 

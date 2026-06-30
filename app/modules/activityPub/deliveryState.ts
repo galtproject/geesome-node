@@ -30,6 +30,14 @@ type IEnqueueFollowAcceptDeliveryOptions = {
 	now?: Date | string;
 };
 
+type IEnqueueFollowDeliveryOptions = {
+	localActorRecord: any;
+	remoteActorRecord: any;
+	followRecord: any;
+	followActivity: any;
+	now?: Date | string;
+};
+
 type IEnqueuePostCreateDeliveryOptions = {
 	config: IResolvedActivityPubConfig;
 	group: IGroup;
@@ -60,6 +68,25 @@ export async function enqueueActivityPubFollowAcceptDelivery(models, options: IE
 		activityType: 'Accept',
 		inboxUrl,
 		bodyJson: JSON.stringify(body),
+		state: ActivityPubDeliveryState.Pending,
+		attempts: 0,
+		nextAttemptAt: getDeliveryAttemptDate(options.now),
+		deliveredAt: null,
+		lastError: null
+	};
+
+	return syncActivityPubDeliveryRecord(models, deliveryData);
+}
+
+export async function enqueueActivityPubFollowDelivery(models, options: IEnqueueFollowDeliveryOptions) {
+	const deliveryData = {
+		localActorId: options.localActorRecord.id,
+		remoteActorId: options.remoteActorRecord.id,
+		followId: options.followRecord.id,
+		activityId: getRequiredActivityPubDeliveryActivityId(options.followActivity),
+		activityType: 'Follow',
+		inboxUrl: getRemoteActorDeliveryInboxUrl(options.remoteActorRecord),
+		bodyJson: JSON.stringify(options.followActivity),
 		state: ActivityPubDeliveryState.Pending,
 		attempts: 0,
 		nextAttemptAt: getDeliveryAttemptDate(options.now),
@@ -287,6 +314,13 @@ function getRemoteActorDeliveryInboxUrl(remoteActorRecord): string {
 
 function getFollowAcceptActivityId(config: IResolvedActivityPubConfig, group: IGroup, followRecord): string {
 	return `${getActivityPubGroupActorUrls(config, group).actorUrl}/activities/follows/${followRecord.id}/accept`;
+}
+
+function getRequiredActivityPubDeliveryActivityId(activity): string {
+	if (typeof activity?.id === 'string' && activity.id) {
+		return activity.id;
+	}
+	throwActivityPubError('activitypub_delivery_activity_id_required', 400);
 }
 
 async function markActivityPubDeliveryDelivered(deliveryRecord, now: Date, options: IProcessActivityPubDeliveryQueueOptions) {

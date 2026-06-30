@@ -602,6 +602,75 @@ describe('activityPub module', () => {
 		assert.deepEqual(followers.orderedItems, [remoteActorKey.actorUrl]);
 	});
 
+	it('queues outbound Follow delivery for a remote actor idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchCalls: string[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				fetchCalls.push(actorUrl);
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+
+		const firstResult = await module.followRemoteActor('test-channel', remoteActorKey.actorUrl, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const secondResult = await module.followRemoteActor('test-channel', remoteActorKey.actorUrl, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const follow = models.ActivityPubFollow.rows[0];
+		const delivery = models.ActivityPubDelivery.rows[0];
+		const deliveryBody = JSON.parse(delivery.bodyJson);
+		const pendingFollowing = await module.getGroupFollowing('test-channel', {limit: 10});
+
+		assert.deepEqual(fetchCalls, [remoteActorKey.actorUrl]);
+		assert.equal(firstResult.ok, true);
+		assert.equal(firstResult.message, 'activitypub_follow_delivery_queued');
+		assert.equal(firstResult.localActorUrl, 'https://social.example/ap/groups/test-channel');
+		assert.equal(firstResult.remoteActorUrl, remoteActorKey.actorUrl);
+		assert.equal(firstResult.followState, ActivityPubFollowState.Pending);
+		assert.equal(secondResult.followId, firstResult.followId);
+		assert.equal(secondResult.deliveryId, firstResult.deliveryId);
+		assert.equal(models.ActivityPubRemoteActor.rows.length, 1);
+		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(models.ActivityPubDelivery.rows.length, 1);
+		assert.equal(follow.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(follow.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(follow.direction, ActivityPubFollowDirection.Outbound);
+		assert.equal(follow.state, ActivityPubFollowState.Pending);
+		assert.equal(follow.remoteActivityId, 'https://social.example/ap/groups/test-channel/activities/follows/1');
+		assert.equal(JSON.parse(follow.rawActivityJson).type, 'Follow');
+		assert.equal(delivery.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(delivery.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(delivery.followId, follow.id);
+		assert.equal(delivery.activityType, 'Follow');
+		assert.equal(delivery.inboxUrl, 'https://remote.example/inbox');
+		assert.equal(deliveryBody.id, 'https://social.example/ap/groups/test-channel/activities/follows/1');
+		assert.equal(deliveryBody.type, 'Follow');
+		assert.equal(deliveryBody.actor, 'https://social.example/ap/groups/test-channel');
+		assert.equal(deliveryBody.object, remoteActorKey.actorUrl);
+		assert.equal(pendingFollowing.totalItems, 0);
+		assert.deepEqual(pendingFollowing.orderedItems, []);
+
+		await follow.update({
+			state: ActivityPubFollowState.Accepted,
+			acceptedAt: new Date('2026-06-01T12:05:00Z')
+		});
+		const acceptedFollowing = await module.getGroupFollowing('test-channel', {limit: 10});
+
+		assert.equal(acceptedFollowing.id, 'https://social.example/ap/groups/test-channel/following');
+		assert.equal(acceptedFollowing.type, 'OrderedCollection');
+		assert.equal(acceptedFollowing.totalItems, 1);
+		assert.deepEqual(acceptedFollowing.orderedItems, [remoteActorKey.actorUrl]);
+
+		const acceptedRepeatResult = await module.followRemoteActor('test-channel', remoteActorKey.actorUrl, {
+			now: '2026-06-01T12:10:00Z'
+		});
+		assert.equal(acceptedRepeatResult.followState, ActivityPubFollowState.Accepted);
+		assert.equal(follow.state, ActivityPubFollowState.Accepted);
+		assert.equal(follow.acceptedAt.toISOString(), '2026-06-01T12:05:00.000Z');
+	});
+
 	it('processes due delivery rows and marks successful sends delivered', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const deliveryRequests: any[] = [];
@@ -1176,6 +1245,15 @@ describe('activityPub API', () => {
 				id: 1,
 				state: ActivityPubFlagState.Resolved
 			}),
+			followRemoteActor: async () => ({
+				ok: true,
+				message: 'activitypub_follow_delivery_queued',
+				localActorUrl: 'https://social.example/ap/groups/test-channel',
+				remoteActorUrl: 'https://remote.example/users/alice',
+				followId: 1,
+				followState: ActivityPubFollowState.Pending,
+				deliveryId: 2
+			}),
 			handleGroupInboxRequest: async () => ({
 				ok: true,
 				accepted: true,
@@ -1240,6 +1318,22 @@ describe('activityPub API', () => {
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
+		});
+
+		const outboundFollow = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/follow', {
+			params: {groupName: 'test-channel'},
+			body: {actorUrl: 'https://remote.example/users/alice'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[2], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(outboundFollow.body, {
+			ok: true,
+			message: 'activitypub_follow_delivery_queued',
+			localActorUrl: 'https://social.example/ap/groups/test-channel',
+			remoteActorUrl: 'https://remote.example/users/alice',
+			followId: 1,
+			followState: ActivityPubFollowState.Pending,
+			deliveryId: 2
 		});
 
 		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
