@@ -45,6 +45,7 @@ import {
 	recordInboundActivityPubFollow,
 	recordInboundActivityPubFollowUndo
 } from './followState.js';
+import {recordInboundActivityPubFlag} from './flagState.js';
 import {
 	enqueueActivityPubPostCreateDeliveries,
 	enqueueActivityPubFollowAcceptDelivery,
@@ -263,6 +264,19 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 				return getBlockInboxResult(verification, follow, localActorUrl, remoteActorUrl);
 			}
+			if (isFlagActivity(request.body)) {
+				const flagTarget = await getRequiredInboundFlagTarget(models, request.body, localActorUrl);
+				const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+				assertInboundFlagTargetActorMatches(flagTarget, actorRecord);
+				const flag = await recordInboundActivityPubFlag(models, {
+					localActorRecord: actorRecord,
+					remoteActorUrl,
+					activity: request.body,
+					objectId: flagTarget.objectId
+				});
+
+				return getFlagInboxResult(verification, flag, localActorUrl, remoteActorUrl);
+			}
 
 			assertInboundFollowObject(request.body, localActorUrl);
 			const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
@@ -356,6 +370,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 		async flushDatabase() {
 			await models.ActivityPubDelivery.destroy({where: {}});
+			await models.ActivityPubFlag.destroy({where: {}});
 			await models.ActivityPubObject.destroy({where: {}});
 			await models.ActivityPubFollow.destroy({where: {}});
 			await models.ActivityPubActor.destroy({where: {}});
@@ -684,6 +699,10 @@ function isBlockActivity(activity): boolean {
 	return getActivityType(activity) === 'Block';
 }
 
+function isFlagActivity(activity): boolean {
+	return getActivityType(activity) === 'Flag';
+}
+
 function getActivityActor(activity): string | undefined {
 	if (typeof activity?.actor === 'string') {
 		return activity.actor;
@@ -719,7 +738,7 @@ function getRequiredActivityActor(activity): string {
 }
 
 function assertSupportedInboxActivity(activity): void {
-	if (isFollowActivity(activity) || isUndoActivity(activity) || isBlockActivity(activity)) {
+	if (isFollowActivity(activity) || isUndoActivity(activity) || isBlockActivity(activity) || isFlagActivity(activity)) {
 		return;
 	}
 	throwActivityPubError('activitypub_activity_not_supported', 501);
@@ -820,6 +839,36 @@ function assertInboundBlockObject(activity, localActorUrl: string): void {
 	throwActivityPubError('activitypub_block_object_mismatch', 400);
 }
 
+async function getRequiredInboundFlagTarget(models, activity, localActorUrl: string) {
+	const objectIds = getInboundFlagObjectIds(activity);
+	if (!objectIds.length) {
+		throwActivityPubError('activitypub_flag_object_required', 400);
+	}
+	if (objectIds.includes(localActorUrl)) {
+		return {
+			objectId: localActorUrl,
+			localActorId: null
+		};
+	}
+	for (const objectId of objectIds) {
+		const objectRecord = await getLocalActivityPubObjectByObjectId(models, objectId);
+		if (objectRecord) {
+			return {
+				objectId: objectRecord.objectId,
+				localActorId: objectRecord.localActorId
+			};
+		}
+	}
+	throwActivityPubError('activitypub_flag_object_mismatch', 400);
+}
+
+function assertInboundFlagTargetActorMatches(flagTarget, localActorRecord): void {
+	if (flagTarget.localActorId === null || Number(flagTarget.localActorId) === Number(localActorRecord.id)) {
+		return;
+	}
+	throwActivityPubError('activitypub_flag_object_mismatch', 400);
+}
+
 function getActivityObjectId(activity): string | undefined {
 	if (typeof activity?.object === 'string') {
 		return activity.object;
@@ -828,6 +877,28 @@ function getActivityObjectId(activity): string | undefined {
 		return activity.object.id;
 	}
 	return undefined;
+}
+
+function getInboundFlagObjectIds(activity): string[] {
+	const objectIds = [
+		...getActivityReferenceIds(activity?.object),
+		...getActivityReferenceIds(activity?.target)
+	];
+
+	return [...new Set(objectIds)];
+}
+
+function getActivityReferenceIds(value): string[] {
+	if (typeof value === 'string' && value) {
+		return [value];
+	}
+	if (Array.isArray(value)) {
+		return value.flatMap(item => getActivityReferenceIds(item));
+	}
+	if (typeof value?.id === 'string' && value.id) {
+		return [value.id];
+	}
+	return [];
 }
 
 function getFollowInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string, delivery, activityType = 'Follow'): IActivityPubInboxResult {
@@ -868,6 +939,21 @@ function getBlockInboxResult(verification, follow, localActorUrl: string, remote
 		actor: remoteActorUrl,
 		followId: follow.id,
 		followState: follow.state
+	};
+}
+
+function getFlagInboxResult(verification, flag, localActorUrl: string, remoteActorUrl: string): IActivityPubInboxResult {
+	return {
+		...verification,
+		ok: true,
+		accepted: true,
+		message: 'activitypub_flag_recorded',
+		localActorUrl,
+		activityType: 'Flag',
+		actor: remoteActorUrl,
+		flagId: flag.id,
+		flagState: flag.state,
+		objectId: flag.objectId
 	};
 }
 

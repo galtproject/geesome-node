@@ -202,12 +202,46 @@ export default async function (sequelize: Sequelize) {
 	} as any);
 	(ActivityPubDelivery as any).claimDueForDelivery = (claimOptions) => claimDueActivityPubDeliveries(sequelize, ActivityPubDelivery, claimOptions);
 
+	const ActivityPubFlag = sequelize.define('activityPubFlag', {
+		localActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		activityId: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		objectId: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		state: {
+			type: DataTypes.STRING(30),
+			allowNull: false
+		},
+		rawActivityJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_flags_activity_id_unique', fields: ['activityId'], unique: true},
+			{name: 'activity_pub_flags_local_state_idx', fields: ['localActorId', 'state']},
+			{name: 'activity_pub_flags_object_idx', fields: ['objectId']}
+		]
+	} as any);
+
 	return {
 		ActivityPubActor: await ActivityPubActor.sync({}),
 		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
 		ActivityPubFollow: await ActivityPubFollow.sync({}),
 		ActivityPubObject: await ActivityPubObject.sync({}),
 		ActivityPubDelivery: await ActivityPubDelivery.sync({}),
+		ActivityPubFlag: await ActivityPubFlag.sync({}),
 		activityPubDeliveryClaimsSupported: includeDeliveryClaimColumns
 	};
 }
