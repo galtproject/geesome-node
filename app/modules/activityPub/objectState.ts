@@ -23,6 +23,13 @@ type ISyncRemoteActivityPubObjectOptions = {
 	object: any;
 };
 
+type ITombstoneRemoteActivityPubObjectOptions = {
+	remoteActorRecord: any;
+	activity: any;
+};
+
+const activityPubTombstoneObjectType = 'Tombstone';
+
 export async function syncLocalPostActivityPubObject(models, options: ISyncLocalPostActivityPubObjectOptions) {
 	if (!options.post?.id) {
 		return null;
@@ -51,6 +58,7 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 	const objectData = getRemoteActivityPubObjectData(options);
 	const existingObject = await getActivityPubObjectRecord(models, objectData);
 	if (existingObject) {
+		assertActivityPubObjectNotTombstoned(existingObject);
 		return updateActivityPubObjectRecord(existingObject, objectData);
 	}
 
@@ -64,8 +72,26 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 		if (!createdObject) {
 			throw e;
 		}
+		assertActivityPubObjectNotTombstoned(createdObject);
 		return updateActivityPubObjectRecord(createdObject, objectData);
 	}
+}
+
+export async function tombstoneRemoteActivityPubObject(models, options: ITombstoneRemoteActivityPubObjectOptions) {
+	const objectId = getRequiredActivityPubActivityObjectId(options.activity);
+	const existingObject = await getRemoteActivityPubObjectRecordByObjectId(models, objectId);
+	if (!existingObject) {
+		throwActivityPubObjectError('activitypub_delete_object_not_found', 404);
+	}
+	if (Number(existingObject.remoteActorId) !== Number(options.remoteActorRecord.id)) {
+		throwActivityPubObjectError('activitypub_delete_object_actor_mismatch', 400);
+	}
+
+	return updateActivityPubObjectRecord(existingObject, {
+		activityId: getRequiredActivityPubActivityId(options.activity),
+		objectType: activityPubTombstoneObjectType,
+		rawJson: JSON.stringify(options.activity)
+	});
 }
 
 export async function getLocalActivityPubObjectByObjectId(models, objectId: string) {
@@ -73,6 +99,15 @@ export async function getLocalActivityPubObjectByObjectId(models, objectId: stri
 		where: {
 			objectId,
 			origin: ActivityPubObjectOrigin.Local
+		}
+	});
+}
+
+async function getRemoteActivityPubObjectRecordByObjectId(models, objectId: string) {
+	return models.ActivityPubObject.findOne({
+		where: {
+			objectId,
+			origin: ActivityPubObjectOrigin.Remote
 		}
 	});
 }
@@ -176,6 +211,16 @@ function getRequiredActivityPubObjectType(object): string {
 	throwActivityPubObjectError('activitypub_object_type_required');
 }
 
+function getRequiredActivityPubActivityObjectId(activity): string {
+	if (typeof activity?.object === 'string' && activity.object) {
+		return activity.object;
+	}
+	if (typeof activity?.object?.id === 'string' && activity.object.id) {
+		return activity.object.id;
+	}
+	throwActivityPubObjectError('activitypub_activity_object_id_required');
+}
+
 function getActivityPubObjectUrl(object, objectId: string): string {
 	if (typeof object?.url === 'string' && object.url) {
 		return object.url;
@@ -231,8 +276,15 @@ function isActivityPubObjectUniqueError(error): boolean {
 	return error?.name === 'SequelizeUniqueConstraintError';
 }
 
-function throwActivityPubObjectError(message: string): never {
+function assertActivityPubObjectNotTombstoned(objectRecord): void {
+	if (objectRecord.objectType !== activityPubTombstoneObjectType) {
+		return;
+	}
+	throwActivityPubObjectError('activitypub_object_tombstoned', 410);
+}
+
+function throwActivityPubObjectError(message: string, code = 400): never {
 	const error = new Error(message) as Error & {code?: number};
-	error.code = 400;
+	error.code = code;
 	throw error;
 }

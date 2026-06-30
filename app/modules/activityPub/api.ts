@@ -121,7 +121,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object, and signed `Delete` activities tombstone already-cached remote objects from the same remote actor. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
