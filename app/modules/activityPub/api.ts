@@ -105,6 +105,30 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {get} /v1/admin/activity-pub/groups/:groupName/remote-objects List cached ActivityPub remote objects
+	 * @apiName AdminActivityPubRemoteObjects
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
+	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note` or `Tombstone`.
+	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
+	 * @apiQuery {Number} [remoteActorId] Filter by remote actor database id.
+	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON and remote actor metadata.
+	 * @apiSuccess {Number} total Total matching cached remote objects.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getGroupRemoteObjects(req.params.groupName, req.query, req.query));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/groups/:groupName/flags/:flagId/state Set ActivityPub flag report state
 	 * @apiName AdminActivityPubFlagReportState
 	 * @apiGroup AdminActivityPub

@@ -8,9 +8,14 @@ import IGeesomeActivityPubModule, {
 	ActivityPubFollowDirection,
 	ActivityPubFlagState,
 	ActivityPubFollowState,
+	ActivityPubObjectOrigin,
+	ActivityPubObjectVisibility,
 	IActivityPubFlagReport,
 	IActivityPubFlagReportFilters,
 	IActivityPubFlagReportListResponse,
+	IActivityPubRemoteObjectFilters,
+	IActivityPubRemoteObjectListResponse,
+	IActivityPubRemoteObjectReport,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
 	IActivityPubDeliveryProcessOptions,
@@ -88,6 +93,14 @@ const activityPubFlagReportListParams = {
 	sortBy: 'createdAt',
 	sortDir: 'DESC',
 	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'state'],
+	maxLimit: 100
+};
+
+const activityPubRemoteObjectListParams = {
+	limit: 20,
+	sortBy: 'publishedAt',
+	sortDir: 'DESC',
+	allowedSortBy: ['publishedAt', 'createdAt', 'updatedAt', 'id', 'objectType', 'visibility'],
 	maxLimit: 100
 };
 
@@ -202,6 +215,17 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			}
 
 			return getGroupFlagReportList(app, models, actorRecord, filters, listParams);
+		}
+
+		async getGroupRemoteObjects(groupName: string, filters: IActivityPubRemoteObjectFilters = {}, listParams: IListParams = {}): Promise<IActivityPubRemoteObjectListResponse> {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			if (!actorRecord) {
+				return getEmptyRemoteObjectList();
+			}
+
+			return getGroupRemoteObjectList(app, models, actorRecord, filters, listParams);
 		}
 
 		async setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport> {
@@ -678,6 +702,26 @@ async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, fil
 	};
 }
 
+async function getGroupRemoteObjectList(app: IGeesomeApp, models, actorRecord, filters: IActivityPubRemoteObjectFilters, listParams: IListParams): Promise<IActivityPubRemoteObjectListResponse> {
+	const preparedListParams = {
+		...listParams
+	};
+	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubRemoteObjectListParams);
+	const objectPage = await models.ActivityPubObject.findAndCountAll({
+		where: getActivityPubRemoteObjectWhere(actorRecord, filters),
+		order: [[preparedListParams.sortBy, getListSortDirection(preparedListParams)]],
+		limit: preparedListParams.limit,
+		offset: preparedListParams.offset
+	});
+	const remoteActors = await getRemoteActorRecordsByIds(models, objectPage.rows.map((object) => object.remoteActorId));
+	const remoteActorById = getRemoteActorById(remoteActors);
+
+	return {
+		list: objectPage.rows.map((object) => getActivityPubRemoteObjectReport(object, remoteActorById)),
+		total: getListPageCount(objectPage.count)
+	};
+}
+
 function getActivityPubFlagReportWhere(actorRecord, filters: IActivityPubFlagReportFilters = {}) {
 	const where: any = {
 		localActorId: actorRecord.id
@@ -687,6 +731,27 @@ function getActivityPubFlagReportWhere(actorRecord, filters: IActivityPubFlagRep
 	}
 	if (typeof filters.objectId === 'string' && filters.objectId) {
 		where.objectId = filters.objectId;
+	}
+	const remoteActorId = helpers.normalizeUniqueIds(filters.remoteActorId)[0];
+	if (remoteActorId) {
+		where.remoteActorId = remoteActorId;
+	}
+	return where;
+}
+
+function getActivityPubRemoteObjectWhere(actorRecord, filters: IActivityPubRemoteObjectFilters = {}) {
+	const where: any = {
+		localActorId: actorRecord.id,
+		origin: ActivityPubObjectOrigin.Remote
+	};
+	if (typeof filters.objectId === 'string' && filters.objectId) {
+		where.objectId = filters.objectId;
+	}
+	if (typeof filters.objectType === 'string' && filters.objectType) {
+		where.objectType = filters.objectType;
+	}
+	if (isKnownActivityPubObjectVisibility(filters.visibility)) {
+		where.visibility = filters.visibility;
 	}
 	const remoteActorId = helpers.normalizeUniqueIds(filters.remoteActorId)[0];
 	if (remoteActorId) {
@@ -725,7 +790,32 @@ function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IAct
 	};
 }
 
+function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, any>): IActivityPubRemoteObjectReport {
+	const remoteActor = remoteActorById.get(Number(object.remoteActorId));
+
+	return {
+		id: object.id,
+		localActorId: object.localActorId,
+		localPostId: object.localPostId,
+		remoteActorId: object.remoteActorId,
+		remoteActor: getActivityPubRemoteActorReport(remoteActor),
+		remoteObjectUrl: object.remoteObjectUrl,
+		activityId: object.activityId,
+		objectId: object.objectId,
+		objectType: object.objectType,
+		visibility: object.visibility,
+		publishedAt: object.publishedAt,
+		object: parseActivityPubJson(object.rawJson),
+		createdAt: object.createdAt,
+		updatedAt: object.updatedAt
+	};
+}
+
 function getActivityPubFlagRemoteActorReport(remoteActor) {
+	return getActivityPubRemoteActorReport(remoteActor);
+}
+
+function getActivityPubRemoteActorReport(remoteActor) {
 	if (!remoteActor) {
 		return undefined;
 	}
@@ -737,6 +827,10 @@ function getActivityPubFlagRemoteActorReport(remoteActor) {
 		inboxUrl: remoteActor.inboxUrl,
 		sharedInboxUrl: remoteActor.sharedInboxUrl
 	};
+}
+
+function isKnownActivityPubObjectVisibility(visibility): visibility is ActivityPubObjectVisibility {
+	return Object.values(ActivityPubObjectVisibility).includes(visibility);
 }
 
 function getRemoteActorById(remoteActors) {
@@ -755,14 +849,25 @@ function getRequiredActivityPubFlagState(state): ActivityPubFlagState {
 }
 
 function parseActivityPubFlagActivity(rawActivityJson: string) {
+	return parseActivityPubJson(rawActivityJson);
+}
+
+function parseActivityPubJson(rawJson: string) {
 	try {
-		return JSON.parse(rawActivityJson);
+		return JSON.parse(rawJson);
 	} catch (e) {
 		return null;
 	}
 }
 
 function getEmptyFlagReportList(): IActivityPubFlagReportListResponse {
+	return {
+		list: [],
+		total: 0
+	};
+}
+
+function getEmptyRemoteObjectList(): IActivityPubRemoteObjectListResponse {
 	return {
 		list: [],
 		total: 0

@@ -1015,6 +1015,74 @@ describe('activityPub module', () => {
 		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply');
 	});
 
+	it('lists cached remote ActivityPub objects for admin review', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const activity = {
+			id: 'https://remote.example/activities/create-reply-list-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-list-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply for review',
+				published: '2026-06-01T12:05:00Z'
+			}
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		models.ActivityPubObject.rows.push({
+			id: 99,
+			localActorId: 999,
+			localPostId: null,
+			remoteActorId: models.ActivityPubRemoteActor.rows[0].id,
+			remoteObjectUrl: 'https://remote.example/objects/other-group-reply',
+			activityId: 'https://remote.example/activities/other-group-reply',
+			objectId: 'https://remote.example/objects/other-group-reply',
+			objectType: 'Note',
+			origin: 'remote',
+			visibility: 'public',
+			publishedAt: new Date('2026-06-01T12:06:00Z'),
+			rawJson: '{}'
+		});
+		const objectPage = await module.getGroupRemoteObjects('test-channel', {
+			objectType: 'Note',
+			visibility: 'public',
+			remoteActorId: models.ActivityPubRemoteActor.rows[0].id
+		}, {limit: 10});
+		const object = objectPage.list[0];
+		const emptyPage = await module.getGroupRemoteObjects('test-channel', {
+			objectType: 'Tombstone'
+		}, {limit: 10});
+
+		assert.equal(objectPage.total, 1);
+		assert.equal(object.id, models.ActivityPubObject.rows.find((row) => row.origin === 'remote').id);
+		assert.equal(object.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(object.localPostId, null);
+		assert.equal(object.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(object.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(object.remoteActor?.preferredUsername, 'alice');
+		assert.equal(object.remoteObjectUrl, activity.object.id);
+		assert.equal(object.activityId, activity.id);
+		assert.equal(object.objectId, activity.object.id);
+		assert.equal(object.objectType, 'Note');
+		assert.equal(object.visibility, 'public');
+		assert.equal(object.publishedAt?.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.equal(object.object?.content, 'Remote reply for review');
+		assert.equal(emptyPage.total, 0);
+		assert.deepEqual(emptyPage.list, []);
+	});
+
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -1356,6 +1424,10 @@ describe('activityPub API', () => {
 				list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
 				total: 1
 			}),
+			getGroupRemoteObjects: async () => ({
+				list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
+				total: 1
+			}),
 			setGroupFlagReportState: async () => ({
 				id: 1,
 				state: ActivityPubFlagState.Resolved
@@ -1424,12 +1496,23 @@ describe('activityPub API', () => {
 			total: 1
 		});
 
+		const remoteObjects = await callRoute(routes, 'AUTH GET admin/activity-pub/groups/:groupName/remote-objects', {
+			params: {groupName: 'test-channel'},
+			query: {objectType: 'Note'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[1], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(remoteObjects.body, {
+			list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
+			total: 1
+		});
+
 		const flagReportState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/flags/:flagId/state', {
 			params: {groupName: 'test-channel', flagId: '1'},
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[1], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[2], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -1440,7 +1523,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[2], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[3], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',

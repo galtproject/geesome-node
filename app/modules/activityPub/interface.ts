@@ -170,7 +170,7 @@ export interface IActivityPubFlag {
 	rawActivityJson: string;
 }
 
-export interface IActivityPubFlagReportRemoteActor {
+export interface IActivityPubRemoteActorReport {
 	id?: number;
 	actorUrl?: string;
 	preferredUsername?: string;
@@ -178,6 +178,8 @@ export interface IActivityPubFlagReportRemoteActor {
 	inboxUrl?: string;
 	sharedInboxUrl?: string;
 }
+
+export type IActivityPubFlagReportRemoteActor = IActivityPubRemoteActorReport;
 
 export interface IActivityPubFlagReport {
 	id?: number;
@@ -204,6 +206,35 @@ export interface IActivityPubFlagReportStateInput {
 
 export interface IActivityPubFlagReportListResponse {
 	list: IActivityPubFlagReport[];
+	total: number;
+}
+
+export interface IActivityPubRemoteObjectReport {
+	id?: number;
+	localActorId?: number;
+	localPostId?: number;
+	remoteActorId?: number;
+	remoteActor?: IActivityPubRemoteActorReport;
+	remoteObjectUrl?: string;
+	activityId?: string;
+	objectId: string;
+	objectType: string;
+	visibility: ActivityPubObjectVisibility;
+	publishedAt?: Date;
+	object?: Record<string, any> | null;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface IActivityPubRemoteObjectFilters {
+	objectId?: string;
+	objectType?: string;
+	visibility?: ActivityPubObjectVisibility | string;
+	remoteActorId?: number | string;
+}
+
+export interface IActivityPubRemoteObjectListResponse {
+	list: IActivityPubRemoteObjectReport[];
 	total: number;
 }
 
@@ -375,6 +406,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
 
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
+
+	getGroupRemoteObjects(groupName: string, filters?: IActivityPubRemoteObjectFilters, listParams?: IListParams): Promise<IActivityPubRemoteObjectListResponse>;
 
 	setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport>;
 
