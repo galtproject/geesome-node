@@ -98,6 +98,17 @@ export enum ActivityPubDeliveryState {
 	Failed = 'failed'
 }
 
+export enum ActivityPubObjectOrigin {
+	Local = 'local',
+	Remote = 'remote'
+}
+
+export enum ActivityPubObjectVisibility {
+	Public = 'public',
+	Followers = 'followers',
+	Direct = 'direct'
+}
+
 export interface IActivityPubFollow {
 	localActorId: number;
 	remoteActorId: number;
@@ -124,6 +135,20 @@ export interface IActivityPubDelivery {
 	lastError?: string;
 	deliveryClaimedAt?: Date;
 	deliveryClaimExpiresAt?: Date;
+}
+
+export interface IActivityPubObject {
+	localActorId?: number;
+	localPostId?: number;
+	remoteActorId?: number;
+	remoteObjectUrl?: string;
+	activityId?: string;
+	objectId: string;
+	objectType: string;
+	origin: ActivityPubObjectOrigin;
+	visibility: ActivityPubObjectVisibility;
+	publishedAt?: Date;
+	rawJson: string;
 }
 
 export interface IActivityPubDeliveryRequest {
