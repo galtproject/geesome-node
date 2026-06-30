@@ -165,11 +165,14 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} accepted Whether the activity was accepted and stored.
+	 * @apiSuccess {String} activityType Activity type that was processed.
+	 * @apiSuccess {String} objectId ActivityPub object id that was recorded, updated, or tombstoned.
+	 * @apiSuccess {Number} activityPubObjectId Local cached ActivityPub object row id.
 	 */
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {
