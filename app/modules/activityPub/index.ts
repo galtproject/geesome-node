@@ -41,6 +41,7 @@ import {
 import {getActivityPubRemoteActorKey} from './remoteActorCache.js';
 import type {IActivityPubRemoteActorCacheOptions} from './remoteActorCache.js';
 import {
+	recordInboundActivityPubBlock,
 	recordInboundActivityPubFollow,
 	recordInboundActivityPubFollowUndo
 } from './followState.js';
@@ -236,7 +237,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 			assertSupportedInboxActivity(request.body);
 
-			if (!isFollowActivity(request.body)) {
+			if (isUndoActivity(request.body)) {
 				const followActivity = getRequiredUndoFollowActivity(request.body);
 				assertInboundFollowUndoObject(followActivity, remoteActorUrl, localActorUrl);
 				const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
@@ -249,6 +250,18 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				});
 
 				return getFollowInboxResult(verification, follow, localActorUrl, remoteActorUrl, null, 'Undo');
+			}
+			if (isBlockActivity(request.body)) {
+				assertInboundBlockObject(request.body, localActorUrl);
+				const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+				const follow = await recordInboundActivityPubBlock(models, {
+					localActorRecord: actorRecord,
+					remoteActorUrl,
+					activity: request.body,
+					now: request.now
+				});
+
+				return getBlockInboxResult(verification, follow, localActorUrl, remoteActorUrl);
 			}
 
 			assertInboundFollowObject(request.body, localActorUrl);
@@ -667,6 +680,10 @@ function isDeleteActivity(activity): boolean {
 	return getActivityType(activity) === 'Delete';
 }
 
+function isBlockActivity(activity): boolean {
+	return getActivityType(activity) === 'Block';
+}
+
 function getActivityActor(activity): string | undefined {
 	if (typeof activity?.actor === 'string') {
 		return activity.actor;
@@ -702,7 +719,7 @@ function getRequiredActivityActor(activity): string {
 }
 
 function assertSupportedInboxActivity(activity): void {
-	if (isFollowActivity(activity) || isUndoActivity(activity)) {
+	if (isFollowActivity(activity) || isUndoActivity(activity) || isBlockActivity(activity)) {
 		return;
 	}
 	throwActivityPubError('activitypub_activity_not_supported', 501);
@@ -796,6 +813,13 @@ function assertInboundFollowObject(activity, localActorUrl: string): void {
 	throwActivityPubError('activitypub_follow_object_mismatch', 400);
 }
 
+function assertInboundBlockObject(activity, localActorUrl: string): void {
+	if (getActivityObjectId(activity) === localActorUrl) {
+		return;
+	}
+	throwActivityPubError('activitypub_block_object_mismatch', 400);
+}
+
 function getActivityObjectId(activity): string | undefined {
 	if (typeof activity?.object === 'string') {
 		return activity.object;
@@ -831,6 +855,20 @@ function getFollowInboxMessage(follow): string {
 		return 'activitypub_follow_cancelled';
 	}
 	return 'activitypub_follow_accepted';
+}
+
+function getBlockInboxResult(verification, follow, localActorUrl: string, remoteActorUrl: string): IActivityPubInboxResult {
+	return {
+		...verification,
+		ok: true,
+		accepted: true,
+		message: 'activitypub_block_accepted',
+		localActorUrl,
+		activityType: 'Block',
+		actor: remoteActorUrl,
+		followId: follow.id,
+		followState: follow.state
+	};
 }
 
 function getSharedInboxCreateResult(verification, remoteActorUrl: string, objectRecord, inReplyTo: string): IActivityPubInboxResult {

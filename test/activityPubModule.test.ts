@@ -310,6 +310,81 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubDelivery.rows.length, 1);
 	});
 
+	it('records signed Block activities and stops future post delivery', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const followActivity = {
+			id: 'https://remote.example/activities/follow-block-1',
+			type: 'Follow',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+		const blockActivity = {
+			id: 'https://remote.example/activities/block-group-1',
+			type: 'Block',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel'
+		};
+
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', followActivity)
+		);
+		const firstBlockResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', blockActivity)
+		);
+		const secondBlockResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', blockActivity)
+		);
+		const followers = await module.getGroupFollowers('test-channel', {limit: 10});
+		const postDeliveryResult = await module.afterPostManifestUpdate(1, 11);
+		const follow = models.ActivityPubFollow.rows[0];
+
+		assert.equal(firstBlockResult.ok, true);
+		assert.equal(firstBlockResult.accepted, true);
+		assert.equal(firstBlockResult.message, 'activitypub_block_accepted');
+		assert.equal(firstBlockResult.activityType, 'Block');
+		assert.equal(firstBlockResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstBlockResult.followState, ActivityPubFollowState.Cancelled);
+		assert.equal(secondBlockResult.followId, firstBlockResult.followId);
+		assert.equal(secondBlockResult.followState, ActivityPubFollowState.Cancelled);
+		assert.equal(models.ActivityPubFollow.rows.length, 1);
+		assert.equal(models.ActivityPubDelivery.rows.length, 1);
+		assert.equal(follow.state, ActivityPubFollowState.Cancelled);
+		assert.equal(follow.remoteActivityId, blockActivity.id);
+		assert.equal(follow.acceptedAt, null);
+		assert.equal(follow.rejectedAt.toISOString(), '2026-06-01T12:00:00.000Z');
+		assert.equal(JSON.parse(follow.rawActivityJson).id, blockActivity.id);
+		assert.equal(followers.totalItems, 0);
+		assert.deepEqual(followers.orderedItems, []);
+		assert.equal(postDeliveryResult.queued, 0);
+		assert.deepEqual(postDeliveryResult.deliveryIds, []);
+		assert.equal(models.ActivityPubDelivery.rows.length, 1);
+	});
+
+	it('rejects signed Block activities for a different local actor object', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/block-group-2',
+			type: 'Block',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/other-channel'
+		};
+
+		await assert.rejects(() => module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		), /activitypub_block_object_mismatch/);
+		assert.equal(models.ActivityPubFollow.rows.length, 0);
+	});
+
 	it('rejects signed Undo(Follow) activities for a different remote actor', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
