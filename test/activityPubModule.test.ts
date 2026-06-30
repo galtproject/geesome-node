@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
-import {ActivityPubDeliveryState, ActivityPubFollowDirection, ActivityPubFollowState} from '../app/modules/activityPub/interface.js';
+import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 
@@ -383,6 +383,69 @@ describe('activityPub module', () => {
 			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
 		), /activitypub_block_object_mismatch/);
 		assert.equal(models.ActivityPubFollow.rows.length, 0);
+	});
+
+	it('records signed Flag activities for known local objects idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const flagActivity = {
+			id: 'https://remote.example/activities/flag-post-1',
+			type: 'Flag',
+			actor: remoteActorKey.actorUrl,
+			object: [
+				'https://social.example/ap/groups/test-channel/posts/7'
+			],
+			content: 'Remote moderation report'
+		};
+		const firstFlagResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', flagActivity)
+		);
+		const secondFlagResult = await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', flagActivity)
+		);
+		const flag = models.ActivityPubFlag.rows[0];
+
+		assert.equal(firstFlagResult.ok, true);
+		assert.equal(firstFlagResult.accepted, true);
+		assert.equal(firstFlagResult.message, 'activitypub_flag_recorded');
+		assert.equal(firstFlagResult.activityType, 'Flag');
+		assert.equal(firstFlagResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstFlagResult.objectId, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.equal(firstFlagResult.flagState, ActivityPubFlagState.Pending);
+		assert.equal(secondFlagResult.flagId, firstFlagResult.flagId);
+		assert.equal(models.ActivityPubFlag.rows.length, 1);
+		assert.equal(flag.localActorId, models.ActivityPubActor.rows[0].id);
+		assert.equal(flag.remoteActorId, models.ActivityPubRemoteActor.rows[0].id);
+		assert.equal(flag.activityId, flagActivity.id);
+		assert.equal(flag.objectId, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.equal(flag.state, ActivityPubFlagState.Pending);
+		assert.equal(JSON.parse(flag.rawActivityJson).id, flagActivity.id);
+		assert.equal(models.ActivityPubFollow.rows.length, 0);
+	});
+
+	it('rejects signed Flag activities for unknown local targets', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const activity = {
+			id: 'https://remote.example/activities/flag-post-2',
+			type: 'Flag',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/other-channel/posts/7'
+		};
+
+		await assert.rejects(() => module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		), /activitypub_flag_object_mismatch/);
+		assert.equal(models.ActivityPubFlag.rows.length, 0);
 	});
 
 	it('rejects signed Undo(Follow) activities for a different remote actor', async () => {
@@ -1151,7 +1214,8 @@ function getModelsStub() {
 		ActivityPubRemoteActor: getModelStub(),
 		ActivityPubFollow: getModelStub(),
 		ActivityPubObject: getModelStub(),
-		ActivityPubDelivery: getModelStub()
+		ActivityPubDelivery: getModelStub(),
+		ActivityPubFlag: getModelStub()
 	};
 
 	return models;

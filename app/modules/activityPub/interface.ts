@@ -99,6 +99,11 @@ export enum ActivityPubDeliveryState {
 	Failed = 'failed'
 }
 
+export enum ActivityPubFlagState {
+	Pending = 'pending',
+	Resolved = 'resolved'
+}
+
 export enum ActivityPubObjectOrigin {
 	Local = 'local',
 	Remote = 'remote'
@@ -136,6 +141,15 @@ export interface IActivityPubDelivery {
 	lastError?: string;
 	deliveryClaimedAt?: Date;
 	deliveryClaimExpiresAt?: Date;
+}
+
+export interface IActivityPubFlag {
+	localActorId: number;
+	remoteActorId: number;
+	activityId: string;
+	objectId: string;
+	state: ActivityPubFlagState;
+	rawActivityJson: string;
 }
 
 export interface IActivityPubObject {
@@ -259,6 +273,8 @@ export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerifi
 	followId?: number;
 	followState?: ActivityPubFollowState;
 	deliveryId?: number;
+	flagId?: number;
+	flagState?: ActivityPubFlagState;
 	activityPubObjectId?: number;
 	objectId?: string;
 	inReplyTo?: string;

@@ -98,7 +98,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubGroupInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed embedded `Undo(Follow)` activities cancel that follow state, and signed `Block` activities cancel follower state so future local post delivery skips that remote actor. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed embedded `Undo(Follow)` activities cancel that follow state, signed `Block` activities cancel follower state so future local post delivery skips that remote actor, and signed `Flag` activities store pending moderation reports for the local actor or known local objects. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
