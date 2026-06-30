@@ -45,7 +45,11 @@ import {
 	enqueueActivityPubFollowAcceptDelivery,
 	processActivityPubDeliveryQueue
 } from './deliveryState.js';
-import {syncLocalPostActivityPubObject} from './objectState.js';
+import {
+	getLocalActivityPubObjectByObjectId,
+	syncLocalPostActivityPubObject,
+	syncRemoteActivityPubObject
+} from './objectState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
@@ -265,6 +269,31 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			};
 		}
 
+		async handleSharedInboxRequest(request: IActivityPubInboundRequest): Promise<IActivityPubInboxResult> {
+			getResolvedActivityPubConfig(app);
+			const verification = await verifyInboundRequest(resolveRemoteActorKey, request);
+			const remoteActorUrl = getRequiredActivityActor(request.body);
+			const object = getRequiredSharedInboxCreateObject(request.body);
+			const inReplyTo = getRequiredActivityObjectInReplyTo(object);
+			const targetObject = await getLocalActivityPubObjectByObjectId(models, inReplyTo);
+			if (!targetObject) {
+				throwActivityPubError('activitypub_object_target_not_found', 404);
+			}
+			assertActivityPubObjectActorMatches(object, remoteActorUrl);
+			const remoteActorRecord = await getRemoteActorRecordByActorUrl(models, remoteActorUrl);
+			if (!remoteActorRecord) {
+				throwActivityPubError('activitypub_remote_actor_required', 400);
+			}
+			const objectRecord = await syncRemoteActivityPubObject(models, {
+				remoteActorRecord,
+				targetObjectRecord: targetObject,
+				activity: request.body,
+				object
+			});
+
+			return getSharedInboxCreateResult(verification, remoteActorUrl, objectRecord, inReplyTo);
+		}
+
 		async flushDatabase() {
 			await models.ActivityPubDelivery.destroy({where: {}});
 			await models.ActivityPubObject.destroy({where: {}});
@@ -406,6 +435,14 @@ async function getRemoteActorRecordsByIds(models, remoteActorIds) {
 			id: {
 				[Op.in]: ids
 			}
+		}
+	});
+}
+
+async function getRemoteActorRecordByActorUrl(models, actorUrl: string) {
+	return models.ActivityPubRemoteActor.findOne({
+		where: {
+			actorUrl
 		}
 	});
 }
@@ -581,6 +618,22 @@ function getActivityActor(activity): string | undefined {
 	return undefined;
 }
 
+function getObjectActor(object): string | undefined {
+	if (typeof object?.attributedTo === 'string') {
+		return object.attributedTo;
+	}
+	if (typeof object?.attributedTo?.id === 'string') {
+		return object.attributedTo.id;
+	}
+	if (typeof object?.actor === 'string') {
+		return object.actor;
+	}
+	if (typeof object?.actor?.id === 'string') {
+		return object.actor.id;
+	}
+	return undefined;
+}
+
 function getRequiredActivityActor(activity): string {
 	const actor = getActivityActor(activity);
 	if (actor) {
@@ -594,6 +647,37 @@ function assertSupportedInboxActivity(activity): void {
 		return;
 	}
 	throwActivityPubError('activitypub_activity_not_supported', 501);
+}
+
+function getRequiredSharedInboxCreateObject(activity) {
+	if (getActivityType(activity) !== 'Create') {
+		throwActivityPubError('activitypub_activity_not_supported', 501);
+	}
+	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
+		throwActivityPubError('activitypub_create_object_required', 400);
+	}
+	if (activity.object.type !== 'Note') {
+		throwActivityPubError('activitypub_create_object_not_supported', 501);
+	}
+	return activity.object;
+}
+
+function getRequiredActivityObjectInReplyTo(object): string {
+	if (typeof object?.inReplyTo === 'string' && object.inReplyTo) {
+		return object.inReplyTo;
+	}
+	if (typeof object?.inReplyTo?.id === 'string' && object.inReplyTo.id) {
+		return object.inReplyTo.id;
+	}
+	throwActivityPubError('activitypub_create_in_reply_to_required', 400);
+}
+
+function assertActivityPubObjectActorMatches(object, remoteActorUrl: string): void {
+	const objectActor = getObjectActor(object);
+	if (!objectActor || objectActor === remoteActorUrl) {
+		return;
+	}
+	throwActivityPubError('activitypub_create_object_actor_mismatch', 400);
 }
 
 function assertInboundFollowObject(activity, localActorUrl: string): void {
@@ -635,6 +719,20 @@ function getFollowInboxMessage(follow): string {
 		return 'activitypub_follow_pending';
 	}
 	return 'activitypub_follow_accepted';
+}
+
+function getSharedInboxCreateResult(verification, remoteActorUrl: string, objectRecord, inReplyTo: string): IActivityPubInboxResult {
+	return {
+		...verification,
+		ok: true,
+		accepted: true,
+		message: 'activitypub_create_object_recorded',
+		activityType: 'Create',
+		actor: remoteActorUrl,
+		activityPubObjectId: objectRecord.id,
+		objectId: objectRecord.objectId,
+		inReplyTo
+	};
 }
 
 function parseWebFingerResource(resource: string) {
