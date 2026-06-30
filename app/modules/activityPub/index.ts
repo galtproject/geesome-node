@@ -52,7 +52,8 @@ import {
 import {
 	getLocalActivityPubObjectByObjectId,
 	syncLocalPostActivityPubObject,
-	syncRemoteActivityPubObject
+	syncRemoteActivityPubObject,
+	tombstoneRemoteActivityPubObject
 } from './objectState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
@@ -299,6 +300,18 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			getResolvedActivityPubConfig(app);
 			const verification = await verifyInboundRequest(resolveRemoteActorKey, request);
 			const remoteActorUrl = getRequiredActivityActor(request.body);
+			const remoteActorRecord = await getRemoteActorRecordByActorUrl(models, remoteActorUrl);
+			if (!remoteActorRecord) {
+				throwActivityPubError('activitypub_remote_actor_required', 400);
+			}
+			if (isDeleteActivity(request.body)) {
+				const objectRecord = await tombstoneRemoteActivityPubObject(models, {
+					remoteActorRecord,
+					activity: request.body
+				});
+
+				return getSharedInboxDeleteResult(verification, remoteActorUrl, objectRecord);
+			}
 			const object = getRequiredSharedInboxCreateObject(request.body);
 			const inReplyTo = getRequiredActivityObjectInReplyTo(object);
 			const targetObject = await getLocalActivityPubObjectByObjectId(models, inReplyTo);
@@ -306,10 +319,6 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				throwActivityPubError('activitypub_object_target_not_found', 404);
 			}
 			assertActivityPubObjectActorMatches(object, remoteActorUrl);
-			const remoteActorRecord = await getRemoteActorRecordByActorUrl(models, remoteActorUrl);
-			if (!remoteActorRecord) {
-				throwActivityPubError('activitypub_remote_actor_required', 400);
-			}
 			const objectRecord = await syncRemoteActivityPubObject(models, {
 				remoteActorRecord,
 				targetObjectRecord: targetObject,
@@ -642,6 +651,10 @@ function isUndoActivity(activity): boolean {
 	return getActivityType(activity) === 'Undo';
 }
 
+function isDeleteActivity(activity): boolean {
+	return getActivityType(activity) === 'Delete';
+}
+
 function getActivityActor(activity): string | undefined {
 	if (typeof activity?.actor === 'string') {
 		return activity.actor;
@@ -789,6 +802,19 @@ function getSharedInboxCreateResult(verification, remoteActorUrl: string, object
 		activityPubObjectId: objectRecord.id,
 		objectId: objectRecord.objectId,
 		inReplyTo
+	};
+}
+
+function getSharedInboxDeleteResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+	return {
+		...verification,
+		ok: true,
+		accepted: true,
+		message: 'activitypub_delete_object_tombstoned',
+		activityType: 'Delete',
+		actor: remoteActorUrl,
+		activityPubObjectId: objectRecord.id,
+		objectId: objectRecord.objectId
 	};
 }
 

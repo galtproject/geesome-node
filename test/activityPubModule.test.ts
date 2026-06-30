@@ -617,6 +617,109 @@ describe('activityPub module', () => {
 		assert.equal(remoteObject.publishedAt.toISOString(), '2026-06-01T12:05:00.000Z');
 		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply');
 	});
+
+	it('tombstones signed shared-inbox Delete for cached remote objects idempotently', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const createActivity = {
+			id: 'https://remote.example/activities/create-reply-delete-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-delete-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply to delete',
+				published: '2026-06-01T12:05:00Z'
+			}
+		};
+		const deleteActivity = {
+			id: 'https://remote.example/activities/delete-reply-1',
+			type: 'Delete',
+			actor: remoteActorKey.actorUrl,
+			object: createActivity.object.id
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		);
+		const firstDeleteResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', deleteActivity)
+		);
+		const secondDeleteResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', deleteActivity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+
+		assert.equal(firstDeleteResult.ok, true);
+		assert.equal(firstDeleteResult.accepted, true);
+		assert.equal(firstDeleteResult.message, 'activitypub_delete_object_tombstoned');
+		assert.equal(firstDeleteResult.activityType, 'Delete');
+		assert.equal(firstDeleteResult.actor, remoteActorKey.actorUrl);
+		assert.equal(firstDeleteResult.objectId, createActivity.object.id);
+		assert.equal(secondDeleteResult.activityPubObjectId, firstDeleteResult.activityPubObjectId);
+		assert.equal(models.ActivityPubObject.rows.length, 2);
+		assert.equal(remoteObject.objectId, createActivity.object.id);
+		assert.equal(remoteObject.remoteObjectUrl, createActivity.object.id);
+		assert.equal(remoteObject.objectType, 'Tombstone');
+		assert.equal(remoteObject.activityId, deleteActivity.id);
+		assert.equal(JSON.parse(remoteObject.rawJson).id, deleteActivity.id);
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		), /activitypub_object_tombstoned/);
+	});
+
+	it('rejects shared-inbox Delete for another remote actor object', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const otherRemoteActorKey = {
+			...getRemoteActorKey(),
+			actorUrl: 'https://remote.example/users/bob',
+			keyId: 'https://remote.example/users/bob#main-key'
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				if (actorUrl === otherRemoteActorKey.actorUrl) {
+					return getRemoteActorDocument(otherRemoteActorKey);
+				}
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const createActivity = {
+			id: 'https://remote.example/activities/create-reply-delete-2',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/reply-delete-2',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				content: 'Remote reply'
+			}
+		};
+		const deleteActivity = {
+			id: 'https://remote.example/activities/delete-reply-2',
+			type: 'Delete',
+			actor: otherRemoteActorKey.actorUrl,
+			object: createActivity.object.id
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
+		);
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(otherRemoteActorKey, '/ap/shared-inbox', deleteActivity)
+		), /activitypub_delete_object_actor_mismatch/);
+		assert.equal(models.ActivityPubObject.rows.find((row) => row.origin === 'remote').objectType, 'Note');
+	});
 });
 
 describe('activityPub API', () => {
