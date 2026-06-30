@@ -4,6 +4,7 @@ import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.j
 import {
 	buildActivityPubFollowAcceptActivity,
 	buildActivityPubFollowersCollection,
+	buildActivityPubFollowingCollection,
 	buildActivityPubGroupActor,
 	buildActivityPubOutboxCollection,
 	buildActivityPubPostCreateActivity,
@@ -133,6 +134,18 @@ describe('activityPub serializers', () => {
 			type: 'OrderedCollection',
 			totalItems: 2,
 			orderedItems: ['https://remote.example/users/alice']
+		});
+	});
+
+	it('builds an empty following collection until outbound follows exist', () => {
+		const following = buildActivityPubFollowingCollection(getConfig(), getGroup());
+
+		assert.deepEqual(following, {
+			'@context': 'https://www.w3.org/ns/activitystreams',
+			id: 'https://social.example/ap/groups/test-channel/following',
+			type: 'OrderedCollection',
+			totalItems: 0,
+			orderedItems: []
 		});
 	});
 

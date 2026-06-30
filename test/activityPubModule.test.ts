@@ -24,6 +24,16 @@ describe('activityPub module', () => {
 			]
 		});
 
+		const following = await module.getGroupFollowing('test-channel');
+		assert.deepEqual(following, {
+			'@context': 'https://www.w3.org/ns/activitystreams',
+			id: 'https://social.example/ap/groups/test-channel/following',
+			type: 'OrderedCollection',
+			totalItems: 0,
+			orderedItems: []
+		});
+		assert.equal(models.ActivityPubActor.rows.length, 0);
+
 		const actor = await module.getGroupActor('test-channel');
 		assert.equal(actor.id, 'https://social.example/ap/groups/test-channel');
 		assert.equal(actor.publicKey.id, 'https://social.example/ap/groups/test-channel#main-key');
@@ -621,6 +631,7 @@ describe('activityPub API', () => {
 			getGroupActor: async () => ({id: 'https://social.example/ap/groups/test-channel'}),
 			getGroupOutbox: async () => ({id: 'https://social.example/ap/groups/test-channel/outbox'}),
 			getGroupFollowers: async () => ({id: 'https://social.example/ap/groups/test-channel/followers'}),
+			getGroupFollowing: async () => ({id: 'https://social.example/ap/groups/test-channel/following'}),
 			getGroupPostNote: async () => ({id: 'https://social.example/ap/groups/test-channel/posts/7'}),
 			handleGroupInboxRequest: async () => ({
 				ok: true,
@@ -657,6 +668,12 @@ describe('activityPub API', () => {
 		});
 		assert.equal(followers.headers['Content-Type'], 'application/activity+json; charset=utf-8');
 		assert.deepEqual(followers.body, {id: 'https://social.example/ap/groups/test-channel/followers'});
+
+		const following = await callRoute(routes, 'GET ap/groups/:groupName/following', {
+			params: {groupName: 'test-channel'}
+		});
+		assert.equal(following.headers['Content-Type'], 'application/activity+json; charset=utf-8');
+		assert.deepEqual(following.body, {id: 'https://social.example/ap/groups/test-channel/following'});
 
 		assert.ok(routes['GET ap/groups/:groupName/posts/:localId']);
 
