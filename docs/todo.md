@@ -11,6 +11,7 @@ Corrections and added requirements:
 - Chat groups are not finished. They are only a proof of concept, and encryption currently works only in the backend, which is not secure enough. Real secure chat needs frontend-side end-to-end encryption with users' private keys and recipients' public keys. Status: reflected in the secure chat slice and issue cluster.
 - Review the Vas3k E2EE article as background for why backend-only encryption is insufficient. Status: referenced in the secure chat notes.
 - ActivityPub/Fediverse integration is an important feature. Research it, review the current implementation, document where it should be implemented in `geesome-node`, and decide whether current model schemas or API endpoints should be adjusted for ActivityPub best practices. Status: reflected in this TODO plan and detailed in `docs/activitypub-research.md`.
+- User post text should not use raw HTML as the canonical storage format for social-network and decentralized interop. Store a small versioned semantic rich-text document as the source of truth, render sanitized HTML only for ActivityPub/Matrix/static/admin adapter outputs, and export plain text plus structured facets/tags/mentions for Bluesky/ATProto, Farcaster, Nostr-like protocols, and similar networks. Status: added to the ActivityPub/Fediverse plan as the content-format backlog.
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
@@ -329,6 +330,14 @@ Status: first API prerequisite, public identity helper, read-only serializer, re
 
 Research note: [activitypub-research.md](./activitypub-research.md).
 
+Content format direction:
+
+- Do not make raw HTML the canonical user-content format. ActivityStreams/ActivityPub and Matrix need sanitized HTML adapter output, but newer decentralized social protocols such as Bluesky/ATProto, Farcaster, and Nostr-style text notes prefer plain text plus structured facets, mentions, tags, embeds, or protocol tags.
+- Add a versioned GeeSome rich-text document format as the source of truth before broad remote social content becomes editable/visible as native posts. The first schema should stay deliberately small: paragraph, line break, blockquote, code block, list/list item, text nodes, attachments by `storageId`, and marks such as strong, emphasis, code, link, mention, hashtag, spoiler, and strike.
+- Store sanitized HTML only as derived output/cache for ActivityPub, Matrix, static sites, admin previews, or legacy clients. Inbound remote HTML should be sanitized and normalized into the canonical rich-text model; keeping the original remote object for audit/debug is fine, but it must not be rendered directly.
+- Protocol adapters should render from the canonical model: ActivityPub/Matrix get conservative sanitized HTML plus plain-text fallbacks where required; Bluesky/ATProto gets text plus facets; Farcaster gets text plus mention positions/embeds; Nostr-like exports get plaintext plus tags.
+- Keep arbitrary `style`, `class`, `iframe`, `script`, form controls, active content, and raw-HTML nodes out of the first canonical schema. New rich features should be added as explicit typed nodes/marks with migration/rendering policy, not by widening the HTML allowlist.
+
 Scope:
 
 - Map GeeSome identities/groups to ActivityPub actors. Group actor URL helpers now use `/ap/groups/{groupName}` and require GeeSome-valid group names so WebFinger `acct:` handles stay valid.
@@ -338,6 +347,7 @@ Scope:
 - Verify HTTP signatures for inbound activities and sign outbound activities. Raw JSON request bytes are now available to route callbacks for digest/signature checks; outbound RSA-SHA256 signing helpers, stable local actor keys, and inbound signature/Digest/Date verification exist. Actual inbox activity acceptance still waits for remote actor cache/follow state.
 - Store inbound/outbound follow state and minimal remote actor metadata. Remote actor key/inbox metadata is now cached for signature verification and outbound follow requests, signed inbound `Follow` activities are persisted idempotently for group inboxes, signed embedded `Undo(Follow)` cancels stored inbound follows, accepted follows enqueue outbound `Accept(Follow)` delivery rows, admin-triggered outbound follows enqueue signed `Follow` delivery rows, signed remote `Accept`/`Reject` responses update outbound follow state, published local posts enqueue outbound `Create(Note)` delivery rows, and the opt-in delivery worker can claim/sign/send/retry queued rows.
 - Before cached remote ActivityPub objects become visible posts, audit how posts render in webviews/static sites because post text is HTML. Status: generated static-site post text, post-list title/description HTML, content-list text, header/footer HTML, title/meta headers, and backend admin remote-object preview fields now have a conservative sanitizer/escaping layer with XSS fixtures. Frontend/admin UI adoption of preview fields, remote ActivityStreams `content` ingestion into visible posts, final remote-post moderation, richer media/link policy, and other visible surfaces still need review before remote objects can become visible posts.
+- Before remote/social-network content can become native editable GeeSome posts, design and implement the canonical rich-text schema plus import/export adapters described above. Until then, sanitized HTML should remain display-only adapter output rather than a trusted source format for post edits, migrations, search snippets, or cross-network publishing.
 - Keep moderation, deletes/updates, rich media federation, and full timeline syncing for later slices.
 - Decide whether to adopt Fedify or keep a minimal custom module. The repo now targets Node 22, so the earlier Node-floor concern is gone; the remaining decision is dependency weight, integration shape, and whether Fedify's helpers fit GeeSome's IPFS/IPNS-first identity model.
 
@@ -360,11 +370,13 @@ First deliverable:
 - Add tests with deterministic JSON-LD payloads and signature fixtures.
 - Reuse the shared deterministic ActivityPub helper contract from `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121) for actor, WebFinger, Note/Create, digest, and request-signature fixtures.
 - Before remote object moderation can create visible posts, add HTML render-path tests that prove untrusted ActivityPub/local post HTML is sanitized or escaped consistently in API/webview/static-site/admin preview surfaces. Static-site generated output and backend admin remote-object preview output now have focused helper/render tests; frontend/admin UI adoption and ActivityPub remote-content ingestion into visible posts remain.
+- Add a rich-text content-format design note with schema versioning, IPLD/DAG-CBOR storage shape, allowed blocks/marks, attachment references, migrations, sanitization boundaries, and ActivityPub/Matrix/ATProto/Farcaster/Nostr export adapters before implementing native remote-post ingestion or cross-network publishing.
 
 Verification:
 
 - New module tests for actor serialization, WebFinger, and outbox payloads.
 - Existing `test/group.test.ts` for post compatibility.
+- Rich-text adapter tests that import unsafe ActivityPub/Matrix-style HTML into the canonical model, render sanitized ActivityPub/Matrix HTML, and export deterministic plain text plus facets/tags for ATProto/Farcaster/Nostr-style protocols.
 - Later integration smoke against a local ActivityPub test server.
 - Later Bluesky data-exchange smoke with the protocol boundary explicit: ActivityPub interop should use a bridge such as Bridgy Fed, while direct Bluesky/ATProto import or cross-post testing should use a seeded test `socNetAccount` database row for the Bluesky account and verify ownership, credential handling, idempotency, and moderation/signature boundaries.
 
