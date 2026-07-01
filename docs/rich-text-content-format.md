@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts` and ActivityPub local post serialization wired to render canonical rich-text payloads. Native post storage, editor integration, and broader protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads, and ATProto-compatible plain text/facet export helpers covered by tests. Native post storage, editor integration, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -207,7 +207,7 @@ Adapters should be pure functions from canonical rich text to target representat
 | --- | --- |
 | ActivityPub | Sanitized HTML `content`, plain text summary/fallback when useful, ActivityStreams `tag` objects for mentions/hashtags, `attachment` objects for media. |
 | Matrix | Plain `body` plus `formatted_body` with `format: org.matrix.custom.html`; HTML from the same conservative renderer. |
-| ATProto/Bluesky | Plain `text` plus facets for links, mentions, and tags. Unsupported marks become plain text. |
+| ATProto/Bluesky | Plain `text` plus facets for links, mentions, and tags. Unsupported marks become plain text. Status: `richTextToAtProtoTextWithFacets` exports deterministic UTF-8 byte-indexed link, DID mention, and tag facets. |
 | Farcaster | Plain text plus mentions, mention positions, and embeds. Unsupported marks become plain text. |
 | Nostr-like notes | Plain text plus protocol tags for links, mentions, and hashtags where supported. |
 | Static site | Sanitized HTML generated from canonical rich text, plus escaped title/meta/plain snippets. |
@@ -266,6 +266,7 @@ Recommended first code PR:
 3. Add `htmlToRichText` for the current allowed HTML subset. Status: implemented in `app/richText.ts`.
 4. Add fixtures that prove unsafe HTML cannot survive the round trip. Status: implemented in `test/richText.test.ts`.
 5. Wire only one low-risk render path to the helpers before replacing broader post storage. Status: ActivityPub local post `content` serialization renders canonical rich-text payloads and falls back to escaped legacy text for invalid payloads.
+6. Add deterministic plain-text facet export for ATProto-style protocols. Status: implemented as `richTextToAtProtoTextWithFacets` with UTF-8 byte-offset fixtures in `test/richText.test.ts`.
 
 Do not change the storage format for all posts in the first implementation PR.
 

@@ -49,6 +49,31 @@ export type RichTextDocument = {
 	source?: any;
 };
 
+export type RichTextAtProtoFacetFeature = {
+	$type: 'app.bsky.richtext.facet#link';
+	uri: string;
+} | {
+	$type: 'app.bsky.richtext.facet#mention';
+	did: string;
+} | {
+	$type: 'app.bsky.richtext.facet#tag';
+	tag: string;
+};
+
+export type RichTextAtProtoFacet = {
+	$type: 'app.bsky.richtext.facet';
+	index: {
+		byteStart: number;
+		byteEnd: number;
+	};
+	features: RichTextAtProtoFacetFeature[];
+};
+
+export type RichTextAtProtoText = {
+	text: string;
+	facets: RichTextAtProtoFacet[];
+};
+
 export function createRichTextDocument(blocks: RichTextBlock[], options: any = {}): RichTextDocument {
 	const document: RichTextDocument = {
 		type: RICH_TEXT_DOCUMENT_TYPE,
@@ -89,6 +114,14 @@ export function richTextToSafeHtml(document: RichTextDocument): string {
 		return '';
 	}
 	return sanitizeHtml(document.blocks.map(block => richTextBlockToHtml(block)).join(''));
+}
+
+export function richTextToAtProtoTextWithFacets(document: RichTextDocument): RichTextAtProtoText {
+	if (!isRichTextDocument(document)) {
+		return getEmptyAtProtoText();
+	}
+	const blockTexts = document.blocks.map(block => richTextBlockToAtProtoText(block));
+	return joinAtProtoTextParts(blockTexts, '\n');
 }
 
 export function isRichTextDocument(value: any): value is RichTextDocument {
@@ -538,6 +571,162 @@ function validateRichTextMark(mark: any, path: string, errors: string[]) {
 	}
 }
 
+function richTextBlockToAtProtoText(block: RichTextBlock): RichTextAtProtoText {
+	if (block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'listItem') {
+		return inlineNodesToAtProtoText(block.children || []);
+	}
+	if (block.type === 'codeBlock') {
+		return {
+			text: String(block.text || ''),
+			facets: []
+		};
+	}
+	if (block.type === 'list') {
+		const itemTexts = (block.items || []).map(item => richTextBlockToAtProtoText({...item, type: 'listItem'}));
+		return joinAtProtoTextParts(itemTexts, '\n');
+	}
+	if (block.type === 'lineBreak') {
+		return {
+			text: '\n',
+			facets: []
+		};
+	}
+	if (block.type === 'attachment') {
+		return {
+			text: block.alt || block.title || '',
+			facets: []
+		};
+	}
+	return getEmptyAtProtoText();
+}
+
+function inlineNodesToAtProtoText(nodes: RichTextInlineNode[]): RichTextAtProtoText {
+	const result = getEmptyAtProtoText();
+	(nodes || []).forEach((node) => {
+		appendInlineNodeToAtProtoText(result, node);
+	});
+	return result;
+}
+
+function appendInlineNodeToAtProtoText(result: RichTextAtProtoText, node: RichTextInlineNode) {
+	const text = String(node?.text || '');
+	if (!text) {
+		return;
+	}
+	const byteStart = getUtf8ByteLength(result.text);
+	result.text += text;
+	const byteEnd = getUtf8ByteLength(result.text);
+	const features = getAtProtoFacetFeatures(node, normalizeMarks(node.marks || []));
+	if (features.length === 0) {
+		return;
+	}
+	result.facets.push({
+		$type: 'app.bsky.richtext.facet',
+		index: {
+			byteStart,
+			byteEnd
+		},
+		features
+	});
+}
+
+function getAtProtoFacetFeatures(node: RichTextInlineNode, marks: RichTextMark[]): RichTextAtProtoFacetFeature[] {
+	return marks
+		.map(mark => getAtProtoFacetFeature(node, mark))
+		.filter(Boolean) as RichTextAtProtoFacetFeature[];
+}
+
+function getAtProtoFacetFeature(node: RichTextInlineNode, mark: RichTextMark): RichTextAtProtoFacetFeature | null {
+	if (mark.type === 'link') {
+		return getAtProtoLinkFacetFeature(mark);
+	}
+	if (mark.type === 'mention') {
+		return getAtProtoMentionFacetFeature(mark);
+	}
+	if (mark.type === 'hashtag') {
+		return getAtProtoTagFacetFeature(node, mark);
+	}
+	return null;
+}
+
+function getAtProtoLinkFacetFeature(mark: RichTextMark): RichTextAtProtoFacetFeature | null {
+	const uri = sanitizeAbsoluteHref(mark.href);
+	if (!uri) {
+		return null;
+	}
+	return {
+		$type: 'app.bsky.richtext.facet#link',
+		uri
+	};
+}
+
+function getAtProtoMentionFacetFeature(mark: RichTextMark): RichTextAtProtoFacetFeature | null {
+	if (!isAtProtoDid(mark.id)) {
+		return null;
+	}
+	return {
+		$type: 'app.bsky.richtext.facet#mention',
+		did: mark.id
+	};
+}
+
+function getAtProtoTagFacetFeature(node: RichTextInlineNode, mark: RichTextMark): RichTextAtProtoFacetFeature | null {
+	const tag = getAtProtoTagName(mark.name || node.text);
+	if (!tag) {
+		return null;
+	}
+	return {
+		$type: 'app.bsky.richtext.facet#tag',
+		tag
+	};
+}
+
+function joinAtProtoTextParts(parts: RichTextAtProtoText[], separator: string): RichTextAtProtoText {
+	const result = getEmptyAtProtoText();
+	(parts || []).filter(part => part.text.length > 0).forEach((part) => {
+		if (result.text.length > 0) {
+			result.text += separator;
+		}
+		const byteOffset = getUtf8ByteLength(result.text);
+		result.text += part.text;
+		result.facets.push(...part.facets.map(facet => shiftAtProtoFacet(facet, byteOffset)));
+	});
+	return result;
+}
+
+function shiftAtProtoFacet(facet: RichTextAtProtoFacet, byteOffset: number): RichTextAtProtoFacet {
+	return {
+		...facet,
+		index: {
+			byteStart: facet.index.byteStart + byteOffset,
+			byteEnd: facet.index.byteEnd + byteOffset
+		}
+	};
+}
+
+function getAtProtoTagName(value: any): string {
+	const tag = String(value || '').trim().replace(/^#/, '');
+	if (!tag || tag.length > 640 || /\s/.test(tag)) {
+		return '';
+	}
+	return tag;
+}
+
+function isAtProtoDid(value: any): value is string {
+	return typeof value === 'string' && /^did:[a-z0-9]+:[A-Za-z0-9._:%-]+$/.test(value);
+}
+
+function getUtf8ByteLength(value: string): number {
+	return Buffer.byteLength(value, 'utf8');
+}
+
+function getEmptyAtProtoText(): RichTextAtProtoText {
+	return {
+		text: '',
+		facets: []
+	};
+}
+
 export default {
 	RICH_TEXT_DOCUMENT_TYPE,
 	RICH_TEXT_MIME_TYPE,
@@ -546,6 +735,7 @@ export default {
 	htmlToRichText,
 	richTextToPlainText,
 	richTextToSafeHtml,
+	richTextToAtProtoTextWithFacets,
 	isRichTextDocument,
 	assertRichTextDocument,
 	validateRichTextDocument
