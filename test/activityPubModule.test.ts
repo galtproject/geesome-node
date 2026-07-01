@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import {Op} from 'sequelize';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
-import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
+import {generateActivityPubRsaKeyPair, getActivityPubContentDigestHeader, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
 import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
@@ -164,13 +164,19 @@ describe('activityPub module', () => {
 			...getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity),
 			url: '/ap/shared-inbox'
 		});
+		const contentDigestVerified = await module.verifyGroupInboxRequest(
+			'test-channel',
+			getSignedContentDigestInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
 
 		assert.equal(verified.keyId, remoteActorKey.keyId);
 		assert.equal(verified.localActorUrl, 'https://social.example/ap/groups/test-channel');
 		assert.equal(verified.activityType, 'Follow');
 		assert.equal(verified.actor, remoteActorKey.actorUrl);
 		assert.equal(sharedVerified.keyId, remoteActorKey.keyId);
-		assert.equal(resolverCalls.length, 2);
+		assert.equal(contentDigestVerified.keyId, remoteActorKey.keyId);
+		assert.equal(contentDigestVerified.digestVerified, true);
+		assert.equal(resolverCalls.length, 3);
 		assert.deepEqual(resolverCalls[0], {
 			keyId: remoteActorKey.keyId,
 			actor: remoteActorKey.actorUrl,
@@ -178,6 +184,10 @@ describe('activityPub module', () => {
 		});
 		await assert.rejects(() => module.verifyGroupInboxRequest('test-channel', {
 			...request,
+			rawBody: Buffer.from(JSON.stringify({...activity, type: 'Undo'}))
+		}), /activitypub_digest_mismatch/);
+		await assert.rejects(() => module.verifyGroupInboxRequest('test-channel', {
+			...getSignedContentDigestInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity),
 			rawBody: Buffer.from(JSON.stringify({...activity, type: 'Undo'}))
 		}), /activitypub_digest_mismatch/);
 	});
@@ -2459,6 +2469,31 @@ function getSignedInboxRequest(actorKey, path: string, activity: any) {
 		body,
 		date
 	});
+
+	return {
+		method: 'POST',
+		url: path,
+		headers: signedRequest.headers,
+		body: activity,
+		rawBody: Buffer.from(body),
+		now: date
+	};
+}
+
+function getSignedContentDigestInboxRequest(actorKey, path: string, activity: any) {
+	const body = JSON.stringify(activity);
+	const date = new Date('2026-06-01T12:00:00Z');
+	const signedRequest = signActivityPubRequestWithKey(actorKey, {
+		method: 'POST',
+		url: `https://social.example${path}`,
+		body,
+		date,
+		headers: {
+			'Content-Digest': getActivityPubContentDigestHeader(body)
+		},
+		signedHeaders: ['(request-target)', 'host', 'date', 'content-digest']
+	});
+	delete signedRequest.headers.Digest;
 
 	return {
 		method: 'POST',
