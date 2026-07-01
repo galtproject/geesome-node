@@ -2,7 +2,12 @@ import {IGeesomeApp} from '../../interface.js';
 import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import IGeesomeActivityPubModule, {IActivityPubInboxResult, IActivityPubInboundRequest} from './interface.js';
-import {activityPubContentType, activityPubWebFingerContentType} from './helpers.js';
+import {
+	activityPubContentType,
+	activityPubNodeInfoContentType,
+	activityPubNodeInfoDiscoveryContentType,
+	activityPubWebFingerContentType
+} from './helpers.js';
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
 	/**
@@ -17,6 +22,38 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onUnversionGet('.well-known/webfinger', async (req, res) => {
 		setWebFingerHeaders(res);
 		return res.send(await activityPubModule.getWebFingerResponse(req.query.resource), 200);
+	});
+
+	/**
+	 * @api {get} /.well-known/nodeinfo Discover ActivityPub NodeInfo document
+	 * @apiName ActivityPubNodeInfoDiscovery
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public NodeInfo discovery endpoint for the GeeSome ActivityPub service. It advertises the NodeInfo 2.1 document URL when ActivityPub is enabled.
+	 * @apiSuccess {Object[]} links NodeInfo schema links.
+	 */
+	app.ms.api.onUnversionGet('.well-known/nodeinfo', async (req, res) => {
+		setNodeInfoDiscoveryHeaders(res);
+		return res.send(await activityPubModule.getNodeInfoDiscovery(), 200);
+	});
+
+	/**
+	 * @api {get} /nodeinfo/2.1 Get ActivityPub NodeInfo document
+	 * @apiName ActivityPubNodeInfo
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public NodeInfo 2.1 document for Fediverse discovery. It currently advertises GeeSome's ActivityPub protocol support without exposing user or post counts.
+	 * @apiSuccess {String} version NodeInfo schema version.
+	 * @apiSuccess {Object} software GeeSome node software metadata.
+	 * @apiSuccess {String[]} protocols Supported federation protocols.
+	 * @apiSuccess {Object} services External service bridges advertised through NodeInfo.
+	 * @apiSuccess {Boolean} openRegistrations Whether public account registration is advertised.
+	 * @apiSuccess {Object} usage Public usage counters; this first ActivityPub slice keeps counters at zero until privacy/product policy is defined.
+	 * @apiSuccess {Object} metadata Free-form node metadata.
+	 */
+	app.ms.api.onUnversionGet('nodeinfo/2.1', async (req, res) => {
+		setNodeInfoHeaders(res);
+		return res.send(await activityPubModule.getNodeInfo(), 200);
 	});
 
 	/**
@@ -369,4 +406,12 @@ function setActivityPubHeaders(res: IApiModuleCommonOutput): void {
 
 function setWebFingerHeaders(res: IApiModuleCommonOutput): void {
 	res.setHeader('Content-Type', activityPubWebFingerContentType);
+}
+
+function setNodeInfoDiscoveryHeaders(res: IApiModuleCommonOutput): void {
+	res.setHeader('Content-Type', activityPubNodeInfoDiscoveryContentType);
+}
+
+function setNodeInfoHeaders(res: IApiModuleCommonOutput): void {
+	res.setHeader('Content-Type', activityPubNodeInfoContentType);
 }

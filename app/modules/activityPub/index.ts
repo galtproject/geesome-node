@@ -36,6 +36,8 @@ import IGeesomeActivityPubModule, {
 	IResolvedActivityPubConfig
 } from './interface.js';
 import {
+	buildActivityPubNodeInfoDiscoveryResponse,
+	buildActivityPubNodeInfoResponse,
 	buildActivityPubGroupWebFingerResponse,
 	getActivityPubGroupActorUrls,
 	getActivityPubGroupPreferredUsername,
@@ -156,6 +158,16 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 			const group = await getFederatableGroup(app, preferredUsername);
 			return buildActivityPubGroupWebFingerResponse(config, group);
+		}
+
+		async getNodeInfoDiscovery() {
+			const config = getResolvedActivityPubConfig(app);
+			return buildActivityPubNodeInfoDiscoveryResponse(config);
+		}
+
+		async getNodeInfo() {
+			const config = getResolvedActivityPubConfig(app);
+			return buildActivityPubNodeInfoResponse(config);
 		}
 
 		async getGroupActor(groupName: string) {

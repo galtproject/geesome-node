@@ -3,6 +3,8 @@ import type {
 	IActivityPubConfig,
 	IActivityPubGroupActorUrls,
 	IActivityPubGroupInput,
+	IActivityPubNodeInfoDiscoveryResponse,
+	IActivityPubNodeInfoResponse,
 	IActivityPubWebFingerResponse,
 	IResolvedActivityPubConfig
 } from './interface.js';
@@ -11,6 +13,14 @@ export const activityPubContext = 'https://www.w3.org/ns/activitystreams';
 export const activityPubPublicCollection = 'https://www.w3.org/ns/activitystreams#Public';
 export const activityPubContentType = 'application/activity+json; charset=utf-8';
 export const activityPubWebFingerContentType = 'application/jrd+json; charset=utf-8';
+export const activityPubNodeInfoSchema21Rel = 'http://nodeinfo.diaspora.software/ns/schema/2.1';
+export const activityPubNodeInfoDiscoveryContentType = 'application/json; charset=utf-8';
+export const activityPubNodeInfoContentType =
+	`application/json; profile="${activityPubNodeInfoSchema21Rel}#"; charset=utf-8`;
+
+const geesomeNodeSoftwareName = 'geesome-node';
+const geesomeNodeSoftwareVersion = '0.4.0';
+const geesomeNodeSoftwareRepository = 'https://github.com/galtproject/geesome-node';
 
 export function resolveActivityPubConfig(config: IActivityPubConfig = {}): IResolvedActivityPubConfig {
 	const parsedPublicUrl = parseActivityPubPublicUrl(config.publicUrl);
@@ -83,6 +93,49 @@ export function buildActivityPubGroupWebFingerResponse(config: IActivityPubConfi
 			}
 		]
 	};
+}
+
+export function buildActivityPubNodeInfoDiscoveryResponse(config: IActivityPubConfig): IActivityPubNodeInfoDiscoveryResponse {
+	return {
+		links: [
+			{
+				rel: activityPubNodeInfoSchema21Rel,
+				href: getActivityPubNodeInfoUrl(config)
+			}
+		]
+	};
+}
+
+export function buildActivityPubNodeInfoResponse(config: IActivityPubConfig): IActivityPubNodeInfoResponse {
+	const resolvedConfig = resolveActivityPubConfig(config);
+	return {
+		version: '2.1',
+		software: {
+			name: geesomeNodeSoftwareName,
+			version: geesomeNodeSoftwareVersion,
+			repository: geesomeNodeSoftwareRepository
+		},
+		protocols: ['activitypub'],
+		services: {
+			inbound: [],
+			outbound: []
+		},
+		openRegistrations: false,
+		usage: {
+			users: {},
+			localPosts: 0,
+			localComments: 0
+		},
+		metadata: {
+			nodeName: resolvedConfig.domain,
+			nodeDescription: 'GeeSome ActivityPub federation endpoint'
+		}
+	};
+}
+
+export function getActivityPubNodeInfoUrl(config: IActivityPubConfig): string {
+	const resolvedConfig = resolveActivityPubConfig(config);
+	return `${resolvedConfig.publicUrl}/nodeinfo/2.1`;
 }
 
 export function isActivityPubEnabled(config: IActivityPubConfig): boolean {
