@@ -73,7 +73,7 @@ Adapter policy:
 
 - ActivityPub and Matrix: render from canonical rich text to conservative sanitized HTML, with plain text fallbacks where the target protocol expects them. Status: ActivityPub local post serialization now renders canonical rich-text HTML and emits ActivityStreams mention/hashtag tags from canonical marks; `richTextToMatrixMessageContent` exports Matrix `m.text` body/formatted_body payloads.
 - Bluesky/ATProto: render plain text plus facets for links, mentions, and tags. Status: `richTextToAtProtoTextWithFacets` exports deterministic UTF-8 byte-indexed link, DID mention, and tag facets from canonical rich text; account-level Bluesky import/cross-post wiring remains future work.
-- Farcaster: render plain text plus mention positions and embeds.
+- Farcaster: render plain text plus mention positions and embeds. Status: `richTextToFarcasterCast` exports CastAdd-style `text`, safe URL `embeds`, empty `embedsDeprecated`, FID `mentions`, and byte-based `mentionsPositions`; account/signer and hub submission wiring remain future work.
 - Nostr-like protocols: render plaintext plus protocol tags. Status: `richTextToNostrTextNote` exports plain content with `r` link, `p` pubkey mention, and `t` hashtag tags; real account/event signing remains future work.
 - Inbound ActivityPub/Matrix HTML: sanitize, normalize, and parse into canonical rich text before it can become a native editable GeeSome post. The original remote object may be stored for audit/debug, but it must not be rendered directly.
 

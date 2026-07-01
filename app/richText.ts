@@ -8,6 +8,9 @@ export const RICH_TEXT_VERSION = 1;
 const allowedBlockTypes = new Set(['paragraph', 'blockquote', 'codeBlock', 'list', 'listItem', 'lineBreak', 'attachment']);
 const allowedMarkTypes = new Set(['strong', 'em', 'code', 'strike', 'spoiler', 'link', 'mention', 'hashtag']);
 const markOrder = ['strong', 'em', 'code', 'strike', 'spoiler', 'link', 'mention', 'hashtag'];
+const farcasterMaxEmbeds = 2;
+const farcasterMaxEmbedBytes = 256;
+const farcasterMaxMentions = 10;
 
 export type RichTextMark = {
 	type: string;
@@ -72,6 +75,18 @@ export type RichTextAtProtoFacet = {
 export type RichTextAtProtoText = {
 	text: string;
 	facets: RichTextAtProtoFacet[];
+};
+
+export type RichTextFarcasterEmbed = {
+	url: string;
+};
+
+export type RichTextFarcasterCast = {
+	text: string;
+	embeds: RichTextFarcasterEmbed[];
+	embedsDeprecated: string[];
+	mentions: number[];
+	mentionsPositions: number[];
 };
 
 export type RichTextActivityPubTag = {
@@ -140,6 +155,13 @@ export function richTextToAtProtoTextWithFacets(document: RichTextDocument): Ric
 	}
 	const blockTexts = document.blocks.map(block => richTextBlockToAtProtoText(block));
 	return joinAtProtoTextParts(blockTexts, '\n');
+}
+
+export function richTextToFarcasterCast(document: RichTextDocument): RichTextFarcasterCast {
+	if (!isRichTextDocument(document)) {
+		return getEmptyFarcasterCast();
+	}
+	return richTextBlocksToFarcasterCast(document.blocks || []);
 }
 
 export function richTextToActivityPubTags(document: RichTextDocument): RichTextActivityPubTag[] {
@@ -779,6 +801,173 @@ function getEmptyAtProtoText(): RichTextAtProtoText {
 	};
 }
 
+type RichTextFarcasterExportContext = {
+	mentionCount: number;
+};
+
+function richTextBlocksToFarcasterCast(blocks: RichTextBlock[]): RichTextFarcasterCast {
+	const result = getEmptyFarcasterCast();
+	const context = getEmptyFarcasterExportContext();
+	(blocks || []).forEach((block) => {
+		const part = richTextBlockToFarcasterCast(block, context);
+		appendFarcasterCastPart(result, part, '\n');
+	});
+	return result;
+}
+
+function richTextBlockToFarcasterCast(block: RichTextBlock, context: RichTextFarcasterExportContext): RichTextFarcasterCast {
+	if (block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'listItem') {
+		return inlineNodesToFarcasterCast(block.children || [], context);
+	}
+	if (block.type === 'codeBlock') {
+		return {
+			...getEmptyFarcasterCast(),
+			text: String(block.text || '')
+		};
+	}
+	if (block.type === 'list') {
+		const result = getEmptyFarcasterCast();
+		(block.items || []).forEach((item) => {
+			const part = richTextBlockToFarcasterCast({...item, type: 'listItem'}, context);
+			appendFarcasterCastPart(result, part, '\n');
+		});
+		return result;
+	}
+	if (block.type === 'lineBreak') {
+		return {
+			...getEmptyFarcasterCast(),
+			text: '\n'
+		};
+	}
+	if (block.type === 'attachment') {
+		return {
+			...getEmptyFarcasterCast(),
+			text: block.alt || block.title || ''
+		};
+	}
+	return getEmptyFarcasterCast();
+}
+
+function inlineNodesToFarcasterCast(nodes: RichTextInlineNode[], context: RichTextFarcasterExportContext): RichTextFarcasterCast {
+	const result = getEmptyFarcasterCast();
+	(nodes || []).forEach((node) => {
+		appendInlineNodeToFarcasterCast(result, node, context);
+	});
+	return result;
+}
+
+function appendInlineNodeToFarcasterCast(result: RichTextFarcasterCast, node: RichTextInlineNode, context: RichTextFarcasterExportContext) {
+	const text = String(node?.text || '');
+	const marks = normalizeMarks(node?.marks || []);
+	appendFarcasterEmbedsFromMarks(result, marks);
+	if (!text) {
+		return;
+	}
+	const fid = getFarcasterMentionFid(marks);
+	if (canAppendFarcasterMention(result, fid, context)) {
+		result.mentions.push(fid as number);
+		result.mentionsPositions.push(getUtf8ByteLength(result.text));
+		context.mentionCount += 1;
+		return;
+	}
+	result.text += text;
+}
+
+function appendFarcasterEmbedsFromMarks(result: RichTextFarcasterCast, marks: RichTextMark[]) {
+	marks.forEach((mark) => {
+		if (mark.type === 'link') {
+			appendFarcasterLinkEmbed(result, mark);
+		}
+	});
+}
+
+function appendFarcasterLinkEmbed(result: RichTextFarcasterCast, mark: RichTextMark) {
+	const url = sanitizeAbsoluteHref(mark.href);
+	if (!url || getUtf8ByteLength(url) > farcasterMaxEmbedBytes) {
+		return;
+	}
+	if (result.embeds.some(embed => embed.url === url)) {
+		return;
+	}
+	if (result.embeds.length >= farcasterMaxEmbeds) {
+		return;
+	}
+	result.embeds.push({url});
+}
+
+function canAppendFarcasterMention(result: RichTextFarcasterCast, fid: number | null, context: RichTextFarcasterExportContext): boolean {
+	if (fid === null || context.mentionCount >= farcasterMaxMentions) {
+		return false;
+	}
+	return !result.mentionsPositions.includes(getUtf8ByteLength(result.text));
+}
+
+function appendFarcasterCastPart(result: RichTextFarcasterCast, part: RichTextFarcasterCast, separator: string) {
+	if (!hasFarcasterCastContent(part)) {
+		return;
+	}
+	if (hasFarcasterCastContent(result)) {
+		result.text += separator;
+	}
+	const byteOffset = getUtf8ByteLength(result.text);
+	result.text += part.text;
+	result.mentions.push(...part.mentions);
+	result.mentionsPositions.push(...part.mentionsPositions.map(position => position + byteOffset));
+	part.embeds.forEach(embed => appendFarcasterEmbed(result, embed));
+}
+
+function appendFarcasterEmbed(result: RichTextFarcasterCast, embed: RichTextFarcasterEmbed) {
+	if (result.embeds.some(existing => existing.url === embed.url)) {
+		return;
+	}
+	if (result.embeds.length >= farcasterMaxEmbeds) {
+		return;
+	}
+	result.embeds.push(embed);
+}
+
+function hasFarcasterCastContent(cast: RichTextFarcasterCast): boolean {
+	return cast.text.length > 0 || cast.embeds.length > 0 || cast.mentions.length > 0;
+}
+
+function getFarcasterMentionFid(marks: RichTextMark[]): number | null {
+	const mark = marks.find(item => item.type === 'mention');
+	if (!mark) {
+		return null;
+	}
+	return parseFarcasterFid(mark.id);
+}
+
+function parseFarcasterFid(value: any): number | null {
+	if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
+		return value;
+	}
+	if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) {
+		return null;
+	}
+	const fid = Number(value);
+	if (!Number.isSafeInteger(fid)) {
+		return null;
+	}
+	return fid;
+}
+
+function getEmptyFarcasterExportContext(): RichTextFarcasterExportContext {
+	return {
+		mentionCount: 0
+	};
+}
+
+function getEmptyFarcasterCast(): RichTextFarcasterCast {
+	return {
+		text: '',
+		embeds: [],
+		embedsDeprecated: [],
+		mentions: [],
+		mentionsPositions: []
+	};
+}
+
 function richTextBlockToActivityPubTags(block: RichTextBlock): RichTextActivityPubTag[] {
 	if (block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'listItem') {
 		return inlineNodesToActivityPubTags(block.children || []);
@@ -968,6 +1157,7 @@ export default {
 	richTextToPlainText,
 	richTextToSafeHtml,
 	richTextToAtProtoTextWithFacets,
+	richTextToFarcasterCast,
 	richTextToActivityPubTags,
 	richTextToMatrixMessageContent,
 	richTextToNostrTextNote,

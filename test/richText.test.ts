@@ -9,6 +9,7 @@ import {
 	isRichTextDocument,
 	richTextToActivityPubTags,
 	richTextToAtProtoTextWithFacets,
+	richTextToFarcasterCast,
 	richTextToMatrixMessageContent,
 	richTextToNostrTextNote,
 	richTextToPlainText,
@@ -271,6 +272,46 @@ describe('richText helpers', () => {
 		assert.deepEqual(richTextToAtProtoTextWithFacets({} as any), {
 			text: '',
 			facets: []
+		});
+	});
+
+	it('exports Farcaster casts with byte-based mention positions and embeds', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: 'Hi 🌍 '},
+				{text: '@alice', marks: [{type: 'mention', id: '42'}]},
+				{text: 'see '},
+				{text: 'site', marks: [{type: 'link', href: 'https://example.com/a'}]},
+				{text: ' and '},
+				{text: '@bob', marks: [{type: 'mention', id: '7'}]},
+				{text: '! '},
+				{text: '@bad', marks: [{type: 'mention', id: 'fid:bad'}]},
+				{text: ' '},
+				{text: 'duplicate', marks: [{type: 'link', href: 'https://example.com/a'}]},
+				{text: ' '},
+				{text: 'second', marks: [{type: 'link', href: 'https://example.com/b'}]},
+				{text: ' '},
+				{text: 'third', marks: [{type: 'link', href: 'https://example.com/c'}]}
+			]
+		}]);
+
+		assert.deepEqual(richTextToFarcasterCast(document), {
+			text: 'Hi 🌍 see site and ! @bad duplicate second third',
+			embeds: [
+				{url: 'https://example.com/a'},
+				{url: 'https://example.com/b'}
+			],
+			embedsDeprecated: [],
+			mentions: [42, 7],
+			mentionsPositions: [8, 21]
+		});
+		assert.deepEqual(richTextToFarcasterCast({} as any), {
+			text: '',
+			embeds: [],
+			embedsDeprecated: [],
+			mentions: [],
+			mentionsPositions: []
 		});
 	});
 
