@@ -275,7 +275,8 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed remote `Accept(Follow)` and `Reject(Follow)` activities update matching outbound follow requests, signed embedded `Undo(Follow)` activities cancel inbound follow state, signed `Block` activities cancel follower state so future local post delivery skips that remote actor, and signed `Flag` activities store pending moderation reports for the local actor or known local objects. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
-	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
+	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} ok Whether the signed activity was processed.
 	 * @apiSuccess {Boolean} accepted Whether the activity leaves the follow accepted immediately.
@@ -297,7 +298,8 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 *
 	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. If an updated or tombstoned remote object was manually imported as a GeeSome remote post and the source identity still matches, that imported post is updated or soft-deleted too. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
-	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
+	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} accepted Whether the activity was accepted and stored.
 	 * @apiSuccess {String} activityType Activity type that was processed.
