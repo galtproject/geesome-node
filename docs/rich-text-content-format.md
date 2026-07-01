@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, and ATProto-compatible plain text/facet export helpers covered by tests. Native post storage, editor integration, and broader protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, and ATProto-compatible plain text/facet export helpers covered by tests. Native post storage, editor integration, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -206,7 +206,7 @@ Adapters should be pure functions from canonical rich text to target representat
 | Target | Output |
 | --- | --- |
 | ActivityPub | Sanitized HTML `content`, plain text summary/fallback when useful, ActivityStreams `tag` objects for mentions/hashtags, `attachment` objects for media. Status: local post `content` and canonical rich-text mention/hashtag `tag` output are implemented. |
-| Matrix | Plain `body` plus `formatted_body` with `format: org.matrix.custom.html`; HTML from the same conservative renderer. |
+| Matrix | Plain `body` plus `formatted_body` with `format: org.matrix.custom.html`; HTML from the same conservative renderer. Status: `richTextToMatrixMessageContent` exports `m.text` body/formatted_body payloads. |
 | ATProto/Bluesky | Plain `text` plus facets for links, mentions, and tags. Unsupported marks become plain text. Status: `richTextToAtProtoTextWithFacets` exports deterministic UTF-8 byte-indexed link, DID mention, and tag facets. |
 | Farcaster | Plain text plus mentions, mention positions, and embeds. Unsupported marks become plain text. |
 | Nostr-like notes | Plain text plus protocol tags for links, mentions, and hashtags where supported. |
@@ -268,6 +268,7 @@ Recommended first code PR:
 5. Wire only one low-risk render path to the helpers before replacing broader post storage. Status: ActivityPub local post `content` serialization renders canonical rich-text payloads and falls back to escaped legacy text for invalid payloads.
 6. Add deterministic plain-text facet export for ATProto-style protocols. Status: implemented as `richTextToAtProtoTextWithFacets` with UTF-8 byte-offset fixtures in `test/richText.test.ts`.
 7. Add ActivityStreams tag export for canonical rich-text mentions and hashtags. Status: implemented as `richTextToActivityPubTags` and wired into local ActivityPub Note serialization.
+8. Add Matrix message content export. Status: implemented as `richTextToMatrixMessageContent` with plain fallback and sanitized `org.matrix.custom.html` fixtures.
 
 Do not change the storage format for all posts in the first implementation PR.
 

@@ -80,6 +80,13 @@ export type RichTextActivityPubTag = {
 	href?: string;
 };
 
+export type RichTextMatrixMessageContent = {
+	msgtype: 'm.text';
+	body: string;
+	format?: 'org.matrix.custom.html';
+	formatted_body?: string;
+};
+
 export function createRichTextDocument(blocks: RichTextBlock[], options: any = {}): RichTextDocument {
 	const document: RichTextDocument = {
 		type: RICH_TEXT_DOCUMENT_TYPE,
@@ -135,6 +142,23 @@ export function richTextToActivityPubTags(document: RichTextDocument): RichTextA
 		return [];
 	}
 	return uniqRichTextActivityPubTags(document.blocks.flatMap(block => richTextBlockToActivityPubTags(block)));
+}
+
+export function richTextToMatrixMessageContent(document: RichTextDocument): RichTextMatrixMessageContent {
+	const content: RichTextMatrixMessageContent = {
+		msgtype: 'm.text',
+		body: richTextToPlainText(document)
+	};
+	if (!isRichTextDocument(document)) {
+		return content;
+	}
+	const formattedBody = richTextToSafeHtml(document);
+	if (!formattedBody) {
+		return content;
+	}
+	content.format = 'org.matrix.custom.html';
+	content.formatted_body = formattedBody;
+	return content;
 }
 
 export function isRichTextDocument(value: any): value is RichTextDocument {
@@ -843,6 +867,7 @@ export default {
 	richTextToSafeHtml,
 	richTextToAtProtoTextWithFacets,
 	richTextToActivityPubTags,
+	richTextToMatrixMessageContent,
 	isRichTextDocument,
 	assertRichTextDocument,
 	validateRichTextDocument

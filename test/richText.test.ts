@@ -9,6 +9,7 @@ import {
 	isRichTextDocument,
 	richTextToActivityPubTags,
 	richTextToAtProtoTextWithFacets,
+	richTextToMatrixMessageContent,
 	richTextToPlainText,
 	richTextToSafeHtml,
 	validateRichTextDocument
@@ -307,5 +308,24 @@ describe('richText helpers', () => {
 			}
 		]);
 		assert.deepEqual(richTextToActivityPubTags({} as any), []);
+	});
+
+	it('exports Matrix message content with plain fallback and sanitized HTML', () => {
+		const document = htmlToRichText([
+			'<p>Hello <strong>Matrix</strong> <a href="https://example.com/post">link</a></p>',
+			'<script>alert(1)</script>',
+			'<p><a href="javascript:alert(2)">bad</a> <code>x &lt; y</code></p>'
+		].join(''));
+
+		assert.deepEqual(richTextToMatrixMessageContent(document), {
+			msgtype: 'm.text',
+			body: 'Hello Matrix link\nbad x < y',
+			format: 'org.matrix.custom.html',
+			formatted_body: '<p>Hello <strong>Matrix</strong> <a href="https://example.com/post">link</a></p><p>bad <code>x &lt; y</code></p>'
+		});
+		assert.deepEqual(richTextToMatrixMessageContent({} as any), {
+			msgtype: 'm.text',
+			body: ''
+		});
 	});
 });
