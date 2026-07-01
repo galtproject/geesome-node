@@ -1,0 +1,194 @@
+import assert from 'node:assert';
+import {
+	RICH_TEXT_DOCUMENT_TYPE,
+	RICH_TEXT_MIME_TYPE,
+	RICH_TEXT_VERSION,
+	assertRichTextDocument,
+	createRichTextDocument,
+	htmlToRichText,
+	isRichTextDocument,
+	richTextToPlainText,
+	richTextToSafeHtml,
+	validateRichTextDocument
+} from '../app/richText.js';
+
+describe('richText helpers', () => {
+	it('validates the canonical document shape and renders safe plain text/html', () => {
+		const document = createRichTextDocument([
+			{
+				type: 'paragraph',
+				children: [
+					{text: 'Hello '},
+					{text: 'safe', marks: [{type: 'strong'}]},
+					{text: ' world', marks: [{type: 'link', href: 'https://example.com/post', title: 'Example'}]},
+					{text: ' <tag>', marks: [{type: 'code'}]}
+				]
+			},
+			{
+				type: 'blockquote',
+				children: [{text: 'quoted'}]
+			},
+			{
+				type: 'codeBlock',
+				text: 'x < y'
+			},
+			{
+				type: 'list',
+				ordered: false,
+				items: [
+					{type: 'listItem', children: [{text: 'one'}]},
+					{type: 'listItem', children: [{text: 'two'}]}
+				]
+			},
+			{
+				type: 'attachment',
+				storageId: 'bafy-image',
+				mimeType: 'image/png',
+				alt: 'image alt'
+			}
+		], {lang: 'en'});
+
+		assert.equal(RICH_TEXT_DOCUMENT_TYPE, 'geesome.richText');
+		assert.equal(RICH_TEXT_VERSION, 1);
+		assert.equal(RICH_TEXT_MIME_TYPE, 'application/vnd.geesome.rich-text+json');
+		assert.equal(isRichTextDocument(document), true);
+		assert.deepEqual(validateRichTextDocument(document), []);
+		assert.doesNotThrow(() => assertRichTextDocument(document));
+		assert.equal(richTextToPlainText(document), 'Hello safe world <tag>\nquoted\nx < y\none\ntwo\nimage alt');
+
+		const html = richTextToSafeHtml(document);
+		assert.match(html, /^<p>/);
+		assert.match(html, /<strong>safe<\/strong>/);
+		assert.match(html, /<a[^>]+href="https:\/\/example\.com\/post"[^>]* title="Example"[^>]*> world<\/a>/);
+		assert.match(html, /<code> &lt;tag&gt;<\/code>/);
+		assert.match(html, /<blockquote>quoted<\/blockquote>/);
+		assert.match(html, /<pre><code>x &lt; y<\/code><\/pre>/);
+		assert.match(html, /<ul><li>one<\/li><li>two<\/li><\/ul>/);
+		assert.equal(html.includes('bafy-image'), false);
+	});
+
+	it('imports unsafe html into canonical rich text without preserving active content', () => {
+		const document = htmlToRichText([
+			'<p onclick="alert(1)">Hello <strong>safe post</strong></p>',
+			'<script>window.__xss = true</script>',
+			'<a href="javascript:alert(2)" onmouseover="alert(3)">bad link</a>',
+			'<a href="https://example.com/safe" target="_blank" style="color:red">safe link</a>',
+			'<a href="ipfs://bafybeigdyrzt">ipfs link</a>',
+			'<iframe src="https://example.com/embed"></iframe>',
+			'<span style="color:red">unstyled text</span>'
+		].join(''));
+
+		assert.equal(isRichTextDocument(document), true);
+		assert.equal(richTextToPlainText(document), 'Hello safe post\nbad linksafe linkipfs linkunstyled text');
+		assert.deepEqual(document.blocks[0], {
+			type: 'paragraph',
+			children: [
+				{text: 'Hello '},
+				{text: 'safe post', marks: [{type: 'strong'}]}
+			]
+		});
+		assert.deepEqual(document.blocks[1], {
+			type: 'paragraph',
+			children: [
+				{text: 'bad link'},
+				{text: 'safe link', marks: [{type: 'link', href: 'https://example.com/safe'}]},
+				{text: 'ipfs link', marks: [{type: 'link', href: 'ipfs://bafybeigdyrzt'}]},
+				{text: 'unstyled text'}
+			]
+		});
+
+		const html = richTextToSafeHtml(document);
+		assert.equal(html.includes('<script'), false);
+		assert.equal(html.includes('<iframe'), false);
+		assert.equal(html.includes('onclick'), false);
+		assert.equal(html.includes('onmouseover'), false);
+		assert.equal(html.includes('javascript:'), false);
+		assert.equal(html.includes('style='), false);
+		assert.match(html, /<strong>safe post<\/strong>/);
+		assert.match(html, /<a[^>]+href="https:\/\/example\.com\/safe"[^>]*>safe link<\/a>/);
+		assert.match(html, /<a[^>]+href="ipfs:\/\/bafybeigdyrzt"[^>]*>ipfs link<\/a>/);
+	});
+
+	it('rejects unsafe links during validation and drops them during html rendering', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [{
+				text: 'bad',
+				marks: [{type: 'link', href: 'javascript:alert(1)'}]
+			}]
+		}]);
+
+		assert.equal(isRichTextDocument(document), true);
+		assert.equal(richTextToSafeHtml(document), '<p>bad</p>');
+
+		const invalidDocument = {
+			type: RICH_TEXT_DOCUMENT_TYPE,
+			version: RICH_TEXT_VERSION,
+			blocks: [{
+				type: 'paragraph',
+				children: [{
+					text: 'bad',
+					marks: [{type: 'link', href: 'javascript:alert(1)'}]
+				}]
+			}]
+		};
+
+		assert.deepEqual(validateRichTextDocument(invalidDocument), [
+			'blocks[0].children[0].marks[0].href must use a safe absolute protocol'
+		]);
+		assert.throws(() => assertRichTextDocument(invalidDocument), /rich_text_document_invalid/);
+	});
+
+	it('removes unsafe optional mention and hashtag hrefs without dropping the text', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: '@alice', marks: [{type: 'mention', id: 'alice', href: 'javascript:alert(1)'}]},
+				{text: ' '},
+				{text: '#safe', marks: [{type: 'hashtag', name: 'safe', href: 'https://example.com/tags/safe'}]}
+			]
+		}]);
+
+		assert.deepEqual(document.blocks[0].children, [
+			{text: '@alice', marks: [{type: 'mention', id: 'alice'}]},
+			{text: ' '},
+			{text: '#safe', marks: [{type: 'hashtag', name: 'safe', href: 'https://example.com/tags/safe'}]}
+		]);
+		assert.equal(isRichTextDocument(document), true);
+		assert.equal(richTextToSafeHtml(document).includes('javascript:'), false);
+		assert.match(richTextToSafeHtml(document), /<a[^>]+href="https:\/\/example\.com\/tags\/safe"[^>]*>#safe<\/a>/);
+	});
+
+	it('imports lists, blockquotes, code, and relative links deterministically', () => {
+		const document = htmlToRichText([
+			'<blockquote><em>quoted</em></blockquote>',
+			'<pre><code>x &lt; y</code></pre>',
+			'<ol><li>first</li><li><code>second</code></li></ol>',
+			'<p><a href="/relative">relative</a></p>'
+		].join(''));
+
+		assert.deepEqual(document.blocks, [
+			{
+				type: 'blockquote',
+				children: [{text: 'quoted', marks: [{type: 'em'}]}]
+			},
+			{
+				type: 'codeBlock',
+				text: 'x < y'
+			},
+			{
+				type: 'list',
+				ordered: true,
+				items: [
+					{type: 'listItem', children: [{text: 'first'}]},
+					{type: 'listItem', children: [{text: 'second', marks: [{type: 'code'}]}]}
+				]
+			},
+			{
+				type: 'paragraph',
+				children: [{text: 'relative'}]
+			}
+		]);
+		assert.equal(richTextToSafeHtml(document).includes('/relative'), false);
+	});
+});
