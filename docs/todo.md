@@ -330,6 +330,10 @@ Status: first API prerequisite, public identity helper, read-only serializer, re
 
 Local smoke note: `npm run activitypub:interop-smoke` now checks deterministic WebFinger, NodeInfo, actor, Note/Create, outbox filtering, content-type, sanitized rich-text, tag, and attachment payload compatibility. The remaining interop-smoke backlog means live remote-server checks such as Fedify CLI, ActivityPub.Academy, Mastodon-compatible servers, and Bridgy Fed/Bluesky boundary smoke.
 
+Bluesky smoke direction: add a live, operator-run script for a public Bluesky account through the ActivityPub bridge path before deciding on native Bluesky import. Suggested shape: `npm run activitypub:bluesky-bridge-smoke`, defaulting to the official public `bsky.app` Bluesky account but allowing `ACTIVITYPUB_BLUESKY_SMOKE_HANDLE` override. The script should use Bridgy Fed/ActivityPub discovery when the Bluesky account is bridged, verify actor resolution and recent public posts, feed signed/unsigned fixture-equivalent ActivityPub objects through the existing `activityPub` module path into a disposable local group, and assert `ActivityPubRemoteActor`, `ActivityPubObject`, review metadata, and optional accepted-post creation results. If the chosen Bluesky account is not bridge-enabled, the script should report that cleanly and point to the native ATProto fallback rather than creating fake success.
+
+Native Bluesky direction: if we need direct public Bluesky timeline import, account ownership, or cross-posting without Bridgy Fed, make that a separate Bluesky/ATProto module or socNet import driver instead of expanding the ActivityPub module. It should use a seeded `socNetAccount` row for credentials when needed, use public unauthenticated ATProto/XRPC reads for public-account smoke where possible, map ATProto records to the canonical rich-text model, and then create/import GeeSome groups/posts through the same moderation and source-identity rules used by other social imports.
+
 Research note: [activitypub-research.md](./activitypub-research.md).
 
 Rich-text content-format design note: [rich-text-content-format.md](./rich-text-content-format.md).
@@ -383,7 +387,7 @@ Verification:
 - Existing `test/group.test.ts` for post compatibility.
 - Rich-text adapter tests that import unsafe ActivityPub/Matrix-style HTML into the canonical model, render sanitized ActivityPub/Matrix HTML, and export deterministic plain text plus facets/tags for ATProto/Farcaster/Nostr-style protocols. Status: unsafe HTML import, sanitized HTML rendering, ActivityPub local-post rendering with mention/hashtag tags, Matrix body/formatted-body export, ATProto-compatible link/DID-mention/tag facet export with UTF-8 byte offsets, Farcaster CastAdd-style text/embed/FID mention export with byte offsets, and Nostr-like `r`/`p`/`t` tag export are covered.
 - Later integration smoke against a local ActivityPub test server.
-- Later Bluesky data-exchange smoke with the protocol boundary explicit: ActivityPub interop should use a bridge such as Bridgy Fed, while direct Bluesky/ATProto import or cross-post testing should use a seeded test `socNetAccount` database row for the Bluesky account and verify ownership, credential handling, idempotency, and moderation/signature boundaries.
+- Later Bluesky data-exchange smoke with the protocol boundary explicit: ActivityPub interop should use a bridge such as Bridgy Fed, ideally first against a configurable public account such as `bsky.app`, while direct Bluesky/ATProto import or cross-post testing should use a dedicated Bluesky module/socNet import path with a seeded test `socNetAccount` database row when credentials are required. Both paths must verify ownership, credential handling, idempotency, source identity, moderation/signature boundaries, and that received updates store expected local group/post state without bypassing review gates.
 
 ### 11. Database Scalability For Large Groups
 

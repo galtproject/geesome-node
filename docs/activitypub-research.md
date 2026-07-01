@@ -77,6 +77,8 @@ Adapter policy:
 - Nostr-like protocols: render plaintext plus protocol tags. Status: `richTextToNostrTextNote` exports plain content with `r` link, `p` pubkey mention, and `t` hashtag tags; real account/event signing remains future work.
 - Inbound ActivityPub/Matrix HTML: sanitize, normalize, and parse into canonical rich text before it can become a native editable GeeSome post. The original remote object may be stored for audit/debug, but it must not be rendered directly. Status: cached remote ActivityPub object previews expose sanitized `contentHtml`, plain `contentText`, canonical `contentRichText` converted from the sanitized content, accepted-review-gated post-draft metadata, local reply target mapping, manual native-post creation from accepted public Notes, persistent review-state decisions, and review-state filtering for review/import follow-ups.
 
+Bluesky protocol boundary: Bluesky uses AT Protocol, not ActivityPub. ActivityPub testing against Bluesky should therefore go through an ActivityPub bridge such as Bridgy Fed and treat bridge availability/opt-in as part of the smoke result. Direct public Bluesky account import, timeline refresh, or cross-posting should be planned as a separate Bluesky/ATProto module or socNet import driver that uses the ATProto adapter output and GeeSome moderation/source-identity rules.
+
 ## Security Requirements
 
 The ActivityPub spec leaves authentication/verification mechanisms flexible, but real Fediverse interop depends on signed HTTP requests.
@@ -425,7 +427,7 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Local deterministic interop smoke. Status: `npm run activitypub:interop-smoke` checks representative WebFinger, NodeInfo, actor, Note/Create, outbox, content-type, sanitized rich-text, ActivityStreams tag, and attachment payloads before remote-server smoke.
 - Fedify testing utilities if Fedify is adopted.
 - Manual/local federation tests with `fedify lookup`, `fedify inbox`, ActivityPub.Academy, and one Mastodon-compatible server.
-- Bluesky compatibility smoke must be explicit about protocol boundaries. Bluesky uses AT Protocol, so ActivityPub exchange should be tested through a bridge such as Bridgy Fed: local GeeSome group post delivery should appear on the bridged Bluesky side, and a Bluesky reply/mention should come back as a signed ActivityPub inbox/shared-inbox activity that GeeSome stores as a remote object. Separately, test any direct Bluesky/ATProto data exchange through the socNet account path with a test `socNetAccount` database row (`socNet` set to the final Bluesky module name, test account identity, and non-production app password/OAuth credentials), verifying credential ownership, import/cross-post semantics, idempotency, and that the direct ATProto path does not bypass ActivityPub signature/moderation gates.
+- Bluesky compatibility smoke must be explicit about protocol boundaries. Bluesky uses AT Protocol, so ActivityPub exchange should be tested through a bridge such as Bridgy Fed: local GeeSome group post delivery should appear on the bridged Bluesky side, and a Bluesky reply/mention should come back as a signed ActivityPub inbox/shared-inbox activity that GeeSome stores as a remote object. Add a script such as `npm run activitypub:bluesky-bridge-smoke` for a configurable public Bluesky account, defaulting to the official `bsky.app` account when available through the bridge, and have it fail/skip clearly when the account is not bridge-enabled. Separately, test any direct Bluesky/ATProto data exchange through a dedicated Bluesky module or socNet account path with a test `socNetAccount` database row (`socNet` set to the final Bluesky module name, test account identity, and non-production app password/OAuth credentials when writes are needed), verifying credential ownership, import/cross-post semantics, idempotency, local group/post storage, and that the direct ATProto path does not bypass ActivityPub signature/moderation gates.
 
 ## Sources
 
@@ -436,6 +438,8 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 - Mastodon ActivityPub compatibility documentation: https://docs.joinmastodon.org/spec/activitypub/
 - Mastodon WebFinger documentation: https://docs.joinmastodon.org/spec/webfinger/
 - Mastodon security/signature documentation: https://docs.joinmastodon.org/spec/security/
+- AT Protocol FAQ: https://atproto.com/guides/faq
+- Bluesky AT Protocol guide: https://docs.bsky.app/docs/advanced-guides/atproto
+- Official Bluesky account: https://bsky.app/profile/bsky.app
+- Bridgy Fed docs: https://fed.brid.gy/docs
 - Fedify documentation: https://fedify.dev/
-- Bluesky AT Protocol documentation: https://docs.bsky.app/docs/advanced-guides/atproto
-- Bridgy Fed bridge documentation: https://fed.brid.gy/docs
