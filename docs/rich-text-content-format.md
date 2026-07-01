@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note, not yet implemented.
+Status: design note with the first helper slice implemented in `app/richText.ts`. Native post storage, editor integration, and protocol wiring remain future work.
 
 ## Decision
 
@@ -261,10 +261,10 @@ Existing `Content` rows do not need a schema migration for the design itself. A 
 
 Recommended first code PR:
 
-1. Add schema constants/types and validation helpers in a small module.
-2. Add `richTextToPlainText` and `richTextToSafeHtml`.
-3. Add `htmlToRichText` for the current allowed HTML subset.
-4. Add fixtures that prove unsafe HTML cannot survive the round trip.
+1. Add schema constants/types and validation helpers in a small module. Status: implemented in `app/richText.ts`.
+2. Add `richTextToPlainText` and `richTextToSafeHtml`. Status: implemented in `app/richText.ts`.
+3. Add `htmlToRichText` for the current allowed HTML subset. Status: implemented in `app/richText.ts`.
+4. Add fixtures that prove unsafe HTML cannot survive the round trip. Status: implemented in `test/richText.test.ts`.
 5. Wire only one low-risk render path to the helpers before replacing broader post storage.
 
 Do not change the storage format for all posts in the first implementation PR.
