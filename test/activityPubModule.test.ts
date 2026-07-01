@@ -1452,7 +1452,7 @@ describe('activityPub module', () => {
 
 	it('tombstones signed shared-inbox Delete for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1483,6 +1483,7 @@ describe('activityPub module', () => {
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
 		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const importedPost = addImportedRemotePost(calls, createdRemoteObject);
 		await module.setGroupRemoteObjectReviewState('test-channel', createdRemoteObject.id, {
 			state: ActivityPubObjectReviewState.Rejected
 		}, 7);
@@ -1500,7 +1501,11 @@ describe('activityPub module', () => {
 		assert.equal(firstDeleteResult.activityType, 'Delete');
 		assert.equal(firstDeleteResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstDeleteResult.objectId, createActivity.object.id);
+		assert.equal(firstDeleteResult.localPostDeleted, true);
+		assert.equal(secondDeleteResult.localPostDeleted, false);
 		assert.equal(secondDeleteResult.activityPubObjectId, firstDeleteResult.activityPubObjectId);
+		assert.deepEqual(calls.deletePostsPure, [{userId: 7, postIds: [88], options: undefined}]);
+		assert.equal(importedPost.isDeleted, true);
 		assert.equal(models.ActivityPubObject.rows.length, 2);
 		assert.equal(remoteObject.objectId, createActivity.object.id);
 		assert.equal(remoteObject.remoteObjectUrl, createActivity.object.id);
@@ -1562,7 +1567,7 @@ describe('activityPub module', () => {
 
 	it('tombstones signed shared-inbox Undo(Create) for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1589,6 +1594,8 @@ describe('activityPub module', () => {
 		await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
+		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const importedPost = addImportedRemotePost(calls, createdRemoteObject);
 		const firstUndoResult = await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', undoActivity)
 		);
@@ -1603,7 +1610,11 @@ describe('activityPub module', () => {
 		assert.equal(firstUndoResult.activityType, 'Undo');
 		assert.equal(firstUndoResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstUndoResult.objectId, createActivity.object.id);
+		assert.equal(firstUndoResult.localPostDeleted, true);
+		assert.equal(secondUndoResult.localPostDeleted, false);
 		assert.equal(secondUndoResult.activityPubObjectId, firstUndoResult.activityPubObjectId);
+		assert.deepEqual(calls.deletePostsPure, [{userId: 7, postIds: [88], options: undefined}]);
+		assert.equal(importedPost.isDeleted, true);
 		assert.equal(models.ActivityPubObject.rows.length, 2);
 		assert.equal(remoteObject.objectId, createActivity.object.id);
 		assert.equal(remoteObject.objectType, 'Tombstone');
@@ -1927,7 +1938,9 @@ async function createActivityPubHarness(overrides: any = {}) {
 		getGroupByParams: [],
 		getGroupPosts: [],
 		saveData: [],
-		createRemotePostByObject: []
+		createRemotePostByObject: [],
+		deletePostsPure: [],
+		remotePosts: {}
 	};
 	const group = getGroup();
 	const publishedPost = getPublishedPost();
@@ -1993,7 +2006,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 				},
 				async getPostPure(postId) {
 					if (Number(postId) !== publishedPost.id) {
-						return null;
+						return calls.remotePosts[Number(postId)] || null;
 					}
 					return {
 						...publishedPost,
@@ -2019,6 +2032,16 @@ async function createActivityPubHarness(overrides: any = {}) {
 						isRemote: true,
 						status: PostStatus.Published
 					};
+				},
+				async deletePostsPure(userId, postIds, options) {
+					calls.deletePostsPure.push({userId, postIds, options});
+					postIds.forEach((postId) => {
+						const post = calls.remotePosts[Number(postId)];
+						if (post) {
+							post.isDeleted = true;
+						}
+					});
+					return true;
 				}
 			}
 		}
@@ -2036,6 +2059,24 @@ async function createActivityPubHarness(overrides: any = {}) {
 		calls,
 		models
 	};
+}
+
+function addImportedRemotePost(calls, remoteObject, overrides: any = {}) {
+	const post = {
+		id: 88,
+		userId: 7,
+		groupId: 3,
+		status: PostStatus.Published,
+		isRemote: true,
+		isDeleted: false,
+		source: 'activityPub',
+		sourceChannelId: `remoteActor:${remoteObject.remoteActorId}`,
+		sourcePostId: `remoteObject:${remoteObject.id}`,
+		...overrides
+	};
+	remoteObject.localPostId = post.id;
+	calls.remotePosts[post.id] = post;
+	return post;
 }
 
 function getApiStub(routes) {

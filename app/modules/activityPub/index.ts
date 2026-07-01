@@ -535,9 +535,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					remoteActorRecord,
 					activity: request.body
 				});
+				const localPostDeleted = await deleteActivityPubRemoteObjectPost(app, objectRecord);
 				await resetActivityPubObjectReviewState(models, objectRecord);
 
-				return getSharedInboxDeleteResult(verification, remoteActorUrl, objectRecord);
+				return getSharedInboxDeleteResult(verification, remoteActorUrl, objectRecord, localPostDeleted);
 			}
 			if (isUndoActivity(request.body)) {
 				const object = getRequiredSharedInboxUndoCreateObject(request.body, remoteActorUrl);
@@ -548,9 +549,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					objectNotFoundMessage: 'activitypub_undo_create_object_not_found',
 					actorMismatchMessage: 'activitypub_undo_create_object_actor_mismatch'
 				});
+				const localPostDeleted = await deleteActivityPubRemoteObjectPost(app, objectRecord);
 				await resetActivityPubObjectReviewState(models, objectRecord);
 
-				return getSharedInboxUndoResult(verification, remoteActorUrl, objectRecord);
+				return getSharedInboxUndoResult(verification, remoteActorUrl, objectRecord, localPostDeleted);
 			}
 			if (isUpdateActivity(request.body)) {
 				const object = getRequiredSharedInboxUpdateObject(request.body);
@@ -1222,6 +1224,29 @@ async function updateActivityPubRemoteObjectLocalPostId(objectRecord, post: IPos
 		return;
 	}
 	await objectRecord.update({localPostId: post.id});
+}
+
+async function deleteActivityPubRemoteObjectPost(app: IGeesomeApp, objectRecord): Promise<boolean> {
+	const postId = Number(objectRecord?.localPostId || 0);
+	if (!Number.isFinite(postId) || postId <= 0) {
+		return false;
+	}
+	const post = await app.ms.group.getPostPure(postId);
+	if (!isActivityPubRemoteObjectImportedPost(objectRecord, post)) {
+		return false;
+	}
+	await app.ms.group.deletePostsPure(post.userId || null, [postId]);
+	return true;
+}
+
+function isActivityPubRemoteObjectImportedPost(objectRecord, post): boolean {
+	if (!post || post.isDeleted === true) {
+		return false;
+	}
+	return post.isRemote === true
+		&& post.source === 'activityPub'
+		&& post.sourceChannelId === getActivityPubRemoteObjectPostSourceChannelId(objectRecord)
+		&& post.sourcePostId === getActivityPubRemoteObjectPostSourcePostId(objectRecord);
 }
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {
@@ -1922,7 +1947,7 @@ function getSharedInboxCreateResult(verification, remoteActorUrl: string, object
 	};
 }
 
-function getSharedInboxDeleteResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+function getSharedInboxDeleteResult(verification, remoteActorUrl: string, objectRecord, localPostDeleted: boolean): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
@@ -1931,11 +1956,12 @@ function getSharedInboxDeleteResult(verification, remoteActorUrl: string, object
 		activityType: 'Delete',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
-		objectId: objectRecord.objectId
+		objectId: objectRecord.objectId,
+		localPostDeleted
 	};
 }
 
-function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRecord, localPostDeleted: boolean): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
@@ -1944,7 +1970,8 @@ function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRe
 		activityType: 'Undo',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
-		objectId: objectRecord.objectId
+		objectId: objectRecord.objectId,
+		localPostDeleted
 	};
 }
 
