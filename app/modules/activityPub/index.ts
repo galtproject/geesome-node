@@ -2,8 +2,8 @@ import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
-import {htmlToRichText} from '../../richText.js';
-import type {IContentData, IListParams} from '../database/interface.js';
+import {RICH_TEXT_MIME_TYPE, htmlToRichText} from '../../richText.js';
+import type {IContent, IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import IGeesomeActivityPubModule, {
@@ -18,6 +18,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubFlagReportListResponse,
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
+	IActivityPubRemoteObjectPostCreateResult,
 	IActivityPubRemoteObjectPostDraft,
 	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
@@ -125,7 +126,7 @@ const maxActivityPubRemoteObjectPreviewTextLength = 1000;
 const maxActivityPubRemoteObjectPreviewNameLength = 500;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
-	app.checkModules(['api', 'group', 'database']);
+	app.checkModules(['api', 'group', 'database', 'content']);
 	const models = options.models || await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models, options);
 	(await import('./api.js')).default(app, module);
@@ -263,6 +264,27 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		async getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft> {
 			const remoteObject = await this.getGroupRemoteObject(groupName, remoteObjectId);
 			return getActivityPubRemoteObjectPostDraft(remoteObject);
+		}
+
+		async createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult> {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			const objectRecord = actorRecord ? await getGroupRemoteObjectRecord(models, actorRecord, remoteObjectId) : null;
+			if (!objectRecord) {
+				throwActivityPubError('activitypub_remote_object_not_found', 404);
+			}
+			const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
+			const postDraft = getActivityPubRemoteObjectPostDraft(remoteObject);
+			assertActivityPubRemoteObjectPostDraftCreatable(postDraft);
+			const content = await createActivityPubRemoteObjectPostContent(app, userId, postDraft);
+			const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, content));
+			await updateActivityPubRemoteObjectLocalPostId(objectRecord, post);
+
+			return {
+				post,
+				remoteObject: await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord)
+			};
 		}
 
 		async setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport> {
@@ -925,6 +947,58 @@ function getActivityPubRemoteObjectPostDraft(remoteObject: IActivityPubRemoteObj
 	return draft;
 }
 
+function assertActivityPubRemoteObjectPostDraftCreatable(postDraft: IActivityPubRemoteObjectPostDraft): void {
+	if (postDraft.canCreatePost) {
+		return;
+	}
+	throwActivityPubError(postDraft.reasons[0] || 'activitypub_remote_object_post_draft_not_ready', 400);
+}
+
+async function createActivityPubRemoteObjectPostContent(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft): Promise<IContent> {
+	return app.ms.content.saveData(
+		userId,
+		JSON.stringify(postDraft.contentRichText),
+		getActivityPubRemoteObjectPostContentFileName(postDraft),
+		{
+			mimeType: RICH_TEXT_MIME_TYPE,
+			properties: {
+				source: 'activityPub',
+				activityPub: postDraft.source
+			}
+		}
+	);
+}
+
+function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, content: IContent) {
+	return {
+		groupId: group.id,
+		status: PostStatus.Published,
+		source: 'activityPub',
+		sourceChannelId: getActivityPubRemoteObjectPostSourceChannelId(remoteObject),
+		sourcePostId: getActivityPubRemoteObjectPostSourcePostId(remoteObject),
+		sourceDate: remoteObject.publishedAt || undefined,
+		propertiesJson: JSON.stringify(getActivityPubRemoteObjectPostProperties(remoteObject, postDraft)),
+		contents: [{id: content.id}]
+	};
+}
+
+function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft) {
+	const properties: any = {
+		activityPub: postDraft.source
+	};
+	const sourceLink = getActivityPubRemoteObjectPostSourceLink(remoteObject);
+	if (sourceLink) {
+		properties.sourceLink = sourceLink;
+	}
+	if (postDraft.title) {
+		properties.title = postDraft.title;
+	}
+	if (postDraft.summaryText) {
+		properties.summaryText = postDraft.summaryText;
+	}
+	return properties;
+}
+
 function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPreview | undefined {
 	if (!object || typeof object !== 'object') {
 		return undefined;
@@ -1074,6 +1148,32 @@ function getActivityPubRemoteObjectPostDraftSource(remoteObject: IActivityPubRem
 function hasActivityPubRemoteObjectDraftContent(remoteObject: IActivityPubRemoteObjectReport): boolean {
 	const blocks = remoteObject.preview?.contentRichText?.blocks;
 	return Array.isArray(blocks) && blocks.length > 0;
+}
+
+function getActivityPubRemoteObjectPostContentFileName(postDraft: IActivityPubRemoteObjectPostDraft): string {
+	return `activitypub-remote-object-${postDraft.remoteObject.id || 'post'}.json`;
+}
+
+function getActivityPubRemoteObjectPostSourceChannelId(remoteObject: IActivityPubRemoteObjectReport): string {
+	if (remoteObject.remoteActorId) {
+		return `remoteActor:${remoteObject.remoteActorId}`;
+	}
+	return `localActor:${remoteObject.localActorId || 'unknown'}`;
+}
+
+function getActivityPubRemoteObjectPostSourcePostId(remoteObject: IActivityPubRemoteObjectReport): string {
+	return `remoteObject:${remoteObject.id}`;
+}
+
+function getActivityPubRemoteObjectPostSourceLink(remoteObject: IActivityPubRemoteObjectReport): string {
+	return remoteObject.preview?.url || remoteObject.remoteObjectUrl || remoteObject.objectId || '';
+}
+
+async function updateActivityPubRemoteObjectLocalPostId(objectRecord, post: IPost): Promise<void> {
+	if (Number(objectRecord.localPostId || 0) === Number(post.id || 0)) {
+		return;
+	}
+	await objectRecord.update({localPostId: post.id});
 }
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {

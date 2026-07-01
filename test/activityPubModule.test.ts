@@ -7,6 +7,7 @@ import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../a
 import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
+import {RICH_TEXT_MIME_TYPE} from '../app/richText.js';
 
 describe('activityPub module', () => {
 	it('resolves WebFinger, actor, outbox, and post Note payloads for public groups', async () => {
@@ -1096,7 +1097,7 @@ describe('activityPub module', () => {
 
 	it('lists cached remote ActivityPub objects for admin review', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1235,6 +1236,7 @@ describe('activityPub module', () => {
 		assert.equal(defaultPendingPage.total, 1);
 		assert.equal(defaultPendingPage.list[0].id, object.id);
 		assert.equal(defaultPendingPage.list[0].reviewState, ActivityPubObjectReviewState.Pending);
+		await assert.rejects(() => module.createGroupRemoteObjectPost('test-channel', object.id, 7), /activitypub_remote_object_review_not_accepted/);
 
 		const acceptedObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
 			state: ActivityPubObjectReviewState.Accepted
@@ -1251,6 +1253,36 @@ describe('activityPub module', () => {
 		assert.equal(acceptedObject.reviewedByUserId, 7);
 		assert.equal(acceptedPostDraft.canCreatePost, true);
 		assert.deepEqual(acceptedPostDraft.reasons, []);
+
+		const createPostResult = await module.createGroupRemoteObjectPost('test-channel', object.id, 7);
+		assert.equal(createPostResult.post.id, 88);
+		assert.equal(createPostResult.post.isRemote, true);
+		assert.equal(createPostResult.remoteObject.localPostId, 88);
+		assert.equal(calls.saveData.length, 1);
+		assert.equal(calls.saveData[0].userId, 7);
+		assert.equal(calls.saveData[0].fileName, `activitypub-remote-object-${object.id}.json`);
+		assert.equal(calls.saveData[0].options.mimeType, RICH_TEXT_MIME_TYPE);
+		assert.deepEqual(JSON.parse(calls.saveData[0].dataToSave), object.preview?.contentRichText);
+		assert.equal(calls.createRemotePostByObject.length, 1);
+		assert.equal(calls.createRemotePostByObject[0].userId, 7);
+		assert.equal(calls.createRemotePostByObject[0].postData.groupId, 3);
+		assert.equal(calls.createRemotePostByObject[0].postData.source, 'activityPub');
+		assert.equal(calls.createRemotePostByObject[0].postData.sourceChannelId, `remoteActor:${models.ActivityPubRemoteActor.rows[0].id}`);
+		assert.equal(calls.createRemotePostByObject[0].postData.sourcePostId, `remoteObject:${object.id}`);
+		assert.equal(calls.createRemotePostByObject[0].postData.sourceDate?.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.deepEqual(calls.createRemotePostByObject[0].postData.contents, [{id: 201}]);
+		assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
+			activityPub: postDraft.source,
+			sourceLink: activity.object.id,
+			title: object.preview?.name,
+			summaryText: object.preview?.summaryText
+		});
+
+		const existingPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
+		assert.equal(existingPostDraft.canCreatePost, false);
+		assert.deepEqual(existingPostDraft.reasons, ['activitypub_remote_object_post_exists']);
+		models.ActivityPubObject.rows.find((row) => row.id === object.id).localPostId = null;
+
 		assert.equal(acceptedPage.total, 1);
 		assert.equal(acceptedPage.list[0].id, object.id);
 		assert.equal(acceptedPage.list[0].reviewState, ActivityPubObjectReviewState.Accepted);
@@ -1259,13 +1291,6 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObjectReview.rows.length, 1);
 		assert.equal(models.ActivityPubObjectReview.rows[0].activityPubObjectId, object.id);
 		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Accepted);
-
-		const remoteObjectRow = models.ActivityPubObject.rows.find((row) => row.id === object.id);
-		remoteObjectRow.localPostId = 77;
-		const existingPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
-		assert.equal(existingPostDraft.canCreatePost, false);
-		assert.deepEqual(existingPostDraft.reasons, ['activitypub_remote_object_post_exists']);
-		remoteObjectRow.localPostId = null;
 
 		const pendingObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
 			state: ActivityPubObjectReviewState.Pending
@@ -1670,6 +1695,10 @@ describe('activityPub API', () => {
 					objectId: 'https://remote.example/objects/reply-1'
 				}
 			}),
+			createGroupRemoteObjectPost: async () => ({
+				post: {id: 88},
+				remoteObject: {id: 2, localPostId: 88}
+			}),
 			setGroupRemoteObjectReviewState: async () => ({
 				id: 2,
 				reviewState: ActivityPubObjectReviewState.Rejected,
@@ -1778,12 +1807,22 @@ describe('activityPub API', () => {
 			}
 		});
 
+		const remoteObjectPostCreate = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', {
+			params: {groupName: 'test-channel', remoteObjectId: '2'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(remoteObjectPostCreate.body, {
+			post: {id: 88},
+			remoteObject: {id: 2, localPostId: 88}
+		});
+
 		const remoteObjectReviewState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state', {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			body: {state: ActivityPubObjectReviewState.Rejected},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectReviewState.body, {
 			id: 2,
 			reviewState: ActivityPubObjectReviewState.Rejected,
@@ -1795,7 +1834,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -1806,7 +1845,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[7], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',
@@ -1883,7 +1922,9 @@ async function createActivityPubHarness(overrides: any = {}) {
 	}
 	const calls: any = {
 		getGroupByParams: [],
-		getGroupPosts: []
+		getGroupPosts: [],
+		saveData: [],
+		createRemotePostByObject: []
 	};
 	const group = getGroup();
 	const publishedPost = getPublishedPost();
@@ -1897,7 +1938,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 			}
 		},
 		checkModules(modules) {
-			assert.deepEqual(modules, ['api', 'group', 'database']);
+			assert.deepEqual(modules, ['api', 'group', 'database', 'content']);
 		},
 		encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
 		decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
@@ -1909,6 +1950,18 @@ async function createActivityPubHarness(overrides: any = {}) {
 					listParams.offset = Number(listParams.offset || defaults.offset || 0);
 					listParams.sortBy = listParams.sortBy || defaults.sortBy || 'createdAt';
 					listParams.sortDir = listParams.sortDir || defaults.sortDir || 'DESC';
+				}
+			},
+			content: {
+				async saveData(userId, dataToSave, fileName, options) {
+					calls.saveData.push({userId, dataToSave, fileName, options});
+					return {
+						id: 200 + calls.saveData.length,
+						userId,
+						name: fileName,
+						mimeType: options.mimeType,
+						storageId: `saved-content-${calls.saveData.length}`
+					};
 				}
 			},
 			group: {
@@ -1952,6 +2005,16 @@ async function createActivityPubHarness(overrides: any = {}) {
 						...content,
 						type: content.mimeType.includes('image') ? 'image' : 'document',
 						url: baseStorageUri + content.storageId
+					};
+				},
+				async createRemotePostByObject(userId, postData, options) {
+					calls.createRemotePostByObject.push({userId, postData, options});
+					return {
+						...postData,
+						id: 88,
+						userId,
+						isRemote: true,
+						status: PostStatus.Published
 					};
 				}
 			}

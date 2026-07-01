@@ -231,6 +231,7 @@ describe('activityPub serializers', () => {
 		assert.equal(isActivityPubGroupFederatable({...group, isRemote: true}), false);
 		assert.equal(isActivityPubGroupFederatable({...group, type: GroupType.PersonalChat}), false);
 		assert.equal(isActivityPubPostFederatable(group, {...post, isDeleted: true}), false);
+		assert.equal(isActivityPubPostFederatable(group, {...post, isRemote: true}), false);
 		assert.equal(isActivityPubPostFederatable(group, {...post, isEncrypted: true}), false);
 		assert.equal(isActivityPubPostFederatable(group, {...post, publishedAt: 'Invalid date'}), false);
 		assert.throws(() => buildActivityPubGroupActor(getConfig(), {...group, isPublic: false}), /activitypub_group_not_federatable/);
