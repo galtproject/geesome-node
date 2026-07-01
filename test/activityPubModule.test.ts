@@ -1124,6 +1124,37 @@ describe('activityPub module', () => {
 				].join(''),
 				summary: '<span onmouseover="alert(3)">Remote summary</span>',
 				url: 'javascript:alert(4)',
+				attachment: [
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: '<b>Image alt</b><script>alert("attachment")</script>',
+						summary: '<span>Preview summary</span>',
+						url: [
+							'javascript:alert(5)',
+							{type: 'Link', mediaType: 'image/webp', href: 'https://remote.example/media/photo.webp'}
+						],
+						width: '640',
+						height: 480
+					},
+					{
+						type: 'Link',
+						href: 'ipfs://bafyremoteattachment',
+						name: 'IPFS source'
+					},
+					{
+						type: 'Document',
+						mediaType: 'image/jpeg',
+						url: 'data:text/html,<script>alert(6)</script>',
+						name: 'Unsafe data URL'
+					},
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						url: 'https://remote.example/media/photo.webp',
+						name: 'Duplicate image URL'
+					}
+				],
 				published: '2026-06-01T12:05:00Z'
 			}
 		};
@@ -1149,15 +1180,31 @@ describe('activityPub module', () => {
 			objectType: 'Note',
 			visibility: 'public',
 			remoteActorId: models.ActivityPubRemoteActor.rows[0].id
-		}, {limit: 10});
-		const object = objectPage.list[0];
-		const objectDetail = await module.getGroupRemoteObject('test-channel', object.id);
-		const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
-		const emptyPage = await module.getGroupRemoteObjects('test-channel', {
-			objectType: 'Tombstone'
-		}, {limit: 10});
+			}, {limit: 10});
+			const object = objectPage.list[0];
+			const objectDetail = await module.getGroupRemoteObject('test-channel', object.id);
+			const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
+			const emptyPage = await module.getGroupRemoteObjects('test-channel', {
+				objectType: 'Tombstone'
+			}, {limit: 10});
+			const expectedAttachments = [
+				{
+					url: 'https://remote.example/media/photo.webp',
+					type: 'Image',
+					mediaType: 'image/png',
+					name: 'Image alt',
+					summaryText: 'Preview summary',
+					width: 640,
+					height: 480
+				},
+				{
+					url: 'ipfs://bafyremoteattachment',
+					type: 'Link',
+					name: 'IPFS source'
+				}
+			];
 
-		assert.equal(objectPage.total, 1);
+			assert.equal(objectPage.total, 1);
 		assert.equal(object.id, models.ActivityPubObject.rows.find((row) => row.origin === 'remote').id);
 		assert.equal(object.localActorId, models.ActivityPubActor.rows[0].id);
 		assert.equal(object.localPostId, null);
@@ -1210,18 +1257,20 @@ describe('activityPub module', () => {
 				objectId: activity.object.id
 			}
 		});
-		assert.equal(object.preview?.summaryHtml, '<span>Remote summary</span>');
-		assert.equal(object.preview?.summaryText, 'Remote summary');
-		assert.equal(object.preview?.url, undefined);
-		assert.deepEqual(objectDetail, object);
-		assert.equal(postDraft.remoteObject.reviewState, ActivityPubObjectReviewState.Pending);
-		assert.equal(postDraft.canCreatePost, false);
-		assert.deepEqual(postDraft.reasons, ['activitypub_remote_object_review_not_accepted']);
-		assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
-		assert.equal(postDraft.contentText, object.preview?.contentText);
-		assert.equal(postDraft.title, object.preview?.name);
-		assert.equal(postDraft.remoteObject.id, object.id);
-		assert.equal(postDraft.replyToPostId, 11);
+			assert.equal(object.preview?.summaryHtml, '<span>Remote summary</span>');
+			assert.equal(object.preview?.summaryText, 'Remote summary');
+			assert.equal(object.preview?.url, undefined);
+			assert.deepEqual(object.preview?.attachments, expectedAttachments);
+			assert.deepEqual(objectDetail, object);
+			assert.equal(postDraft.remoteObject.reviewState, ActivityPubObjectReviewState.Pending);
+			assert.equal(postDraft.canCreatePost, false);
+			assert.deepEqual(postDraft.reasons, ['activitypub_remote_object_review_not_accepted']);
+			assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
+			assert.equal(postDraft.contentText, object.preview?.contentText);
+			assert.equal(postDraft.title, object.preview?.name);
+			assert.deepEqual(postDraft.attachments, expectedAttachments);
+			assert.equal(postDraft.remoteObject.id, object.id);
+			assert.equal(postDraft.replyToPostId, 11);
 		assert.deepEqual(postDraft.source, {
 			protocol: 'activitypub',
 			objectId: activity.object.id,
@@ -1249,12 +1298,13 @@ describe('activityPub module', () => {
 			reviewState: ActivityPubObjectReviewState.Pending
 		}, {limit: 10});
 		const acceptedPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
-		assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
-		assert.equal(acceptedObject.reviewedAt instanceof Date, true);
-		assert.equal(acceptedObject.reviewedByUserId, 7);
-		assert.equal(acceptedPostDraft.canCreatePost, true);
-		assert.deepEqual(acceptedPostDraft.reasons, []);
-		assert.equal(acceptedPostDraft.replyToPostId, 11);
+			assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
+			assert.equal(acceptedObject.reviewedAt instanceof Date, true);
+			assert.equal(acceptedObject.reviewedByUserId, 7);
+			assert.equal(acceptedPostDraft.canCreatePost, true);
+			assert.deepEqual(acceptedPostDraft.reasons, []);
+			assert.deepEqual(acceptedPostDraft.attachments, expectedAttachments);
+			assert.equal(acceptedPostDraft.replyToPostId, 11);
 
 		const createPostResult = await module.createGroupRemoteObjectPost('test-channel', object.id, 7);
 		assert.equal(createPostResult.post.id, 88);
@@ -1271,15 +1321,18 @@ describe('activityPub module', () => {
 		assert.equal(calls.createRemotePostByObject[0].postData.source, 'activityPub');
 		assert.equal(calls.createRemotePostByObject[0].postData.sourceChannelId, `remoteActor:${models.ActivityPubRemoteActor.rows[0].id}`);
 		assert.equal(calls.createRemotePostByObject[0].postData.sourcePostId, `remoteObject:${object.id}`);
-		assert.equal(calls.createRemotePostByObject[0].postData.sourceDate?.toISOString(), '2026-06-01T12:05:00.000Z');
-		assert.equal(calls.createRemotePostByObject[0].postData.replyToId, 11);
-		assert.deepEqual(calls.createRemotePostByObject[0].postData.contents, [{id: 201}]);
-		assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
-			activityPub: postDraft.source,
-			sourceLink: activity.object.id,
-			title: object.preview?.name,
-			summaryText: object.preview?.summaryText
-		});
+			assert.equal(calls.createRemotePostByObject[0].postData.sourceDate?.toISOString(), '2026-06-01T12:05:00.000Z');
+			assert.equal(calls.createRemotePostByObject[0].postData.replyToId, 11);
+			assert.deepEqual(calls.createRemotePostByObject[0].postData.contents, [{id: 201}]);
+			assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
+				activityPub: {
+					...postDraft.source,
+					attachments: expectedAttachments
+				},
+				sourceLink: activity.object.id,
+				title: object.preview?.name,
+				summaryText: object.preview?.summaryText
+			});
 
 		const existingPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
 		assert.equal(existingPostDraft.canCreatePost, false);

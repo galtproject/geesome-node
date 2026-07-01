@@ -245,6 +245,17 @@ export interface IActivityPubRemoteObjectPreview {
 	summaryHtml?: string;
 	summaryText?: string;
 	url?: string;
+	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
+}
+
+export interface IActivityPubRemoteObjectAttachmentPreview {
+	url: string;
+	type?: string;
+	mediaType?: string;
+	name?: string;
+	summaryText?: string;
+	width?: number;
+	height?: number;
 }
 
 export interface IActivityPubRemoteObjectFilters {
@@ -276,6 +287,7 @@ export interface IActivityPubRemoteObjectPostDraft {
 	contentText?: string;
 	contentRichText?: RichTextDocument;
 	summaryText?: string;
+	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
 	replyToPostId?: number;
 	source: IActivityPubRemoteObjectPostDraftSource;
 }

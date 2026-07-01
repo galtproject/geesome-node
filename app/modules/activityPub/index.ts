@@ -23,6 +23,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
 	IActivityPubRemoteObjectReviewStateInput,
+	IActivityPubRemoteObjectAttachmentPreview,
 	IActivityPubRemoteObjectPreview,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
@@ -124,6 +125,10 @@ const maxActivityPubRemoteObjectPreviewRawHtmlLength = 50000;
 const maxActivityPubRemoteObjectPreviewHtmlLength = 5000;
 const maxActivityPubRemoteObjectPreviewTextLength = 1000;
 const maxActivityPubRemoteObjectPreviewNameLength = 500;
+const maxActivityPubRemoteObjectPreviewAttachments = 8;
+const maxActivityPubRemoteObjectPreviewAttachmentTextLength = 500;
+const maxActivityPubRemoteObjectPreviewAttachmentTypeLength = 100;
+const maxActivityPubRemoteObjectPreviewAttachmentDimension = 1000000;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database', 'content']);
@@ -954,6 +959,9 @@ async function getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteOb
 	if (preview?.summaryText) {
 		draft.summaryText = preview.summaryText;
 	}
+	if (preview?.attachments?.length) {
+		draft.attachments = preview.attachments;
+	}
 	const replyToPostId = await getActivityPubRemoteObjectReplyToPostId(models, actorRecord, remoteObject);
 	if (replyToPostId) {
 		draft.replyToPostId = replyToPostId;
@@ -1002,7 +1010,7 @@ function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivi
 
 function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft) {
 	const properties: any = {
-		activityPub: postDraft.source
+		activityPub: {...postDraft.source}
 	};
 	const sourceLink = getActivityPubRemoteObjectPostSourceLink(remoteObject);
 	if (sourceLink) {
@@ -1013,6 +1021,9 @@ function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemo
 	}
 	if (postDraft.summaryText) {
 		properties.summaryText = postDraft.summaryText;
+	}
+	if (postDraft.attachments?.length) {
+		properties.activityPub.attachments = postDraft.attachments;
 	}
 	return properties;
 }
@@ -1044,6 +1055,11 @@ function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPrev
 	const url = getActivityPubRemoteObjectSafeUrl(object);
 	if (url) {
 		preview.url = url;
+	}
+
+	const attachments = getActivityPubRemoteObjectAttachmentPreviews(object);
+	if (attachments.length) {
+		preview.attachments = attachments;
 	}
 
 	if (!Object.keys(preview).length) {
@@ -1087,8 +1103,83 @@ function getActivityPubRemoteObjectTextField(object, fieldName: string, maxLengt
 	return truncateActivityPubRemoteObjectPreview(htmlToText(fieldValue), maxLength);
 }
 
+function getActivityPubRemoteObjectAttachmentPreviews(object): IActivityPubRemoteObjectAttachmentPreview[] {
+	const previews: IActivityPubRemoteObjectAttachmentPreview[] = [];
+	const seenUrls = new Set<string>();
+	const attachmentValues = getActivityPubRemoteObjectArrayValue(object?.attachment);
+	for (const attachmentValue of attachmentValues) {
+		const preview = getActivityPubRemoteObjectAttachmentPreview(attachmentValue);
+		if (!preview) {
+			continue;
+		}
+		if (seenUrls.has(preview.url)) {
+			continue;
+		}
+		previews.push(preview);
+		seenUrls.add(preview.url);
+		if (previews.length >= maxActivityPubRemoteObjectPreviewAttachments) {
+			break;
+		}
+	}
+	return previews;
+}
+
+function getActivityPubRemoteObjectAttachmentPreview(value): IActivityPubRemoteObjectAttachmentPreview | undefined {
+	const url = getActivityPubRemoteObjectSafeUrlValue(value);
+	if (!url) {
+		return undefined;
+	}
+
+	const preview: IActivityPubRemoteObjectAttachmentPreview = {url};
+	if (value && typeof value === 'object') {
+		addActivityPubRemoteObjectAttachmentTextFields(preview, value);
+		addActivityPubRemoteObjectAttachmentDimensions(preview, value);
+	}
+	return preview;
+}
+
+function addActivityPubRemoteObjectAttachmentTextFields(preview: IActivityPubRemoteObjectAttachmentPreview, value): void {
+	const type = getActivityPubRemoteObjectTextField(value, 'type', maxActivityPubRemoteObjectPreviewAttachmentTypeLength);
+	if (type) {
+		preview.type = type;
+	}
+	const mediaType = getActivityPubRemoteObjectTextField(value, 'mediaType', maxActivityPubRemoteObjectPreviewAttachmentTypeLength);
+	if (mediaType) {
+		preview.mediaType = mediaType;
+	}
+	const name = getActivityPubRemoteObjectTextField(value, 'name', maxActivityPubRemoteObjectPreviewAttachmentTextLength);
+	if (name) {
+		preview.name = name;
+	}
+	const summaryText = getActivityPubRemoteObjectTextField(value, 'summary', maxActivityPubRemoteObjectPreviewAttachmentTextLength);
+	if (summaryText) {
+		preview.summaryText = summaryText;
+	}
+}
+
+function addActivityPubRemoteObjectAttachmentDimensions(preview: IActivityPubRemoteObjectAttachmentPreview, value): void {
+	const width = getActivityPubRemoteObjectPositiveInteger(value.width);
+	if (width) {
+		preview.width = width;
+	}
+	const height = getActivityPubRemoteObjectPositiveInteger(value.height);
+	if (height) {
+		preview.height = height;
+	}
+}
+
 function getActivityPubRemoteObjectPreviewText(html: string): string {
 	return truncateActivityPubRemoteObjectPreview(htmlToText(html), maxActivityPubRemoteObjectPreviewTextLength);
+}
+
+function getActivityPubRemoteObjectArrayValue(value): any[] {
+	if (Array.isArray(value)) {
+		return value;
+	}
+	if (value === undefined || value === null) {
+		return [];
+	}
+	return [value];
 }
 
 function getActivityPubRemoteObjectStringValue(value): string {
@@ -1099,24 +1190,47 @@ function getActivityPubRemoteObjectStringValue(value): string {
 }
 
 function getActivityPubRemoteObjectSafeUrl(object): string {
-	const url = getActivityPubRemoteObjectUrlValue(object?.url);
-	if (!url) {
-		return '';
-	}
-	return sanitizeAbsoluteHref(url);
+	return getActivityPubRemoteObjectSafeUrlValue(object?.url);
 }
 
-function getActivityPubRemoteObjectUrlValue(value): string {
+function getActivityPubRemoteObjectSafeUrlValue(value): string {
 	if (typeof value === 'string') {
-		return value;
+		return sanitizeAbsoluteHref(value);
 	}
 	if (Array.isArray(value)) {
-		return value.map(item => getActivityPubRemoteObjectUrlValue(item)).find(Boolean) || '';
+		for (const item of value) {
+			const url = getActivityPubRemoteObjectSafeUrlValue(item);
+			if (url) {
+				return url;
+			}
+		}
+		return '';
 	}
-	if (value && typeof value === 'object' && typeof value.href === 'string') {
-		return value.href;
+	if (value && typeof value === 'object') {
+		const href = getActivityPubRemoteObjectStringValue(value.href);
+		if (href) {
+			const url = sanitizeAbsoluteHref(href);
+			if (url) {
+				return url;
+			}
+		}
+		return getActivityPubRemoteObjectSafeUrlValue(value.url);
 	}
 	return '';
+}
+
+function getActivityPubRemoteObjectPositiveInteger(value): number | undefined {
+	const number = Number(value);
+	if (!Number.isFinite(number)) {
+		return undefined;
+	}
+	if (number <= 0) {
+		return undefined;
+	}
+	if (number > maxActivityPubRemoteObjectPreviewAttachmentDimension) {
+		return undefined;
+	}
+	return Math.floor(number);
 }
 
 function truncateActivityPubRemoteObjectPreview(value: string, maxLength: number): string {
