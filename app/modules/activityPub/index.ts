@@ -83,6 +83,7 @@ import {
 	getActivityPubObjectReviewByObjectId,
 	getActivityPubObjectReviewRecordsByObjectIds,
 	getActivityPubObjectReviewState,
+	getActivityPubObjectReviewStateObjectIdWhere,
 	getRequiredActivityPubObjectReviewState,
 	resetActivityPubObjectReviewState,
 	setActivityPubObjectReviewState as setActivityPubObjectReviewStateRecord
@@ -760,8 +761,9 @@ async function getGroupRemoteObjectList(app: IGeesomeApp, models, actorRecord, f
 		...listParams
 	};
 	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubRemoteObjectListParams);
+	const where = await getActivityPubRemoteObjectWhere(models, actorRecord, filters);
 	const objectPage = await models.ActivityPubObject.findAndCountAll({
-		where: getActivityPubRemoteObjectWhere(actorRecord, filters),
+		where,
 		order: [[preparedListParams.sortBy, getListSortDirection(preparedListParams)]],
 		limit: preparedListParams.limit,
 		offset: preparedListParams.offset
@@ -808,7 +810,7 @@ function getActivityPubFlagReportWhere(actorRecord, filters: IActivityPubFlagRep
 	return where;
 }
 
-function getActivityPubRemoteObjectWhere(actorRecord, filters: IActivityPubRemoteObjectFilters = {}) {
+async function getActivityPubRemoteObjectWhere(models, actorRecord, filters: IActivityPubRemoteObjectFilters = {}) {
 	const where: any = {
 		localActorId: actorRecord.id,
 		origin: ActivityPubObjectOrigin.Remote
@@ -821,6 +823,10 @@ function getActivityPubRemoteObjectWhere(actorRecord, filters: IActivityPubRemot
 	}
 	if (isKnownActivityPubObjectVisibility(filters.visibility)) {
 		where.visibility = filters.visibility;
+	}
+	const reviewStateObjectIdWhere = await getActivityPubObjectReviewStateObjectIdWhere(models, filters.reviewState);
+	if (reviewStateObjectIdWhere) {
+		where.id = reviewStateObjectIdWhere;
 	}
 	const remoteActorId = helpers.normalizeUniqueIds(filters.remoteActorId)[0];
 	if (remoteActorId) {
