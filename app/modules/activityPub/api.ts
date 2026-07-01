@@ -295,7 +295,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. If a tombstoned remote object was manually imported as a GeeSome remote post and the source identity still matches, that imported post is soft-deleted too. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. If an updated or tombstoned remote object was manually imported as a GeeSome remote post and the source identity still matches, that imported post is updated or soft-deleted too. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
@@ -303,6 +303,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {String} activityType Activity type that was processed.
 	 * @apiSuccess {String} objectId ActivityPub object id that was recorded, updated, or tombstoned.
 	 * @apiSuccess {Number} activityPubObjectId Local cached ActivityPub object row id.
+	 * @apiSuccess {Boolean} [localPostUpdated] Whether a linked imported GeeSome remote post was updated for `Update(Note)`.
 	 * @apiSuccess {Boolean} [localPostDeleted] Whether a linked imported GeeSome remote post was soft-deleted for `Delete` or `Undo(Create)`.
 	 */
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {

@@ -1329,7 +1329,7 @@ describe('activityPub module', () => {
 
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1367,6 +1367,7 @@ describe('activityPub module', () => {
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
 		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		addImportedRemotePost(calls, createdRemoteObject);
 		await module.setGroupRemoteObjectReviewState('test-channel', createdRemoteObject.id, {
 			state: ActivityPubObjectReviewState.Accepted
 		}, 7);
@@ -1384,7 +1385,31 @@ describe('activityPub module', () => {
 		assert.equal(firstUpdateResult.activityType, 'Update');
 		assert.equal(firstUpdateResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstUpdateResult.objectId, createActivity.object.id);
+		assert.equal(firstUpdateResult.localPostUpdated, true);
+		assert.equal(secondUpdateResult.localPostUpdated, false);
 		assert.equal(secondUpdateResult.activityPubObjectId, firstUpdateResult.activityPubObjectId);
+		assert.equal(calls.updateRemotePostByObject.length, 1);
+		assert.equal(calls.updateRemotePostByObject[0].userId, 7);
+		assert.equal(calls.updateRemotePostByObject[0].postId, 88);
+		assert.equal(calls.updateRemotePostByObject[0].postData.source, 'activityPub');
+		assert.equal(calls.updateRemotePostByObject[0].postData.sourceChannelId, `remoteActor:${createdRemoteObject.remoteActorId}`);
+		assert.equal(calls.updateRemotePostByObject[0].postData.sourcePostId, `remoteObject:${createdRemoteObject.id}`);
+		assert.deepEqual(calls.updateRemotePostByObject[0].postData.contents, [{id: 201}]);
+		assert.deepEqual(JSON.parse(calls.saveData[0].dataToSave), {
+			type: 'geesome.richText',
+			version: 1,
+			blocks: [
+				{
+					type: 'paragraph',
+					children: [{text: 'Remote reply after update'}]
+				}
+			],
+			source: {
+				protocol: 'activitypub',
+				field: 'content',
+				objectId: createActivity.object.id
+			}
+		});
 		assert.equal(models.ActivityPubObject.rows.length, 2);
 		assert.equal(remoteObject.remoteObjectUrl, 'https://remote.example/@alice/reply-update-1');
 		assert.equal(remoteObject.activityId, updateActivity.id);
@@ -1939,6 +1964,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 		getGroupPosts: [],
 		saveData: [],
 		createRemotePostByObject: [],
+		updateRemotePostByObject: [],
 		deletePostsPure: [],
 		remotePosts: {}
 	};
@@ -2033,6 +2059,11 @@ async function createActivityPubHarness(overrides: any = {}) {
 						status: PostStatus.Published
 					};
 				},
+				async updateRemotePostByObject(userId, postId, postData, options) {
+					calls.updateRemotePostByObject.push({userId, postId, postData, options});
+					Object.assign(calls.remotePosts[Number(postId)], postData);
+					return calls.remotePosts[Number(postId)];
+				},
 				async deletePostsPure(userId, postIds, options) {
 					calls.deletePostsPure.push({userId, postIds, options});
 					postIds.forEach((postId) => {
@@ -2066,6 +2097,7 @@ function addImportedRemotePost(calls, remoteObject, overrides: any = {}) {
 		id: 88,
 		userId: 7,
 		groupId: 3,
+		group: getGroup(),
 		status: PostStatus.Published,
 		isRemote: true,
 		isDeleted: false,

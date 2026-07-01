@@ -58,6 +58,8 @@ export default interface IGeesomeGroupModule {
 
 	createRemotePostByObject(userId, postData, options?);
 
+	updateRemotePostByObject(userId, postId, postData, options?);
+
 	updatePost(userId, postId, postData);
 
 	deletePosts(userId, postIds, options?): Promise<any>;
