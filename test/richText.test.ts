@@ -10,6 +10,7 @@ import {
 	richTextToActivityPubTags,
 	richTextToAtProtoTextWithFacets,
 	richTextToMatrixMessageContent,
+	richTextToNostrTextNote,
 	richTextToPlainText,
 	richTextToSafeHtml,
 	validateRichTextDocument
@@ -326,6 +327,40 @@ describe('richText helpers', () => {
 		assert.deepEqual(richTextToMatrixMessageContent({} as any), {
 			msgtype: 'm.text',
 			body: ''
+		});
+	});
+
+	it('exports Nostr-like text notes with protocol tags', () => {
+		const publicKey = 'a'.repeat(64);
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: 'Hello '},
+				{text: 'site', marks: [{type: 'link', href: 'https://example.com/post'}]},
+				{text: ' '},
+				{text: '@alice', marks: [{type: 'mention', id: publicKey}]},
+				{text: ' '},
+				{text: '#geesome', marks: [{type: 'hashtag', name: 'GeeSome'}]},
+				{text: ' '},
+				{text: '@bad', marks: [{type: 'mention', id: 'npub1bad'}]},
+				{text: ' '},
+				{text: '#bad tag', marks: [{type: 'hashtag'}]},
+				{text: ' '},
+				{text: 'site', marks: [{type: 'link', href: 'https://example.com/post'}]}
+			]
+		}]);
+
+		assert.deepEqual(richTextToNostrTextNote(document), {
+			content: 'Hello site @alice #geesome @bad #bad tag site',
+			tags: [
+				['r', 'https://example.com/post'],
+				['p', publicKey],
+				['t', 'GeeSome']
+			]
+		});
+		assert.deepEqual(richTextToNostrTextNote({} as any), {
+			content: '',
+			tags: []
 		});
 	});
 });

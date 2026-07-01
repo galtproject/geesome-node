@@ -87,6 +87,11 @@ export type RichTextMatrixMessageContent = {
 	formatted_body?: string;
 };
 
+export type RichTextNostrTextNote = {
+	content: string;
+	tags: string[][];
+};
+
 export function createRichTextDocument(blocks: RichTextBlock[], options: any = {}): RichTextDocument {
 	const document: RichTextDocument = {
 		type: RICH_TEXT_DOCUMENT_TYPE,
@@ -159,6 +164,16 @@ export function richTextToMatrixMessageContent(document: RichTextDocument): Rich
 	content.format = 'org.matrix.custom.html';
 	content.formatted_body = formattedBody;
 	return content;
+}
+
+export function richTextToNostrTextNote(document: RichTextDocument): RichTextNostrTextNote {
+	if (!isRichTextDocument(document)) {
+		return getEmptyNostrTextNote();
+	}
+	return {
+		content: richTextToPlainText(document),
+		tags: uniqNostrTags(document.blocks.flatMap(block => richTextBlockToNostrTags(block)))
+	};
 }
 
 export function isRichTextDocument(value: any): value is RichTextDocument {
@@ -857,6 +872,93 @@ function uniqRichTextActivityPubTags(tags: RichTextActivityPubTag[]): RichTextAc
 	});
 }
 
+function richTextBlockToNostrTags(block: RichTextBlock): string[][] {
+	if (block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'listItem') {
+		return inlineNodesToNostrTags(block.children || []);
+	}
+	if (block.type === 'list') {
+		return (block.items || []).flatMap(item => richTextBlockToNostrTags(item));
+	}
+	return [];
+}
+
+function inlineNodesToNostrTags(nodes: RichTextInlineNode[]): string[][] {
+	return (nodes || []).flatMap(node => inlineNodeToNostrTags(node));
+}
+
+function inlineNodeToNostrTags(node: RichTextInlineNode): string[][] {
+	return normalizeMarks(node?.marks || [])
+		.map(mark => richTextMarkToNostrTag(node, mark))
+		.filter(Boolean) as string[][];
+}
+
+function richTextMarkToNostrTag(node: RichTextInlineNode, mark: RichTextMark): string[] | null {
+	if (mark.type === 'link') {
+		return richTextLinkMarkToNostrTag(mark);
+	}
+	if (mark.type === 'mention') {
+		return richTextMentionMarkToNostrTag(mark);
+	}
+	if (mark.type === 'hashtag') {
+		return richTextHashtagMarkToNostrTag(node, mark);
+	}
+	return null;
+}
+
+function richTextLinkMarkToNostrTag(mark: RichTextMark): string[] | null {
+	const href = sanitizeAbsoluteHref(mark.href);
+	if (!href) {
+		return null;
+	}
+	return ['r', href];
+}
+
+function richTextMentionMarkToNostrTag(mark: RichTextMark): string[] | null {
+	if (!isNostrPublicKey(mark.id)) {
+		return null;
+	}
+	return ['p', mark.id.toLowerCase()];
+}
+
+function richTextHashtagMarkToNostrTag(node: RichTextInlineNode, mark: RichTextMark): string[] | null {
+	const tag = getNostrHashtag(mark.name || node.text);
+	if (!tag) {
+		return null;
+	}
+	return ['t', tag];
+}
+
+function getNostrHashtag(value: any): string {
+	const tag = String(value || '').trim().replace(/^#/, '');
+	if (!tag || tag.length > 640 || /\s/.test(tag)) {
+		return '';
+	}
+	return tag;
+}
+
+function isNostrPublicKey(value: any): value is string {
+	return typeof value === 'string' && /^[0-9a-fA-F]{64}$/.test(value);
+}
+
+function uniqNostrTags(tags: string[][]): string[][] {
+	const seen = new Set<string>();
+	return (tags || []).filter((tag) => {
+		const signature = JSON.stringify(tag);
+		if (seen.has(signature)) {
+			return false;
+		}
+		seen.add(signature);
+		return true;
+	});
+}
+
+function getEmptyNostrTextNote(): RichTextNostrTextNote {
+	return {
+		content: '',
+		tags: []
+	};
+}
+
 export default {
 	RICH_TEXT_DOCUMENT_TYPE,
 	RICH_TEXT_MIME_TYPE,
@@ -868,6 +970,7 @@ export default {
 	richTextToAtProtoTextWithFacets,
 	richTextToActivityPubTags,
 	richTextToMatrixMessageContent,
+	richTextToNostrTextNote,
 	isRichTextDocument,
 	assertRichTextDocument,
 	validateRichTextDocument
