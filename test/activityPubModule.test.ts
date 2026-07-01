@@ -1176,6 +1176,33 @@ describe('activityPub module', () => {
 		assert.equal(object.preview?.contentHtml?.includes('<strong>reply</strong>'), true);
 		assert.match(object.preview?.contentHtml || '', /<a[^>]+href="ipfs:\/\/bafybeigdyrzt"[^>]*>ipfs link<\/a>/);
 		assert.equal(object.preview?.contentText, 'Remote reply for reviewbad linkipfs linkunstyled');
+		assert.deepEqual(object.preview?.contentRichText, {
+			type: 'geesome.richText',
+			version: 1,
+			blocks: [
+				{
+					type: 'paragraph',
+					children: [
+						{text: 'Remote '},
+						{text: 'reply', marks: [{type: 'strong'}]},
+						{text: ' for review'}
+					]
+				},
+				{
+					type: 'paragraph',
+					children: [
+						{text: 'bad link'},
+						{text: 'ipfs link', marks: [{type: 'link', href: 'ipfs://bafybeigdyrzt'}]},
+						{text: 'unstyled'}
+					]
+				}
+			],
+			source: {
+				protocol: 'activitypub',
+				field: 'content',
+				objectId: activity.object.id
+			}
+		});
 		assert.equal(object.preview?.summaryHtml, '<span>Remote summary</span>');
 		assert.equal(object.preview?.summaryText, 'Remote summary');
 		assert.equal(object.preview?.url, undefined);

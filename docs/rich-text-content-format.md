@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, and Nostr-like text-note export covered by tests. Native post storage, editor integration, and broader protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, Nostr-like text-note export covered by tests, and remote ActivityPub object previews exposing canonical rich-text content projections for review. Native post storage, editor integration, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -265,7 +265,7 @@ Recommended first code PR:
 2. Add `richTextToPlainText` and `richTextToSafeHtml`. Status: implemented in `app/richText.ts`.
 3. Add `htmlToRichText` for the current allowed HTML subset. Status: implemented in `app/richText.ts`.
 4. Add fixtures that prove unsafe HTML cannot survive the round trip. Status: implemented in `test/richText.test.ts`.
-5. Wire only one low-risk render path to the helpers before replacing broader post storage. Status: ActivityPub local post `content` serialization renders canonical rich-text payloads and falls back to escaped legacy text for invalid payloads.
+5. Wire low-risk render/review paths to the helpers before replacing broader post storage. Status: ActivityPub local post `content` serialization renders canonical rich-text payloads and falls back to escaped legacy text for invalid payloads; cached remote ActivityPub object previews expose canonical rich-text converted from sanitized `content` for admin review/import follow-ups.
 6. Add deterministic plain-text facet export for ATProto-style protocols. Status: implemented as `richTextToAtProtoTextWithFacets` with UTF-8 byte-offset fixtures in `test/richText.test.ts`.
 7. Add ActivityStreams tag export for canonical rich-text mentions and hashtags. Status: implemented as `richTextToActivityPubTags` and wired into local ActivityPub Note serialization.
 8. Add Matrix message content export. Status: implemented as `richTextToMatrixMessageContent` with plain fallback and sanitized `org.matrix.custom.html` fixtures.

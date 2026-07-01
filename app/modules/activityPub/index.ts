@@ -2,6 +2,7 @@ import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
+import {htmlToRichText} from '../../richText.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
@@ -831,6 +832,7 @@ function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPrev
 	if (contentHtml) {
 		preview.contentHtml = contentHtml;
 		preview.contentText = getActivityPubRemoteObjectPreviewText(contentHtml);
+		preview.contentRichText = getActivityPubRemoteObjectContentRichText(object, contentHtml);
 	}
 
 	const summaryHtml = getActivityPubRemoteObjectHtmlField(object, 'summary');
@@ -857,6 +859,24 @@ function getActivityPubRemoteObjectHtmlField(object, fieldName: string): string 
 	}
 	const boundedHtml = truncateActivityPubRemoteObjectPreview(fieldValue, maxActivityPubRemoteObjectPreviewRawHtmlLength);
 	return truncateActivityPubRemoteObjectPreview(sanitizeHtml(boundedHtml), maxActivityPubRemoteObjectPreviewHtmlLength);
+}
+
+function getActivityPubRemoteObjectContentRichText(object, contentHtml: string) {
+	return htmlToRichText(contentHtml, {
+		source: getActivityPubRemoteObjectRichTextSource(object, 'content')
+	});
+}
+
+function getActivityPubRemoteObjectRichTextSource(object, fieldName: string) {
+	const source: any = {
+		protocol: 'activitypub',
+		field: fieldName
+	};
+	const objectId = getActivityPubRemoteObjectStringValue(object?.id);
+	if (objectId) {
+		source.objectId = objectId;
+	}
+	return source;
 }
 
 function getActivityPubRemoteObjectTextField(object, fieldName: string, maxLength: number): string {
