@@ -1214,8 +1214,8 @@ describe('activityPub module', () => {
 		assert.equal(object.preview?.url, undefined);
 		assert.deepEqual(objectDetail, object);
 		assert.equal(postDraft.remoteObject.reviewState, ActivityPubObjectReviewState.Pending);
-		assert.equal(postDraft.canCreatePost, true);
-		assert.deepEqual(postDraft.reasons, []);
+		assert.equal(postDraft.canCreatePost, false);
+		assert.deepEqual(postDraft.reasons, ['activitypub_remote_object_review_not_accepted']);
 		assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
 		assert.equal(postDraft.contentText, object.preview?.contentText);
 		assert.equal(postDraft.title, object.preview?.name);
@@ -1245,9 +1245,12 @@ describe('activityPub module', () => {
 		const pendingAfterAcceptedPage = await module.getGroupRemoteObjects('test-channel', {
 			reviewState: ActivityPubObjectReviewState.Pending
 		}, {limit: 10});
+		const acceptedPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
 		assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
 		assert.equal(acceptedObject.reviewedAt instanceof Date, true);
 		assert.equal(acceptedObject.reviewedByUserId, 7);
+		assert.equal(acceptedPostDraft.canCreatePost, true);
+		assert.deepEqual(acceptedPostDraft.reasons, []);
 		assert.equal(acceptedPage.total, 1);
 		assert.equal(acceptedPage.list[0].id, object.id);
 		assert.equal(acceptedPage.list[0].reviewState, ActivityPubObjectReviewState.Accepted);
@@ -1256,6 +1259,13 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObjectReview.rows.length, 1);
 		assert.equal(models.ActivityPubObjectReview.rows[0].activityPubObjectId, object.id);
 		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Accepted);
+
+		const remoteObjectRow = models.ActivityPubObject.rows.find((row) => row.id === object.id);
+		remoteObjectRow.localPostId = 77;
+		const existingPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
+		assert.equal(existingPostDraft.canCreatePost, false);
+		assert.deepEqual(existingPostDraft.reasons, ['activitypub_remote_object_post_exists']);
+		remoteObjectRow.localPostId = null;
 
 		const pendingObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
 			state: ActivityPubObjectReviewState.Pending

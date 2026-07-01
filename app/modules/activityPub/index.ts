@@ -11,6 +11,7 @@ import IGeesomeActivityPubModule, {
 	ActivityPubFlagState,
 	ActivityPubFollowState,
 	ActivityPubObjectOrigin,
+	ActivityPubObjectReviewState,
 	ActivityPubObjectVisibility,
 	IActivityPubFlagReport,
 	IActivityPubFlagReportFilters,
@@ -1035,6 +1036,12 @@ function truncateActivityPubRemoteObjectPreview(value: string, maxLength: number
 
 function getActivityPubRemoteObjectPostDraftReasons(remoteObject: IActivityPubRemoteObjectReport): string[] {
 	const reasons: string[] = [];
+	if (remoteObject.localPostId) {
+		reasons.push('activitypub_remote_object_post_exists');
+	}
+	if (remoteObject.reviewState !== ActivityPubObjectReviewState.Accepted) {
+		reasons.push('activitypub_remote_object_review_not_accepted');
+	}
 	if (remoteObject.objectType !== 'Note') {
 		reasons.push('activitypub_remote_object_not_note');
 	}
