@@ -1,6 +1,7 @@
 import type {IContentData} from '../database/interface.js';
 import {GroupType, PostStatus} from '../group/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
+import {RICH_TEXT_MIME_TYPE, isRichTextDocument, richTextToSafeHtml} from '../../richText.js';
 import {
 	activityPubContext,
 	activityPubPublicCollection,
@@ -244,7 +245,22 @@ function getActivityPubPostContent(contents: IContentData[]): string {
 	if (!textContent) {
 		return '';
 	}
+	if (textContent.mimeType === RICH_TEXT_MIME_TYPE) {
+		return getActivityPubRichTextContent(textContent.text);
+	}
 	return escapeActivityPubHtml(textContent.text);
+}
+
+function getActivityPubRichTextContent(value: string): string {
+	try {
+		const document = JSON.parse(value);
+		if (!isRichTextDocument(document)) {
+			return escapeActivityPubHtml(value);
+		}
+		return richTextToSafeHtml(document);
+	} catch {
+		return escapeActivityPubHtml(value);
+	}
 }
 
 function escapeActivityPubHtml(value: string): string {

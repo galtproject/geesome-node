@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`. Native post storage, editor integration, and protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts` and ActivityPub local post serialization wired to render canonical rich-text payloads. Native post storage, editor integration, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -265,7 +265,7 @@ Recommended first code PR:
 2. Add `richTextToPlainText` and `richTextToSafeHtml`. Status: implemented in `app/richText.ts`.
 3. Add `htmlToRichText` for the current allowed HTML subset. Status: implemented in `app/richText.ts`.
 4. Add fixtures that prove unsafe HTML cannot survive the round trip. Status: implemented in `test/richText.test.ts`.
-5. Wire only one low-risk render path to the helpers before replacing broader post storage.
+5. Wire only one low-risk render path to the helpers before replacing broader post storage. Status: ActivityPub local post `content` serialization renders canonical rich-text payloads and falls back to escaped legacy text for invalid payloads.
 
 Do not change the storage format for all posts in the first implementation PR.
 

@@ -1,4 +1,5 @@
 import assert from 'assert';
+import {RICH_TEXT_MIME_TYPE, createRichTextDocument} from '../app/richText.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {
@@ -83,6 +84,38 @@ describe('activityPub serializers', () => {
 		assert.equal(activity.type, 'Create');
 		assert.equal(activity.actor, 'https://social.example/ap/groups/test-channel');
 		assert.deepEqual(activity.object, note);
+	});
+
+	it('renders canonical rich-text post content safely', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: 'Hello '},
+				{text: 'fediverse', marks: [{type: 'strong'}]},
+				{text: ' link', marks: [{type: 'link', href: 'https://example.com/post'}]},
+				{text: ' unsafe', marks: [{type: 'link', href: 'javascript:alert(1)'}]}
+			]
+		}]);
+		const contents = [{
+			...getContents()[0],
+			text: JSON.stringify(document),
+			mimeType: RICH_TEXT_MIME_TYPE
+		}];
+		const note = buildActivityPubPostNote(getConfig(), getGroup(), getPublishedPost(), {contents});
+
+		assert.equal(note.content, '<p>Hello <strong>fediverse</strong><a href="https://example.com/post"> link</a> unsafe</p>');
+		assert.equal(note.content.includes('javascript:'), false);
+	});
+
+	it('escapes invalid rich-text payloads instead of throwing from ActivityPub serializers', () => {
+		const contents = [{
+			...getContents()[0],
+			text: '{"bad": "<script>alert(1)</script>"}',
+			mimeType: RICH_TEXT_MIME_TYPE
+		}];
+		const note = buildActivityPubPostNote(getConfig(), getGroup(), getPublishedPost(), {contents});
+
+		assert.equal(note.content, '{&quot;bad&quot;: &quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;}');
 	});
 
 	it('builds an outbox collection and filters non-federatable posts', () => {
