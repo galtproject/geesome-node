@@ -1,6 +1,7 @@
 import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
+import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
@@ -16,6 +17,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectReport,
+	IActivityPubRemoteObjectPreview,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
 	IActivityPubDeliveryProcessOptions,
@@ -103,6 +105,10 @@ const activityPubRemoteObjectListParams = {
 	allowedSortBy: ['publishedAt', 'createdAt', 'updatedAt', 'id', 'objectType', 'visibility'],
 	maxLimit: 100
 };
+const maxActivityPubRemoteObjectPreviewRawHtmlLength = 50000;
+const maxActivityPubRemoteObjectPreviewHtmlLength = 5000;
+const maxActivityPubRemoteObjectPreviewTextLength = 1000;
+const maxActivityPubRemoteObjectPreviewNameLength = 500;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database']);
@@ -789,6 +795,7 @@ function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IAct
 
 function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, any>): IActivityPubRemoteObjectReport {
 	const remoteActor = remoteActorById.get(Number(object.remoteActorId));
+	const parsedObject = parseActivityPubJson(object.rawJson);
 
 	return {
 		id: object.id,
@@ -802,10 +809,101 @@ function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, a
 		objectType: object.objectType,
 		visibility: object.visibility,
 		publishedAt: object.publishedAt,
-		object: parseActivityPubJson(object.rawJson),
+		object: parsedObject,
+		preview: getActivityPubRemoteObjectPreview(parsedObject),
 		createdAt: object.createdAt,
 		updatedAt: object.updatedAt
 	};
+}
+
+function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPreview | undefined {
+	if (!object || typeof object !== 'object') {
+		return undefined;
+	}
+
+	const preview: IActivityPubRemoteObjectPreview = {};
+	const name = getActivityPubRemoteObjectTextField(object, 'name', maxActivityPubRemoteObjectPreviewNameLength);
+	if (name) {
+		preview.name = name;
+	}
+
+	const contentHtml = getActivityPubRemoteObjectHtmlField(object, 'content');
+	if (contentHtml) {
+		preview.contentHtml = contentHtml;
+		preview.contentText = getActivityPubRemoteObjectPreviewText(contentHtml);
+	}
+
+	const summaryHtml = getActivityPubRemoteObjectHtmlField(object, 'summary');
+	if (summaryHtml) {
+		preview.summaryHtml = summaryHtml;
+		preview.summaryText = getActivityPubRemoteObjectPreviewText(summaryHtml);
+	}
+
+	const url = getActivityPubRemoteObjectSafeUrl(object);
+	if (url) {
+		preview.url = url;
+	}
+
+	if (!Object.keys(preview).length) {
+		return undefined;
+	}
+	return preview;
+}
+
+function getActivityPubRemoteObjectHtmlField(object, fieldName: string): string {
+	const fieldValue = getActivityPubRemoteObjectStringValue(object[fieldName]);
+	if (!fieldValue) {
+		return '';
+	}
+	const boundedHtml = truncateActivityPubRemoteObjectPreview(fieldValue, maxActivityPubRemoteObjectPreviewRawHtmlLength);
+	return truncateActivityPubRemoteObjectPreview(sanitizeHtml(boundedHtml), maxActivityPubRemoteObjectPreviewHtmlLength);
+}
+
+function getActivityPubRemoteObjectTextField(object, fieldName: string, maxLength: number): string {
+	const fieldValue = getActivityPubRemoteObjectStringValue(object[fieldName]);
+	if (!fieldValue) {
+		return '';
+	}
+	return truncateActivityPubRemoteObjectPreview(htmlToText(fieldValue), maxLength);
+}
+
+function getActivityPubRemoteObjectPreviewText(html: string): string {
+	return truncateActivityPubRemoteObjectPreview(htmlToText(html), maxActivityPubRemoteObjectPreviewTextLength);
+}
+
+function getActivityPubRemoteObjectStringValue(value): string {
+	if (typeof value !== 'string') {
+		return '';
+	}
+	return value.trim();
+}
+
+function getActivityPubRemoteObjectSafeUrl(object): string {
+	const url = getActivityPubRemoteObjectUrlValue(object?.url);
+	if (!url) {
+		return '';
+	}
+	return sanitizeAbsoluteHref(url);
+}
+
+function getActivityPubRemoteObjectUrlValue(value): string {
+	if (typeof value === 'string') {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value.map(item => getActivityPubRemoteObjectUrlValue(item)).find(Boolean) || '';
+	}
+	if (value && typeof value === 'object' && typeof value.href === 'string') {
+		return value.href;
+	}
+	return '';
+}
+
+function truncateActivityPubRemoteObjectPreview(value: string, maxLength: number): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+	return `${value.slice(0, maxLength)}...`;
 }
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {

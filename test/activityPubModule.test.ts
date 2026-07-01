@@ -1111,7 +1111,17 @@ describe('activityPub module', () => {
 				attributedTo: remoteActorKey.actorUrl,
 				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
 				to: ['https://www.w3.org/ns/activitystreams#Public'],
-				content: 'Remote reply for review',
+				name: '<b>Remote title</b><script>alert("name")</script>',
+				content: [
+					'<p onclick="alert(1)">Remote <strong>reply</strong> for review</p>',
+					'<script>window.__remoteObjectXss = true</script>',
+					'<a href="javascript:alert(2)">bad link</a>',
+					'<a href="ipfs://bafybeigdyrzt">ipfs link</a>',
+					'<iframe src="https://remote.example/embed"></iframe>',
+					'<span style="color:red">unstyled</span>'
+				].join(''),
+				summary: '<span onmouseover="alert(3)">Remote summary</span>',
+				url: 'javascript:alert(4)',
 				published: '2026-06-01T12:05:00Z'
 			}
 		};
@@ -1156,7 +1166,19 @@ describe('activityPub module', () => {
 		assert.equal(object.objectType, 'Note');
 		assert.equal(object.visibility, 'public');
 		assert.equal(object.publishedAt?.toISOString(), '2026-06-01T12:05:00.000Z');
-		assert.equal(object.object?.content, 'Remote reply for review');
+		assert.equal(object.object?.content, activity.object.content);
+		assert.equal(object.preview?.name, 'Remote title');
+		assert.equal(object.preview?.contentHtml?.includes('<script'), false);
+		assert.equal(object.preview?.contentHtml?.includes('onclick='), false);
+		assert.equal(object.preview?.contentHtml?.includes('javascript:'), false);
+		assert.equal(object.preview?.contentHtml?.includes('<iframe'), false);
+		assert.equal(object.preview?.contentHtml?.includes('style='), false);
+		assert.equal(object.preview?.contentHtml?.includes('<strong>reply</strong>'), true);
+		assert.match(object.preview?.contentHtml || '', /<a[^>]+href="ipfs:\/\/bafybeigdyrzt"[^>]*>ipfs link<\/a>/);
+		assert.equal(object.preview?.contentText, 'Remote reply for reviewbad linkipfs linkunstyled');
+		assert.equal(object.preview?.summaryHtml, '<span>Remote summary</span>');
+		assert.equal(object.preview?.summaryText, 'Remote summary');
+		assert.equal(object.preview?.url, undefined);
 		assert.equal(emptyPage.total, 0);
 		assert.deepEqual(emptyPage.list, []);
 	});

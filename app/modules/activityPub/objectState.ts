@@ -1,5 +1,6 @@
 import type {IGroup, IPost} from '../group/interface.js';
 import type {IContentData} from '../database/interface.js';
+import {sanitizeAbsoluteHref} from '../../htmlSafety.js';
 import {buildActivityPubPostCreateActivity} from './serializers.js';
 import {
 	ActivityPubObjectOrigin,
@@ -265,17 +266,30 @@ function getRequiredActivityPubActivityObjectId(activity): string {
 }
 
 function getActivityPubObjectUrl(object, objectId: string): string {
-	if (typeof object?.url === 'string' && object.url) {
-		return object.url;
+	const url = getSafeActivityPubObjectUrl(object);
+	if (url) {
+		return url;
 	}
 	return objectId;
 }
 
 function getUpdatedActivityPubObjectUrl(existingObject, object, objectId: string): string {
-	if (typeof object?.url === 'string' && object.url) {
-		return object.url;
+	const url = getSafeActivityPubObjectUrl(object);
+	if (url) {
+		return url;
 	}
-	return existingObject.remoteObjectUrl || objectId;
+	const existingUrl = sanitizeAbsoluteHref(existingObject.remoteObjectUrl);
+	if (existingUrl) {
+		return existingUrl;
+	}
+	return objectId;
+}
+
+function getSafeActivityPubObjectUrl(object): string {
+	if (typeof object?.url === 'string' && object.url) {
+		return sanitizeAbsoluteHref(object.url);
+	}
+	return '';
 }
 
 function getActivityPubObjectVisibility(activity, object): ActivityPubObjectVisibility {
