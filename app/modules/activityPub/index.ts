@@ -562,9 +562,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					activity: request.body,
 					object
 				});
+				const localPostUpdated = await updateActivityPubRemoteObjectPostIfChanged(app, models, objectRecord);
 				await resetActivityPubObjectReviewState(models, objectRecord);
 
-				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord);
+				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord, localPostUpdated);
 			}
 			const object = getRequiredSharedInboxCreateObject(request.body);
 			const target = await getRequiredSharedInboxCreateTarget(models, request.body, object);
@@ -1226,17 +1227,55 @@ async function updateActivityPubRemoteObjectLocalPostId(objectRecord, post: IPos
 	await objectRecord.update({localPostId: post.id});
 }
 
+async function updateActivityPubRemoteObjectPost(app: IGeesomeApp, models, objectRecord): Promise<boolean> {
+	const post = await getActivityPubRemoteObjectImportedPost(app, objectRecord);
+	if (!post) {
+		return false;
+	}
+	const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
+	const postDraft = await getActivityPubRemoteObjectPostDraft(models, {id: remoteObject.localActorId}, remoteObject);
+	if (!isActivityPubRemoteObjectPostDraftUpdateable(postDraft)) {
+		return false;
+	}
+	if (!post.userId) {
+		return false;
+	}
+	const content = await createActivityPubRemoteObjectPostContent(app, post.userId, postDraft);
+	const group = post.group || await app.ms.group.getGroup(post.groupId);
+	if (!group) {
+		return false;
+	}
+	const postData = getActivityPubRemoteObjectPostUpdateData(group, remoteObject, postDraft, content);
+	await app.ms.group.updateRemotePostByObject(post.userId, post.id, postData);
+	return true;
+}
+
+async function updateActivityPubRemoteObjectPostIfChanged(app: IGeesomeApp, models, objectRecord): Promise<boolean> {
+	if (objectRecord?.activityPubObjectChanged !== true) {
+		return false;
+	}
+	return updateActivityPubRemoteObjectPost(app, models, objectRecord);
+}
+
 async function deleteActivityPubRemoteObjectPost(app: IGeesomeApp, objectRecord): Promise<boolean> {
+	const post = await getActivityPubRemoteObjectImportedPost(app, objectRecord);
+	if (!post) {
+		return false;
+	}
+	await app.ms.group.deletePostsPure(post.userId || null, [post.id]);
+	return true;
+}
+
+async function getActivityPubRemoteObjectImportedPost(app: IGeesomeApp, objectRecord): Promise<IPost | null> {
 	const postId = Number(objectRecord?.localPostId || 0);
 	if (!Number.isFinite(postId) || postId <= 0) {
-		return false;
+		return null;
 	}
 	const post = await app.ms.group.getPostPure(postId);
 	if (!isActivityPubRemoteObjectImportedPost(objectRecord, post)) {
-		return false;
+		return null;
 	}
-	await app.ms.group.deletePostsPure(post.userId || null, [postId]);
-	return true;
+	return post;
 }
 
 function isActivityPubRemoteObjectImportedPost(objectRecord, post): boolean {
@@ -1247,6 +1286,24 @@ function isActivityPubRemoteObjectImportedPost(objectRecord, post): boolean {
 		&& post.source === 'activityPub'
 		&& post.sourceChannelId === getActivityPubRemoteObjectPostSourceChannelId(objectRecord)
 		&& post.sourcePostId === getActivityPubRemoteObjectPostSourcePostId(objectRecord);
+}
+
+function getActivityPubRemoteObjectPostUpdateData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, content: IContent) {
+	const postData = getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, content);
+	if (!postDraft.replyToPostId) {
+		postData.replyToId = null;
+	}
+	return postData;
+}
+
+function isActivityPubRemoteObjectPostDraftUpdateable(postDraft: IActivityPubRemoteObjectPostDraft): boolean {
+	const blockingReasons = postDraft.reasons.filter((reason) => {
+		return ![
+			'activitypub_remote_object_post_exists',
+			'activitypub_remote_object_review_not_accepted'
+		].includes(reason);
+	});
+	return blockingReasons.length === 0;
 }
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {
@@ -1975,7 +2032,7 @@ function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRe
 	};
 }
 
-function getSharedInboxUpdateResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+function getSharedInboxUpdateResult(verification, remoteActorUrl: string, objectRecord, localPostUpdated: boolean): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
@@ -1984,7 +2041,8 @@ function getSharedInboxUpdateResult(verification, remoteActorUrl: string, object
 		activityType: 'Update',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
-		objectId: objectRecord.objectId
+		objectId: objectRecord.objectId,
+		localPostUpdated
 	};
 }
 

@@ -418,6 +418,7 @@ export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerifi
 	activityPubObjectId?: number;
 	objectId?: string;
 	inReplyTo?: string;
+	localPostUpdated?: boolean;
 	localPostDeleted?: boolean;
 }
 
