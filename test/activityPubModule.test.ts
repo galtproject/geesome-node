@@ -25,6 +25,37 @@ describe('activityPub module', () => {
 				}
 			]
 		});
+		assert.deepEqual(await module.getNodeInfoDiscovery(), {
+			links: [
+				{
+					rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
+					href: 'https://social.example/nodeinfo/2.1'
+				}
+			]
+		});
+		assert.deepEqual(await module.getNodeInfo(), {
+			version: '2.1',
+			software: {
+				name: 'geesome-node',
+				version: '0.4.0',
+				repository: 'https://github.com/galtproject/geesome-node'
+			},
+			protocols: ['activitypub'],
+			services: {
+				inbound: [],
+				outbound: []
+			},
+			openRegistrations: false,
+			usage: {
+				users: {},
+				localPosts: 0,
+				localComments: 0
+			},
+			metadata: {
+				nodeName: 'example.com',
+				nodeDescription: 'GeeSome ActivityPub federation endpoint'
+			}
+		});
 
 		const following = await module.getGroupFollowing('test-channel');
 		assert.deepEqual(following, {
@@ -1772,6 +1803,8 @@ describe('activityPub API', () => {
 			}
 		} as any, {
 			getWebFingerResponse: async () => ({subject: 'acct:test-channel@example.com'}),
+			getNodeInfoDiscovery: async () => ({links: [{href: 'https://social.example/nodeinfo/2.1'}]}),
+			getNodeInfo: async () => ({version: '2.1', protocols: ['activitypub']}),
 			getGroupActor: async () => ({id: 'https://social.example/ap/groups/test-channel'}),
 			getGroupOutbox: async () => ({id: 'https://social.example/ap/groups/test-channel/outbox'}),
 			getGroupFollowers: async () => ({id: 'https://social.example/ap/groups/test-channel/followers'}),
@@ -1841,6 +1874,22 @@ describe('activityPub API', () => {
 		});
 		assert.equal(webFinger.headers['Content-Type'], 'application/jrd+json; charset=utf-8');
 		assert.deepEqual(webFinger.body, {subject: 'acct:test-channel@example.com'});
+
+		const nodeInfoDiscovery = await callRoute(routes, 'GET .well-known/nodeinfo', {});
+		assert.equal(nodeInfoDiscovery.headers['Content-Type'], 'application/json; charset=utf-8');
+		assert.deepEqual(nodeInfoDiscovery.body, {
+			links: [{href: 'https://social.example/nodeinfo/2.1'}]
+		});
+
+		const nodeInfo = await callRoute(routes, 'GET nodeinfo/2.1', {});
+		assert.equal(
+			nodeInfo.headers['Content-Type'],
+			'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"; charset=utf-8'
+		);
+		assert.deepEqual(nodeInfo.body, {
+			version: '2.1',
+			protocols: ['activitypub']
+		});
 
 		const actor = await callRoute(routes, 'GET ap/groups/:groupName', {
 			params: {groupName: 'test-channel'}
@@ -1998,6 +2047,8 @@ describe('activityPub API', () => {
 				error.code = 401;
 				throw error;
 			},
+			getNodeInfoDiscovery: async () => ({links: []}),
+			getNodeInfo: async () => ({}),
 			verifySharedInboxRequest: async () => ({}),
 			handleSharedInboxRequest: async () => ({})
 		} as any);

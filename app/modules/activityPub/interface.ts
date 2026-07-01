@@ -39,6 +39,32 @@ export interface IActivityPubWebFingerResponse {
 	links: IActivityPubWebFingerLink[];
 }
 
+export interface IActivityPubNodeInfoDiscoveryResponse {
+	links: IActivityPubWebFingerLink[];
+}
+
+export interface IActivityPubNodeInfoResponse {
+	version: '2.1';
+	software: {
+		name: string;
+		version: string;
+		repository?: string;
+		homepage?: string;
+	};
+	protocols: string[];
+	services: {
+		inbound: string[];
+		outbound: string[];
+	};
+	openRegistrations: boolean;
+	usage: {
+		users: Record<string, number>;
+		localPosts: number;
+		localComments: number;
+	};
+	metadata: Record<string, any>;
+}
+
 export type IActivityPubGroupInput = IGroup | string;
 
 export interface IActivityPubActorOptions {
@@ -462,6 +488,10 @@ export default interface IGeesomeActivityPubModule {
 	isEnabled(): boolean;
 
 	getWebFingerResponse(resource: string): Promise<IActivityPubWebFingerResponse>;
+
+	getNodeInfoDiscovery(): Promise<IActivityPubNodeInfoDiscoveryResponse>;
+
+	getNodeInfo(): Promise<IActivityPubNodeInfoResponse>;
 
 	getGroupActor(groupName: string): Promise<IActivityPubActorObject>;
 

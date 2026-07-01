@@ -85,7 +85,7 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('webhook')) {
     notes.add('webhook/token-in-path review');
   }
-  if (routeLower.startsWith('/ap/') || routeLower === '/.well-known/webfinger') {
+  if (isActivityPubFederationRoute(routeLower)) {
     notes.add('ActivityPub federation boundary');
   }
   if (routeLower.includes('inbox')) {
@@ -107,6 +107,13 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add('encryption/key boundary');
   }
   return [...notes].sort();
+}
+
+function isActivityPubFederationRoute(routeLower: string): boolean {
+  return routeLower.startsWith('/ap/') ||
+    routeLower === '/.well-known/webfinger' ||
+    routeLower === '/.well-known/nodeinfo' ||
+    routeLower === '/nodeinfo/2.1';
 }
 
 function parseFile(filePath: string): RouteRow[] {
