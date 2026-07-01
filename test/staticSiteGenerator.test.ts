@@ -257,6 +257,66 @@ describe("staticSiteGenerator", function () {
 		assert.equal(styleCssContent.includes('.static-site-settings-marker'), true);
 	});
 
+	it('should sanitize generated post html before render', async () => {
+		const maliciousText = [
+			'<p onclick="alert(1)">Hello <strong>safe post</strong></p>',
+			'<script>window.__geesomeXss = true</script>',
+			'<a href="javascript:alert(2)">bad link</a>',
+			'<a href="https://example.com/safe" target="_blank">safe link</a>',
+			'<a href="ipns://example-key/path">ipns link</a>',
+			'<iframe src="https://example.com/embed"></iframe>',
+			'<span style="color:red">unstyled text</span>'
+		].join('');
+		const textContent = await app.ms.content.saveData(testUser.id, maliciousText, null, {
+			mimeType: 'text/markdown'
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: textContent.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			post: {
+				titleLength: 0,
+				descriptionLength: 400,
+			},
+			postList: {
+				postsPerPage: 5,
+			},
+			headerHtml: '<p onclick="alert(3)">Safe header<script>alert(4)</script></p>',
+			site: {
+				title: 'MySite "quoted"',
+				name: 'my_site',
+				description: 'My <site> About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		const postHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/post/${post.localId}/index.html`).then(b => b.toString('utf8'));
+		const staticSiteInfo = await staticSiteGenerator.getStaticSiteInfo(testUser.id, {entityType: 'group', entityId: testGroup.id});
+		const storedOptions = JSON.parse(staticSiteInfo.options);
+
+		[indexHtmlContent, postHtmlContent].forEach((htmlContent) => {
+			assert.equal(htmlContent.includes('<script>window.__geesomeXss'), false);
+			assert.equal(htmlContent.includes('onclick='), false);
+			assert.equal(htmlContent.includes('javascript:'), false);
+			assert.equal(htmlContent.includes('<iframe'), false);
+			assert.equal(htmlContent.includes('style="color:red"'), false);
+			assert.equal(htmlContent.includes('<strong>safe post</strong>'), true);
+			assert.match(htmlContent, /<a[^>]+href="https:\/\/example\.com\/safe"[^>]*>safe link<\/a>/);
+			assert.match(htmlContent, /<a[^>]+href="ipns:\/\/example-key\/path"[^>]*>ipns link<\/a>/);
+			assert.match(htmlContent, /<span>unstyled text<\/span>/);
+		});
+		assert.equal(postHtmlContent.includes('<title>MySite "quoted"'), true);
+		assert.equal(postHtmlContent.includes('My &lt;site&gt; About'), true);
+		assert.equal(postHtmlContent.includes('My <site> About'), false);
+		assert.equal(postHtmlContent.includes('content="Hello safe postbad linksafe linkipns linkunstyled text"'), true);
+		assert.equal(storedOptions.headerHtml, '<p>Safe header</p>');
+	});
+
 	it('should reject invalid static site settings', async () => {
 		await assert.rejects(
 			() => staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {

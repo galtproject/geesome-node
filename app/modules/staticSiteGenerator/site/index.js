@@ -33,14 +33,39 @@ async function renderApp(storageData, rootContent, url, headers, lang) {
     // VueSSR: generated html string of page
     const content = await renderToString(app);
 
-    const title = headers.filter(h => h[1].name === 'og:title')[0][1].content;
+    const title = getHeaderContent(headers, 'og:title');
 
     // VueSSR: replace index.html variable with result values
     return rootContent
         .replace(/\{\{relativeRoot}}/g, relativeRoot)
         .replace('{{lang}}', lang)
-        .replace('{{headers}}', `<title>${title}</title>\n` + headers.map(([tag, attr]) => `<${tag} name="${attr['name']}" content="${attr['content']}"/>`).join('\n'))
+        .replace('{{headers}}', `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n'))
         .replace('{{content}}', content);
+}
+
+function getHeaderContent(headers, name) {
+    const header = headers.find(h => h[1].name === name);
+    if (!header) {
+        return '';
+    }
+    return header[1].content || '';
+}
+
+function getHeaderTagHtml(tag, attr) {
+    return `<${tag} name="${escapeHtmlAttribute(attr['name'])}" content="${escapeHtmlAttribute(attr['content'])}"/>`;
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function escapeHtmlAttribute(value) {
+    return escapeHtml(value)
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function compileStyles() {
