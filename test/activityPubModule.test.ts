@@ -1171,6 +1171,8 @@ describe('activityPub module', () => {
 						mediaType: 'image/png',
 						name: '<b>Image alt</b><script>alert("attachment")</script>',
 						summary: '<span>Preview summary</span>',
+						blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+						sensitive: 'true',
 						url: [
 							'javascript:alert(5)',
 							{type: 'Link', mediaType: 'image/webp', href: 'https://remote.example/media/photo.webp'}
@@ -1182,6 +1184,16 @@ describe('activityPub module', () => {
 						type: 'Link',
 						href: 'ipfs://bafyremoteattachment',
 						name: 'IPFS source'
+					},
+					{
+						type: 'Video',
+						mediaType: 'video/mp4',
+						url: 'https://remote.example/media/clip.mp4',
+						name: 'Video alt',
+						duration: 'PT1M02S',
+						width: 1920,
+						height: 1080,
+						sensitive: false
 					},
 					{
 						type: 'Document',
@@ -1233,15 +1245,32 @@ describe('activityPub module', () => {
 					url: 'https://remote.example/media/photo.webp',
 					type: 'Image',
 					mediaType: 'image/png',
+					mediaCategory: 'image',
 					name: 'Image alt',
+					altText: 'Image alt',
 					summaryText: 'Preview summary',
 					width: 640,
-					height: 480
+					height: 480,
+					blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+					sensitive: true
 				},
 				{
 					url: 'ipfs://bafyremoteattachment',
 					type: 'Link',
+					mediaCategory: 'link',
 					name: 'IPFS source'
+				},
+				{
+					url: 'https://remote.example/media/clip.mp4',
+					type: 'Video',
+					mediaType: 'video/mp4',
+					mediaCategory: 'video',
+					name: 'Video alt',
+					altText: 'Video alt',
+					width: 1920,
+					height: 1080,
+					durationSeconds: 62,
+					sensitive: false
 				}
 			];
 

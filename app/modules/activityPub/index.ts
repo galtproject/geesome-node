@@ -131,6 +131,8 @@ const maxActivityPubRemoteObjectPreviewAttachments = 8;
 const maxActivityPubRemoteObjectPreviewAttachmentTextLength = 500;
 const maxActivityPubRemoteObjectPreviewAttachmentTypeLength = 100;
 const maxActivityPubRemoteObjectPreviewAttachmentDimension = 1000000;
+const maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength = 200;
+const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 * 7;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database', 'content']);
@@ -1146,6 +1148,7 @@ function getActivityPubRemoteObjectAttachmentPreview(value): IActivityPubRemoteO
 	if (value && typeof value === 'object') {
 		addActivityPubRemoteObjectAttachmentTextFields(preview, value);
 		addActivityPubRemoteObjectAttachmentDimensions(preview, value);
+		addActivityPubRemoteObjectAttachmentMediaFields(preview, value);
 	}
 	return preview;
 }
@@ -1180,8 +1183,71 @@ function addActivityPubRemoteObjectAttachmentDimensions(preview: IActivityPubRem
 	}
 }
 
+function addActivityPubRemoteObjectAttachmentMediaFields(preview: IActivityPubRemoteObjectAttachmentPreview, value): void {
+	const mediaCategory = getActivityPubRemoteObjectAttachmentMediaCategory(preview);
+	if (mediaCategory) {
+		preview.mediaCategory = mediaCategory;
+	}
+	const altText = getActivityPubRemoteObjectAttachmentAltText(preview, mediaCategory);
+	if (altText) {
+		preview.altText = altText;
+	}
+	const durationSeconds = getActivityPubRemoteObjectDurationSeconds(value.duration);
+	if (durationSeconds) {
+		preview.durationSeconds = durationSeconds;
+	}
+	const blurhash = getActivityPubRemoteObjectTextField(value, 'blurhash', maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength);
+	if (blurhash) {
+		preview.blurhash = blurhash;
+	}
+	const sensitive = getActivityPubRemoteObjectBoolean(value.sensitive);
+	if (sensitive !== undefined) {
+		preview.sensitive = sensitive;
+	}
+}
+
 function getActivityPubRemoteObjectPreviewText(html: string): string {
 	return truncateActivityPubRemoteObjectPreview(htmlToText(html), maxActivityPubRemoteObjectPreviewTextLength);
+}
+
+function getActivityPubRemoteObjectAttachmentMediaCategory(preview: IActivityPubRemoteObjectAttachmentPreview): IActivityPubRemoteObjectAttachmentPreview['mediaCategory'] | undefined {
+	const mediaType = String(preview.mediaType || '').toLowerCase();
+	if (mediaType.startsWith('image/')) {
+		return 'image';
+	}
+	if (mediaType.startsWith('video/')) {
+		return 'video';
+	}
+	if (mediaType.startsWith('audio/')) {
+		return 'audio';
+	}
+	const type = String(preview.type || '').toLowerCase();
+	if (type === 'image') {
+		return 'image';
+	}
+	if (type === 'video') {
+		return 'video';
+	}
+	if (type === 'audio') {
+		return 'audio';
+	}
+	if (type === 'link') {
+		return 'link';
+	}
+	if (type === 'document') {
+		return 'document';
+	}
+	return undefined;
+}
+
+function getActivityPubRemoteObjectAttachmentAltText(
+	preview: IActivityPubRemoteObjectAttachmentPreview,
+	mediaCategory: IActivityPubRemoteObjectAttachmentPreview['mediaCategory'] | undefined
+): string {
+	if (mediaCategory !== 'image' && mediaCategory !== 'video') {
+		return '';
+	}
+	return preview.name || preview.summaryText || '';
 }
 
 function getActivityPubRemoteObjectArrayValue(value): any[] {
@@ -1199,6 +1265,23 @@ function getActivityPubRemoteObjectStringValue(value): string {
 		return '';
 	}
 	return value.trim();
+}
+
+function getActivityPubRemoteObjectBoolean(value): boolean | undefined {
+	if (typeof value === 'boolean') {
+		return value;
+	}
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const normalizedValue = value.trim().toLowerCase();
+	if (normalizedValue === 'true') {
+		return true;
+	}
+	if (normalizedValue === 'false') {
+		return false;
+	}
+	return undefined;
 }
 
 function getActivityPubRemoteObjectSafeUrl(object): string {
@@ -1243,6 +1326,35 @@ function getActivityPubRemoteObjectPositiveInteger(value): number | undefined {
 		return undefined;
 	}
 	return Math.floor(number);
+}
+
+function getActivityPubRemoteObjectDurationSeconds(value): number | undefined {
+	const rawValue = typeof value === 'string' ? value.trim() : value;
+	const seconds = typeof rawValue === 'string' && rawValue.toUpperCase().startsWith('P')
+		? parseActivityPubIsoDurationSeconds(rawValue)
+		: Number(rawValue);
+	if (!Number.isFinite(seconds)) {
+		return undefined;
+	}
+	if (seconds <= 0) {
+		return undefined;
+	}
+	if (seconds > maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds) {
+		return undefined;
+	}
+	return Math.round(seconds);
+}
+
+function parseActivityPubIsoDurationSeconds(value: string): number {
+	const match = value.trim().toUpperCase().match(/^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/);
+	if (!match) {
+		return Number.NaN;
+	}
+	const [, days, hours, minutes, seconds] = match;
+	return Number(days || 0) * 24 * 60 * 60
+		+ Number(hours || 0) * 60 * 60
+		+ Number(minutes || 0) * 60
+		+ Number(seconds || 0);
 }
 
 function truncateActivityPubRemoteObjectPreview(value: string, maxLength: number): string {
