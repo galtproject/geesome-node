@@ -1,5 +1,6 @@
 import type {IGroup} from '../group/interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
+import type {RichTextDocument} from '../../richText.js';
 
 export interface IActivityPubConfig {
 	enabled?: boolean | string;
@@ -231,6 +232,7 @@ export interface IActivityPubRemoteObjectPreview {
 	name?: string;
 	contentHtml?: string;
 	contentText?: string;
+	contentRichText?: RichTextDocument;
 	summaryHtml?: string;
 	summaryText?: string;
 	url?: string;
