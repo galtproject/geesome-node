@@ -278,10 +278,15 @@ export interface IActivityPubRemoteObjectAttachmentPreview {
 	url: string;
 	type?: string;
 	mediaType?: string;
+	mediaCategory?: 'image' | 'video' | 'audio' | 'link' | 'document';
 	name?: string;
+	altText?: string;
 	summaryText?: string;
 	width?: number;
 	height?: number;
+	durationSeconds?: number;
+	blurhash?: string;
+	sensitive?: boolean;
 }
 
 export interface IActivityPubRemoteObjectFilters {
