@@ -1150,6 +1150,7 @@ describe('activityPub module', () => {
 		}, {limit: 10});
 		const object = objectPage.list[0];
 		const objectDetail = await module.getGroupRemoteObject('test-channel', object.id);
+		const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
 		const emptyPage = await module.getGroupRemoteObjects('test-channel', {
 			objectType: 'Tombstone'
 		}, {limit: 10});
@@ -1208,7 +1209,21 @@ describe('activityPub module', () => {
 		assert.equal(object.preview?.summaryText, 'Remote summary');
 		assert.equal(object.preview?.url, undefined);
 		assert.deepEqual(objectDetail, object);
+		assert.equal(postDraft.canCreatePost, true);
+		assert.deepEqual(postDraft.reasons, []);
+		assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
+		assert.equal(postDraft.contentText, object.preview?.contentText);
+		assert.equal(postDraft.title, object.preview?.name);
+		assert.equal(postDraft.remoteObject.id, object.id);
+		assert.deepEqual(postDraft.source, {
+			protocol: 'activitypub',
+			objectId: activity.object.id,
+			activityId: activity.id,
+			remoteObjectUrl: activity.object.id,
+			remoteActorUrl: remoteActorKey.actorUrl
+		});
 		await assert.rejects(() => module.getGroupRemoteObject('test-channel', 99), /activitypub_remote_object_not_found/);
+		await assert.rejects(() => module.getGroupRemoteObjectPostDraft('test-channel', 99), /activitypub_remote_object_not_found/);
 		assert.equal(emptyPage.total, 0);
 		assert.deepEqual(emptyPage.list, []);
 	});
@@ -1562,6 +1577,14 @@ describe('activityPub API', () => {
 				id: 2,
 				objectId: 'https://remote.example/objects/reply-1'
 			}),
+			getGroupRemoteObjectPostDraft: async () => ({
+				canCreatePost: true,
+				reasons: [],
+				source: {
+					protocol: 'activitypub',
+					objectId: 'https://remote.example/objects/reply-1'
+				}
+			}),
 			setGroupFlagReportState: async () => ({
 				id: 1,
 				state: ActivityPubFlagState.Resolved
@@ -1651,12 +1674,26 @@ describe('activityPub API', () => {
 			objectId: 'https://remote.example/objects/reply-1'
 		});
 
+		const remoteObjectPostDraft = await callRoute(routes, 'AUTH GET admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post-draft', {
+			params: {groupName: 'test-channel', remoteObjectId: '2'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[3], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(remoteObjectPostDraft.body, {
+			canCreatePost: true,
+			reasons: [],
+			source: {
+				protocol: 'activitypub',
+				objectId: 'https://remote.example/objects/reply-1'
+			}
+		});
+
 		const flagReportState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/flags/:flagId/state', {
 			params: {groupName: 'test-channel', flagId: '1'},
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[3], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -1667,7 +1704,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',

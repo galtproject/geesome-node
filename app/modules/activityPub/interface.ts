@@ -250,6 +250,25 @@ export interface IActivityPubRemoteObjectListResponse {
 	total: number;
 }
 
+export interface IActivityPubRemoteObjectPostDraftSource {
+	protocol: 'activitypub';
+	objectId: string;
+	activityId?: string;
+	remoteObjectUrl?: string;
+	remoteActorUrl?: string;
+}
+
+export interface IActivityPubRemoteObjectPostDraft {
+	remoteObject: IActivityPubRemoteObjectReport;
+	canCreatePost: boolean;
+	reasons: string[];
+	title?: string;
+	contentText?: string;
+	contentRichText?: RichTextDocument;
+	summaryText?: string;
+	source: IActivityPubRemoteObjectPostDraftSource;
+}
+
 export interface IActivityPubObject {
 	localActorId?: number;
 	localPostId?: number;
@@ -422,6 +441,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupRemoteObjects(groupName: string, filters?: IActivityPubRemoteObjectFilters, listParams?: IListParams): Promise<IActivityPubRemoteObjectListResponse>;
 
 	getGroupRemoteObject(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectReport>;
+
+	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
 
 	setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport>;
 

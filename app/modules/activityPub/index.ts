@@ -17,6 +17,8 @@ import IGeesomeActivityPubModule, {
 	IActivityPubFlagReportListResponse,
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
+	IActivityPubRemoteObjectPostDraft,
+	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
 	IActivityPubRemoteObjectPreview,
 	IActivityPubInboxResult,
@@ -245,6 +247,11 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			}
 
 			return getActivityPubRemoteObjectReportWithRemoteActor(models, object);
+		}
+
+		async getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft> {
+			const remoteObject = await this.getGroupRemoteObject(groupName, remoteObjectId);
+			return getActivityPubRemoteObjectPostDraft(remoteObject);
 		}
 
 		async setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport> {
@@ -848,6 +855,30 @@ async function getActivityPubRemoteObjectReportWithRemoteActor(models, object): 
 	return getActivityPubRemoteObjectReport(object, getRemoteActorById(remoteActors));
 }
 
+function getActivityPubRemoteObjectPostDraft(remoteObject: IActivityPubRemoteObjectReport): IActivityPubRemoteObjectPostDraft {
+	const preview = remoteObject.preview;
+	const reasons = getActivityPubRemoteObjectPostDraftReasons(remoteObject);
+	const draft: IActivityPubRemoteObjectPostDraft = {
+		remoteObject,
+		canCreatePost: reasons.length === 0,
+		reasons,
+		source: getActivityPubRemoteObjectPostDraftSource(remoteObject)
+	};
+	if (preview?.name) {
+		draft.title = preview.name;
+	}
+	if (preview?.contentText) {
+		draft.contentText = preview.contentText;
+	}
+	if (preview?.contentRichText) {
+		draft.contentRichText = preview.contentRichText;
+	}
+	if (preview?.summaryText) {
+		draft.summaryText = preview.summaryText;
+	}
+	return draft;
+}
+
 function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPreview | undefined {
 	if (!object || typeof object !== 'object') {
 		return undefined;
@@ -955,6 +986,42 @@ function truncateActivityPubRemoteObjectPreview(value: string, maxLength: number
 		return value;
 	}
 	return `${value.slice(0, maxLength)}...`;
+}
+
+function getActivityPubRemoteObjectPostDraftReasons(remoteObject: IActivityPubRemoteObjectReport): string[] {
+	const reasons: string[] = [];
+	if (remoteObject.objectType !== 'Note') {
+		reasons.push('activitypub_remote_object_not_note');
+	}
+	if (remoteObject.visibility !== ActivityPubObjectVisibility.Public) {
+		reasons.push('activitypub_remote_object_visibility_not_public');
+	}
+	if (!hasActivityPubRemoteObjectDraftContent(remoteObject)) {
+		reasons.push('activitypub_remote_object_content_missing');
+	}
+	return reasons;
+}
+
+function getActivityPubRemoteObjectPostDraftSource(remoteObject: IActivityPubRemoteObjectReport): IActivityPubRemoteObjectPostDraftSource {
+	const source: IActivityPubRemoteObjectPostDraftSource = {
+		protocol: 'activitypub',
+		objectId: remoteObject.objectId
+	};
+	if (remoteObject.activityId) {
+		source.activityId = remoteObject.activityId;
+	}
+	if (remoteObject.remoteObjectUrl) {
+		source.remoteObjectUrl = remoteObject.remoteObjectUrl;
+	}
+	if (remoteObject.remoteActor?.actorUrl) {
+		source.remoteActorUrl = remoteObject.remoteActor.actorUrl;
+	}
+	return source;
+}
+
+function hasActivityPubRemoteObjectDraftContent(remoteObject: IActivityPubRemoteObjectReport): boolean {
+	const blocks = remoteObject.preview?.contentRichText?.blocks;
+	return Array.isArray(blocks) && blocks.length > 0;
 }
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {
