@@ -45,6 +45,36 @@ For profiles, Mastodon expects actor fields such as:
 - `manuallyApprovesFollowers`
 - `discoverable`
 
+## User Content Format Direction
+
+Research update: 2026-07-01.
+
+ActivityPub/ActivityStreams is HTML-friendly: object `content` is HTML by default unless `mediaType` says otherwise, and `summary` is also HTML. Mastodon and Matrix make that workable by requiring strict allowlist sanitization for rendered HTML. That does not make raw HTML a good canonical GeeSome storage format.
+
+Newer decentralized social protocols point the other way:
+
+- Bluesky/ATProto stores plain `text` plus rich-text facets for links, mentions, and tags; markup syntax may be used by an editor, but should be stripped before publishing.
+- Farcaster casts store text plus structured mentions, byte positions, and embeds.
+- Nostr kind-1 text notes are plaintext and explicitly discourage Markdown/HTML markup.
+
+Recommendation: GeeSome should store post text as a versioned semantic rich-text document, not raw HTML. HTML should be an adapter/rendering format for ActivityPub, Matrix, static sites, admin previews, and legacy clients. Plain text plus facets/tags should be exported for ATProto, Farcaster, Nostr-like networks, and other protocols that do not accept HTML as source data.
+
+Initial canonical shape should be deliberately small:
+
+- blocks: paragraph, line break, blockquote, code block, list, list item, and attachment references by `storageId`;
+- inline text with marks: strong, emphasis, code, link, mention, hashtag, spoiler, and strike;
+- metadata: schema version, optional language, attachment MIME/alt/title data, and stable source/origin IDs for imported remote content.
+
+Do not allow arbitrary raw HTML nodes, inline styles, arbitrary classes, iframes, scripts, forms, or active content in the canonical schema. Add future features as explicit typed nodes/marks with migration, sanitizer, and protocol-adapter behavior.
+
+Adapter policy:
+
+- ActivityPub and Matrix: render from canonical rich text to conservative sanitized HTML, with plain text fallbacks where the target protocol expects them.
+- Bluesky/ATProto: render plain text plus facets for links, mentions, and tags.
+- Farcaster: render plain text plus mention positions and embeds.
+- Nostr-like protocols: render plaintext plus protocol tags.
+- Inbound ActivityPub/Matrix HTML: sanitize, normalize, and parse into canonical rich text before it can become a native editable GeeSome post. The original remote object may be stored for audit/debug, but it must not be rendered directly.
+
 ## Security Requirements
 
 The ActivityPub spec leaves authentication/verification mechanisms flexible, but real Fediverse interop depends on signed HTTP requests.
