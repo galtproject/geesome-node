@@ -7,6 +7,7 @@ import {
 	createRichTextDocument,
 	htmlToRichText,
 	isRichTextDocument,
+	richTextToAtProtoTextWithFacets,
 	richTextToPlainText,
 	richTextToSafeHtml,
 	validateRichTextDocument
@@ -190,5 +191,83 @@ describe('richText helpers', () => {
 			}
 		]);
 		assert.equal(richTextToSafeHtml(document).includes('/relative'), false);
+	});
+
+	it('exports ATProto-compatible text facets with UTF-8 byte offsets', () => {
+		const document = createRichTextDocument([
+			{
+				type: 'paragraph',
+				children: [
+					{text: 'Hi 🌍 '},
+					{text: 'site', marks: [{type: 'link', href: 'https://example.com/post'}]},
+					{text: ' '},
+					{text: '@alice', marks: [{type: 'mention', id: 'did:plc:alice123'}]},
+					{text: ' '},
+					{text: '#тег', marks: [{type: 'hashtag', name: 'тег'}]},
+					{text: ' plain', marks: [{type: 'mention', id: 'alice'}]}
+				]
+			},
+			{
+				type: 'codeBlock',
+				text: 'x < y'
+			}
+		]);
+		const exported = richTextToAtProtoTextWithFacets(document);
+
+		assert.equal(exported.text, 'Hi 🌍 site @alice #тег plain\nx < y');
+		assert.deepEqual(exported.facets, [
+			{
+				$type: 'app.bsky.richtext.facet',
+				index: {
+					byteStart: 8,
+					byteEnd: 12
+				},
+				features: [{
+					$type: 'app.bsky.richtext.facet#link',
+					uri: 'https://example.com/post'
+				}]
+			},
+			{
+				$type: 'app.bsky.richtext.facet',
+				index: {
+					byteStart: 13,
+					byteEnd: 19
+				},
+				features: [{
+					$type: 'app.bsky.richtext.facet#mention',
+					did: 'did:plc:alice123'
+				}]
+			},
+			{
+				$type: 'app.bsky.richtext.facet',
+				index: {
+					byteStart: 20,
+					byteEnd: 27
+				},
+				features: [{
+					$type: 'app.bsky.richtext.facet#tag',
+					tag: 'тег'
+				}]
+			}
+		]);
+	});
+
+	it('drops unsupported ATProto facets while preserving text', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: 'bad link', marks: [{type: 'link', href: 'javascript:alert(1)'}]},
+				{text: ' '},
+				{text: '#too long', marks: [{type: 'hashtag'}]}
+			]
+		}]);
+		const exported = richTextToAtProtoTextWithFacets(document);
+
+		assert.equal(exported.text, 'bad link #too long');
+		assert.deepEqual(exported.facets, []);
+		assert.deepEqual(richTextToAtProtoTextWithFacets({} as any), {
+			text: '',
+			facets: []
+		});
 	});
 });
