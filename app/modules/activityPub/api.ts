@@ -167,6 +167,26 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state Set cached remote object review state
+	 * @apiName AdminActivityPubRemoteObjectReviewState
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Stores a moderation review decision for one cached remote ActivityPub object. This only updates review bookkeeping; it does not create, update, hide, delete, or federate GeeSome posts. Remote `Update`, `Delete`, and `Undo(Create)` activities reset the decision to pending because the reviewed object changed.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiBody {String="pending","accepted","rejected"} state New review state.
+	 * @apiSuccess {Object} result Updated cached remote object report with review state metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.setGroupRemoteObjectReviewState(req.params.groupName, req.params.remoteObjectId, req.body, req.user.id));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/groups/:groupName/flags/:flagId/state Set ActivityPub flag report state
 	 * @apiName AdminActivityPubFlagReportState
 	 * @apiGroup AdminActivityPub

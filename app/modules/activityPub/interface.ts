@@ -134,6 +134,12 @@ export enum ActivityPubObjectVisibility {
 	Direct = 'direct'
 }
 
+export enum ActivityPubObjectReviewState {
+	Pending = 'pending',
+	Accepted = 'accepted',
+	Rejected = 'rejected'
+}
+
 export interface IActivityPubFollow {
 	localActorId: number;
 	remoteActorId: number;
@@ -221,6 +227,9 @@ export interface IActivityPubRemoteObjectReport {
 	objectId: string;
 	objectType: string;
 	visibility: ActivityPubObjectVisibility;
+	reviewState: ActivityPubObjectReviewState;
+	reviewedAt?: Date;
+	reviewedByUserId?: number;
 	publishedAt?: Date;
 	object?: Record<string, any> | null;
 	preview?: IActivityPubRemoteObjectPreview;
@@ -269,6 +278,10 @@ export interface IActivityPubRemoteObjectPostDraft {
 	source: IActivityPubRemoteObjectPostDraftSource;
 }
 
+export interface IActivityPubRemoteObjectReviewStateInput {
+	state: ActivityPubObjectReviewState | string;
+}
+
 export interface IActivityPubObject {
 	localActorId?: number;
 	localPostId?: number;
@@ -279,6 +292,9 @@ export interface IActivityPubObject {
 	objectType: string;
 	origin: ActivityPubObjectOrigin;
 	visibility: ActivityPubObjectVisibility;
+	reviewState?: ActivityPubObjectReviewState;
+	reviewedAt?: Date;
+	reviewedByUserId?: number;
 	publishedAt?: Date;
 	rawJson: string;
 }
@@ -443,6 +459,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupRemoteObject(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectReport>;
 
 	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
+
+	setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport>;
 
 	setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport>;
 
