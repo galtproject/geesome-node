@@ -1136,6 +1136,111 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObject.rows.length, 0);
 	});
 
+	it('records signed shared-inbox Create Articles for review without native-post readiness', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupActor('test-channel');
+		const activity = {
+			id: 'https://remote.example/activities/create-article-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/article-1',
+				type: 'Article',
+				attributedTo: remoteActorKey.actorUrl,
+				to: ['https://social.example/ap/groups/test-channel'],
+				cc: ['https://www.w3.org/ns/activitystreams#Public'],
+				name: 'Remote article',
+				content: '<p>Remote <strong>article</strong></p>',
+				published: '2026-06-01T12:09:00Z'
+			}
+		};
+		const result = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', remoteObject.id);
+
+		assert.equal(result.ok, true);
+		assert.equal(result.accepted, true);
+		assert.equal(result.message, 'activitypub_create_object_recorded');
+		assert.equal(result.objectId, activity.object.id);
+		assert.equal(remoteObject.objectType, 'Article');
+		assert.equal(remoteObject.visibility, 'public');
+		assert.equal(postDraft.canCreatePost, false);
+		assert.deepEqual(postDraft.reasons, [
+			'activitypub_remote_object_review_not_accepted',
+			'activitypub_remote_object_not_note'
+		]);
+		assert.equal(postDraft.contentText, 'Remote article');
+
+		await module.setGroupRemoteObjectReviewState('test-channel', remoteObject.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
+		const acceptedDraft = await module.getGroupRemoteObjectPostDraft('test-channel', remoteObject.id);
+		assert.equal(acceptedDraft.canCreatePost, false);
+		assert.deepEqual(acceptedDraft.reasons, ['activitypub_remote_object_not_note']);
+		await assert.rejects(
+			() => module.createGroupRemoteObjectPost('test-channel', remoteObject.id, 7),
+			/activitypub_remote_object_not_note/
+		);
+
+		const updateActivity = {
+			id: 'https://remote.example/activities/update-article-1',
+			type: 'Update',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				...activity.object,
+				content: '<p>Updated <em>article</em></p>',
+				published: '2026-06-01T12:10:00Z'
+			}
+		};
+		const updateResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', updateActivity)
+		);
+		const updatedObject = await module.getGroupRemoteObject('test-channel', remoteObject.id);
+		const updatedDraft = await module.getGroupRemoteObjectPostDraft('test-channel', remoteObject.id);
+
+		assert.equal(updateResult.message, 'activitypub_update_object_recorded');
+		assert.equal(updateResult.localPostUpdated, false);
+		assert.equal(updatedObject.objectType, 'Article');
+		assert.equal(updatedObject.reviewState, ActivityPubObjectReviewState.Pending);
+		assert.equal(updatedObject.preview?.contentText, 'Updated article');
+		assert.deepEqual(updatedDraft.reasons, [
+			'activitypub_remote_object_review_not_accepted',
+			'activitypub_remote_object_not_note'
+		]);
+	});
+
+	it('rejects signed shared-inbox Create for unsupported review object types', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupActor('test-channel');
+		const activity = {
+			id: 'https://remote.example/activities/create-person-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/person-1',
+				type: 'Person',
+				attributedTo: remoteActorKey.actorUrl,
+				to: ['https://social.example/ap/groups/test-channel'],
+				name: 'Remote person'
+			}
+		};
+
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		), /activitypub_create_object_not_supported/);
+		assert.equal(models.ActivityPubObject.rows.length, 0);
+	});
+
 	it('lists cached remote ActivityPub objects for admin review', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models, calls} = await createActivityPubHarness({

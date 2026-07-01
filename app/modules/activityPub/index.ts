@@ -133,6 +133,17 @@ const maxActivityPubRemoteObjectPreviewAttachmentTypeLength = 100;
 const maxActivityPubRemoteObjectPreviewAttachmentDimension = 1000000;
 const maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength = 200;
 const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 * 7;
+const activityPubSharedInboxReviewObjectTypes = new Set([
+	'Note',
+	'Article',
+	'Page',
+	'Image',
+	'Video',
+	'Audio',
+	'Document',
+	'Question',
+	'Event'
+]);
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database', 'content']);
@@ -1891,26 +1902,37 @@ function getRequiredSharedInboxCreateObject(activity) {
 	if (getActivityType(activity) !== 'Create') {
 		throwActivityPubError('activitypub_activity_not_supported', 501);
 	}
-	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
-		throwActivityPubError('activitypub_create_object_required', 400);
-	}
-	if (activity.object.type !== 'Note') {
-		throwActivityPubError('activitypub_create_object_not_supported', 501);
-	}
-	return activity.object;
+	return getRequiredSharedInboxReviewObject(
+		activity?.object,
+		'activitypub_create_object_required',
+		'activitypub_create_object_not_supported'
+	);
 }
 
 function getRequiredSharedInboxUpdateObject(activity) {
 	if (!isUpdateActivity(activity)) {
 		throwActivityPubError('activitypub_activity_not_supported', 501);
 	}
-	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
-		throwActivityPubError('activitypub_update_object_required', 400);
+	return getRequiredSharedInboxReviewObject(
+		activity?.object,
+		'activitypub_update_object_required',
+		'activitypub_update_object_not_supported'
+	);
+}
+
+function getRequiredSharedInboxReviewObject(object, requiredMessage: string, unsupportedMessage: string) {
+	if (!object || typeof object !== 'object' || Array.isArray(object)) {
+		throwActivityPubError(requiredMessage, 400);
 	}
-	if (activity.object.type !== 'Note') {
-		throwActivityPubError('activitypub_update_object_not_supported', 501);
+	if (!isActivityPubSharedInboxReviewObjectType(object.type)) {
+		throwActivityPubError(unsupportedMessage, 501);
 	}
-	return activity.object;
+	return object;
+}
+
+function isActivityPubSharedInboxReviewObjectType(objectType): boolean {
+	return typeof objectType === 'string'
+		&& activityPubSharedInboxReviewObjectTypes.has(objectType);
 }
 
 async function getRequiredSharedInboxCreateTarget(models, activity, object) {

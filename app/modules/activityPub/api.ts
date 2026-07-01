@@ -154,7 +154,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
-	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note` or `Tombstone`.
+	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note`, `Article`, or `Tombstone`.
 	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
 	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
 	 * @apiQuery {Number} [remoteActorId] Filter by remote actor database id.
@@ -333,7 +333,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. If an updated or tombstoned remote object was manually imported as a GeeSome remote post and the source identity still matches, that imported post is updated or soft-deleted too. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create` activities for supported review object types (`Note`, `Article`, `Page`, `Image`, `Video`, `Audio`, `Document`, `Question`, and `Event`) are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor. Signed `Update` activities refresh already-cached supported remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Only accepted public `Note` objects can become native GeeSome remote posts; non-Note objects remain review/audit records. If an updated or tombstoned remote Note was manually imported as a GeeSome remote post and the source identity still matches, that imported post is updated or soft-deleted too. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
 	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
@@ -342,7 +342,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {String} activityType Activity type that was processed.
 	 * @apiSuccess {String} objectId ActivityPub object id that was recorded, updated, or tombstoned.
 	 * @apiSuccess {Number} activityPubObjectId Local cached ActivityPub object row id.
-	 * @apiSuccess {Boolean} [localPostUpdated] Whether a linked imported GeeSome remote post was updated for `Update(Note)`.
+	 * @apiSuccess {Boolean} [localPostUpdated] Whether a linked imported GeeSome remote post was updated for `Update` of an importable Note.
 	 * @apiSuccess {Boolean} [localPostDeleted] Whether a linked imported GeeSome remote post was soft-deleted for `Delete` or `Undo(Create)`.
 	 */
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
