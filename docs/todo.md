@@ -330,6 +330,8 @@ Status: first API prerequisite, public identity helper, read-only serializer, re
 
 Research note: [activitypub-research.md](./activitypub-research.md).
 
+Rich-text content-format design note: [rich-text-content-format.md](./rich-text-content-format.md).
+
 Content format direction:
 
 - Do not make raw HTML the canonical user-content format. ActivityStreams/ActivityPub and Matrix need sanitized HTML adapter output, but newer decentralized social protocols such as Bluesky/ATProto, Farcaster, and Nostr-style text notes prefer plain text plus structured facets, mentions, tags, embeds, or protocol tags.
@@ -370,7 +372,7 @@ First deliverable:
 - Add tests with deterministic JSON-LD payloads and signature fixtures.
 - Reuse the shared deterministic ActivityPub helper contract from `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121) for actor, WebFinger, Note/Create, digest, and request-signature fixtures.
 - Before remote object moderation can create visible posts, add HTML render-path tests that prove untrusted ActivityPub/local post HTML is sanitized or escaped consistently in API/webview/static-site/admin preview surfaces. Static-site generated output and backend admin remote-object preview output now have focused helper/render tests; frontend/admin UI adoption and ActivityPub remote-content ingestion into visible posts remain.
-- Add a rich-text content-format design note with schema versioning, IPLD/DAG-CBOR storage shape, allowed blocks/marks, attachment references, migrations, sanitization boundaries, and ActivityPub/Matrix/ATProto/Farcaster/Nostr export adapters before implementing native remote-post ingestion or cross-network publishing.
+- Add a rich-text content-format design note with schema versioning, IPLD/DAG-CBOR storage shape, allowed blocks/marks, attachment references, migrations, sanitization boundaries, and ActivityPub/Matrix/ATProto/Farcaster/Nostr export adapters before implementing native remote-post ingestion or cross-network publishing. Status: documented in [rich-text-content-format.md](./rich-text-content-format.md); implementation remains a follow-up.
 
 Verification:
 
