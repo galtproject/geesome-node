@@ -276,6 +276,7 @@ export interface IActivityPubRemoteObjectPostDraft {
 	contentText?: string;
 	contentRichText?: RichTextDocument;
 	summaryText?: string;
+	replyToPostId?: number;
 	source: IActivityPubRemoteObjectPostDraftSource;
 }
 

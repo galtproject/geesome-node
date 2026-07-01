@@ -1221,6 +1221,7 @@ describe('activityPub module', () => {
 		assert.equal(postDraft.contentText, object.preview?.contentText);
 		assert.equal(postDraft.title, object.preview?.name);
 		assert.equal(postDraft.remoteObject.id, object.id);
+		assert.equal(postDraft.replyToPostId, 11);
 		assert.deepEqual(postDraft.source, {
 			protocol: 'activitypub',
 			objectId: activity.object.id,
@@ -1253,6 +1254,7 @@ describe('activityPub module', () => {
 		assert.equal(acceptedObject.reviewedByUserId, 7);
 		assert.equal(acceptedPostDraft.canCreatePost, true);
 		assert.deepEqual(acceptedPostDraft.reasons, []);
+		assert.equal(acceptedPostDraft.replyToPostId, 11);
 
 		const createPostResult = await module.createGroupRemoteObjectPost('test-channel', object.id, 7);
 		assert.equal(createPostResult.post.id, 88);
@@ -1270,6 +1272,7 @@ describe('activityPub module', () => {
 		assert.equal(calls.createRemotePostByObject[0].postData.sourceChannelId, `remoteActor:${models.ActivityPubRemoteActor.rows[0].id}`);
 		assert.equal(calls.createRemotePostByObject[0].postData.sourcePostId, `remoteObject:${object.id}`);
 		assert.equal(calls.createRemotePostByObject[0].postData.sourceDate?.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.equal(calls.createRemotePostByObject[0].postData.replyToId, 11);
 		assert.deepEqual(calls.createRemotePostByObject[0].postData.contents, [{id: 201}]);
 		assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
 			activityPub: postDraft.source,
