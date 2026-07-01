@@ -421,6 +421,8 @@ export default interface IGeesomeActivityPubModule {
 
 	getGroupRemoteObjects(groupName: string, filters?: IActivityPubRemoteObjectFilters, listParams?: IListParams): Promise<IActivityPubRemoteObjectListResponse>;
 
+	getGroupRemoteObject(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectReport>;
+
 	setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport>;
 
 	followRemoteActor(groupName: string, remoteActorUrl: string, options?: IActivityPubOutboundFollowOptions): Promise<IActivityPubOutboundFollowResult>;

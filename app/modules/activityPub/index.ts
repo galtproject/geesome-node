@@ -235,6 +235,18 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return getGroupRemoteObjectList(app, models, actorRecord, filters, listParams);
 		}
 
+		async getGroupRemoteObject(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectReport> {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			const object = actorRecord ? await getGroupRemoteObjectRecord(models, actorRecord, remoteObjectId) : null;
+			if (!object) {
+				throwActivityPubError('activitypub_remote_object_not_found', 404);
+			}
+
+			return getActivityPubRemoteObjectReportWithRemoteActor(models, object);
+		}
+
 		async setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport> {
 			getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
@@ -726,6 +738,20 @@ async function getGroupRemoteObjectList(app: IGeesomeApp, models, actorRecord, f
 	};
 }
 
+async function getGroupRemoteObjectRecord(models, actorRecord, remoteObjectId) {
+	const id = helpers.normalizeUniqueIds(remoteObjectId)[0];
+	if (!id) {
+		return null;
+	}
+	return models.ActivityPubObject.findOne({
+		where: {
+			id,
+			localActorId: actorRecord.id,
+			origin: ActivityPubObjectOrigin.Remote
+		}
+	});
+}
+
 function getActivityPubFlagReportWhere(actorRecord, filters: IActivityPubFlagReportFilters = {}) {
 	const where: any = {
 		localActorId: actorRecord.id
@@ -815,6 +841,11 @@ function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, a
 		createdAt: object.createdAt,
 		updatedAt: object.updatedAt
 	};
+}
+
+async function getActivityPubRemoteObjectReportWithRemoteActor(models, object): Promise<IActivityPubRemoteObjectReport> {
+	const remoteActors = await getRemoteActorRecordsByIds(models, [object.remoteActorId]);
+	return getActivityPubRemoteObjectReport(object, getRemoteActorById(remoteActors));
 }
 
 function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPreview | undefined {
