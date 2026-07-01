@@ -251,6 +251,7 @@ export interface IActivityPubRemoteObjectFilters {
 	objectId?: string;
 	objectType?: string;
 	visibility?: ActivityPubObjectVisibility | string;
+	reviewState?: ActivityPubObjectReviewState | string;
 	remoteActorId?: number | string;
 }
 

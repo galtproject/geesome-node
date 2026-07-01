@@ -23,6 +23,20 @@ export async function getActivityPubObjectReviewRecordsByObjectIds(models, objec
 	});
 }
 
+export async function getActivityPubObjectReviewStateObjectIdWhere(models, state) {
+	if (!isKnownActivityPubObjectReviewState(state)) {
+		return null;
+	}
+	const objectIds = state === ActivityPubObjectReviewState.Pending
+		? await getNonPendingActivityPubObjectReviewObjectIds(models)
+		: await getActivityPubObjectReviewObjectIdsByState(models, state);
+
+	if (state === ActivityPubObjectReviewState.Pending) {
+		return objectIds.length ? {[Op.notIn]: objectIds} : null;
+	}
+	return {[Op.in]: objectIds};
+}
+
 export function getActivityPubObjectReviewByObjectId(reviewRecords) {
 	return new Map(reviewRecords.map((review) => [Number(review.activityPubObjectId), review]));
 }
@@ -139,6 +153,29 @@ function getChangedActivityPubObjectReviewData(reviewRecord, reviewData) {
 		updateData[key] = reviewData[key];
 	});
 	return updateData;
+}
+
+async function getActivityPubObjectReviewObjectIdsByState(models, state: ActivityPubObjectReviewState) {
+	const reviews = await models.ActivityPubObjectReview.findAll({
+		where: {
+			state
+		}
+	});
+	return helpers.normalizeUniqueIds(reviews.map((review) => review.activityPubObjectId));
+}
+
+async function getNonPendingActivityPubObjectReviewObjectIds(models) {
+	const reviews = await models.ActivityPubObjectReview.findAll({
+		where: {
+			state: {
+				[Op.in]: [
+					ActivityPubObjectReviewState.Accepted,
+					ActivityPubObjectReviewState.Rejected
+				]
+			}
+		}
+	});
+	return helpers.normalizeUniqueIds(reviews.map((review) => review.activityPubObjectId));
 }
 
 function isSameActivityPubObjectReviewValue(left, right): boolean {

@@ -119,6 +119,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
 	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note` or `Tombstone`.
 	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
+	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
 	 * @apiQuery {Number} [remoteActorId] Filter by remote actor database id.
 	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON, sanitized preview data, and remote actor metadata.
 	 * @apiSuccess {Number} total Total matching cached remote objects.

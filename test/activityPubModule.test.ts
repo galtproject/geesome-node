@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import crypto from 'node:crypto';
+import {Op} from 'sequelize';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
@@ -1228,12 +1229,30 @@ describe('activityPub module', () => {
 		});
 		assert.equal(models.ActivityPubObjectReview.rows.length, 0);
 
+		const defaultPendingPage = await module.getGroupRemoteObjects('test-channel', {
+			reviewState: ActivityPubObjectReviewState.Pending
+		}, {limit: 10});
+		assert.equal(defaultPendingPage.total, 1);
+		assert.equal(defaultPendingPage.list[0].id, object.id);
+		assert.equal(defaultPendingPage.list[0].reviewState, ActivityPubObjectReviewState.Pending);
+
 		const acceptedObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
 			state: ActivityPubObjectReviewState.Accepted
 		}, 7);
+		const acceptedPage = await module.getGroupRemoteObjects('test-channel', {
+			reviewState: ActivityPubObjectReviewState.Accepted
+		}, {limit: 10});
+		const pendingAfterAcceptedPage = await module.getGroupRemoteObjects('test-channel', {
+			reviewState: ActivityPubObjectReviewState.Pending
+		}, {limit: 10});
 		assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
 		assert.equal(acceptedObject.reviewedAt instanceof Date, true);
 		assert.equal(acceptedObject.reviewedByUserId, 7);
+		assert.equal(acceptedPage.total, 1);
+		assert.equal(acceptedPage.list[0].id, object.id);
+		assert.equal(acceptedPage.list[0].reviewState, ActivityPubObjectReviewState.Accepted);
+		assert.equal(pendingAfterAcceptedPage.total, 0);
+		assert.deepEqual(pendingAfterAcceptedPage.list, []);
 		assert.equal(models.ActivityPubObjectReview.rows.length, 1);
 		assert.equal(models.ActivityPubObjectReview.rows[0].activityPubObjectId, object.id);
 		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Accepted);
@@ -1241,9 +1260,20 @@ describe('activityPub module', () => {
 		const pendingObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
 			state: ActivityPubObjectReviewState.Pending
 		}, 7);
+		const pendingPage = await module.getGroupRemoteObjects('test-channel', {
+			reviewState: ActivityPubObjectReviewState.Pending
+		}, {limit: 10});
+		const acceptedAfterPendingPage = await module.getGroupRemoteObjects('test-channel', {
+			reviewState: ActivityPubObjectReviewState.Accepted
+		}, {limit: 10});
 		assert.equal(pendingObject.reviewState, ActivityPubObjectReviewState.Pending);
 		assert.equal(pendingObject.reviewedAt, undefined);
 		assert.equal(pendingObject.reviewedByUserId, undefined);
+		assert.equal(pendingPage.total, 1);
+		assert.equal(pendingPage.list[0].id, object.id);
+		assert.equal(pendingPage.list[0].reviewState, ActivityPubObjectReviewState.Pending);
+		assert.equal(acceptedAfterPendingPage.total, 0);
+		assert.deepEqual(acceptedAfterPendingPage.list, []);
 		assert.equal(models.ActivityPubObjectReview.rows.length, 1);
 		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Pending);
 
@@ -2078,6 +2108,10 @@ function valueMatchesWhere(value, condition) {
 		const key = Reflect.ownKeys(condition)[0];
 		return condition[key as any].includes(value);
 	}
+	if (isNotInCondition(condition)) {
+		const key = Reflect.ownKeys(condition)[0];
+		return !condition[key as any].includes(value);
+	}
 	if (isLteCondition(condition)) {
 		const key = Reflect.ownKeys(condition)[0];
 		return compareValues(value, condition[key as any]) <= 0;
@@ -2086,6 +2120,14 @@ function valueMatchesWhere(value, condition) {
 }
 
 function isInCondition(condition): boolean {
+	return isArrayCondition(condition, Op.in);
+}
+
+function isNotInCondition(condition): boolean {
+	return isArrayCondition(condition, Op.notIn);
+}
+
+function isArrayCondition(condition, op): boolean {
 	if (!condition || typeof condition !== 'object') {
 		return false;
 	}
@@ -2093,7 +2135,7 @@ function isInCondition(condition): boolean {
 	if (keys.length !== 1) {
 		return false;
 	}
-	return Array.isArray(condition[keys[0] as any]);
+	return keys[0] === op && Array.isArray(condition[keys[0] as any]);
 }
 
 function isLteCondition(condition): boolean {
