@@ -71,7 +71,7 @@ Do not allow arbitrary raw HTML nodes, inline styles, arbitrary classes, iframes
 
 Adapter policy:
 
-- ActivityPub and Matrix: render from canonical rich text to conservative sanitized HTML, with plain text fallbacks where the target protocol expects them.
+- ActivityPub and Matrix: render from canonical rich text to conservative sanitized HTML, with plain text fallbacks where the target protocol expects them. Status: ActivityPub local post serialization now renders canonical rich-text HTML and emits ActivityStreams mention/hashtag tags from canonical marks.
 - Bluesky/ATProto: render plain text plus facets for links, mentions, and tags. Status: `richTextToAtProtoTextWithFacets` exports deterministic UTF-8 byte-indexed link, DID mention, and tag facets from canonical rich text; account-level Bluesky import/cross-post wiring remains future work.
 - Farcaster: render plain text plus mention positions and embeds.
 - Nostr-like protocols: render plaintext plus protocol tags.

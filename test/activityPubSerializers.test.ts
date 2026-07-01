@@ -107,6 +107,43 @@ describe('activityPub serializers', () => {
 		assert.equal(note.content.includes('javascript:'), false);
 	});
 
+	it('adds ActivityStreams tags for canonical rich-text mentions and hashtags', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: 'Hello '},
+				{text: '@alice', marks: [{type: 'mention', name: 'alice', href: 'https://remote.example/users/alice'}]},
+				{text: ' '},
+				{text: '#geesome', marks: [{type: 'hashtag', name: 'geesome', href: 'https://social.example/tags/geesome'}]},
+				{text: ' '},
+				{text: '#local', marks: [{type: 'hashtag'}]}
+			]
+		}]);
+		const contents = [{
+			...getContents()[0],
+			text: JSON.stringify(document),
+			mimeType: RICH_TEXT_MIME_TYPE
+		}];
+		const note = buildActivityPubPostNote(getConfig(), getGroup(), getPublishedPost(), {contents});
+
+		assert.deepEqual(note.tag, [
+			{
+				type: 'Mention',
+				href: 'https://remote.example/users/alice',
+				name: '@alice'
+			},
+			{
+				type: 'Hashtag',
+				href: 'https://social.example/tags/geesome',
+				name: '#geesome'
+			},
+			{
+				type: 'Hashtag',
+				name: '#local'
+			}
+		]);
+	});
+
 	it('escapes invalid rich-text payloads instead of throwing from ActivityPub serializers', () => {
 		const contents = [{
 			...getContents()[0],
@@ -116,6 +153,7 @@ describe('activityPub serializers', () => {
 		const note = buildActivityPubPostNote(getConfig(), getGroup(), getPublishedPost(), {contents});
 
 		assert.equal(note.content, '{&quot;bad&quot;: &quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;}');
+		assert.equal(note.tag, undefined);
 	});
 
 	it('builds an outbox collection and filters non-federatable posts', () => {

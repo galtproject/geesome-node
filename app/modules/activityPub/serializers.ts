@@ -1,7 +1,8 @@
 import type {IContentData} from '../database/interface.js';
 import {GroupType, PostStatus} from '../group/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
-import {RICH_TEXT_MIME_TYPE, isRichTextDocument, richTextToSafeHtml} from '../../richText.js';
+import {RICH_TEXT_MIME_TYPE, isRichTextDocument, richTextToActivityPubTags, richTextToSafeHtml} from '../../richText.js';
+import type {RichTextDocument} from '../../richText.js';
 import {
 	activityPubContext,
 	activityPubPublicCollection,
@@ -72,19 +73,27 @@ export function buildActivityPubPostNote(config: IActivityPubConfig, group: IGro
 	const urls = getActivityPubGroupActorUrls(config, group);
 	const objectUrl = getActivityPubGroupPostObjectUrl(config, group, post.localId);
 	const contents = options.contents || [];
+	const textContent = getActivityPubTextContent(contents);
+	const richTextDocument = getActivityPubRichTextDocument(textContent);
 
-	return {
+	const note: IActivityPubNoteObject = {
 		'@context': activityPubContext,
 		id: objectUrl,
 		type: 'Note',
 		attributedTo: urls.actorUrl,
 		to: [activityPubPublicCollection],
 		cc: [urls.followersUrl],
-		content: getActivityPubPostContent(contents),
+		content: getActivityPubPostContent(textContent, richTextDocument),
 		url: objectUrl,
 		published: toActivityPubDate(post.publishedAt),
 		attachment: buildActivityPubAttachments(contents)
 	};
+	const tags = richTextDocument ? richTextToActivityPubTags(richTextDocument) : [];
+	if (tags.length > 0) {
+		note.tag = tags;
+	}
+
+	return note;
 }
 
 export function buildActivityPubPostCreateActivity(config: IActivityPubConfig, group: IGroup, post: IPost, options: IActivityPubPostSerializerOptions = {}): IActivityPubCreateActivity {
@@ -240,26 +249,32 @@ function getActivityPubAttachmentType(content: IContentData): string {
 	return 'Document';
 }
 
-function getActivityPubPostContent(contents: IContentData[]): string {
-	const textContent = contents.find((content) => content?.type === 'text' && typeof content.text === 'string');
+function getActivityPubTextContent(contents: IContentData[]): IContentData | undefined {
+	return contents.find((content) => content?.type === 'text' && typeof content.text === 'string');
+}
+
+function getActivityPubPostContent(textContent: IContentData | undefined, richTextDocument: RichTextDocument | null): string {
 	if (!textContent) {
 		return '';
 	}
-	if (textContent.mimeType === RICH_TEXT_MIME_TYPE) {
-		return getActivityPubRichTextContent(textContent.text);
+	if (richTextDocument) {
+		return richTextToSafeHtml(richTextDocument);
 	}
 	return escapeActivityPubHtml(textContent.text);
 }
 
-function getActivityPubRichTextContent(value: string): string {
+function getActivityPubRichTextDocument(textContent: IContentData | undefined): RichTextDocument | null {
+	if (textContent?.mimeType !== RICH_TEXT_MIME_TYPE) {
+		return null;
+	}
 	try {
-		const document = JSON.parse(value);
+		const document = JSON.parse(textContent.text);
 		if (!isRichTextDocument(document)) {
-			return escapeActivityPubHtml(value);
+			return null;
 		}
-		return richTextToSafeHtml(document);
+		return document;
 	} catch {
-		return escapeActivityPubHtml(value);
+		return null;
 	}
 }
 
