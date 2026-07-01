@@ -113,14 +113,14 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts.
+	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts. Render the sanitized `preview` fields in admin UI; `object` is the parsed raw ActivityStreams object kept for audit.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
 	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note` or `Tombstone`.
 	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
 	 * @apiQuery {Number} [remoteActorId] Filter by remote actor database id.
-	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON and remote actor metadata.
+	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON, sanitized preview data, and remote actor metadata.
 	 * @apiSuccess {Number} total Total matching cached remote objects.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects', async (req, res) => {

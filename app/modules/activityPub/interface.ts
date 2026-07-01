@@ -222,8 +222,18 @@ export interface IActivityPubRemoteObjectReport {
 	visibility: ActivityPubObjectVisibility;
 	publishedAt?: Date;
 	object?: Record<string, any> | null;
+	preview?: IActivityPubRemoteObjectPreview;
 	createdAt?: Date;
 	updatedAt?: Date;
+}
+
+export interface IActivityPubRemoteObjectPreview {
+	name?: string;
+	contentHtml?: string;
+	contentText?: string;
+	summaryHtml?: string;
+	summaryText?: string;
+	url?: string;
 }
 
 export interface IActivityPubRemoteObjectFilters {

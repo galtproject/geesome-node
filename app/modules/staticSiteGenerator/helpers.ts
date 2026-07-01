@@ -11,11 +11,8 @@ import _ from 'lodash';
 import { join } from 'path';
 import {load as cheerioLoad} from 'cheerio';
 import {readdirSync, rmdirSync, unlinkSync, statSync} from 'fs';
+import {sanitizeHtml} from '../../htmlSafety.js';
 const {trim} = _;
-const allowedHtmlTags = new Set(['a', 'b', 'blockquote', 'br', 'code', 'em', 'i', 'li', 'ol', 'p', 'pre', 's', 'span', 'strong', 'u', 'ul']);
-const blockedHtmlTags = new Set(['base', 'button', 'embed', 'form', 'iframe', 'input', 'link', 'math', 'meta', 'object', 'script', 'select', 'style', 'svg', 'textarea']);
-const allowedHtmlProtocols = new Set(['http', 'https', 'ipfs', 'ipns', 'mailto']);
-const allowedAnchorTargets = new Set(['_blank', '_parent', '_self', '_top']);
 
 const isDir = path => {
     try {
@@ -211,13 +208,7 @@ function fixHtml(html) {
 }
 
 function sanitizeStaticSiteHtml(html) {
-    if (!html) {
-        return '';
-    }
-    const $ = cheerioLoad(String(html), {decodeEntities: false}, false);
-    const root = $.root();
-    sanitizeStaticSiteChildren($, root);
-    return fixHtml(root.html() || '');
+    return sanitizeHtml(html);
 }
 
 function sanitizeStaticSiteContents(contents = []) {
@@ -235,124 +226,6 @@ function sanitizeStaticSiteContent(content) {
         ...content,
         text: sanitizeStaticSiteHtml(content.text)
     };
-}
-
-function sanitizeStaticSiteChildren($, parent) {
-    parent.contents().each((index, element) => {
-        sanitizeStaticSiteNode($, $(element));
-    });
-}
-
-function sanitizeStaticSiteNode($, element) {
-    const node = element[0];
-    if (!node) {
-        return;
-    }
-    if (node.type === 'comment' || node.type === 'script' || node.type === 'style') {
-        element.remove();
-        return;
-    }
-    if (node.type !== 'tag') {
-        return;
-    }
-
-    const tagName = String(node.name || '').toLowerCase();
-    if (blockedHtmlTags.has(tagName)) {
-        element.remove();
-        return;
-    }
-
-    sanitizeStaticSiteChildren($, element);
-    if (!allowedHtmlTags.has(tagName)) {
-        element.replaceWith(element.contents());
-        return;
-    }
-
-    sanitizeStaticSiteAttributes(element, tagName);
-}
-
-function sanitizeStaticSiteAttributes(element, tagName) {
-    const attributes = {...(element[0]?.attribs || {})};
-    Object.keys(attributes).forEach(attributeName => {
-        sanitizeStaticSiteAttribute(element, tagName, attributeName, attributes[attributeName]);
-    });
-    if (tagName === 'a' && element.attr('target') === '_blank') {
-        element.attr('rel', 'noopener noreferrer');
-    }
-}
-
-function sanitizeStaticSiteAttribute(element, tagName, attributeName, attributeValue) {
-    const normalizedName = attributeName.toLowerCase();
-    if (normalizedName.startsWith('on') || normalizedName === 'style') {
-        element.removeAttr(attributeName);
-        return;
-    }
-    if (tagName !== 'a' || !['href', 'rel', 'target', 'title'].includes(normalizedName)) {
-        element.removeAttr(attributeName);
-        return;
-    }
-    if (normalizedName === 'href') {
-        sanitizeStaticSiteHrefAttribute(element, attributeName, attributeValue);
-        return;
-    }
-    if (normalizedName === 'target') {
-        sanitizeStaticSiteTargetAttribute(element, attributeName, attributeValue);
-        return;
-    }
-    if (normalizedName === 'rel') {
-        sanitizeStaticSiteRelAttribute(element, attributeName, attributeValue);
-    }
-}
-
-function sanitizeStaticSiteHrefAttribute(element, attributeName, attributeValue) {
-    const href = sanitizeStaticSiteHref(attributeValue);
-    if (!href) {
-        element.removeAttr(attributeName);
-        return;
-    }
-    element.attr(attributeName, href);
-}
-
-function sanitizeStaticSiteTargetAttribute(element, attributeName, attributeValue) {
-    const target = String(attributeValue || '').trim().toLowerCase();
-    if (!allowedAnchorTargets.has(target)) {
-        element.removeAttr(attributeName);
-        return;
-    }
-    element.attr(attributeName, target);
-}
-
-function sanitizeStaticSiteRelAttribute(element, attributeName, attributeValue) {
-    const rel = String(attributeValue || '')
-        .split(/\s+/)
-        .map(value => value.trim().toLowerCase())
-        .filter(Boolean)
-        .filter(value => /^[a-z0-9_-]+$/.test(value))
-        .join(' ');
-    if (!rel) {
-        element.removeAttr(attributeName);
-        return;
-    }
-    element.attr(attributeName, rel);
-}
-
-function sanitizeStaticSiteHref(attributeValue) {
-    const href = String(attributeValue || '').trim();
-    if (!href) {
-        return '';
-    }
-    const compactHref = href.replace(/[\u0000-\u001F\u007F\s]+/g, '').toLowerCase();
-    if (compactHref.startsWith('//')) {
-        return '';
-    }
-    const protocolMatch = /^([a-z][a-z0-9+.-]*):/i.exec(compactHref);
-    if (!protocolMatch) {
-        return href;
-    }
-    if (!allowedHtmlProtocols.has(protocolMatch[1])) {
-        return '';
-    }
-    return href;
 }
 
 // async function apiRequest(port, method, token, body) {

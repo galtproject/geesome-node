@@ -293,7 +293,7 @@ Remote `Create(Note)` replies and mentions are currently stored only as `Activit
 - `sourcePostId`: remote object URL
 - `replyToId`: mapped local post if `inReplyTo` matches a known ActivityPub object
 
-Before any remote ActivityPub object becomes a visible GeeSome/webview post, review the existing post rendering path because post bodies are HTML. Store the remote raw object for audit, but render only sanitized/escaped content with an explicit allowlist for tags, attributes, links, media embeds, and IPFS/IPNS URLs. Static-site generated post text, list title/description HTML, content-list text, header/footer HTML, and generated title/meta headers now have a conservative sanitizer/escaping layer with XSS fixtures; direct UI/admin remote-object previews still need the same explicit review before remote objects can become visible posts.
+Before any remote ActivityPub object becomes a visible GeeSome/webview post, review the existing post rendering path because post bodies are HTML. Store the remote raw object for audit, but render only sanitized/escaped content with an explicit allowlist for tags, attributes, links, media embeds, and IPFS/IPNS URLs. Static-site generated post text, list title/description HTML, content-list text, header/footer HTML, generated title/meta headers, and admin remote-object API preview fields now have conservative sanitizer/escaping coverage with XSS fixtures; frontend/admin UI adoption of the preview fields, ActivityStreams remote `content` ingestion into visible posts, and direct webview surfaces still need explicit review before remote objects can become visible posts.
 
 Attachments can be represented first as remote URLs in `propertiesJson`; importing them into GeeSome/IPFS content should be a later, explicit backup feature.
 
@@ -366,8 +366,8 @@ Recommendation: create a short Fedify spike before implementation. If Node 22 is
 
 ### Slice 4: Remote Replies And Moderation
 
-- Process remote `Create(Note)` replies/mentions. Status: signed replies to known local objects and mentions of known local group actors are stored idempotently as `ActivityPubObject` rows and exposed through an AdminRead remote-object list; moderation and GeeSome post creation remain future work.
-- Define and test the HTML rendering/sanitization boundary before turning cached remote objects into visible GeeSome posts. Status: static-site generated post/content-list/header/footer HTML and generated title/meta headers now sanitize or escape unsafe markup with XSS fixtures; direct UI/admin review previews, ActivityStreams remote `content` ingestion, and final remote-post creation remain future work.
+- Process remote `Create(Note)` replies/mentions. Status: signed replies to known local objects and mentions of known local group actors are stored idempotently as `ActivityPubObject` rows and exposed through an AdminRead remote-object list with raw parsed objects for audit plus sanitized preview fields for admin rendering; moderation and GeeSome post creation remain future work.
+- Define and test the HTML rendering/sanitization boundary before turning cached remote objects into visible GeeSome posts. Status: static-site generated post/content-list/header/footer HTML, generated title/meta headers, and backend admin remote-object previews now sanitize or escape unsafe markup with XSS fixtures; frontend/admin UI adoption, ActivityStreams remote `content` ingestion into visible posts, and final remote-post creation remain future work.
 - Add moderation controls.
 - Handle remote `Update(Note)`. Status: signed shared-inbox `Update(Note)` mutates cached remote object rows from the same actor; updating visible GeeSome posts from remote objects remains future moderation work.
 - Handle remote `Delete`. Status: signed shared-inbox `Delete` tombstones cached remote object rows from the same actor; deleting visible GeeSome posts from remote objects remains future moderation work.
