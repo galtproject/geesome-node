@@ -129,6 +129,25 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {get} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId Get cached ActivityPub remote object
+	 * @apiName AdminActivityPubRemoteObject
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Returns one signed remote ActivityPub object cached for a local federatable group actor. This is an actor-scoped read-only detail view for moderation/review UI; it does not create, hide, delete, or federate GeeSome posts.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiSuccess {Object} result Cached remote object row with parsed ActivityStreams object JSON, sanitized preview data, canonical preview rich text, and remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getGroupRemoteObject(req.params.groupName, req.params.remoteObjectId));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/groups/:groupName/flags/:flagId/state Set ActivityPub flag report state
 	 * @apiName AdminActivityPubFlagReportState
 	 * @apiGroup AdminActivityPub
