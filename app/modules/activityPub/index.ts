@@ -20,6 +20,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectPostDraft,
 	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
+	IActivityPubRemoteObjectReviewStateInput,
 	IActivityPubRemoteObjectPreview,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
@@ -78,6 +79,14 @@ import {
 	tombstoneRemoteActivityPubObject,
 	updateRemoteActivityPubObject
 } from './objectState.js';
+import {
+	getActivityPubObjectReviewByObjectId,
+	getActivityPubObjectReviewRecordsByObjectIds,
+	getActivityPubObjectReviewState,
+	getRequiredActivityPubObjectReviewState,
+	resetActivityPubObjectReviewState,
+	setActivityPubObjectReviewState as setActivityPubObjectReviewStateRecord
+} from './objectReviewState.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
@@ -252,6 +261,23 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		async getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft> {
 			const remoteObject = await this.getGroupRemoteObject(groupName, remoteObjectId);
 			return getActivityPubRemoteObjectPostDraft(remoteObject);
+		}
+
+		async setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport> {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			const object = actorRecord ? await getGroupRemoteObjectRecord(models, actorRecord, remoteObjectId) : null;
+			if (!object) {
+				throwActivityPubError('activitypub_remote_object_not_found', 404);
+			}
+			await setActivityPubObjectReviewStateRecord(models, {
+				objectRecord: object,
+				state: getRequiredActivityPubObjectReviewState(input?.state),
+				reviewedByUserId
+			});
+
+			return getActivityPubRemoteObjectReportWithRemoteActor(models, object);
 		}
 
 		async setGroupFlagReportState(groupName: string, flagId: number | string, state: ActivityPubFlagState | string): Promise<IActivityPubFlagReport> {
@@ -478,6 +504,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					remoteActorRecord,
 					activity: request.body
 				});
+				await resetActivityPubObjectReviewState(models, objectRecord);
 
 				return getSharedInboxDeleteResult(verification, remoteActorUrl, objectRecord);
 			}
@@ -490,6 +517,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					objectNotFoundMessage: 'activitypub_undo_create_object_not_found',
 					actorMismatchMessage: 'activitypub_undo_create_object_actor_mismatch'
 				});
+				await resetActivityPubObjectReviewState(models, objectRecord);
 
 				return getSharedInboxUndoResult(verification, remoteActorUrl, objectRecord);
 			}
@@ -501,6 +529,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					activity: request.body,
 					object
 				});
+				await resetActivityPubObjectReviewState(models, objectRecord);
 
 				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord);
 			}
@@ -521,6 +550,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		async flushDatabase() {
 			await models.ActivityPubDelivery.destroy({where: {}});
 			await models.ActivityPubFlag.destroy({where: {}});
+			await models.ActivityPubObjectReview.destroy({where: {}});
 			await models.ActivityPubObject.destroy({where: {}});
 			await models.ActivityPubFollow.destroy({where: {}});
 			await models.ActivityPubActor.destroy({where: {}});
@@ -738,9 +768,11 @@ async function getGroupRemoteObjectList(app: IGeesomeApp, models, actorRecord, f
 	});
 	const remoteActors = await getRemoteActorRecordsByIds(models, objectPage.rows.map((object) => object.remoteActorId));
 	const remoteActorById = getRemoteActorById(remoteActors);
+	const reviews = await getActivityPubObjectReviewRecordsByObjectIds(models, objectPage.rows.map((object) => object.id));
+	const reviewByObjectId = getActivityPubObjectReviewByObjectId(reviews);
 
 	return {
-		list: objectPage.rows.map((object) => getActivityPubRemoteObjectReport(object, remoteActorById)),
+		list: objectPage.rows.map((object) => getActivityPubRemoteObjectReport(object, remoteActorById, reviewByObjectId)),
 		total: getListPageCount(objectPage.count)
 	};
 }
@@ -827,8 +859,9 @@ function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IAct
 	};
 }
 
-function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, any>): IActivityPubRemoteObjectReport {
+function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, any>, reviewByObjectId: Map<number, any>): IActivityPubRemoteObjectReport {
 	const remoteActor = remoteActorById.get(Number(object.remoteActorId));
+	const review = reviewByObjectId.get(Number(object.id));
 	const parsedObject = parseActivityPubJson(object.rawJson);
 
 	return {
@@ -842,6 +875,9 @@ function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, a
 		objectId: object.objectId,
 		objectType: object.objectType,
 		visibility: object.visibility,
+		reviewState: getActivityPubObjectReviewState(review),
+		reviewedAt: review?.reviewedAt || undefined,
+		reviewedByUserId: review?.reviewedByUserId || undefined,
 		publishedAt: object.publishedAt,
 		object: parsedObject,
 		preview: getActivityPubRemoteObjectPreview(parsedObject),
@@ -851,8 +887,11 @@ function getActivityPubRemoteObjectReport(object, remoteActorById: Map<number, a
 }
 
 async function getActivityPubRemoteObjectReportWithRemoteActor(models, object): Promise<IActivityPubRemoteObjectReport> {
-	const remoteActors = await getRemoteActorRecordsByIds(models, [object.remoteActorId]);
-	return getActivityPubRemoteObjectReport(object, getRemoteActorById(remoteActors));
+	const [remoteActors, reviews] = await Promise.all([
+		getRemoteActorRecordsByIds(models, [object.remoteActorId]),
+		getActivityPubObjectReviewRecordsByObjectIds(models, [object.id])
+	]);
+	return getActivityPubRemoteObjectReport(object, getRemoteActorById(remoteActors), getActivityPubObjectReviewByObjectId(reviews));
 }
 
 function getActivityPubRemoteObjectPostDraft(remoteObject: IActivityPubRemoteObjectReport): IActivityPubRemoteObjectPostDraft {

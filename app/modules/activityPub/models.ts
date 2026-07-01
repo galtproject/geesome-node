@@ -1,4 +1,5 @@
 import {DataTypes, Op, QueryTypes, Sequelize} from 'sequelize';
+import {ActivityPubObjectReviewState} from './interface.js';
 
 export default async function (sequelize: Sequelize) {
 	const deliveryClaimSchemaState = await getActivityPubDeliveryClaimSchemaState(sequelize);
@@ -202,6 +203,31 @@ export default async function (sequelize: Sequelize) {
 	} as any);
 	(ActivityPubDelivery as any).claimDueForDelivery = (claimOptions) => claimDueActivityPubDeliveries(sequelize, ActivityPubDelivery, claimOptions);
 
+	const ActivityPubObjectReview = sequelize.define('activityPubObjectReview', {
+		activityPubObjectId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		state: {
+			type: DataTypes.STRING(30),
+			allowNull: false,
+			defaultValue: ActivityPubObjectReviewState.Pending
+		},
+		reviewedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		reviewedByUserId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_object_reviews_object_unique', fields: ['activityPubObjectId'], unique: true},
+			{name: 'activity_pub_object_reviews_state_idx', fields: ['state']}
+		]
+	} as any);
+
 	const ActivityPubFlag = sequelize.define('activityPubFlag', {
 		localActorId: {
 			type: DataTypes.INTEGER,
@@ -241,6 +267,7 @@ export default async function (sequelize: Sequelize) {
 		ActivityPubFollow: await ActivityPubFollow.sync({}),
 		ActivityPubObject: await ActivityPubObject.sync({}),
 		ActivityPubDelivery: await ActivityPubDelivery.sync({}),
+		ActivityPubObjectReview: await ActivityPubObjectReview.sync({}),
 		ActivityPubFlag: await ActivityPubFlag.sync({}),
 		activityPubDeliveryClaimsSupported: includeDeliveryClaimColumns
 	};

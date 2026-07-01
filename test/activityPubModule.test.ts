@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
-import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState} from '../app/modules/activityPub/interface.js';
+import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 
@@ -1167,6 +1167,9 @@ describe('activityPub module', () => {
 		assert.equal(object.objectId, activity.object.id);
 		assert.equal(object.objectType, 'Note');
 		assert.equal(object.visibility, 'public');
+		assert.equal(object.reviewState, ActivityPubObjectReviewState.Pending);
+		assert.equal(object.reviewedAt, undefined);
+		assert.equal(object.reviewedByUserId, undefined);
 		assert.equal(object.publishedAt?.toISOString(), '2026-06-01T12:05:00.000Z');
 		assert.equal(object.object?.content, activity.object.content);
 		assert.equal(object.preview?.name, 'Remote title');
@@ -1209,6 +1212,7 @@ describe('activityPub module', () => {
 		assert.equal(object.preview?.summaryText, 'Remote summary');
 		assert.equal(object.preview?.url, undefined);
 		assert.deepEqual(objectDetail, object);
+		assert.equal(postDraft.remoteObject.reviewState, ActivityPubObjectReviewState.Pending);
 		assert.equal(postDraft.canCreatePost, true);
 		assert.deepEqual(postDraft.reasons, []);
 		assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
@@ -1222,8 +1226,35 @@ describe('activityPub module', () => {
 			remoteObjectUrl: activity.object.id,
 			remoteActorUrl: remoteActorKey.actorUrl
 		});
+		assert.equal(models.ActivityPubObjectReview.rows.length, 0);
+
+		const acceptedObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
+		assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
+		assert.equal(acceptedObject.reviewedAt instanceof Date, true);
+		assert.equal(acceptedObject.reviewedByUserId, 7);
+		assert.equal(models.ActivityPubObjectReview.rows.length, 1);
+		assert.equal(models.ActivityPubObjectReview.rows[0].activityPubObjectId, object.id);
+		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Accepted);
+
+		const pendingObject = await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
+			state: ActivityPubObjectReviewState.Pending
+		}, 7);
+		assert.equal(pendingObject.reviewState, ActivityPubObjectReviewState.Pending);
+		assert.equal(pendingObject.reviewedAt, undefined);
+		assert.equal(pendingObject.reviewedByUserId, undefined);
+		assert.equal(models.ActivityPubObjectReview.rows.length, 1);
+		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Pending);
+
 		await assert.rejects(() => module.getGroupRemoteObject('test-channel', 99), /activitypub_remote_object_not_found/);
 		await assert.rejects(() => module.getGroupRemoteObjectPostDraft('test-channel', 99), /activitypub_remote_object_not_found/);
+		await assert.rejects(() => module.setGroupRemoteObjectReviewState('test-channel', object.id, {
+			state: 'ignored'
+		}, 7), /activitypub_object_review_state_invalid/);
+		await assert.rejects(() => module.setGroupRemoteObjectReviewState('test-channel', 99, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7), /activitypub_remote_object_not_found/);
 		assert.equal(emptyPage.total, 0);
 		assert.deepEqual(emptyPage.list, []);
 	});
@@ -1267,6 +1298,10 @@ describe('activityPub module', () => {
 		await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
+		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		await module.setGroupRemoteObjectReviewState('test-channel', createdRemoteObject.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
 		const firstUpdateResult = await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', updateActivity)
 		);
@@ -1290,6 +1325,9 @@ describe('activityPub module', () => {
 		assert.equal(remoteObject.visibility, 'public');
 		assert.equal(remoteObject.publishedAt.toISOString(), '2026-06-01T12:05:00.000Z');
 		assert.equal(JSON.parse(remoteObject.rawJson).content, 'Remote reply after update');
+		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Pending);
+		assert.equal(models.ActivityPubObjectReview.rows[0].reviewedAt, null);
+		assert.equal(models.ActivityPubObjectReview.rows[0].reviewedByUserId, null);
 	});
 
 	it('rejects shared-inbox Update for another remote actor object', async () => {
@@ -1376,6 +1414,10 @@ describe('activityPub module', () => {
 		await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
+		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		await module.setGroupRemoteObjectReviewState('test-channel', createdRemoteObject.id, {
+			state: ActivityPubObjectReviewState.Rejected
+		}, 7);
 		const firstDeleteResult = await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', deleteActivity)
 		);
@@ -1397,6 +1439,9 @@ describe('activityPub module', () => {
 		assert.equal(remoteObject.objectType, 'Tombstone');
 		assert.equal(remoteObject.activityId, deleteActivity.id);
 		assert.equal(JSON.parse(remoteObject.rawJson).id, deleteActivity.id);
+		assert.equal(models.ActivityPubObjectReview.rows[0].state, ActivityPubObjectReviewState.Pending);
+		assert.equal(models.ActivityPubObjectReview.rows[0].reviewedAt, null);
+		assert.equal(models.ActivityPubObjectReview.rows[0].reviewedByUserId, null);
 		await assert.rejects(() => module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		), /activitypub_object_tombstoned/);
@@ -1585,6 +1630,11 @@ describe('activityPub API', () => {
 					objectId: 'https://remote.example/objects/reply-1'
 				}
 			}),
+			setGroupRemoteObjectReviewState: async () => ({
+				id: 2,
+				reviewState: ActivityPubObjectReviewState.Rejected,
+				reviewedByUserId: 1
+			}),
 			setGroupFlagReportState: async () => ({
 				id: 1,
 				state: ActivityPubFlagState.Resolved
@@ -1688,12 +1738,24 @@ describe('activityPub API', () => {
 			}
 		});
 
+		const remoteObjectReviewState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state', {
+			params: {groupName: 'test-channel', remoteObjectId: '2'},
+			body: {state: ActivityPubObjectReviewState.Rejected},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(remoteObjectReviewState.body, {
+			id: 2,
+			reviewState: ActivityPubObjectReviewState.Rejected,
+			reviewedByUserId: 1
+		});
+
 		const flagReportState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/flags/:flagId/state', {
 			params: {groupName: 'test-channel', flagId: '1'},
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -1704,7 +1766,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',
@@ -1919,6 +1981,7 @@ function getModelsStub() {
 		ActivityPubFollow: getModelStub(),
 		ActivityPubObject: getModelStub(),
 		ActivityPubDelivery: getModelStub(),
+		ActivityPubObjectReview: getModelStub(),
 		ActivityPubFlag: getModelStub()
 	};
 
