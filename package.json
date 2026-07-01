@@ -30,6 +30,7 @@
     "check-perfomance": "npm run check:performance:content-save:gc",
     "check-client-perfomance": "npm run check-client-performance",
     "activitypub:interop-smoke": "node --import tsx --experimental-global-customevent check/activityPubInteropSmoke.ts",
+    "activitypub:bluesky-bridge-smoke": "node --import tsx --experimental-global-customevent check/activityPubBlueskyBridgeSmoke.ts",
     "generate-docs": "./node_modules/.bin/apidoc -i app/modules -o docs -t node_modules/geesome-apidoc-template/template",
     "security:route-inventory": "node --import tsx check/securityRouteInventory.ts --check",
     "security:route-inventory:update": "node --import tsx check/securityRouteInventory.ts --write",
