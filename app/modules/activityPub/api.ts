@@ -194,10 +194,10 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe and accepted for a future GeeSome post, which sanitized rich-text payload would be used, which sanitized remote attachment/media metadata would be carried as provenance, and which local post reply target was resolved from `inReplyTo` when available. This route does not create, update, hide, delete, or federate GeeSome posts.
+	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe and accepted for a future GeeSome post, which sanitized rich-text payload would be used, which sanitized remote attachment/media metadata would be carried as provenance, the explicit remote-attachment import policy, and which local post reply target was resolved from `inReplyTo` when available. Remote attachment bytes are not fetched or imported by this route. This route does not create, update, hide, delete, or federate GeeSome posts.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
-	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, optional remote attachment/media metadata, optional `replyToPostId`, and ActivityPub source metadata.
+	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, optional remote attachment/media metadata, optional provenance-only `attachmentImportPolicy`, optional `replyToPostId`, and ActivityPub source metadata.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post-draft', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
@@ -213,7 +213,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores only the sanitized canonical rich-text projection as post content, carries sanitized remote attachment/media metadata as provenance without importing remote bytes, keeps raw ActivityStreams JSON only on the cached remote object for audit, maps `inReplyTo` to a local GeeSome `replyToId` when it targets a known post in the same group actor, and links the cached object to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
+	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores only the sanitized canonical rich-text projection as post content, carries sanitized remote attachment/media metadata and the explicit provenance-only attachment import policy without importing remote bytes, keeps raw ActivityStreams JSON only on the cached remote object for audit, maps `inReplyTo` to a local GeeSome `replyToId` when it targets a known post in the same group actor, and links the cached object to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
 	 * @apiSuccess {Object} post Created native GeeSome remote post.

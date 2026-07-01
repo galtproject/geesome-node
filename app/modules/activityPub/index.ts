@@ -19,6 +19,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
+	IActivityPubRemoteAttachmentImportPolicy,
 	IActivityPubRemoteObjectPostDraft,
 	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
@@ -133,6 +134,11 @@ const maxActivityPubRemoteObjectPreviewAttachmentTypeLength = 100;
 const maxActivityPubRemoteObjectPreviewAttachmentDimension = 1000000;
 const maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength = 200;
 const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 * 7;
+const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImportPolicy = Object.freeze({
+	mode: 'provenanceOnly',
+	canImportRemoteBytes: false,
+	reason: 'activitypub_remote_attachment_import_disabled'
+});
 const activityPubSharedInboxReviewObjectTypes = new Set([
 	'Note',
 	'Article',
@@ -986,6 +992,7 @@ async function getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteOb
 	}
 	if (preview?.attachments?.length) {
 		draft.attachments = preview.attachments;
+		draft.attachmentImportPolicy = getActivityPubRemoteAttachmentImportPolicy();
 	}
 	const replyToPostId = await getActivityPubRemoteObjectReplyToPostId(models, actorRecord, remoteObject);
 	if (replyToPostId) {
@@ -1049,6 +1056,9 @@ function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemo
 	}
 	if (postDraft.attachments?.length) {
 		properties.activityPub.attachments = postDraft.attachments;
+	}
+	if (postDraft.attachmentImportPolicy) {
+		properties.activityPub.attachmentImportPolicy = postDraft.attachmentImportPolicy;
 	}
 	return properties;
 }
@@ -1467,6 +1477,10 @@ function getActivityPubRemoteObjectPostSourcePostId(remoteObject: IActivityPubRe
 
 function getActivityPubRemoteObjectPostSourceLink(remoteObject: IActivityPubRemoteObjectReport): string {
 	return remoteObject.preview?.url || remoteObject.remoteObjectUrl || remoteObject.objectId || '';
+}
+
+function getActivityPubRemoteAttachmentImportPolicy(): IActivityPubRemoteAttachmentImportPolicy {
+	return activityPubRemoteAttachmentImportPolicy;
 }
 
 async function updateActivityPubRemoteObjectLocalPostId(objectRecord, post: IPost): Promise<void> {
