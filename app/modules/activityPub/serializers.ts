@@ -193,6 +193,7 @@ export function isActivityPubPostFederatable(group: IGroup, post: IPost): boolea
 	return isActivityPubGroupFederatable(group)
 		&& post?.status === PostStatus.Published
 		&& post?.isDeleted !== true
+		&& post?.isRemote !== true
 		&& post?.isEncrypted !== true
 		&& hasActivityPubDateValue(post?.publishedAt)
 		&& !!post?.localId;

@@ -1,4 +1,4 @@
-import type {IGroup} from '../group/interface.js';
+import type {IGroup, IPost} from '../group/interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {RichTextDocument} from '../../richText.js';
 
@@ -279,6 +279,11 @@ export interface IActivityPubRemoteObjectPostDraft {
 	source: IActivityPubRemoteObjectPostDraftSource;
 }
 
+export interface IActivityPubRemoteObjectPostCreateResult {
+	post: IPost;
+	remoteObject: IActivityPubRemoteObjectReport;
+}
+
 export interface IActivityPubRemoteObjectReviewStateInput {
 	state: ActivityPubObjectReviewState | string;
 }
@@ -460,6 +465,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupRemoteObject(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectReport>;
 
 	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
+
+	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult>;
 
 	setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport>;
 

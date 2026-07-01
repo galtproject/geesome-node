@@ -168,6 +168,26 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post Create GeeSome post from cached ActivityPub remote object
+	 * @apiName AdminActivityPubRemoteObjectPostCreate
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores only the sanitized canonical rich-text projection as post content, keeps raw ActivityStreams JSON only on the cached remote object for audit, and links the cached object to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiSuccess {Object} post Created native GeeSome remote post.
+	 * @apiSuccess {Object} remoteObject Updated cached remote object report with `localPostId` set.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state Set cached remote object review state
 	 * @apiName AdminActivityPubRemoteObjectReviewState
 	 * @apiGroup AdminActivityPub
