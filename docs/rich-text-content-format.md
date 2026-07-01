@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, and ATProto-compatible plain text/facet export helpers covered by tests. Native post storage, editor integration, and broader protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, and Nostr-like text-note export covered by tests. Native post storage, editor integration, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -209,7 +209,7 @@ Adapters should be pure functions from canonical rich text to target representat
 | Matrix | Plain `body` plus `formatted_body` with `format: org.matrix.custom.html`; HTML from the same conservative renderer. Status: `richTextToMatrixMessageContent` exports `m.text` body/formatted_body payloads. |
 | ATProto/Bluesky | Plain `text` plus facets for links, mentions, and tags. Unsupported marks become plain text. Status: `richTextToAtProtoTextWithFacets` exports deterministic UTF-8 byte-indexed link, DID mention, and tag facets. |
 | Farcaster | Plain text plus mentions, mention positions, and embeds. Unsupported marks become plain text. |
-| Nostr-like notes | Plain text plus protocol tags for links, mentions, and hashtags where supported. |
+| Nostr-like notes | Plain text plus protocol tags for links, mentions, and hashtags where supported. Status: `richTextToNostrTextNote` exports plain content plus `r`, `p`, and `t` tags for safe links, 64-hex pubkey mentions, and hashtags. |
 | Static site | Sanitized HTML generated from canonical rich text, plus escaped title/meta/plain snippets. |
 | Search/snippets | Plain text only, no HTML. |
 
@@ -269,6 +269,7 @@ Recommended first code PR:
 6. Add deterministic plain-text facet export for ATProto-style protocols. Status: implemented as `richTextToAtProtoTextWithFacets` with UTF-8 byte-offset fixtures in `test/richText.test.ts`.
 7. Add ActivityStreams tag export for canonical rich-text mentions and hashtags. Status: implemented as `richTextToActivityPubTags` and wired into local ActivityPub Note serialization.
 8. Add Matrix message content export. Status: implemented as `richTextToMatrixMessageContent` with plain fallback and sanitized `org.matrix.custom.html` fixtures.
+9. Add Nostr-like text note export. Status: implemented as `richTextToNostrTextNote` with plain content plus `r`/`p`/`t` protocol tag fixtures.
 
 Do not change the storage format for all posts in the first implementation PR.
 
