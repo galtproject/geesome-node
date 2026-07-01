@@ -148,6 +148,25 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {get} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post-draft Preview cached remote object as a GeeSome post draft
+	 * @apiName AdminActivityPubRemoteObjectPostDraft
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe to turn into a GeeSome post and which sanitized rich-text payload would be used. This route does not create, update, hide, delete, or federate GeeSome posts.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, and ActivityPub source metadata.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post-draft', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getGroupRemoteObjectPostDraft(req.params.groupName, req.params.remoteObjectId));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/groups/:groupName/flags/:flagId/state Set ActivityPub flag report state
 	 * @apiName AdminActivityPubFlagReportState
 	 * @apiGroup AdminActivityPub
