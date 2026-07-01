@@ -74,6 +74,12 @@ export type RichTextAtProtoText = {
 	facets: RichTextAtProtoFacet[];
 };
 
+export type RichTextActivityPubTag = {
+	type: 'Mention' | 'Hashtag';
+	name: string;
+	href?: string;
+};
+
 export function createRichTextDocument(blocks: RichTextBlock[], options: any = {}): RichTextDocument {
 	const document: RichTextDocument = {
 		type: RICH_TEXT_DOCUMENT_TYPE,
@@ -122,6 +128,13 @@ export function richTextToAtProtoTextWithFacets(document: RichTextDocument): Ric
 	}
 	const blockTexts = document.blocks.map(block => richTextBlockToAtProtoText(block));
 	return joinAtProtoTextParts(blockTexts, '\n');
+}
+
+export function richTextToActivityPubTags(document: RichTextDocument): RichTextActivityPubTag[] {
+	if (!isRichTextDocument(document)) {
+		return [];
+	}
+	return uniqRichTextActivityPubTags(document.blocks.flatMap(block => richTextBlockToActivityPubTags(block)));
 }
 
 export function isRichTextDocument(value: any): value is RichTextDocument {
@@ -727,6 +740,99 @@ function getEmptyAtProtoText(): RichTextAtProtoText {
 	};
 }
 
+function richTextBlockToActivityPubTags(block: RichTextBlock): RichTextActivityPubTag[] {
+	if (block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'listItem') {
+		return inlineNodesToActivityPubTags(block.children || []);
+	}
+	if (block.type === 'list') {
+		return (block.items || []).flatMap(item => richTextBlockToActivityPubTags(item));
+	}
+	return [];
+}
+
+function inlineNodesToActivityPubTags(nodes: RichTextInlineNode[]): RichTextActivityPubTag[] {
+	return (nodes || []).flatMap(node => inlineNodeToActivityPubTags(node));
+}
+
+function inlineNodeToActivityPubTags(node: RichTextInlineNode): RichTextActivityPubTag[] {
+	return normalizeMarks(node?.marks || [])
+		.map(mark => richTextMarkToActivityPubTag(node, mark))
+		.filter(Boolean) as RichTextActivityPubTag[];
+}
+
+function richTextMarkToActivityPubTag(node: RichTextInlineNode, mark: RichTextMark): RichTextActivityPubTag | null {
+	if (mark.type === 'mention') {
+		return richTextMentionMarkToActivityPubTag(node, mark);
+	}
+	if (mark.type === 'hashtag') {
+		return richTextHashtagMarkToActivityPubTag(node, mark);
+	}
+	return null;
+}
+
+function richTextMentionMarkToActivityPubTag(node: RichTextInlineNode, mark: RichTextMark): RichTextActivityPubTag | null {
+	const href = sanitizeAbsoluteHref(mark.href || mark.id);
+	if (!href) {
+		return null;
+	}
+	const name = getActivityPubMentionName(mark.name || node.text);
+	if (!name) {
+		return null;
+	}
+	return {
+		type: 'Mention',
+		href,
+		name
+	};
+}
+
+function richTextHashtagMarkToActivityPubTag(node: RichTextInlineNode, mark: RichTextMark): RichTextActivityPubTag | null {
+	const name = getActivityPubHashtagName(mark.name || node.text);
+	if (!name) {
+		return null;
+	}
+	const href = sanitizeAbsoluteHref(mark.href);
+	if (!href) {
+		return {
+			type: 'Hashtag',
+			name
+		};
+	}
+	return {
+		type: 'Hashtag',
+		href,
+		name
+	};
+}
+
+function getActivityPubMentionName(value: any): string {
+	const name = String(value || '').trim();
+	if (!name) {
+		return '';
+	}
+	return name.startsWith('@') ? name : `@${name}`;
+}
+
+function getActivityPubHashtagName(value: any): string {
+	const tag = String(value || '').trim().replace(/^#/, '');
+	if (!tag || /\s/.test(tag)) {
+		return '';
+	}
+	return `#${tag}`;
+}
+
+function uniqRichTextActivityPubTags(tags: RichTextActivityPubTag[]): RichTextActivityPubTag[] {
+	const seen = new Set<string>();
+	return (tags || []).filter((tag) => {
+		const signature = JSON.stringify(tag);
+		if (seen.has(signature)) {
+			return false;
+		}
+		seen.add(signature);
+		return true;
+	});
+}
+
 export default {
 	RICH_TEXT_DOCUMENT_TYPE,
 	RICH_TEXT_MIME_TYPE,
@@ -736,6 +842,7 @@ export default {
 	richTextToPlainText,
 	richTextToSafeHtml,
 	richTextToAtProtoTextWithFacets,
+	richTextToActivityPubTags,
 	isRichTextDocument,
 	assertRichTextDocument,
 	validateRichTextDocument

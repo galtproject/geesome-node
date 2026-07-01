@@ -7,6 +7,7 @@ import {
 	createRichTextDocument,
 	htmlToRichText,
 	isRichTextDocument,
+	richTextToActivityPubTags,
 	richTextToAtProtoTextWithFacets,
 	richTextToPlainText,
 	richTextToSafeHtml,
@@ -269,5 +270,42 @@ describe('richText helpers', () => {
 			text: '',
 			facets: []
 		});
+	});
+
+	it('exports ActivityPub tags for safe mentions and hashtags', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: '@alice', marks: [{type: 'mention', name: 'alice', href: 'https://remote.example/users/alice'}]},
+				{text: ' '},
+				{text: '#geesome', marks: [{type: 'hashtag', name: 'geesome', href: 'https://social.example/tags/geesome'}]},
+				{text: ' '},
+				{text: '#local', marks: [{type: 'hashtag'}]},
+				{text: ' '},
+				{text: '@missing', marks: [{type: 'mention', name: 'missing'}]},
+				{text: ' '},
+				{text: '#bad tag', marks: [{type: 'hashtag'}]},
+				{text: ' '},
+				{text: '#geesome', marks: [{type: 'hashtag', name: 'geesome', href: 'https://social.example/tags/geesome'}]}
+			]
+		}]);
+
+		assert.deepEqual(richTextToActivityPubTags(document), [
+			{
+				type: 'Mention',
+				href: 'https://remote.example/users/alice',
+				name: '@alice'
+			},
+			{
+				type: 'Hashtag',
+				href: 'https://social.example/tags/geesome',
+				name: '#geesome'
+			},
+			{
+				type: 'Hashtag',
+				name: '#local'
+			}
+		]);
+		assert.deepEqual(richTextToActivityPubTags({} as any), []);
 	});
 });
