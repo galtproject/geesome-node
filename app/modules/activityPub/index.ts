@@ -18,6 +18,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubFlagReport,
 	IActivityPubFlagReportFilters,
 	IActivityPubFlagReportListResponse,
+	IActivityPubFlagReportTarget,
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
@@ -375,7 +376,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				await flag.update({state: reportState});
 			}
 
-			return getActivityPubFlagReportWithRemoteActor(models, flag);
+			return getActivityPubFlagReportWithRemoteActor(models, actorRecord, flag);
 		}
 
 		async followRemoteActor(groupName: string, remoteActorUrl: string, followOptions: IActivityPubOutboundFollowOptions = {}): Promise<IActivityPubOutboundFollowResult> {
@@ -815,9 +816,12 @@ function getRemoteActorUrlById(remoteActors) {
 	return new Map(remoteActors.map((remoteActor) => [Number(remoteActor.id), remoteActor.actorUrl]));
 }
 
-async function getActivityPubFlagReportWithRemoteActor(models, flag): Promise<IActivityPubFlagReport> {
-	const remoteActors = await getRemoteActorRecordsByIds(models, [flag.remoteActorId]);
-	return getActivityPubFlagReport(flag, getRemoteActorById(remoteActors));
+async function getActivityPubFlagReportWithRemoteActor(models, actorRecord, flag): Promise<IActivityPubFlagReport> {
+	const [remoteActors, targetByObjectId] = await Promise.all([
+		getRemoteActorRecordsByIds(models, [flag.remoteActorId]),
+		getActivityPubFlagTargetByObjectId(models, actorRecord, [flag])
+	]);
+	return getActivityPubFlagReport(flag, getRemoteActorById(remoteActors), targetByObjectId);
 }
 
 async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, filters: IActivityPubFlagReportFilters, listParams: IListParams): Promise<IActivityPubFlagReportListResponse> {
@@ -831,11 +835,14 @@ async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, fil
 		limit: preparedListParams.limit,
 		offset: preparedListParams.offset
 	});
-	const remoteActors = await getRemoteActorRecordsByIds(models, reportPage.rows.map((flag) => flag.remoteActorId));
+	const [remoteActors, targetByObjectId] = await Promise.all([
+		getRemoteActorRecordsByIds(models, reportPage.rows.map((flag) => flag.remoteActorId)),
+		getActivityPubFlagTargetByObjectId(models, actorRecord, reportPage.rows)
+	]);
 	const remoteActorById = getRemoteActorById(remoteActors);
 
 	return {
-		list: reportPage.rows.map((flag) => getActivityPubFlagReport(flag, remoteActorById)),
+		list: reportPage.rows.map((flag) => getActivityPubFlagReport(flag, remoteActorById, targetByObjectId)),
 		total: getListPageCount(reportPage.count)
 	};
 }
@@ -932,7 +939,7 @@ async function getGroupFlagReportRecord(models, actorRecord, flagId) {
 	});
 }
 
-function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IActivityPubFlagReport {
+function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>, targetByObjectId: Map<string, IActivityPubFlagReportTarget> = new Map()): IActivityPubFlagReport {
 	const remoteActor = remoteActorById.get(Number(flag.remoteActorId));
 
 	return {
@@ -942,6 +949,7 @@ function getActivityPubFlagReport(flag, remoteActorById: Map<number, any>): IAct
 		remoteActor: getActivityPubFlagRemoteActorReport(remoteActor),
 		activityId: flag.activityId,
 		objectId: flag.objectId,
+		target: targetByObjectId.get(flag.objectId) || getUnknownActivityPubFlagTarget(flag.objectId),
 		state: flag.state,
 		activity: parseActivityPubFlagActivity(flag.rawActivityJson),
 		createdAt: flag.createdAt,
@@ -1726,6 +1734,81 @@ function isActivityPubRemoteObjectPostDraftUpdateable(postDraft: IActivityPubRem
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {
 	return getActivityPubRemoteActorReport(remoteActor);
+}
+
+async function getActivityPubFlagTargetByObjectId(models, actorRecord, flags): Promise<Map<string, IActivityPubFlagReportTarget>> {
+	const objectIds = getActivityPubFlagObjectIds(flags);
+	const targetByObjectId = new Map<string, IActivityPubFlagReportTarget>();
+	if (!actorRecord) {
+		for (const objectId of objectIds) {
+			targetByObjectId.set(objectId, getUnknownActivityPubFlagTarget(objectId));
+		}
+		return targetByObjectId;
+	}
+	for (const objectId of objectIds) {
+		if (objectId === actorRecord.actorUrl) {
+			targetByObjectId.set(objectId, getLocalActorActivityPubFlagTarget(actorRecord, objectId));
+		}
+	}
+
+	const localObjectIds = objectIds.filter((objectId) => !targetByObjectId.has(objectId));
+	const localObjects = localObjectIds.length
+		? await models.ActivityPubObject.findAll({
+			where: {
+				localActorId: actorRecord.id,
+				objectId: {
+					[Op.in]: localObjectIds
+				},
+				origin: ActivityPubObjectOrigin.Local
+			}
+		})
+		: [];
+	for (const objectRecord of localObjects) {
+		targetByObjectId.set(objectRecord.objectId, getLocalObjectActivityPubFlagTarget(objectRecord));
+	}
+	for (const objectId of objectIds) {
+		if (!targetByObjectId.has(objectId)) {
+			targetByObjectId.set(objectId, getUnknownActivityPubFlagTarget(objectId));
+		}
+	}
+	return targetByObjectId;
+}
+
+function getActivityPubFlagObjectIds(flags): string[] {
+	const objectIds = flags.map((flag) => String(flag?.objectId || '').trim()).filter(Boolean);
+	return [...new Set(objectIds)];
+}
+
+function getLocalActorActivityPubFlagTarget(actorRecord, objectId: string): IActivityPubFlagReportTarget {
+	return {
+		objectId,
+		type: 'localActor',
+		localActorId: actorRecord.id
+	};
+}
+
+function getLocalObjectActivityPubFlagTarget(objectRecord): IActivityPubFlagReportTarget {
+	const target: IActivityPubFlagReportTarget = {
+		objectId: objectRecord.objectId,
+		type: 'localObject',
+		localActorId: objectRecord.localActorId,
+		activityPubObjectId: objectRecord.id
+	};
+	const localPostId = Number(objectRecord.localPostId || 0);
+	if (Number.isFinite(localPostId) && localPostId > 0) {
+		target.localPostId = localPostId;
+	}
+	if (objectRecord.objectType) {
+		target.objectType = objectRecord.objectType;
+	}
+	return target;
+}
+
+function getUnknownActivityPubFlagTarget(objectId: string): IActivityPubFlagReportTarget {
+	return {
+		objectId,
+		type: 'unknown'
+	};
 }
 
 function getActivityPubRemoteActorReport(remoteActor) {

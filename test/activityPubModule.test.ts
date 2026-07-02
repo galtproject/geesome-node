@@ -508,11 +508,40 @@ describe('activityPub module', () => {
 		assert.equal(report.id, 1);
 		assert.equal(report.activityId, flagActivity.id);
 		assert.equal(report.objectId, 'https://social.example/ap/groups/test-channel/posts/7');
+		assert.deepEqual(report.target, {
+			objectId: 'https://social.example/ap/groups/test-channel/posts/7',
+			type: 'localObject',
+			localActorId: 1,
+			activityPubObjectId: 1,
+			localPostId: 11,
+			objectType: 'Note'
+		});
 		assert.equal(report.state, ActivityPubFlagState.Pending);
 		assert.equal(report.activity?.id, flagActivity.id);
 		assert.equal(report.remoteActor?.actorUrl, remoteActorKey.actorUrl);
 		assert.equal(report.remoteActor?.preferredUsername, 'alice');
 		assert.equal(report.remoteActor?.domain, 'remote.example');
+
+		const actorFlagActivity = {
+			id: 'https://remote.example/activities/flag-actor-list-1',
+			type: 'Flag',
+			actor: remoteActorKey.actorUrl,
+			object: 'https://social.example/ap/groups/test-channel',
+			content: 'Group-level report'
+		};
+		await module.handleGroupInboxRequest(
+			'test-channel',
+			getSignedInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', actorFlagActivity)
+		);
+		const actorReportPage = await module.getGroupFlagReports('test-channel', {
+			objectId: 'https://social.example/ap/groups/test-channel'
+		}, {limit: 10});
+		assert.equal(actorReportPage.total, 1);
+		assert.deepEqual(actorReportPage.list[0].target, {
+			objectId: 'https://social.example/ap/groups/test-channel',
+			type: 'localActor',
+			localActorId: 1
+		});
 	});
 
 	it('updates ActivityPub flag report state for admin moderation bookkeeping', async () => {
@@ -540,6 +569,14 @@ describe('activityPub module', () => {
 		assert.equal(resolvedReport.id, 1);
 		assert.equal(resolvedReport.state, ActivityPubFlagState.Resolved);
 		assert.equal(resolvedReport.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.deepEqual(resolvedReport.target, {
+			objectId: 'https://social.example/ap/groups/test-channel/posts/7',
+			type: 'localObject',
+			localActorId: 1,
+			activityPubObjectId: 1,
+			localPostId: 11,
+			objectType: 'Note'
+		});
 		assert.equal(models.ActivityPubFlag.rows[0].state, ActivityPubFlagState.Resolved);
 		assert.equal(resolvedReports.total, 1);
 		assert.equal(pendingReports.total, 0);
