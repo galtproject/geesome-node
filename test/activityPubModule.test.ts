@@ -1378,6 +1378,11 @@ describe('activityPub module', () => {
 					sensitive: false
 				}
 			];
+			const expectedAttachmentImportPolicy = {
+				mode: 'provenanceOnly',
+				canImportRemoteBytes: false,
+				reason: 'activitypub_remote_attachment_import_disabled'
+			};
 
 			assert.equal(objectPage.total, 1);
 		assert.equal(object.id, models.ActivityPubObject.rows.find((row) => row.origin === 'remote').id);
@@ -1444,6 +1449,7 @@ describe('activityPub module', () => {
 			assert.equal(postDraft.contentText, object.preview?.contentText);
 			assert.equal(postDraft.title, object.preview?.name);
 			assert.deepEqual(postDraft.attachments, expectedAttachments);
+			assert.deepEqual(postDraft.attachmentImportPolicy, expectedAttachmentImportPolicy);
 			assert.equal(postDraft.remoteObject.id, object.id);
 			assert.equal(postDraft.replyToPostId, 11);
 		assert.deepEqual(postDraft.source, {
@@ -1479,6 +1485,7 @@ describe('activityPub module', () => {
 			assert.equal(acceptedPostDraft.canCreatePost, true);
 			assert.deepEqual(acceptedPostDraft.reasons, []);
 			assert.deepEqual(acceptedPostDraft.attachments, expectedAttachments);
+			assert.deepEqual(acceptedPostDraft.attachmentImportPolicy, expectedAttachmentImportPolicy);
 			assert.equal(acceptedPostDraft.replyToPostId, 11);
 
 		const createPostResult = await module.createGroupRemoteObjectPost('test-channel', object.id, 7);
@@ -1502,7 +1509,8 @@ describe('activityPub module', () => {
 			assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
 				activityPub: {
 					...postDraft.source,
-					attachments: expectedAttachments
+					attachments: expectedAttachments,
+					attachmentImportPolicy: expectedAttachmentImportPolicy
 				},
 				sourceLink: activity.object.id,
 				title: object.preview?.name,

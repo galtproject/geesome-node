@@ -310,6 +310,12 @@ export interface IActivityPubRemoteObjectPostDraftSource {
 	remoteActorUrl?: string;
 }
 
+export interface IActivityPubRemoteAttachmentImportPolicy {
+	mode: 'provenanceOnly';
+	canImportRemoteBytes: false;
+	reason: 'activitypub_remote_attachment_import_disabled';
+}
+
 export interface IActivityPubRemoteObjectPostDraft {
 	remoteObject: IActivityPubRemoteObjectReport;
 	canCreatePost: boolean;
@@ -319,6 +325,7 @@ export interface IActivityPubRemoteObjectPostDraft {
 	contentRichText?: RichTextDocument;
 	summaryText?: string;
 	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
+	attachmentImportPolicy?: IActivityPubRemoteAttachmentImportPolicy;
 	replyToPostId?: number;
 	source: IActivityPubRemoteObjectPostDraftSource;
 }
