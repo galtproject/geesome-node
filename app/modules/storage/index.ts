@@ -69,7 +69,10 @@ async function addStoragePinWithoutDependencyLog(module: IGeesomeStorageModule, 
 		return;
 	}
 	if ((module as any).node?.pin?.add) {
-		await (module as any).node.pin.add(cid, ...args);
+		// Kubo pin.add can hang while resolving/pinning locally-added CIDs in the
+		// Docker test node. Preserve geesome-libs' Kubo behavior: start the pin,
+		// suppress the noisy completion log, and do not block content saves.
+		(module as any).node.pin.add(cid, ...args).catch(() => {});
 		return;
 	}
 	return withSuppressedStoragePinLogs(() => addPin(hash, ...args));
