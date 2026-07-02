@@ -409,6 +409,20 @@ export interface IActivityPubSourceFeedResponse {
 	total: number;
 }
 
+export interface IActivityPubSourceRefreshInput {
+	limit?: number | string;
+	includeFeatured?: boolean | string;
+	includeOutbox?: boolean | string;
+}
+
+export interface IActivityPubSourceRefreshResult {
+	source: IActivityPubSourceSubscriptionReport;
+	fetched: number;
+	cached: number;
+	skipped: number;
+	errors: string[];
+}
+
 export interface IActivityPubSourceReadInput {
 	readAt?: Date | string;
 }
@@ -633,6 +647,8 @@ export type IActivityPubRemoteActorFetcher = (actorUrl: string) => Promise<any>;
 
 export type IActivityPubWebFingerFetcher = (resource: string, domain: string) => Promise<IActivityPubWebFingerResponse>;
 
+export type IActivityPubSourceJsonFetcher = (url: string) => Promise<any>;
+
 export type IActivityPubActorObject = Record<string, any>;
 
 export type IActivityPubNoteObject = Record<string, any>;
@@ -681,6 +697,8 @@ export default interface IGeesomeActivityPubModule {
 	removeActivityPubSourceSubscription(userId: number, sourceId: number | string): Promise<IActivityPubSourceSubscriptionReport>;
 
 	getActivityPubSourceFeed(userId: number, sourceId: number | string, filters?: IActivityPubSourceFeedFilters, listParams?: IListParams): Promise<IActivityPubSourceFeedResponse>;
+
+	refreshActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceRefreshInput): Promise<IActivityPubSourceRefreshResult>;
 
 	markActivityPubSourceRead(userId: number, sourceId: number | string, input?: IActivityPubSourceReadInput): Promise<IActivityPubSourceSubscriptionReport>;
 
