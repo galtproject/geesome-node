@@ -1863,6 +1863,127 @@ describe('activityPub module', () => {
 		]);
 	});
 
+	it('queues and retries missing remote attachment backups for imported posts', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		let saveDataByUrlAttempts = 0;
+		const {module, models, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey),
+			saveDataByUrl: async ({userId, url, options, calls}) => {
+				calls.saveDataByUrl.push({userId, url, options});
+				saveDataByUrlAttempts += 1;
+				if (saveDataByUrlAttempts === 1) {
+					throw new Error('temporary remote fetch failure');
+				}
+				return {
+					id: 301,
+					userId,
+					name: options.name,
+					mimeType: options.mimeType,
+					view: options.view,
+					storageId: 'saved-url-content-1'
+				};
+			}
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const activity = {
+			id: 'https://remote.example/activities/create-reply-async-backup-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-async-backup-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply with retryable media',
+				attachment: [
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: 'Remote image',
+						url: 'https://remote.example/media/retry-photo.png'
+					},
+					{
+						type: 'Link',
+						name: 'External page',
+						url: 'https://remote.example/page'
+					},
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: 'Remote image duplicate',
+						url: 'https://remote.example/media/retry-photo.png'
+					}
+				],
+				published: '2026-06-01T12:09:00Z'
+			}
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const object = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
+		await module.createGroupRemoteObjectPost('test-channel', object.id, 7);
+
+		const queue = await module.queueGroupRemoteObjectAttachmentBackups('test-channel', object.id, 9, 22, {process: false});
+		const duplicateQueue = await module.queueGroupRemoteObjectAttachmentBackups('test-channel', object.id, 9, 22, {process: false});
+		assert.equal(queue.id, duplicateQueue.id);
+		assert.equal(queue.module, 'activitypub-attachment-backup');
+		assert.equal(queue.userId, 9);
+		assert.equal(queue.userApiKeyId, 22);
+
+		const firstResult = await module.processRemoteAttachmentBackupQueue({limit: 1});
+		const retryQueue = calls.asyncOperationQueues[0];
+		assert.deepEqual(firstResult, {processed: 1});
+		assert.equal(retryQueue.isWaiting, true);
+		assert.equal(retryQueue.asyncOperationId, null);
+		assert.equal(calls.asyncOperations[0].errorMessage.includes('attempt 1 of 5 failed'), true);
+		assert.equal(calls.updateRemotePostByObject.length, 0);
+
+		const secondResult = await module.processRemoteAttachmentBackupQueue({limit: 1});
+		const finalQueue = calls.asyncOperationQueues[0];
+		const finalOperation = calls.asyncOperations[1];
+		const postData = calls.updateRemotePostByObject[0].postData;
+		const properties = JSON.parse(postData.propertiesJson);
+
+		assert.deepEqual(secondResult, {processed: 1});
+		assert.equal(finalQueue.isWaiting, false);
+		assert.equal(finalOperation.userId, 9);
+		assert.equal(finalOperation.inProcess, false);
+		assert.equal(finalOperation.percent, 100);
+		assert.equal(saveDataByUrlAttempts, 2);
+		assert.deepEqual(calls.saveDataByUrl.map((call) => call.userId), [7, 7]);
+		assert.equal(calls.updateRemotePostByObject[0].userId, 7);
+		assert.deepEqual(postData.contents, [
+			{id: 201},
+			{id: 301, view: ContentView.Media}
+		]);
+		assert.deepEqual(properties.activityPub.attachmentBackups, [
+			{
+				url: 'https://remote.example/media/retry-photo.png',
+				contentId: 301,
+				storageId: 'saved-url-content-1',
+				mediaType: 'image/png',
+				mediaCategory: 'image',
+				name: 'Remote image'
+			}
+		]);
+		assert.equal(properties.activityPub.attachmentImportMode, 'backupOnCreate');
+		assert.deepEqual(JSON.parse(finalOperation.output), {
+			postId: 88,
+			remoteObjectId: object.id,
+			attempted: 1,
+			backedUp: 1,
+			skipped: 1,
+			attachmentBackups: properties.activityPub.attachmentBackups
+		});
+	});
+
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models, calls} = await createActivityPubHarness({
@@ -2237,6 +2358,7 @@ describe('activityPub API', () => {
 		const routes = {};
 		const permissionChecks: any[] = [];
 		const remoteObjectPostCreateCalls: any[] = [];
+		const remoteObjectAttachmentBackupQueueCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -2278,6 +2400,13 @@ describe('activityPub API', () => {
 				return {
 					post: {id: 88},
 					remoteObject: {id: 2, localPostId: 88}
+				};
+			},
+			queueGroupRemoteObjectAttachmentBackups: async (groupName, remoteObjectId, userId, userApiKeyId, options) => {
+				remoteObjectAttachmentBackupQueueCalls.push({groupName, remoteObjectId, userId, userApiKeyId, options});
+				return {
+					id: 33,
+					module: 'activitypub-attachment-backup'
 				};
 			},
 			setGroupRemoteObjectReviewState: async () => ({
@@ -2421,12 +2550,31 @@ describe('activityPub API', () => {
 			remoteObject: {id: 2, localPostId: 88}
 		});
 
+		const remoteObjectAttachmentBackupQueue = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/attachment-backups/retry', {
+			params: {groupName: 'test-channel', remoteObjectId: '2'},
+			body: {process: false},
+			user: {id: 1},
+			apiKey: {id: 9}
+		});
+		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(remoteObjectAttachmentBackupQueueCalls, [{
+			groupName: 'test-channel',
+			remoteObjectId: '2',
+			userId: 1,
+			userApiKeyId: 9,
+			options: {process: false}
+		}]);
+		assert.deepEqual(remoteObjectAttachmentBackupQueue.body, {
+			id: 33,
+			module: 'activitypub-attachment-backup'
+		});
+
 		const remoteObjectReviewState = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state', {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			body: {state: ActivityPubObjectReviewState.Rejected},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectReviewState.body, {
 			id: 2,
 			reviewState: ActivityPubObjectReviewState.Rejected,
@@ -2438,7 +2586,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[7], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -2449,7 +2597,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[7], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',
@@ -2535,6 +2683,8 @@ async function createActivityPubHarness(overrides: any = {}) {
 		createRemotePostByObject: [],
 		updateRemotePostByObject: [],
 		deletePostsPure: [],
+		asyncOperationQueues: [],
+		asyncOperations: [],
 		remotePosts: {}
 	};
 	const group = getGroup();
@@ -2549,7 +2699,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 			}
 		},
 		checkModules(modules) {
-			assert.deepEqual(modules, ['api', 'group', 'database', 'content']);
+			assert.deepEqual(modules, ['api', 'group', 'database', 'content', 'asyncOperation']);
 		},
 		encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
 		decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
@@ -2579,6 +2729,9 @@ async function createActivityPubHarness(overrides: any = {}) {
 					};
 				},
 				async saveDataByUrl(userId, url, options) {
+					if (overrides.saveDataByUrl) {
+						return overrides.saveDataByUrl({userId, url, options, calls});
+					}
 					calls.saveDataByUrl.push({userId, url, options});
 					return {
 						id: 300 + calls.saveDataByUrl.length,
@@ -2590,6 +2743,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 					};
 				}
 			},
+			asyncOperation: getAsyncOperationStub(calls),
 			group: {
 				async getGroupByParams(params) {
 					calls.getGroupByParams.push(params);
@@ -2635,13 +2789,15 @@ async function createActivityPubHarness(overrides: any = {}) {
 				},
 				async createRemotePostByObject(userId, postData, options) {
 					calls.createRemotePostByObject.push({userId, postData, options});
-					return {
+					const post = {
 						...postData,
 						id: 88,
 						userId,
 						isRemote: true,
 						status: PostStatus.Published
 					};
+					calls.remotePosts[post.id] = post;
+					return post;
 				},
 				async updateRemotePostByObject(userId, postId, postData, options) {
 					calls.updateRemotePostByObject.push({userId, postId, postData, options});
@@ -2693,6 +2849,116 @@ function addImportedRemotePost(calls, remoteObject, overrides: any = {}) {
 	remoteObject.localPostId = post.id;
 	calls.remotePosts[post.id] = post;
 	return post;
+}
+
+function getAsyncOperationStub(calls) {
+	return {
+		async addUniqueUserOperationQueue(userId, module, userApiKeyId, input) {
+			const inputJson = JSON.stringify(input);
+			const existingQueue = calls.asyncOperationQueues.find((queue) => {
+				return queue.module === module
+					&& queue.inputJson === inputJson
+					&& queue.isWaiting === true;
+			});
+			if (existingQueue) {
+				return existingQueue;
+			}
+
+			const queue = {
+				id: calls.asyncOperationQueues.length + 1,
+				userId,
+				module,
+				userApiKeyId,
+				inputJson,
+				isWaiting: true,
+				asyncOperationId: null,
+				startedAt: null
+			};
+			calls.asyncOperationQueues.push(queue);
+			return queue;
+		},
+		async getWaitingOperationByModule(module) {
+			const queue = calls.asyncOperationQueues.find((item) => {
+				return item.module === module && item.isWaiting === true;
+			});
+			if (!queue) {
+				return null;
+			}
+			if (queue.asyncOperationId) {
+				queue.asyncOperation = calls.asyncOperations.find((operation) => {
+					return operation.id === queue.asyncOperationId;
+				}) || null;
+			} else {
+				delete queue.asyncOperation;
+			}
+			return queue;
+		},
+		async updateUserOperationQueue(id, updateData) {
+			const queue = calls.asyncOperationQueues.find((item) => item.id === Number(id));
+			if (queue) {
+				Object.assign(queue, updateData);
+			}
+			return queue;
+		},
+		async addAsyncOperation(userId, asyncOperationData) {
+			const operation = {
+				id: calls.asyncOperations.length + 1,
+				userId,
+				inProcess: true,
+				percent: 0,
+				...asyncOperationData
+			};
+			calls.asyncOperations.push(operation);
+			return operation;
+		},
+		async setAsyncOperationToUserOperationQueue(queueId, asyncOperationId) {
+			const queue = calls.asyncOperationQueues.find((item) => item.id === Number(queueId));
+			if (queue) {
+				queue.asyncOperationId = asyncOperationId;
+			}
+			return queue;
+		},
+		async closeUserOperationQueueByAsyncOperationId(asyncOperationId) {
+			for (const queue of calls.asyncOperationQueues) {
+				if (queue.asyncOperationId === Number(asyncOperationId)) {
+					queue.isWaiting = false;
+				}
+			}
+		},
+		async closeUserOperationQueue(id) {
+			const queue = calls.asyncOperationQueues.find((item) => item.id === Number(id));
+			if (queue) {
+				queue.isWaiting = false;
+			}
+			return queue;
+		},
+		async finishAsyncOperation(_userId, asyncOperationId, _contentId = null, output = null) {
+			const operation = calls.asyncOperations.find((item) => item.id === Number(asyncOperationId));
+			if (operation) {
+				operation.inProcess = false;
+				operation.percent = 100;
+				operation.output = output;
+				operation.finishedAt = new Date();
+			}
+			return operation;
+		},
+		async errorAsyncOperation(_userId, asyncOperationId, errorMessage) {
+			const operation = calls.asyncOperations.find((item) => item.id === Number(asyncOperationId));
+			if (operation) {
+				operation.inProcess = false;
+				operation.errorMessage = errorMessage;
+			}
+			return operation;
+		},
+		async getUserOperationQueue(userId, id) {
+			const queue = calls.asyncOperationQueues.find((item) => item.id === Number(id));
+			if (!queue || Number(queue.userId) !== Number(userId)) {
+				throw new Error('operation_queue_not_found');
+			}
+			queue.asyncOperation = calls.asyncOperations.find((operation) => operation.id === queue.asyncOperationId) || null;
+			return queue;
+		}
+	};
 }
 
 function getApiStub(routes) {

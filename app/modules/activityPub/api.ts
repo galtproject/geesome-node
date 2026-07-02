@@ -227,6 +227,32 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/attachment-backups/retry Queue ActivityPub attachment backup retry
+	 * @apiName AdminActivityPubRemoteObjectAttachmentBackupRetry
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Queues async backup work for supported remote HTTP(S), IPFS, and IPNS media/document attachments that belong to an already-created native GeeSome post imported from the cached ActivityPub object. The job skips unsupported, link-only, and already-backed-up attachments, records progress through the normal user async-operation queue, retries transient backup failures, and updates the imported post contents/provenance metadata when backups succeed. It does not create a post, change review state, hide/delete content, or federate any activity.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} remoteObjectId Cached remote object database id with `localPostId` already set.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing. Set false for an external worker/operator run.
+	 * @apiSuccess {Object} result User operation queue item for the retry job. Poll `/v1/user/get-operation-queue/:operationId` or `/v1/user/get-async-operation/:id` for completion.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/attachment-backups/retry', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.queueGroupRemoteObjectAttachmentBackups(
+			req.params.groupName,
+			req.params.remoteObjectId,
+			req.user.id,
+			req.apiKey?.id || null,
+			req.body || {}
+		));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/review-state Set cached remote object review state
 	 * @apiName AdminActivityPubRemoteObjectReviewState
 	 * @apiGroup AdminActivityPub
