@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import crypto from 'node:crypto';
+import {Readable} from 'node:stream';
 import {Op} from 'sequelize';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
@@ -1418,8 +1419,7 @@ describe('activityPub module', () => {
 					mediaCategory: 'image',
 					name: 'IPFS image',
 					altText: 'IPFS image',
-					canBackupRemoteBytes: false,
-					backupUnsupportedReason: 'activitypub_remote_attachment_backup_unsupported_url_scheme'
+					canBackupRemoteBytes: true
 				},
 				{
 					url: 'https://remote.example/media/clip.mp4',
@@ -1662,10 +1662,22 @@ describe('activityPub module', () => {
 						url: 'https://remote.example/page'
 					},
 					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: 'IPFS image',
+						url: 'ipfs://bafyremoteimage/media/photo.png'
+					},
+					{
 						type: 'Document',
 						mediaType: 'application/pdf',
 						name: 'Remote PDF',
 						url: 'https://remote.example/media/file.pdf'
+					},
+					{
+						type: 'Document',
+						mediaType: 'application/pdf',
+						name: 'IPNS PDF',
+						url: 'ipns://example.com/media/file.pdf'
 					}
 				],
 				published: '2026-06-01T12:08:00Z'
@@ -1694,16 +1706,32 @@ describe('activityPub module', () => {
 				name: 'Remote image'
 			},
 			{
+				url: 'ipfs://bafyremoteimage/media/photo.png',
+				contentId: 202,
+				storageId: 'saved-content-2',
+				mediaType: 'image/png',
+				mediaCategory: 'image',
+				name: 'IPFS image'
+			},
+			{
 				url: 'https://remote.example/media/file.pdf',
 				contentId: 302,
 				storageId: 'saved-url-content-2',
 				mediaType: 'application/pdf',
 				mediaCategory: 'document',
 				name: 'Remote PDF'
+			},
+			{
+				url: 'ipns://example.com/media/file.pdf',
+				contentId: 203,
+				storageId: 'saved-content-3',
+				mediaType: 'application/pdf',
+				mediaCategory: 'document',
+				name: 'IPNS PDF'
 			}
 		];
 
-		assert.equal(calls.saveData.length, 1);
+		assert.equal(calls.saveData.length, 3);
 		assert.equal(calls.saveDataByUrl.length, 2);
 		assert.equal(calls.saveDataByUrl[0].userId, 7);
 		assert.equal(calls.saveDataByUrl[0].url, 'https://remote.example/media/photo.png');
@@ -1726,11 +1754,39 @@ describe('activityPub module', () => {
 		assert.equal(calls.saveDataByUrl[1].options.name, 'Remote PDF');
 		assert.equal(calls.saveDataByUrl[1].options.mimeType, 'application/pdf');
 		assert.equal(calls.saveDataByUrl[1].options.view, ContentView.Attachment);
-		assert.deepEqual(postData.contents, [{id: 201}, {id: 301}, {id: 302}]);
+		assert.deepEqual(calls.getFileStream, [
+			{
+				filePath: 'bafyremoteimage/media/photo.png',
+				options: undefined
+			},
+			{
+				filePath: '/ipns/example.com/media/file.pdf',
+				options: undefined
+			}
+		]);
+		assert.equal(calls.saveData[1].userId, 7);
+		assert.equal(calls.saveData[1].fileName, 'IPFS image');
+		assert.equal(calls.saveData[1].options.mimeType, 'image/png');
+		assert.equal(calls.saveData[1].options.view, ContentView.Media);
+		assert.deepEqual(calls.saveData[1].options.properties.activityPub, {
+			protocol: 'activitypub',
+			objectId: activity.object.id,
+			activityId: activity.id,
+			remoteObjectUrl: activity.object.id,
+			remoteActorUrl: remoteActorKey.actorUrl,
+			attachmentUrl: 'ipfs://bafyremoteimage/media/photo.png',
+			attachmentType: 'Image',
+			attachmentMediaType: 'image/png',
+			attachmentMediaCategory: 'image'
+		});
+		assert.equal(calls.saveData[2].fileName, 'IPNS PDF');
+		assert.equal(calls.saveData[2].options.mimeType, 'application/pdf');
+		assert.equal(calls.saveData[2].options.view, ContentView.Attachment);
+		assert.deepEqual(postData.contents, [{id: 201}, {id: 301}, {id: 202}, {id: 302}, {id: 203}]);
 		assert.deepEqual(result.attachmentBackups, expectedBackups);
 		assert.equal(properties.activityPub.attachmentImportMode, 'backupOnCreate');
 		assert.deepEqual(properties.activityPub.attachmentBackups, expectedBackups);
-		assert.equal(properties.activityPub.attachments.length, 4);
+		assert.equal(properties.activityPub.attachments.length, 6);
 	});
 
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
@@ -2399,6 +2455,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 	const calls: any = {
 		getGroupByParams: [],
 		getGroupPosts: [],
+		getFileStream: [],
 		saveData: [],
 		saveDataByUrl: [],
 		createRemotePostByObject: [],
@@ -2433,6 +2490,10 @@ async function createActivityPubHarness(overrides: any = {}) {
 				}
 			},
 			content: {
+				async getFileStream(filePath, options) {
+					calls.getFileStream.push({filePath, options});
+					return Readable.from([`stream:${filePath}`]);
+				},
 				async saveData(userId, dataToSave, fileName, options) {
 					calls.saveData.push({userId, dataToSave, fileName, options});
 					return {

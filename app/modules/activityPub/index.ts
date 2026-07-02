@@ -1065,10 +1065,20 @@ async function createActivityPubRemoteAttachmentBackups(app: IGeesomeApp, userId
 		if (!isActivityPubRemoteAttachmentBackupSupported(attachment)) {
 			continue;
 		}
-		const content = await app.ms.content.saveDataByUrl(userId, attachment.url, getActivityPubRemoteAttachmentSaveOptions(postDraft, attachment));
+		const content = await createActivityPubRemoteAttachmentBackupContent(app, userId, postDraft, attachment);
 		backups.push(getActivityPubRemoteAttachmentBackup(attachment, content));
 	}
 	return backups;
+}
+
+async function createActivityPubRemoteAttachmentBackupContent(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview): Promise<IContent> {
+	const options = getActivityPubRemoteAttachmentSaveOptions(postDraft, attachment);
+	const storagePath = getActivityPubRemoteAttachmentStoragePath(attachment.url);
+	if (storagePath) {
+		const stream = await app.ms.content.getFileStream(storagePath);
+		return app.ms.content.saveData(userId, stream, getActivityPubRemoteAttachmentImportName(attachment), options);
+	}
+	return app.ms.content.saveDataByUrl(userId, attachment.url, options);
 }
 
 function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
@@ -1582,10 +1592,43 @@ function isActivityPubRemoteAttachmentBackupCategorySupported(attachment: IActiv
 function isActivityPubRemoteAttachmentBackupUrlSupported(urlValue: string): boolean {
 	try {
 		const url = new URL(urlValue);
-		return url.protocol === 'http:' || url.protocol === 'https:';
+		if (url.protocol === 'http:' || url.protocol === 'https:') {
+			return true;
+		}
+		return Boolean(getActivityPubRemoteAttachmentUrlBackupPath(url));
 	} catch (e) {
 		return false;
 	}
+}
+
+function getActivityPubRemoteAttachmentStoragePath(urlValue: string): string {
+	try {
+		return getActivityPubRemoteAttachmentUrlBackupPath(new URL(urlValue));
+	} catch (e) {
+		return '';
+	}
+}
+
+function getActivityPubRemoteAttachmentUrlBackupPath(url: URL): string {
+	if (url.protocol === 'http:' || url.protocol === 'https:') {
+		return '';
+	}
+	if (url.protocol === 'ipfs:') {
+		return getActivityPubRemoteAttachmentContentAddressPath(url);
+	}
+	if (url.protocol === 'ipns:') {
+		const contentAddressPath = getActivityPubRemoteAttachmentContentAddressPath(url);
+		return contentAddressPath ? `/ipns/${contentAddressPath}` : '';
+	}
+	return '';
+}
+
+function getActivityPubRemoteAttachmentContentAddressPath(url: URL): string {
+	const root = url.host;
+	if (!root) {
+		return '';
+	}
+	return `${root}${url.pathname || ''}`;
 }
 
 function getActivityPubRemoteAttachmentSaveOptions(postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview) {
