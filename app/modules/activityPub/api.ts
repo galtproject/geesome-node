@@ -127,13 +127,13 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Report state can be marked pending or resolved separately; content moderation actions are handled by later moderation flows.
+	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Each report includes derived target context showing whether the signed report points at the group actor or a known local ActivityPub post object. Report state can be marked pending or resolved separately; content moderation actions are handled by later moderation flows.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String="pending","resolved"} [state] Filter by report state.
 	 * @apiQuery {String} [objectId] Filter by reported ActivityPub actor/object id.
 	 * @apiQuery {Number} [remoteActorId] Filter by reporting remote actor database id.
-	 * @apiSuccess {Object[]} list Flag report rows.
+	 * @apiSuccess {Object[]} list Flag report rows with remote actor metadata, parsed activity JSON, and derived target context.
 	 * @apiSuccess {Number} total Total matching reports.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/flags', async (req, res) => {

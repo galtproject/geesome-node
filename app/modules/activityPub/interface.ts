@@ -213,6 +213,16 @@ export interface IActivityPubRemoteActorReport {
 }
 
 export type IActivityPubFlagReportRemoteActor = IActivityPubRemoteActorReport;
+export type ActivityPubFlagReportTargetType = 'localActor' | 'localObject' | 'unknown';
+
+export interface IActivityPubFlagReportTarget {
+	objectId: string;
+	type: ActivityPubFlagReportTargetType;
+	localActorId?: number;
+	activityPubObjectId?: number;
+	localPostId?: number;
+	objectType?: string;
+}
 
 export interface IActivityPubFlagReport {
 	id?: number;
@@ -221,6 +231,7 @@ export interface IActivityPubFlagReport {
 	remoteActor?: IActivityPubFlagReportRemoteActor;
 	activityId: string;
 	objectId: string;
+	target: IActivityPubFlagReportTarget;
 	state: ActivityPubFlagState;
 	activity?: Record<string, any> | null;
 	createdAt?: Date;
