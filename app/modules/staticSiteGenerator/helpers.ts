@@ -11,6 +11,7 @@ import _ from 'lodash';
 import { join } from 'path';
 import {load as cheerioLoad} from 'cheerio';
 import {readdirSync, rmdirSync, unlinkSync, statSync} from 'fs';
+import {sanitizeHtml} from '../../htmlSafety.js';
 const {trim} = _;
 
 const isDir = path => {
@@ -115,8 +116,8 @@ function getTitleAndDescription(texts, postSettings, plainText = false) {
     }
     const {titleLength, descriptionLength} = postSettings;
 
-    let text = contents.map(c => c.text).join('<br><br>');
-    let splitText = text.split('<br>');
+    let text = contents.map(c => sanitizeStaticSiteHtml(c.text)).join('<br><br>');
+    let splitText = text.split(/<br\s*\/?>/);
     if (plainText) {
         splitText = splitText.map(t => removeHtml(t));
     }
@@ -138,7 +139,7 @@ function getTitleAndDescription(texts, postSettings, plainText = false) {
         });
     }
     if (lastSplitTextIndex >= splitText.length || !descriptionLength) {
-        return {title: removeHtml(title), description: fixHtml(description)};
+        return {title: removeHtml(title), description: sanitizeStaticSiteHtml(fixHtml(description))};
     }
     splitText.slice(lastSplitTextIndex).some((text) => {
         const {result, restArr} = splitBySeparatorsAndFill(text, description, descriptionLength, '<br>');
@@ -149,7 +150,7 @@ function getTitleAndDescription(texts, postSettings, plainText = false) {
             return true;
         }
     });
-    return {title: removeHtml(title), description: fixHtml(description)};
+    return {title: removeHtml(title), description: sanitizeStaticSiteHtml(fixHtml(description))};
 }
 
 function getPostTitleAndDescription(post, contents, postSettings) {
@@ -206,6 +207,27 @@ function fixHtml(html) {
     return trim(html, " ");
 }
 
+function sanitizeStaticSiteHtml(html) {
+    return sanitizeHtml(html);
+}
+
+function sanitizeStaticSiteContents(contents = []) {
+    if (!Array.isArray(contents)) {
+        return [];
+    }
+    return contents.map(content => sanitizeStaticSiteContent(content));
+}
+
+function sanitizeStaticSiteContent(content) {
+    if (content?.type !== 'text' || typeof content.text !== 'string') {
+        return content;
+    }
+    return {
+        ...content,
+        text: sanitizeStaticSiteHtml(content.text)
+    };
+}
+
 // async function apiRequest(port, method, token, body) {
 //     return fetch(`http://localhost:${port}/v1/${method}`, {
 //         "headers": {
@@ -218,4 +240,13 @@ function fixHtml(html) {
 //     }).then(r => r.json());
 // }
 
-export default { rmDir, getTitleAndDescription, getPostTitleAndDescription, getMainMediaContent, getOgHeaders, removeHtml };
+export default {
+    rmDir,
+    getTitleAndDescription,
+    getPostTitleAndDescription,
+    getMainMediaContent,
+    getOgHeaders,
+    removeHtml,
+    sanitizeStaticSiteContents,
+    sanitizeStaticSiteHtml
+};

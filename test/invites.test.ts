@@ -27,7 +27,8 @@ describe("app", function () {
 			app = await (await import('../app/index.js')).default({storageConfig: appConfig.storageConfig, port: 7771});
 			await app.flushDatabase();
 
-			admin = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'}).then(r => r.user);
+			const setupResult = await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+			admin = setupResult.user;
 			const testUser = await app.registerUser({
 				email: 'user@user.com',
 				name: 'user',
@@ -47,6 +48,150 @@ describe("app", function () {
 
 	afterEach(async () => {
 		await app.stop();
+	});
+
+	it('invite status should preflight upload-capable invites', async () => {
+		const invite = await createInvite(app, admin.id, {
+			title: 'upload invite',
+			permissions: JSON.stringify([CorePermissionName.UserSaveData]),
+			maxCount: 2,
+			isActive: true
+		});
+
+		const response = await requestJson('GET', `/invite/status/${invite.code}`);
+
+		assert.equal(response.status, 200);
+		assert.equal(response.body.ok, true);
+		assert.equal(response.body.code, invite.code);
+		assert.equal(response.body.publicJoinEnabled, true);
+		assert.equal(response.body.active, true);
+		assert.equal(response.body.remainingUses, 2);
+		assert.deepEqual(response.body.permissions, [CorePermissionName.UserSaveData]);
+		assert.equal(response.body.requiredPermission, CorePermissionName.UserSaveData);
+		assert.equal(response.body.joinPath, `/v1/invite/join/${invite.code}`);
+	});
+
+	it('invite codes should be configured length base62 strings', async () => {
+		const seenCodes = new Set<string>();
+		const expectedLength = getExpectedInviteCodeLength();
+		for (let i = 0; i < 20; i++) {
+			const invite = await createInvite(app, admin.id, {
+				title: `generated invite ${i}`,
+				permissions: JSON.stringify([CorePermissionName.UserSaveData]),
+				maxCount: 1,
+				isActive: true
+			});
+
+			assert.equal(invite.code.length, expectedLength);
+			assert.equal(new RegExp(`^[A-Za-z0-9]{${expectedLength}}$`).test(invite.code), true);
+			assert.equal(seenCodes.has(invite.code), false);
+			seenCodes.add(invite.code);
+		}
+	});
+
+	it('invite status should return structured errors for unusable upload invites', async () => {
+		const missingResponse = await requestJson('GET', `/invite/status/${commonHelper.random('hash')}`);
+		assert.equal(missingResponse.status, 404);
+		assert.equal(missingResponse.body.error.code, 'invite_not_found');
+		assert.equal(missingResponse.body.error.agentAction, 'try_next_invite');
+
+		const inactiveInvite = await createInvite(app, admin.id, {
+			title: 'inactive invite',
+			permissions: JSON.stringify([CorePermissionName.UserSaveData]),
+			maxCount: 1,
+			isActive: false
+		});
+		const inactiveResponse = await requestJson('GET', `/invite/status/${inactiveInvite.code}`);
+		assert.equal(inactiveResponse.status, 410);
+		assert.equal(inactiveResponse.body.error.code, 'invite_not_active');
+
+		const exhaustedInvite = await createInvite(app, admin.id, {
+			title: 'exhausted invite',
+			permissions: JSON.stringify([CorePermissionName.UserSaveData]),
+			maxCount: 1,
+			isActive: true
+		});
+		await app.ms.invite.registerUserByInviteCode(exhaustedInvite.code, {
+			email: 'used-invite@user.com',
+			name: 'used-invite',
+			password: 'used-invite',
+		});
+		const exhaustedResponse = await requestJson('GET', `/invite/status/${exhaustedInvite.code}`);
+		assert.equal(exhaustedResponse.status, 410);
+		assert.equal(exhaustedResponse.body.error.code, 'invite_exhausted');
+
+		const wrongScopeInvite = await createInvite(app, admin.id, {
+			title: 'wrong scope invite',
+			permissions: JSON.stringify([CorePermissionName.UserGroupManagement]),
+			maxCount: 1,
+			isActive: true
+		});
+		const wrongScopeResponse = await requestJson('GET', `/invite/status/${wrongScopeInvite.code}`);
+		assert.equal(wrongScopeResponse.status, 422);
+		assert.equal(wrongScopeResponse.body.error.code, 'invite_missing_upload_permission');
+		assert.equal(wrongScopeResponse.body.error.agentAction, 'use_upload_scoped_invite_or_existing_admin_user_provisioning');
+	});
+
+	it('invite status should rate limit repeated checks by ip', async () => {
+		const headers = {'x-forwarded-for': '198.51.100.10'};
+		for (let i = 0; i < 30; i++) {
+			const response = await requestJson('GET', `/invite/status/${commonHelper.random('hash')}`, null, headers);
+			assert.equal(response.status, 404);
+		}
+
+		const limitedResponse = await requestJson('GET', `/invite/status/${commonHelper.random('hash')}`, null, headers);
+		assert.equal(limitedResponse.status, 429);
+		assert.equal(limitedResponse.body.error.code, 'invite_rate_limited');
+		assert.equal(limitedResponse.body.error.retryable, true);
+		assert.equal(limitedResponse.body.error.retryAfterSeconds, 600);
+	});
+
+	it('invite join should return the documented credential shape and structured errors', async () => {
+		const invite = await createInvite(app, admin.id, {
+			title: 'join invite',
+			permissions: JSON.stringify([CorePermissionName.UserSaveData]),
+			maxCount: 1,
+			isActive: true
+		});
+
+		const joinResponse = await requestJson('POST', `/invite/join/${invite.code}`, {
+			email: 'joined-upload@user.com',
+			name: 'joined-upload',
+			password: 'joined-upload',
+		});
+		assert.equal(joinResponse.status, 200);
+		assert.equal(joinResponse.body.user.name, 'joined-upload');
+		assert.equal(typeof joinResponse.body.apiKey, 'string');
+		assert.deepEqual(joinResponse.body.permissions, [CorePermissionName.UserSaveData]);
+		assert.equal(joinResponse.body.keyStoreMethod, 'node');
+
+		const exhaustedResponse = await requestJson('POST', `/invite/join/${invite.code}`, {
+			email: 'joined-upload-2@user.com',
+			name: 'joined-upload-2',
+			password: 'joined-upload-2',
+		});
+		assert.equal(exhaustedResponse.status, 410);
+		assert.equal(exhaustedResponse.body.error.code, 'invite_exhausted');
+	});
+
+	it('invite join should rate limit repeated failed registrations by ip', async () => {
+		const headers = {'x-forwarded-for': '198.51.100.20'};
+		for (let i = 0; i < 10; i++) {
+			const response = await requestJson('POST', `/invite/join/${commonHelper.random('hash')}`, {
+				email: `missing-${i}@user.com`,
+				name: `missing-${i}`,
+				password: `missing-${i}`
+			}, headers);
+			assert.equal(response.status, 404);
+		}
+
+		const limitedResponse = await requestJson('POST', `/invite/join/${commonHelper.random('hash')}`, {
+			email: 'missing-limited@user.com',
+			name: 'missing-limited',
+			password: 'missing-limited'
+		}, headers);
+		assert.equal(limitedResponse.status, 429);
+		assert.equal(limitedResponse.body.error.code, 'invite_rate_limited');
 	});
 
 	it('user invites should work properly', async () => {
@@ -207,4 +352,41 @@ function hexToBytes(hex) {
 function signTypedData(privateKey, msgParams) {
 	const privateKeyBytes = hexToBuffer(privateKey);
 	return sigUtil.signTypedData(privateKeyBytes, {data: msgParams});
+}
+
+async function createInvite(app: IGeesomeApp, adminId, inviteData) {
+	return app.ms.invite.createInvite(adminId, {
+		limits: JSON.stringify([]),
+		groupsToJoin: JSON.stringify([]),
+		...inviteData
+	});
+}
+
+function getExpectedInviteCodeLength() {
+	const configuredLength = Number.parseInt(process.env.GEESOME_INVITE_CODE_LENGTH || '', 10);
+	if (!Number.isFinite(configuredLength) || configuredLength <= 0) {
+		return 16;
+	}
+	return Math.max(configuredLength, 16);
+}
+
+async function requestJson(method, path, body?, extraHeaders?) {
+	const headers: any = {};
+	if (body) {
+		headers['Content-Type'] = 'application/json';
+	}
+	if (extraHeaders) {
+		Object.assign(headers, extraHeaders);
+	}
+	const port = process.env.PORT || 7771;
+	const response = await fetch(`http://127.0.0.1:${port}/v1${path}`, {
+		method,
+		headers,
+		body: body ? JSON.stringify(body) : undefined
+	});
+	const text = await response.text();
+	return {
+		status: response.status,
+		body: text ? JSON.parse(text) : null
+	};
 }

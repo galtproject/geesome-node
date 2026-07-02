@@ -103,6 +103,18 @@ The Docker service runs `bash/ipfs-ownership-preflight.sh` before startup. It cr
 
 6. Open `geesome.your-site.com/#/setup` to create first admin user
 
+## Moving Docker storage to a mounted disk
+If the server runs out of root disk space, mount a larger disk first, then move the heavy Docker storage with one command from the repo directory:
+```
+sudo npm run storage:move -- ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
+sudo npm run storage:move -- database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
+sudo npm run storage:move -- all /mnt/geesome --yes       # creates all of the above
+```
+
+The `/mnt/geesome` argument is the parent directory, not the final data directory. The `ipfs` target moves `STORAGE_DATA` to `/mnt/geesome/ipfs` and `STORAGE_STAGING` to `/mnt/geesome/ipfs-staging`. The `database` target moves Postgres data to `/mnt/geesome/postgres-data`. The script stops the Docker stack, copies and verifies the data, updates Docker Compose `.env`, writes a `geesome-docker` systemd storage override when that service is installed, relinks the old paths, runs the IPFS ownership preflight when needed, and restarts the stack.
+
+By default the old source directories are deleted after the stack starts successfully, freeing space on the original disk. Add `--keep-source` if you want rollback directories left as `*.moved-<timestamp>` backups instead.
+
 ## Install without domain (IP only)
 Use this if your server has no domain and you want to reach the node by its IP address.
 1. Clone repo to server
@@ -149,6 +161,9 @@ Warning: the upgrade script refuses to run with uncommitted local git changes. C
 
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
+
+# Invite code security
+Invite codes are generated as crypto-random base62 strings. The default length is 16 characters; set `GEESOME_INVITE_CODE_LENGTH` before startup to use a longer code. Values below 16 are ignored.
 
 # Debugging and logs
 Logs are quiet by default. See [DEBUG.md](DEBUG.md) for debug namespaces, log flags, and memory profiling (including how to dump per-process memory to a file for sizing hardware requirements).
@@ -281,11 +296,11 @@ geesomeClient.init().then(async () => {
 - Keep shared package versions aligned across `geesome-node`, `geesome-libs`, and `geesome-ui`, while treating Vue/ethers/mime major-line differences as separate migrations.
 - Improve static-site generation options, favicon handling, and frontend build delivery by IPFS.
 - Design real frontend E2EE for chat groups using user-held private keys, recipient/device public keys, and group key rotation.
-- Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers.
+- Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers; the current MVP has public actor/outbox/post/follower/following/follow routes, signed inbound follow acceptance/cancellation/block handling, signed inbound flag-report storage plus admin listing/state updates, outbound follow request/follow-accept delivery queues, signed remote accept/reject response handling for outbound follows, local post ActivityPub object records, publish-time `Create(Note)` delivery queues, shared-inbox remote object records for replies to known local objects and mentions of known local group actors, admin remote-object review with sanitized preview fields, accepted-review-gated post-draft projection and manual native-post creation from accepted public Notes with local reply threading, persistent review-state decisions, and review-state filtering, shared-inbox `Update(Note)`, `Delete`, and `Undo(Create)` handling for cached remote objects, and a planned canonical rich-text format so raw HTML stays adapter output rather than native post source, with broader remote post update/delete handling still to finish.
 - Expand group views toward thread/feed use cases while preserving existing post/group APIs.
 - Improve social backup/import workflows for Telegram and Twitter-compatible sources.
-- Keep large-group/database scalability work moving through measured migrations, cursor/page-scoped reads, generated-output batching, migration-integrity verification, conservative content tombstone restore/purge routes, and canonical storage-object identity seeded by real producers such as GeeSome content manifests.
-- Add a global storage space analyzer UI and restored-database reports for file-catalog and group usage, with drilldowns into largest files, file types, duplicate/shared storage IDs, preview overhead, safe cleanup blockers, queued original/preview physical storage cleanup with retention/history, deterministic availability signals, bounded on-demand IPFS provider/stat inspection, and a separate IPFS popularity/availability tab for UI wiring plus optional sampled history.
+- Keep the completed large-group/database scalability baseline healthy with measured migrations, cursor/page-scoped reads, generated-output batching, migration-integrity verification, conservative content tombstone restore/purge routes, and canonical storage-object identity seeded by real producers such as GeeSome content manifests.
+- Maintain the completed storage space analyzer and restored-database reports for file-catalog and group usage, with drilldowns into largest files, file types, duplicate/shared storage IDs, preview overhead, safe cleanup blockers, queued original/preview physical storage cleanup with retention/history, deterministic availability signals, bounded on-demand IPFS provider/stat inspection, and a separate IPFS popularity/availability tab for tuning from production observations.
 - Keep protocol-scale work such as local IPNS accounts, PubSub modules, remote backup, Matrix/Filecoin integrations, and mobile/browser apps as separate epics.
 
 See [docs/todo.md](./docs/todo.md) for the issue-backed backlog snapshot and fast delivery plan.

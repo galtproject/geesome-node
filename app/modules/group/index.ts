@@ -515,7 +515,16 @@ function getModule(app: IGeesomeApp, models) {
 				directoryStorageId: await app.ms.storage.getDirectoryId(`/${post.group.staticStorageId}/`)
 			});
 			await this.updateGroupManifest(userId, post.groupId);
+			await this.callAfterPostManifestUpdateHooks(userId, post);
 			return post;
+		}
+
+		async callAfterPostManifestUpdateHooks(userId, post) {
+			try {
+				await app.callHook('group', 'afterPostManifestUpdate', [userId, post.id]);
+			} catch (e) {
+				log('afterPostManifestUpdate hook error', e);
+			}
 		}
 
 		async queuePostManifestUpdate(userId, postId, options: any = {}) {

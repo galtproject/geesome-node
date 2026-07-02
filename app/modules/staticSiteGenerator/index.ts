@@ -12,7 +12,7 @@ import site from './site/index.js';
 import vendorAssets from './site/vendorAssets.js';
 const {clone, uniq, merge, pick, last} = _;
 const log = debug('geesome:app:staticSiteGenerator');
-const {getPostTitleAndDescription, getOgHeaders} = ssgHelpers;
+const {getPostTitleAndDescription, getOgHeaders, sanitizeStaticSiteContents, sanitizeStaticSiteHtml} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
 let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
@@ -108,8 +108,20 @@ function normalizeStaticSiteOptions(options: any = {}) {
             throw new Error("styles_css_too_large");
         }
     }
+    normalized.headerHtml = normalizeStaticSiteHtmlOption(normalized.headerHtml, 'incorrect_header_html');
+    normalized.footerHtml = normalizeStaticSiteHtmlOption(normalized.footerHtml, 'incorrect_footer_html');
 
     return normalized;
+}
+
+function normalizeStaticSiteHtmlOption(html, errorMessage) {
+    if (html === undefined || html === null) {
+        return html;
+    }
+    if (typeof html !== 'string') {
+        throw new Error(errorMessage);
+    }
+    return sanitizeStaticSiteHtml(html);
 }
 
 function prepareStaticSiteUpdateData(updateData) {
@@ -338,6 +350,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 .then(list => Promise.all(list.map(c => {
                     return app.ms.group.prepareContentDataWithUrl(c, '', getContentProjectionOptions(renderCache));
                 })));
+            contents = sanitizeStaticSiteContents(contents);
             const contentById = {};
             contents.forEach(c => contentById[c.id] = c);
             contents = entityIds.map(entityId => contentById[entityId]);
@@ -596,7 +609,9 @@ export async function getModule(app: IGeesomeApp, models) {
                 }
             }
 
-            const contents = await app.ms.group.getPostContentDataWithUrl(gp, '', getContentProjectionOptions(renderCache));
+            const contents = sanitizeStaticSiteContents(
+                await app.ms.group.getPostContentDataWithUrl(gp, '', getContentProjectionOptions(renderCache))
+            );
             await this.copyContentsToSite(siteStorageDir, contents);
             const postObject = {
                 id: gp.localId,
