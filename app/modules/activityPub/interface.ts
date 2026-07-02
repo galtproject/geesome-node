@@ -11,6 +11,9 @@ export interface IActivityPubConfig {
 	deliveryWorkerIntervalMs?: number | string;
 	deliveryWorkerLimit?: number | string;
 	deliveryClaimTtlMs?: number | string;
+	sourceRefreshWorker?: boolean | string;
+	sourceRefreshWorkerIntervalMs?: number | string;
+	sourceRefreshWorkerLimit?: number | string;
 }
 
 export interface IResolvedActivityPubConfig {
@@ -423,6 +426,18 @@ export interface IActivityPubSourceRefreshResult {
 	errors: string[];
 }
 
+export interface IActivityPubSourceRefreshQueueInput extends IActivityPubSourceRefreshInput {
+	process?: boolean | string;
+}
+
+export interface IActivityPubSourceRefreshQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubSourceRefreshQueueProcessResult {
+	processed: number;
+}
+
 export interface IActivityPubSourceReadInput {
 	readAt?: Date | string;
 }
@@ -699,6 +714,10 @@ export default interface IGeesomeActivityPubModule {
 	getActivityPubSourceFeed(userId: number, sourceId: number | string, filters?: IActivityPubSourceFeedFilters, listParams?: IListParams): Promise<IActivityPubSourceFeedResponse>;
 
 	refreshActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceRefreshInput): Promise<IActivityPubSourceRefreshResult>;
+
+	queueActivityPubSourceRefresh(userId: number, sourceId: number | string, userApiKeyId?: number | null, input?: IActivityPubSourceRefreshQueueInput): Promise<IUserOperationQueue>;
+
+	processActivityPubSourceRefreshQueue(options?: IActivityPubSourceRefreshQueueProcessOptions): Promise<IActivityPubSourceRefreshQueueProcessResult>;
 
 	markActivityPubSourceRead(userId: number, sourceId: number | string, input?: IActivityPubSourceReadInput): Promise<IActivityPubSourceSubscriptionReport>;
 

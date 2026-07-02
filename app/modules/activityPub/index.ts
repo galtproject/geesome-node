@@ -39,6 +39,8 @@ import IGeesomeActivityPubModule, {
 	IActivityPubSourceFeedResponse,
 	IActivityPubSourceJsonFetcher,
 	IActivityPubSourceReadInput,
+	IActivityPubSourceRefreshQueueInput,
+	IActivityPubSourceRefreshQueueProcessOptions,
 	IActivityPubSourceRefreshInput,
 	IActivityPubSourceRefreshResult,
 	IActivityPubSourceResolveInput,
@@ -142,6 +144,11 @@ type IActivityPubRemoteAttachmentBackupJob = {
 	remoteObjectId: number;
 	attempts?: number;
 };
+type IActivityPubSourceRefreshJob = {
+	type: 'source-refresh';
+	sourceId: number;
+	input: IActivityPubSourceRefreshInput;
+};
 type IActivityPubRemoteAttachmentBackupFailure = {
 	url: string;
 	errorMessage: string;
@@ -194,6 +201,8 @@ const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 
 const activityPubRemoteAttachmentBackupQueueModuleName = 'activitypub-attachment-backup';
 const activityPubRemoteAttachmentBackupQueueKickBatchLimit = 3;
 const activityPubRemoteAttachmentBackupQueueMaxAttempts = 5;
+const activityPubSourceRefreshQueueModuleName = 'activitypub-source-refresh';
+const activityPubSourceRefreshQueueKickBatchLimit = 3;
 const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
 const activityPubBlueskyOfficialPreset = 'bluesky-official';
 const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
@@ -389,6 +398,47 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				...result,
 				source: await getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription)
 			};
+		}
+
+		async queueActivityPubSourceRefresh(userId: number, sourceId: number | string, userApiKeyId: number | null = null, input: IActivityPubSourceRefreshQueueInput = {}) {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+
+			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				activityPubSourceRefreshQueueModuleName,
+				userApiKeyId,
+				getActivityPubSourceRefreshJobInput(subscription, input)
+			);
+			if (helpers.parseBoolean(input?.process, true)) {
+				this.startActivityPubSourceRefreshQueueProcessing();
+			}
+			return queue;
+		}
+
+		startActivityPubSourceRefreshQueueProcessing(options: IActivityPubSourceRefreshQueueProcessOptions = {}) {
+			const limit = helpers.parsePositiveInteger(options.limit, activityPubSourceRefreshQueueKickBatchLimit);
+			void this.processActivityPubSourceRefreshQueue({limit}).catch((e) => {
+				console.error('processActivityPubSourceRefreshQueue error', e);
+			});
+		}
+
+		async processActivityPubSourceRefreshQueue(options: IActivityPubSourceRefreshQueueProcessOptions = {}) {
+			getResolvedActivityPubConfig(app);
+			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+			return app.ms.asyncOperation.processModuleOperationQueue(activityPubSourceRefreshQueueModuleName, {
+				limit,
+				getPayload: (waitingQueue) => parseActivityPubSourceRefreshJob(waitingQueue.inputJson),
+				getAsyncOperationData: (_waitingQueue, job) => ({
+					name: 'refresh-activitypub-source',
+					channel: getActivityPubSourceRefreshJobChannel(job),
+					percent: 5
+				}),
+				run: (waitingQueue, _asyncOperation, job) => this.refreshActivityPubSource(waitingQueue.userId, job.sourceId, job.input)
+			});
 		}
 
 		async markActivityPubSourceRead(userId: number, sourceId: number | string, input: IActivityPubSourceReadInput = {}): Promise<IActivityPubSourceSubscriptionReport> {
@@ -1905,6 +1955,49 @@ function getActivityPubRemoteAttachmentBackupJobInput(groupName: string, objectR
 		remoteObjectId: Number(objectRecord.id),
 		attempts: 0
 	};
+}
+
+function getActivityPubSourceRefreshJobInput(subscription, input: IActivityPubSourceRefreshQueueInput): IActivityPubSourceRefreshJob {
+	return {
+		type: 'source-refresh',
+		sourceId: Number(subscription.id),
+		input: getActivityPubSourceRefreshJobRefreshInput(input)
+	};
+}
+
+function parseActivityPubSourceRefreshJob(inputJson: string): IActivityPubSourceRefreshJob {
+	const job = parseActivityPubJson(String(inputJson || '{}'));
+	if (job?.type !== 'source-refresh') {
+		throwActivityPubError('activitypub_source_refresh_job_invalid', 400);
+	}
+	const sourceId = Number(job.sourceId);
+	if (!Number.isFinite(sourceId) || sourceId <= 0) {
+		throwActivityPubError('activitypub_source_refresh_job_invalid', 400);
+	}
+
+	return {
+		type: 'source-refresh',
+		sourceId,
+		input: getActivityPubSourceRefreshJobRefreshInput(job.input || {})
+	};
+}
+
+function getActivityPubSourceRefreshJobRefreshInput(input: IActivityPubSourceRefreshQueueInput): IActivityPubSourceRefreshInput {
+	const refreshInput: IActivityPubSourceRefreshInput = {};
+	if (input?.limit !== undefined) {
+		refreshInput.limit = input.limit;
+	}
+	if (input?.includeFeatured !== undefined) {
+		refreshInput.includeFeatured = input.includeFeatured;
+	}
+	if (input?.includeOutbox !== undefined) {
+		refreshInput.includeOutbox = input.includeOutbox;
+	}
+	return refreshInput;
+}
+
+function getActivityPubSourceRefreshJobChannel(job: IActivityPubSourceRefreshJob): string {
+	return `${activityPubSourceRefreshQueueModuleName}:${job.sourceId}`;
 }
 
 function parseActivityPubRemoteAttachmentBackupJob(inputJson: string): IActivityPubRemoteAttachmentBackupJob {

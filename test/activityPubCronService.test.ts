@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import ActivityPubDeliveryCronService from '../app/modules/activityPub/cronService.js';
 
-describe('activityPub delivery cron service', () => {
+describe('activityPub cron service', () => {
 	it('does not start a second delivery batch while one is running', async () => {
 		let releaseRun;
 		let markStarted;
@@ -28,11 +28,11 @@ describe('activityPub delivery cron service', () => {
 
 		assert.deepEqual(skippedRun, {processed: 0, delivered: 0, failed: 0});
 		assert.equal(runCalls, 1);
-		assert.equal(cronService.inProcess, true);
+		assert.equal(cronService.deliveryInProcess, true);
 
 		releaseRun(true);
 		assert.deepEqual(await firstRun, {processed: 1, delivered: 1, failed: 0});
-		assert.equal(cronService.inProcess, false);
+		assert.equal(cronService.deliveryInProcess, false);
 		assert.equal(runCalls, 1);
 	});
 
@@ -54,6 +54,24 @@ describe('activityPub delivery cron service', () => {
 
 		assert.equal(processOptions.limit, 7);
 		assert.equal(processOptions.claimTtlMs, 1234);
+	});
+
+	it('passes configured worker limit to source refresh queue processing', async () => {
+		let processOptions;
+		const activityPubModule = {
+			processActivityPubSourceRefreshQueue: async (options) => {
+				processOptions = options;
+				return {processed: 0};
+			}
+		};
+		const app = getApp({
+			sourceRefreshWorkerLimit: '4'
+		});
+		const cronService = new ActivityPubDeliveryCronService(app, activityPubModule as any);
+
+		await cronService.processSourceRefreshQueue();
+
+		assert.equal(processOptions.limit, 4);
 	});
 });
 

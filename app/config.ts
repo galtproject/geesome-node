@@ -36,7 +36,10 @@ export default {
     deliveryWorker: process.env.ACTIVITYPUB_DELIVERY_WORKER === '1',
     deliveryWorkerIntervalMs: process.env.ACTIVITYPUB_DELIVERY_WORKER_INTERVAL_MS,
     deliveryWorkerLimit: process.env.ACTIVITYPUB_DELIVERY_WORKER_LIMIT,
-    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS
+    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS,
+    sourceRefreshWorker: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER === '1',
+    sourceRefreshWorkerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_INTERVAL_MS,
+    sourceRefreshWorkerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_LIMIT
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };

@@ -1,13 +1,20 @@
 import {IGeesomeApp} from '../../interface.js';
-import IGeesomeActivityPubModule, {IActivityPubDeliveryProcessOptions, IActivityPubDeliveryProcessResult} from './interface.js';
+import IGeesomeActivityPubModule, {
+	IActivityPubDeliveryProcessOptions,
+	IActivityPubDeliveryProcessResult,
+	IActivityPubSourceRefreshQueueProcessOptions,
+	IActivityPubSourceRefreshQueueProcessResult
+} from './interface.js';
 
 const defaultActivityPubDeliveryWorkerLimit = 20;
 const defaultActivityPubDeliveryClaimTtlMs = 5 * 60 * 1000;
+const defaultActivityPubSourceRefreshWorkerLimit = 3;
 
 export default class ActivityPubDeliveryCronService {
 	app: IGeesomeApp;
 	activityPubModule: IGeesomeActivityPubModule;
-	inProcess = false;
+	deliveryInProcess = false;
+	sourceRefreshInProcess = false;
 
 	constructor(app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) {
 		this.app = app;
@@ -15,18 +22,34 @@ export default class ActivityPubDeliveryCronService {
 	}
 
 	async processDeliveryQueue(options: IActivityPubDeliveryProcessOptions = {}): Promise<IActivityPubDeliveryProcessResult> {
-		if (this.inProcess) {
+		if (this.deliveryInProcess) {
 			return getSkippedDeliveryProcessResult();
 		}
 
-		this.inProcess = true;
+		this.deliveryInProcess = true;
 		try {
 			return await this.activityPubModule.processDeliveryQueue({
 				...getActivityPubDeliveryWorkerProcessOptions(this.app),
 				...options
 			});
 		} finally {
-			this.inProcess = false;
+			this.deliveryInProcess = false;
+		}
+	}
+
+	async processSourceRefreshQueue(options: IActivityPubSourceRefreshQueueProcessOptions = {}): Promise<IActivityPubSourceRefreshQueueProcessResult> {
+		if (this.sourceRefreshInProcess) {
+			return {processed: 0};
+		}
+
+		this.sourceRefreshInProcess = true;
+		try {
+			return await this.activityPubModule.processActivityPubSourceRefreshQueue({
+				...getActivityPubSourceRefreshWorkerProcessOptions(this.app),
+				...options
+			});
+		} finally {
+			this.sourceRefreshInProcess = false;
 		}
 	}
 }
@@ -45,6 +68,14 @@ function getActivityPubDeliveryWorkerProcessOptions(app: IGeesomeApp): IActivity
 	return {
 		limit: parsePositiveInteger(config.deliveryWorkerLimit, defaultActivityPubDeliveryWorkerLimit),
 		claimTtlMs: parsePositiveInteger(config.deliveryClaimTtlMs, defaultActivityPubDeliveryClaimTtlMs)
+	};
+}
+
+function getActivityPubSourceRefreshWorkerProcessOptions(app: IGeesomeApp): IActivityPubSourceRefreshQueueProcessOptions {
+	const config = app.config.activityPubConfig || {};
+
+	return {
+		limit: parsePositiveInteger(config.sourceRefreshWorkerLimit, defaultActivityPubSourceRefreshWorkerLimit)
 	};
 }
 
