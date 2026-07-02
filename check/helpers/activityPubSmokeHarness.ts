@@ -54,7 +54,7 @@ function getSmokeApp(calls) {
       }
     },
     checkModules(modules) {
-      assert.deepEqual(modules, ['api', 'group', 'database', 'content']);
+      assert.deepEqual(modules, ['api', 'group', 'database', 'content', 'asyncOperation']);
     },
     encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
     decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
@@ -80,6 +80,7 @@ function getSmokeApp(calls) {
           };
         }
       },
+      asyncOperation: getAsyncOperationStub(),
       group: {
         async getGroupByParams(params) {
           if (params.name !== group.name) {
@@ -135,6 +136,17 @@ function getSmokeApp(calls) {
           return post;
         }
       }
+    }
+  };
+}
+
+function getAsyncOperationStub() {
+  return {
+    addUniqueUserOperationQueue() {
+      throw new Error('activitypub_smoke_async_operation_queue_not_supported');
+    },
+    getWaitingOperationByModule() {
+      return null;
     }
   };
 }
