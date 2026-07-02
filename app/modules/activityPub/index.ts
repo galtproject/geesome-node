@@ -1235,6 +1235,7 @@ function getActivityPubRemoteObjectAttachmentPreview(value): IActivityPubRemoteO
 		addActivityPubRemoteObjectAttachmentDimensions(preview, value);
 		addActivityPubRemoteObjectAttachmentMediaFields(preview, value);
 	}
+	addActivityPubRemoteObjectAttachmentEmbedPolicy(preview);
 	addActivityPubRemoteObjectAttachmentBackupFields(preview);
 	return preview;
 }
@@ -1298,6 +1299,10 @@ function addActivityPubRemoteObjectAttachmentBackupFields(preview: IActivityPubR
 	if (unsupportedReason) {
 		preview.backupUnsupportedReason = unsupportedReason;
 	}
+}
+
+function addActivityPubRemoteObjectAttachmentEmbedPolicy(preview: IActivityPubRemoteObjectAttachmentPreview): void {
+	preview.embedPolicy = getActivityPubRemoteAttachmentEmbedPolicy(preview);
 }
 
 function getActivityPubRemoteObjectPreviewText(html: string): string {
@@ -1629,6 +1634,71 @@ function getActivityPubRemoteAttachmentContentAddressPath(url: URL): string {
 		return '';
 	}
 	return `${root}${url.pathname || ''}`;
+}
+
+function getActivityPubRemoteAttachmentEmbedPolicy(attachment: IActivityPubRemoteObjectAttachmentPreview): NonNullable<IActivityPubRemoteObjectAttachmentPreview['embedPolicy']> {
+	const mediaCategory = String(attachment.mediaCategory || '');
+	if (isActivityPubRemoteAttachmentInlineMediaCategory(mediaCategory)) {
+		return getActivityPubRemoteAttachmentInlineMediaEmbedPolicy(attachment);
+	}
+	if (mediaCategory === 'document') {
+		return getActivityPubRemoteAttachmentDocumentLinkEmbedPolicy(attachment);
+	}
+	if (mediaCategory === 'link') {
+		return getActivityPubRemoteAttachmentExternalLinkEmbedPolicy();
+	}
+	return getActivityPubRemoteAttachmentProvenanceOnlyEmbedPolicy('activitypub_remote_attachment_embed_unsupported_category');
+}
+
+function getActivityPubRemoteAttachmentInlineMediaEmbedPolicy(attachment: IActivityPubRemoteObjectAttachmentPreview): NonNullable<IActivityPubRemoteObjectAttachmentPreview['embedPolicy']> {
+	if (!isActivityPubRemoteAttachmentBackupUrlSupported(attachment.url)) {
+		return getActivityPubRemoteAttachmentProvenanceOnlyEmbedPolicy('activitypub_remote_attachment_embed_unsupported_url_scheme');
+	}
+	if (attachment.sensitive === true) {
+		return {
+			mode: 'externalLink',
+			canEmbedInline: false,
+			requiresUserAction: true,
+			unsupportedReason: 'activitypub_remote_attachment_embed_sensitive'
+		};
+	}
+	return {
+		mode: 'inlineMedia',
+		canEmbedInline: true,
+		requiresUserAction: false
+	};
+}
+
+function getActivityPubRemoteAttachmentDocumentLinkEmbedPolicy(attachment: IActivityPubRemoteObjectAttachmentPreview): NonNullable<IActivityPubRemoteObjectAttachmentPreview['embedPolicy']> {
+	if (!isActivityPubRemoteAttachmentBackupUrlSupported(attachment.url)) {
+		return getActivityPubRemoteAttachmentProvenanceOnlyEmbedPolicy('activitypub_remote_attachment_embed_unsupported_url_scheme');
+	}
+	return {
+		mode: 'documentLink',
+		canEmbedInline: false,
+		requiresUserAction: true
+	};
+}
+
+function getActivityPubRemoteAttachmentExternalLinkEmbedPolicy(): NonNullable<IActivityPubRemoteObjectAttachmentPreview['embedPolicy']> {
+	return {
+		mode: 'externalLink',
+		canEmbedInline: false,
+		requiresUserAction: true
+	};
+}
+
+function getActivityPubRemoteAttachmentProvenanceOnlyEmbedPolicy(unsupportedReason: NonNullable<IActivityPubRemoteObjectAttachmentPreview['embedPolicy']>['unsupportedReason']): NonNullable<IActivityPubRemoteObjectAttachmentPreview['embedPolicy']> {
+	return {
+		mode: 'provenanceOnly',
+		canEmbedInline: false,
+		requiresUserAction: true,
+		unsupportedReason
+	};
+}
+
+function isActivityPubRemoteAttachmentInlineMediaCategory(mediaCategory: string): boolean {
+	return ['image', 'video', 'audio'].includes(mediaCategory);
 }
 
 function getActivityPubRemoteAttachmentSaveOptions(postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview) {
