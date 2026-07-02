@@ -31,9 +31,9 @@ The target-base argument is a parent directory. The script creates the storage
 subdirectories inside it.
 
 Examples:
-  sudo npm run storage:move -- ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
-  sudo npm run storage:move -- database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
-  sudo npm run storage:move -- all /mnt/geesome --yes       # creates all of the above
+  sudo bash/move-docker-storage.sh ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
+  sudo bash/move-docker-storage.sh database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
+  sudo bash/move-docker-storage.sh all /mnt/geesome --yes       # creates all of the above
 
 Targets:
   ipfs       Moves STORAGE_DATA to <target-base>/ipfs and STORAGE_STAGING to

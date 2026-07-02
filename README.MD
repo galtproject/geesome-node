@@ -106,12 +106,12 @@ The Docker service runs `bash/ipfs-ownership-preflight.sh` before startup. It cr
 ## Moving Docker storage to a mounted disk
 If the server runs out of root disk space, mount a larger disk first, then move the heavy Docker storage with one command from the repo directory:
 ```
-sudo npm run storage:move -- ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
-sudo npm run storage:move -- database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
-sudo npm run storage:move -- all /mnt/geesome --yes       # creates all of the above
+sudo bash/move-docker-storage.sh ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
+sudo bash/move-docker-storage.sh database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
+sudo bash/move-docker-storage.sh all /mnt/geesome --yes       # creates all of the above
 ```
 
-The `/mnt/geesome` argument is the parent directory, not the final data directory. The `ipfs` target moves `STORAGE_DATA` to `/mnt/geesome/ipfs` and `STORAGE_STAGING` to `/mnt/geesome/ipfs-staging`. The `database` target moves Postgres data to `/mnt/geesome/postgres-data`. The script stops the Docker stack, copies and verifies the data, updates Docker Compose `.env`, writes a `geesome-docker` systemd storage override when that service is installed, relinks the old paths, runs the IPFS ownership preflight when needed, and restarts the stack.
+The `/mnt/geesome` argument is the parent directory, not the final data directory. The `ipfs` target moves `STORAGE_DATA` to `/mnt/geesome/ipfs` and `STORAGE_STAGING` to `/mnt/geesome/ipfs-staging`. The `database` target moves Postgres data to `/mnt/geesome/postgres-data`. The script stops the Docker stack before copying, copies and verifies the data, updates Docker Compose `.env` automatically, writes a `geesome-docker` systemd storage override when that service is installed, relinks the old paths, runs the IPFS ownership preflight when needed, and starts the stack again. Add `--no-restart` only if you want to leave the stack stopped after the move.
 
 By default the old source directories are deleted after the stack starts successfully, freeing space on the original disk. Add `--keep-source` if you want rollback directories left as `*.moved-<timestamp>` backups instead.
 
