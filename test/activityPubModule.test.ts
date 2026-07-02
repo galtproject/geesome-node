@@ -5,7 +5,16 @@ import {Op} from 'sequelize';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, getActivityPubContentDigestHeader, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
-import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
+import {
+	ActivityPubDeliveryState,
+	ActivityPubFlagState,
+	ActivityPubFollowDirection,
+	ActivityPubFollowState,
+	ActivityPubObjectOrigin,
+	ActivityPubObjectReviewState,
+	ActivityPubObjectVisibility,
+	ActivityPubSourceSubscriptionStatus
+} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType, ContentView} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {RICH_TEXT_MIME_TYPE} from '../app/richText.js';
@@ -255,6 +264,125 @@ describe('activityPub module', () => {
 		assert.equal(remoteActor.inboxUrl, 'https://remote.example/users/alice/inbox');
 		assert.equal(remoteActor.sharedInboxUrl, 'https://remote.example/inbox');
 		assert.equal(JSON.parse(remoteActor.rawJson).id, remoteActorKey.actorUrl);
+	});
+
+	it('subscribes to ActivityPub sources and returns cached source feed', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchCalls: string[] = [];
+		const webFingerCalls: any[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchActivityPubWebFinger: async (resource, domain) => {
+				webFingerCalls.push({resource, domain});
+				return {
+					subject: resource,
+					aliases: [remoteActorKey.actorUrl],
+					links: [
+						{
+							rel: 'self',
+							type: 'application/activity+json',
+							href: remoteActorKey.actorUrl
+						}
+					]
+				};
+			},
+			fetchRemoteActor: async (actorUrl) => {
+				fetchCalls.push(actorUrl);
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+		const resolved = await module.resolveActivityPubSource({
+			handle: 'bsky.app',
+			bridgeProvider: 'bridgy-bluesky'
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			resource: 'acct:bsky.app@bsky.brid.gy',
+			displayName: 'Bluesky'
+		});
+		const updatedSubscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			displayName: 'Bluesky official'
+		});
+		const remoteObject = await models.ActivityPubObject.create({
+			localActorId: null,
+			localPostId: null,
+			remoteActorId: models.ActivityPubRemoteActor.rows[0].id,
+			remoteObjectUrl: 'https://remote.example/objects/source-1',
+			activityId: 'https://remote.example/activities/source-1',
+			objectId: 'https://remote.example/objects/source-1',
+			objectType: 'Note',
+			origin: ActivityPubObjectOrigin.Remote,
+			visibility: ActivityPubObjectVisibility.Public,
+			publishedAt: new Date('2026-06-01T12:05:00Z'),
+			createdAt: new Date('2026-06-01T12:05:01Z'),
+			rawJson: JSON.stringify({
+				id: 'https://remote.example/objects/source-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				content: '<p>Hello <strong>source</strong><script>alert(1)</script></p>',
+				published: '2026-06-01T12:05:00Z'
+			})
+		});
+		await models.ActivityPubObjectReview.create({
+			activityPubObjectId: remoteObject.id,
+			state: ActivityPubObjectReviewState.Accepted,
+			reviewedAt: new Date('2026-06-01T12:06:00Z'),
+			reviewedByUserId: 7
+		});
+
+		const feed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const readSubscription = await module.markActivityPubSourceRead(7, subscription.id, {
+			readAt: '2026-06-01T12:10:00Z'
+		});
+		const readFeed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const pausedSubscription = await module.updateActivityPubSourceSubscription(7, subscription.id, {
+			status: ActivityPubSourceSubscriptionStatus.Paused,
+			displayName: ''
+		});
+		await assert.rejects(() => module.updateActivityPubSourceSubscription(7, subscription.id, {
+			status: ActivityPubSourceSubscriptionStatus.Removed
+		}), /activitypub_source_subscription_status_invalid/);
+		await assert.rejects(() => module.markActivityPubSourceRead(7, subscription.id, {
+			readAt: 'invalid-date'
+		}), /activitypub_source_read_at_invalid/);
+		const removedSubscription = await module.removeActivityPubSourceSubscription(7, subscription.id);
+		const activeSubscriptions = await module.getActivityPubSourceSubscriptions(7);
+		const removedSubscriptions = await module.getActivityPubSourceSubscriptions(7, {
+			status: ActivityPubSourceSubscriptionStatus.Removed
+		});
+
+		assert.deepEqual(webFingerCalls, [
+			{resource: 'acct:bsky.app@bsky.brid.gy', domain: 'bsky.brid.gy'},
+			{resource: 'acct:bsky.app@bsky.brid.gy', domain: 'bsky.brid.gy'}
+		]);
+		assert.deepEqual(fetchCalls, [remoteActorKey.actorUrl]);
+		assert.equal(resolved.sourceActorUrl, remoteActorKey.actorUrl);
+		assert.equal(resolved.sourceResource, 'acct:bsky.app@bsky.brid.gy');
+		assert.equal(resolved.bridgeProvider, 'bridgy-bluesky');
+		assert.equal(resolved.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(models.ActivityPubSourceSubscription.rows.length, 1);
+		assert.equal(subscription.sourceResource, 'acct:bsky.app@bsky.brid.gy');
+		assert.equal(subscription.displayName, 'Bluesky');
+		assert.equal(subscription.status, ActivityPubSourceSubscriptionStatus.Active);
+		assert.equal(updatedSubscription.id, subscription.id);
+		assert.equal(updatedSubscription.displayName, 'Bluesky official');
+		assert.equal(updatedSubscription.sourceResource, 'acct:bsky.app@bsky.brid.gy');
+		assert.equal(feed.source.id, subscription.id);
+		assert.equal(feed.source.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(feed.total, 1);
+		assert.equal(feed.list[0].sourceSubscriptionId, subscription.id);
+		assert.equal(feed.list[0].isUnread, true);
+		assert.equal(feed.list[0].reviewState, ActivityPubObjectReviewState.Accepted);
+		assert.equal(feed.list[0].preview?.contentText, 'Hello source');
+		assert.equal(readSubscription.lastReadAt?.toISOString(), '2026-06-01T12:10:00.000Z');
+		assert.equal(readFeed.list[0].isUnread, false);
+		assert.equal(pausedSubscription.status, ActivityPubSourceSubscriptionStatus.Paused);
+		assert.equal(pausedSubscription.displayName, undefined);
+		assert.equal(removedSubscription.status, ActivityPubSourceSubscriptionStatus.Removed);
+		assert.deepEqual(activeSubscriptions, {
+			list: [],
+			total: 0
+		});
+		assert.equal(removedSubscriptions.list.length, 1);
 	});
 
 	it('records signed Follow activities for group inboxes idempotently', async () => {
@@ -2359,6 +2487,12 @@ describe('activityPub API', () => {
 		const permissionChecks: any[] = [];
 		const remoteObjectPostCreateCalls: any[] = [];
 		const remoteObjectAttachmentBackupQueueCalls: any[] = [];
+		const sourceResolveCalls: any[] = [];
+		const sourceSubscribeCalls: any[] = [];
+		const sourceUpdateCalls: any[] = [];
+		const sourceRemoveCalls: any[] = [];
+		const sourceFeedCalls: any[] = [];
+		const sourceReadCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -2379,6 +2513,84 @@ describe('activityPub API', () => {
 				list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
 				total: 1
 			}),
+			resolveActivityPubSource: async (input) => {
+				sourceResolveCalls.push(input);
+				return {
+					sourceResource: 'acct:bsky.app@bsky.brid.gy',
+					sourceActorUrl: 'https://remote.example/users/alice',
+					bridgeProvider: 'bridgy-bluesky',
+					remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'}
+				};
+			},
+			getActivityPubSourceSubscriptions: async (userId, filters, listParams) => ({
+				list: [{
+					id: 4,
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Active,
+					remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'},
+					_filters: filters,
+					_listParams: listParams
+				}],
+				total: 1
+			}),
+			subscribeActivityPubSource: async (userId, input) => {
+				sourceSubscribeCalls.push({userId, input});
+				return {
+					id: 4,
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Active
+				};
+			},
+			updateActivityPubSourceSubscription: async (userId, sourceId, input) => {
+				sourceUpdateCalls.push({userId, sourceId, input});
+				return {
+					id: Number(sourceId),
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: input.status,
+					displayName: input.displayName
+				};
+			},
+			removeActivityPubSourceSubscription: async (userId, sourceId) => {
+				sourceRemoveCalls.push({userId, sourceId});
+				return {
+					id: Number(sourceId),
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Removed
+				};
+			},
+			getActivityPubSourceFeed: async (userId, sourceId, filters, listParams) => {
+				sourceFeedCalls.push({userId, sourceId, filters, listParams});
+				return {
+					source: {
+						id: Number(sourceId),
+						userId,
+						remoteActorId: 1,
+						sourceActorUrl: 'https://remote.example/users/alice',
+						status: ActivityPubSourceSubscriptionStatus.Active
+					},
+					list: [{id: 9, objectId: 'https://remote.example/objects/1', isUnread: true}],
+					total: 1
+				};
+			},
+			markActivityPubSourceRead: async (userId, sourceId, input) => {
+				sourceReadCalls.push({userId, sourceId, input});
+				return {
+					id: Number(sourceId),
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Active,
+					lastReadAt: new Date(input.readAt)
+				};
+			},
 			getGroupRemoteObjects: async () => ({
 				list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
 				total: 1
@@ -2608,6 +2820,95 @@ describe('activityPub API', () => {
 			deliveryId: 2
 		});
 
+		const sourceResolve = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/resolve', {
+			body: {handle: 'bsky.app', bridgeProvider: 'bridgy-bluesky'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceResolveCalls, [{
+			handle: 'bsky.app',
+			bridgeProvider: 'bridgy-bluesky'
+		}]);
+		assert.deepEqual(sourceResolve.body, {
+			sourceResource: 'acct:bsky.app@bsky.brid.gy',
+			sourceActorUrl: 'https://remote.example/users/alice',
+			bridgeProvider: 'bridgy-bluesky',
+			remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'}
+		});
+
+		const sources = await callRoute(routes, 'AUTH GET admin/activity-pub/sources', {
+			query: {status: ActivityPubSourceSubscriptionStatus.Active},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:read'});
+		assert.equal(sources.body.list[0].id, 4);
+		assert.deepEqual(sources.body.list[0]._filters, {status: ActivityPubSourceSubscriptionStatus.Active});
+
+		const sourceSubscribe = await callRoute(routes, 'AUTH POST admin/activity-pub/sources', {
+			body: {resource: 'acct:bsky.app@bsky.brid.gy', displayName: 'Bluesky'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceSubscribeCalls, [{
+			userId: 1,
+			input: {
+				resource: 'acct:bsky.app@bsky.brid.gy',
+				displayName: 'Bluesky'
+			}
+		}]);
+		assert.equal(sourceSubscribe.body.id, 4);
+
+		const sourceFeed = await callRoute(routes, 'AUTH GET admin/activity-pub/sources/:sourceId/feed', {
+			params: {sourceId: '4'},
+			query: {objectType: 'Note'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(sourceFeedCalls, [{
+			userId: 1,
+			sourceId: '4',
+			filters: {objectType: 'Note'},
+			listParams: {objectType: 'Note'}
+		}]);
+		assert.equal(sourceFeed.body.list[0].isUnread, true);
+
+		const sourceRead = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/read', {
+			params: {sourceId: '4'},
+			body: {readAt: '2026-06-01T12:10:00Z'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceReadCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {readAt: '2026-06-01T12:10:00Z'}
+		}]);
+		assert.equal(sourceRead.body.lastReadAt.toISOString(), '2026-06-01T12:10:00.000Z');
+
+		const sourceUpdate = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/update', {
+			params: {sourceId: '4'},
+			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceUpdateCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'}
+		}]);
+		assert.equal(sourceUpdate.body.status, ActivityPubSourceSubscriptionStatus.Paused);
+
+		const sourceRemove = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/remove', {
+			params: {sourceId: '4'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceRemoveCalls, [{
+			userId: 1,
+			sourceId: '4'
+		}]);
+		assert.equal(sourceRemove.body.status, ActivityPubSourceSubscriptionStatus.Removed);
+
 		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
 			params: {groupName: 'test-channel'},
 			headers: {},
@@ -2823,6 +3124,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 			models,
 			resolveRemoteActorKey: overrides.resolveRemoteActorKey,
 			fetchRemoteActor: overrides.fetchRemoteActor,
+			fetchActivityPubWebFinger: overrides.fetchActivityPubWebFinger,
 			remoteActorCacheMaxAgeMs: overrides.remoteActorCacheMaxAgeMs,
 			deliverActivityPubRequest: overrides.deliverActivityPubRequest
 		}),
@@ -3007,6 +3309,7 @@ function getModelsStub() {
 	const models = {
 		ActivityPubActor: getModelStub(),
 		ActivityPubRemoteActor: getModelStub(),
+		ActivityPubSourceSubscription: getModelStub(),
 		ActivityPubFollow: getModelStub(),
 		ActivityPubObject: getModelStub(),
 		ActivityPubDelivery: getModelStub(),

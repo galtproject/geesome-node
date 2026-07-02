@@ -142,6 +142,157 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/sources/resolve Resolve ActivityPub source
+	 * @apiName AdminActivityPubSourceResolve
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Resolves a remote ActivityPub source before subscribing. The input can be a direct `actorUrl`, an ActivityPub WebFinger `resource` such as `acct:alice@example.com`, a full `handle` such as `alice@example.com`, or a Bridgy Bluesky handle with `bridgeProvider=bridgy-bluesky` such as `bsky.app`. Resolving may refresh the remote actor cache, but it does not follow the actor, import posts, or create GeeSome content.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:bsky.app@bsky.brid.gy`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {String} [sourceResource] Resolved WebFinger resource when one was used.
+	 * @apiSuccess {String} [bridgeProvider] Bridge provider detected from input or resolved actor metadata.
+	 * @apiSuccess {Object} [remoteActor] Cached remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/resolve', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.resolveActivityPubSource(req.body || {}));
+	});
+
+	/**
+	 * @api {get} /v1/admin/activity-pub/sources List ActivityPub source subscriptions
+	 * @apiName AdminActivityPubSources
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists the current admin user's ActivityPub source subscriptions for reader/feed UI. Removed subscriptions are hidden unless `status=removed` is requested explicitly. This only lists subscriptions and cached remote actor metadata; it does not fetch remote timelines or import posts.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="active","paused","removed"} [status] Filter by subscription status.
+	 * @apiQuery {Number} [remoteActorId] Filter by cached remote actor id.
+	 * @apiSuccess {Object[]} list Source subscription rows with remote actor metadata.
+	 * @apiSuccess {Number} total Total matching subscriptions.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getActivityPubSourceSubscriptions(req.user.id, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources Subscribe ActivityPub source
+	 * @apiName AdminActivityPubSourceSubscribe
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Creates or reactivates a source subscription for the current admin user. The input accepts the same source fields as `/sources/resolve` plus an optional display name. Duplicate subscribes for the same user and remote actor are idempotent updates. This does not follow the actor, import posts, or create GeeSome content.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:bsky.app@bsky.brid.gy`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {String} [displayName] Optional UI label for the source.
+	 * @apiSuccess {Object} result Source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.subscribeActivityPubSource(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/update Update ActivityPub source subscription
+	 * @apiName AdminActivityPubSourceUpdate
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates local subscription metadata such as display name or active/paused status. It does not update remote actor data, fetch posts, follow/unfollow, import posts, or delete cached ActivityPub objects.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String} [displayName] Optional UI label for the source.
+	 * @apiBody {String="active","paused"} [status] New subscription status.
+	 * @apiSuccess {Object} result Updated source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/update', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.updateActivityPubSourceSubscription(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/remove Remove ActivityPub source subscription
+	 * @apiName AdminActivityPubSourceRemove
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Marks a source subscription removed for the current admin user. It does not delete cached remote actors/objects, unfollow any local group actor, delete GeeSome posts, or federate an ActivityPub activity.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiSuccess {Object} result Removed source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/remove', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.removeActivityPubSourceSubscription(req.user.id, req.params.sourceId));
+	});
+
+	/**
+	 * @api {get} /v1/admin/activity-pub/sources/:sourceId/feed List ActivityPub source feed
+	 * @apiName AdminActivityPubSourceFeed
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists cached remote ActivityPub objects for a subscribed source actor. Feed items reuse the same sanitized `preview` projection as remote object moderation views and include an `isUnread` marker based on the subscription read cursor. This route does not fetch remote timelines, import posts, or create GeeSome content.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
+	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note`, `Article`, or `Tombstone`.
+	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
+	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
+	 * @apiSuccess {Object} source Source subscription row with remote actor metadata.
+	 * @apiSuccess {Object[]} list Cached remote object rows with sanitized preview data and `isUnread`.
+	 * @apiSuccess {Number} total Total matching cached remote objects.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/sources/:sourceId/feed', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getActivityPubSourceFeed(req.user.id, req.params.sourceId, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/read Mark ActivityPub source feed read
+	 * @apiName AdminActivityPubSourceRead
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates the current admin user's read cursor for a source subscription. It only affects local unread markers and does not change cached objects, review decisions, or native GeeSome posts.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Date} [readAt=now] Read cursor timestamp.
+	 * @apiSuccess {Object} result Updated source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/read', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.markActivityPubSourceRead(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
 	 * @api {get} /v1/admin/activity-pub/groups/:groupName/remote-objects List cached ActivityPub remote objects
 	 * @apiName AdminActivityPubRemoteObjects
 	 * @apiGroup AdminActivityPub

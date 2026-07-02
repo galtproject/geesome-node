@@ -15,6 +15,7 @@ import IGeesomeActivityPubModule, {
 	ActivityPubObjectOrigin,
 	ActivityPubObjectReviewState,
 	ActivityPubObjectVisibility,
+	ActivityPubSourceSubscriptionStatus,
 	IActivityPubFlagReport,
 	IActivityPubFlagReportFilters,
 	IActivityPubFlagReportListResponse,
@@ -34,12 +35,23 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectReviewStateInput,
 	IActivityPubRemoteObjectAttachmentPreview,
 	IActivityPubRemoteObjectPreview,
+	IActivityPubSourceFeedFilters,
+	IActivityPubSourceFeedResponse,
+	IActivityPubSourceReadInput,
+	IActivityPubSourceResolveInput,
+	IActivityPubSourceResolveResult,
+	IActivityPubSourceSubscriptionFilters,
+	IActivityPubSourceSubscriptionInput,
+	IActivityPubSourceSubscriptionListResponse,
+	IActivityPubSourceSubscriptionReport,
+	IActivityPubSourceSubscriptionUpdateInput,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
 	IActivityPubDeliveryProcessOptions,
 	IActivityPubOutboundFollowOptions,
 	IActivityPubOutboundFollowResult,
 	IActivityPubRemoteActorKeyResolver,
+	IActivityPubWebFingerFetcher,
 	IActivityPubDeliveryRequestSender,
 	IActivityPubSignRequestOptions,
 	IResolvedActivityPubConfig
@@ -106,6 +118,7 @@ import {
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
 	resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver;
+	fetchActivityPubWebFinger?: IActivityPubWebFingerFetcher;
 	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
 };
 
@@ -152,6 +165,13 @@ const activityPubRemoteObjectListParams = {
 	allowedSortBy: ['publishedAt', 'createdAt', 'updatedAt', 'id', 'objectType', 'visibility'],
 	maxLimit: 100
 };
+const activityPubSourceSubscriptionListParams = {
+	limit: 20,
+	sortBy: 'updatedAt',
+	sortDir: 'DESC',
+	allowedSortBy: ['createdAt', 'updatedAt', 'id', 'displayName', 'status', 'lastReadAt', 'lastRefreshRequestedAt'],
+	maxLimit: 100
+};
 const maxActivityPubRemoteObjectPreviewRawHtmlLength = 50000;
 const maxActivityPubRemoteObjectPreviewHtmlLength = 5000;
 const maxActivityPubRemoteObjectPreviewTextLength = 1000;
@@ -165,6 +185,9 @@ const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 
 const activityPubRemoteAttachmentBackupQueueModuleName = 'activitypub-attachment-backup';
 const activityPubRemoteAttachmentBackupQueueKickBatchLimit = 3;
 const activityPubRemoteAttachmentBackupQueueMaxAttempts = 5;
+const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
+const activityPubBlueskyOfficialPreset = 'bluesky-official';
+const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
 const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImportPolicy = Object.freeze({
 	mode: 'provenanceOnly',
 	defaultMode: 'provenanceOnly',
@@ -305,6 +328,66 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			}
 
 			return getGroupFlagReportList(app, models, actorRecord, filters, listParams);
+		}
+
+		async resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult> {
+			getResolvedActivityPubConfig(app);
+			return getActivityPubSourceResolveResult(models, input, options);
+		}
+
+		async getActivityPubSourceSubscriptions(userId: number, filters: IActivityPubSourceSubscriptionFilters = {}, listParams: IListParams = {}): Promise<IActivityPubSourceSubscriptionListResponse> {
+			getResolvedActivityPubConfig(app);
+			return getActivityPubSourceSubscriptionList(app, models, userId, filters, listParams);
+		}
+
+		async subscribeActivityPubSource(userId: number, input: IActivityPubSourceSubscriptionInput): Promise<IActivityPubSourceSubscriptionReport> {
+			getResolvedActivityPubConfig(app);
+			const resolution = await getActivityPubSourceResolution(models, input, options);
+			const subscription = await upsertActivityPubSourceSubscription(models, userId, input, resolution);
+			return getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
+		}
+
+		async updateActivityPubSourceSubscription(userId: number, sourceId: number | string, input: IActivityPubSourceSubscriptionUpdateInput): Promise<IActivityPubSourceSubscriptionReport> {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+			await updateActivityPubSourceSubscriptionRecord(subscription, getActivityPubSourceSubscriptionUpdateData(input));
+			return getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
+		}
+
+		async removeActivityPubSourceSubscription(userId: number, sourceId: number | string): Promise<IActivityPubSourceSubscriptionReport> {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+			await updateActivityPubSourceSubscriptionRecord(subscription, {
+				status: ActivityPubSourceSubscriptionStatus.Removed
+			});
+			return getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
+		}
+
+		async getActivityPubSourceFeed(userId: number, sourceId: number | string, filters: IActivityPubSourceFeedFilters = {}, listParams: IListParams = {}): Promise<IActivityPubSourceFeedResponse> {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+			return getActivityPubSourceFeed(app, models, subscription, filters, listParams);
+		}
+
+		async markActivityPubSourceRead(userId: number, sourceId: number | string, input: IActivityPubSourceReadInput = {}): Promise<IActivityPubSourceSubscriptionReport> {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+			await updateActivityPubSourceSubscriptionRecord(subscription, {
+				lastReadAt: getActivityPubSourceReadAt(input)
+			});
+			return getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
 		}
 
 		async getGroupRemoteObjects(groupName: string, filters: IActivityPubRemoteObjectFilters = {}, listParams: IListParams = {}): Promise<IActivityPubRemoteObjectListResponse> {
@@ -922,6 +1005,514 @@ async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, fil
 		list: reportPage.rows.map((flag) => getActivityPubFlagReport(flag, remoteActorById, targetByObjectId)),
 		total: getListPageCount(reportPage.count)
 	};
+}
+
+async function getActivityPubSourceResolveResult(models, input: IActivityPubSourceResolveInput, options: IActivityPubModuleOptions): Promise<IActivityPubSourceResolveResult> {
+	const resolution = await getActivityPubSourceResolution(models, input, options);
+	return getActivityPubSourceResolveResultFromResolution(resolution);
+}
+
+async function getActivityPubSourceSubscriptionList(app: IGeesomeApp, models, userId: number, filters: IActivityPubSourceSubscriptionFilters, listParams: IListParams): Promise<IActivityPubSourceSubscriptionListResponse> {
+	const preparedListParams = {
+		...listParams
+	};
+	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubSourceSubscriptionListParams);
+	const subscriptionPage = await models.ActivityPubSourceSubscription.findAndCountAll({
+		where: getActivityPubSourceSubscriptionWhere(userId, filters),
+		order: [[preparedListParams.sortBy, getListSortDirection(preparedListParams)]],
+		limit: preparedListParams.limit,
+		offset: preparedListParams.offset
+	});
+	const remoteActors = await getRemoteActorRecordsByIds(models, subscriptionPage.rows.map((subscription) => subscription.remoteActorId));
+	const remoteActorById = getRemoteActorById(remoteActors);
+
+	return {
+		list: subscriptionPage.rows.map((subscription) => getActivityPubSourceSubscriptionReport(subscription, remoteActorById)),
+		total: getListPageCount(subscriptionPage.count)
+	};
+}
+
+async function upsertActivityPubSourceSubscription(models, userId: number, input: IActivityPubSourceSubscriptionInput, resolution) {
+	const subscriptionData = getActivityPubSourceSubscriptionData(userId, input, resolution);
+	const existingSubscription = await getActivityPubSourceSubscriptionByRemoteActorId(models, userId, resolution.remoteActorRecord.id);
+	if (existingSubscription) {
+		await updateActivityPubSourceSubscriptionRecord(
+			existingSubscription,
+			getExistingActivityPubSourceSubscriptionUpdateData(subscriptionData, resolution)
+		);
+		return existingSubscription;
+	}
+
+	try {
+		return await models.ActivityPubSourceSubscription.create(subscriptionData);
+	} catch (e) {
+		if (!isActivityPubSourceSubscriptionUniqueError(e)) {
+			throw e;
+		}
+		const createdSubscription = await getActivityPubSourceSubscriptionByRemoteActorId(models, userId, resolution.remoteActorRecord.id);
+		if (!createdSubscription) {
+			throw e;
+		}
+		await updateActivityPubSourceSubscriptionRecord(
+			createdSubscription,
+			getExistingActivityPubSourceSubscriptionUpdateData(subscriptionData, resolution)
+		);
+		return createdSubscription;
+	}
+}
+
+async function getActivityPubSourceFeed(app: IGeesomeApp, models, subscription, filters: IActivityPubSourceFeedFilters, listParams: IListParams): Promise<IActivityPubSourceFeedResponse> {
+	const preparedListParams = {
+		...listParams
+	};
+	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubRemoteObjectListParams);
+	const where = await getActivityPubSourceFeedWhere(models, subscription, filters);
+	const objectPage = await models.ActivityPubObject.findAndCountAll({
+		where,
+		order: [
+			[preparedListParams.sortBy, getListSortDirection(preparedListParams)],
+			['id', getListSortDirection(preparedListParams)]
+		],
+		limit: preparedListParams.limit,
+		offset: preparedListParams.offset
+	});
+	const remoteActors = await getRemoteActorRecordsByIds(models, objectPage.rows.map((object) => object.remoteActorId));
+	const remoteActorById = getRemoteActorById(remoteActors);
+	const reviews = await getActivityPubObjectReviewRecordsByObjectIds(models, objectPage.rows.map((object) => object.id));
+	const reviewByObjectId = getActivityPubObjectReviewByObjectId(reviews);
+	const source = await getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
+
+	return {
+		source,
+		list: objectPage.rows.map((object) => getActivityPubSourceFeedItem(subscription, object, remoteActorById, reviewByObjectId)),
+		total: getListPageCount(objectPage.count)
+	};
+}
+
+async function getActivityPubSourceResolution(models, input: IActivityPubSourceResolveInput = {}, options: IActivityPubModuleOptions) {
+	const lookup = await getActivityPubSourceLookup(input, options);
+	const remoteActorRecord = await getActivityPubRemoteActorRecord(models, lookup.actorUrl, options);
+
+	return {
+		sourceResource: lookup.sourceResource,
+		sourceActorUrl: remoteActorRecord.actorUrl,
+		bridgeProvider: getActivityPubSourceBridgeProvider(input, lookup.sourceResource, remoteActorRecord),
+		remoteActorRecord
+	};
+}
+
+async function getActivityPubSourceLookup(input: IActivityPubSourceResolveInput, options: IActivityPubModuleOptions) {
+	const actorUrl = getOptionalActivityPubSourceActorUrl(input);
+	if (actorUrl) {
+		return {
+			actorUrl,
+			sourceResource: getOptionalActivityPubSourceResource(input)
+		};
+	}
+
+	const sourceResource = getRequiredActivityPubSourceResource(input);
+	return {
+		actorUrl: await getActivityPubSourceActorUrlByResource(sourceResource, options),
+		sourceResource
+	};
+}
+
+async function getActivityPubSourceActorUrlByResource(resource: string, options: IActivityPubModuleOptions): Promise<string> {
+	const domain = getActivityPubSourceResourceDomain(resource);
+	const webFinger = await fetchActivityPubSourceWebFinger(resource, domain, options);
+	return getRequiredActivityPubWebFingerActorUrl(webFinger);
+}
+
+async function fetchActivityPubSourceWebFinger(resource: string, domain: string, options: IActivityPubModuleOptions): Promise<any> {
+	if (options.fetchActivityPubWebFinger) {
+		return options.fetchActivityPubWebFinger(resource, domain);
+	}
+	if (typeof globalThis.fetch !== 'function') {
+		throwActivityPubError('activitypub_source_webfinger_fetch_unavailable', 501);
+	}
+
+	let response;
+	try {
+		response = await globalThis.fetch(`https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`, {
+			headers: {
+				Accept: 'application/jrd+json, application/json'
+			}
+		});
+	} catch (e) {
+		throwActivityPubError('activitypub_source_webfinger_fetch_failed', 401);
+	}
+	if (!response.ok) {
+		throwActivityPubError(`activitypub_source_webfinger_fetch_failed:${response.status}`, 401);
+	}
+	try {
+		return await response.json();
+	} catch (e) {
+		throwActivityPubError('activitypub_source_webfinger_json_invalid', 401);
+	}
+}
+
+function getActivityPubSourceResolveResultFromResolution(resolution): IActivityPubSourceResolveResult {
+	const result: IActivityPubSourceResolveResult = {
+		sourceActorUrl: resolution.sourceActorUrl,
+		remoteActor: getActivityPubRemoteActorReport(resolution.remoteActorRecord)
+	};
+	if (resolution.sourceResource) {
+		result.sourceResource = resolution.sourceResource;
+	}
+	if (resolution.bridgeProvider) {
+		result.bridgeProvider = resolution.bridgeProvider;
+	}
+	return result;
+}
+
+function getActivityPubSourceSubscriptionData(userId: number, input: IActivityPubSourceSubscriptionInput, resolution) {
+	return {
+		userId,
+		remoteActorId: resolution.remoteActorRecord.id,
+		sourceResource: resolution.sourceResource || null,
+		sourceActorUrl: resolution.sourceActorUrl,
+		bridgeProvider: resolution.bridgeProvider || null,
+		displayName: getActivityPubSourceDisplayName(input, resolution.remoteActorRecord),
+		status: ActivityPubSourceSubscriptionStatus.Active,
+		lastError: null
+	};
+}
+
+function getExistingActivityPubSourceSubscriptionUpdateData(subscriptionData, resolution) {
+	const updateData = {
+		...subscriptionData
+	};
+	if (!resolution.sourceResource) {
+		delete updateData.sourceResource;
+	}
+	if (!resolution.bridgeProvider) {
+		delete updateData.bridgeProvider;
+	}
+	return updateData;
+}
+
+function getActivityPubSourceSubscriptionUpdateData(input: IActivityPubSourceSubscriptionUpdateInput) {
+	const updateData = {} as any;
+	const displayName = getOptionalBoundedString(input?.displayName, 200);
+	if (displayName !== undefined) {
+		updateData.displayName = displayName || null;
+	}
+	if (input?.status !== undefined) {
+		updateData.status = getRequiredMutableActivityPubSourceSubscriptionStatus(input.status);
+	}
+	return updateData;
+}
+
+async function updateActivityPubSourceSubscriptionRecord(subscription, updateData): Promise<void> {
+	const changedData = getChangedActivityPubSourceSubscriptionData(subscription, updateData);
+	if (!Object.keys(changedData).length) {
+		return;
+	}
+	await subscription.update(changedData);
+}
+
+function getChangedActivityPubSourceSubscriptionData(subscription, updateData) {
+	const changedData = {};
+	Object.keys(updateData).forEach((key) => {
+		if (subscription[key] === updateData[key]) {
+			return;
+		}
+		changedData[key] = updateData[key];
+	});
+	return changedData;
+}
+
+function getActivityPubSourceSubscriptionWhere(userId: number, filters: IActivityPubSourceSubscriptionFilters = {}) {
+	const where: any = {
+		userId
+	};
+	if (isKnownActivityPubSourceSubscriptionStatus(filters.status)) {
+		where.status = filters.status;
+	} else {
+		where.status = {
+			[Op.notIn]: [ActivityPubSourceSubscriptionStatus.Removed]
+		};
+	}
+	const remoteActorId = helpers.normalizeUniqueIds(filters.remoteActorId)[0];
+	if (remoteActorId) {
+		where.remoteActorId = remoteActorId;
+	}
+	return where;
+}
+
+async function getActivityPubSourceSubscriptionRecord(models, userId: number, sourceId: number | string) {
+	const id = helpers.normalizeUniqueIds(sourceId)[0];
+	if (!id) {
+		return null;
+	}
+	return models.ActivityPubSourceSubscription.findOne({
+		where: {
+			id,
+			userId,
+			status: {
+				[Op.notIn]: [ActivityPubSourceSubscriptionStatus.Removed]
+			}
+		}
+	});
+}
+
+async function getActivityPubSourceSubscriptionByRemoteActorId(models, userId: number, remoteActorId: number) {
+	return models.ActivityPubSourceSubscription.findOne({
+		where: {
+			userId,
+			remoteActorId
+		}
+	});
+}
+
+async function getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription): Promise<IActivityPubSourceSubscriptionReport> {
+	const remoteActors = await getRemoteActorRecordsByIds(models, [subscription.remoteActorId]);
+	return getActivityPubSourceSubscriptionReport(subscription, getRemoteActorById(remoteActors));
+}
+
+function getActivityPubSourceSubscriptionReport(subscription, remoteActorById: Map<number, any>): IActivityPubSourceSubscriptionReport {
+	const remoteActor = remoteActorById.get(Number(subscription.remoteActorId));
+	const report: IActivityPubSourceSubscriptionReport = {
+		id: subscription.id,
+		userId: subscription.userId,
+		remoteActorId: subscription.remoteActorId,
+		remoteActor: getActivityPubRemoteActorReport(remoteActor),
+		sourceActorUrl: subscription.sourceActorUrl || remoteActor?.actorUrl || '',
+		status: subscription.status,
+		createdAt: subscription.createdAt,
+		updatedAt: subscription.updatedAt
+	};
+	if (subscription.sourceResource) {
+		report.sourceResource = subscription.sourceResource;
+	}
+	if (subscription.bridgeProvider) {
+		report.bridgeProvider = subscription.bridgeProvider;
+	}
+	if (subscription.displayName) {
+		report.displayName = subscription.displayName;
+	}
+	if (subscription.lastReadAt) {
+		report.lastReadAt = subscription.lastReadAt;
+	}
+	if (subscription.lastRefreshRequestedAt) {
+		report.lastRefreshRequestedAt = subscription.lastRefreshRequestedAt;
+	}
+	if (subscription.lastError) {
+		report.lastError = subscription.lastError;
+	}
+	return report;
+}
+
+async function getActivityPubSourceFeedWhere(models, subscription, filters: IActivityPubSourceFeedFilters = {}) {
+	const where: any = {
+		remoteActorId: subscription.remoteActorId,
+		origin: ActivityPubObjectOrigin.Remote
+	};
+	if (typeof filters.objectId === 'string' && filters.objectId) {
+		where.objectId = filters.objectId;
+	}
+	if (typeof filters.objectType === 'string' && filters.objectType) {
+		where.objectType = filters.objectType;
+	}
+	if (isKnownActivityPubObjectVisibility(filters.visibility)) {
+		where.visibility = filters.visibility;
+	}
+	const reviewStateObjectIdWhere = await getActivityPubObjectReviewStateObjectIdWhere(models, filters.reviewState);
+	if (reviewStateObjectIdWhere) {
+		where.id = reviewStateObjectIdWhere;
+	}
+	return where;
+}
+
+function getActivityPubSourceFeedItem(subscription, object, remoteActorById: Map<number, any>, reviewByObjectId: Map<number, any>) {
+	return {
+		...getActivityPubRemoteObjectReport(object, remoteActorById, reviewByObjectId),
+		sourceSubscriptionId: subscription.id,
+		isUnread: isActivityPubSourceFeedObjectUnread(subscription, object)
+	};
+}
+
+function isActivityPubSourceFeedObjectUnread(subscription, object): boolean {
+	const readAt = getOptionalDateTime(subscription.lastReadAt);
+	if (readAt === null) {
+		return true;
+	}
+	const objectTime = getOptionalDateTime(object.publishedAt) ?? getOptionalDateTime(object.createdAt) ?? getOptionalDateTime(object.updatedAt);
+	if (objectTime === null) {
+		return true;
+	}
+	return objectTime > readAt;
+}
+
+function getActivityPubSourceReadAt(input: IActivityPubSourceReadInput): Date {
+	if (input?.readAt === undefined) {
+		return new Date();
+	}
+	const readAt = new Date(input.readAt);
+	if (Number.isNaN(readAt.getTime())) {
+		throwActivityPubError('activitypub_source_read_at_invalid', 400);
+	}
+	return readAt;
+}
+
+function getRequiredActivityPubWebFingerActorUrl(webFinger): string {
+	const links = Array.isArray(webFinger?.links) ? webFinger.links : [];
+	const activityPubLink = links.find((link) => {
+		return link?.rel === 'self' && typeof link.href === 'string' && isActivityPubWebFingerSelfLink(link);
+	});
+	const selfLink = activityPubLink || links.find((link) => {
+		return link?.rel === 'self' && typeof link.href === 'string';
+	});
+	if (!selfLink) {
+		throwActivityPubError('activitypub_source_webfinger_actor_not_found', 401);
+	}
+	return selfLink.href;
+}
+
+function isActivityPubWebFingerSelfLink(link): boolean {
+	const type = String(link.type || '').toLowerCase();
+	return type.includes('activity+json')
+		|| type.includes('application/ld+json')
+		|| type.includes('activitystreams');
+}
+
+function getOptionalActivityPubSourceActorUrl(input: IActivityPubSourceResolveInput): string | null {
+	const actorUrl = getOptionalBoundedString(input?.actorUrl, 700);
+	return actorUrl || null;
+}
+
+function getOptionalActivityPubSourceResource(input: IActivityPubSourceResolveInput): string | null {
+	if (input?.resource !== undefined || input?.handle !== undefined || input?.preset !== undefined) {
+		return getRequiredActivityPubSourceResource(input);
+	}
+	return null;
+}
+
+function getRequiredActivityPubSourceResource(input: IActivityPubSourceResolveInput): string {
+	if (input?.resource !== undefined) {
+		return normalizeActivityPubSourceResource(input.resource);
+	}
+	if (input?.preset === activityPubBlueskyOfficialPreset) {
+		return `acct:bsky.app@${activityPubBlueskyBridgeHost}`;
+	}
+	if (input?.handle !== undefined) {
+		return getActivityPubSourceResourceByHandle(input.handle, input);
+	}
+	throwActivityPubError('activitypub_source_actor_required', 400);
+}
+
+function getActivityPubSourceResourceByHandle(rawHandle: string, input: IActivityPubSourceResolveInput): string {
+	const handle = getActivityPubSourceHandle(rawHandle);
+	if (handle.includes('@')) {
+		return normalizeActivityPubSourceResource(`acct:${handle}`);
+	}
+	if (getActivityPubSourceBridgeProviderInput(input) === activityPubBlueskyBridgeProvider) {
+		return normalizeActivityPubSourceResource(`acct:${handle}@${activityPubBlueskyBridgeHost}`);
+	}
+	throwActivityPubError('activitypub_source_handle_domain_required', 400);
+}
+
+function normalizeActivityPubSourceResource(value: string): string {
+	const resource = getOptionalBoundedString(value, 500);
+	if (!resource || !resource.toLowerCase().startsWith('acct:')) {
+		throwActivityPubError('activitypub_source_resource_invalid', 400);
+	}
+	const atIndex = resource.lastIndexOf('@');
+	if (atIndex <= 'acct:'.length) {
+		throwActivityPubError('activitypub_source_resource_invalid', 400);
+	}
+	const localName = resource.slice(5, atIndex);
+	const domain = resource.slice(atIndex + 1).toLowerCase();
+	if (!localName || !isValidActivityPubSourceDomain(domain)) {
+		throwActivityPubError('activitypub_source_resource_invalid', 400);
+	}
+	return `acct:${localName}@${domain}`;
+}
+
+function getActivityPubSourceResourceDomain(resource: string): string {
+	return normalizeActivityPubSourceResource(resource).split('@').pop() as string;
+}
+
+function getActivityPubSourceHandle(rawHandle: string): string {
+	const handle = getOptionalBoundedString(rawHandle, 300)?.replace(/^@/, '');
+	if (!handle || /[\s/]/.test(handle)) {
+		throwActivityPubError('activitypub_source_handle_invalid', 400);
+	}
+	return handle;
+}
+
+function getActivityPubSourceDisplayName(input: IActivityPubSourceSubscriptionInput, remoteActorRecord): string | null {
+	const explicitName = getOptionalBoundedString(input?.displayName, 200);
+	if (explicitName !== undefined) {
+		return explicitName || null;
+	}
+	if (remoteActorRecord?.preferredUsername && remoteActorRecord?.domain) {
+		return `${remoteActorRecord.preferredUsername}@${remoteActorRecord.domain}`;
+	}
+	return null;
+}
+
+function getActivityPubSourceBridgeProvider(input: IActivityPubSourceResolveInput, sourceResource: string | undefined, remoteActorRecord): string | undefined {
+	const explicitProvider = getActivityPubSourceBridgeProviderInput(input);
+	if (explicitProvider) {
+		return explicitProvider;
+	}
+	if (isActivityPubBlueskyBridgeSource(sourceResource, remoteActorRecord)) {
+		return activityPubBlueskyBridgeProvider;
+	}
+	return undefined;
+}
+
+function getActivityPubSourceBridgeProviderInput(input: IActivityPubSourceResolveInput): string | undefined {
+	const provider = getOptionalBoundedString(input?.bridgeProvider, 100);
+	if (!provider) {
+		return undefined;
+	}
+	if (provider === 'bluesky') {
+		return activityPubBlueskyBridgeProvider;
+	}
+	return provider;
+}
+
+function isActivityPubBlueskyBridgeSource(sourceResource: string | undefined, remoteActorRecord): boolean {
+	return Boolean(
+		sourceResource?.toLowerCase().endsWith(`@${activityPubBlueskyBridgeHost}`)
+		|| remoteActorRecord?.domain === activityPubBlueskyBridgeHost
+	);
+}
+
+function isKnownActivityPubSourceSubscriptionStatus(status): status is ActivityPubSourceSubscriptionStatus {
+	return Object.values(ActivityPubSourceSubscriptionStatus).includes(status);
+}
+
+function getRequiredMutableActivityPubSourceSubscriptionStatus(status): ActivityPubSourceSubscriptionStatus {
+	if (status === ActivityPubSourceSubscriptionStatus.Active || status === ActivityPubSourceSubscriptionStatus.Paused) {
+		return status;
+	}
+	throwActivityPubError('activitypub_source_subscription_status_invalid', 400);
+}
+
+function isValidActivityPubSourceDomain(domain: string): boolean {
+	return Boolean(domain && !/[\s/:]/.test(domain) && domain.includes('.'));
+}
+
+function getOptionalBoundedString(value, maxLength: number): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	return value.trim().slice(0, maxLength);
+}
+
+function getOptionalDateTime(value): number | null {
+	if (!value) {
+		return null;
+	}
+	const time = new Date(value).getTime();
+	return Number.isNaN(time) ? null : time;
+}
+
+function isActivityPubSourceSubscriptionUniqueError(error): boolean {
+	return error?.name === 'SequelizeUniqueConstraintError';
 }
 
 async function getGroupRemoteObjectList(app: IGeesomeApp, models, actorRecord, filters: IActivityPubRemoteObjectFilters, listParams: IListParams): Promise<IActivityPubRemoteObjectListResponse> {
