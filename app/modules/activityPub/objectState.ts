@@ -99,7 +99,11 @@ export async function updateRemoteActivityPubObject(models, options: IUpdateRemo
 	assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, 'activitypub_update_object_actor_mismatch');
 	assertActivityPubObjectNotTombstoned(existingObject);
 
-	return updateActivityPubObjectRecord(existingObject, getRemoteActivityPubObjectUpdateData(existingObject, options));
+	const objectData = getRemoteActivityPubObjectUpdateData(existingObject, options);
+	const objectChanged = hasChangedActivityPubObjectData(existingObject, objectData);
+	const objectRecord = await updateActivityPubObjectRecord(existingObject, objectData);
+	objectRecord.activityPubObjectChanged = objectChanged;
+	return objectRecord;
 }
 
 export async function tombstoneRemoteActivityPubObject(models, options: ITombstoneRemoteActivityPubObjectOptions) {
@@ -209,6 +213,10 @@ function getChangedActivityPubObjectData(objectRecord, objectData) {
 		updateData[key] = objectData[key];
 	});
 	return updateData;
+}
+
+function hasChangedActivityPubObjectData(objectRecord, objectData) {
+	return Object.keys(getChangedActivityPubObjectData(objectRecord, objectData)).length > 0;
 }
 
 async function getActivityPubObjectRecord(models, objectData) {

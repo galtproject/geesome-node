@@ -3,10 +3,12 @@ import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
 import {RICH_TEXT_MIME_TYPE, htmlToRichText} from '../../richText.js';
+import {ContentView} from '../database/interface.js';
 import type {IContent, IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import IGeesomeActivityPubModule, {
+	ActivityPubRemoteAttachmentImportMode,
 	ActivityPubFollowDirection,
 	ActivityPubFlagState,
 	ActivityPubFollowState,
@@ -19,10 +21,14 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
+	IActivityPubRemoteAttachmentBackup,
+	IActivityPubRemoteAttachmentImportPolicy,
+	IActivityPubRemoteObjectPostCreateOptions,
 	IActivityPubRemoteObjectPostDraft,
 	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
 	IActivityPubRemoteObjectReviewStateInput,
+	IActivityPubRemoteObjectAttachmentPreview,
 	IActivityPubRemoteObjectPreview,
 	IActivityPubInboxResult,
 	IActivityPubInboundRequest,
@@ -35,6 +41,8 @@ import IGeesomeActivityPubModule, {
 	IResolvedActivityPubConfig
 } from './interface.js';
 import {
+	buildActivityPubNodeInfoDiscoveryResponse,
+	buildActivityPubNodeInfoResponse,
 	buildActivityPubGroupWebFingerResponse,
 	getActivityPubGroupActorUrls,
 	getActivityPubGroupPreferredUsername,
@@ -97,6 +105,12 @@ type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
 };
 
+type IActivityPubRemoteObjectPostContentResult = {
+	contents: IContent[];
+	attachmentBackups: IActivityPubRemoteAttachmentBackup[];
+	attachmentImportMode: ActivityPubRemoteAttachmentImportMode;
+};
+
 const activityPubFollowerListParams = {
 	limit: 20,
 	sortBy: 'acceptedAt',
@@ -124,6 +138,29 @@ const maxActivityPubRemoteObjectPreviewRawHtmlLength = 50000;
 const maxActivityPubRemoteObjectPreviewHtmlLength = 5000;
 const maxActivityPubRemoteObjectPreviewTextLength = 1000;
 const maxActivityPubRemoteObjectPreviewNameLength = 500;
+const maxActivityPubRemoteObjectPreviewAttachments = 8;
+const maxActivityPubRemoteObjectPreviewAttachmentTextLength = 500;
+const maxActivityPubRemoteObjectPreviewAttachmentTypeLength = 100;
+const maxActivityPubRemoteObjectPreviewAttachmentDimension = 1000000;
+const maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength = 200;
+const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 * 7;
+const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImportPolicy = Object.freeze({
+	mode: 'provenanceOnly',
+	defaultMode: 'provenanceOnly',
+	canImportRemoteBytes: true,
+	supportedModes: ['provenanceOnly', 'backupOnCreate']
+});
+const activityPubSharedInboxReviewObjectTypes = new Set([
+	'Note',
+	'Article',
+	'Page',
+	'Image',
+	'Video',
+	'Audio',
+	'Document',
+	'Question',
+	'Event'
+]);
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database', 'content']);
@@ -151,6 +188,16 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 
 			const group = await getFederatableGroup(app, preferredUsername);
 			return buildActivityPubGroupWebFingerResponse(config, group);
+		}
+
+		async getNodeInfoDiscovery() {
+			const config = getResolvedActivityPubConfig(app);
+			return buildActivityPubNodeInfoDiscoveryResponse(config);
+		}
+
+		async getNodeInfo() {
+			const config = getResolvedActivityPubConfig(app);
+			return buildActivityPubNodeInfoResponse(config);
 		}
 
 		async getGroupActor(groupName: string) {
@@ -273,7 +320,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
 		}
 
-		async createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult> {
+		async createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number, options: IActivityPubRemoteObjectPostCreateOptions = {}): Promise<IActivityPubRemoteObjectPostCreateResult> {
 			getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
 			const actorRecord = await getGroupActorRecord(models, group);
@@ -284,14 +331,18 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
 			const postDraft = await getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
 			assertActivityPubRemoteObjectPostDraftCreatable(postDraft);
-			const content = await createActivityPubRemoteObjectPostContent(app, userId, postDraft);
-			const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, content));
+			const contentResult = await createActivityPubRemoteObjectPostContents(app, userId, postDraft, options);
+			const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, contentResult));
 			await updateActivityPubRemoteObjectLocalPostId(objectRecord, post);
 
-			return {
+			const result: IActivityPubRemoteObjectPostCreateResult = {
 				post,
 				remoteObject: await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord)
 			};
+			if (contentResult.attachmentBackups.length) {
+				result.attachmentBackups = contentResult.attachmentBackups;
+			}
+			return result;
 		}
 
 		async setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport> {
@@ -535,9 +586,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					remoteActorRecord,
 					activity: request.body
 				});
+				const localPostDeleted = await deleteActivityPubRemoteObjectPost(app, objectRecord);
 				await resetActivityPubObjectReviewState(models, objectRecord);
 
-				return getSharedInboxDeleteResult(verification, remoteActorUrl, objectRecord);
+				return getSharedInboxDeleteResult(verification, remoteActorUrl, objectRecord, localPostDeleted);
 			}
 			if (isUndoActivity(request.body)) {
 				const object = getRequiredSharedInboxUndoCreateObject(request.body, remoteActorUrl);
@@ -548,9 +600,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					objectNotFoundMessage: 'activitypub_undo_create_object_not_found',
 					actorMismatchMessage: 'activitypub_undo_create_object_actor_mismatch'
 				});
+				const localPostDeleted = await deleteActivityPubRemoteObjectPost(app, objectRecord);
 				await resetActivityPubObjectReviewState(models, objectRecord);
 
-				return getSharedInboxUndoResult(verification, remoteActorUrl, objectRecord);
+				return getSharedInboxUndoResult(verification, remoteActorUrl, objectRecord, localPostDeleted);
 			}
 			if (isUpdateActivity(request.body)) {
 				const object = getRequiredSharedInboxUpdateObject(request.body);
@@ -560,9 +613,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 					activity: request.body,
 					object
 				});
+				const localPostUpdated = await updateActivityPubRemoteObjectPostIfChanged(app, models, objectRecord);
 				await resetActivityPubObjectReviewState(models, objectRecord);
 
-				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord);
+				return getSharedInboxUpdateResult(verification, remoteActorUrl, objectRecord, localPostUpdated);
 			}
 			const object = getRequiredSharedInboxCreateObject(request.body);
 			const target = await getRequiredSharedInboxCreateTarget(models, request.body, object);
@@ -951,6 +1005,10 @@ async function getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteOb
 	if (preview?.summaryText) {
 		draft.summaryText = preview.summaryText;
 	}
+	if (preview?.attachments?.length) {
+		draft.attachments = preview.attachments;
+		draft.attachmentImportPolicy = getActivityPubRemoteAttachmentImportPolicy();
+	}
 	const replyToPostId = await getActivityPubRemoteObjectReplyToPostId(models, actorRecord, remoteObject);
 	if (replyToPostId) {
 		draft.replyToPostId = replyToPostId;
@@ -980,7 +1038,32 @@ async function createActivityPubRemoteObjectPostContent(app: IGeesomeApp, userId
 	);
 }
 
-function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, content: IContent) {
+async function createActivityPubRemoteObjectPostContents(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft, options: IActivityPubRemoteObjectPostCreateOptions = {}): Promise<IActivityPubRemoteObjectPostContentResult> {
+	const content = await createActivityPubRemoteObjectPostContent(app, userId, postDraft);
+	const attachmentImportMode = getActivityPubRemoteAttachmentImportMode(options);
+	const attachmentBackups = attachmentImportMode === 'backupOnCreate'
+		? await createActivityPubRemoteAttachmentBackups(app, userId, postDraft)
+		: [];
+	return {
+		contents: [content, ...attachmentBackups.map((backup) => ({id: backup.contentId} as IContent))],
+		attachmentBackups,
+		attachmentImportMode
+	};
+}
+
+async function createActivityPubRemoteAttachmentBackups(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft): Promise<IActivityPubRemoteAttachmentBackup[]> {
+	const backups: IActivityPubRemoteAttachmentBackup[] = [];
+	for (const attachment of postDraft.attachments || []) {
+		if (!isActivityPubRemoteAttachmentBackupSupported(attachment)) {
+			continue;
+		}
+		const content = await app.ms.content.saveDataByUrl(userId, attachment.url, getActivityPubRemoteAttachmentSaveOptions(postDraft, attachment));
+		backups.push(getActivityPubRemoteAttachmentBackup(attachment, content));
+	}
+	return backups;
+}
+
+function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
 	const postData: any = {
 		groupId: group.id,
 		status: PostStatus.Published,
@@ -988,8 +1071,8 @@ function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivi
 		sourceChannelId: getActivityPubRemoteObjectPostSourceChannelId(remoteObject),
 		sourcePostId: getActivityPubRemoteObjectPostSourcePostId(remoteObject),
 		sourceDate: remoteObject.publishedAt || undefined,
-		propertiesJson: JSON.stringify(getActivityPubRemoteObjectPostProperties(remoteObject, postDraft)),
-		contents: [{id: content.id}]
+		propertiesJson: JSON.stringify(getActivityPubRemoteObjectPostProperties(remoteObject, postDraft, contentResult)),
+		contents: contentResult.contents.map((content) => ({id: content.id}))
 	};
 	if (postDraft.replyToPostId) {
 		postData['replyToId'] = postDraft.replyToPostId;
@@ -997,9 +1080,9 @@ function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivi
 	return postData;
 }
 
-function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft) {
+function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
 	const properties: any = {
-		activityPub: postDraft.source
+		activityPub: {...postDraft.source}
 	};
 	const sourceLink = getActivityPubRemoteObjectPostSourceLink(remoteObject);
 	if (sourceLink) {
@@ -1010,6 +1093,18 @@ function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemo
 	}
 	if (postDraft.summaryText) {
 		properties.summaryText = postDraft.summaryText;
+	}
+	if (postDraft.attachments?.length) {
+		properties.activityPub.attachments = postDraft.attachments;
+	}
+	if (postDraft.attachmentImportPolicy) {
+		properties.activityPub.attachmentImportPolicy = postDraft.attachmentImportPolicy;
+	}
+	if (postDraft.attachments?.length) {
+		properties.activityPub.attachmentImportMode = contentResult.attachmentImportMode;
+	}
+	if (contentResult.attachmentBackups.length) {
+		properties.activityPub.attachmentBackups = contentResult.attachmentBackups;
 	}
 	return properties;
 }
@@ -1041,6 +1136,11 @@ function getActivityPubRemoteObjectPreview(object): IActivityPubRemoteObjectPrev
 	const url = getActivityPubRemoteObjectSafeUrl(object);
 	if (url) {
 		preview.url = url;
+	}
+
+	const attachments = getActivityPubRemoteObjectAttachmentPreviews(object);
+	if (attachments.length) {
+		preview.attachments = attachments;
 	}
 
 	if (!Object.keys(preview).length) {
@@ -1084,8 +1184,147 @@ function getActivityPubRemoteObjectTextField(object, fieldName: string, maxLengt
 	return truncateActivityPubRemoteObjectPreview(htmlToText(fieldValue), maxLength);
 }
 
+function getActivityPubRemoteObjectAttachmentPreviews(object): IActivityPubRemoteObjectAttachmentPreview[] {
+	const previews: IActivityPubRemoteObjectAttachmentPreview[] = [];
+	const seenUrls = new Set<string>();
+	const attachmentValues = getActivityPubRemoteObjectArrayValue(object?.attachment);
+	for (const attachmentValue of attachmentValues) {
+		const preview = getActivityPubRemoteObjectAttachmentPreview(attachmentValue);
+		if (!preview) {
+			continue;
+		}
+		if (seenUrls.has(preview.url)) {
+			continue;
+		}
+		previews.push(preview);
+		seenUrls.add(preview.url);
+		if (previews.length >= maxActivityPubRemoteObjectPreviewAttachments) {
+			break;
+		}
+	}
+	return previews;
+}
+
+function getActivityPubRemoteObjectAttachmentPreview(value): IActivityPubRemoteObjectAttachmentPreview | undefined {
+	const url = getActivityPubRemoteObjectSafeUrlValue(value);
+	if (!url) {
+		return undefined;
+	}
+
+	const preview: IActivityPubRemoteObjectAttachmentPreview = {url};
+	if (value && typeof value === 'object') {
+		addActivityPubRemoteObjectAttachmentTextFields(preview, value);
+		addActivityPubRemoteObjectAttachmentDimensions(preview, value);
+		addActivityPubRemoteObjectAttachmentMediaFields(preview, value);
+	}
+	return preview;
+}
+
+function addActivityPubRemoteObjectAttachmentTextFields(preview: IActivityPubRemoteObjectAttachmentPreview, value): void {
+	const type = getActivityPubRemoteObjectTextField(value, 'type', maxActivityPubRemoteObjectPreviewAttachmentTypeLength);
+	if (type) {
+		preview.type = type;
+	}
+	const mediaType = getActivityPubRemoteObjectTextField(value, 'mediaType', maxActivityPubRemoteObjectPreviewAttachmentTypeLength);
+	if (mediaType) {
+		preview.mediaType = mediaType;
+	}
+	const name = getActivityPubRemoteObjectTextField(value, 'name', maxActivityPubRemoteObjectPreviewAttachmentTextLength);
+	if (name) {
+		preview.name = name;
+	}
+	const summaryText = getActivityPubRemoteObjectTextField(value, 'summary', maxActivityPubRemoteObjectPreviewAttachmentTextLength);
+	if (summaryText) {
+		preview.summaryText = summaryText;
+	}
+}
+
+function addActivityPubRemoteObjectAttachmentDimensions(preview: IActivityPubRemoteObjectAttachmentPreview, value): void {
+	const width = getActivityPubRemoteObjectPositiveInteger(value.width);
+	if (width) {
+		preview.width = width;
+	}
+	const height = getActivityPubRemoteObjectPositiveInteger(value.height);
+	if (height) {
+		preview.height = height;
+	}
+}
+
+function addActivityPubRemoteObjectAttachmentMediaFields(preview: IActivityPubRemoteObjectAttachmentPreview, value): void {
+	const mediaCategory = getActivityPubRemoteObjectAttachmentMediaCategory(preview);
+	if (mediaCategory) {
+		preview.mediaCategory = mediaCategory;
+	}
+	const altText = getActivityPubRemoteObjectAttachmentAltText(preview, mediaCategory);
+	if (altText) {
+		preview.altText = altText;
+	}
+	const durationSeconds = getActivityPubRemoteObjectDurationSeconds(value.duration);
+	if (durationSeconds) {
+		preview.durationSeconds = durationSeconds;
+	}
+	const blurhash = getActivityPubRemoteObjectTextField(value, 'blurhash', maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength);
+	if (blurhash) {
+		preview.blurhash = blurhash;
+	}
+	const sensitive = getActivityPubRemoteObjectBoolean(value.sensitive);
+	if (sensitive !== undefined) {
+		preview.sensitive = sensitive;
+	}
+}
+
 function getActivityPubRemoteObjectPreviewText(html: string): string {
 	return truncateActivityPubRemoteObjectPreview(htmlToText(html), maxActivityPubRemoteObjectPreviewTextLength);
+}
+
+function getActivityPubRemoteObjectAttachmentMediaCategory(preview: IActivityPubRemoteObjectAttachmentPreview): IActivityPubRemoteObjectAttachmentPreview['mediaCategory'] | undefined {
+	const mediaType = String(preview.mediaType || '').toLowerCase();
+	if (mediaType.startsWith('image/')) {
+		return 'image';
+	}
+	if (mediaType.startsWith('video/')) {
+		return 'video';
+	}
+	if (mediaType.startsWith('audio/')) {
+		return 'audio';
+	}
+	const type = String(preview.type || '').toLowerCase();
+	if (type === 'image') {
+		return 'image';
+	}
+	if (type === 'video') {
+		return 'video';
+	}
+	if (type === 'audio') {
+		return 'audio';
+	}
+	if (type === 'link') {
+		return 'link';
+	}
+	if (type === 'document') {
+		return 'document';
+	}
+	return undefined;
+}
+
+function getActivityPubRemoteObjectAttachmentAltText(
+	preview: IActivityPubRemoteObjectAttachmentPreview,
+	mediaCategory: IActivityPubRemoteObjectAttachmentPreview['mediaCategory'] | undefined
+): string {
+	if (mediaCategory !== 'image' && mediaCategory !== 'video') {
+		return '';
+	}
+	return preview.name || preview.summaryText || '';
+}
+
+function getActivityPubRemoteObjectArrayValue(value): any[] {
+	if (Array.isArray(value)) {
+		return value;
+	}
+	if (value === undefined || value === null) {
+		return [];
+	}
+	return [value];
 }
 
 function getActivityPubRemoteObjectStringValue(value): string {
@@ -1095,25 +1334,94 @@ function getActivityPubRemoteObjectStringValue(value): string {
 	return value.trim();
 }
 
-function getActivityPubRemoteObjectSafeUrl(object): string {
-	const url = getActivityPubRemoteObjectUrlValue(object?.url);
-	if (!url) {
-		return '';
-	}
-	return sanitizeAbsoluteHref(url);
-}
-
-function getActivityPubRemoteObjectUrlValue(value): string {
-	if (typeof value === 'string') {
+function getActivityPubRemoteObjectBoolean(value): boolean | undefined {
+	if (typeof value === 'boolean') {
 		return value;
 	}
-	if (Array.isArray(value)) {
-		return value.map(item => getActivityPubRemoteObjectUrlValue(item)).find(Boolean) || '';
+	if (typeof value !== 'string') {
+		return undefined;
 	}
-	if (value && typeof value === 'object' && typeof value.href === 'string') {
-		return value.href;
+	const normalizedValue = value.trim().toLowerCase();
+	if (normalizedValue === 'true') {
+		return true;
+	}
+	if (normalizedValue === 'false') {
+		return false;
+	}
+	return undefined;
+}
+
+function getActivityPubRemoteObjectSafeUrl(object): string {
+	return getActivityPubRemoteObjectSafeUrlValue(object?.url);
+}
+
+function getActivityPubRemoteObjectSafeUrlValue(value): string {
+	if (typeof value === 'string') {
+		return sanitizeAbsoluteHref(value);
+	}
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const url = getActivityPubRemoteObjectSafeUrlValue(item);
+			if (url) {
+				return url;
+			}
+		}
+		return '';
+	}
+	if (value && typeof value === 'object') {
+		const href = getActivityPubRemoteObjectStringValue(value.href);
+		if (href) {
+			const url = sanitizeAbsoluteHref(href);
+			if (url) {
+				return url;
+			}
+		}
+		return getActivityPubRemoteObjectSafeUrlValue(value.url);
 	}
 	return '';
+}
+
+function getActivityPubRemoteObjectPositiveInteger(value): number | undefined {
+	const number = Number(value);
+	if (!Number.isFinite(number)) {
+		return undefined;
+	}
+	if (number <= 0) {
+		return undefined;
+	}
+	if (number > maxActivityPubRemoteObjectPreviewAttachmentDimension) {
+		return undefined;
+	}
+	return Math.floor(number);
+}
+
+function getActivityPubRemoteObjectDurationSeconds(value): number | undefined {
+	const rawValue = typeof value === 'string' ? value.trim() : value;
+	const seconds = typeof rawValue === 'string' && rawValue.toUpperCase().startsWith('P')
+		? parseActivityPubIsoDurationSeconds(rawValue)
+		: Number(rawValue);
+	if (!Number.isFinite(seconds)) {
+		return undefined;
+	}
+	if (seconds <= 0) {
+		return undefined;
+	}
+	if (seconds > maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds) {
+		return undefined;
+	}
+	return Math.round(seconds);
+}
+
+function parseActivityPubIsoDurationSeconds(value: string): number {
+	const match = value.trim().toUpperCase().match(/^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/);
+	if (!match) {
+		return Number.NaN;
+	}
+	const [, days, hours, minutes, seconds] = match;
+	return Number(days || 0) * 24 * 60 * 60
+		+ Number(hours || 0) * 60 * 60
+		+ Number(minutes || 0) * 60
+		+ Number(seconds || 0);
 }
 
 function truncateActivityPubRemoteObjectPreview(value: string, maxLength: number): string {
@@ -1217,11 +1525,179 @@ function getActivityPubRemoteObjectPostSourceLink(remoteObject: IActivityPubRemo
 	return remoteObject.preview?.url || remoteObject.remoteObjectUrl || remoteObject.objectId || '';
 }
 
+function getActivityPubRemoteAttachmentImportMode(options: IActivityPubRemoteObjectPostCreateOptions = {}): ActivityPubRemoteAttachmentImportMode {
+	if (helpers.parseBoolean(options.importRemoteAttachments, false)) {
+		return 'backupOnCreate';
+	}
+	return 'provenanceOnly';
+}
+
+function getActivityPubRemoteAttachmentImportPolicy(): IActivityPubRemoteAttachmentImportPolicy {
+	return activityPubRemoteAttachmentImportPolicy;
+}
+
+function getActivityPubRemoteObjectPostUpdateOptions(post: IPost): IActivityPubRemoteObjectPostCreateOptions {
+	const properties = parseActivityPubJson(String(post?.propertiesJson || '{}'));
+	if (properties?.activityPub?.attachmentImportMode === 'backupOnCreate') {
+		return {importRemoteAttachments: true};
+	}
+	return {};
+}
+
+function isActivityPubRemoteAttachmentBackupSupported(attachment: IActivityPubRemoteObjectAttachmentPreview): boolean {
+	if (!['image', 'video', 'audio', 'document'].includes(String(attachment.mediaCategory || ''))) {
+		return false;
+	}
+	try {
+		const url = new URL(attachment.url);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch (e) {
+		return false;
+	}
+}
+
+function getActivityPubRemoteAttachmentSaveOptions(postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview) {
+	return {
+		mimeType: attachment.mediaType,
+		name: getActivityPubRemoteAttachmentImportName(attachment),
+		description: attachment.summaryText || attachment.altText,
+		view: getActivityPubRemoteAttachmentContentView(attachment),
+		properties: {
+			source: 'activityPub',
+			activityPub: {
+				...postDraft.source,
+				attachmentUrl: attachment.url,
+				attachmentType: attachment.type,
+				attachmentMediaType: attachment.mediaType,
+				attachmentMediaCategory: attachment.mediaCategory
+			}
+		}
+	};
+}
+
+function getActivityPubRemoteAttachmentBackup(attachment: IActivityPubRemoteObjectAttachmentPreview, content: IContent): IActivityPubRemoteAttachmentBackup {
+	const backup: IActivityPubRemoteAttachmentBackup = {
+		url: attachment.url,
+		contentId: Number(content.id)
+	};
+	if (content.storageId) {
+		backup.storageId = content.storageId;
+	}
+	if (attachment.mediaType) {
+		backup.mediaType = attachment.mediaType;
+	}
+	if (attachment.mediaCategory) {
+		backup.mediaCategory = attachment.mediaCategory;
+	}
+	if (attachment.name) {
+		backup.name = attachment.name;
+	}
+	return backup;
+}
+
+function getActivityPubRemoteAttachmentImportName(attachment: IActivityPubRemoteObjectAttachmentPreview): string {
+	return attachment.name || getActivityPubRemoteAttachmentUrlFileName(attachment.url) || 'activitypub-remote-attachment';
+}
+
+function getActivityPubRemoteAttachmentUrlFileName(url: string): string {
+	try {
+		return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || '');
+	} catch (e) {
+		return '';
+	}
+}
+
+function getActivityPubRemoteAttachmentContentView(attachment: IActivityPubRemoteObjectAttachmentPreview): ContentView {
+	if (['image', 'video', 'audio'].includes(String(attachment.mediaCategory || ''))) {
+		return ContentView.Media;
+	}
+	return ContentView.Attachment;
+}
+
 async function updateActivityPubRemoteObjectLocalPostId(objectRecord, post: IPost): Promise<void> {
 	if (Number(objectRecord.localPostId || 0) === Number(post.id || 0)) {
 		return;
 	}
 	await objectRecord.update({localPostId: post.id});
+}
+
+async function updateActivityPubRemoteObjectPost(app: IGeesomeApp, models, objectRecord): Promise<boolean> {
+	const post = await getActivityPubRemoteObjectImportedPost(app, objectRecord);
+	if (!post) {
+		return false;
+	}
+	const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
+	const postDraft = await getActivityPubRemoteObjectPostDraft(models, {id: remoteObject.localActorId}, remoteObject);
+	if (!isActivityPubRemoteObjectPostDraftUpdateable(postDraft)) {
+		return false;
+	}
+	if (!post.userId) {
+		return false;
+	}
+	const contentResult = await createActivityPubRemoteObjectPostContents(app, post.userId, postDraft, getActivityPubRemoteObjectPostUpdateOptions(post));
+	const group = post.group || await app.ms.group.getGroup(post.groupId);
+	if (!group) {
+		return false;
+	}
+	const postData = getActivityPubRemoteObjectPostUpdateData(group, remoteObject, postDraft, contentResult);
+	await app.ms.group.updateRemotePostByObject(post.userId, post.id, postData);
+	return true;
+}
+
+async function updateActivityPubRemoteObjectPostIfChanged(app: IGeesomeApp, models, objectRecord): Promise<boolean> {
+	if (objectRecord?.activityPubObjectChanged !== true) {
+		return false;
+	}
+	return updateActivityPubRemoteObjectPost(app, models, objectRecord);
+}
+
+async function deleteActivityPubRemoteObjectPost(app: IGeesomeApp, objectRecord): Promise<boolean> {
+	const post = await getActivityPubRemoteObjectImportedPost(app, objectRecord);
+	if (!post) {
+		return false;
+	}
+	await app.ms.group.deletePostsPure(post.userId || null, [post.id]);
+	return true;
+}
+
+async function getActivityPubRemoteObjectImportedPost(app: IGeesomeApp, objectRecord): Promise<IPost | null> {
+	const postId = Number(objectRecord?.localPostId || 0);
+	if (!Number.isFinite(postId) || postId <= 0) {
+		return null;
+	}
+	const post = await app.ms.group.getPostPure(postId);
+	if (!isActivityPubRemoteObjectImportedPost(objectRecord, post)) {
+		return null;
+	}
+	return post;
+}
+
+function isActivityPubRemoteObjectImportedPost(objectRecord, post): boolean {
+	if (!post || post.isDeleted === true) {
+		return false;
+	}
+	return post.isRemote === true
+		&& post.source === 'activityPub'
+		&& post.sourceChannelId === getActivityPubRemoteObjectPostSourceChannelId(objectRecord)
+		&& post.sourcePostId === getActivityPubRemoteObjectPostSourcePostId(objectRecord);
+}
+
+function getActivityPubRemoteObjectPostUpdateData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
+	const postData = getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, contentResult);
+	if (!postDraft.replyToPostId) {
+		postData.replyToId = null;
+	}
+	return postData;
+}
+
+function isActivityPubRemoteObjectPostDraftUpdateable(postDraft: IActivityPubRemoteObjectPostDraft): boolean {
+	const blockingReasons = postDraft.reasons.filter((reason) => {
+		return ![
+			'activitypub_remote_object_post_exists',
+			'activitypub_remote_object_review_not_accepted'
+		].includes(reason);
+	});
+	return blockingReasons.length === 0;
 }
 
 function getActivityPubFlagRemoteActorReport(remoteActor) {
@@ -1571,26 +2047,37 @@ function getRequiredSharedInboxCreateObject(activity) {
 	if (getActivityType(activity) !== 'Create') {
 		throwActivityPubError('activitypub_activity_not_supported', 501);
 	}
-	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
-		throwActivityPubError('activitypub_create_object_required', 400);
-	}
-	if (activity.object.type !== 'Note') {
-		throwActivityPubError('activitypub_create_object_not_supported', 501);
-	}
-	return activity.object;
+	return getRequiredSharedInboxReviewObject(
+		activity?.object,
+		'activitypub_create_object_required',
+		'activitypub_create_object_not_supported'
+	);
 }
 
 function getRequiredSharedInboxUpdateObject(activity) {
 	if (!isUpdateActivity(activity)) {
 		throwActivityPubError('activitypub_activity_not_supported', 501);
 	}
-	if (!activity?.object || typeof activity.object !== 'object' || Array.isArray(activity.object)) {
-		throwActivityPubError('activitypub_update_object_required', 400);
+	return getRequiredSharedInboxReviewObject(
+		activity?.object,
+		'activitypub_update_object_required',
+		'activitypub_update_object_not_supported'
+	);
+}
+
+function getRequiredSharedInboxReviewObject(object, requiredMessage: string, unsupportedMessage: string) {
+	if (!object || typeof object !== 'object' || Array.isArray(object)) {
+		throwActivityPubError(requiredMessage, 400);
 	}
-	if (activity.object.type !== 'Note') {
-		throwActivityPubError('activitypub_update_object_not_supported', 501);
+	if (!isActivityPubSharedInboxReviewObjectType(object.type)) {
+		throwActivityPubError(unsupportedMessage, 501);
 	}
-	return activity.object;
+	return object;
+}
+
+function isActivityPubSharedInboxReviewObjectType(objectType): boolean {
+	return typeof objectType === 'string'
+		&& activityPubSharedInboxReviewObjectTypes.has(objectType);
 }
 
 async function getRequiredSharedInboxCreateTarget(models, activity, object) {
@@ -1922,7 +2409,7 @@ function getSharedInboxCreateResult(verification, remoteActorUrl: string, object
 	};
 }
 
-function getSharedInboxDeleteResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+function getSharedInboxDeleteResult(verification, remoteActorUrl: string, objectRecord, localPostDeleted: boolean): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
@@ -1931,11 +2418,12 @@ function getSharedInboxDeleteResult(verification, remoteActorUrl: string, object
 		activityType: 'Delete',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
-		objectId: objectRecord.objectId
+		objectId: objectRecord.objectId,
+		localPostDeleted
 	};
 }
 
-function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRecord, localPostDeleted: boolean): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
@@ -1944,11 +2432,12 @@ function getSharedInboxUndoResult(verification, remoteActorUrl: string, objectRe
 		activityType: 'Undo',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
-		objectId: objectRecord.objectId
+		objectId: objectRecord.objectId,
+		localPostDeleted
 	};
 }
 
-function getSharedInboxUpdateResult(verification, remoteActorUrl: string, objectRecord): IActivityPubInboxResult {
+function getSharedInboxUpdateResult(verification, remoteActorUrl: string, objectRecord, localPostUpdated: boolean): IActivityPubInboxResult {
 	return {
 		...verification,
 		ok: true,
@@ -1957,7 +2446,8 @@ function getSharedInboxUpdateResult(verification, remoteActorUrl: string, object
 		activityType: 'Update',
 		actor: remoteActorUrl,
 		activityPubObjectId: objectRecord.id,
-		objectId: objectRecord.objectId
+		objectId: objectRecord.objectId,
+		localPostUpdated
 	};
 }
 

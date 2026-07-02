@@ -1352,16 +1352,15 @@ function getModule(app: IGeesomeApp, models) {
 			}));
 		}
 
+		async updateRemotePostByObject(userId, postId, postData, options: any = {}) {
+			postData = clone(postData);
+			postData.isRemote = true;
+			postData.status = PostStatus.Published;
+			return this.updatePostPure(userId, postId, postData, options);
+		}
+
 		async updatePost(userId, postId, postData) {
 			const oldPost = await this.getPostPure(postId);
-
-			// B5: cross-group moves are not supported. Users who want a post in another group
-			// repost it (repostOfId) or create a new post that reuses the same content attachments.
-			if (!isUndefined(postData.groupId) && Number(postData.groupId) !== Number(oldPost.groupId)) {
-				throw new Error("group_move_not_supported");
-			}
-			delete postData.groupId;
-
 			const [, canEdit] = await Promise.all([
 				await app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
 				this.canEditPostInGroup(userId, oldPost.groupId, postId),
@@ -1369,6 +1368,23 @@ function getModule(app: IGeesomeApp, models) {
 			if (!canEdit) {
 				throw new Error("not_permitted");
 			}
+
+			return this.updatePostPure(userId, postId, postData, {oldPost});
+		}
+
+		async updatePostPure(userId, postId, postData, options: any = {}) {
+			const oldPost = options.oldPost || await this.getPostPure(postId);
+			if (!oldPost) {
+				throw new Error("post_not_found");
+			}
+
+			postData = clone(postData);
+			// B5: cross-group moves are not supported. Users who want a post in another group
+			// repost it (repostOfId) or create a new post that reuses the same content attachments.
+			if (!isUndefined(postData.groupId) && Number(postData.groupId) !== Number(oldPost.groupId)) {
+				throw new Error("group_move_not_supported");
+			}
+			delete postData.groupId;
 
 			const contentsData = await this.getContentsForPost(userId, postData.contents);
 			delete postData.contents;
@@ -1405,7 +1421,7 @@ function getModule(app: IGeesomeApp, models) {
 					nextPostEventState.publishedAt = postData.publishedAt;
 				}
 
-				if(contentsData) {
+				if (contentsData) {
 					await this.setPostContents(postId, contentsData, {transaction});
 				}
 
@@ -1428,10 +1444,10 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			if (isPublished) {
 				const updatedPost = await this.getPostPure(postId);
-				return this.applyPostManifestUpdate(userId, updatedPost, oldPost.group);
+				return this.applyPostManifestUpdate(userId, updatedPost, oldPost.group, options);
 			}
 			if (wasPublished) {
-				await this.applyGroupManifestUpdate(userId, oldPost.groupId);
+				await this.applyGroupManifestUpdate(userId, oldPost.groupId, options);
 			}
 			return this.getPostPure(postId);
 		}

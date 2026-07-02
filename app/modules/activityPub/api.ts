@@ -2,7 +2,12 @@ import {IGeesomeApp} from '../../interface.js';
 import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import IGeesomeActivityPubModule, {IActivityPubInboxResult, IActivityPubInboundRequest} from './interface.js';
-import {activityPubContentType, activityPubWebFingerContentType} from './helpers.js';
+import {
+	activityPubContentType,
+	activityPubNodeInfoContentType,
+	activityPubNodeInfoDiscoveryContentType,
+	activityPubWebFingerContentType
+} from './helpers.js';
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
 	/**
@@ -17,6 +22,38 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onUnversionGet('.well-known/webfinger', async (req, res) => {
 		setWebFingerHeaders(res);
 		return res.send(await activityPubModule.getWebFingerResponse(req.query.resource), 200);
+	});
+
+	/**
+	 * @api {get} /.well-known/nodeinfo Discover ActivityPub NodeInfo document
+	 * @apiName ActivityPubNodeInfoDiscovery
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public NodeInfo discovery endpoint for the GeeSome ActivityPub service. It advertises the NodeInfo 2.1 document URL when ActivityPub is enabled.
+	 * @apiSuccess {Object[]} links NodeInfo schema links.
+	 */
+	app.ms.api.onUnversionGet('.well-known/nodeinfo', async (req, res) => {
+		setNodeInfoDiscoveryHeaders(res);
+		return res.send(await activityPubModule.getNodeInfoDiscovery(), 200);
+	});
+
+	/**
+	 * @api {get} /nodeinfo/2.1 Get ActivityPub NodeInfo document
+	 * @apiName ActivityPubNodeInfo
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public NodeInfo 2.1 document for Fediverse discovery. It currently advertises GeeSome's ActivityPub protocol support without exposing user or post counts.
+	 * @apiSuccess {String} version NodeInfo schema version.
+	 * @apiSuccess {Object} software GeeSome node software metadata.
+	 * @apiSuccess {String[]} protocols Supported federation protocols.
+	 * @apiSuccess {Object} services External service bridges advertised through NodeInfo.
+	 * @apiSuccess {Boolean} openRegistrations Whether public account registration is advertised.
+	 * @apiSuccess {Object} usage Public usage counters; this first ActivityPub slice keeps counters at zero until privacy/product policy is defined.
+	 * @apiSuccess {Object} metadata Free-form node metadata.
+	 */
+	app.ms.api.onUnversionGet('nodeinfo/2.1', async (req, res) => {
+		setNodeInfoHeaders(res);
+		return res.send(await activityPubModule.getNodeInfo(), 200);
 	});
 
 	/**
@@ -113,15 +150,15 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts. Render sanitized `preview.contentHtml`/`preview.contentText` or canonical `preview.contentRichText` in admin UI; `object` is the parsed raw ActivityStreams object kept for audit.
+	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts. Render sanitized `preview.contentHtml`/`preview.contentText` or canonical `preview.contentRichText` in admin UI; `preview.attachments` only contains bounded sanitized remote URL/media metadata such as media category, alt text, dimensions, duration, blurhash, and sensitive flag, not imported GeeSome/IPFS content. `object` is the parsed raw ActivityStreams object kept for audit.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
-	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note` or `Tombstone`.
+	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note`, `Article`, or `Tombstone`.
 	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
 	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
 	 * @apiQuery {Number} [remoteActorId] Filter by remote actor database id.
-	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON, sanitized preview data, and remote actor metadata.
+	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON, sanitized preview data, optional sanitized remote attachment/media metadata, and remote actor metadata.
 	 * @apiSuccess {Number} total Total matching cached remote objects.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects', async (req, res) => {
@@ -141,7 +178,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiDescription Returns one signed remote ActivityPub object cached for a local federatable group actor. This is an actor-scoped read-only detail view for moderation/review UI; it does not create, hide, delete, or federate GeeSome posts.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
-	 * @apiSuccess {Object} result Cached remote object row with parsed ActivityStreams object JSON, sanitized preview data, canonical preview rich text, and remote actor metadata.
+	 * @apiSuccess {Object} result Cached remote object row with parsed ActivityStreams object JSON, sanitized preview data, canonical preview rich text, optional sanitized remote attachment/media metadata, and remote actor metadata.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
@@ -157,10 +194,10 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe and accepted for a future GeeSome post, which sanitized rich-text payload would be used, and which local post reply target was resolved from `inReplyTo` when available. This route does not create, update, hide, delete, or federate GeeSome posts.
+	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe and accepted for a future GeeSome post, which sanitized rich-text payload would be used, which sanitized remote attachment/media metadata would be carried as provenance, the explicit remote-attachment import policy, and which local post reply target was resolved from `inReplyTo` when available. Remote attachment bytes are not fetched or imported by this route. This route does not create, update, hide, delete, or federate GeeSome posts.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
-	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, optional `replyToPostId`, and ActivityPub source metadata.
+	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, optional remote attachment/media metadata, optional provenance-only `attachmentImportPolicy`, optional `replyToPostId`, and ActivityPub source metadata.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post-draft', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
@@ -176,15 +213,17 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores only the sanitized canonical rich-text projection as post content, keeps raw ActivityStreams JSON only on the cached remote object for audit, maps `inReplyTo` to a local GeeSome `replyToId` when it targets a known post in the same group actor, and links the cached object to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
+	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores the sanitized canonical rich-text projection as post content, carries sanitized remote attachment/media metadata, and defaults to provenance-only remote attachments. When `importRemoteAttachments` is true, supported remote HTTP(S) media/document attachments are backed up through GeeSome content storage and linked to the created post; unsupported schemes and link-only attachments remain provenance metadata. Raw ActivityStreams JSON stays only on the cached remote object for audit. `inReplyTo` is mapped to a local GeeSome `replyToId` when it targets a known post in the same group actor, and the cached object is linked to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiBody {Boolean} [importRemoteAttachments=false] Back up supported remote HTTP(S) media/document attachments into GeeSome content storage before creating the post.
 	 * @apiSuccess {Object} post Created native GeeSome remote post.
 	 * @apiSuccess {Object} remoteObject Updated cached remote object report with `localPostId` set.
+	 * @apiSuccess {Object[]} [attachmentBackups] Remote attachment backup records when `importRemoteAttachments` imported any attachments.
 	 */
 	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
-		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id));
+		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id, req.body || {}));
 	});
 
 	/**
@@ -275,7 +314,8 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed remote `Accept(Follow)` and `Reject(Follow)` activities update matching outbound follow requests, signed embedded `Undo(Follow)` activities cancel inbound follow state, signed `Block` activities cancel follower state so future local post delivery skips that remote actor, and signed `Flag` activities store pending moderation reports for the local actor or known local objects. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
-	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
+	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} ok Whether the signed activity was processed.
 	 * @apiSuccess {Boolean} accepted Whether the activity leaves the follow accepted immediately.
@@ -295,14 +335,17 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create` activities for supported review object types (`Note`, `Article`, `Page`, `Image`, `Video`, `Audio`, `Document`, `Question`, and `Event`) are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor. Signed `Update` activities refresh already-cached supported remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Only accepted public `Note` objects can become native GeeSome remote posts; non-Note objects remain review/audit records. If an updated or tombstoned remote Note was manually imported as a GeeSome remote post and the source identity still matches, that imported post is updated or soft-deleted too. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
-	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
+	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} accepted Whether the activity was accepted and stored.
 	 * @apiSuccess {String} activityType Activity type that was processed.
 	 * @apiSuccess {String} objectId ActivityPub object id that was recorded, updated, or tombstoned.
 	 * @apiSuccess {Number} activityPubObjectId Local cached ActivityPub object row id.
+	 * @apiSuccess {Boolean} [localPostUpdated] Whether a linked imported GeeSome remote post was updated for `Update` of an importable Note.
+	 * @apiSuccess {Boolean} [localPostDeleted] Whether a linked imported GeeSome remote post was soft-deleted for `Delete` or `Undo(Create)`.
 	 */
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {
@@ -365,4 +408,12 @@ function setActivityPubHeaders(res: IApiModuleCommonOutput): void {
 
 function setWebFingerHeaders(res: IApiModuleCommonOutput): void {
 	res.setHeader('Content-Type', activityPubWebFingerContentType);
+}
+
+function setNodeInfoDiscoveryHeaders(res: IApiModuleCommonOutput): void {
+	res.setHeader('Content-Type', activityPubNodeInfoDiscoveryContentType);
+}
+
+function setNodeInfoHeaders(res: IApiModuleCommonOutput): void {
+	res.setHeader('Content-Type', activityPubNodeInfoContentType);
 }

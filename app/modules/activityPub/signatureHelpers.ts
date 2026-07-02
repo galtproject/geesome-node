@@ -58,10 +58,11 @@ export function signActivityPubRequestWithKey(actorKey: IActivityPubActorKey, op
 }
 
 export function getActivityPubDigestHeader(body: string | Buffer): string {
-	const buffer = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
-	const digest = crypto.createHash('sha256').update(buffer).digest('base64');
+	return `SHA-256=${getActivityPubBodyDigest(body)}`;
+}
 
-	return `SHA-256=${digest}`;
+export function getActivityPubContentDigestHeader(body: string | Buffer): string {
+	return `sha-256=:${getActivityPubBodyDigest(body)}:`;
 }
 
 export function getActivityPubRequestSignatureInfo(options: IActivityPubVerifyRequestOptions): IActivityPubRequestSignatureInfo {
@@ -86,7 +87,7 @@ export function verifyActivityPubRequestWithKey(actorKey: IActivityPubRemoteActo
 	assertActivityPubSignatureKeyMatches(actorKey, signatureInfo);
 	assertActivityPubSignatureAlgorithm(signatureInfo);
 	assertRequiredActivityPubSignedHeaders(signatureInfo, options);
-	const digestVerified = verifyActivityPubDigest(headers, options.body);
+	const digestVerified = verifyActivityPubDigest(headers, options.body, signatureInfo.signedHeaders);
 	assertActivityPubSignedDate(headers, options);
 
 	const signingString = getActivityPubSigningString(options.method, url, headers, signatureInfo.signedHeaders);
@@ -254,25 +255,67 @@ function getRequiredActivityPubSignedHeaders(options: IActivityPubVerifyRequestO
 	if (options.requiredSignedHeaders?.length) {
 		return options.requiredSignedHeaders.map((header) => header.toLowerCase());
 	}
-	const requiredHeaders = ['(request-target)', 'host', 'date'];
-	if (hasActivityPubRequestBody(options.body)) {
-		requiredHeaders.push('digest');
-	}
-	return requiredHeaders;
+	return ['(request-target)', 'host', 'date'];
 }
 
-function verifyActivityPubDigest(headers: Record<string, string>, body?: string | Buffer): boolean {
+function verifyActivityPubDigest(headers: Record<string, string>, body?: string | Buffer, signedHeaders: string[] = []): boolean {
 	if (!hasActivityPubRequestBody(body)) {
 		return false;
 	}
+	const signedDigestHeaders = getSignedActivityPubDigestHeaders(signedHeaders);
+	if (!signedDigestHeaders.length) {
+		throw new Error('activitypub_signature_signed_header_missing:digest');
+	}
+	signedDigestHeaders.forEach((headerName) => {
+		verifySignedActivityPubDigestHeader(headers, body as string | Buffer, headerName);
+	});
+	return true;
+}
+
+function getSignedActivityPubDigestHeaders(signedHeaders: string[]): string[] {
+	return signedHeaders
+		.map((header) => header.toLowerCase())
+		.filter((header) => header === 'digest' || header === 'content-digest');
+}
+
+function verifySignedActivityPubDigestHeader(headers: Record<string, string>, body: string | Buffer, headerName: string): void {
+	if (headerName === 'content-digest') {
+		verifyActivityPubContentDigest(headers, body);
+		return;
+	}
+	verifyLegacyActivityPubDigest(headers, body);
+}
+
+function verifyLegacyActivityPubDigest(headers: Record<string, string>, body: string | Buffer): void {
 	const digest = getHeaderValue(headers, 'digest');
 	if (!digest.toLowerCase().startsWith('sha-256=')) {
 		throw new Error('activitypub_digest_algorithm_unsupported');
 	}
-	if (!safeEqualString(digest, getActivityPubDigestHeader(body as string | Buffer))) {
+	if (!safeEqualString(digest, getActivityPubDigestHeader(body))) {
 		throw new Error('activitypub_digest_mismatch');
 	}
-	return true;
+}
+
+function verifyActivityPubContentDigest(headers: Record<string, string>, body: string | Buffer): void {
+	const digest = parseActivityPubContentDigestHeader(getHeaderValue(headers, 'content-digest'));
+	if (!digest) {
+		throw new Error('activitypub_digest_algorithm_unsupported');
+	}
+	if (!safeEqualString(digest, getActivityPubBodyDigest(body))) {
+		throw new Error('activitypub_digest_mismatch');
+	}
+}
+
+function parseActivityPubContentDigestHeader(value: string): string {
+	const structuredDigest = /(?:^|,)\s*sha-256\s*=\s*:([^:]+):\s*(?:,|$)/i.exec(value);
+	if (structuredDigest?.[1]) {
+		return structuredDigest[1];
+	}
+	const legacyDigest = /(?:^|,)\s*sha-256\s*=\s*([^,\s]+)\s*(?:,|$)/i.exec(value);
+	if (legacyDigest?.[1]) {
+		return legacyDigest[1];
+	}
+	return '';
 }
 
 function assertActivityPubSignedDate(headers: Record<string, string>, options: IActivityPubVerifyRequestOptions): void {
@@ -316,6 +359,11 @@ function getActivityPubSignatureDateValue(value?: Date | string): Date {
 
 function hasActivityPubRequestBody(body?: string | Buffer): boolean {
 	return body !== undefined && body !== null;
+}
+
+function getActivityPubBodyDigest(body: string | Buffer): string {
+	const buffer = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+	return crypto.createHash('sha256').update(buffer).digest('base64');
 }
 
 function safeEqualString(left: string, right: string): boolean {
