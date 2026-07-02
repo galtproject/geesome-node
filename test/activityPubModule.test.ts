@@ -1291,6 +1291,12 @@ describe('activityPub module', () => {
 						name: 'IPFS source'
 					},
 					{
+						type: 'Image',
+						mediaType: 'image/png',
+						url: 'ipfs://bafyremoteimage',
+						name: 'IPFS image'
+					},
+					{
 						type: 'Video',
 						mediaType: 'video/mp4',
 						url: 'https://remote.example/media/clip.mp4',
@@ -1357,13 +1363,26 @@ describe('activityPub module', () => {
 					width: 640,
 					height: 480,
 					blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-					sensitive: true
+					sensitive: true,
+					canBackupRemoteBytes: true
 				},
 				{
 					url: 'ipfs://bafyremoteattachment',
 					type: 'Link',
 					mediaCategory: 'link',
-					name: 'IPFS source'
+					name: 'IPFS source',
+					canBackupRemoteBytes: false,
+					backupUnsupportedReason: 'activitypub_remote_attachment_backup_unsupported_category'
+				},
+				{
+					url: 'ipfs://bafyremoteimage',
+					type: 'Image',
+					mediaType: 'image/png',
+					mediaCategory: 'image',
+					name: 'IPFS image',
+					altText: 'IPFS image',
+					canBackupRemoteBytes: false,
+					backupUnsupportedReason: 'activitypub_remote_attachment_backup_unsupported_url_scheme'
 				},
 				{
 					url: 'https://remote.example/media/clip.mp4',
@@ -1375,7 +1394,8 @@ describe('activityPub module', () => {
 					width: 1920,
 					height: 1080,
 					durationSeconds: 62,
-					sensitive: false
+					sensitive: false,
+					canBackupRemoteBytes: true
 				}
 			];
 			const expectedAttachmentImportPolicy = {
