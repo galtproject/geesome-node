@@ -73,6 +73,61 @@ describe('activityPub cron service', () => {
 
 		assert.equal(processOptions.limit, 4);
 	});
+
+	it('passes configured source refresh poller options to due subscription queueing', async () => {
+		let pollOptions;
+		const activityPubModule = {
+			queueDueActivityPubSourceRefreshes: async (options) => {
+				pollOptions = options;
+				return {queued: 2};
+			}
+		};
+		const app = getApp({
+			sourceRefreshPollerLimit: '9',
+			sourceRefreshPollerStaleMs: '60000'
+		});
+		const cronService = new ActivityPubDeliveryCronService(app, activityPubModule as any);
+
+		const result = await cronService.queueDueSourceRefreshes();
+
+		assert.deepEqual(result, {queued: 2});
+		assert.equal(pollOptions.limit, 9);
+		assert.equal(pollOptions.staleMs, 60000);
+	});
+
+	it('does not start a second source refresh poll while one is running', async () => {
+		let releaseRun;
+		let markStarted;
+		let runCalls = 0;
+		const runReleased = new Promise((resolve) => {
+			releaseRun = resolve;
+		});
+		const runStarted = new Promise((resolve) => {
+			markStarted = resolve;
+		});
+		const activityPubModule = {
+			queueDueActivityPubSourceRefreshes: async () => {
+				runCalls += 1;
+				markStarted(true);
+				await runReleased;
+				return {queued: 1};
+			}
+		};
+		const cronService = new ActivityPubDeliveryCronService(getApp(), activityPubModule as any);
+
+		const firstRun = cronService.queueDueSourceRefreshes();
+		await runStarted;
+		const skippedRun = await cronService.queueDueSourceRefreshes();
+
+		assert.deepEqual(skippedRun, {queued: 0});
+		assert.equal(runCalls, 1);
+		assert.equal(cronService.sourceRefreshPollInProcess, true);
+
+		releaseRun(true);
+		assert.deepEqual(await firstRun, {queued: 1});
+		assert.equal(cronService.sourceRefreshPollInProcess, false);
+		assert.equal(runCalls, 1);
+	});
 });
 
 function getApp(activityPubConfig: any = {}) {

@@ -2,6 +2,8 @@ import {IGeesomeApp} from '../../interface.js';
 import IGeesomeActivityPubModule, {
 	IActivityPubDeliveryProcessOptions,
 	IActivityPubDeliveryProcessResult,
+	IActivityPubSourceRefreshPollOptions,
+	IActivityPubSourceRefreshPollResult,
 	IActivityPubSourceRefreshQueueProcessOptions,
 	IActivityPubSourceRefreshQueueProcessResult
 } from './interface.js';
@@ -9,12 +11,15 @@ import IGeesomeActivityPubModule, {
 const defaultActivityPubDeliveryWorkerLimit = 20;
 const defaultActivityPubDeliveryClaimTtlMs = 5 * 60 * 1000;
 const defaultActivityPubSourceRefreshWorkerLimit = 3;
+const defaultActivityPubSourceRefreshPollerLimit = 20;
+const defaultActivityPubSourceRefreshPollerStaleMs = 15 * 60 * 1000;
 
 export default class ActivityPubDeliveryCronService {
 	app: IGeesomeApp;
 	activityPubModule: IGeesomeActivityPubModule;
 	deliveryInProcess = false;
 	sourceRefreshInProcess = false;
+	sourceRefreshPollInProcess = false;
 
 	constructor(app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) {
 		this.app = app;
@@ -52,6 +57,22 @@ export default class ActivityPubDeliveryCronService {
 			this.sourceRefreshInProcess = false;
 		}
 	}
+
+	async queueDueSourceRefreshes(options: IActivityPubSourceRefreshPollOptions = {}): Promise<IActivityPubSourceRefreshPollResult> {
+		if (this.sourceRefreshPollInProcess) {
+			return {queued: 0};
+		}
+
+		this.sourceRefreshPollInProcess = true;
+		try {
+			return await this.activityPubModule.queueDueActivityPubSourceRefreshes({
+				...getActivityPubSourceRefreshPollerOptions(this.app),
+				...options
+			});
+		} finally {
+			this.sourceRefreshPollInProcess = false;
+		}
+	}
 }
 
 function getSkippedDeliveryProcessResult(): IActivityPubDeliveryProcessResult {
@@ -76,6 +97,15 @@ function getActivityPubSourceRefreshWorkerProcessOptions(app: IGeesomeApp): IAct
 
 	return {
 		limit: parsePositiveInteger(config.sourceRefreshWorkerLimit, defaultActivityPubSourceRefreshWorkerLimit)
+	};
+}
+
+function getActivityPubSourceRefreshPollerOptions(app: IGeesomeApp): IActivityPubSourceRefreshPollOptions {
+	const config = app.config.activityPubConfig || {};
+
+	return {
+		limit: parsePositiveInteger(config.sourceRefreshPollerLimit, defaultActivityPubSourceRefreshPollerLimit),
+		staleMs: parsePositiveInteger(config.sourceRefreshPollerStaleMs, defaultActivityPubSourceRefreshPollerStaleMs)
 	};
 }
 
