@@ -23,6 +23,9 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
 	IActivityPubRemoteAttachmentBackup,
+	IActivityPubRemoteAttachmentBackupQueueOptions,
+	IActivityPubRemoteAttachmentBackupQueueProcessOptions,
+	IActivityPubRemoteAttachmentBackupRetryResult,
 	IActivityPubRemoteAttachmentImportPolicy,
 	IActivityPubRemoteObjectPostCreateOptions,
 	IActivityPubRemoteObjectPostDraft,
@@ -111,6 +114,20 @@ type IActivityPubRemoteObjectPostContentResult = {
 	attachmentBackups: IActivityPubRemoteAttachmentBackup[];
 	attachmentImportMode: ActivityPubRemoteAttachmentImportMode;
 };
+type IActivityPubRemoteAttachmentBackupJob = {
+	type: 'remote-attachment-backup';
+	groupName: string;
+	remoteObjectId: number;
+	attempts?: number;
+};
+type IActivityPubRemoteAttachmentBackupFailure = {
+	url: string;
+	errorMessage: string;
+};
+type IActivityPubRemoteAttachmentBackupWithAttachment = {
+	attachment: IActivityPubRemoteObjectAttachmentPreview;
+	backup: IActivityPubRemoteAttachmentBackup;
+};
 
 const activityPubFollowerListParams = {
 	limit: 20,
@@ -145,6 +162,9 @@ const maxActivityPubRemoteObjectPreviewAttachmentTypeLength = 100;
 const maxActivityPubRemoteObjectPreviewAttachmentDimension = 1000000;
 const maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength = 200;
 const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 * 7;
+const activityPubRemoteAttachmentBackupQueueModuleName = 'activitypub-attachment-backup';
+const activityPubRemoteAttachmentBackupQueueKickBatchLimit = 3;
+const activityPubRemoteAttachmentBackupQueueMaxAttempts = 5;
 const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImportPolicy = Object.freeze({
 	mode: 'provenanceOnly',
 	defaultMode: 'provenanceOnly',
@@ -162,9 +182,10 @@ const activityPubSharedInboxReviewObjectTypes = new Set([
 	'Question',
 	'Event'
 ]);
+let activityPubRemoteAttachmentBackupQueueInProcess = false;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
-	app.checkModules(['api', 'group', 'database', 'content']);
+	app.checkModules(['api', 'group', 'database', 'content', 'asyncOperation']);
 	const models = options.models || await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models, options);
 	(await import('./api.js')).default(app, module);
@@ -344,6 +365,62 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				result.attachmentBackups = contentResult.attachmentBackups;
 			}
 			return result;
+		}
+
+		async queueGroupRemoteObjectAttachmentBackups(groupName: string, remoteObjectId: number | string, userId: number, userApiKeyId: number | null = null, options: IActivityPubRemoteAttachmentBackupQueueOptions = {}) {
+			getResolvedActivityPubConfig(app);
+			const group = await getFederatableGroup(app, groupName);
+			const actorRecord = await getGroupActorRecord(models, group);
+			const objectRecord = actorRecord ? await getGroupRemoteObjectRecord(models, actorRecord, remoteObjectId) : null;
+			if (!objectRecord) {
+				throwActivityPubError('activitypub_remote_object_not_found', 404);
+			}
+			if (!await getActivityPubRemoteObjectImportedPost(app, objectRecord)) {
+				throwActivityPubError('activitypub_remote_object_post_not_created', 400);
+			}
+
+			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				activityPubRemoteAttachmentBackupQueueModuleName,
+				userApiKeyId,
+				getActivityPubRemoteAttachmentBackupJobInput(groupName, objectRecord)
+			);
+			if (options.process !== false) {
+				this.startRemoteAttachmentBackupQueueProcessing(options);
+			}
+			return queue;
+		}
+
+		startRemoteAttachmentBackupQueueProcessing(options: IActivityPubRemoteAttachmentBackupQueueProcessOptions = {}) {
+			const limit = helpers.parsePositiveInteger(options.limit, activityPubRemoteAttachmentBackupQueueKickBatchLimit);
+			void this.processRemoteAttachmentBackupQueue({limit}).catch((e) => {
+				console.error('processActivityPubRemoteAttachmentBackupQueue error', e);
+			});
+		}
+
+		async processRemoteAttachmentBackupQueue(options: IActivityPubRemoteAttachmentBackupQueueProcessOptions = {}) {
+			if (activityPubRemoteAttachmentBackupQueueInProcess) {
+				return {processed: 0};
+			}
+
+			activityPubRemoteAttachmentBackupQueueInProcess = true;
+			let processed = 0;
+			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+
+			try {
+				while (processed < limit) {
+					const waitingQueue = await prepareNextActivityPubRemoteAttachmentBackupQueue(app);
+					if (!waitingQueue) {
+						return {processed};
+					}
+
+					await processActivityPubRemoteAttachmentBackupQueueItem(app, models, waitingQueue);
+					processed += 1;
+				}
+				return {processed};
+			} finally {
+				activityPubRemoteAttachmentBackupQueueInProcess = false;
+			}
 		}
 
 		async setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport> {
@@ -1065,10 +1142,14 @@ async function createActivityPubRemoteAttachmentBackups(app: IGeesomeApp, userId
 		if (!isActivityPubRemoteAttachmentBackupSupported(attachment)) {
 			continue;
 		}
-		const content = await createActivityPubRemoteAttachmentBackupContent(app, userId, postDraft, attachment);
-		backups.push(getActivityPubRemoteAttachmentBackup(attachment, content));
+		backups.push(await createActivityPubRemoteAttachmentBackupRecord(app, userId, postDraft, attachment));
 	}
 	return backups;
+}
+
+async function createActivityPubRemoteAttachmentBackupRecord(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview): Promise<IActivityPubRemoteAttachmentBackup> {
+	const content = await createActivityPubRemoteAttachmentBackupContent(app, userId, postDraft, attachment);
+	return getActivityPubRemoteAttachmentBackup(attachment, content);
 }
 
 async function createActivityPubRemoteAttachmentBackupContent(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview): Promise<IContent> {
@@ -1079,6 +1160,312 @@ async function createActivityPubRemoteAttachmentBackupContent(app: IGeesomeApp, 
 		return app.ms.content.saveData(userId, stream, getActivityPubRemoteAttachmentImportName(attachment), options);
 	}
 	return app.ms.content.saveDataByUrl(userId, attachment.url, options);
+}
+
+async function prepareNextActivityPubRemoteAttachmentBackupQueue(app: IGeesomeApp) {
+	while (true) {
+		const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(activityPubRemoteAttachmentBackupQueueModuleName);
+		if (!waitingQueue) {
+			return null;
+		}
+		if (!waitingQueue.asyncOperation) {
+			return waitingQueue;
+		}
+		if (waitingQueue.asyncOperation.inProcess) {
+			return null;
+		}
+
+		let job;
+		try {
+			job = parseActivityPubRemoteAttachmentBackupJob(waitingQueue.inputJson);
+		} catch (e) {
+			await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+			continue;
+		}
+		const hasFailure = waitingQueue.asyncOperation.errorType || waitingQueue.asyncOperation.errorMessage;
+		if (!hasFailure) {
+			await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+			continue;
+		}
+		if (getActivityPubRemoteAttachmentBackupJobAttempts(job) >= activityPubRemoteAttachmentBackupQueueMaxAttempts) {
+			await app.ms.asyncOperation.closeUserOperationQueue(waitingQueue.id);
+			continue;
+		}
+
+		await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {asyncOperationId: null});
+		return waitingQueue;
+	}
+}
+
+async function processActivityPubRemoteAttachmentBackupQueueItem(app: IGeesomeApp, models, waitingQueue): Promise<IActivityPubRemoteAttachmentBackupRetryResult | null> {
+	const job = getNextActivityPubRemoteAttachmentBackupJobAttempt(parseActivityPubRemoteAttachmentBackupJob(waitingQueue.inputJson));
+	await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {
+		inputJson: JSON.stringify(job),
+		startedAt: new Date()
+	});
+
+	const asyncOperation = await app.ms.asyncOperation.addAsyncOperation(waitingQueue.userId, {
+		userApiKeyId: waitingQueue.userApiKeyId,
+		module: activityPubRemoteAttachmentBackupQueueModuleName,
+		name: 'backup-activitypub-remote-attachments',
+		channel: getActivityPubRemoteAttachmentBackupJobChannel(job),
+		percent: 5
+	});
+	await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+	try {
+		const result = await runActivityPubRemoteAttachmentBackupJob(app, models, waitingQueue.userId, job);
+		await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+		await app.ms.asyncOperation.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, JSON.stringify(result));
+		return result;
+	} catch (e) {
+		const rawErrorMessage = getErrorMessage(e);
+		const errorMessage = getActivityPubRemoteAttachmentBackupJobFailureMessage(job, rawErrorMessage);
+		await app.ms.asyncOperation.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, errorMessage);
+		if (getActivityPubRemoteAttachmentBackupJobAttempts(job) >= activityPubRemoteAttachmentBackupQueueMaxAttempts) {
+			await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+			return null;
+		}
+		await app.ms.asyncOperation.updateUserOperationQueue(waitingQueue.id, {asyncOperationId: null});
+		return null;
+	}
+}
+
+async function runActivityPubRemoteAttachmentBackupJob(app: IGeesomeApp, models, userId: number, job: IActivityPubRemoteAttachmentBackupJob): Promise<IActivityPubRemoteAttachmentBackupRetryResult> {
+	const group = await getFederatableGroup(app, job.groupName);
+	const actorRecord = await getGroupActorRecord(models, group);
+	const objectRecord = actorRecord ? await getGroupRemoteObjectRecord(models, actorRecord, job.remoteObjectId) : null;
+	if (!objectRecord) {
+		throwActivityPubError('activitypub_remote_object_not_found', 404);
+	}
+	const post = await getActivityPubRemoteObjectImportedPost(app, objectRecord);
+	if (!post) {
+		throwActivityPubError('activitypub_remote_object_post_not_created', 400);
+	}
+
+	const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
+	const postDraft = await getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
+	return backupActivityPubRemotePostAttachments(app, getActivityPubRemotePostOwnerUserId(post, userId), objectRecord, post, postDraft);
+}
+
+async function backupActivityPubRemotePostAttachments(
+	app: IGeesomeApp,
+	userId: number,
+	objectRecord,
+	post: IPost,
+	postDraft: IActivityPubRemoteObjectPostDraft
+): Promise<IActivityPubRemoteAttachmentBackupRetryResult> {
+	const existingBackups = getActivityPubRemotePostAttachmentBackups(post);
+	const attachments = postDraft.attachments || [];
+	const candidates = getActivityPubRemoteAttachmentBackupRetryCandidates(attachments, existingBackups);
+	const backedUpAttachments: IActivityPubRemoteAttachmentBackupWithAttachment[] = [];
+	const failures: IActivityPubRemoteAttachmentBackupFailure[] = [];
+
+	for (const attachment of candidates) {
+		try {
+			backedUpAttachments.push({
+				attachment,
+				backup: await createActivityPubRemoteAttachmentBackupRecord(app, userId, postDraft, attachment)
+			});
+		} catch (e) {
+			failures.push({
+				url: attachment.url,
+				errorMessage: getErrorMessage(e)
+			});
+		}
+	}
+
+	const newBackups = backedUpAttachments.map((item) => item.backup);
+	const attachmentBackups = mergeActivityPubRemoteAttachmentBackups(existingBackups, newBackups);
+	if (newBackups.length) {
+		await updateActivityPubRemotePostAttachmentBackups(app, userId, post, postDraft, attachmentBackups, backedUpAttachments);
+	}
+	if (failures.length) {
+		throw new Error(getActivityPubRemoteAttachmentBackupFailureMessage(failures));
+	}
+
+	return {
+		postId: Number(post.id),
+		remoteObjectId: Number(objectRecord.id),
+		attempted: candidates.length,
+		backedUp: newBackups.length,
+		skipped: Math.max(0, attachments.length - candidates.length),
+		attachmentBackups
+	};
+}
+
+function getActivityPubRemoteAttachmentBackupJobInput(groupName: string, objectRecord): IActivityPubRemoteAttachmentBackupJob {
+	return {
+		type: 'remote-attachment-backup',
+		groupName,
+		remoteObjectId: Number(objectRecord.id),
+		attempts: 0
+	};
+}
+
+function parseActivityPubRemoteAttachmentBackupJob(inputJson: string): IActivityPubRemoteAttachmentBackupJob {
+	const job = parseActivityPubJson(String(inputJson || '{}'));
+	if (job?.type !== 'remote-attachment-backup') {
+		throwActivityPubError('activitypub_attachment_backup_job_invalid', 400);
+	}
+	if (typeof job.groupName !== 'string' || !job.groupName.trim()) {
+		throwActivityPubError('activitypub_attachment_backup_job_invalid', 400);
+	}
+	const remoteObjectId = Number(job.remoteObjectId);
+	if (!Number.isFinite(remoteObjectId) || remoteObjectId <= 0) {
+		throwActivityPubError('activitypub_attachment_backup_job_invalid', 400);
+	}
+
+	return {
+		type: 'remote-attachment-backup',
+		groupName: job.groupName,
+		remoteObjectId,
+		attempts: getActivityPubRemoteAttachmentBackupJobAttempts(job)
+	};
+}
+
+function getNextActivityPubRemoteAttachmentBackupJobAttempt(job: IActivityPubRemoteAttachmentBackupJob): IActivityPubRemoteAttachmentBackupJob {
+	return {
+		...job,
+		attempts: getActivityPubRemoteAttachmentBackupJobAttempts(job) + 1
+	};
+}
+
+function getActivityPubRemoteAttachmentBackupJobAttempts(job: IActivityPubRemoteAttachmentBackupJob): number {
+	return helpers.parsePositiveInteger(job?.attempts, 0);
+}
+
+function getActivityPubRemoteAttachmentBackupJobChannel(job: IActivityPubRemoteAttachmentBackupJob): string {
+	return `${activityPubRemoteAttachmentBackupQueueModuleName}:${job.groupName}:${job.remoteObjectId}`;
+}
+
+function getActivityPubRemoteAttachmentBackupJobFailureMessage(job: IActivityPubRemoteAttachmentBackupJob, errorMessage: string): string {
+	const attempts = getActivityPubRemoteAttachmentBackupJobAttempts(job);
+	return `activitypub remote attachment backup attempt ${attempts} of ${activityPubRemoteAttachmentBackupQueueMaxAttempts} failed: ${errorMessage}`;
+}
+
+function getActivityPubRemotePostOwnerUserId(post: IPost, fallbackUserId: number): number {
+	const userId = Number(post?.userId);
+	if (Number.isFinite(userId) && userId > 0) {
+		return userId;
+	}
+	return fallbackUserId;
+}
+
+function getActivityPubRemoteAttachmentBackupRetryCandidates(
+	attachments: IActivityPubRemoteObjectAttachmentPreview[],
+	existingBackups: IActivityPubRemoteAttachmentBackup[]
+): IActivityPubRemoteObjectAttachmentPreview[] {
+	const existingBackupUrls = new Set(existingBackups.map((backup) => backup.url));
+	return attachments.filter((attachment) => {
+		if (!isActivityPubRemoteAttachmentBackupSupported(attachment) || existingBackupUrls.has(attachment.url)) {
+			return false;
+		}
+		existingBackupUrls.add(attachment.url);
+		return true;
+	});
+}
+
+function getActivityPubRemotePostAttachmentBackups(post: IPost): IActivityPubRemoteAttachmentBackup[] {
+	const properties = parseActivityPubJson(String(post?.propertiesJson || '{}'));
+	const backups = properties?.activityPub?.attachmentBackups;
+	if (!Array.isArray(backups)) {
+		return [];
+	}
+	return mergeActivityPubRemoteAttachmentBackups([], backups);
+}
+
+function mergeActivityPubRemoteAttachmentBackups(
+	existingBackups: IActivityPubRemoteAttachmentBackup[],
+	newBackups: IActivityPubRemoteAttachmentBackup[]
+): IActivityPubRemoteAttachmentBackup[] {
+	const backups: IActivityPubRemoteAttachmentBackup[] = [];
+	const seenUrls = new Set<string>();
+	for (const backup of [...existingBackups, ...newBackups]) {
+		if (!backup?.url || seenUrls.has(backup.url)) {
+			continue;
+		}
+		backups.push(backup);
+		seenUrls.add(backup.url);
+	}
+	return backups;
+}
+
+async function updateActivityPubRemotePostAttachmentBackups(
+	app: IGeesomeApp,
+	userId: number,
+	post: IPost,
+	postDraft: IActivityPubRemoteObjectPostDraft,
+	attachmentBackups: IActivityPubRemoteAttachmentBackup[],
+	backedUpAttachments: IActivityPubRemoteAttachmentBackupWithAttachment[]
+): Promise<void> {
+	await app.ms.group.updateRemotePostByObject(userId, post.id, {
+		contents: getActivityPubRemotePostContentRefsWithBackups(post, backedUpAttachments),
+		propertiesJson: JSON.stringify(getActivityPubRemotePostPropertiesWithAttachmentBackups(post, postDraft, attachmentBackups))
+	});
+}
+
+function getActivityPubRemotePostContentRefsWithBackups(post: IPost, backedUpAttachments: IActivityPubRemoteAttachmentBackupWithAttachment[]) {
+	const refs = getActivityPubRemotePostContentRefs(post);
+	for (const backedUpAttachment of backedUpAttachments) {
+		refs.push(getActivityPubRemoteAttachmentBackupContentRef(backedUpAttachment));
+	}
+	return refs;
+}
+
+function getActivityPubRemotePostContentRefs(post: IPost) {
+	return (post?.contents || [])
+		.map((content) => getActivityPubRemotePostContentRef(content))
+		.filter((content) => !!content);
+}
+
+function getActivityPubRemotePostContentRef(content: IContent) {
+	const contentId = Number(content?.id);
+	if (!Number.isFinite(contentId) || contentId <= 0) {
+		return null;
+	}
+	const contentRef: any = {id: contentId};
+	const view = (content as any).postsContents?.view || content.view;
+	if (view) {
+		contentRef.view = view;
+	}
+	return contentRef;
+}
+
+function getActivityPubRemoteAttachmentBackupContentRef(backedUpAttachment: IActivityPubRemoteAttachmentBackupWithAttachment) {
+	return {
+		id: backedUpAttachment.backup.contentId,
+		view: getActivityPubRemoteAttachmentContentView(backedUpAttachment.attachment)
+	};
+}
+
+function getActivityPubRemotePostPropertiesWithAttachmentBackups(
+	post: IPost,
+	postDraft: IActivityPubRemoteObjectPostDraft,
+	attachmentBackups: IActivityPubRemoteAttachmentBackup[]
+) {
+	const properties = parseActivityPubJson(String(post?.propertiesJson || '{}')) || {};
+	properties.activityPub = {...(properties.activityPub || {})};
+	if (postDraft.attachments?.length) {
+		properties.activityPub.attachments = postDraft.attachments;
+	}
+	if (postDraft.attachmentImportPolicy) {
+		properties.activityPub.attachmentImportPolicy = postDraft.attachmentImportPolicy;
+	}
+	properties.activityPub.attachmentImportMode = 'backupOnCreate';
+	properties.activityPub.attachmentBackups = attachmentBackups;
+	return properties;
+}
+
+function getActivityPubRemoteAttachmentBackupFailureMessage(failures: IActivityPubRemoteAttachmentBackupFailure[]): string {
+	return failures.map((failure) => `${failure.url}: ${failure.errorMessage}`).join('; ');
+}
+
+function getErrorMessage(error): string {
+	if (error?.message) {
+		return error.message;
+	}
+	return String(error);
 }
 
 function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {

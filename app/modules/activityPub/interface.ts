@@ -1,5 +1,6 @@
 import type {IGroup, IPost} from '../group/interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
+import type {IUserOperationQueue} from '../asyncOperation/interface.js';
 import type {RichTextDocument} from '../../richText.js';
 
 export interface IActivityPubConfig {
@@ -389,6 +390,28 @@ export interface IActivityPubRemoteObjectPostCreateResult {
 	attachmentBackups?: IActivityPubRemoteAttachmentBackup[];
 }
 
+export interface IActivityPubRemoteAttachmentBackupQueueOptions {
+	process?: boolean;
+	limit?: number | string;
+}
+
+export interface IActivityPubRemoteAttachmentBackupQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubRemoteAttachmentBackupQueueProcessResult {
+	processed: number;
+}
+
+export interface IActivityPubRemoteAttachmentBackupRetryResult {
+	postId: number;
+	remoteObjectId: number;
+	attempted: number;
+	backedUp: number;
+	skipped: number;
+	attachmentBackups: IActivityPubRemoteAttachmentBackup[];
+}
+
 export interface IActivityPubRemoteObjectReviewStateInput {
 	state: ActivityPubObjectReviewState | string;
 }
@@ -578,6 +601,10 @@ export default interface IGeesomeActivityPubModule {
 	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
 
 	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number, options?: IActivityPubRemoteObjectPostCreateOptions): Promise<IActivityPubRemoteObjectPostCreateResult>;
+
+	queueGroupRemoteObjectAttachmentBackups(groupName: string, remoteObjectId: number | string, userId: number, userApiKeyId?: number | null, options?: IActivityPubRemoteAttachmentBackupQueueOptions): Promise<IUserOperationQueue>;
+
+	processRemoteAttachmentBackupQueue(options?: IActivityPubRemoteAttachmentBackupQueueProcessOptions): Promise<IActivityPubRemoteAttachmentBackupQueueProcessResult>;
 
 	setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport>;
 
