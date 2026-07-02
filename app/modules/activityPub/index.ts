@@ -1217,6 +1217,7 @@ function getActivityPubRemoteObjectAttachmentPreview(value): IActivityPubRemoteO
 		addActivityPubRemoteObjectAttachmentDimensions(preview, value);
 		addActivityPubRemoteObjectAttachmentMediaFields(preview, value);
 	}
+	addActivityPubRemoteObjectAttachmentBackupFields(preview);
 	return preview;
 }
 
@@ -1270,6 +1271,14 @@ function addActivityPubRemoteObjectAttachmentMediaFields(preview: IActivityPubRe
 	const sensitive = getActivityPubRemoteObjectBoolean(value.sensitive);
 	if (sensitive !== undefined) {
 		preview.sensitive = sensitive;
+	}
+}
+
+function addActivityPubRemoteObjectAttachmentBackupFields(preview: IActivityPubRemoteObjectAttachmentPreview): void {
+	const unsupportedReason = getActivityPubRemoteAttachmentBackupUnsupportedReason(preview);
+	preview.canBackupRemoteBytes = !unsupportedReason;
+	if (unsupportedReason) {
+		preview.backupUnsupportedReason = unsupportedReason;
 	}
 }
 
@@ -1545,11 +1554,26 @@ function getActivityPubRemoteObjectPostUpdateOptions(post: IPost): IActivityPubR
 }
 
 function isActivityPubRemoteAttachmentBackupSupported(attachment: IActivityPubRemoteObjectAttachmentPreview): boolean {
-	if (!['image', 'video', 'audio', 'document'].includes(String(attachment.mediaCategory || ''))) {
-		return false;
+	return !getActivityPubRemoteAttachmentBackupUnsupportedReason(attachment);
+}
+
+function getActivityPubRemoteAttachmentBackupUnsupportedReason(attachment: IActivityPubRemoteObjectAttachmentPreview): IActivityPubRemoteObjectAttachmentPreview['backupUnsupportedReason'] | '' {
+	if (!isActivityPubRemoteAttachmentBackupCategorySupported(attachment)) {
+		return 'activitypub_remote_attachment_backup_unsupported_category';
 	}
+	if (!isActivityPubRemoteAttachmentBackupUrlSupported(attachment.url)) {
+		return 'activitypub_remote_attachment_backup_unsupported_url_scheme';
+	}
+	return '';
+}
+
+function isActivityPubRemoteAttachmentBackupCategorySupported(attachment: IActivityPubRemoteObjectAttachmentPreview): boolean {
+	return ['image', 'video', 'audio', 'document'].includes(String(attachment.mediaCategory || ''));
+}
+
+function isActivityPubRemoteAttachmentBackupUrlSupported(urlValue: string): boolean {
 	try {
-		const url = new URL(attachment.url);
+		const url = new URL(urlValue);
 		return url.protocol === 'http:' || url.protocol === 'https:';
 	} catch (e) {
 		return false;

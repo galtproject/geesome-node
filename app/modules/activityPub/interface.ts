@@ -274,6 +274,10 @@ export interface IActivityPubRemoteObjectPreview {
 	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
 }
 
+export type ActivityPubRemoteAttachmentBackupUnsupportedReason =
+	'activitypub_remote_attachment_backup_unsupported_category'
+	| 'activitypub_remote_attachment_backup_unsupported_url_scheme';
+
 export interface IActivityPubRemoteObjectAttachmentPreview {
 	url: string;
 	type?: string;
@@ -287,6 +291,8 @@ export interface IActivityPubRemoteObjectAttachmentPreview {
 	durationSeconds?: number;
 	blurhash?: string;
 	sensitive?: boolean;
+	canBackupRemoteBytes?: boolean;
+	backupUnsupportedReason?: ActivityPubRemoteAttachmentBackupUnsupportedReason;
 }
 
 export interface IActivityPubRemoteObjectFilters {
