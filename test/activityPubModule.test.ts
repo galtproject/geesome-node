@@ -5,7 +5,7 @@ import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, getActivityPubContentDigestHeader, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
 import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
-import {ContentMimeType} from '../app/modules/database/interface.js';
+import {ContentMimeType, ContentView} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {RICH_TEXT_MIME_TYPE} from '../app/richText.js';
 
@@ -1380,8 +1380,9 @@ describe('activityPub module', () => {
 			];
 			const expectedAttachmentImportPolicy = {
 				mode: 'provenanceOnly',
-				canImportRemoteBytes: false,
-				reason: 'activitypub_remote_attachment_import_disabled'
+				defaultMode: 'provenanceOnly',
+				canImportRemoteBytes: true,
+				supportedModes: ['provenanceOnly', 'backupOnCreate']
 			};
 
 			assert.equal(objectPage.total, 1);
@@ -1493,6 +1494,7 @@ describe('activityPub module', () => {
 		assert.equal(createPostResult.post.isRemote, true);
 		assert.equal(createPostResult.remoteObject.localPostId, 88);
 		assert.equal(calls.saveData.length, 1);
+		assert.equal(calls.saveDataByUrl.length, 0);
 		assert.equal(calls.saveData[0].userId, 7);
 		assert.equal(calls.saveData[0].fileName, `activitypub-remote-object-${object.id}.json`);
 		assert.equal(calls.saveData[0].options.mimeType, RICH_TEXT_MIME_TYPE);
@@ -1510,7 +1512,8 @@ describe('activityPub module', () => {
 				activityPub: {
 					...postDraft.source,
 					attachments: expectedAttachments,
-					attachmentImportPolicy: expectedAttachmentImportPolicy
+					attachmentImportPolicy: expectedAttachmentImportPolicy,
+					attachmentImportMode: 'provenanceOnly'
 				},
 				sourceLink: activity.object.id,
 				title: object.preview?.name,
@@ -1561,6 +1564,116 @@ describe('activityPub module', () => {
 		}, 7), /activitypub_remote_object_not_found/);
 		assert.equal(emptyPage.total, 0);
 		assert.deepEqual(emptyPage.list, []);
+	});
+
+	it('backs up supported remote attachments when remote post creation opts in', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const activity = {
+			id: 'https://remote.example/activities/create-reply-backup-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-backup-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply with media',
+				attachment: [
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: 'Remote image',
+						summary: 'Image summary',
+						url: 'https://remote.example/media/photo.png'
+					},
+					{
+						type: 'Link',
+						name: 'IPFS reference',
+						url: 'ipfs://bafyremoteattachment'
+					},
+					{
+						type: 'Link',
+						mediaType: 'text/html',
+						name: 'Remote page',
+						url: 'https://remote.example/page'
+					},
+					{
+						type: 'Document',
+						mediaType: 'application/pdf',
+						name: 'Remote PDF',
+						url: 'https://remote.example/media/file.pdf'
+					}
+				],
+				published: '2026-06-01T12:08:00Z'
+			}
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const object = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
+		const result = await module.createGroupRemoteObjectPost('test-channel', object.id, 7, {
+			importRemoteAttachments: true
+		});
+		const postData = calls.createRemotePostByObject[0].postData;
+		const properties = JSON.parse(postData.propertiesJson);
+		const expectedBackups = [
+			{
+				url: 'https://remote.example/media/photo.png',
+				contentId: 301,
+				storageId: 'saved-url-content-1',
+				mediaType: 'image/png',
+				mediaCategory: 'image',
+				name: 'Remote image'
+			},
+			{
+				url: 'https://remote.example/media/file.pdf',
+				contentId: 302,
+				storageId: 'saved-url-content-2',
+				mediaType: 'application/pdf',
+				mediaCategory: 'document',
+				name: 'Remote PDF'
+			}
+		];
+
+		assert.equal(calls.saveData.length, 1);
+		assert.equal(calls.saveDataByUrl.length, 2);
+		assert.equal(calls.saveDataByUrl[0].userId, 7);
+		assert.equal(calls.saveDataByUrl[0].url, 'https://remote.example/media/photo.png');
+		assert.equal(calls.saveDataByUrl[0].options.name, 'Remote image');
+		assert.equal(calls.saveDataByUrl[0].options.description, 'Image summary');
+		assert.equal(calls.saveDataByUrl[0].options.mimeType, 'image/png');
+		assert.equal(calls.saveDataByUrl[0].options.view, ContentView.Media);
+		assert.deepEqual(calls.saveDataByUrl[0].options.properties.activityPub, {
+			protocol: 'activitypub',
+			objectId: activity.object.id,
+			activityId: activity.id,
+			remoteObjectUrl: activity.object.id,
+			remoteActorUrl: remoteActorKey.actorUrl,
+			attachmentUrl: 'https://remote.example/media/photo.png',
+			attachmentType: 'Image',
+			attachmentMediaType: 'image/png',
+			attachmentMediaCategory: 'image'
+		});
+		assert.equal(calls.saveDataByUrl[1].url, 'https://remote.example/media/file.pdf');
+		assert.equal(calls.saveDataByUrl[1].options.name, 'Remote PDF');
+		assert.equal(calls.saveDataByUrl[1].options.mimeType, 'application/pdf');
+		assert.equal(calls.saveDataByUrl[1].options.view, ContentView.Attachment);
+		assert.deepEqual(postData.contents, [{id: 201}, {id: 301}, {id: 302}]);
+		assert.deepEqual(result.attachmentBackups, expectedBackups);
+		assert.equal(properties.activityPub.attachmentImportMode, 'backupOnCreate');
+		assert.deepEqual(properties.activityPub.attachmentBackups, expectedBackups);
+		assert.equal(properties.activityPub.attachments.length, 4);
 	});
 
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
@@ -1936,6 +2049,7 @@ describe('activityPub API', () => {
 	it('registers public unversioned routes with protocol content types', async () => {
 		const routes = {};
 		const permissionChecks: any[] = [];
+		const remoteObjectPostCreateCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -1972,10 +2086,13 @@ describe('activityPub API', () => {
 					objectId: 'https://remote.example/objects/reply-1'
 				}
 			}),
-			createGroupRemoteObjectPost: async () => ({
-				post: {id: 88},
-				remoteObject: {id: 2, localPostId: 88}
-			}),
+			createGroupRemoteObjectPost: async (groupName, remoteObjectId, userId, options) => {
+				remoteObjectPostCreateCalls.push({groupName, remoteObjectId, userId, options});
+				return {
+					post: {id: 88},
+					remoteObject: {id: 2, localPostId: 88}
+				};
+			},
 			setGroupRemoteObjectReviewState: async () => ({
 				id: 2,
 				reviewState: ActivityPubObjectReviewState.Rejected,
@@ -2102,9 +2219,16 @@ describe('activityPub API', () => {
 
 		const remoteObjectPostCreate = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
+			body: {importRemoteAttachments: true},
 			user: {id: 1}
 		});
 		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(remoteObjectPostCreateCalls, [{
+			groupName: 'test-channel',
+			remoteObjectId: '2',
+			userId: 1,
+			options: {importRemoteAttachments: true}
+		}]);
 		assert.deepEqual(remoteObjectPostCreate.body, {
 			post: {id: 88},
 			remoteObject: {id: 2, localPostId: 88}
@@ -2219,6 +2343,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 		getGroupByParams: [],
 		getGroupPosts: [],
 		saveData: [],
+		saveDataByUrl: [],
 		createRemotePostByObject: [],
 		updateRemotePostByObject: [],
 		deletePostsPure: [],
@@ -2259,6 +2384,17 @@ async function createActivityPubHarness(overrides: any = {}) {
 						name: fileName,
 						mimeType: options.mimeType,
 						storageId: `saved-content-${calls.saveData.length}`
+					};
+				},
+				async saveDataByUrl(userId, url, options) {
+					calls.saveDataByUrl.push({userId, url, options});
+					return {
+						id: 300 + calls.saveDataByUrl.length,
+						userId,
+						name: options.name,
+						mimeType: options.mimeType,
+						view: options.view,
+						storageId: `saved-url-content-${calls.saveDataByUrl.length}`
 					};
 				}
 			},

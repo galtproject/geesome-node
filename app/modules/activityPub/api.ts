@@ -213,15 +213,17 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores only the sanitized canonical rich-text projection as post content, carries sanitized remote attachment/media metadata and the explicit provenance-only attachment import policy without importing remote bytes, keeps raw ActivityStreams JSON only on the cached remote object for audit, maps `inReplyTo` to a local GeeSome `replyToId` when it targets a known post in the same group actor, and links the cached object to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
+	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores the sanitized canonical rich-text projection as post content, carries sanitized remote attachment/media metadata, and defaults to provenance-only remote attachments. When `importRemoteAttachments` is true, supported remote HTTP(S) media/document attachments are backed up through GeeSome content storage and linked to the created post; unsupported schemes and link-only attachments remain provenance metadata. Raw ActivityStreams JSON stays only on the cached remote object for audit. `inReplyTo` is mapped to a local GeeSome `replyToId` when it targets a known post in the same group actor, and the cached object is linked to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiBody {Boolean} [importRemoteAttachments=false] Back up supported remote HTTP(S) media/document attachments into GeeSome content storage before creating the post.
 	 * @apiSuccess {Object} post Created native GeeSome remote post.
 	 * @apiSuccess {Object} remoteObject Updated cached remote object report with `localPostId` set.
+	 * @apiSuccess {Object[]} [attachmentBackups] Remote attachment backup records when `importRemoteAttachments` imported any attachments.
 	 */
 	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
-		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id));
+		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id, req.body || {}));
 	});
 
 	/**

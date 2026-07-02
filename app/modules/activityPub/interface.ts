@@ -310,10 +310,23 @@ export interface IActivityPubRemoteObjectPostDraftSource {
 	remoteActorUrl?: string;
 }
 
+export type ActivityPubRemoteAttachmentImportMode = 'provenanceOnly' | 'backupOnCreate';
+
 export interface IActivityPubRemoteAttachmentImportPolicy {
 	mode: 'provenanceOnly';
-	canImportRemoteBytes: false;
-	reason: 'activitypub_remote_attachment_import_disabled';
+	defaultMode: 'provenanceOnly';
+	canImportRemoteBytes: boolean;
+	supportedModes: ActivityPubRemoteAttachmentImportMode[];
+	reason?: 'activitypub_remote_attachment_import_disabled';
+}
+
+export interface IActivityPubRemoteAttachmentBackup {
+	url: string;
+	contentId: number;
+	storageId?: string;
+	mediaType?: string;
+	mediaCategory?: IActivityPubRemoteObjectAttachmentPreview['mediaCategory'];
+	name?: string;
 }
 
 export interface IActivityPubRemoteObjectPostDraft {
@@ -330,9 +343,14 @@ export interface IActivityPubRemoteObjectPostDraft {
 	source: IActivityPubRemoteObjectPostDraftSource;
 }
 
+export interface IActivityPubRemoteObjectPostCreateOptions {
+	importRemoteAttachments?: boolean | string;
+}
+
 export interface IActivityPubRemoteObjectPostCreateResult {
 	post: IPost;
 	remoteObject: IActivityPubRemoteObjectReport;
+	attachmentBackups?: IActivityPubRemoteAttachmentBackup[];
 }
 
 export interface IActivityPubRemoteObjectReviewStateInput {
@@ -523,7 +541,7 @@ export default interface IGeesomeActivityPubModule {
 
 	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
 
-	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult>;
+	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number, options?: IActivityPubRemoteObjectPostCreateOptions): Promise<IActivityPubRemoteObjectPostCreateResult>;
 
 	setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport>;
 

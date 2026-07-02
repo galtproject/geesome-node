@@ -210,6 +210,17 @@ function getModule(app: IGeesomeApp) {
 		return pick(contentData, fields);
 	}
 
+	function parseContentPropertiesJson(propertiesJson) {
+		if (!propertiesJson) {
+			return {};
+		}
+		try {
+			return JSON.parse(propertiesJson);
+		} catch (e) {
+			return {};
+		}
+	}
+
 	function parseByteRange(rangeHeader: string, dataSize: number, defaultChunkSize: number): {start: number, end: number} | null {
 		if (!rangeHeader || !rangeHeader.startsWith('bytes=') || rangeHeader.includes(',')) {
 			return null;
@@ -821,7 +832,7 @@ function getModule(app: IGeesomeApp) {
 			return {name: options.driver}
 		}
 
-		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, name?, description?, view?, path?, onProgress? } = {}) {
+		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, name?, description?, view?, path?, onProgress?, properties? } = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			let {name, description, view} = options;
 			if (!name) {
@@ -891,7 +902,7 @@ function getModule(app: IGeesomeApp) {
 				view: view || ContentView.Attachment,
 				storageId: storageFile.id,
 				size: storageFile.size,
-				propertiesJson: JSON.stringify(properties)
+				propertiesJson: JSON.stringify(merge(properties || {}, options.properties || {}))
 			}, options, url);
 		}
 
@@ -925,7 +936,11 @@ function getModule(app: IGeesomeApp) {
 					log('getPreview');
 					previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
 					if (properties) {
-						contentData.propertiesJson = JSON.stringify(properties);
+						contentData.propertiesJson = JSON.stringify(merge(
+							{},
+							parseContentPropertiesJson(contentData.propertiesJson),
+							properties
+						));
 					}
 				}
 

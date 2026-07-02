@@ -3,10 +3,12 @@ import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
 import {RICH_TEXT_MIME_TYPE, htmlToRichText} from '../../richText.js';
+import {ContentView} from '../database/interface.js';
 import type {IContent, IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import IGeesomeActivityPubModule, {
+	ActivityPubRemoteAttachmentImportMode,
 	ActivityPubFollowDirection,
 	ActivityPubFlagState,
 	ActivityPubFollowState,
@@ -19,7 +21,9 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
+	IActivityPubRemoteAttachmentBackup,
 	IActivityPubRemoteAttachmentImportPolicy,
+	IActivityPubRemoteObjectPostCreateOptions,
 	IActivityPubRemoteObjectPostDraft,
 	IActivityPubRemoteObjectPostDraftSource,
 	IActivityPubRemoteObjectReport,
@@ -101,6 +105,12 @@ type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
 };
 
+type IActivityPubRemoteObjectPostContentResult = {
+	contents: IContent[];
+	attachmentBackups: IActivityPubRemoteAttachmentBackup[];
+	attachmentImportMode: ActivityPubRemoteAttachmentImportMode;
+};
+
 const activityPubFollowerListParams = {
 	limit: 20,
 	sortBy: 'acceptedAt',
@@ -136,8 +146,9 @@ const maxActivityPubRemoteObjectPreviewAttachmentBlurhashLength = 200;
 const maxActivityPubRemoteObjectPreviewAttachmentDurationSeconds = 60 * 60 * 24 * 7;
 const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImportPolicy = Object.freeze({
 	mode: 'provenanceOnly',
-	canImportRemoteBytes: false,
-	reason: 'activitypub_remote_attachment_import_disabled'
+	defaultMode: 'provenanceOnly',
+	canImportRemoteBytes: true,
+	supportedModes: ['provenanceOnly', 'backupOnCreate']
 });
 const activityPubSharedInboxReviewObjectTypes = new Set([
 	'Note',
@@ -309,7 +320,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
 		}
 
-		async createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult> {
+		async createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number, options: IActivityPubRemoteObjectPostCreateOptions = {}): Promise<IActivityPubRemoteObjectPostCreateResult> {
 			getResolvedActivityPubConfig(app);
 			const group = await getFederatableGroup(app, groupName);
 			const actorRecord = await getGroupActorRecord(models, group);
@@ -320,14 +331,18 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
 			const postDraft = await getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
 			assertActivityPubRemoteObjectPostDraftCreatable(postDraft);
-			const content = await createActivityPubRemoteObjectPostContent(app, userId, postDraft);
-			const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, content));
+			const contentResult = await createActivityPubRemoteObjectPostContents(app, userId, postDraft, options);
+			const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, contentResult));
 			await updateActivityPubRemoteObjectLocalPostId(objectRecord, post);
 
-			return {
+			const result: IActivityPubRemoteObjectPostCreateResult = {
 				post,
 				remoteObject: await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord)
 			};
+			if (contentResult.attachmentBackups.length) {
+				result.attachmentBackups = contentResult.attachmentBackups;
+			}
+			return result;
 		}
 
 		async setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport> {
@@ -1023,7 +1038,32 @@ async function createActivityPubRemoteObjectPostContent(app: IGeesomeApp, userId
 	);
 }
 
-function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, content: IContent) {
+async function createActivityPubRemoteObjectPostContents(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft, options: IActivityPubRemoteObjectPostCreateOptions = {}): Promise<IActivityPubRemoteObjectPostContentResult> {
+	const content = await createActivityPubRemoteObjectPostContent(app, userId, postDraft);
+	const attachmentImportMode = getActivityPubRemoteAttachmentImportMode(options);
+	const attachmentBackups = attachmentImportMode === 'backupOnCreate'
+		? await createActivityPubRemoteAttachmentBackups(app, userId, postDraft)
+		: [];
+	return {
+		contents: [content, ...attachmentBackups.map((backup) => ({id: backup.contentId} as IContent))],
+		attachmentBackups,
+		attachmentImportMode
+	};
+}
+
+async function createActivityPubRemoteAttachmentBackups(app: IGeesomeApp, userId: number, postDraft: IActivityPubRemoteObjectPostDraft): Promise<IActivityPubRemoteAttachmentBackup[]> {
+	const backups: IActivityPubRemoteAttachmentBackup[] = [];
+	for (const attachment of postDraft.attachments || []) {
+		if (!isActivityPubRemoteAttachmentBackupSupported(attachment)) {
+			continue;
+		}
+		const content = await app.ms.content.saveDataByUrl(userId, attachment.url, getActivityPubRemoteAttachmentSaveOptions(postDraft, attachment));
+		backups.push(getActivityPubRemoteAttachmentBackup(attachment, content));
+	}
+	return backups;
+}
+
+function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
 	const postData: any = {
 		groupId: group.id,
 		status: PostStatus.Published,
@@ -1031,8 +1071,8 @@ function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivi
 		sourceChannelId: getActivityPubRemoteObjectPostSourceChannelId(remoteObject),
 		sourcePostId: getActivityPubRemoteObjectPostSourcePostId(remoteObject),
 		sourceDate: remoteObject.publishedAt || undefined,
-		propertiesJson: JSON.stringify(getActivityPubRemoteObjectPostProperties(remoteObject, postDraft)),
-		contents: [{id: content.id}]
+		propertiesJson: JSON.stringify(getActivityPubRemoteObjectPostProperties(remoteObject, postDraft, contentResult)),
+		contents: contentResult.contents.map((content) => ({id: content.id}))
 	};
 	if (postDraft.replyToPostId) {
 		postData['replyToId'] = postDraft.replyToPostId;
@@ -1040,7 +1080,7 @@ function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivi
 	return postData;
 }
 
-function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft) {
+function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
 	const properties: any = {
 		activityPub: {...postDraft.source}
 	};
@@ -1059,6 +1099,12 @@ function getActivityPubRemoteObjectPostProperties(remoteObject: IActivityPubRemo
 	}
 	if (postDraft.attachmentImportPolicy) {
 		properties.activityPub.attachmentImportPolicy = postDraft.attachmentImportPolicy;
+	}
+	if (postDraft.attachments?.length) {
+		properties.activityPub.attachmentImportMode = contentResult.attachmentImportMode;
+	}
+	if (contentResult.attachmentBackups.length) {
+		properties.activityPub.attachmentBackups = contentResult.attachmentBackups;
 	}
 	return properties;
 }
@@ -1479,8 +1525,93 @@ function getActivityPubRemoteObjectPostSourceLink(remoteObject: IActivityPubRemo
 	return remoteObject.preview?.url || remoteObject.remoteObjectUrl || remoteObject.objectId || '';
 }
 
+function getActivityPubRemoteAttachmentImportMode(options: IActivityPubRemoteObjectPostCreateOptions = {}): ActivityPubRemoteAttachmentImportMode {
+	if (helpers.parseBoolean(options.importRemoteAttachments, false)) {
+		return 'backupOnCreate';
+	}
+	return 'provenanceOnly';
+}
+
 function getActivityPubRemoteAttachmentImportPolicy(): IActivityPubRemoteAttachmentImportPolicy {
 	return activityPubRemoteAttachmentImportPolicy;
+}
+
+function getActivityPubRemoteObjectPostUpdateOptions(post: IPost): IActivityPubRemoteObjectPostCreateOptions {
+	const properties = parseActivityPubJson(String(post?.propertiesJson || '{}'));
+	if (properties?.activityPub?.attachmentImportMode === 'backupOnCreate') {
+		return {importRemoteAttachments: true};
+	}
+	return {};
+}
+
+function isActivityPubRemoteAttachmentBackupSupported(attachment: IActivityPubRemoteObjectAttachmentPreview): boolean {
+	if (!['image', 'video', 'audio', 'document'].includes(String(attachment.mediaCategory || ''))) {
+		return false;
+	}
+	try {
+		const url = new URL(attachment.url);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch (e) {
+		return false;
+	}
+}
+
+function getActivityPubRemoteAttachmentSaveOptions(postDraft: IActivityPubRemoteObjectPostDraft, attachment: IActivityPubRemoteObjectAttachmentPreview) {
+	return {
+		mimeType: attachment.mediaType,
+		name: getActivityPubRemoteAttachmentImportName(attachment),
+		description: attachment.summaryText || attachment.altText,
+		view: getActivityPubRemoteAttachmentContentView(attachment),
+		properties: {
+			source: 'activityPub',
+			activityPub: {
+				...postDraft.source,
+				attachmentUrl: attachment.url,
+				attachmentType: attachment.type,
+				attachmentMediaType: attachment.mediaType,
+				attachmentMediaCategory: attachment.mediaCategory
+			}
+		}
+	};
+}
+
+function getActivityPubRemoteAttachmentBackup(attachment: IActivityPubRemoteObjectAttachmentPreview, content: IContent): IActivityPubRemoteAttachmentBackup {
+	const backup: IActivityPubRemoteAttachmentBackup = {
+		url: attachment.url,
+		contentId: Number(content.id)
+	};
+	if (content.storageId) {
+		backup.storageId = content.storageId;
+	}
+	if (attachment.mediaType) {
+		backup.mediaType = attachment.mediaType;
+	}
+	if (attachment.mediaCategory) {
+		backup.mediaCategory = attachment.mediaCategory;
+	}
+	if (attachment.name) {
+		backup.name = attachment.name;
+	}
+	return backup;
+}
+
+function getActivityPubRemoteAttachmentImportName(attachment: IActivityPubRemoteObjectAttachmentPreview): string {
+	return attachment.name || getActivityPubRemoteAttachmentUrlFileName(attachment.url) || 'activitypub-remote-attachment';
+}
+
+function getActivityPubRemoteAttachmentUrlFileName(url: string): string {
+	try {
+		return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || '');
+	} catch (e) {
+		return '';
+	}
+}
+
+function getActivityPubRemoteAttachmentContentView(attachment: IActivityPubRemoteObjectAttachmentPreview): ContentView {
+	if (['image', 'video', 'audio'].includes(String(attachment.mediaCategory || ''))) {
+		return ContentView.Media;
+	}
+	return ContentView.Attachment;
 }
 
 async function updateActivityPubRemoteObjectLocalPostId(objectRecord, post: IPost): Promise<void> {
@@ -1503,12 +1634,12 @@ async function updateActivityPubRemoteObjectPost(app: IGeesomeApp, models, objec
 	if (!post.userId) {
 		return false;
 	}
-	const content = await createActivityPubRemoteObjectPostContent(app, post.userId, postDraft);
+	const contentResult = await createActivityPubRemoteObjectPostContents(app, post.userId, postDraft, getActivityPubRemoteObjectPostUpdateOptions(post));
 	const group = post.group || await app.ms.group.getGroup(post.groupId);
 	if (!group) {
 		return false;
 	}
-	const postData = getActivityPubRemoteObjectPostUpdateData(group, remoteObject, postDraft, content);
+	const postData = getActivityPubRemoteObjectPostUpdateData(group, remoteObject, postDraft, contentResult);
 	await app.ms.group.updateRemotePostByObject(post.userId, post.id, postData);
 	return true;
 }
@@ -1551,8 +1682,8 @@ function isActivityPubRemoteObjectImportedPost(objectRecord, post): boolean {
 		&& post.sourcePostId === getActivityPubRemoteObjectPostSourcePostId(objectRecord);
 }
 
-function getActivityPubRemoteObjectPostUpdateData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, content: IContent) {
-	const postData = getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, content);
+function getActivityPubRemoteObjectPostUpdateData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
+	const postData = getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, contentResult);
 	if (!postDraft.replyToPostId) {
 		postData.replyToId = null;
 	}
