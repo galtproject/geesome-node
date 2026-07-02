@@ -57,7 +57,9 @@
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker compose up",
     "docker-build": "bash/docker-build.sh",
-    "docker-upgrade": "bash/docker-rebuild-and-upgrade.sh"
+    "docker-upgrade": "bash/docker-rebuild-and-upgrade.sh",
+    "storage:move": "bash bash/move-docker-storage.sh",
+    "docker-storage:move": "bash bash/move-docker-storage.sh"
   },
   "author": "",
   "license": "ISC",

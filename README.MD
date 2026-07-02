@@ -103,6 +103,18 @@ The Docker service runs `bash/ipfs-ownership-preflight.sh` before startup. It cr
 
 6. Open `geesome.your-site.com/#/setup` to create first admin user
 
+## Moving Docker storage to a mounted disk
+If the server runs out of root disk space, mount a larger disk first, then move the heavy Docker storage with one command from the repo directory:
+```
+sudo npm run storage:move -- ipfs /mnt/geesome --yes
+sudo npm run storage:move -- database /mnt/geesome --yes
+sudo npm run storage:move -- all /mnt/geesome --yes
+```
+
+The `ipfs` target moves `STORAGE_DATA` to `/mnt/geesome/ipfs` and `STORAGE_STAGING` to `/mnt/geesome/ipfs-staging`. The `database` target moves Postgres data to `/mnt/geesome/postgres-data`. The script stops the Docker stack, copies and verifies the data, updates Docker Compose `.env`, writes a `geesome-docker` systemd storage override when that service is installed, relinks the old paths, runs the IPFS ownership preflight when needed, and restarts the stack.
+
+By default the old source directories are deleted after the stack starts successfully, freeing space on the original disk. Add `--keep-source` if you want rollback directories left as `*.moved-<timestamp>` backups instead.
+
 ## Install without domain (IP only)
 Use this if your server has no domain and you want to reach the node by its IP address.
 1. Clone repo to server
