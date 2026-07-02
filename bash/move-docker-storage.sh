@@ -27,10 +27,13 @@ Usage:
 Moves GeeSome Docker storage to a mounted disk and updates Docker Compose path
 overrides so future restarts use the new location.
 
+The target-base argument is a parent directory. The script creates the storage
+subdirectories inside it.
+
 Examples:
-  sudo npm run storage:move -- ipfs /mnt/geesome --yes
-  sudo npm run storage:move -- database /mnt/geesome --yes
-  sudo npm run storage:move -- all /mnt/geesome --yes
+  sudo npm run storage:move -- ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
+  sudo npm run storage:move -- database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
+  sudo npm run storage:move -- all /mnt/geesome --yes       # creates all of the above
 
 Targets:
   ipfs       Moves STORAGE_DATA to <target-base>/ipfs and STORAGE_STAGING to
