@@ -299,6 +299,33 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/refresh-async Queue ActivityPub source cache refresh
+	 * @apiName AdminActivityPubSourceRefreshAsync
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Queues the subscribed actor public `featured` and/or `outbox` refresh as a normal user async operation. Duplicate waiting jobs for the same source/options are reused. Set `process=false` when an external worker should process the queue later.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Number} [limit=20] Maximum remote collection items to inspect, capped at 50.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing.
+	 * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/refresh-async', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.queueActivityPubSourceRefresh(
+			req.user.id,
+			req.params.sourceId,
+			req.apiKey?.id || null,
+			req.body || {}
+		));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/read Mark ActivityPub source feed read
 	 * @apiName AdminActivityPubSourceRead
 	 * @apiGroup AdminActivityPub

@@ -4,17 +4,28 @@ import IGeesomeActivityPubModule from './interface.js';
 import ActivityPubDeliveryCronService from './cronService.js';
 
 const defaultActivityPubDeliveryWorkerIntervalMs = 60 * 1000;
+const defaultActivityPubSourceRefreshWorkerIntervalMs = 60 * 1000;
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
-	if (!isActivityPubDeliveryWorkerEnabled(app)) {
+	const deliveryWorkerEnabled = isActivityPubDeliveryWorkerEnabled(app);
+	const sourceRefreshWorkerEnabled = isActivityPubSourceRefreshWorkerEnabled(app);
+	if (!deliveryWorkerEnabled && !sourceRefreshWorkerEnabled) {
 		return null;
 	}
 
 	const cronService = new ActivityPubDeliveryCronService(app, activityPubModule);
-	const timer = setInterval(async () => {
-		await cronService.processDeliveryQueue().catch((e) => console.error('processActivityPubDeliveryQueue error', e));
-	}, getActivityPubDeliveryWorkerIntervalMs(app));
-	timer.unref?.();
+	if (deliveryWorkerEnabled) {
+		const timer = setInterval(async () => {
+			await cronService.processDeliveryQueue().catch((e) => console.error('processActivityPubDeliveryQueue error', e));
+		}, getActivityPubDeliveryWorkerIntervalMs(app));
+		timer.unref?.();
+	}
+	if (sourceRefreshWorkerEnabled) {
+		const timer = setInterval(async () => {
+			await cronService.processSourceRefreshQueue().catch((e) => console.error('processActivityPubSourceRefreshQueue error', e));
+		}, getActivityPubSourceRefreshWorkerIntervalMs(app));
+		timer.unref?.();
+	}
 
 	return cronService;
 }
@@ -31,6 +42,21 @@ function getActivityPubDeliveryWorkerIntervalMs(app: IGeesomeApp): number {
 	return parsePositiveInteger(
 		app.config.activityPubConfig?.deliveryWorkerIntervalMs,
 		defaultActivityPubDeliveryWorkerIntervalMs
+	);
+}
+
+function isActivityPubSourceRefreshWorkerEnabled(app: IGeesomeApp): boolean {
+	const config = app.config.activityPubConfig || {};
+	if (!isActivityPubEnabled(config)) {
+		return false;
+	}
+	return config.sourceRefreshWorker === true || config.sourceRefreshWorker === '1' || config.sourceRefreshWorker === 'true';
+}
+
+function getActivityPubSourceRefreshWorkerIntervalMs(app: IGeesomeApp): number {
+	return parsePositiveInteger(
+		app.config.activityPubConfig?.sourceRefreshWorkerIntervalMs,
+		defaultActivityPubSourceRefreshWorkerIntervalMs
 	);
 }
 

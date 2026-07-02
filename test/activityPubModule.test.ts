@@ -484,6 +484,63 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObject.rows.every((row) => row.remoteActorId === models.ActivityPubRemoteActor.rows[0].id), true);
 	});
 
+	it('queues ActivityPub source refreshes through async operations', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const sourceObject = {
+			id: 'https://remote.example/objects/queued-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Queued source</p>',
+			published: '2026-06-01T12:20:00Z'
+		};
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			featured: 'https://remote.example/users/alice/collections/featured',
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const sourceJsonByUrl = {
+			'https://remote.example/users/alice/collections/featured': {
+				type: 'OrderedCollection',
+				orderedItems: [sourceObject]
+			}
+		};
+		const {module, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+
+		const queue = await module.queueActivityPubSourceRefresh(7, subscription.id, 13, {
+			limit: 5,
+			includeOutbox: false,
+			process: false
+		});
+		const processResult = await module.processActivityPubSourceRefreshQueue({limit: 1});
+		const feed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const output = JSON.parse(calls.asyncOperations[0].output);
+
+		assert.equal(queue.module, 'activitypub-source-refresh');
+		assert.equal(queue.userApiKeyId, 13);
+		assert.deepEqual(JSON.parse(queue.inputJson), {
+			type: 'source-refresh',
+			sourceId: subscription.id,
+			input: {
+				limit: 5,
+				includeOutbox: false
+			}
+		});
+		assert.deepEqual(processResult, {processed: 1});
+		assert.equal(queue.isWaiting, false);
+		assert.equal(calls.asyncOperations[0].name, 'refresh-activitypub-source');
+		assert.equal(calls.asyncOperations[0].channel, `activitypub-source-refresh:${subscription.id}`);
+		assert.equal(output.cached, 1);
+		assert.equal(output.source.id, subscription.id);
+		assert.equal(feed.list[0].objectId, sourceObject.id);
+	});
+
 	it('records signed Follow activities for group inboxes idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -2592,6 +2649,7 @@ describe('activityPub API', () => {
 		const sourceRemoveCalls: any[] = [];
 		const sourceFeedCalls: any[] = [];
 		const sourceRefreshCalls: any[] = [];
+		const sourceRefreshQueueCalls: any[] = [];
 		const sourceReadCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
@@ -2695,6 +2753,17 @@ describe('activityPub API', () => {
 					cached: 1,
 					skipped: 1,
 					errors: []
+				};
+			},
+			queueActivityPubSourceRefresh: async (userId, sourceId, userApiKeyId, input) => {
+				sourceRefreshQueueCalls.push({userId, sourceId, userApiKeyId, input});
+				return {
+					id: 44,
+					userId,
+					module: 'activitypub-source-refresh',
+					userApiKeyId,
+					inputJson: JSON.stringify({sourceId, input}),
+					isWaiting: true
 				};
 			},
 			markActivityPubSourceRead: async (userId, sourceId, input) => {
@@ -3003,12 +3072,28 @@ describe('activityPub API', () => {
 		assert.equal(sourceRefresh.body.cached, 1);
 		assert.equal(sourceRefresh.body.source.lastRefreshRequestedAt.toISOString(), '2026-06-01T12:11:00.000Z');
 
+		const sourceRefreshQueue = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/refresh-async', {
+			params: {sourceId: '4'},
+			body: {limit: 2, process: false},
+			user: {id: 1},
+			apiKey: {id: 9}
+		});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceRefreshQueueCalls, [{
+			userId: 1,
+			sourceId: '4',
+			userApiKeyId: 9,
+			input: {limit: 2, process: false}
+		}]);
+		assert.equal(sourceRefreshQueue.body.module, 'activitypub-source-refresh');
+		assert.equal(sourceRefreshQueue.body.userApiKeyId, 9);
+
 		const sourceRead = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/read', {
 			params: {sourceId: '4'},
 			body: {readAt: '2026-06-01T12:10:00Z'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceReadCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3021,7 +3106,7 @@ describe('activityPub API', () => {
 			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceUpdateCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3033,7 +3118,7 @@ describe('activityPub API', () => {
 			params: {sourceId: '4'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRemoveCalls, [{
 			userId: 1,
 			sourceId: '4'
@@ -3327,6 +3412,51 @@ function getAsyncOperationStub(calls) {
 			}
 			return queue;
 		},
+		async processModuleOperationQueue(module, options) {
+			let processed = 0;
+			const limit = Number.parseInt(options.limit as any, 10) || Number.MAX_SAFE_INTEGER;
+			while (processed < limit) {
+				const waitingQueue = await this.getWaitingOperationByModule(module);
+				if (!waitingQueue) {
+					return {processed};
+				}
+				if (waitingQueue.asyncOperation?.inProcess) {
+					return {processed};
+				}
+				await this.processModuleOperationQueueItem(waitingQueue, options);
+				processed += 1;
+			}
+			return {processed};
+		},
+		async processModuleOperationQueueItem(waitingQueue, options) {
+			let payload;
+			try {
+				payload = options.getPayload ? await options.getPayload(waitingQueue) : null;
+			} catch (e) {
+				await this.closeUserOperationQueue(waitingQueue.id);
+				return null;
+			}
+
+			await this.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
+			const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
+			const asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
+				userApiKeyId: waitingQueue.userApiKeyId,
+				module: waitingQueue.module,
+				...asyncOperationData
+			});
+			await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+			try {
+				const result = await options.run(waitingQueue, asyncOperation, payload);
+				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, getAsyncOperationQueueOutput(result));
+				return result;
+			} catch (e) {
+				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await this.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, e?.message || String(e));
+				return null;
+			}
+		},
 		async updateUserOperationQueue(id, updateData) {
 			const queue = calls.asyncOperationQueues.find((item) => item.id === Number(id));
 			if (queue) {
@@ -3393,6 +3523,16 @@ function getAsyncOperationStub(calls) {
 			return queue;
 		}
 	};
+}
+
+function getAsyncOperationQueueOutput(result) {
+	if (result === null || result === undefined) {
+		return null;
+	}
+	if (typeof result === 'string') {
+		return result;
+	}
+	return JSON.stringify(result);
 }
 
 function getApiStub(routes) {
