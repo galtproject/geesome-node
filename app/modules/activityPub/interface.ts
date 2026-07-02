@@ -39,6 +39,32 @@ export interface IActivityPubWebFingerResponse {
 	links: IActivityPubWebFingerLink[];
 }
 
+export interface IActivityPubNodeInfoDiscoveryResponse {
+	links: IActivityPubWebFingerLink[];
+}
+
+export interface IActivityPubNodeInfoResponse {
+	version: '2.1';
+	software: {
+		name: string;
+		version: string;
+		repository?: string;
+		homepage?: string;
+	};
+	protocols: string[];
+	services: {
+		inbound: string[];
+		outbound: string[];
+	};
+	openRegistrations: boolean;
+	usage: {
+		users: Record<string, number>;
+		localPosts: number;
+		localComments: number;
+	};
+	metadata: Record<string, any>;
+}
+
 export type IActivityPubGroupInput = IGroup | string;
 
 export interface IActivityPubActorOptions {
@@ -245,6 +271,22 @@ export interface IActivityPubRemoteObjectPreview {
 	summaryHtml?: string;
 	summaryText?: string;
 	url?: string;
+	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
+}
+
+export interface IActivityPubRemoteObjectAttachmentPreview {
+	url: string;
+	type?: string;
+	mediaType?: string;
+	mediaCategory?: 'image' | 'video' | 'audio' | 'link' | 'document';
+	name?: string;
+	altText?: string;
+	summaryText?: string;
+	width?: number;
+	height?: number;
+	durationSeconds?: number;
+	blurhash?: string;
+	sensitive?: boolean;
 }
 
 export interface IActivityPubRemoteObjectFilters {
@@ -268,6 +310,25 @@ export interface IActivityPubRemoteObjectPostDraftSource {
 	remoteActorUrl?: string;
 }
 
+export type ActivityPubRemoteAttachmentImportMode = 'provenanceOnly' | 'backupOnCreate';
+
+export interface IActivityPubRemoteAttachmentImportPolicy {
+	mode: 'provenanceOnly';
+	defaultMode: 'provenanceOnly';
+	canImportRemoteBytes: boolean;
+	supportedModes: ActivityPubRemoteAttachmentImportMode[];
+	reason?: 'activitypub_remote_attachment_import_disabled';
+}
+
+export interface IActivityPubRemoteAttachmentBackup {
+	url: string;
+	contentId: number;
+	storageId?: string;
+	mediaType?: string;
+	mediaCategory?: IActivityPubRemoteObjectAttachmentPreview['mediaCategory'];
+	name?: string;
+}
+
 export interface IActivityPubRemoteObjectPostDraft {
 	remoteObject: IActivityPubRemoteObjectReport;
 	canCreatePost: boolean;
@@ -276,13 +337,20 @@ export interface IActivityPubRemoteObjectPostDraft {
 	contentText?: string;
 	contentRichText?: RichTextDocument;
 	summaryText?: string;
+	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
+	attachmentImportPolicy?: IActivityPubRemoteAttachmentImportPolicy;
 	replyToPostId?: number;
 	source: IActivityPubRemoteObjectPostDraftSource;
+}
+
+export interface IActivityPubRemoteObjectPostCreateOptions {
+	importRemoteAttachments?: boolean | string;
 }
 
 export interface IActivityPubRemoteObjectPostCreateResult {
 	post: IPost;
 	remoteObject: IActivityPubRemoteObjectReport;
+	attachmentBackups?: IActivityPubRemoteAttachmentBackup[];
 }
 
 export interface IActivityPubRemoteObjectReviewStateInput {
@@ -418,6 +486,8 @@ export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerifi
 	activityPubObjectId?: number;
 	objectId?: string;
 	inReplyTo?: string;
+	localPostUpdated?: boolean;
+	localPostDeleted?: boolean;
 }
 
 export type IActivityPubRemoteActorKeyResolver = (input: {
@@ -449,6 +519,10 @@ export default interface IGeesomeActivityPubModule {
 
 	getWebFingerResponse(resource: string): Promise<IActivityPubWebFingerResponse>;
 
+	getNodeInfoDiscovery(): Promise<IActivityPubNodeInfoDiscoveryResponse>;
+
+	getNodeInfo(): Promise<IActivityPubNodeInfoResponse>;
+
 	getGroupActor(groupName: string): Promise<IActivityPubActorObject>;
 
 	getGroupOutbox(groupName: string, listParams?: IListParams): Promise<IActivityPubOutboxCollection>;
@@ -467,7 +541,7 @@ export default interface IGeesomeActivityPubModule {
 
 	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
 
-	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult>;
+	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number, options?: IActivityPubRemoteObjectPostCreateOptions): Promise<IActivityPubRemoteObjectPostCreateResult>;
 
 	setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport>;
 

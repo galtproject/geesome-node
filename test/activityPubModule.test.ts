@@ -3,9 +3,9 @@ import crypto from 'node:crypto';
 import {Op} from 'sequelize';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
-import {generateActivityPubRsaKeyPair, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
+import {generateActivityPubRsaKeyPair, getActivityPubContentDigestHeader, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
 import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
-import {ContentMimeType} from '../app/modules/database/interface.js';
+import {ContentMimeType, ContentView} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {RICH_TEXT_MIME_TYPE} from '../app/richText.js';
 
@@ -24,6 +24,37 @@ describe('activityPub module', () => {
 					href: 'https://social.example/ap/groups/test-channel'
 				}
 			]
+		});
+		assert.deepEqual(await module.getNodeInfoDiscovery(), {
+			links: [
+				{
+					rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
+					href: 'https://social.example/nodeinfo/2.1'
+				}
+			]
+		});
+		assert.deepEqual(await module.getNodeInfo(), {
+			version: '2.1',
+			software: {
+				name: 'geesome-node',
+				version: '0.4.0',
+				repository: 'https://github.com/galtproject/geesome-node'
+			},
+			protocols: ['activitypub'],
+			services: {
+				inbound: [],
+				outbound: []
+			},
+			openRegistrations: false,
+			usage: {
+				users: {},
+				localPosts: 0,
+				localComments: 0
+			},
+			metadata: {
+				nodeName: 'example.com',
+				nodeDescription: 'GeeSome ActivityPub federation endpoint'
+			}
 		});
 
 		const following = await module.getGroupFollowing('test-channel');
@@ -164,13 +195,19 @@ describe('activityPub module', () => {
 			...getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity),
 			url: '/ap/shared-inbox'
 		});
+		const contentDigestVerified = await module.verifyGroupInboxRequest(
+			'test-channel',
+			getSignedContentDigestInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity)
+		);
 
 		assert.equal(verified.keyId, remoteActorKey.keyId);
 		assert.equal(verified.localActorUrl, 'https://social.example/ap/groups/test-channel');
 		assert.equal(verified.activityType, 'Follow');
 		assert.equal(verified.actor, remoteActorKey.actorUrl);
 		assert.equal(sharedVerified.keyId, remoteActorKey.keyId);
-		assert.equal(resolverCalls.length, 2);
+		assert.equal(contentDigestVerified.keyId, remoteActorKey.keyId);
+		assert.equal(contentDigestVerified.digestVerified, true);
+		assert.equal(resolverCalls.length, 3);
 		assert.deepEqual(resolverCalls[0], {
 			keyId: remoteActorKey.keyId,
 			actor: remoteActorKey.actorUrl,
@@ -178,6 +215,10 @@ describe('activityPub module', () => {
 		});
 		await assert.rejects(() => module.verifyGroupInboxRequest('test-channel', {
 			...request,
+			rawBody: Buffer.from(JSON.stringify({...activity, type: 'Undo'}))
+		}), /activitypub_digest_mismatch/);
+		await assert.rejects(() => module.verifyGroupInboxRequest('test-channel', {
+			...getSignedContentDigestInboxRequest(remoteActorKey, '/ap/groups/test-channel/inbox', activity),
 			rawBody: Buffer.from(JSON.stringify({...activity, type: 'Undo'}))
 		}), /activitypub_digest_mismatch/);
 	});
@@ -1095,6 +1136,111 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObject.rows.length, 0);
 	});
 
+	it('records signed shared-inbox Create Articles for review without native-post readiness', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupActor('test-channel');
+		const activity = {
+			id: 'https://remote.example/activities/create-article-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/article-1',
+				type: 'Article',
+				attributedTo: remoteActorKey.actorUrl,
+				to: ['https://social.example/ap/groups/test-channel'],
+				cc: ['https://www.w3.org/ns/activitystreams#Public'],
+				name: 'Remote article',
+				content: '<p>Remote <strong>article</strong></p>',
+				published: '2026-06-01T12:09:00Z'
+			}
+		};
+		const result = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const remoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', remoteObject.id);
+
+		assert.equal(result.ok, true);
+		assert.equal(result.accepted, true);
+		assert.equal(result.message, 'activitypub_create_object_recorded');
+		assert.equal(result.objectId, activity.object.id);
+		assert.equal(remoteObject.objectType, 'Article');
+		assert.equal(remoteObject.visibility, 'public');
+		assert.equal(postDraft.canCreatePost, false);
+		assert.deepEqual(postDraft.reasons, [
+			'activitypub_remote_object_review_not_accepted',
+			'activitypub_remote_object_not_note'
+		]);
+		assert.equal(postDraft.contentText, 'Remote article');
+
+		await module.setGroupRemoteObjectReviewState('test-channel', remoteObject.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
+		const acceptedDraft = await module.getGroupRemoteObjectPostDraft('test-channel', remoteObject.id);
+		assert.equal(acceptedDraft.canCreatePost, false);
+		assert.deepEqual(acceptedDraft.reasons, ['activitypub_remote_object_not_note']);
+		await assert.rejects(
+			() => module.createGroupRemoteObjectPost('test-channel', remoteObject.id, 7),
+			/activitypub_remote_object_not_note/
+		);
+
+		const updateActivity = {
+			id: 'https://remote.example/activities/update-article-1',
+			type: 'Update',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				...activity.object,
+				content: '<p>Updated <em>article</em></p>',
+				published: '2026-06-01T12:10:00Z'
+			}
+		};
+		const updateResult = await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', updateActivity)
+		);
+		const updatedObject = await module.getGroupRemoteObject('test-channel', remoteObject.id);
+		const updatedDraft = await module.getGroupRemoteObjectPostDraft('test-channel', remoteObject.id);
+
+		assert.equal(updateResult.message, 'activitypub_update_object_recorded');
+		assert.equal(updateResult.localPostUpdated, false);
+		assert.equal(updatedObject.objectType, 'Article');
+		assert.equal(updatedObject.reviewState, ActivityPubObjectReviewState.Pending);
+		assert.equal(updatedObject.preview?.contentText, 'Updated article');
+		assert.deepEqual(updatedDraft.reasons, [
+			'activitypub_remote_object_review_not_accepted',
+			'activitypub_remote_object_not_note'
+		]);
+	});
+
+	it('rejects signed shared-inbox Create for unsupported review object types', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupActor('test-channel');
+		const activity = {
+			id: 'https://remote.example/activities/create-person-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			object: {
+				id: 'https://remote.example/objects/person-1',
+				type: 'Person',
+				attributedTo: remoteActorKey.actorUrl,
+				to: ['https://social.example/ap/groups/test-channel'],
+				name: 'Remote person'
+			}
+		};
+
+		await assert.rejects(() => module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		), /activitypub_create_object_not_supported/);
+		assert.equal(models.ActivityPubObject.rows.length, 0);
+	});
+
 	it('lists cached remote ActivityPub objects for admin review', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models, calls} = await createActivityPubHarness({
@@ -1124,6 +1270,49 @@ describe('activityPub module', () => {
 				].join(''),
 				summary: '<span onmouseover="alert(3)">Remote summary</span>',
 				url: 'javascript:alert(4)',
+				attachment: [
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: '<b>Image alt</b><script>alert("attachment")</script>',
+						summary: '<span>Preview summary</span>',
+						blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+						sensitive: 'true',
+						url: [
+							'javascript:alert(5)',
+							{type: 'Link', mediaType: 'image/webp', href: 'https://remote.example/media/photo.webp'}
+						],
+						width: '640',
+						height: 480
+					},
+					{
+						type: 'Link',
+						href: 'ipfs://bafyremoteattachment',
+						name: 'IPFS source'
+					},
+					{
+						type: 'Video',
+						mediaType: 'video/mp4',
+						url: 'https://remote.example/media/clip.mp4',
+						name: 'Video alt',
+						duration: 'PT1M02S',
+						width: 1920,
+						height: 1080,
+						sensitive: false
+					},
+					{
+						type: 'Document',
+						mediaType: 'image/jpeg',
+						url: 'data:text/html,<script>alert(6)</script>',
+						name: 'Unsafe data URL'
+					},
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						url: 'https://remote.example/media/photo.webp',
+						name: 'Duplicate image URL'
+					}
+				],
 				published: '2026-06-01T12:05:00Z'
 			}
 		};
@@ -1149,15 +1338,54 @@ describe('activityPub module', () => {
 			objectType: 'Note',
 			visibility: 'public',
 			remoteActorId: models.ActivityPubRemoteActor.rows[0].id
-		}, {limit: 10});
-		const object = objectPage.list[0];
-		const objectDetail = await module.getGroupRemoteObject('test-channel', object.id);
-		const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
-		const emptyPage = await module.getGroupRemoteObjects('test-channel', {
-			objectType: 'Tombstone'
-		}, {limit: 10});
+			}, {limit: 10});
+			const object = objectPage.list[0];
+			const objectDetail = await module.getGroupRemoteObject('test-channel', object.id);
+			const postDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
+			const emptyPage = await module.getGroupRemoteObjects('test-channel', {
+				objectType: 'Tombstone'
+			}, {limit: 10});
+			const expectedAttachments = [
+				{
+					url: 'https://remote.example/media/photo.webp',
+					type: 'Image',
+					mediaType: 'image/png',
+					mediaCategory: 'image',
+					name: 'Image alt',
+					altText: 'Image alt',
+					summaryText: 'Preview summary',
+					width: 640,
+					height: 480,
+					blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+					sensitive: true
+				},
+				{
+					url: 'ipfs://bafyremoteattachment',
+					type: 'Link',
+					mediaCategory: 'link',
+					name: 'IPFS source'
+				},
+				{
+					url: 'https://remote.example/media/clip.mp4',
+					type: 'Video',
+					mediaType: 'video/mp4',
+					mediaCategory: 'video',
+					name: 'Video alt',
+					altText: 'Video alt',
+					width: 1920,
+					height: 1080,
+					durationSeconds: 62,
+					sensitive: false
+				}
+			];
+			const expectedAttachmentImportPolicy = {
+				mode: 'provenanceOnly',
+				defaultMode: 'provenanceOnly',
+				canImportRemoteBytes: true,
+				supportedModes: ['provenanceOnly', 'backupOnCreate']
+			};
 
-		assert.equal(objectPage.total, 1);
+			assert.equal(objectPage.total, 1);
 		assert.equal(object.id, models.ActivityPubObject.rows.find((row) => row.origin === 'remote').id);
 		assert.equal(object.localActorId, models.ActivityPubActor.rows[0].id);
 		assert.equal(object.localPostId, null);
@@ -1210,18 +1438,21 @@ describe('activityPub module', () => {
 				objectId: activity.object.id
 			}
 		});
-		assert.equal(object.preview?.summaryHtml, '<span>Remote summary</span>');
-		assert.equal(object.preview?.summaryText, 'Remote summary');
-		assert.equal(object.preview?.url, undefined);
-		assert.deepEqual(objectDetail, object);
-		assert.equal(postDraft.remoteObject.reviewState, ActivityPubObjectReviewState.Pending);
-		assert.equal(postDraft.canCreatePost, false);
-		assert.deepEqual(postDraft.reasons, ['activitypub_remote_object_review_not_accepted']);
-		assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
-		assert.equal(postDraft.contentText, object.preview?.contentText);
-		assert.equal(postDraft.title, object.preview?.name);
-		assert.equal(postDraft.remoteObject.id, object.id);
-		assert.equal(postDraft.replyToPostId, 11);
+			assert.equal(object.preview?.summaryHtml, '<span>Remote summary</span>');
+			assert.equal(object.preview?.summaryText, 'Remote summary');
+			assert.equal(object.preview?.url, undefined);
+			assert.deepEqual(object.preview?.attachments, expectedAttachments);
+			assert.deepEqual(objectDetail, object);
+			assert.equal(postDraft.remoteObject.reviewState, ActivityPubObjectReviewState.Pending);
+			assert.equal(postDraft.canCreatePost, false);
+			assert.deepEqual(postDraft.reasons, ['activitypub_remote_object_review_not_accepted']);
+			assert.deepEqual(postDraft.contentRichText, object.preview?.contentRichText);
+			assert.equal(postDraft.contentText, object.preview?.contentText);
+			assert.equal(postDraft.title, object.preview?.name);
+			assert.deepEqual(postDraft.attachments, expectedAttachments);
+			assert.deepEqual(postDraft.attachmentImportPolicy, expectedAttachmentImportPolicy);
+			assert.equal(postDraft.remoteObject.id, object.id);
+			assert.equal(postDraft.replyToPostId, 11);
 		assert.deepEqual(postDraft.source, {
 			protocol: 'activitypub',
 			objectId: activity.object.id,
@@ -1249,18 +1480,21 @@ describe('activityPub module', () => {
 			reviewState: ActivityPubObjectReviewState.Pending
 		}, {limit: 10});
 		const acceptedPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
-		assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
-		assert.equal(acceptedObject.reviewedAt instanceof Date, true);
-		assert.equal(acceptedObject.reviewedByUserId, 7);
-		assert.equal(acceptedPostDraft.canCreatePost, true);
-		assert.deepEqual(acceptedPostDraft.reasons, []);
-		assert.equal(acceptedPostDraft.replyToPostId, 11);
+			assert.equal(acceptedObject.reviewState, ActivityPubObjectReviewState.Accepted);
+			assert.equal(acceptedObject.reviewedAt instanceof Date, true);
+			assert.equal(acceptedObject.reviewedByUserId, 7);
+			assert.equal(acceptedPostDraft.canCreatePost, true);
+			assert.deepEqual(acceptedPostDraft.reasons, []);
+			assert.deepEqual(acceptedPostDraft.attachments, expectedAttachments);
+			assert.deepEqual(acceptedPostDraft.attachmentImportPolicy, expectedAttachmentImportPolicy);
+			assert.equal(acceptedPostDraft.replyToPostId, 11);
 
 		const createPostResult = await module.createGroupRemoteObjectPost('test-channel', object.id, 7);
 		assert.equal(createPostResult.post.id, 88);
 		assert.equal(createPostResult.post.isRemote, true);
 		assert.equal(createPostResult.remoteObject.localPostId, 88);
 		assert.equal(calls.saveData.length, 1);
+		assert.equal(calls.saveDataByUrl.length, 0);
 		assert.equal(calls.saveData[0].userId, 7);
 		assert.equal(calls.saveData[0].fileName, `activitypub-remote-object-${object.id}.json`);
 		assert.equal(calls.saveData[0].options.mimeType, RICH_TEXT_MIME_TYPE);
@@ -1271,15 +1505,20 @@ describe('activityPub module', () => {
 		assert.equal(calls.createRemotePostByObject[0].postData.source, 'activityPub');
 		assert.equal(calls.createRemotePostByObject[0].postData.sourceChannelId, `remoteActor:${models.ActivityPubRemoteActor.rows[0].id}`);
 		assert.equal(calls.createRemotePostByObject[0].postData.sourcePostId, `remoteObject:${object.id}`);
-		assert.equal(calls.createRemotePostByObject[0].postData.sourceDate?.toISOString(), '2026-06-01T12:05:00.000Z');
-		assert.equal(calls.createRemotePostByObject[0].postData.replyToId, 11);
-		assert.deepEqual(calls.createRemotePostByObject[0].postData.contents, [{id: 201}]);
-		assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
-			activityPub: postDraft.source,
-			sourceLink: activity.object.id,
-			title: object.preview?.name,
-			summaryText: object.preview?.summaryText
-		});
+			assert.equal(calls.createRemotePostByObject[0].postData.sourceDate?.toISOString(), '2026-06-01T12:05:00.000Z');
+			assert.equal(calls.createRemotePostByObject[0].postData.replyToId, 11);
+			assert.deepEqual(calls.createRemotePostByObject[0].postData.contents, [{id: 201}]);
+			assert.deepEqual(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson), {
+				activityPub: {
+					...postDraft.source,
+					attachments: expectedAttachments,
+					attachmentImportPolicy: expectedAttachmentImportPolicy,
+					attachmentImportMode: 'provenanceOnly'
+				},
+				sourceLink: activity.object.id,
+				title: object.preview?.name,
+				summaryText: object.preview?.summaryText
+			});
 
 		const existingPostDraft = await module.getGroupRemoteObjectPostDraft('test-channel', object.id);
 		assert.equal(existingPostDraft.canCreatePost, false);
@@ -1327,9 +1566,119 @@ describe('activityPub module', () => {
 		assert.deepEqual(emptyPage.list, []);
 	});
 
+	it('backs up supported remote attachments when remote post creation opts in', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+
+		await module.getGroupPostNote('test-channel', 7);
+		const activity = {
+			id: 'https://remote.example/activities/create-reply-backup-1',
+			type: 'Create',
+			actor: remoteActorKey.actorUrl,
+			to: ['https://www.w3.org/ns/activitystreams#Public'],
+			object: {
+				id: 'https://remote.example/objects/reply-backup-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				inReplyTo: 'https://social.example/ap/groups/test-channel/posts/7',
+				to: ['https://www.w3.org/ns/activitystreams#Public'],
+				content: 'Remote reply with media',
+				attachment: [
+					{
+						type: 'Image',
+						mediaType: 'image/png',
+						name: 'Remote image',
+						summary: 'Image summary',
+						url: 'https://remote.example/media/photo.png'
+					},
+					{
+						type: 'Link',
+						name: 'IPFS reference',
+						url: 'ipfs://bafyremoteattachment'
+					},
+					{
+						type: 'Link',
+						mediaType: 'text/html',
+						name: 'Remote page',
+						url: 'https://remote.example/page'
+					},
+					{
+						type: 'Document',
+						mediaType: 'application/pdf',
+						name: 'Remote PDF',
+						url: 'https://remote.example/media/file.pdf'
+					}
+				],
+				published: '2026-06-01T12:08:00Z'
+			}
+		};
+
+		await module.handleSharedInboxRequest(
+			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity)
+		);
+		const object = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		await module.setGroupRemoteObjectReviewState('test-channel', object.id, {
+			state: ActivityPubObjectReviewState.Accepted
+		}, 7);
+		const result = await module.createGroupRemoteObjectPost('test-channel', object.id, 7, {
+			importRemoteAttachments: true
+		});
+		const postData = calls.createRemotePostByObject[0].postData;
+		const properties = JSON.parse(postData.propertiesJson);
+		const expectedBackups = [
+			{
+				url: 'https://remote.example/media/photo.png',
+				contentId: 301,
+				storageId: 'saved-url-content-1',
+				mediaType: 'image/png',
+				mediaCategory: 'image',
+				name: 'Remote image'
+			},
+			{
+				url: 'https://remote.example/media/file.pdf',
+				contentId: 302,
+				storageId: 'saved-url-content-2',
+				mediaType: 'application/pdf',
+				mediaCategory: 'document',
+				name: 'Remote PDF'
+			}
+		];
+
+		assert.equal(calls.saveData.length, 1);
+		assert.equal(calls.saveDataByUrl.length, 2);
+		assert.equal(calls.saveDataByUrl[0].userId, 7);
+		assert.equal(calls.saveDataByUrl[0].url, 'https://remote.example/media/photo.png');
+		assert.equal(calls.saveDataByUrl[0].options.name, 'Remote image');
+		assert.equal(calls.saveDataByUrl[0].options.description, 'Image summary');
+		assert.equal(calls.saveDataByUrl[0].options.mimeType, 'image/png');
+		assert.equal(calls.saveDataByUrl[0].options.view, ContentView.Media);
+		assert.deepEqual(calls.saveDataByUrl[0].options.properties.activityPub, {
+			protocol: 'activitypub',
+			objectId: activity.object.id,
+			activityId: activity.id,
+			remoteObjectUrl: activity.object.id,
+			remoteActorUrl: remoteActorKey.actorUrl,
+			attachmentUrl: 'https://remote.example/media/photo.png',
+			attachmentType: 'Image',
+			attachmentMediaType: 'image/png',
+			attachmentMediaCategory: 'image'
+		});
+		assert.equal(calls.saveDataByUrl[1].url, 'https://remote.example/media/file.pdf');
+		assert.equal(calls.saveDataByUrl[1].options.name, 'Remote PDF');
+		assert.equal(calls.saveDataByUrl[1].options.mimeType, 'application/pdf');
+		assert.equal(calls.saveDataByUrl[1].options.view, ContentView.Attachment);
+		assert.deepEqual(postData.contents, [{id: 201}, {id: 301}, {id: 302}]);
+		assert.deepEqual(result.attachmentBackups, expectedBackups);
+		assert.equal(properties.activityPub.attachmentImportMode, 'backupOnCreate');
+		assert.deepEqual(properties.activityPub.attachmentBackups, expectedBackups);
+		assert.equal(properties.activityPub.attachments.length, 4);
+	});
+
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1367,6 +1716,7 @@ describe('activityPub module', () => {
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
 		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		addImportedRemotePost(calls, createdRemoteObject);
 		await module.setGroupRemoteObjectReviewState('test-channel', createdRemoteObject.id, {
 			state: ActivityPubObjectReviewState.Accepted
 		}, 7);
@@ -1384,7 +1734,31 @@ describe('activityPub module', () => {
 		assert.equal(firstUpdateResult.activityType, 'Update');
 		assert.equal(firstUpdateResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstUpdateResult.objectId, createActivity.object.id);
+		assert.equal(firstUpdateResult.localPostUpdated, true);
+		assert.equal(secondUpdateResult.localPostUpdated, false);
 		assert.equal(secondUpdateResult.activityPubObjectId, firstUpdateResult.activityPubObjectId);
+		assert.equal(calls.updateRemotePostByObject.length, 1);
+		assert.equal(calls.updateRemotePostByObject[0].userId, 7);
+		assert.equal(calls.updateRemotePostByObject[0].postId, 88);
+		assert.equal(calls.updateRemotePostByObject[0].postData.source, 'activityPub');
+		assert.equal(calls.updateRemotePostByObject[0].postData.sourceChannelId, `remoteActor:${createdRemoteObject.remoteActorId}`);
+		assert.equal(calls.updateRemotePostByObject[0].postData.sourcePostId, `remoteObject:${createdRemoteObject.id}`);
+		assert.deepEqual(calls.updateRemotePostByObject[0].postData.contents, [{id: 201}]);
+		assert.deepEqual(JSON.parse(calls.saveData[0].dataToSave), {
+			type: 'geesome.richText',
+			version: 1,
+			blocks: [
+				{
+					type: 'paragraph',
+					children: [{text: 'Remote reply after update'}]
+				}
+			],
+			source: {
+				protocol: 'activitypub',
+				field: 'content',
+				objectId: createActivity.object.id
+			}
+		});
 		assert.equal(models.ActivityPubObject.rows.length, 2);
 		assert.equal(remoteObject.remoteObjectUrl, 'https://remote.example/@alice/reply-update-1');
 		assert.equal(remoteObject.activityId, updateActivity.id);
@@ -1452,7 +1826,7 @@ describe('activityPub module', () => {
 
 	it('tombstones signed shared-inbox Delete for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1483,6 +1857,7 @@ describe('activityPub module', () => {
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
 		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const importedPost = addImportedRemotePost(calls, createdRemoteObject);
 		await module.setGroupRemoteObjectReviewState('test-channel', createdRemoteObject.id, {
 			state: ActivityPubObjectReviewState.Rejected
 		}, 7);
@@ -1500,7 +1875,11 @@ describe('activityPub module', () => {
 		assert.equal(firstDeleteResult.activityType, 'Delete');
 		assert.equal(firstDeleteResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstDeleteResult.objectId, createActivity.object.id);
+		assert.equal(firstDeleteResult.localPostDeleted, true);
+		assert.equal(secondDeleteResult.localPostDeleted, false);
 		assert.equal(secondDeleteResult.activityPubObjectId, firstDeleteResult.activityPubObjectId);
+		assert.deepEqual(calls.deletePostsPure, [{userId: 7, postIds: [88], options: undefined}]);
+		assert.equal(importedPost.isDeleted, true);
 		assert.equal(models.ActivityPubObject.rows.length, 2);
 		assert.equal(remoteObject.objectId, createActivity.object.id);
 		assert.equal(remoteObject.remoteObjectUrl, createActivity.object.id);
@@ -1562,7 +1941,7 @@ describe('activityPub module', () => {
 
 	it('tombstones signed shared-inbox Undo(Create) for cached remote objects idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
-		const {module, models} = await createActivityPubHarness({
+		const {module, models, calls} = await createActivityPubHarness({
 			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
 		});
 
@@ -1589,6 +1968,8 @@ describe('activityPub module', () => {
 		await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', createActivity)
 		);
+		const createdRemoteObject = models.ActivityPubObject.rows.find((row) => row.origin === 'remote');
+		const importedPost = addImportedRemotePost(calls, createdRemoteObject);
 		const firstUndoResult = await module.handleSharedInboxRequest(
 			getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', undoActivity)
 		);
@@ -1603,7 +1984,11 @@ describe('activityPub module', () => {
 		assert.equal(firstUndoResult.activityType, 'Undo');
 		assert.equal(firstUndoResult.actor, remoteActorKey.actorUrl);
 		assert.equal(firstUndoResult.objectId, createActivity.object.id);
+		assert.equal(firstUndoResult.localPostDeleted, true);
+		assert.equal(secondUndoResult.localPostDeleted, false);
 		assert.equal(secondUndoResult.activityPubObjectId, firstUndoResult.activityPubObjectId);
+		assert.deepEqual(calls.deletePostsPure, [{userId: 7, postIds: [88], options: undefined}]);
+		assert.equal(importedPost.isDeleted, true);
 		assert.equal(models.ActivityPubObject.rows.length, 2);
 		assert.equal(remoteObject.objectId, createActivity.object.id);
 		assert.equal(remoteObject.objectType, 'Tombstone');
@@ -1664,6 +2049,7 @@ describe('activityPub API', () => {
 	it('registers public unversioned routes with protocol content types', async () => {
 		const routes = {};
 		const permissionChecks: any[] = [];
+		const remoteObjectPostCreateCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -1673,6 +2059,8 @@ describe('activityPub API', () => {
 			}
 		} as any, {
 			getWebFingerResponse: async () => ({subject: 'acct:test-channel@example.com'}),
+			getNodeInfoDiscovery: async () => ({links: [{href: 'https://social.example/nodeinfo/2.1'}]}),
+			getNodeInfo: async () => ({version: '2.1', protocols: ['activitypub']}),
 			getGroupActor: async () => ({id: 'https://social.example/ap/groups/test-channel'}),
 			getGroupOutbox: async () => ({id: 'https://social.example/ap/groups/test-channel/outbox'}),
 			getGroupFollowers: async () => ({id: 'https://social.example/ap/groups/test-channel/followers'}),
@@ -1698,10 +2086,13 @@ describe('activityPub API', () => {
 					objectId: 'https://remote.example/objects/reply-1'
 				}
 			}),
-			createGroupRemoteObjectPost: async () => ({
-				post: {id: 88},
-				remoteObject: {id: 2, localPostId: 88}
-			}),
+			createGroupRemoteObjectPost: async (groupName, remoteObjectId, userId, options) => {
+				remoteObjectPostCreateCalls.push({groupName, remoteObjectId, userId, options});
+				return {
+					post: {id: 88},
+					remoteObject: {id: 2, localPostId: 88}
+				};
+			},
 			setGroupRemoteObjectReviewState: async () => ({
 				id: 2,
 				reviewState: ActivityPubObjectReviewState.Rejected,
@@ -1742,6 +2133,22 @@ describe('activityPub API', () => {
 		});
 		assert.equal(webFinger.headers['Content-Type'], 'application/jrd+json; charset=utf-8');
 		assert.deepEqual(webFinger.body, {subject: 'acct:test-channel@example.com'});
+
+		const nodeInfoDiscovery = await callRoute(routes, 'GET .well-known/nodeinfo', {});
+		assert.equal(nodeInfoDiscovery.headers['Content-Type'], 'application/json; charset=utf-8');
+		assert.deepEqual(nodeInfoDiscovery.body, {
+			links: [{href: 'https://social.example/nodeinfo/2.1'}]
+		});
+
+		const nodeInfo = await callRoute(routes, 'GET nodeinfo/2.1', {});
+		assert.equal(
+			nodeInfo.headers['Content-Type'],
+			'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"; charset=utf-8'
+		);
+		assert.deepEqual(nodeInfo.body, {
+			version: '2.1',
+			protocols: ['activitypub']
+		});
 
 		const actor = await callRoute(routes, 'GET ap/groups/:groupName', {
 			params: {groupName: 'test-channel'}
@@ -1812,9 +2219,16 @@ describe('activityPub API', () => {
 
 		const remoteObjectPostCreate = await callRoute(routes, 'AUTH POST admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
+			body: {importRemoteAttachments: true},
 			user: {id: 1}
 		});
 		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(remoteObjectPostCreateCalls, [{
+			groupName: 'test-channel',
+			remoteObjectId: '2',
+			userId: 1,
+			options: {importRemoteAttachments: true}
+		}]);
 		assert.deepEqual(remoteObjectPostCreate.body, {
 			post: {id: 88},
 			remoteObject: {id: 2, localPostId: 88}
@@ -1899,6 +2313,8 @@ describe('activityPub API', () => {
 				error.code = 401;
 				throw error;
 			},
+			getNodeInfoDiscovery: async () => ({links: []}),
+			getNodeInfo: async () => ({}),
 			verifySharedInboxRequest: async () => ({}),
 			handleSharedInboxRequest: async () => ({})
 		} as any);
@@ -1927,7 +2343,11 @@ async function createActivityPubHarness(overrides: any = {}) {
 		getGroupByParams: [],
 		getGroupPosts: [],
 		saveData: [],
-		createRemotePostByObject: []
+		saveDataByUrl: [],
+		createRemotePostByObject: [],
+		updateRemotePostByObject: [],
+		deletePostsPure: [],
+		remotePosts: {}
 	};
 	const group = getGroup();
 	const publishedPost = getPublishedPost();
@@ -1965,6 +2385,17 @@ async function createActivityPubHarness(overrides: any = {}) {
 						mimeType: options.mimeType,
 						storageId: `saved-content-${calls.saveData.length}`
 					};
+				},
+				async saveDataByUrl(userId, url, options) {
+					calls.saveDataByUrl.push({userId, url, options});
+					return {
+						id: 300 + calls.saveDataByUrl.length,
+						userId,
+						name: options.name,
+						mimeType: options.mimeType,
+						view: options.view,
+						storageId: `saved-url-content-${calls.saveDataByUrl.length}`
+					};
 				}
 			},
 			group: {
@@ -1993,7 +2424,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 				},
 				async getPostPure(postId) {
 					if (Number(postId) !== publishedPost.id) {
-						return null;
+						return calls.remotePosts[Number(postId)] || null;
 					}
 					return {
 						...publishedPost,
@@ -2019,6 +2450,21 @@ async function createActivityPubHarness(overrides: any = {}) {
 						isRemote: true,
 						status: PostStatus.Published
 					};
+				},
+				async updateRemotePostByObject(userId, postId, postData, options) {
+					calls.updateRemotePostByObject.push({userId, postId, postData, options});
+					Object.assign(calls.remotePosts[Number(postId)], postData);
+					return calls.remotePosts[Number(postId)];
+				},
+				async deletePostsPure(userId, postIds, options) {
+					calls.deletePostsPure.push({userId, postIds, options});
+					postIds.forEach((postId) => {
+						const post = calls.remotePosts[Number(postId)];
+						if (post) {
+							post.isDeleted = true;
+						}
+					});
+					return true;
 				}
 			}
 		}
@@ -2036,6 +2482,25 @@ async function createActivityPubHarness(overrides: any = {}) {
 		calls,
 		models
 	};
+}
+
+function addImportedRemotePost(calls, remoteObject, overrides: any = {}) {
+	const post = {
+		id: 88,
+		userId: 7,
+		groupId: 3,
+		group: getGroup(),
+		status: PostStatus.Published,
+		isRemote: true,
+		isDeleted: false,
+		source: 'activityPub',
+		sourceChannelId: `remoteActor:${remoteObject.remoteActorId}`,
+		sourcePostId: `remoteObject:${remoteObject.id}`,
+		...overrides
+	};
+	remoteObject.localPostId = post.id;
+	calls.remotePosts[post.id] = post;
+	return post;
 }
 
 function getApiStub(routes) {
@@ -2333,6 +2798,31 @@ function getSignedInboxRequest(actorKey, path: string, activity: any) {
 		body,
 		date
 	});
+
+	return {
+		method: 'POST',
+		url: path,
+		headers: signedRequest.headers,
+		body: activity,
+		rawBody: Buffer.from(body),
+		now: date
+	};
+}
+
+function getSignedContentDigestInboxRequest(actorKey, path: string, activity: any) {
+	const body = JSON.stringify(activity);
+	const date = new Date('2026-06-01T12:00:00Z');
+	const signedRequest = signActivityPubRequestWithKey(actorKey, {
+		method: 'POST',
+		url: `https://social.example${path}`,
+		body,
+		date,
+		headers: {
+			'Content-Digest': getActivityPubContentDigestHeader(body)
+		},
+		signedHeaders: ['(request-target)', 'host', 'date', 'content-digest']
+	});
+	delete signedRequest.headers.Digest;
 
 	return {
 		method: 'POST',
