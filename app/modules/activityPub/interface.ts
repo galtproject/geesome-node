@@ -289,6 +289,24 @@ export type ActivityPubRemoteAttachmentBackupUnsupportedReason =
 	'activitypub_remote_attachment_backup_unsupported_category'
 	| 'activitypub_remote_attachment_backup_unsupported_url_scheme';
 
+export type ActivityPubRemoteAttachmentEmbedMode =
+	'inlineMedia'
+	| 'documentLink'
+	| 'externalLink'
+	| 'provenanceOnly';
+
+export type ActivityPubRemoteAttachmentEmbedUnsupportedReason =
+	'activitypub_remote_attachment_embed_sensitive'
+	| 'activitypub_remote_attachment_embed_unsupported_category'
+	| 'activitypub_remote_attachment_embed_unsupported_url_scheme';
+
+export interface IActivityPubRemoteAttachmentEmbedPolicy {
+	mode: ActivityPubRemoteAttachmentEmbedMode;
+	canEmbedInline: boolean;
+	requiresUserAction: boolean;
+	unsupportedReason?: ActivityPubRemoteAttachmentEmbedUnsupportedReason;
+}
+
 export interface IActivityPubRemoteObjectAttachmentPreview {
 	url: string;
 	type?: string;
@@ -304,6 +322,7 @@ export interface IActivityPubRemoteObjectAttachmentPreview {
 	sensitive?: boolean;
 	canBackupRemoteBytes?: boolean;
 	backupUnsupportedReason?: ActivityPubRemoteAttachmentBackupUnsupportedReason;
+	embedPolicy?: IActivityPubRemoteAttachmentEmbedPolicy;
 }
 
 export interface IActivityPubRemoteObjectFilters {

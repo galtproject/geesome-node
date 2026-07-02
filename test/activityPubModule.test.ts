@@ -1402,6 +1402,12 @@ describe('activityPub module', () => {
 					height: 480,
 					blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
 					sensitive: true,
+					embedPolicy: {
+						mode: 'externalLink',
+						canEmbedInline: false,
+						requiresUserAction: true,
+						unsupportedReason: 'activitypub_remote_attachment_embed_sensitive'
+					},
 					canBackupRemoteBytes: true
 				},
 				{
@@ -1409,6 +1415,11 @@ describe('activityPub module', () => {
 					type: 'Link',
 					mediaCategory: 'link',
 					name: 'IPFS source',
+					embedPolicy: {
+						mode: 'externalLink',
+						canEmbedInline: false,
+						requiresUserAction: true
+					},
 					canBackupRemoteBytes: false,
 					backupUnsupportedReason: 'activitypub_remote_attachment_backup_unsupported_category'
 				},
@@ -1419,6 +1430,11 @@ describe('activityPub module', () => {
 					mediaCategory: 'image',
 					name: 'IPFS image',
 					altText: 'IPFS image',
+					embedPolicy: {
+						mode: 'inlineMedia',
+						canEmbedInline: true,
+						requiresUserAction: false
+					},
 					canBackupRemoteBytes: true
 				},
 				{
@@ -1432,6 +1448,11 @@ describe('activityPub module', () => {
 					height: 1080,
 					durationSeconds: 62,
 					sensitive: false,
+					embedPolicy: {
+						mode: 'inlineMedia',
+						canEmbedInline: true,
+						requiresUserAction: false
+					},
 					canBackupRemoteBytes: true
 				}
 			];
@@ -1787,6 +1808,59 @@ describe('activityPub module', () => {
 		assert.equal(properties.activityPub.attachmentImportMode, 'backupOnCreate');
 		assert.deepEqual(properties.activityPub.attachmentBackups, expectedBackups);
 		assert.equal(properties.activityPub.attachments.length, 6);
+		assert.deepEqual(properties.activityPub.attachments.map((attachment) => ({
+			url: attachment.url,
+			embedPolicy: attachment.embedPolicy
+		})), [
+			{
+				url: 'https://remote.example/media/photo.png',
+				embedPolicy: {
+					mode: 'inlineMedia',
+					canEmbedInline: true,
+					requiresUserAction: false
+				}
+			},
+			{
+				url: 'ipfs://bafyremoteattachment',
+				embedPolicy: {
+					mode: 'externalLink',
+					canEmbedInline: false,
+					requiresUserAction: true
+				}
+			},
+			{
+				url: 'https://remote.example/page',
+				embedPolicy: {
+					mode: 'externalLink',
+					canEmbedInline: false,
+					requiresUserAction: true
+				}
+			},
+			{
+				url: 'ipfs://bafyremoteimage/media/photo.png',
+				embedPolicy: {
+					mode: 'inlineMedia',
+					canEmbedInline: true,
+					requiresUserAction: false
+				}
+			},
+			{
+				url: 'https://remote.example/media/file.pdf',
+				embedPolicy: {
+					mode: 'documentLink',
+					canEmbedInline: false,
+					requiresUserAction: true
+				}
+			},
+			{
+				url: 'ipns://example.com/media/file.pdf',
+				embedPolicy: {
+					mode: 'documentLink',
+					canEmbedInline: false,
+					requiresUserAction: true
+				}
+			}
+		]);
 	});
 
 	it('updates signed shared-inbox Update for cached remote objects idempotently', async () => {
