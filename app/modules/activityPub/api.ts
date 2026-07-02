@@ -274,6 +274,31 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/refresh Refresh ActivityPub source cache
+	 * @apiName AdminActivityPubSourceRefresh
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Explicitly fetches the subscribed actor's public `featured` and/or `outbox` collection and caches supported public ActivityPub objects for the source feed. This is an operator-triggered read action: it does not follow the actor, import GeeSome posts, federate any activity, or delete cached objects. Partial item failures are returned in `errors` and stored on the subscription `lastError`.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Number} [limit=20] Maximum remote collection items to inspect, capped at 50.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiSuccess {Object} source Source subscription row with remote actor metadata and refresh status.
+	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} cached Number of public supported source objects created or updated in the local cache.
+	 * @apiSuccess {Number} skipped Number of unsupported, duplicate, non-public, or actor-mismatched items skipped.
+	 * @apiSuccess {String[]} errors Bounded fetch/cache errors encountered while refreshing.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/refresh', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.refreshActivityPubSource(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/read Mark ActivityPub source feed read
 	 * @apiName AdminActivityPubSourceRead
 	 * @apiGroup AdminActivityPub

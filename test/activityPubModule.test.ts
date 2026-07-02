@@ -385,6 +385,105 @@ describe('activityPub module', () => {
 		assert.equal(removedSubscriptions.list.length, 1);
 	});
 
+	it('refreshes ActivityPub source collections into the cached feed', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchJsonCalls: string[] = [];
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			featured: 'https://remote.example/users/alice/collections/featured',
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const publicObject = {
+			id: 'https://remote.example/objects/featured-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Featured <strong>source</strong></p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const privateObject = {
+			id: 'https://remote.example/objects/private-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://remote.example/users/alice/followers',
+			content: 'Private source',
+			published: '2026-06-02T12:05:00Z'
+		};
+		const mismatchedObject = {
+			id: 'https://remote.example/objects/mismatch-1',
+			type: 'Note',
+			attributedTo: 'https://remote.example/users/bob',
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: 'Wrong actor',
+			published: '2026-06-02T12:10:00Z'
+		};
+		const outboxObject = {
+			id: 'https://remote.example/objects/outbox-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Outbox source</p>',
+			published: '2026-06-02T12:15:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			'https://remote.example/users/alice/collections/featured': {
+				type: 'OrderedCollection',
+				orderedItems: [publicObject, privateObject, mismatchedObject]
+			},
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				first: 'https://remote.example/users/alice/outbox?page=1'
+			},
+			'https://remote.example/users/alice/outbox?page=1': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [{
+					id: 'https://remote.example/activities/outbox-1',
+					type: 'Create',
+					actor: remoteActorKey.actorUrl,
+					to: 'https://www.w3.org/ns/activitystreams#Public',
+					object: outboxObject.id
+				}]
+			},
+			[outboxObject.id]: outboxObject
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => {
+				fetchJsonCalls.push(url);
+				return sourceJsonByUrl[url];
+			}
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			displayName: 'Alice source'
+		});
+
+		const refresh = await module.refreshActivityPubSource(7, subscription.id, {limit: 10});
+		const feed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const feedObjectIds = feed.list.map((item) => item.objectId).sort();
+
+		assert.deepEqual(fetchJsonCalls, [
+			'https://remote.example/users/alice/collections/featured',
+			'https://remote.example/users/alice/outbox',
+			'https://remote.example/users/alice/outbox?page=1',
+			'https://remote.example/objects/outbox-1'
+		]);
+		assert.equal(refresh.fetched, 4);
+		assert.equal(refresh.cached, 2);
+		assert.equal(refresh.skipped, 2);
+		assert.deepEqual(refresh.errors, []);
+		assert.equal(refresh.source.id, subscription.id);
+		assert.equal(refresh.source.lastRefreshRequestedAt instanceof Date, true);
+		assert.equal(refresh.source.lastError, undefined);
+		assert.deepEqual(feedObjectIds, [
+			'https://remote.example/objects/featured-1',
+			'https://remote.example/objects/outbox-1'
+		]);
+		assert.equal(feed.list.find((item) => item.objectId === publicObject.id)?.preview?.contentText, 'Featured source');
+		assert.equal(feed.list.find((item) => item.objectId === outboxObject.id)?.preview?.contentText, 'Outbox source');
+		assert.equal(models.ActivityPubObject.rows.every((row) => row.remoteActorId === models.ActivityPubRemoteActor.rows[0].id), true);
+	});
+
 	it('records signed Follow activities for group inboxes idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -2492,6 +2591,7 @@ describe('activityPub API', () => {
 		const sourceUpdateCalls: any[] = [];
 		const sourceRemoveCalls: any[] = [];
 		const sourceFeedCalls: any[] = [];
+		const sourceRefreshCalls: any[] = [];
 		const sourceReadCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
@@ -2578,6 +2678,23 @@ describe('activityPub API', () => {
 					},
 					list: [{id: 9, objectId: 'https://remote.example/objects/1', isUnread: true}],
 					total: 1
+				};
+			},
+			refreshActivityPubSource: async (userId, sourceId, input) => {
+				sourceRefreshCalls.push({userId, sourceId, input});
+				return {
+					source: {
+						id: Number(sourceId),
+						userId,
+						remoteActorId: 1,
+						sourceActorUrl: 'https://remote.example/users/alice',
+						status: ActivityPubSourceSubscriptionStatus.Active,
+						lastRefreshRequestedAt: new Date('2026-06-01T12:11:00Z')
+					},
+					fetched: 2,
+					cached: 1,
+					skipped: 1,
+					errors: []
 				};
 			},
 			markActivityPubSourceRead: async (userId, sourceId, input) => {
@@ -2872,12 +2989,26 @@ describe('activityPub API', () => {
 		}]);
 		assert.equal(sourceFeed.body.list[0].isUnread, true);
 
+		const sourceRefresh = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/refresh', {
+			params: {sourceId: '4'},
+			body: {limit: 2, includeFeatured: true},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceRefreshCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {limit: 2, includeFeatured: true}
+		}]);
+		assert.equal(sourceRefresh.body.cached, 1);
+		assert.equal(sourceRefresh.body.source.lastRefreshRequestedAt.toISOString(), '2026-06-01T12:11:00.000Z');
+
 		const sourceRead = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/read', {
 			params: {sourceId: '4'},
 			body: {readAt: '2026-06-01T12:10:00Z'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceReadCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -2890,7 +3021,7 @@ describe('activityPub API', () => {
 			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceUpdateCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -2902,7 +3033,7 @@ describe('activityPub API', () => {
 			params: {sourceId: '4'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRemoveCalls, [{
 			userId: 1,
 			sourceId: '4'
@@ -3125,6 +3256,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 			resolveRemoteActorKey: overrides.resolveRemoteActorKey,
 			fetchRemoteActor: overrides.fetchRemoteActor,
 			fetchActivityPubWebFinger: overrides.fetchActivityPubWebFinger,
+			fetchActivityPubSourceJson: overrides.fetchActivityPubSourceJson,
 			remoteActorCacheMaxAgeMs: overrides.remoteActorCacheMaxAgeMs,
 			deliverActivityPubRequest: overrides.deliverActivityPubRequest
 		}),

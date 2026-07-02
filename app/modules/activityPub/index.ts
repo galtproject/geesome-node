@@ -37,7 +37,10 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectPreview,
 	IActivityPubSourceFeedFilters,
 	IActivityPubSourceFeedResponse,
+	IActivityPubSourceJsonFetcher,
 	IActivityPubSourceReadInput,
+	IActivityPubSourceRefreshInput,
+	IActivityPubSourceRefreshResult,
 	IActivityPubSourceResolveInput,
 	IActivityPubSourceResolveResult,
 	IActivityPubSourceSubscriptionFilters,
@@ -114,11 +117,17 @@ import {
 	resetActivityPubObjectReviewState,
 	setActivityPubObjectReviewState as setActivityPubObjectReviewStateRecord
 } from './objectReviewState.js';
+import {
+	getActivityPubSourceRefreshUpdateData,
+	refreshActivityPubSourceSubscription
+} from './sourceRefresh.js';
+import {isActivityPubReviewObjectType} from './reviewObjectTypes.js';
 
 type IActivityPubModuleOptions = IActivityPubRemoteActorCacheOptions & {
 	models?: any;
 	resolveRemoteActorKey?: IActivityPubRemoteActorKeyResolver;
 	fetchActivityPubWebFinger?: IActivityPubWebFingerFetcher;
+	fetchActivityPubSourceJson?: IActivityPubSourceJsonFetcher;
 	deliverActivityPubRequest?: IActivityPubDeliveryRequestSender;
 };
 
@@ -194,17 +203,6 @@ const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImpor
 	canImportRemoteBytes: true,
 	supportedModes: ['provenanceOnly', 'backupOnCreate']
 });
-const activityPubSharedInboxReviewObjectTypes = new Set([
-	'Note',
-	'Article',
-	'Page',
-	'Image',
-	'Video',
-	'Audio',
-	'Document',
-	'Question',
-	'Event'
-]);
 let activityPubRemoteAttachmentBackupQueueInProcess = false;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
@@ -376,6 +374,21 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				throwActivityPubError('activitypub_source_subscription_not_found', 404);
 			}
 			return getActivityPubSourceFeed(app, models, subscription, filters, listParams);
+		}
+
+		async refreshActivityPubSource(userId: number, sourceId: number | string, input: IActivityPubSourceRefreshInput = {}): Promise<IActivityPubSourceRefreshResult> {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+			const result = await refreshActivityPubSourceSubscription(models, subscription, input, options);
+			await updateActivityPubSourceSubscriptionRecord(subscription, getActivityPubSourceRefreshUpdateData(result.errors));
+
+			return {
+				...result,
+				source: await getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription)
+			};
 		}
 
 		async markActivityPubSourceRead(userId: number, sourceId: number | string, input: IActivityPubSourceReadInput = {}): Promise<IActivityPubSourceSubscriptionReport> {
@@ -3274,8 +3287,7 @@ function getRequiredSharedInboxReviewObject(object, requiredMessage: string, uns
 }
 
 function isActivityPubSharedInboxReviewObjectType(objectType): boolean {
-	return typeof objectType === 'string'
-		&& activityPubSharedInboxReviewObjectTypes.has(objectType);
+	return isActivityPubReviewObjectType(objectType);
 }
 
 async function getRequiredSharedInboxCreateTarget(models, activity, object) {

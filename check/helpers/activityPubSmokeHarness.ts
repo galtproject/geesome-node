@@ -54,7 +54,7 @@ function getSmokeApp(calls) {
       }
     },
     checkModules(modules) {
-      assert.deepEqual(modules, ['api', 'group', 'database', 'content']);
+      assert.deepEqual(modules, ['api', 'group', 'database', 'content', 'asyncOperation']);
     },
     encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
     decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
@@ -80,6 +80,7 @@ function getSmokeApp(calls) {
           };
         }
       },
+      asyncOperation: getAsyncOperationStub(calls),
       group: {
         async getGroupByParams(params) {
           if (params.name !== group.name) {
@@ -152,11 +153,85 @@ function getModelsStub() {
   return {
     ActivityPubActor: getModelStub(),
     ActivityPubRemoteActor: getModelStub(),
+    ActivityPubSourceSubscription: getModelStub(),
     ActivityPubFollow: getModelStub(),
     ActivityPubObject: getModelStub(),
     ActivityPubDelivery: getModelStub(),
     ActivityPubObjectReview: getModelStub(),
     ActivityPubFlag: getModelStub()
+  };
+}
+
+function getAsyncOperationStub(calls) {
+  calls.asyncOperationQueues = calls.asyncOperationQueues || [];
+  calls.asyncOperations = calls.asyncOperations || [];
+
+  return {
+    async addUniqueUserOperationQueue(userId, module, userApiKeyId, input) {
+      const queue = {
+        id: calls.asyncOperationQueues.length + 1,
+        userId,
+        module,
+        userApiKeyId,
+        inputJson: JSON.stringify(input),
+        isWaiting: true,
+        asyncOperationId: null
+      };
+      calls.asyncOperationQueues.push(queue);
+      return queue;
+    },
+    async getWaitingOperationByModule(module) {
+      return calls.asyncOperationQueues.find((queue) => {
+        return queue.module === module && queue.isWaiting;
+      }) || null;
+    },
+    async updateUserOperationQueue(id, updateData) {
+      const queue = calls.asyncOperationQueues.find((item) => item.id === Number(id));
+      if (queue) {
+        Object.assign(queue, updateData);
+      }
+      return queue;
+    },
+    async addAsyncOperation(userId, asyncOperationData) {
+      const operation = {
+        id: calls.asyncOperations.length + 1,
+        userId,
+        ...asyncOperationData
+      };
+      calls.asyncOperations.push(operation);
+      return operation;
+    },
+    async setAsyncOperationToUserOperationQueue(queueId, asyncOperationId) {
+      const queue = calls.asyncOperationQueues.find((item) => item.id === Number(queueId));
+      if (queue) {
+        queue.asyncOperationId = asyncOperationId;
+      }
+      return queue;
+    },
+    async closeUserOperationQueueByAsyncOperationId(asyncOperationId) {
+      calls.asyncOperationQueues.forEach((queue) => {
+        if (queue.asyncOperationId === Number(asyncOperationId)) {
+          queue.isWaiting = false;
+        }
+      });
+    },
+    async finishAsyncOperation(_userId, asyncOperationId, _contentId = null, output = null) {
+      const operation = calls.asyncOperations.find((item) => item.id === Number(asyncOperationId));
+      if (operation) {
+        operation.inProcess = false;
+        operation.percent = 100;
+        operation.output = output;
+      }
+      return operation;
+    },
+    async errorAsyncOperation(_userId, asyncOperationId, errorMessage) {
+      const operation = calls.asyncOperations.find((item) => item.id === Number(asyncOperationId));
+      if (operation) {
+        operation.inProcess = false;
+        operation.errorMessage = errorMessage;
+      }
+      return operation;
+    }
   };
 }
 
