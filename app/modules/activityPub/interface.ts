@@ -461,6 +461,15 @@ export interface IActivityPubSourceReadInput {
 	readAt?: Date | string;
 }
 
+export interface IActivityPubSourceFollowInput {
+	groupName?: string;
+}
+
+export interface IActivityPubSourceFollowResult {
+	source: IActivityPubSourceSubscriptionReport;
+	follow: IActivityPubOutboundFollowResult;
+}
+
 export interface IActivityPubRemoteObjectPostDraftSource {
 	protocol: 'activitypub';
 	objectId: string;
@@ -741,6 +750,8 @@ export default interface IGeesomeActivityPubModule {
 	queueDueActivityPubSourceRefreshes(options?: IActivityPubSourceRefreshPollOptions): Promise<IActivityPubSourceRefreshPollResult>;
 
 	markActivityPubSourceRead(userId: number, sourceId: number | string, input?: IActivityPubSourceReadInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	followActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceFollowInput, options?: IActivityPubOutboundFollowOptions): Promise<IActivityPubSourceFollowResult>;
 
 	getGroupRemoteObjects(groupName: string, filters?: IActivityPubRemoteObjectFilters, listParams?: IListParams): Promise<IActivityPubRemoteObjectListResponse>;
 

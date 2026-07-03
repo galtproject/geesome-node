@@ -37,6 +37,8 @@ import IGeesomeActivityPubModule, {
 	IActivityPubRemoteObjectPreview,
 	IActivityPubSourceFeedFilters,
 	IActivityPubSourceFeedResponse,
+	IActivityPubSourceFollowInput,
+	IActivityPubSourceFollowResult,
 	IActivityPubSourceJsonFetcher,
 	IActivityPubSourceReadInput,
 	IActivityPubSourceRefreshPollOptions,
@@ -470,6 +472,20 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				lastReadAt: getActivityPubSourceReadAt(input)
 			});
 			return getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
+		}
+
+		async followActivityPubSource(userId: number, sourceId: number | string, input: IActivityPubSourceFollowInput = {}, followOptions: IActivityPubOutboundFollowOptions = {}): Promise<IActivityPubSourceFollowResult> {
+			getResolvedActivityPubConfig(app);
+			const subscription = await getActivityPubSourceSubscriptionRecord(models, userId, sourceId);
+			if (!subscription) {
+				throwActivityPubError('activitypub_source_subscription_not_found', 404);
+			}
+			const groupName = getRequiredActivityPubSourceFollowGroupName(input);
+			const follow = await this.followRemoteActor(groupName, subscription.sourceActorUrl, followOptions);
+			return {
+				source: await getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription),
+				follow
+			};
 		}
 
 		async getGroupRemoteObjects(groupName: string, filters: IActivityPubRemoteObjectFilters = {}, listParams: IListParams = {}): Promise<IActivityPubRemoteObjectListResponse> {
@@ -1493,6 +1509,14 @@ function getActivityPubSourceReadAt(input: IActivityPubSourceReadInput): Date {
 		throwActivityPubError('activitypub_source_read_at_invalid', 400);
 	}
 	return readAt;
+}
+
+function getRequiredActivityPubSourceFollowGroupName(input: IActivityPubSourceFollowInput): string {
+	const groupName = getOptionalBoundedString(input?.groupName, 200);
+	if (!groupName) {
+		throwActivityPubError('activitypub_source_follow_group_name_required', 400);
+	}
+	return groupName;
 }
 
 function getRequiredActivityPubWebFingerActorUrl(webFinger): string {
