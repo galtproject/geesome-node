@@ -520,6 +520,46 @@ describe('activityPub module', () => {
 		assert.equal(secondPage.nextCursor, null);
 	});
 
+	it('requests ActivityPub source follows through a local group actor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchCalls: string[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				fetchCalls.push(actorUrl);
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+
+		const result = await module.followActivityPubSource(7, subscription.id, {
+			groupName: 'test-channel'
+		}, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const follow = models.ActivityPubFollow.rows[0];
+		const delivery = models.ActivityPubDelivery.rows[0];
+		const deliveryBody = JSON.parse(delivery.bodyJson);
+
+		assert.deepEqual(fetchCalls, [remoteActorKey.actorUrl]);
+		assert.equal(result.source.id, subscription.id);
+		assert.equal(result.source.sourceActorUrl, remoteActorKey.actorUrl);
+		assert.equal(result.follow.ok, true);
+		assert.equal(result.follow.message, 'activitypub_follow_delivery_queued');
+		assert.equal(result.follow.localActorUrl, 'https://social.example/ap/groups/test-channel');
+		assert.equal(result.follow.remoteActorUrl, remoteActorKey.actorUrl);
+		assert.equal(result.follow.followId, follow.id);
+		assert.equal(result.follow.deliveryId, delivery.id);
+		assert.equal(follow.direction, ActivityPubFollowDirection.Outbound);
+		assert.equal(follow.state, ActivityPubFollowState.Pending);
+		assert.equal(delivery.activityType, 'Follow');
+		assert.equal(delivery.followId, follow.id);
+		assert.equal(deliveryBody.actor, 'https://social.example/ap/groups/test-channel');
+		assert.equal(deliveryBody.object, remoteActorKey.actorUrl);
+		await assert.rejects(() => module.followActivityPubSource(7, subscription.id, {}), /activitypub_source_follow_group_name_required/);
+	});
+
 	it('queues ActivityPub source refreshes through async operations', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const sourceObject = {
@@ -2756,6 +2796,7 @@ describe('activityPub API', () => {
 		const sourceSubscribeCalls: any[] = [];
 		const sourceUpdateCalls: any[] = [];
 		const sourceRemoveCalls: any[] = [];
+		const sourceFollowCalls: any[] = [];
 		const sourceFeedCalls: any[] = [];
 		const sourceRefreshCalls: any[] = [];
 		const sourceRefreshQueueCalls: any[] = [];
@@ -2831,6 +2872,27 @@ describe('activityPub API', () => {
 					remoteActorId: 1,
 					sourceActorUrl: 'https://remote.example/users/alice',
 					status: ActivityPubSourceSubscriptionStatus.Removed
+				};
+			},
+			followActivityPubSource: async (userId, sourceId, input) => {
+				sourceFollowCalls.push({userId, sourceId, input});
+				return {
+					source: {
+						id: Number(sourceId),
+						userId,
+						remoteActorId: 1,
+						sourceActorUrl: 'https://remote.example/users/alice',
+						status: ActivityPubSourceSubscriptionStatus.Active
+					},
+					follow: {
+						ok: true,
+						message: 'activitypub_follow_delivery_queued',
+						localActorUrl: 'https://social.example/ap/groups/test-channel',
+						remoteActorUrl: 'https://remote.example/users/alice',
+						followId: 1,
+						followState: ActivityPubFollowState.Pending,
+						deliveryId: 2
+					}
 				};
 			},
 			getActivityPubSourceFeed: async (userId, sourceId, filters, listParams) => {
@@ -3153,12 +3215,26 @@ describe('activityPub API', () => {
 		}]);
 		assert.equal(sourceSubscribe.body.id, 4);
 
+		const sourceFollow = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/follow', {
+			params: {sourceId: '4'},
+			body: {groupName: 'test-channel'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceFollowCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {groupName: 'test-channel'}
+		}]);
+		assert.equal(sourceFollow.body.source.id, 4);
+		assert.equal(sourceFollow.body.follow.message, 'activitypub_follow_delivery_queued');
+
 		const sourceFeed = await callRoute(routes, 'AUTH GET admin/activity-pub/sources/:sourceId/feed', {
 			params: {sourceId: '4'},
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(sourceFeedCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3172,7 +3248,7 @@ describe('activityPub API', () => {
 			body: {limit: 2, includeFeatured: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3187,7 +3263,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshQueueCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3202,7 +3278,7 @@ describe('activityPub API', () => {
 			body: {readAt: '2026-06-01T12:10:00Z'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceReadCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3215,7 +3291,7 @@ describe('activityPub API', () => {
 			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceUpdateCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3227,7 +3303,7 @@ describe('activityPub API', () => {
 			params: {sourceId: '4'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRemoveCalls, [{
 			userId: 1,
 			sourceId: '4'

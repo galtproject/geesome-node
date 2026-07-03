@@ -249,6 +249,26 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/follow Follow ActivityPub source from group actor
+	 * @apiName AdminActivityPubSourceFollow
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Requests a federation-level outbound `Follow` from the given local group actor to the subscribed source actor. This reuses group follow state and delivery queue semantics: the source appears in the public following collection only after a signed remote `Accept` is recorded. This route does not fetch source timelines, import posts, or create GeeSome content.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String} groupName Local GeeSome group actor name that should follow the source.
+	 * @apiSuccess {Object} source Source subscription row with remote actor metadata.
+	 * @apiSuccess {Object} follow Outbound follow result and delivery metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/follow', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.followActivityPubSource(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
 	 * @api {get} /v1/admin/activity-pub/sources/:sourceId/feed List ActivityPub source feed
 	 * @apiName AdminActivityPubSourceFeed
 	 * @apiGroup AdminActivityPub
