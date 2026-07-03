@@ -257,16 +257,19 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists cached remote ActivityPub objects for a subscribed source actor. Feed items reuse the same sanitized `preview` projection as remote object moderation views and include an `isUnread` marker based on the subscription read cursor. This route does not fetch remote timelines, import posts, or create GeeSome content.
+	 * @apiDescription Lists cached remote ActivityPub objects for a subscribed source actor. Feed items reuse the same sanitized `preview` projection as remote object moderation views and include an `isUnread` marker based on the subscription read cursor. Passing `cursorPublishedAt` and `cursorId` enables keyset pagination by `(publishedAt, id)` and skips the total count. This route does not fetch remote timelines, import posts, or create GeeSome content.
 	 * @apiParam {Number} sourceId Source subscription id.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
 	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note`, `Article`, or `Tombstone`.
 	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
 	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
+	 * @apiQuery {Date} [cursorPublishedAt] Keyset cursor timestamp for source-feed pages.
+	 * @apiQuery {Number} [cursorId] Keyset cursor id for source-feed pages.
 	 * @apiSuccess {Object} source Source subscription row with remote actor metadata.
 	 * @apiSuccess {Object[]} list Cached remote object rows with sanitized preview data and `isUnread`.
-	 * @apiSuccess {Number} total Total matching cached remote objects.
+	 * @apiSuccess {Number} total Total matching cached remote objects, or `null` for cursor pages.
+	 * @apiSuccess {Object} [nextCursor] Cursor for the next source-feed page.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/sources/:sourceId/feed', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);

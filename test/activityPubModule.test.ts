@@ -484,6 +484,42 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObject.rows.every((row) => row.remoteActorId === models.ActivityPubRemoteActor.rows[0].id), true);
 	});
 
+	it('paginates ActivityPub source feeds with a stable cursor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+		await Promise.all([
+			createSourceFeedObject(models, 'oldest', '2026-06-01T12:00:00Z'),
+			createSourceFeedObject(models, 'same-time-first', '2026-06-01T12:05:00Z'),
+			createSourceFeedObject(models, 'same-time-second', '2026-06-01T12:05:00Z')
+		]);
+
+		const firstPage = await module.getActivityPubSourceFeed(7, subscription.id, {
+			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
+			cursorId: '999999999'
+		}, {limit: 2});
+		const secondPage = await module.getActivityPubSourceFeed(7, subscription.id, {
+			cursorPublishedAt: firstPage.nextCursor?.publishedAt,
+			cursorId: firstPage.nextCursor?.id
+		}, {limit: 2});
+
+		assert.deepEqual(firstPage.list.map((item) => item.objectId), [
+			'https://remote.example/objects/same-time-second',
+			'https://remote.example/objects/same-time-first'
+		]);
+		assert.equal(firstPage.total, null);
+		assert.equal(firstPage.nextCursor?.publishedAt.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.equal(firstPage.nextCursor?.id, 2);
+		assert.deepEqual(secondPage.list.map((item) => item.objectId), [
+			'https://remote.example/objects/oldest'
+		]);
+		assert.equal(secondPage.nextCursor, null);
+	});
+
 	it('queues ActivityPub source refreshes through async operations', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const sourceObject = {
@@ -3726,6 +3762,9 @@ function getModelStub() {
 				count: matchingRows.length
 			};
 		},
+		async count({where} = {}) {
+			return rows.filter((row) => rowMatchesWhere(row, where || {})).length;
+		},
 		async create(data) {
 			const row = {
 				...data,
@@ -3785,6 +3824,9 @@ function rowMatchesWhere(row, where) {
 	return Reflect.ownKeys(where).every((key) => {
 		if (key === Op.or) {
 			return where[key as any].some((item) => rowMatchesWhere(row, item));
+		}
+		if (key === Op.and) {
+			return where[key as any].every((item) => rowMatchesWhere(row, item));
 		}
 		return valueMatchesWhere(row[key as any], where[key as any]);
 	});
@@ -3974,6 +4016,28 @@ function getSignedInboxRequest(actorKey, path: string, activity: any) {
 		rawBody: Buffer.from(body),
 		now: date
 	};
+}
+
+async function createSourceFeedObject(models, slug: string, publishedAt: string) {
+	return models.ActivityPubObject.create({
+		localActorId: null,
+		localPostId: null,
+		remoteActorId: models.ActivityPubRemoteActor.rows[0].id,
+		remoteObjectUrl: `https://remote.example/objects/${slug}`,
+		activityId: `https://remote.example/activities/${slug}`,
+		objectId: `https://remote.example/objects/${slug}`,
+		objectType: 'Note',
+		origin: ActivityPubObjectOrigin.Remote,
+		visibility: ActivityPubObjectVisibility.Public,
+		publishedAt: new Date(publishedAt),
+		rawJson: JSON.stringify({
+			id: `https://remote.example/objects/${slug}`,
+			type: 'Note',
+			attributedTo: models.ActivityPubRemoteActor.rows[0].actorUrl,
+			content: `<p>${slug}</p>`,
+			published: publishedAt
+		})
+	});
 }
 
 function getSignedContentDigestInboxRequest(actorKey, path: string, activity: any) {

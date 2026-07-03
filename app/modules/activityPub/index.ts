@@ -1149,25 +1149,24 @@ async function getActivityPubSourceFeed(app: IGeesomeApp, models, subscription, 
 	};
 	app.ms.database.setDefaultListParamsValues(preparedListParams, activityPubRemoteObjectListParams);
 	const where = await getActivityPubSourceFeedWhere(models, subscription, filters);
-	const objectPage = await models.ActivityPubObject.findAndCountAll({
+	const cursor = helpers.addCursorWhere(where, filters);
+	const objectRows = await models.ActivityPubObject.findAll({
 		where,
-		order: [
-			[preparedListParams.sortBy, getListSortDirection(preparedListParams)],
-			['id', getListSortDirection(preparedListParams)]
-		],
+		order: helpers.getCursorListOrder(cursor, preparedListParams),
 		limit: preparedListParams.limit,
-		offset: preparedListParams.offset
+		offset: helpers.getCursorListOffset(cursor, preparedListParams.offset)
 	});
-	const remoteActors = await getRemoteActorRecordsByIds(models, objectPage.rows.map((object) => object.remoteActorId));
+	const remoteActors = await getRemoteActorRecordsByIds(models, objectRows.map((object) => object.remoteActorId));
 	const remoteActorById = getRemoteActorById(remoteActors);
-	const reviews = await getActivityPubObjectReviewRecordsByObjectIds(models, objectPage.rows.map((object) => object.id));
+	const reviews = await getActivityPubObjectReviewRecordsByObjectIds(models, objectRows.map((object) => object.id));
 	const reviewByObjectId = getActivityPubObjectReviewByObjectId(reviews);
 	const source = await getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription);
 
 	return {
 		source,
-		list: objectPage.rows.map((object) => getActivityPubSourceFeedItem(subscription, object, remoteActorById, reviewByObjectId)),
-		total: getListPageCount(objectPage.count)
+		list: objectRows.map((object) => getActivityPubSourceFeedItem(subscription, object, remoteActorById, reviewByObjectId)),
+		total: helpers.shouldIncludeListTotal(preparedListParams, cursor) ? await models.ActivityPubObject.count({where}) : null,
+		nextCursor: helpers.getNextListCursor(cursor, objectRows, preparedListParams.limit)
 	};
 }
 
