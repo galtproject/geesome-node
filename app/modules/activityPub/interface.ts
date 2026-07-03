@@ -403,7 +403,10 @@ export interface IActivityPubSourceSubscriptionListResponse {
 	total: number;
 }
 
-export interface IActivityPubSourceFeedFilters extends IActivityPubRemoteObjectFilters {}
+export interface IActivityPubSourceFeedFilters extends IActivityPubRemoteObjectFilters {
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+}
 
 export interface IActivityPubSourceFeedItem extends IActivityPubRemoteObjectReport {
 	sourceSubscriptionId?: number;
@@ -413,7 +416,8 @@ export interface IActivityPubSourceFeedItem extends IActivityPubRemoteObjectRepo
 export interface IActivityPubSourceFeedResponse {
 	source: IActivityPubSourceSubscriptionReport;
 	list: IActivityPubSourceFeedItem[];
-	total: number;
+	total: number | null;
+	nextCursor?: {publishedAt: any; id: any} | null;
 }
 
 export interface IActivityPubSourceRefreshInput {

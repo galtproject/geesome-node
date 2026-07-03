@@ -1374,7 +1374,9 @@ function hotspotRows(): HotspotRow[] {
   const hasActivityPubSourceFeed = has(activityPubSource, 'async function getActivityPubSourceFeed')
     && has(activityPubSource, 'getActivityPubSourceFeedWhere')
     && has(activityPubSource, 'remoteActorId: subscription.remoteActorId')
-    && has(activityPubSource, "['id', getListSortDirection(preparedListParams)]");
+    && has(activityPubSource, 'helpers.getCursorListOrder(cursor, preparedListParams)')
+    && has(activityPubSource, 'helpers.getCursorListOffset(cursor, preparedListParams.offset)')
+    && has(activityPubSource, 'helpers.getNextListCursor(cursor, objectRows, preparedListParams.limit)');
   const hasActivityPubSourceFeedIndex = has(activityPubModelSource, 'activity_pub_objects_remote_actor_origin_published_idx')
     && has(activityPubModelSource, "fields: ['remoteActorId', 'origin', 'publishedAt', 'id']");
 
@@ -1577,10 +1579,10 @@ function hotspotRows(): HotspotRow[] {
       source: 'app/modules/activityPub/index.ts',
       hotspot: 'getActivityPubSourceFeed',
       observedPattern: hasActivityPubSourceFeed
-        ? 'selects cached remote ActivityPub objects by subscribed remoteActorId/origin with bounded pagination, deterministic id tiebreaker, and sanitized preview projection reuse'
+        ? 'selects cached remote ActivityPub objects by subscribed remoteActorId/origin with cursor-aware bounded pagination, deterministic id tiebreaker, optional count skipping, and sanitized preview projection reuse'
         : 'review source feed implementation',
       scalabilityRisk: hasActivityPubSourceFeedIndex
-        ? 'default source feed pages use the remoteActorId/origin/publishedAt/id index; future live timeline backfill still needs bounded fetch/queue policy'
+        ? 'default source feed pages can use the remoteActorId/origin/publishedAt/id index and cursor pages avoid large offsets/counts; future live timeline backfill still needs bounded fetch/queue policy'
         : 'source feeds can scan the growing ActivityPub object cache without a remote actor list index',
     },
     {
