@@ -5,11 +5,13 @@ import ActivityPubDeliveryCronService from './cronService.js';
 
 const defaultActivityPubDeliveryWorkerIntervalMs = 60 * 1000;
 const defaultActivityPubSourceRefreshWorkerIntervalMs = 60 * 1000;
+const defaultActivityPubSourceRefreshPollerIntervalMs = 5 * 60 * 1000;
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
 	const deliveryWorkerEnabled = isActivityPubDeliveryWorkerEnabled(app);
 	const sourceRefreshWorkerEnabled = isActivityPubSourceRefreshWorkerEnabled(app);
-	if (!deliveryWorkerEnabled && !sourceRefreshWorkerEnabled) {
+	const sourceRefreshPollerEnabled = isActivityPubSourceRefreshPollerEnabled(app);
+	if (!deliveryWorkerEnabled && !sourceRefreshWorkerEnabled && !sourceRefreshPollerEnabled) {
 		return null;
 	}
 
@@ -20,10 +22,19 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 		}, getActivityPubDeliveryWorkerIntervalMs(app));
 		timer.unref?.();
 	}
-	if (sourceRefreshWorkerEnabled) {
+	if (sourceRefreshWorkerEnabled && !sourceRefreshPollerEnabled) {
 		const timer = setInterval(async () => {
 			await cronService.processSourceRefreshQueue().catch((e) => console.error('processActivityPubSourceRefreshQueue error', e));
 		}, getActivityPubSourceRefreshWorkerIntervalMs(app));
+		timer.unref?.();
+	}
+	if (sourceRefreshPollerEnabled) {
+		const timer = setInterval(async () => {
+			await cronService.queueDueSourceRefreshes().catch((e) => console.error('queueDueActivityPubSourceRefreshes error', e));
+			if (sourceRefreshWorkerEnabled) {
+				await cronService.processSourceRefreshQueue().catch((e) => console.error('processActivityPubSourceRefreshQueue error', e));
+			}
+		}, getActivityPubSourceRefreshPollerIntervalMs(app));
 		timer.unref?.();
 	}
 
@@ -57,6 +68,21 @@ function getActivityPubSourceRefreshWorkerIntervalMs(app: IGeesomeApp): number {
 	return parsePositiveInteger(
 		app.config.activityPubConfig?.sourceRefreshWorkerIntervalMs,
 		defaultActivityPubSourceRefreshWorkerIntervalMs
+	);
+}
+
+function isActivityPubSourceRefreshPollerEnabled(app: IGeesomeApp): boolean {
+	const config = app.config.activityPubConfig || {};
+	if (!isActivityPubEnabled(config)) {
+		return false;
+	}
+	return config.sourceRefreshPoller === true || config.sourceRefreshPoller === '1' || config.sourceRefreshPoller === 'true';
+}
+
+function getActivityPubSourceRefreshPollerIntervalMs(app: IGeesomeApp): number {
+	return parsePositiveInteger(
+		app.config.activityPubConfig?.sourceRefreshPollerIntervalMs,
+		defaultActivityPubSourceRefreshPollerIntervalMs
 	);
 }
 

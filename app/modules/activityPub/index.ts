@@ -39,6 +39,7 @@ import IGeesomeActivityPubModule, {
 	IActivityPubSourceFeedResponse,
 	IActivityPubSourceJsonFetcher,
 	IActivityPubSourceReadInput,
+	IActivityPubSourceRefreshPollOptions,
 	IActivityPubSourceRefreshQueueInput,
 	IActivityPubSourceRefreshQueueProcessOptions,
 	IActivityPubSourceRefreshInput,
@@ -203,6 +204,8 @@ const activityPubRemoteAttachmentBackupQueueKickBatchLimit = 3;
 const activityPubRemoteAttachmentBackupQueueMaxAttempts = 5;
 const activityPubSourceRefreshQueueModuleName = 'activitypub-source-refresh';
 const activityPubSourceRefreshQueueKickBatchLimit = 3;
+const activityPubSourceRefreshPollDefaultLimit = 20;
+const activityPubSourceRefreshPollDefaultStaleMs = 15 * 60 * 1000;
 const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
 const activityPubBlueskyOfficialPreset = 'bluesky-official';
 const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
@@ -439,6 +442,22 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				}),
 				run: (waitingQueue, _asyncOperation, job) => this.refreshActivityPubSource(waitingQueue.userId, job.sourceId, job.input)
 			});
+		}
+
+		async queueDueActivityPubSourceRefreshes(options: IActivityPubSourceRefreshPollOptions = {}) {
+			getResolvedActivityPubConfig(app);
+			const subscriptions = await getDueActivityPubSourceRefreshSubscriptions(models, options);
+			for (const subscription of subscriptions) {
+				await app.ms.asyncOperation.addUniqueUserOperationQueue(
+					subscription.userId,
+					activityPubSourceRefreshQueueModuleName,
+					null,
+					getActivityPubSourceRefreshJobInput(subscription, options.refreshInput || {})
+				);
+			}
+			return {
+				queued: subscriptions.length
+			};
 		}
 
 		async markActivityPubSourceRead(userId: number, sourceId: number | string, input: IActivityPubSourceReadInput = {}): Promise<IActivityPubSourceSubscriptionReport> {
@@ -1331,6 +1350,65 @@ async function getActivityPubSourceSubscriptionByRemoteActorId(models, userId: n
 async function getActivityPubSourceSubscriptionReportWithRemoteActor(models, subscription): Promise<IActivityPubSourceSubscriptionReport> {
 	const remoteActors = await getRemoteActorRecordsByIds(models, [subscription.remoteActorId]);
 	return getActivityPubSourceSubscriptionReport(subscription, getRemoteActorById(remoteActors));
+}
+
+async function getDueActivityPubSourceRefreshSubscriptions(models, options: IActivityPubSourceRefreshPollOptions) {
+	const limit = getActivityPubSourceRefreshPollLimit(options);
+	const neverRefreshedSubscriptions = await getNeverRefreshedActivityPubSourceSubscriptions(models, limit);
+	if (neverRefreshedSubscriptions.length >= limit) {
+		return neverRefreshedSubscriptions;
+	}
+	const staleSubscriptions = await getStaleActivityPubSourceSubscriptions(models, options, limit - neverRefreshedSubscriptions.length);
+	return [
+		...neverRefreshedSubscriptions,
+		...staleSubscriptions
+	];
+}
+
+function getNeverRefreshedActivityPubSourceSubscriptions(models, limit: number) {
+	return models.ActivityPubSourceSubscription.findAll({
+		where: {
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: null
+		},
+		order: [['id', 'ASC']],
+		limit
+	});
+}
+
+function getStaleActivityPubSourceSubscriptions(models, options: IActivityPubSourceRefreshPollOptions, limit: number) {
+	const cutoff = getActivityPubSourceRefreshPollCutoff(options);
+	return models.ActivityPubSourceSubscription.findAll({
+		where: {
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: {[Op.lt]: cutoff}
+		},
+		order: [['lastRefreshRequestedAt', 'ASC'], ['id', 'ASC']],
+		limit
+	});
+}
+
+function getActivityPubSourceRefreshPollCutoff(options: IActivityPubSourceRefreshPollOptions): Date {
+	return new Date(getActivityPubSourceRefreshPollNow(options).getTime() - getActivityPubSourceRefreshPollStaleMs(options));
+}
+
+function getActivityPubSourceRefreshPollNow(options: IActivityPubSourceRefreshPollOptions): Date {
+	if (options.now === undefined) {
+		return new Date();
+	}
+	const now = new Date(options.now);
+	if (Number.isNaN(now.getTime())) {
+		throwActivityPubError('activitypub_source_refresh_poll_now_invalid', 400);
+	}
+	return now;
+}
+
+function getActivityPubSourceRefreshPollStaleMs(options: IActivityPubSourceRefreshPollOptions): number {
+	return helpers.parsePositiveInteger(options.staleMs, activityPubSourceRefreshPollDefaultStaleMs);
+}
+
+function getActivityPubSourceRefreshPollLimit(options: IActivityPubSourceRefreshPollOptions): number {
+	return helpers.parsePositiveInteger(options.limit, activityPubSourceRefreshPollDefaultLimit);
 }
 
 function getActivityPubSourceSubscriptionReport(subscription, remoteActorById: Map<number, any>): IActivityPubSourceSubscriptionReport {

@@ -541,6 +541,79 @@ describe('activityPub module', () => {
 		assert.equal(feed.list[0].objectId, sourceObject.id);
 	});
 
+	it('queues only due active ActivityPub source refreshes for polling', async () => {
+		const {module, calls, models} = await createActivityPubHarness();
+		await models.ActivityPubSourceSubscription.create({
+			userId: 7,
+			remoteActorId: 1,
+			sourceActorUrl: 'https://remote.example/users/never-refreshed',
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: null
+		});
+		await models.ActivityPubSourceSubscription.create({
+			userId: 8,
+			remoteActorId: 2,
+			sourceActorUrl: 'https://remote.example/users/stale',
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: new Date('2026-06-01T11:00:00Z')
+		});
+		await models.ActivityPubSourceSubscription.create({
+			userId: 9,
+			remoteActorId: 3,
+			sourceActorUrl: 'https://remote.example/users/recent',
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: new Date('2026-06-01T11:59:00Z')
+		});
+		await models.ActivityPubSourceSubscription.create({
+			userId: 10,
+			remoteActorId: 4,
+			sourceActorUrl: 'https://remote.example/users/paused',
+			status: ActivityPubSourceSubscriptionStatus.Paused,
+			lastRefreshRequestedAt: new Date('2026-06-01T10:00:00Z')
+		});
+
+		const result = await module.queueDueActivityPubSourceRefreshes({
+			limit: 10,
+			staleMs: 15 * 60 * 1000,
+			now: '2026-06-01T12:00:00Z',
+			refreshInput: {
+				limit: 5,
+				includeOutbox: false
+			}
+		});
+		await module.queueDueActivityPubSourceRefreshes({
+			limit: 10,
+			staleMs: 15 * 60 * 1000,
+			now: '2026-06-01T12:00:00Z',
+			refreshInput: {
+				limit: 5,
+				includeOutbox: false
+			}
+		});
+
+		assert.deepEqual(result, {queued: 2});
+		assert.equal(calls.asyncOperationQueues.length, 2);
+		assert.deepEqual(calls.asyncOperationQueues.map((queue) => queue.userId).sort(), [7, 8]);
+		assert.deepEqual(calls.asyncOperationQueues.map((queue) => JSON.parse(queue.inputJson)), [
+			{
+				type: 'source-refresh',
+				sourceId: 1,
+				input: {
+					limit: 5,
+					includeOutbox: false
+				}
+			},
+			{
+				type: 'source-refresh',
+				sourceId: 2,
+				input: {
+					limit: 5,
+					includeOutbox: false
+				}
+			}
+		]);
+	});
+
 	it('records signed Follow activities for group inboxes idempotently', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -3643,8 +3716,8 @@ function getModelStub() {
 				return rowMatchesWhere(row, where);
 			}) || null;
 		},
-		async findAll({where} = {}) {
-			return rows.filter((row) => rowMatchesWhere(row, where || {}));
+		async findAll({where, order, limit, offset} = {}) {
+			return getMatchingRows(rows, where, order, limit, offset);
 		},
 		async findAndCountAll({where, limit, offset} = {}) {
 			const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
@@ -3671,13 +3744,56 @@ function getModelStub() {
 	};
 }
 
+function getMatchingRows(rows, where = {}, order = null, limit = null, offset = 0) {
+	const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
+	if (Array.isArray(order) && order.length) {
+		matchingRows.sort((left, right) => compareOrderRows(left, right, order));
+	}
+	return matchingRows.slice(offset || 0, getRowsSliceEnd(offset || 0, limit, matchingRows.length));
+}
+
+function getRowsSliceEnd(offset: number, limit, length: number): number {
+	const parsedLimit = Number.parseInt(limit as any, 10);
+	if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+		return length;
+	}
+	return offset + parsedLimit;
+}
+
+function compareOrderRows(left, right, order): number {
+	for (const orderItem of order) {
+		const [field, direction = 'ASC'] = Array.isArray(orderItem) ? orderItem : [orderItem, 'ASC'];
+		const diff = compareOrderValues(left[field], right[field]);
+		if (diff !== 0) {
+			return String(direction).toUpperCase() === 'DESC' ? -diff : diff;
+		}
+	}
+	return 0;
+}
+
+function compareOrderValues(left, right): number {
+	if (left === null || left === undefined) {
+		return right === null || right === undefined ? 0 : -1;
+	}
+	if (right === null || right === undefined) {
+		return 1;
+	}
+	return compareValues(left, right);
+}
+
 function rowMatchesWhere(row, where) {
 	return Reflect.ownKeys(where).every((key) => {
+		if (key === Op.or) {
+			return where[key as any].some((item) => rowMatchesWhere(row, item));
+		}
 		return valueMatchesWhere(row[key as any], where[key as any]);
 	});
 }
 
 function valueMatchesWhere(value, condition) {
+	if (condition === null) {
+		return value === null || value === undefined;
+	}
 	if (isInCondition(condition)) {
 		const key = Reflect.ownKeys(condition)[0];
 		return condition[key as any].includes(value);
@@ -3687,8 +3803,18 @@ function valueMatchesWhere(value, condition) {
 		return !condition[key as any].includes(value);
 	}
 	if (isLteCondition(condition)) {
+		if (value === null || value === undefined) {
+			return false;
+		}
 		const key = Reflect.ownKeys(condition)[0];
 		return compareValues(value, condition[key as any]) <= 0;
+	}
+	if (isLtCondition(condition)) {
+		if (value === null || value === undefined) {
+			return false;
+		}
+		const key = Reflect.ownKeys(condition)[0];
+		return compareValues(value, condition[key as any]) < 0;
 	}
 	return value === condition;
 }
@@ -3713,6 +3839,14 @@ function isArrayCondition(condition, op): boolean {
 }
 
 function isLteCondition(condition): boolean {
+	return isSingleOperatorCondition(condition, 'lte');
+}
+
+function isLtCondition(condition): boolean {
+	return isSingleOperatorCondition(condition, 'lt');
+}
+
+function isSingleOperatorCondition(condition, operatorName: string): boolean {
 	if (!condition || typeof condition !== 'object') {
 		return false;
 	}
@@ -3720,7 +3854,7 @@ function isLteCondition(condition): boolean {
 	if (keys.length !== 1) {
 		return false;
 	}
-	return String(keys[0]).includes('lte');
+	return String(keys[0]).includes(operatorName);
 }
 
 function compareValues(left, right): number {

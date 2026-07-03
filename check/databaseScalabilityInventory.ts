@@ -108,6 +108,8 @@ function modelRows(): ModelRow[] {
     && has(activityPubModelSource, "fields: ['userId', 'status', 'updatedAt']");
   const hasActivityPubSourceSubscriptionRemoteStatusIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_remote_status_idx')
     && has(activityPubModelSource, "fields: ['remoteActorId', 'status']");
+  const hasActivityPubSourceSubscriptionStatusRefreshIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_status_refresh_idx')
+    && has(activityPubModelSource, "fields: ['status', 'lastRefreshRequestedAt', 'id']");
   const hasActivityPubObjectLocalActorListIndex = has(activityPubModelSource, 'activity_pub_objects_local_actor_origin_published_idx')
     && has(activityPubModelSource, "fields: ['localActorId', 'origin', 'publishedAt', 'id']");
   const hasActivityPubObjectRemoteActorListIndex = has(activityPubModelSource, 'activity_pub_objects_remote_actor_origin_published_idx')
@@ -301,10 +303,11 @@ function modelRows(): ModelRow[] {
         hasActivityPubSourceSubscriptionUnique ? 'userId,remoteActorId unique subscription identity' : 'missing user/remote source identity',
         hasActivityPubSourceSubscriptionUserStatusIndex ? 'userId,status,updatedAt list index' : 'missing user/status list index',
         hasActivityPubSourceSubscriptionRemoteStatusIndex ? 'remoteActorId,status reverse lookup' : 'missing remote/status lookup index',
+        hasActivityPubSourceSubscriptionStatusRefreshIndex ? 'status,lastRefreshRequestedAt,id poller index' : 'missing source refresh poller index',
       ],
       notes: [
-        hasActivityPubSourceSubscriptionUnique && hasActivityPubSourceSubscriptionUserStatusIndex && hasActivityPubSourceFeedRemoteActorFilter
-          ? 'source subscriptions are model-sync-created, duplicate-resistant per user/remote actor, and feed reads join through cached remote ActivityPub objects by remoteActorId'
+        hasActivityPubSourceSubscriptionUnique && hasActivityPubSourceSubscriptionUserStatusIndex && hasActivityPubSourceSubscriptionStatusRefreshIndex && hasActivityPubSourceFeedRemoteActorFilter
+          ? 'source subscriptions are model-sync-created, duplicate-resistant per user/remote actor, feed reads join through cached remote ActivityPub objects by remoteActorId, and refresh polling scans stale active subscriptions by indexed refresh time'
         : 'source subscription/feed scalability should be reviewed before broad frontend rollout',
       ],
     },

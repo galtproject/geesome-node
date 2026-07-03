@@ -39,7 +39,11 @@ export default {
     deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS,
     sourceRefreshWorker: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER === '1',
     sourceRefreshWorkerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_INTERVAL_MS,
-    sourceRefreshWorkerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_LIMIT
+    sourceRefreshWorkerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_LIMIT,
+    sourceRefreshPoller: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER === '1',
+    sourceRefreshPollerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_INTERVAL_MS,
+    sourceRefreshPollerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_LIMIT,
+    sourceRefreshPollerStaleMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_STALE_MS
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };

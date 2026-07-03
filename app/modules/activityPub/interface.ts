@@ -14,6 +14,10 @@ export interface IActivityPubConfig {
 	sourceRefreshWorker?: boolean | string;
 	sourceRefreshWorkerIntervalMs?: number | string;
 	sourceRefreshWorkerLimit?: number | string;
+	sourceRefreshPoller?: boolean | string;
+	sourceRefreshPollerIntervalMs?: number | string;
+	sourceRefreshPollerLimit?: number | string;
+	sourceRefreshPollerStaleMs?: number | string;
 }
 
 export interface IResolvedActivityPubConfig {
@@ -438,6 +442,17 @@ export interface IActivityPubSourceRefreshQueueProcessResult {
 	processed: number;
 }
 
+export interface IActivityPubSourceRefreshPollOptions {
+	limit?: number | string;
+	staleMs?: number | string;
+	now?: Date | string;
+	refreshInput?: IActivityPubSourceRefreshInput;
+}
+
+export interface IActivityPubSourceRefreshPollResult {
+	queued: number;
+}
+
 export interface IActivityPubSourceReadInput {
 	readAt?: Date | string;
 }
@@ -718,6 +733,8 @@ export default interface IGeesomeActivityPubModule {
 	queueActivityPubSourceRefresh(userId: number, sourceId: number | string, userApiKeyId?: number | null, input?: IActivityPubSourceRefreshQueueInput): Promise<IUserOperationQueue>;
 
 	processActivityPubSourceRefreshQueue(options?: IActivityPubSourceRefreshQueueProcessOptions): Promise<IActivityPubSourceRefreshQueueProcessResult>;
+
+	queueDueActivityPubSourceRefreshes(options?: IActivityPubSourceRefreshPollOptions): Promise<IActivityPubSourceRefreshPollResult>;
 
 	markActivityPubSourceRead(userId: number, sourceId: number | string, input?: IActivityPubSourceReadInput): Promise<IActivityPubSourceSubscriptionReport>;
 

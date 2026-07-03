@@ -149,7 +149,8 @@ export default async function (sequelize: Sequelize) {
 		indexes: [
 			{name: 'activity_pub_source_subscriptions_user_remote_unique', fields: ['userId', 'remoteActorId'], unique: true},
 			{name: 'activity_pub_source_subscriptions_user_status_idx', fields: ['userId', 'status', 'updatedAt']},
-			{name: 'activity_pub_source_subscriptions_remote_status_idx', fields: ['remoteActorId', 'status']}
+			{name: 'activity_pub_source_subscriptions_remote_status_idx', fields: ['remoteActorId', 'status']},
+			{name: 'activity_pub_source_subscriptions_status_refresh_idx', fields: ['status', 'lastRefreshRequestedAt', 'id']}
 		]
 	} as any);
 
