@@ -22,6 +22,8 @@ export const blueskyImageMaxCount = 4;
 export const blueskyImageMaxSize = 2000000;
 export const blueskyImageMaxInputSize = 20000000;
 export const blueskyExternalEmbedType = 'app.bsky.embed.external';
+export const blueskyRecordEmbedType = 'app.bsky.embed.record';
+export const blueskyRecordWithMediaEmbedType = 'app.bsky.embed.recordWithMedia';
 export const blueskyAuthorFeedFilters = new Set([
 	'posts_with_replies',
 	'posts_no_replies',
@@ -157,12 +159,23 @@ export interface IBlueskyExternalEmbedInput {
 	thumb?: any | null;
 }
 
+export interface IBlueskyRecordRef {
+	uri: string;
+	cid: string;
+}
+
+export interface IBlueskyReplyRef {
+	root: IBlueskyRecordRef;
+	parent: IBlueskyRecordRef;
+}
+
 export interface IBlueskyFeedPostRecordInput {
 	text: string;
 	facets?: any[];
 	langs?: string[];
 	createdAt?: string | Date;
 	embed?: any;
+	reply?: IBlueskyReplyRef | null;
 }
 
 export interface IBlueskyPostAtUriParts {
@@ -306,6 +319,9 @@ export function buildBlueskyFeedPostRecord(input: IBlueskyFeedPostRecordInput): 
 	if (input.embed) {
 		record.embed = input.embed;
 	}
+	if (input.reply) {
+		record.reply = getBlueskyFeedPostReply(input.reply);
+	}
 	return record;
 }
 
@@ -330,6 +346,26 @@ export function buildBlueskyExternalEmbed(input: IBlueskyExternalEmbedInput): an
 	return {
 		$type: blueskyExternalEmbedType,
 		external
+	};
+}
+
+export function buildBlueskyRecordEmbed(record: IBlueskyRecordRef): any {
+	return {
+		$type: blueskyRecordEmbedType,
+		record: getBlueskyRecordRef(record)
+	};
+}
+
+export function buildBlueskyRecordWithMediaEmbed(record: IBlueskyRecordRef, mediaEmbed: any): any {
+	if (!mediaEmbed) {
+		return buildBlueskyRecordEmbed(record);
+	}
+	return {
+		$type: blueskyRecordWithMediaEmbedType,
+		record: {
+			record: getBlueskyRecordRef(record)
+		},
+		media: mediaEmbed
 	};
 }
 
@@ -925,6 +961,22 @@ function getBlueskyRecordCreateResponse(response: any): IBlueskyRecordCreateResu
 	const cid = getOptionalString(response?.cid);
 	if (!uri || !cid) {
 		throw new Error('bluesky_record_create_response_invalid');
+	}
+	return {uri, cid};
+}
+
+function getBlueskyFeedPostReply(reply: IBlueskyReplyRef): any {
+	return {
+		root: getBlueskyRecordRef(reply.root),
+		parent: getBlueskyRecordRef(reply.parent)
+	};
+}
+
+function getBlueskyRecordRef(record: IBlueskyRecordRef): IBlueskyRecordRef {
+	const uri = getOptionalString(record?.uri);
+	const cid = getOptionalString(record?.cid);
+	if (!uri || !cid || !parseBlueskyPostAtUri(uri)) {
+		throw new Error('bluesky_record_ref_invalid');
 	}
 	return {uri, cid};
 }

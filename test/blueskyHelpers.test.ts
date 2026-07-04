@@ -14,6 +14,8 @@ import {
 	buildBlueskyImageEmbed,
 	buildBlueskyPostRecordUrl,
 	buildBlueskyPutRecordUrl,
+	buildBlueskyRecordEmbed,
+	buildBlueskyRecordWithMediaEmbed,
 	buildBlueskyUploadBlobUrl,
 	createBlueskyRecord,
 	createBlueskySession,
@@ -191,6 +193,53 @@ describe('bluesky helpers', () => {
 		assert.throws(
 			() => buildBlueskyFeedPostRecord({text: 'a'.repeat(301)}),
 			/bluesky_cross_post_text_too_long/
+		);
+	});
+
+	it('builds native reply and quote feed post records', () => {
+		const root = {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/root',
+			cid: 'bafyroot'
+		};
+		const parent = {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/parent',
+			cid: 'bafyparent'
+		};
+		const quote = {
+			uri: 'at://did:plc:bob/app.bsky.feed.post/quote',
+			cid: 'bafyquote'
+		};
+		const mediaEmbed = buildBlueskyExternalEmbed({
+			uri: 'https://example.com/page',
+			title: 'Example'
+		});
+		const recordEmbed = buildBlueskyRecordEmbed(quote);
+		const recordWithMediaEmbed = buildBlueskyRecordWithMediaEmbed(quote, mediaEmbed);
+		const record = buildBlueskyFeedPostRecord({
+			text: 'Reply with quote',
+			reply: {root, parent},
+			embed: recordWithMediaEmbed
+		});
+
+		assert.deepEqual(recordEmbed, {
+			$type: 'app.bsky.embed.record',
+			record: quote
+		});
+		assert.deepEqual(recordWithMediaEmbed, {
+			$type: 'app.bsky.embed.recordWithMedia',
+			record: {
+				record: quote
+			},
+			media: mediaEmbed
+		});
+		assert.deepEqual(record.reply, {
+			root,
+			parent
+		});
+		assert.deepEqual(record.embed, recordWithMediaEmbed);
+		assert.throws(
+			() => buildBlueskyRecordEmbed({uri: 'https://example.com/not-at-uri', cid: 'bafybad'}),
+			/bluesky_record_ref_invalid/
 		);
 	});
 

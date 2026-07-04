@@ -455,6 +455,239 @@ describe('bluesky module', () => {
 		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].accountId, 1);
 	});
 
+	it('cross-posts local replies as native Bluesky replies when the parent has a stored record', async () => {
+		const calls: any[] = [];
+		let post: any = getCrossPostPostFixture({
+			id: 45,
+			replyToId: 44
+		});
+		const parentPost = getCrossPostPostFixture({
+			id: 44,
+			propertiesJson: JSON.stringify({
+				bluesky: {
+					crossPosts: {
+						'did:plc:alice': {
+							uri: 'at://did:plc:alice/app.bsky.feed.post/parent',
+							cid: 'bafyparent',
+							replyRootUri: 'at://did:plc:alice/app.bsky.feed.post/root',
+							replyRootCid: 'bafyroot'
+						}
+					}
+				}
+			})
+		});
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => post,
+					getPostPure: async (postId) => {
+						calls.push({method: 'getPostPure', postId});
+						return parentPost;
+					},
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [{
+						id: 101,
+						type: 'text',
+						view: ContentView.Contents,
+						mimeType: 'text/plain',
+						text: 'Reply post'
+					}],
+					updatePost: async (_userId, _postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: getBlueskyAccountFetch(calls, {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/reply',
+				cid: 'bafyreply'
+			})
+		});
+
+		await module.crossPostPost(7, 45, {accountData: {id: 1}});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+		const storedProperties = JSON.parse(post.propertiesJson);
+
+		assert.deepEqual(createRecordBody.record.reply, {
+			root: {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/root',
+				cid: 'bafyroot'
+			},
+			parent: {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/parent',
+				cid: 'bafyparent'
+			}
+		});
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].replyRootUri, 'at://did:plc:alice/app.bsky.feed.post/root');
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].replyRootCid, 'bafyroot');
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].replyParentUri, 'at://did:plc:alice/app.bsky.feed.post/parent');
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].replyParentCid, 'bafyparent');
+	});
+
+	it('cross-posts local repost references as native Bluesky quote embeds', async () => {
+		const calls: any[] = [];
+		let post: any = getCrossPostPostFixture({
+			id: 46,
+			repostOfId: 41
+		});
+		const quotedPost = getImportedBlueskyPostRef(41, 'quoted', 'bafyquote', '2026-07-04T07:00:00.000Z');
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => post,
+					getPostPure: async (postId) => {
+						calls.push({method: 'getPostPure', postId});
+						return quotedPost;
+					},
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Quote post'
+						},
+						{
+							id: 102,
+							type: 'json',
+							view: ContentView.Link,
+							mimeType: 'application/json',
+							json: {
+								url: 'https://example.com/article',
+								title: 'Article',
+								description: 'Article preview'
+							}
+						}
+					],
+					updatePost: async (_userId, _postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: getBlueskyAccountFetch(calls, {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/quote',
+				cid: 'bafycreatedquote'
+			})
+		});
+
+		await module.crossPostPost(7, 46, {accountData: {id: 1}});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+		const storedProperties = JSON.parse(post.propertiesJson);
+
+		assert.equal(createRecordBody.record.text, 'Quote post\nhttps://example.com/article');
+		assert.deepEqual(createRecordBody.record.embed, {
+			$type: 'app.bsky.embed.recordWithMedia',
+			record: {
+				record: {
+					uri: 'at://did:plc:alice/app.bsky.feed.post/quoted',
+					cid: 'bafyquote'
+				}
+			},
+			media: {
+				$type: 'app.bsky.embed.external',
+				external: {
+					uri: 'https://example.com/article',
+					title: 'Article',
+					description: 'Article preview'
+				}
+			}
+		});
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].quoteUri, 'at://did:plc:alice/app.bsky.feed.post/quoted');
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].quoteCid, 'bafyquote');
+	});
+
+	it('rejects Bluesky reply cross-posts when the local parent has no Bluesky record', async () => {
+		const calls: any[] = [];
+		const post: any = getCrossPostPostFixture({
+			id: 45,
+			replyToId: 44
+		});
+		const parentPost = getCrossPostPostFixture({id: 44});
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				storage: {
+					getFileData: async () => {
+						throw new Error('unexpected_storage_read');
+					}
+				},
+				group: {
+					getPost: async () => post,
+					getPostPure: async () => parentPost,
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Reply post'
+						},
+						{
+							id: 102,
+							type: 'image',
+							view: ContentView.Media,
+							mimeType: 'image/png',
+							storageId: 'bafyimage'
+						}
+					],
+					updatePost: async () => {
+						throw new Error('unexpected_update_post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: getBlueskyAccountFetch(calls, {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/reply',
+				cid: 'bafyreply'
+			})
+		});
+
+		await assert.rejects(
+			() => module.crossPostPost(7, 45, {accountData: {id: 1}}),
+			/bluesky_cross_post_reply_parent_record_required/
+		);
+		assert.equal(calls.some(call => String(call.url).includes('createRecord')), false);
+	});
+
 	it('updates stored Bluesky cross-post records in place', async () => {
 		const calls: any[] = [];
 		let post: any = getCrossPostPostFixture({
@@ -2834,15 +3067,53 @@ function getDbChannel() {
 function getImportedBlueskyPostRef(id: number, rkey: string, cid: string, publishedAt: string) {
 	return {
 		id,
+		status: PostStatus.Published,
+		isDeleted: false,
+		isEncrypted: false,
 		publishedAt: new Date(publishedAt),
 		source: 'socNetImport:bluesky',
 		sourceChannelId: 'did:plc:alice',
 		sourcePostId: `at://did:plc:alice/app.bsky.feed.post/${rkey}`,
+		group: {
+			id: 9,
+			isPublic: true,
+			isEncrypted: false
+		},
 		propertiesJson: JSON.stringify({
 			bluesky: {
 				cid
 			}
 		})
+	};
+}
+
+function getBlueskyAccountFetch(calls: any[], record: {uri: string; cid: string}) {
+	return async (url, options) => {
+		calls.push({method: 'fetch', url, options});
+		if (String(url).includes('createSession')) {
+			return {
+				ok: true,
+				json: async () => ({
+					did: 'did:plc:alice',
+					handle: 'alice.bsky.social',
+					accessJwt: 'access-token'
+				})
+			};
+		}
+		if (String(url).includes('getProfile')) {
+			return {
+				ok: true,
+				json: async () => ({
+					did: 'did:plc:alice',
+					handle: 'alice.bsky.social',
+					displayName: 'Alice'
+				})
+			};
+		}
+		return {
+			ok: true,
+			json: async () => record
+		};
 	};
 }
 

@@ -166,7 +166,7 @@ Boundary: account verification does not create posts, store short-lived access/r
 
 ## User Flow: Credentialed Bluesky Cross-Posting
 
-This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts, supported image media/attachments, storage-backed attachment links, safe JSON link-preview records, in-place update of stored cross-post records, and deletion of stored cross-post records. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; storage-backed non-image media/attachments and JSON link-preview records are published as explicit public links and can become a Bluesky external card when the post has exactly one fallback link and no image embed. Replies and quotes remain follow-up policy work.
+This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts, supported image media/attachments, storage-backed attachment links, safe JSON link-preview records, first-pass reply/quote publishing, in-place update of stored cross-post records, and deletion of stored cross-post records. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; storage-backed non-image media/attachments and JSON link-preview records are published as explicit public links and can become a Bluesky external card when the post has exactly one fallback link and no image embed. Reply and quote publishing is conservative: GeeSome only emits native ATProto relation metadata when the referenced local/imported post already has a Bluesky URI/CID.
 
 1. User chooses a GeeSome group/post to cross-post.
 2. GeeSome verifies the selected user-scoped Bluesky account can still authenticate and belongs to the same DID.
@@ -181,13 +181,15 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
 6. GeeSome appends storage-backed non-image media/attachment public URLs and safe JSON link-preview URLs as link facets; when there is exactly one fallback link and no image embed, GeeSome uses that link as an external card.
 7. GeeSome creates a native `app.bsky.feed.post` record through `com.atproto.repo.createRecord`.
 8. GeeSome stores the returned Bluesky URI/CID under the local post's `propertiesJson.bluesky.crossPosts[did]` entry so repeating the request for the same account can return the existing remote record instead of duplicating the post.
-9. Remaining media/link policy work:
+9. If the GeeSome post is a local reply, GeeSome adds native Bluesky `reply.root`/`reply.parent` refs only when the referenced parent has stored/imported Bluesky URI/CID metadata; otherwise it rejects the cross-post instead of flattening the reply.
+10. If the GeeSome post references `repostOfId`, GeeSome publishes it as a native Bluesky quote embed only when the target has stored/imported Bluesky URI/CID metadata. If the post also has an image or external card, GeeSome wraps the quote through `app.bsky.embed.recordWithMedia`.
+11. Remaining media/link policy work:
    - richer multi-embed/image-thumbnail behavior remains follow-up;
    - private/encrypted or missing-public-URL attachments stay rejected;
-   - replies and quotes remain follow-up.
-10. User can update the stored cross-post in place. GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, rebuilds the post through the same safety gates, calls `com.atproto.repo.putRecord` with the stored rkey and stored CID as `swapRecord`, preserves the original local `postedAt`, and stores the new CID plus `updatedAt`.
-11. User can delete the stored cross-post from Bluesky; GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, calls `com.atproto.repo.deleteRecord`, treats already-missing remote records as local cleanup, and removes only that DID entry from local `propertiesJson.bluesky.crossPosts`.
-12. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
+   - UI controls for choosing relation behavior remain follow-up.
+12. User can update the stored cross-post in place. GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, rebuilds the post through the same safety gates, calls `com.atproto.repo.putRecord` with the stored rkey and stored CID as `swapRecord`, preserves the original local `postedAt`, and stores the new CID plus `updatedAt`.
+13. User can delete the stored cross-post from Bluesky; GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, calls `com.atproto.repo.deleteRecord`, treats already-missing remote records as local cleanup, and removes only that DID entry from local `propertiesJson.bluesky.crossPosts`.
+14. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
 
 Safety result: cross-posting is opt-in, source-bound, credential-scoped, and does not bypass rich-text, attachment, or moderation policy.
 
@@ -243,6 +245,6 @@ The UI should make these states explicit:
 - ActivityPub source reader can subscribe, refresh, read, and mark sources read.
 - Native Bluesky source reader can preview, subscribe, refresh/import, and read cached imported posts.
 - Native Bluesky update/delete sync is covered.
-- Credentialed Bluesky account ownership, first-pass text/facet cross-post idempotency, stored cross-post update, and stored cross-post deletion are covered; richer media/embed/reply/quote flows remain follow-up work before calling Bluesky publishing complete.
+- Credentialed Bluesky account ownership, first-pass text/facet/media/link/reply/quote cross-post idempotency, stored cross-post update, and stored cross-post deletion are covered; richer frontend relation controls and broader media/embed policy remain follow-up work before calling Bluesky publishing complete.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
 - Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads.
