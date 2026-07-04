@@ -1067,12 +1067,40 @@ function getBlueskyCrossPostImageFallbackLink(app: IGeesomeApp, content: IConten
 }
 
 function getBlueskyCrossPostContentBaseUrl(app: IGeesomeApp): string | null {
-	const publicUrl = getOptionalString(app.config?.blueskyConfig?.publicUrl) ||
-		getOptionalString(app.config?.activityPubConfig?.publicUrl);
+	const publicUrl = getBlueskyCrossPostPublicUrl(app);
 	if (!publicUrl) {
 		return null;
 	}
-	return `${normalizeBlueskyCrossPostPublicUrl(publicUrl)}/ipfs/`;
+	return `${publicUrl}/ipfs/`;
+}
+
+function getBlueskyCrossPostPublicUrl(app: IGeesomeApp): string | null {
+	const explicitPublicUrl = getOptionalString(app.config?.blueskyConfig?.publicUrl) ||
+		getOptionalString(app.config?.activityPubConfig?.publicUrl);
+	if (explicitPublicUrl) {
+		return normalizeBlueskyCrossPostPublicUrl(explicitPublicUrl);
+	}
+	return getBlueskyCrossPostDomainPublicUrl(app.config?.activityPubConfig?.domain);
+}
+
+function getBlueskyCrossPostDomainPublicUrl(value: any): string | null {
+	const rawDomain = getOptionalString(value);
+	if (!rawDomain) {
+		return null;
+	}
+	const domain = rawDomain.trim().replace(/^@/, '');
+	if (!domain) {
+		return null;
+	}
+	if (domain.includes('://')) {
+		const parsedUrl = new URL(domain);
+		return normalizeBlueskyCrossPostPublicUrl(`${parsedUrl.protocol}//${parsedUrl.host}`);
+	}
+	const cleanDomain = domain.replace(/^\/+/, '').split('/')[0];
+	if (!cleanDomain) {
+		return null;
+	}
+	return normalizeBlueskyCrossPostPublicUrl(`https://${cleanDomain}`);
 }
 
 function normalizeBlueskyCrossPostPublicUrl(value: string): string {

@@ -705,6 +705,112 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('uses ActivityPub domain as the public image link fallback', async () => {
+		let post = getCrossPostPostFixture();
+		const calls: any[] = [];
+		const module = getBlueskyModule({
+			config: {
+				activityPubConfig: {
+					domain: '@node.example/'
+				}
+			},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				storage: {
+					getFileData: async (storageId) => {
+						calls.push({method: 'getFileData', storageId});
+						return getTinyPngData();
+					}
+				},
+				group: {
+					getPost: async () => post,
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Domain fallback'
+						},
+						{
+							id: 102,
+							type: 'image',
+							view: ContentView.Media,
+							mimeType: 'image/png',
+							storageId: 'bafyimage'
+						}
+					],
+					updatePost: async (userId, postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				if (String(url).includes('uploadBlob')) {
+					return {
+						ok: false,
+						status: 500,
+						json: async () => ({})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/domain-fallback-created',
+						cid: 'bafydomainfallbackcreated'
+					})
+				};
+			}
+		});
+
+		const result = await module.crossPostPost(7, 44, {accountData: {id: 1}});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+		const fallbackUrl = 'https://node.example/ipfs/bafyimage';
+
+		assert.equal(result.record.uri, 'at://did:plc:alice/app.bsky.feed.post/domain-fallback-created');
+		assert.equal(createRecordBody.record.text, `Domain fallback\n${fallbackUrl}`);
+		assert.deepEqual(createRecordBody.record.embed, {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: fallbackUrl,
+				title: 'GeeSome image',
+				description: 'GeeSome image attachment'
+			}
+		});
+	});
+
 	it('rejects oversized Bluesky image cross-posts before reading storage bytes', async () => {
 		const module = getBlueskyModule({
 			config: {},
