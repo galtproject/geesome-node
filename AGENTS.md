@@ -14,6 +14,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
   - `bash/` for operational helpers and deployment scripts
   - `docs/` for repo-local planning notes and generated/reference documentation
 - The public README is `README.MD` with an uppercase extension.
+- Start docs discovery from `docs/README.md`; use `docs/modules.md` for module ownership and `docs/agent-map.md` for task-to-doc routing.
 
 ## Production Updates
 

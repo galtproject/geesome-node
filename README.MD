@@ -32,6 +32,17 @@ Node provides an UI and API for storing and accessing your saved data or remote 
 
 ![GeeSome Main Page](https://github.com/galtproject/geesome-node/assets/4842007/6779b4a3-cca5-4da6-815f-c5c14d9be0b9)
 
+## Documentation
+
+- [Docs portal](./docs/README.md)
+- [Generated API reference](./docs/index.html)
+- [Module docs index](./docs/modules.md)
+- [Agent docs map](./docs/agent-map.md)
+
+A running node also exposes docs discovery for tools and agents: `GET /v1`,
+`GET /v1/openapi.json`, `GET /v1/apidoc.json`, and conventional OpenAPI paths
+such as `/.well-known/openapi.json`.
+
 ## About GeeSome Project
 GeeSome protocol created to provide communication tool between communities of property owners in Galt Project. 
 
