@@ -5,6 +5,7 @@ import {
 	buildBlueskyAuthorFeedUrl,
 	fetchBlueskyAuthorFeed,
 	getBlueskyProjectionPreview,
+	normalizeBlueskyAuthorFeedFilter,
 	normalizeBlueskyActor,
 	projectBlueskyAuthorFeed
 } from '../app/modules/bluesky/helpers.js';
@@ -16,15 +17,19 @@ describe('bluesky helpers', () => {
 			actor: '@bsky.app',
 			origin: 'https://public.api.bsky.app/',
 			limit: 200,
+			filter: 'posts_no_replies',
 			cursor: 'next-cursor'
 		});
 
 		assert.equal(
 			url,
-			'https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=bsky.app&limit=100&cursor=next-cursor'
+			'https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=bsky.app&limit=100&filter=posts_no_replies&cursor=next-cursor'
 		);
 		assert.equal(normalizeBlueskyActor('@alice.bsky.social'), 'alice.bsky.social');
 		assert.throws(() => normalizeBlueskyActor(''), /bluesky_actor_required/);
+		assert.equal(normalizeBlueskyAuthorFeedFilter('posts_and_author_threads'), 'posts_and_author_threads');
+		assert.equal(normalizeBlueskyAuthorFeedFilter(undefined), undefined);
+		assert.throws(() => normalizeBlueskyAuthorFeedFilter('likes'), /bluesky_author_feed_filter_invalid/);
 	});
 
 	it('fetches public author feeds through an injectable XRPC fetcher', async () => {

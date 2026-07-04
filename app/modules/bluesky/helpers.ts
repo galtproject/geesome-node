@@ -11,11 +11,18 @@ export const blueskySocNet = 'bluesky';
 export const blueskyPostSource = `socNetImport:${blueskySocNet}`;
 export const defaultBlueskyOfficialHandle = 'bsky.app';
 export const defaultBlueskyPublicApiOrigin = 'https://public.api.bsky.app';
+export const blueskyAuthorFeedFilters = new Set([
+	'posts_with_replies',
+	'posts_no_replies',
+	'posts_with_media',
+	'posts_and_author_threads'
+]);
 
 export type BlueskyFetch = (url: string, options?: any) => Promise<any>;
 
 export interface IBlueskyAuthorFeedFetchOptions {
 	actor: string;
+	filter?: string;
 	cursor?: string;
 	limit?: number;
 	origin?: string;
@@ -84,6 +91,10 @@ export function buildBlueskyAuthorFeedUrl(options: IBlueskyAuthorFeedFetchOption
 	const url = new URL('/xrpc/app.bsky.feed.getAuthorFeed', normalizeBlueskyApiOrigin(options.origin));
 	url.searchParams.set('actor', normalizeBlueskyActor(options.actor));
 	url.searchParams.set('limit', String(getBlueskyFeedLimit(options.limit)));
+	const filter = normalizeBlueskyAuthorFeedFilter(options.filter);
+	if (filter) {
+		url.searchParams.set('filter', filter);
+	}
 	if (options.cursor) {
 		url.searchParams.set('cursor', options.cursor);
 	}
@@ -172,6 +183,20 @@ export function normalizeBlueskyActor(value: string): string {
 		throw new Error('bluesky_actor_required');
 	}
 	return actor;
+}
+
+export function normalizeBlueskyAuthorFeedFilter(value: string | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const filter = String(value || '').trim();
+	if (!filter) {
+		return undefined;
+	}
+	if (!blueskyAuthorFeedFilters.has(filter)) {
+		throw new Error('bluesky_author_feed_filter_invalid');
+	}
+	return filter;
 }
 
 export function getBlueskyProjectionPreview(projection: IBlueskyPostProjection) {
