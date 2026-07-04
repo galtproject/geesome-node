@@ -914,6 +914,113 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('cross-posts local posts with link preview records to Bluesky external cards', async () => {
+		let post = getCrossPostPostFixture();
+		const calls: any[] = [];
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => post,
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Link post'
+						},
+						{
+							id: 102,
+							type: 'json',
+							view: ContentView.Link,
+							mimeType: 'application/json',
+							json: {
+								url: 'https://example.com/article',
+								displayUrl: 'example.com/article',
+								siteName: 'Example',
+								title: 'Example article',
+								description: 'Readable preview'
+							}
+						}
+					],
+					updatePost: async (userId, postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/link-created',
+						cid: 'bafylinkcreated'
+					})
+				};
+			}
+		});
+
+		const result = await module.crossPostPost(7, 44, {accountData: {id: 1}});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+		const fallbackUrl = 'https://example.com/article';
+		const fallbackByteStart = Buffer.byteLength('Link post\n', 'utf8');
+
+		assert.equal(result.record.uri, 'at://did:plc:alice/app.bsky.feed.post/link-created');
+		assert.equal(createRecordBody.record.text, `Link post\n${fallbackUrl}`);
+		assert.deepEqual(createRecordBody.record.facets, [{
+			$type: 'app.bsky.richtext.facet',
+			index: {
+				byteStart: fallbackByteStart,
+				byteEnd: fallbackByteStart + Buffer.byteLength(fallbackUrl, 'utf8')
+			},
+			features: [{
+				$type: 'app.bsky.richtext.facet#link',
+				uri: fallbackUrl
+			}]
+		}]);
+		assert.deepEqual(createRecordBody.record.embed, {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: fallbackUrl,
+				title: 'Example article',
+				description: 'Readable preview'
+			}
+		});
+	});
+
 	it('rejects oversized Bluesky image cross-posts before reading storage bytes', async () => {
 		const module = getBlueskyModule({
 			config: {},
@@ -982,6 +1089,74 @@ describe('bluesky module', () => {
 		await assert.rejects(
 			() => module.crossPostPost(7, 44, {accountData: {id: 1}}),
 			/bluesky_cross_post_image_too_large/
+		);
+	});
+
+	it('rejects Bluesky cross-posts with unsafe link preview URLs', async () => {
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => getCrossPostPostFixture(),
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Unsafe link'
+						},
+						{
+							id: 102,
+							type: 'json',
+							view: ContentView.Link,
+							mimeType: 'application/json',
+							json: {
+								url: 'javascript:alert(1)',
+								title: 'Bad link'
+							}
+						}
+					]
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url) => {
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				throw new Error('unexpected_create_record');
+			}
+		});
+
+		await assert.rejects(
+			() => module.crossPostPost(7, 44, {accountData: {id: 1}}),
+			/bluesky_cross_post_attachments_unsupported/
 		);
 	});
 

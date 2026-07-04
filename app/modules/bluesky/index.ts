@@ -818,15 +818,24 @@ async function getBlueskyCrossPostRecordInput(
 	}
 	const imageContents = getBlueskyCrossPostImageContents(contents, primaryContent);
 	const attachmentContents = getBlueskyCrossPostAttachmentContents(contents, primaryContent, imageContents);
-	const unsupportedContents = getBlueskyCrossPostUnsupportedContents(contents, primaryContent, imageContents, attachmentContents);
+	const linkPreviewContents = getBlueskyCrossPostLinkPreviewContents(contents, primaryContent, imageContents, attachmentContents);
+	const unsupportedContents = getBlueskyCrossPostUnsupportedContents(
+		contents,
+		primaryContent,
+		imageContents,
+		attachmentContents,
+		linkPreviewContents
+	);
 	if (unsupportedContents.length > 0) {
 		throw new Error('bluesky_cross_post_attachments_unsupported');
 	}
 	const attachmentFallbackLinks = getBlueskyCrossPostAttachmentFallbackLinks(app, attachmentContents);
+	const linkPreviewFallbackLinks = getBlueskyCrossPostLinkPreviewFallbackLinks(linkPreviewContents);
 	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents);
 	const fallbackLinks = [
 		...imageResult.fallbackLinks,
-		...attachmentFallbackLinks
+		...attachmentFallbackLinks,
+		...linkPreviewFallbackLinks
 	];
 	const textWithFacets = appendBlueskyCrossPostFallbackLinks(
 		getBlueskyCrossPostAtProtoText(primaryContent),
@@ -871,9 +880,10 @@ function getBlueskyCrossPostUnsupportedContents(
 	contents: IContentData[],
 	primaryContent: IContentData,
 	imageContents: IContentData[],
-	attachmentContents: IContentData[]
+	attachmentContents: IContentData[],
+	linkPreviewContents: IContentData[]
 ): IContentData[] {
-	const supportedContents = new Set([primaryContent, ...imageContents, ...attachmentContents]);
+	const supportedContents = new Set([primaryContent, ...imageContents, ...attachmentContents, ...linkPreviewContents]);
 	return contents.filter((content) => {
 		if (supportedContents.has(content)) {
 			return false;
@@ -896,6 +906,21 @@ function getBlueskyCrossPostAttachmentContents(
 	});
 }
 
+function getBlueskyCrossPostLinkPreviewContents(
+	contents: IContentData[],
+	primaryContent: IContentData,
+	imageContents: IContentData[],
+	attachmentContents: IContentData[]
+): IContentData[] {
+	const supportedContents = new Set([primaryContent, ...imageContents, ...attachmentContents]);
+	return contents.filter((content) => {
+		if (supportedContents.has(content)) {
+			return false;
+		}
+		return isBlueskyCrossPostLinkPreviewContent(content);
+	});
+}
+
 function isBlueskyCrossPostAttachmentContent(content: IContentData): boolean {
 	if (!content) {
 		return false;
@@ -907,6 +932,13 @@ function isBlueskyCrossPostAttachmentContent(content: IContentData): boolean {
 		return false;
 	}
 	return hasBlueskyCrossPostContentPayload(content);
+}
+
+function isBlueskyCrossPostLinkPreviewContent(content: IContentData): boolean {
+	if (!content || content.view !== ContentView.Link) {
+		return false;
+	}
+	return !!getBlueskyCrossPostLinkPreviewFallbackLink(content);
 }
 
 function isBlueskyCrossPostBodyContent(content: IContentData): boolean {
@@ -1104,6 +1136,16 @@ function getBlueskyCrossPostAttachmentFallbackLinks(app: IGeesomeApp, contents: 
 	return contents.map(content => getBlueskyCrossPostAttachmentFallbackLink(app, content));
 }
 
+function getBlueskyCrossPostLinkPreviewFallbackLinks(contents: IContentData[]): IBlueskyCrossPostFallbackLink[] {
+	return contents.map((content) => {
+		const link = getBlueskyCrossPostLinkPreviewFallbackLink(content);
+		if (!link) {
+			throw new Error('bluesky_cross_post_link_preview_unsupported');
+		}
+		return link;
+	});
+}
+
 function getBlueskyCrossPostAttachmentFallbackLink(app: IGeesomeApp, content: IContentData): IBlueskyCrossPostFallbackLink {
 	if (!content.storageId) {
 		throw new Error('bluesky_cross_post_attachment_storage_required');
@@ -1137,6 +1179,40 @@ function getBlueskyCrossPostAttachmentDescription(content: IContentData): string
 		return `GeeSome ${mimeType} attachment`;
 	}
 	return 'GeeSome attachment';
+}
+
+function getBlueskyCrossPostLinkPreviewFallbackLink(content: IContentData): IBlueskyCrossPostFallbackLink | null {
+	const data = getPlainObject(content.json);
+	const uri = getBlueskyCrossPostExternalUri(data.url);
+	if (!uri) {
+		return null;
+	}
+	return {
+		uri,
+		title: getOptionalString(data.title) ||
+			getOptionalString(data.siteName) ||
+			getOptionalString(data.displayUrl) ||
+			uri,
+		description: getOptionalString(data.description) ||
+			getOptionalString(data.siteName) ||
+			''
+	};
+}
+
+function getBlueskyCrossPostExternalUri(value: any): string | null {
+	const uri = getOptionalString(value)?.trim();
+	if (!uri) {
+		return null;
+	}
+	try {
+		const parsedUrl = new URL(uri);
+		if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+			return null;
+		}
+		return parsedUrl.toString();
+	} catch (e) {
+		return null;
+	}
 }
 
 function getBlueskyCrossPostContentBaseUrl(app: IGeesomeApp): string | null {
