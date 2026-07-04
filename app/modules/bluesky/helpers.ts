@@ -74,6 +74,14 @@ export interface IBlueskyRecordCreateOptions {
 	accessJwt: string;
 }
 
+export interface IBlueskyRecordDeleteOptions {
+	uri: string;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+	accessJwt: string;
+}
+
 export interface IBlueskyBlobUploadOptions {
 	data: Buffer | ArrayBuffer | Uint8Array | string;
 	mimeType: string;
@@ -106,6 +114,12 @@ export interface IBlueskyActorProfile {
 export interface IBlueskyRecordCreateResult {
 	uri: string;
 	cid: string;
+}
+
+export interface IBlueskyRecordDeleteResult {
+	uri: string;
+	deleted: boolean;
+	alreadyDeleted: boolean;
 }
 
 export interface IBlueskyPreparedImageUpload {
@@ -250,6 +264,10 @@ export function buildBlueskyActorProfileUrl(options: IBlueskyActorProfileFetchOp
 
 export function buildBlueskyCreateRecordUrl(options: {origin?: string} = {}): string {
 	return new URL('/xrpc/com.atproto.repo.createRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
+}
+
+export function buildBlueskyDeleteRecordUrl(options: {origin?: string} = {}): string {
+	return new URL('/xrpc/com.atproto.repo.deleteRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
 }
 
 export function buildBlueskyUploadBlobUrl(options: {origin?: string} = {}): string {
@@ -423,6 +441,50 @@ export async function createBlueskyRecord(options: IBlueskyRecordCreateOptions):
 			throw new Error(`bluesky_record_create_failed:${response.status}`);
 		}
 		return getBlueskyRecordCreateResponse(await response.json());
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function deleteBlueskyRecord(options: IBlueskyRecordDeleteOptions): Promise<IBlueskyRecordDeleteResult> {
+	const parts = parseBlueskyPostAtUri(options.uri);
+	if (!parts) {
+		throw new Error('bluesky_post_uri_invalid');
+	}
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const response = await fetchImpl(buildBlueskyDeleteRecordUrl(options), {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				Authorization: `Bearer ${options.accessJwt}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				repo: normalizeBlueskyActor(parts.repo),
+				collection: parts.collection,
+				rkey: parts.rkey
+			}),
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			const errorPayload = await readBlueskyErrorPayload(response);
+			if (isBlueskyRecordNotFoundResponse(response.status, errorPayload)) {
+				return {
+					uri: options.uri,
+					deleted: false,
+					alreadyDeleted: true
+				};
+			}
+			throw new Error(`bluesky_record_delete_failed:${response.status}`);
+		}
+		return {
+			uri: options.uri,
+			deleted: true,
+			alreadyDeleted: false
+		};
 	} finally {
 		clearTimeout(timeout);
 	}

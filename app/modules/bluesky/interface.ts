@@ -1,4 +1,4 @@
-import {IBlueskyActorProfile, IBlueskyPostProjection, IBlueskyRecordCreateResult} from './helpers.js';
+import {IBlueskyActorProfile, IBlueskyPostProjection, IBlueskyRecordCreateResult, IBlueskyRecordDeleteResult} from './helpers.js';
 import {IListParams} from '../database/interface.js';
 import {IUserOperationQueue} from '../asyncOperation/interface.js';
 import {IPostListResponse} from '../group/interface.js';
@@ -120,6 +120,25 @@ export interface IBlueskyCrossPostResult {
 	};
 	record: IBlueskyRecordCreateResult;
 	alreadyExists: boolean;
+}
+
+export interface IBlueskyDeleteCrossPostInput extends IBlueskyAccountVerifyInput {}
+
+export interface IBlueskyDeleteCrossPostResult {
+	account: IBlueskyAccountReport;
+	profile: IBlueskyActorProfile;
+	did: string;
+	handle: string | null;
+	post: {
+		id?: number;
+		groupId?: number;
+		status?: string;
+	};
+	record: {
+		uri: string;
+		cid?: string | null;
+	};
+	deleteRecord: IBlueskyRecordDeleteResult;
 }
 
 export interface IBlueskySourceSubscriptionInput {
@@ -331,6 +350,7 @@ export default interface IGeesomeBlueskyModule {
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;
 	crossPostPost(userId: number, postId: number | string, input?: IBlueskyCrossPostInput): Promise<IBlueskyCrossPostResult>;
+	deleteCrossPostPost(userId: number, postId: number | string, input?: IBlueskyDeleteCrossPostInput): Promise<IBlueskyDeleteCrossPostResult>;
 	getSourceSubscriptions(userId: number, filters?: IBlueskySourceSubscriptionFilters, listParams?: IListParams): Promise<IBlueskySourceSubscriptionListResponse>;
 	getSourceFeed(userId: number, sourceId: number | string, filters?: IBlueskySourceFeedFilters, listParams?: IListParams): Promise<IBlueskySourceFeedResponse>;
 	getSourceReviews(userId: number, sourceId: number | string, filters?: IBlueskySourceReviewFilters, listParams?: IListParams): Promise<IBlueskySourceReviewListResponse>;

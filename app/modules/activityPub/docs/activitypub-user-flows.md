@@ -166,7 +166,7 @@ Boundary: account verification does not create posts, store short-lived access/r
 
 ## User Flow: Credentialed Bluesky Cross-Posting
 
-This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts, supported image media/attachments, storage-backed attachment links, and safe JSON link-preview records. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; storage-backed non-image media/attachments and JSON link-preview records are published as explicit public links and can become a Bluesky external card when the post has exactly one fallback link and no image embed. Replies, quotes, updates, and delete propagation remain follow-up policy work.
+This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts, supported image media/attachments, storage-backed attachment links, safe JSON link-preview records, and deletion of stored cross-post records. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; storage-backed non-image media/attachments and JSON link-preview records are published as explicit public links and can become a Bluesky external card when the post has exactly one fallback link and no image embed. Replies, quotes, and update/replace publishing remain follow-up policy work.
 
 1. User chooses a GeeSome group/post to cross-post.
 2. GeeSome verifies the selected user-scoped Bluesky account can still authenticate and belongs to the same DID.
@@ -184,8 +184,9 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
 9. Remaining media/link policy work:
    - richer multi-embed/image-thumbnail behavior remains follow-up;
    - private/encrypted or missing-public-URL attachments stay rejected;
-   - replies, quotes, updates, and delete propagation remain follow-up.
-10. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
+   - replies, quotes, and update/replace publishing remain follow-up.
+10. User can delete the stored cross-post from Bluesky; GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, calls `com.atproto.repo.deleteRecord`, treats already-missing remote records as local cleanup, and removes only that DID entry from local `propertiesJson.bluesky.crossPosts`.
+11. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
 
 Safety result: cross-posting is opt-in, source-bound, credential-scoped, and does not bypass rich-text, attachment, or moderation policy.
 
@@ -241,6 +242,6 @@ The UI should make these states explicit:
 - ActivityPub source reader can subscribe, refresh, read, and mark sources read.
 - Native Bluesky source reader can preview, subscribe, refresh/import, and read cached imported posts.
 - Native Bluesky update/delete sync is covered.
-- Credentialed Bluesky account ownership and first-pass text/facet cross-post idempotency are covered; richer media/embed/update/delete flows remain follow-up work before calling Bluesky publishing complete.
+- Credentialed Bluesky account ownership, first-pass text/facet cross-post idempotency, and stored cross-post deletion are covered; richer media/embed/update/replace flows remain follow-up work before calling Bluesky publishing complete.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
 - Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads.

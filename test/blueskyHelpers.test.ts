@@ -8,6 +8,7 @@ import {
 	buildBlueskyAuthorFeedUrl,
 	buildBlueskyCreateRecordUrl,
 	buildBlueskyCreateSessionUrl,
+	buildBlueskyDeleteRecordUrl,
 	buildBlueskyExternalEmbed,
 	buildBlueskyFeedPostRecord,
 	buildBlueskyImageEmbed,
@@ -15,6 +16,7 @@ import {
 	buildBlueskyUploadBlobUrl,
 	createBlueskyRecord,
 	createBlueskySession,
+	deleteBlueskyRecord,
 	fetchBlueskyAuthorFeed,
 	fetchBlueskyActorProfile,
 	fetchBlueskyPostRecord,
@@ -187,6 +189,59 @@ describe('bluesky helpers', () => {
 		assert.throws(
 			() => buildBlueskyFeedPostRecord({text: 'a'.repeat(301)}),
 			/bluesky_cross_post_text_too_long/
+		);
+	});
+
+	it('deletes native ATProto records by stored AT URI', async () => {
+		const calls: any[] = [];
+		const deleted = await deleteBlueskyRecord({
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+			origin: 'https://bsky.social/',
+			accessJwt: 'access-token',
+			fetch: async (url, options) => {
+				calls.push({url, options});
+				return {
+					ok: true,
+					json: async () => ({})
+				};
+			}
+		});
+		const alreadyDeleted = await deleteBlueskyRecord({
+			uri: 'at://did:plc:alice/app.bsky.feed.post/missing',
+			origin: 'https://bsky.social/',
+			accessJwt: 'access-token',
+			fetch: async () => ({
+				ok: false,
+				status: 404,
+				json: async () => ({error: 'RecordNotFound'})
+			})
+		});
+
+		assert.equal(buildBlueskyDeleteRecordUrl({origin: 'https://bsky.social/'}), 'https://bsky.social/xrpc/com.atproto.repo.deleteRecord');
+		assert.deepEqual(deleted, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+			deleted: true,
+			alreadyDeleted: false
+		});
+		assert.deepEqual(alreadyDeleted, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/missing',
+			deleted: false,
+			alreadyDeleted: true
+		});
+		assert.equal(calls[0].url, 'https://bsky.social/xrpc/com.atproto.repo.deleteRecord');
+		assert.equal(calls[0].options.method, 'POST');
+		assert.equal(calls[0].options.headers.Authorization, 'Bearer access-token');
+		assert.deepEqual(JSON.parse(calls[0].options.body), {
+			repo: 'did:plc:alice',
+			collection: blueskyFeedPostCollection,
+			rkey: '3k4duaz5vfs2b'
+		});
+		await assert.rejects(
+			() => deleteBlueskyRecord({
+				uri: 'https://example.com/not-at-uri',
+				accessJwt: 'access-token'
+			}),
+			/bluesky_post_uri_invalid/
 		);
 	});
 

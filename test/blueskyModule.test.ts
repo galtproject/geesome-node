@@ -455,6 +455,257 @@ describe('bluesky module', () => {
 		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'].accountId, 1);
 	});
 
+	it('deletes stored Bluesky cross-post records and clears only that account metadata', async () => {
+		const calls: any[] = [];
+		let post: any = getCrossPostPostFixture({
+			propertiesJson: JSON.stringify({
+				bluesky: {
+					crossPosts: {
+						'did:plc:alice': {
+							uri: 'at://did:plc:alice/app.bsky.feed.post/created',
+							cid: 'bafycreated',
+							accountId: 1
+						},
+						'did:plc:bob': {
+							uri: 'at://did:plc:bob/app.bsky.feed.post/created',
+							cid: 'bafybob',
+							accountId: 2
+						}
+					}
+				}
+			})
+		});
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					authApiOrigin: 'https://auth.example/'
+				}
+			},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => post,
+					canEditPostInGroup: async () => true,
+					updatePost: async (userId, postId, postData) => {
+						calls.push({method: 'updatePost', userId, postId, postData});
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async (userId, permission) => {
+				calls.push({method: 'checkUserCan', userId, permission});
+			}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({})
+				};
+			}
+		});
+
+		const result = await module.deleteCrossPostPost(7, 44, {accountData: {id: 1}});
+		const deleteRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('deleteRecord'));
+		const deleteRecordBody = JSON.parse(deleteRecordCall.options.body);
+		const storedProperties = JSON.parse(post.propertiesJson);
+
+		assert.deepEqual(calls.filter(call => call.method === 'checkUserCan'), [{
+			method: 'checkUserCan',
+			userId: 7,
+			permission: CorePermissionName.UserGroupManagement
+		}]);
+		assert.deepEqual(deleteRecordBody, {
+			repo: 'did:plc:alice',
+			collection: 'app.bsky.feed.post',
+			rkey: 'created'
+		});
+		assert.deepEqual(result.record, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/created',
+			cid: 'bafycreated'
+		});
+		assert.deepEqual(result.deleteRecord, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/created',
+			deleted: true,
+			alreadyDeleted: false
+		});
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'], undefined);
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:bob'].cid, 'bafybob');
+		assert.equal(calls.some(call => String(call.url).includes('createRecord')), false);
+	});
+
+	it('cleans Bluesky cross-post metadata when the remote record is already missing', async () => {
+		let post: any = getCrossPostPostFixture({
+			propertiesJson: JSON.stringify({
+				bluesky: {
+					crossPosts: {
+						'did:plc:alice': {
+							uri: 'at://did:plc:alice/app.bsky.feed.post/missing',
+							cid: 'bafymissing',
+							accountId: 1
+						}
+					}
+				}
+			})
+		});
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => post,
+					canEditPostInGroup: async () => true,
+					updatePost: async (userId, postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url) => {
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				return {
+					ok: false,
+					status: 404,
+					json: async () => ({error: 'RecordNotFound'})
+				};
+			}
+		});
+
+		const result = await module.deleteCrossPostPost(7, 44, {accountData: {id: 1}});
+		const storedProperties = JSON.parse(post.propertiesJson);
+
+		assert.deepEqual(result.deleteRecord, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/missing',
+			deleted: false,
+			alreadyDeleted: true
+		});
+		assert.equal(storedProperties.bluesky.crossPosts['did:plc:alice'], undefined);
+	});
+
+	it('rejects Bluesky cross-post delete when stored record belongs to another DID', async () => {
+		const calls: any[] = [];
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => getCrossPostPostFixture({
+						propertiesJson: JSON.stringify({
+							bluesky: {
+								crossPosts: {
+									'did:plc:alice': {
+										uri: 'at://did:plc:bob/app.bsky.feed.post/created',
+										cid: 'bafycreated',
+										accountId: 1
+									}
+								}
+							}
+						})
+					}),
+					canEditPostInGroup: async () => true,
+					updatePost: async () => {
+						throw new Error('unexpected_update_post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url) => {
+				calls.push({url});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				throw new Error('unexpected_delete_record');
+			}
+		});
+
+		await assert.rejects(
+			() => module.deleteCrossPostPost(7, 44, {accountData: {id: 1}}),
+			/bluesky_cross_post_record_identity_mismatch/
+		);
+		assert.equal(calls.some(call => String(call.url).includes('deleteRecord')), false);
+	});
+
 	it('cross-posts local posts with supported images to Bluesky', async () => {
 		const calls: any[] = [];
 		let post = getCrossPostPostFixture();
@@ -2014,6 +2265,17 @@ describe('bluesky module', () => {
 					record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
 					alreadyExists: false
 				};
+			},
+			deleteCrossPostPost: async (userId, postId, input) => {
+				moduleCalls.push({method: 'deleteCrossPostPost', userId, postId, input});
+				return {
+					record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
+					deleteRecord: {
+						uri: 'at://did:plc:alice/app.bsky.feed.post/created',
+						deleted: true,
+						alreadyDeleted: false
+					}
+				};
 			}
 		};
 
@@ -2031,17 +2293,31 @@ describe('bluesky module', () => {
 			params: {postId: '44'},
 			body: {accountData: {id: 3}}
 		});
+		const deleteCrossPostResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/posts/:postId/delete-cross-post', {
+			user: {id: 7},
+			params: {postId: '44'},
+			body: {accountData: {id: 3}}
+		});
 
 		assert.deepEqual(moduleCalls, [
 			{method: 'loginAccount', userId: 7, input: {identifier: 'alice.bsky.social', appPassword: 'app-password'}},
 			{method: 'verifyAccount', userId: 7, input: {accountData: {id: 3}}},
-			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}
+			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
+			{method: 'deleteCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}
 		]);
 		assert.deepEqual(loginResponse.body, {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}});
 		assert.deepEqual(verifyResponse.body, {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}});
 		assert.deepEqual(crossPostResponse.body, {
 			record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
 			alreadyExists: false
+		});
+		assert.deepEqual(deleteCrossPostResponse.body, {
+			record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
+			deleteRecord: {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/created',
+				deleted: true,
+				alreadyDeleted: false
+			}
 		});
 	});
 

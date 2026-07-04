@@ -81,6 +81,33 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/bluesky/posts/:postId/delete-cross-post Delete stored Bluesky cross-post
+	 * @apiName UserBlueskyDeleteCrossPost
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Deletes the authenticated account's stored native ATProto `app.bsky.feed.post` record for one GeeSome post through `com.atproto.repo.deleteRecord`, then removes only that account/DID entry from the local post `propertiesJson.bluesky.crossPosts`. The route uses the previously stored Bluesky URI for repo/collection/rkey selection, verifies it belongs to the authenticated DID and feed-post collection, and treats an already-missing remote record as a successful local cleanup. It does not delete the local GeeSome post or any other account's cross-post metadata.
+	 * @apiParam {Number} postId Local GeeSome post id.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiSuccess {Object} account Secret-free local account summary.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 * @apiSuccess {Object} post Local post summary.
+	 * @apiSuccess {Object} record Stored Bluesky record identity that was targeted for deletion.
+	 * @apiSuccess {Object} deleteRecord Remote delete result with `deleted` and `alreadyDeleted` flags.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/posts/:postId/delete-cross-post', async (req, res) => {
+		return res.send(await blueskyModule.deleteCrossPostPost(req.user.id, req.params.postId, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/public-author-feed/preview Preview public Bluesky author feed
 	 * @apiName AdminBlueskyPublicAuthorFeedPreview
 	 * @apiGroup AdminBluesky
