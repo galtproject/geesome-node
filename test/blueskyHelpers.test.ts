@@ -2,13 +2,16 @@ import assert from 'node:assert';
 import {
 	atProtoPostRecordToRichText,
 	blueskyFeedPostCollection,
+	blueskyImageEmbedType,
 	blueskyPostSource,
 	buildBlueskyActorProfileUrl,
 	buildBlueskyAuthorFeedUrl,
 	buildBlueskyCreateRecordUrl,
 	buildBlueskyCreateSessionUrl,
 	buildBlueskyFeedPostRecord,
+	buildBlueskyImageEmbed,
 	buildBlueskyPostRecordUrl,
+	buildBlueskyUploadBlobUrl,
 	createBlueskyRecord,
 	createBlueskySession,
 	fetchBlueskyAuthorFeed,
@@ -18,7 +21,9 @@ import {
 	normalizeBlueskyAuthorFeedFilter,
 	normalizeBlueskyActor,
 	parseBlueskyPostAtUri,
-	projectBlueskyAuthorFeed
+	prepareBlueskyImageUploadData,
+	projectBlueskyAuthorFeed,
+	uploadBlueskyBlob
 } from '../app/modules/bluesky/helpers.js';
 import {richTextToPlainText} from '../app/richText.js';
 
@@ -181,6 +186,66 @@ describe('bluesky helpers', () => {
 		assert.throws(
 			() => buildBlueskyFeedPostRecord({text: 'a'.repeat(301)}),
 			/bluesky_cross_post_text_too_long/
+		);
+	});
+
+	it('prepares image embeds and uploads ATProto blobs before record creation', async () => {
+		const calls: any[] = [];
+		const prepared = await prepareBlueskyImageUploadData({
+			data: getTinyPngData(),
+			mimeType: 'image/png'
+		});
+		const blob = await uploadBlueskyBlob({
+			data: prepared.data,
+			mimeType: prepared.mimeType,
+			origin: 'https://bsky.social/',
+			accessJwt: 'access-token',
+			fetch: async (url, options) => {
+				calls.push({url, options});
+				return {
+					ok: true,
+					json: async () => ({
+						blob: {
+							$type: 'blob',
+							ref: {'$link': 'bafkblob'},
+							mimeType: 'image/png',
+							size: prepared.data.length
+						}
+					})
+				};
+			}
+		});
+		const embed = buildBlueskyImageEmbed([{
+			image: blob,
+			alt: 'Tiny image',
+			aspectRatio: prepared.aspectRatio
+		}]);
+		const record = buildBlueskyFeedPostRecord({
+			text: 'Hello image',
+			embed,
+			createdAt: '2026-07-04T08:00:00.000Z'
+		});
+
+		assert.equal(buildBlueskyUploadBlobUrl({origin: 'https://bsky.social/'}), 'https://bsky.social/xrpc/com.atproto.repo.uploadBlob');
+		assert.equal(prepared.mimeType, 'image/png');
+		assert.deepEqual(prepared.aspectRatio, {width: 1, height: 1});
+		assert.equal(calls[0].url, 'https://bsky.social/xrpc/com.atproto.repo.uploadBlob');
+		assert.equal(calls[0].options.method, 'POST');
+		assert.equal(calls[0].options.headers.Authorization, 'Bearer access-token');
+		assert.equal(calls[0].options.headers['Content-Type'], 'image/png');
+		assert.equal(Buffer.isBuffer(calls[0].options.body), true);
+		assert.deepEqual(embed, {
+			$type: blueskyImageEmbedType,
+			images: [{
+				alt: 'Tiny image',
+				image: blob,
+				aspectRatio: {width: 1, height: 1}
+			}]
+		});
+		assert.deepEqual(record.embed, embed);
+		assert.throws(
+			() => buildBlueskyImageEmbed(new Array(5).fill({image: blob})),
+			/bluesky_cross_post_too_many_images/
 		);
 	});
 
@@ -407,3 +472,10 @@ describe('bluesky helpers', () => {
 		assert.deepEqual(richText.blocks[0].children, [{text: 'hello link'}]);
 	});
 });
+
+function getTinyPngData(): Buffer {
+	return Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+		'base64'
+	);
+}

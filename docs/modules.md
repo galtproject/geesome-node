@@ -47,7 +47,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `api` | Runs the Express HTTP server, route registration/auth wrappers, discovery/OpenAPI/apiDoc serving, and core setup/auth/user/admin/storage helper routes. | [Overview](../app/modules/api/docs/overview.md) |
 | `asyncOperation` | Tracks long-running user operations and processes queued background work. | [Overview](../app/modules/asyncOperation/docs/overview.md) |
 | `autoActions` | Stores and claims scheduled module function calls. | [Overview](../app/modules/autoActions/docs/overview.md) |
-| `bluesky` | Imports, refreshes, reads local feed views, verifies user-scoped accounts, and cross-posts safe text posts for native Bluesky/ATProto. | [Overview](../app/modules/bluesky/docs/overview.md) |
+| `bluesky` | Imports, refreshes, reads local feed views, verifies user-scoped accounts, and cross-posts safe text/image posts for native Bluesky/ATProto. | [Overview](../app/modules/bluesky/docs/overview.md) |
 | `communicator` | Provides network communication, static-id lookup/binding, and pubsub-style event hooks. | [Overview](../app/modules/communicator/docs/overview.md) |
 | `content` | Creates, serves, previews, restores, and deletes user content records. | [Overview](../app/modules/content/docs/overview.md) |
 | `database` | Owns Sequelize setup, models, permissions, API keys, sessions, and shared query helpers. | [Overview](../app/modules/database/docs/overview.md) |

@@ -58,7 +58,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Creates an authenticated native ATProto `app.bsky.feed.post` record from one published local GeeSome post and stores the returned Bluesky URI/CID in the post `propertiesJson` for idempotency. This first write path supports text/rich-text facets only: media, attachments, encrypted posts, remote/imported posts, unpublished posts, and non-public groups are rejected until the richer publish policy is implemented. Repeating the request for the same post/account returns the stored record unless `force=true`.
+	 * @apiDescription Creates an authenticated native ATProto `app.bsky.feed.post` record from one published local GeeSome post and stores the returned Bluesky URI/CID in the post `propertiesJson` for idempotency. The write path supports text/rich-text facets plus up to four supported image media/attachments, uploaded as ATProto blobs before record creation. Non-image attachments, encrypted posts, remote/imported posts, unpublished posts, and non-public groups are rejected until a richer publish policy is implemented. Repeating the request for the same post/account returns the stored record unless `force=true`.
 	 * @apiParam {Number} postId Local GeeSome post id.
 	 * @apiBody {Object} accountData Account selector.
 	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.

@@ -16,7 +16,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
 - User-scoped Bluesky account login/verification through ATProto `com.atproto.server.createSession` and profile reads, storing only the selected local `socNetAccount` credential material and returning secret-free account reports.
-- User-scoped text/rich-text cross-posting for published local public GeeSome posts through `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion and per-account URI/CID idempotency stored in post `propertiesJson`.
+- User-scoped text/rich-text plus supported-image cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion and per-account URI/CID idempotency stored in post `propertiesJson`.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries
@@ -34,8 +34,8 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Bluesky is ATProto, not ActivityPub. Bridge-backed ActivityPub sources belong to `activityPub`.
 - Public feed reads do not require stored credentials; credentialed login/verification uses explicit `socNetAccount` rows.
 - Account verification proves the authenticated DID matches the stored account identity, tolerating handle changes once a DID is known.
-- Cross-posting currently supports only text/rich-text facets. It rejects encrypted, unpublished, deleted, remote/imported, non-public-group, and attachment/media posts so GeeSome does not create text-only Bluesky records that silently lose media context.
-- Bluesky image posts should be added in a follow-up slice by uploading supported image blobs first and then creating `app.bsky.embed.images` records with preserved alt text/dimensions where possible. Non-image GeeSome attachments need an explicit link-or-reject policy before they are allowed.
+- Cross-posting currently supports text/rich-text facets plus up to four supported image media/attachments. Images are normalized before upload, sent as ATProto blobs, and attached as `app.bsky.embed.images` with alt text and aspect ratio where possible.
+- Non-image GeeSome attachments still need an explicit link-or-reject policy before they are allowed, so they are rejected instead of being silently dropped from Bluesky records.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.

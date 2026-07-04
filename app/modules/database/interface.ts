@@ -333,6 +333,8 @@ export interface IStorageObjectDeleteSafety {
 export interface IContentData {
   id;
   type;
+  name?;
+  description?;
   text?;
   json?;
   storageId;
@@ -340,6 +342,7 @@ export interface IContentData {
   previewExtension;
   extension;
   mimeType;
+  size?;
   view;
   manifestId;
   url?;
