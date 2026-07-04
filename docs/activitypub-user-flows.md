@@ -2,11 +2,11 @@
 
 This document describes how ActivityPub, ActivityPub Sources, and native Bluesky/ATProto should be used by admins, group owners, and readers when the interoperability milestone is complete.
 
-The goal is to keep protocol machinery out of ordinary publishing. Admins manage node health, trust, moderation, and credentials. Users manage their groups, feeds, and posts inside normal GeeSome permissions.
+The goal is to keep protocol machinery out of ordinary publishing. Admins manage node health, trust, moderation policy, filters, and credentials. Users manage their groups, feeds, and posts inside normal GeeSome permissions.
 
 ## Roles
 
-- **Node admin/operator**: configures federation, workers, moderation queues, source refreshes, credentials, and health checks.
+- **Node admin/operator**: configures federation, workers, moderation mode, filter rules, source refreshes, credentials, and health checks.
 - **Group owner/editor**: publishes public group posts, chooses whether the group federates, subscribes to sources the group should read/import, and decides where posts cross-post.
 - **Reader/member**: reads GeeSome groups and subscribed feeds through the UI without needing to know whether content came from GeeSome, ActivityPub, Bridgy Fed, or native Bluesky.
 - **Remote Fediverse actor**: follows, replies, mentions, flags, updates, or deletes content through signed ActivityPub requests.
@@ -34,7 +34,28 @@ The goal is to keep protocol machinery out of ordinary publishing. Admins manage
    - moderation/review queues;
    - async operation progress.
 
-Success state: public groups on the node can be discovered by WebFinger/actor URL, outbound delivery is queued instead of blocking post creation, and remote inbound content is reviewable before it becomes visible as GeeSome content.
+Success state: public groups on the node can be discovered by WebFinger/actor URL, outbound delivery is queued instead of blocking post creation, and remote inbound content follows the admin's review/filter policy before it becomes visible as GeeSome content.
+
+## Admin Flow: Remote Content Moderation Policy
+
+Remote content should not have one hardcoded review behavior. Admin decides how much review is needed for their node.
+
+1. Admin chooses a moderation mode:
+   - **Review-first**: remote objects are cached and shown in a review queue before they become GeeSome posts.
+   - **Auto-import**: remote content from user-requested sources can become GeeSome posts automatically after verification, sanitization, source identity checks, and filter checks.
+2. Admin can apply the policy globally and later override it per source, group, actor, or integration type when the UI/API supports it.
+3. Admin configures filters that can block or quarantine remote content before post creation:
+   - keyword or phrase filters in post text;
+   - regex filters in sanitized plain text;
+   - filters on source actor handle/name/domain;
+   - filters on target group names or source subscription labels;
+   - optional allowlists for trusted sources.
+4. Filter matches should be visible in moderation/history screens with the matched rule name and the action taken.
+5. Regex rules must be bounded and validated so a bad pattern cannot create CPU spikes.
+
+Recommended default: start review-first for new public federation, then allow auto-import for sources or users the admin trusts.
+
+Important boundary: auto-import is for remote content the local user explicitly asked for, such as subscribed sources, followed actors, or connected accounts. It should not mean that every unsolicited remote inbox activity can create local GeeSome posts.
 
 ## User Flow: Publish A Public Group To The Fediverse
 
@@ -72,14 +93,14 @@ Admin-facing result: follow state is inspectable and cancellable by protocol act
 1. Remote actor sends a signed inbox/shared-inbox activity.
 2. GeeSome verifies the request before trusting the activity body.
 3. Supported remote `Create` objects are cached as `ActivityPubObject` rows when they target a known local actor or local ActivityPub object.
-4. Cached remote objects do not immediately become visible GeeSome posts.
-5. Admin reviews sanitized preview text, canonical rich-text projection, attachments, local reply mapping, and source provenance.
-6. Admin can mark remote objects pending, accepted, or rejected.
-7. Only accepted public `Note` objects can be manually converted into native GeeSome posts.
-8. Remote `Update`, `Delete`, and `Undo(Create)` reset review state and update or soft-delete linked imported posts only when source identity still matches.
+4. GeeSome evaluates the admin moderation policy and filter rules.
+5. In review-first mode, cached remote objects wait for admin review. Admin sees sanitized preview text, canonical rich-text projection, attachments, local reply mapping, source provenance, and filter matches.
+6. In auto-import mode, allowed public `Note` objects from user-requested or trusted sources can become native GeeSome posts automatically after filters pass.
+7. Blocked or quarantined objects remain inspectable and do not become visible posts.
+8. Remote `Update`, `Delete`, and `Undo(Create)` reset review/auto-import state and update or soft-delete linked imported posts only when source identity still matches.
 9. Remote `Flag` activities become moderation reports with target context, not automatic deletions.
 
-Safety result: remote content is signed, cached, sanitized, reviewed, and source-bound before it appears in local feeds.
+Safety result: remote content is signed, cached, sanitized, source-bound, and checked against admin policy before it appears in local feeds.
 
 ## Admin/User Flow: ActivityPub Sources Reader
 
@@ -95,15 +116,18 @@ This flow is for reading remote ActivityPub actors as a source feed, including b
 4. User subscribes to the source.
 5. User can manually refresh, queue refresh, or let the optional poller enqueue stale active subscriptions.
 6. Refresh reads public `featured` and/or `outbox` collections and caches supported public objects.
-7. The source feed lists sanitized cached items with:
+7. GeeSome applies the source's moderation mode and filter rules:
+   - review-first keeps items in the source feed/review queue until accepted;
+   - auto-import creates GeeSome posts for allowed items so the user can read them as normal remote-source posts.
+8. The source feed lists sanitized cached items with:
    - source actor metadata;
    - plain text/canonical rich text preview;
    - bounded attachment metadata and embed policy;
    - review/import state;
    - unread marker;
    - cursor pagination for large feeds.
-8. User can mark the source read.
-9. Optional: user can request a real federation-level `Follow` from one local group actor to the remote source actor.
+9. User can mark the source read.
+10. Optional: user can request a real federation-level `Follow` from one local group actor to the remote source actor.
 
 Boundary: this is an ActivityPub source reader. It should be honest when a Bluesky source is bridge-backed, unavailable, empty, or not opted into Bridgy Fed.
 
@@ -116,10 +140,11 @@ This flow is bridge-free and belongs to the dedicated Bluesky/ATProto module, no
 3. GeeSome projects feed items into canonical rich text, source identity, reply metadata, and embed metadata.
 4. User subscribes to the Bluesky source with optional filter, display name, group name, account id, and import limit.
 5. User refreshes the subscription manually, via queue, or through the optional poller.
-6. Refresh imports one bounded public feed page through the existing `socNetImport` pipeline.
-7. GeeSome stores imported posts in the linked local group/channel with stable Bluesky AT URI source identity.
-8. User reads the source feed through the cached source-feed API, which returns already-imported group posts with cursor pagination.
-9. Future update/delete sync should update or tombstone local posts only when the stored source identity still matches the remote AT URI.
+6. Refresh imports one bounded public feed page through the existing `socNetImport` pipeline when the admin policy allows it.
+7. GeeSome applies keyword/regex/source filters before creating or keeping visible posts.
+8. GeeSome stores imported posts in the linked local group/channel with stable Bluesky AT URI source identity.
+9. User reads the source feed through the cached source-feed API, which returns already-imported group posts with cursor pagination.
+10. Future update/delete sync should update or tombstone local posts only when the stored source identity still matches the remote AT URI.
 
 Boundary: public native reads do not need credentials. Credentialed account ownership, private/account-specific reads, and cross-posting require explicit stored `socNetAccount` handling and tests.
 
@@ -166,6 +191,7 @@ The UI should make these states explicit:
 - refresh is queued or in progress;
 - last refresh failed with a bounded error message;
 - content is cached but not accepted for import;
+- content was blocked or quarantined by an admin filter;
 - remote delete/update reset an object to pending review.
 
 ## Required Safety Boundaries
@@ -173,9 +199,10 @@ The UI should make these states explicit:
 - Never render raw remote HTML directly in the Vue frontend, generated static site, webview, or admin preview.
 - Store canonical rich text as the trusted editable content shape; render sanitized HTML only as adapter output.
 - Do not send federation requests inline from post creation. Use delivery queues.
-- Do not import remote objects as visible GeeSome posts without review/import policy.
+- Do not import remote objects as visible GeeSome posts without a configured review/auto-import policy and filter checks.
 - Do not let users read another user's source subscription or linked social-import channel by guessing ids.
 - Do not let public feed query parameters override published-only/non-deleted post visibility.
+- Do not allow unbounded regex moderation rules to create CPU spikes.
 - Do not mix ActivityPub server-side signing keys with chat E2EE keys or client account credentials.
 - Do not treat Bluesky as ActivityPub unless the user explicitly chooses a bridge path.
 
@@ -184,7 +211,9 @@ The UI should make these states explicit:
 - Admin can enable/disable federation and workers with documented env vars.
 - Public groups are discoverable as ActivityPub actors and can deliver posts to followers.
 - Remote follows, unfollows, blocks, flags, replies, updates, and deletes have safe signed handling.
-- Admin review/import flow is available for remote ActivityPub objects.
+- Admin review-first and auto-import moderation modes are available for remote content.
+- Admin keyword/regex/source/group-name filters can block or quarantine remote content before post creation.
+- Admin review/import flow is available for remote ActivityPub objects that require review or were quarantined.
 - ActivityPub source reader can subscribe, refresh, read, and mark sources read.
 - Native Bluesky source reader can preview, subscribe, refresh/import, and read cached imported posts.
 - Native Bluesky update/delete sync is covered.
