@@ -56,4 +56,90 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 		return res.send(await blueskyModule.importPublicAuthorFeed(req.user.id, req.apiKey?.id || null, req.body || {}));
 	});
+
+	/**
+	 * @api {get} /v1/admin/bluesky/sources List native Bluesky source subscriptions
+	 * @apiName AdminBlueskySources
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists stored native Bluesky/ATProto source subscriptions for the current admin user. Removed subscriptions are hidden unless `status=removed` is requested explicitly. This route only reads local subscription state; it does not fetch Bluesky, import posts, poll feeds, or write GeeSome content.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="active","paused","removed"} [status] Filter by subscription status.
+	 * @apiQuery {String} [actor] Filter by normalized Bluesky handle or DID.
+	 * @apiSuccess {Object[]} list Source subscription rows with actor, filter, import settings, channel link, and last refresh metadata.
+	 * @apiSuccess {Number} total Total matching subscriptions.
+	 */
+	app.ms.api.onAuthorizedGet('admin/bluesky/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getSourceSubscriptions(req.user.id, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources Subscribe native Bluesky source
+	 * @apiName AdminBlueskySourceSubscribe
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Creates or reactivates a native Bluesky/ATProto source subscription for the current admin user. Duplicate subscribes for the same normalized actor are idempotent updates. This stores refresh/import preferences only; it does not fetch Bluesky, import posts, create a social-import channel, or configure credentialed cross-posting.
+	 * @apiBody {String} actor Bluesky handle or DID, for example `bsky.app`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter for future refreshes/imports.
+	 * @apiBody {String} [displayName] Optional UI label.
+	 * @apiBody {String} [groupName] Optional local group name to use when future refresh/import creates a channel.
+	 * @apiBody {Number} [accountId] Optional stored social account id to associate with future imports.
+	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100.
+	 * @apiSuccess {Object} result Source subscription row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.subscribeSource(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/update Update native Bluesky source subscription
+	 * @apiName AdminBlueskySourceUpdate
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates local native Bluesky source subscription metadata such as display label, feed filter, future import settings, or active/paused status. It does not fetch Bluesky, import posts, delete GeeSome posts, or alter credentials.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter, or empty to clear.
+	 * @apiBody {String} [displayName] Optional UI label, or empty to clear.
+	 * @apiBody {String="active","paused"} [status] New subscription status.
+	 * @apiBody {String} [groupName] Optional local group name for future imports, or empty to clear.
+	 * @apiBody {Number} [accountId] Optional stored social account id for future imports, or empty to clear.
+	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100, or empty to clear.
+	 * @apiSuccess {Object} result Updated source subscription row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/update', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.updateSourceSubscription(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/remove Remove native Bluesky source subscription
+	 * @apiName AdminBlueskySourceRemove
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Marks a native Bluesky source subscription removed for the current admin user. It does not delete social-import channels, GeeSome groups/posts, cached content, or Bluesky credentials.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiSuccess {Object} result Removed source subscription row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/remove', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.removeSourceSubscription(req.user.id, req.params.sourceId));
+	});
 }
