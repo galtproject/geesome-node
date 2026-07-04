@@ -17,10 +17,14 @@ import {
 } from '../remoteContentModeration/helpers.js';
 import {
 	IBlueskyAuthorProjection,
+	IBlueskyActorProfile,
 	IBlueskyPostProjection,
+	IBlueskySession,
 	blueskyPostSource,
 	blueskySocNet,
+	createBlueskySession,
 	fetchBlueskyAuthorFeed,
+	fetchBlueskyActorProfile,
 	fetchBlueskyPostRecord,
 	getBlueskyProjectionPreview,
 	normalizeBlueskyActor,
@@ -31,6 +35,8 @@ import {
 import IGeesomeBlueskyModule, {
 	BlueskySourcePostReviewState,
 	BlueskySourceSubscriptionStatus,
+	IBlueskyAccountLoginInput,
+	IBlueskyAccountVerifyInput,
 	IBlueskyPublicAuthorFeedImportInput,
 	IBlueskyPublicAuthorFeedPreviewInput,
 	IBlueskySourceFeedFilters,
@@ -147,6 +153,29 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			})()
 				.then(() => app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, null))
 				.catch((e) => app.ms.asyncOperation.closeImportAsyncOperation(userId, asyncOperation, e));
+		}
+
+		async loginAccount(userId: number, input: IBlueskyAccountLoginInput = {}) {
+			app.checkModules(['socNetAccount']);
+			const session = await getBlueskyAccountSession(app, options, {
+				identifier: getRequiredBlueskyAccountLoginIdentifier(input),
+				password: getRequiredBlueskyAccountLoginPassword(input)
+			});
+			const profile = await getBlueskyAccountProfile(app, options, session);
+			const account = await app.ms.socNetAccount.createOrUpdateAccount(userId, await getBlueskyAccountUpsertData(app, userId, input, session, profile));
+			return getBlueskyAccountVerificationResult(account, profile, session);
+		}
+
+		async verifyAccount(userId: number, input: IBlueskyAccountVerifyInput = {}) {
+			app.checkModules(['socNetAccount']);
+			const account = await getBlueskyAccountRecord(app, userId, input.accountData);
+			const session = await getBlueskyAccountSession(app, options, {
+				identifier: getBlueskyAccountIdentifier(account, input),
+				password: getBlueskyAccountPassword(account, input)
+			});
+			assertBlueskyAccountMatchesSession(account, session);
+			const profile = await getBlueskyAccountProfile(app, options, session);
+			return getBlueskyAccountVerificationResult(account, profile, session);
 		}
 
 		async getSourceSubscriptions(userId: number, filters: IBlueskySourceSubscriptionFilters = {}, listParams?: IListParams) {
@@ -497,6 +526,201 @@ function getBlueskyPublicApiOrigin(app: IGeesomeApp): string | undefined {
 
 function getBlueskyPublicApiTimeoutMs(app: IGeesomeApp): number | undefined {
 	return app.config?.blueskyConfig?.publicApiTimeoutMs;
+}
+
+function getBlueskyAuthApiOrigin(app: IGeesomeApp): string | undefined {
+	return app.config?.blueskyConfig?.authApiOrigin;
+}
+
+function getBlueskyAuthApiTimeoutMs(app: IGeesomeApp): number | undefined {
+	return app.config?.blueskyConfig?.authApiTimeoutMs;
+}
+
+async function getBlueskyAccountSession(
+	app: IGeesomeApp,
+	options: any,
+	input: {identifier: string; password: string}
+): Promise<IBlueskySession> {
+	return createBlueskySession({
+		identifier: input.identifier,
+		password: input.password,
+		origin: getBlueskyAuthApiOrigin(app),
+		timeoutMs: getBlueskyAuthApiTimeoutMs(app),
+		fetch: options.fetch
+	});
+}
+
+async function getBlueskyAccountProfile(app: IGeesomeApp, options: any, session: IBlueskySession): Promise<IBlueskyActorProfile> {
+	return fetchBlueskyActorProfile({
+		actor: session.did,
+		origin: getBlueskyAuthApiOrigin(app),
+		timeoutMs: getBlueskyAuthApiTimeoutMs(app),
+		accessJwt: session.accessJwt,
+		fetch: options.fetch
+	});
+}
+
+async function getBlueskyAccountUpsertData(
+	app: IGeesomeApp,
+	userId: number,
+	input: IBlueskyAccountLoginInput,
+	session: IBlueskySession,
+	profile: IBlueskyActorProfile
+) {
+	const existingAccount = await getExistingBlueskyAccountForLogin(app, userId, input, session, profile);
+	const accountData: any = {
+		socNet: blueskySocNet,
+		accountId: session.did,
+		username: profile.handle || session.handle || getRequiredBlueskyAccountLoginIdentifier(input),
+		fullName: profile.displayName || profile.handle || session.handle || null,
+		apiKey: getBlueskyAccountApiKeyForStorage(input),
+		isEncrypted: helpers.parseBoolean(input.isEncrypted, false)
+	};
+	if (existingAccount?.id) {
+		accountData.id = existingAccount.id;
+	}
+	return accountData;
+}
+
+async function getExistingBlueskyAccountForLogin(
+	app: IGeesomeApp,
+	userId: number,
+	input: IBlueskyAccountLoginInput,
+	session: IBlueskySession,
+	profile: IBlueskyActorProfile
+) {
+	if (input.accountData?.id) {
+		return getBlueskyAccountRecord(app, userId, input.accountData);
+	}
+	const byDid = await app.ms.socNetAccount.getAccount(userId, blueskySocNet, {accountId: session.did});
+	if (byDid) {
+		return byDid;
+	}
+	const handle = profile.handle || session.handle;
+	if (!handle) {
+		return null;
+	}
+	return app.ms.socNetAccount.getAccount(userId, blueskySocNet, {username: handle});
+}
+
+async function getBlueskyAccountRecord(app: IGeesomeApp, userId: number, accountData: any = {}) {
+	const where = getBlueskyAccountWhere(accountData);
+	const account = await app.ms.socNetAccount.getAccount(userId, blueskySocNet, where);
+	if (!account) {
+		throw new Error('bluesky_account_not_found');
+	}
+	return account;
+}
+
+function getBlueskyAccountWhere(accountData: any = {}) {
+	const accountId = getNullablePositiveInteger(accountData?.id);
+	if (accountId) {
+		return {id: accountId};
+	}
+	const did = getOptionalString(accountData?.accountId);
+	if (did) {
+		return {accountId: did};
+	}
+	const username = getOptionalString(accountData?.username);
+	if (username) {
+		return {username: normalizeBlueskyActor(username)};
+	}
+	throw new Error('bluesky_account_id_required');
+}
+
+function getBlueskyAccountIdentifier(account, input: IBlueskyAccountVerifyInput): string {
+	const explicitIdentifier = getOptionalString(input.accountData?.username) || getOptionalString(input.accountData?.accountId);
+	if (explicitIdentifier) {
+		return normalizeBlueskyActor(explicitIdentifier);
+	}
+	if (account.username) {
+		return normalizeBlueskyActor(account.username);
+	}
+	if (account.accountId) {
+		return account.accountId;
+	}
+	throw new Error('bluesky_account_identifier_required');
+}
+
+function getBlueskyAccountPassword(account, input: IBlueskyAccountVerifyInput): string {
+	const password = getOptionalBlueskyAccountPassword(input);
+	if (password) {
+		return password;
+	}
+	if (account.isEncrypted) {
+		throw new Error('bluesky_account_password_required');
+	}
+	if (account.apiKey) {
+		return account.apiKey;
+	}
+	throw new Error('bluesky_account_password_required');
+}
+
+function getRequiredBlueskyAccountLoginIdentifier(input: IBlueskyAccountLoginInput): string {
+	return normalizeBlueskyActor(input.identifier || input.accountData?.username || input.accountData?.accountId || '');
+}
+
+function getRequiredBlueskyAccountLoginPassword(input: IBlueskyAccountLoginInput): string {
+	const password = getOptionalBlueskyAccountPassword(input);
+	if (!password) {
+		throw new Error('bluesky_account_password_required');
+	}
+	return password;
+}
+
+function getOptionalBlueskyAccountPassword(input: {password?: string; appPassword?: string; apiKey?: string} = {}): string | null {
+	return getOptionalString(input.appPassword) || getOptionalString(input.password) || getOptionalString(input.apiKey);
+}
+
+function getBlueskyAccountApiKeyForStorage(input: IBlueskyAccountLoginInput): string {
+	if (!helpers.parseBoolean(input.isEncrypted, false)) {
+		return getRequiredBlueskyAccountLoginPassword(input);
+	}
+	const encryptedApiKey = getOptionalString(input.encryptedApiKey);
+	if (!encryptedApiKey) {
+		throw new Error('bluesky_account_encrypted_api_key_required');
+	}
+	return encryptedApiKey;
+}
+
+function assertBlueskyAccountMatchesSession(account, session: IBlueskySession): void {
+	if (account.accountId) {
+		if (account.accountId !== session.did) {
+			throw new Error('bluesky_account_identity_mismatch');
+		}
+		return;
+	}
+	if (!account.username || !session.handle) {
+		return;
+	}
+	if (normalizeBlueskyActor(account.username) !== normalizeBlueskyActor(session.handle)) {
+		throw new Error('bluesky_account_identity_mismatch');
+	}
+}
+
+function getBlueskyAccountVerificationResult(account, profile: IBlueskyActorProfile, session: IBlueskySession) {
+	return {
+		account: getBlueskyAccountReport(account),
+		profile,
+		did: session.did,
+		handle: profile.handle || session.handle
+	};
+}
+
+function getBlueskyAccountReport(account) {
+	const accountObject = account?.toJSON ? account.toJSON() : account;
+	return {
+		id: accountObject.id,
+		userId: accountObject.userId,
+		socNet: accountObject.socNet,
+		accountId: accountObject.accountId || null,
+		username: accountObject.username || null,
+		fullName: accountObject.fullName || null,
+		hasApiKey: !!accountObject.apiKey,
+		hasAccessToken: !!accountObject.accessToken,
+		hasSessionKey: !!accountObject.sessionKey,
+		isEncrypted: !!accountObject.isEncrypted
+	};
 }
 
 function getBlueskyImportProjectionOrder(projections: IBlueskyPostProjection[]): IBlueskyPostProjection[] {

@@ -150,20 +150,32 @@ This flow is bridge-free and belongs to the dedicated Bluesky/ATProto module, no
 
 Boundary: public native reads do not need credentials. Credentialed account ownership, private/account-specific reads, and cross-posting require explicit stored `socNetAccount` handling and tests.
 
-## User Flow: Credentialed Bluesky Account And Cross-Posting
+## User Flow: Credentialed Bluesky Account
 
-This is future work and should be implemented only after the public source-reader path is stable.
+This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is separate from public source reads and from future cross-posting.
 
-1. User connects a Bluesky/ATProto account through a stored `socNetAccount` row.
-2. GeeSome validates ownership and stores only the credential material required for the selected operation.
-3. User chooses a GeeSome group/post to cross-post.
-4. GeeSome converts canonical rich text to ATProto text plus byte-indexed facets.
-5. GeeSome applies attachment/embed policy explicitly:
+1. User opens the Bluesky account connection screen.
+2. User enters a Bluesky handle, DID, or login identifier plus an app password.
+3. GeeSome creates an ATProto session only to prove the account can authenticate, then reads the authenticated profile.
+4. GeeSome stores or updates the user-scoped `socNetAccount` row with `socNet=bluesky`, the authenticated DID, current handle, display name, and selected credential storage form.
+5. GeeSome returns a secret-free account report with `hasApiKey`/session flags instead of returning app passwords or tokens.
+6. User or the UI can re-run verification later. If the stored account has a DID, DID match is the ownership check; handle changes should not break verification.
+
+Boundary: account verification does not create posts, store short-lived access/refresh JWTs, read private timelines, or bypass moderation/source identity.
+
+## User Flow: Credentialed Bluesky Cross-Posting
+
+This is future work and should build on the verified account flow.
+
+1. User chooses a GeeSome group/post to cross-post.
+2. GeeSome verifies the selected user-scoped Bluesky account can still authenticate and belongs to the same DID.
+3. GeeSome converts canonical rich text to ATProto text plus byte-indexed facets.
+4. GeeSome applies attachment/embed policy explicitly:
    - links become link facets or external embeds;
    - images need supported upload/alt-text policy;
    - unsupported attachments stay as links or are rejected with a clear reason.
-6. GeeSome creates or updates the remote ATProto record and stores source/cross-post identity for idempotency.
-7. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
+5. GeeSome creates or updates the remote ATProto record and stores source/cross-post identity for idempotency.
+6. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
 
 Safety result: cross-posting is opt-in, source-bound, credential-scoped, and does not bypass rich-text, attachment, or moderation policy.
 
@@ -219,6 +231,6 @@ The UI should make these states explicit:
 - ActivityPub source reader can subscribe, refresh, read, and mark sources read.
 - Native Bluesky source reader can preview, subscribe, refresh/import, and read cached imported posts.
 - Native Bluesky update/delete sync is covered.
-- Credentialed Bluesky account and cross-post flows are covered by ownership and idempotency tests.
+- Credentialed Bluesky account ownership is covered; cross-post flows are covered by ownership and idempotency tests before release.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
 - Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads.

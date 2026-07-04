@@ -4,6 +4,53 @@ import IGeesomeBlueskyModule from './interface.js';
 
 export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	/**
+	 * @api {post} /v1/soc-net/bluesky/login Connect Bluesky account
+	 * @apiName UserBlueskyLogin
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies a Bluesky/ATProto app password by creating an authenticated XRPC session, reads the account profile, and stores or updates a user-scoped `socNetAccount` row with `socNet=bluesky`. The plaintext app password is never returned. If `isEncrypted=true`, pass `encryptedApiKey`; the route still needs the plaintext app password only for this verification request.
+	 * @apiBody {String} identifier Bluesky handle, DID, or login identifier.
+	 * @apiBody {String} [appPassword] Bluesky app password. Alias: `password` or `apiKey`.
+	 * @apiBody {Object} [accountData] Optional existing account selector.
+	 * @apiBody {Number} [accountData.id] Existing local social account id to update.
+	 * @apiBody {Boolean} [isEncrypted=false] Whether the stored API key is already encrypted by the caller.
+	 * @apiBody {String} [encryptedApiKey] Encrypted app password to store when `isEncrypted=true`.
+	 * @apiSuccess {Object} account Secret-free local account summary with `hasApiKey` flags.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/login', async (req, res) => {
+		return res.send(await blueskyModule.loginAccount(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/verify-account Verify Bluesky account
+	 * @apiName UserBlueskyVerifyAccount
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies that a stored user-scoped Bluesky `socNetAccount` still authenticates to the same ATProto DID/handle. Unencrypted stored app passwords can be used directly; encrypted accounts must pass the plaintext app password for this request. The route does not create posts, update remote records, or expose secret material.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiSuccess {Object} account Secret-free local account summary with `hasApiKey` flags.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/verify-account', async (req, res) => {
+		return res.send(await blueskyModule.verifyAccount(req.user.id, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/public-author-feed/preview Preview public Bluesky author feed
 	 * @apiName AdminBlueskyPublicAuthorFeedPreview
 	 * @apiGroup AdminBluesky

@@ -42,10 +42,7 @@ export function getModule(app: IGeesomeApp, models) {
 
 	class SocNetAccountModule {
 		async createOrUpdateAccount(userId, accData) {
-			let where = {userId};
-			if (accData.id) {
-				where['id'] = accData.id;
-			}
+			const where = getSocNetAccountLookupWhere(userId, accData);
 			const userAcc = await models.Account.findOne({where});
 			return userAcc ?
 				userAcc.update(accData).then(() => models.Account.findOne({where})) :
@@ -90,4 +87,20 @@ export function getModule(app: IGeesomeApp, models) {
 	}
 
 	return new SocNetAccountModule();
+}
+
+function getSocNetAccountLookupWhere(userId, accData) {
+	if (accData.id) {
+		return {userId, id: accData.id};
+	}
+	if (accData.socNet && accData.accountId) {
+		return {userId, socNet: accData.socNet, accountId: accData.accountId};
+	}
+	if (accData.socNet && accData.username) {
+		return {userId, socNet: accData.socNet, username: accData.username};
+	}
+	if (accData.socNet && accData.phoneNumber) {
+		return {userId, socNet: accData.socNet, phoneNumber: accData.phoneNumber};
+	}
+	return {userId, id: null};
 }

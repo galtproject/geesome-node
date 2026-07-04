@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, and local GeeSome feed reading for Bluesky sources.
+The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, credentialed account verification, and local GeeSome feed reading for Bluesky sources.
 
 ## Owns
 
@@ -15,6 +15,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Admin review APIs to list cached review records, reject/block/quarantine/reset them, and import pending/quarantined records into the linked local channel.
 - Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
+- User-scoped Bluesky account login/verification through ATProto `com.atproto.server.createSession` and profile reads, storing only the selected local `socNetAccount` credential material and returning secret-free account reports.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries
@@ -30,15 +31,17 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 ## Boundaries
 
 - Bluesky is ATProto, not ActivityPub. Bridge-backed ActivityPub sources belong to `activityPub`.
-- Public feed reads do not require stored credentials; credentialed account ownership and cross-posting need explicit `socNetAccount` handling.
+- Public feed reads do not require stored credentials; credentialed login/verification uses explicit `socNetAccount` rows.
+- Account verification proves the authenticated DID matches the stored account identity, tolerating handle changes once a DID is known.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
-- Credentialed cross-post semantics remain follow-up work.
+- Credentialed cross-post semantics remain follow-up work and must not bypass moderation, canonical rich-text conversion, source identity, or idempotency rules.
 
 ## Related Docs
 
 - [ActivityPub and Bluesky user flows](../../activityPub/docs/activitypub-user-flows.md)
 - [Remote content moderation helpers](../../remoteContentModeration/docs/overview.md)
+- [Social Network Account module overview](../../socNetAccount/docs/overview.md)
 - [Social Network Import module overview](../../socNetImport/docs/overview.md)
 - [Rich-text content format](../../../../docs/rich-text-content-format.md)
