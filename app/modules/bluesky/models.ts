@@ -1,5 +1,5 @@
 import {DataTypes, Sequelize} from 'sequelize';
-import {BlueskySourceSubscriptionStatus} from './interface.js';
+import {BlueskySourcePostReviewState, BlueskySourceSubscriptionStatus} from './interface.js';
 import {RemoteContentModerationMode} from '../remoteContentModeration/helpers.js';
 
 export default async function (sequelize: Sequelize) {
@@ -75,7 +75,79 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const BlueskySourcePostReview = sequelize.define('blueskySourcePostReview', {
+		userId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		sourceSubscriptionId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		actor: {
+			type: DataTypes.STRING(200),
+			allowNull: false
+		},
+		uri: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		cid: {
+			type: DataTypes.STRING(200),
+			allowNull: true
+		},
+		sourceChannelId: {
+			type: DataTypes.STRING(200),
+			allowNull: false
+		},
+		state: {
+			type: DataTypes.STRING(30),
+			allowNull: false,
+			defaultValue: BlueskySourcePostReviewState.Pending
+		},
+		moderationAction: {
+			type: DataTypes.STRING(30),
+			allowNull: false
+		},
+		moderationDecisionJson: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		},
+		projectionJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		publishedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		importedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		reviewedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		reviewedByUserId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{name: 'bluesky_source_post_reviews_source_uri_unique', fields: ['sourceSubscriptionId', 'uri'], unique: true},
+			{name: 'bluesky_source_post_reviews_user_state_idx', fields: ['userId', 'state', 'updatedAt']},
+			{name: 'bluesky_source_post_reviews_source_state_idx', fields: ['sourceSubscriptionId', 'state', 'publishedAt', 'id']},
+			{name: 'bluesky_source_post_reviews_source_channel_idx', fields: ['sourceChannelId']}
+		]
+	} as any);
+
 	return {
-		BlueskySourceSubscription: await BlueskySourceSubscription.sync({})
+		BlueskySourceSubscription: await BlueskySourceSubscription.sync({}),
+		BlueskySourcePostReview: await BlueskySourcePostReview.sync({})
 	};
 };

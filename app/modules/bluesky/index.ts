@@ -22,12 +22,14 @@ import {
 	blueskySocNet,
 	fetchBlueskyAuthorFeed,
 	fetchBlueskyPostRecord,
+	getBlueskyProjectionPreview,
 	normalizeBlueskyActor,
 	normalizeBlueskyAuthorFeedFilter,
 	parseBlueskyPostAtUri,
 	projectBlueskyAuthorFeed
 } from './helpers.js';
 import IGeesomeBlueskyModule, {
+	BlueskySourcePostReviewState,
 	BlueskySourceSubscriptionStatus,
 	IBlueskyPublicAuthorFeedImportInput,
 	IBlueskyPublicAuthorFeedPreviewInput,
@@ -36,6 +38,9 @@ import IGeesomeBlueskyModule, {
 	IBlueskySourceRefreshPollOptions,
 	IBlueskySourceRefreshQueueInput,
 	IBlueskySourceRefreshQueueProcessOptions,
+	IBlueskySourceReviewFilters,
+	IBlueskySourceReviewImportInput,
+	IBlueskySourceReviewUpdateInput,
 	IBlueskySourceSyncError,
 	IBlueskySourceSyncInput,
 	IBlueskySourceSubscriptionFilters,
@@ -53,6 +58,11 @@ const blueskySourceSubscriptionListParams: IListParamsOptions = {
 	maxLimit: 100
 };
 const blueskySourceSyncListParams: IListParamsOptions = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
+const blueskySourceReviewListParams: IListParamsOptions = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
 	maxLimit: 100
@@ -167,6 +177,23 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 					helpers.sanitizePublicPostFilters(filters),
 					listParams
 				)
+			};
+		}
+
+		async getSourceReviews(userId: number, sourceId: number | string, filters: IBlueskySourceReviewFilters = {}, listParams?: IListParams) {
+			assertBlueskyReviewModels(models);
+			const subscription = await getBlueskySourceSubscriptionRecord(models, userId, sourceId);
+			const preparedListParams = getBlueskySourceReviewListParams(listParams);
+			const reviewPage = await models.BlueskySourcePostReview.findAndCountAll({
+				where: getBlueskySourceReviewWhere(userId, subscription, filters),
+				order: [[preparedListParams.sortBy, preparedListParams.sortDir]],
+				limit: preparedListParams.limit,
+				offset: preparedListParams.offset
+			});
+			return {
+				source: getBlueskySourceSubscriptionReport(subscription),
+				list: reviewPage.rows.map(reviewRecord => getBlueskySourceReviewReport(reviewRecord)),
+				total: getListPageCount(reviewPage.count)
 			};
 		}
 
@@ -289,6 +316,52 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			return getBlueskySourceSubscriptionReport(subscription);
 		}
 
+		async updateSourceReviewState(userId: number, sourceId: number | string, reviewId: number | string, input: IBlueskySourceReviewUpdateInput = {}) {
+			assertBlueskyReviewModels(models);
+			await app.checkUserCan(userId, CorePermissionName.AdminAll);
+			const subscription = await getBlueskySourceSubscriptionRecord(models, userId, sourceId);
+			const reviewRecord = await getBlueskySourceReviewRecord(models, userId, subscription, reviewId);
+			await updateBlueskySourceReviewRecord(reviewRecord, getBlueskySourceReviewStateUpdateData(input, userId));
+			return getBlueskySourceReviewReport(reviewRecord);
+		}
+
+		async importSourceReviewPost(userId: number, sourceId: number | string, reviewId: number | string, input: IBlueskySourceReviewImportInput = {}) {
+			app.checkModules(['group', 'content', 'socNetImport']);
+			await app.checkUserCan(userId, CorePermissionName.AdminAll);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			assertBlueskyReviewModels(models);
+			const subscription = await getBlueskySourceSubscriptionRecord(models, userId, sourceId);
+			const reviewRecord = await getBlueskySourceReviewRecord(models, userId, subscription, reviewId);
+			const projection = getBlueskySourceReviewProjection(reviewRecord);
+			assertBlueskySourceReviewImportable(reviewRecord);
+
+			try {
+				const dbChannel = await this.importPublicAuthorChannel(userId, getBlueskySourceReviewImportInput(subscription, input), subscription.actor, projection);
+				const imported = await importBlueskyPublicAuthorFeedProjections(
+					app,
+					userId,
+					dbChannel,
+					[getBlueskyModeratedProjection(projection, parseBlueskySourceReviewDecision(reviewRecord))],
+					getBlueskySourceReviewAdvancedSettings(input)
+				);
+				await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
+					dbChannel,
+					imported,
+					refreshedAt: getNow(options)
+				}));
+				await updateBlueskySourceReviewRecord(reviewRecord, getBlueskySourceReviewImportedData(userId));
+				return {
+					source: getBlueskySourceSubscriptionReport(subscription),
+					review: getBlueskySourceReviewReport(reviewRecord),
+					dbChannel: getBlueskyImportChannelResult(dbChannel),
+					imported
+				};
+			} catch (e) {
+				await updateBlueskySourceReviewRecord(reviewRecord, {lastError: getErrorMessage(e)});
+				throw e;
+			}
+		}
+
 		async refreshSourceSubscription(userId: number, sourceId: number | string, input: IBlueskySourceRefreshInput = {}, refreshOptions: any = {}) {
 			app.checkModules(['asyncOperation', 'group', 'content', 'socNetImport']);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
@@ -309,9 +382,10 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 					return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, 0, null, getEmptyRemoteContentModerationSummary());
 				}
 				const moderation = getBlueskyModeratedSourceProjections(preview.actor, subscription, refreshInput, projections);
+				await storeBlueskySourceReviewProjections(models, userId, subscription, moderation.reviewProjections, refreshedAt);
 				if (!moderation.projections.length) {
 					await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
-						cursor: getBlueskySourceRefreshPersistedCursor(preview.cursor, moderation.summary),
+						cursor: preview.cursor,
 						imported: 0,
 						refreshedAt
 					}));
@@ -329,7 +403,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				);
 				await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
 					dbChannel,
-					cursor: getBlueskySourceRefreshPersistedCursor(preview.cursor, moderation.summary),
+					cursor: preview.cursor,
 					imported,
 					refreshedAt
 				}));
@@ -539,6 +613,10 @@ function getBlueskySourceSyncListParams(input: IBlueskySourceSyncInput): IListPa
 		sortBy: 'publishedAt',
 		sortDir: 'DESC'
 	}, blueskySourceSyncListParams);
+}
+
+function getBlueskySourceReviewListParams(listParams?: IListParams): IListParams {
+	return helpers.prepareListParams(listParams, blueskySourceReviewListParams);
 }
 
 function getBlueskySourceSyncPostFilters(dbChannel: ISocNetDbChannel, input: IBlueskySourceSyncInput = {}) {
@@ -800,13 +878,6 @@ function getBlueskySourceRefreshResult(
 	};
 }
 
-function getBlueskySourceRefreshPersistedCursor(cursor: string | null, moderation: IRemoteContentModerationSummary): string | null | undefined {
-	if (moderation.review > 0 || moderation.quarantined > 0) {
-		return undefined;
-	}
-	return cursor;
-}
-
 function getBlueskySourceRefreshJobInput(subscription, input: IBlueskySourceRefreshQueueInput = {}) {
 	return {
 		type: 'source-refresh',
@@ -849,6 +920,7 @@ function getBlueskyModeratedSourceProjections(
 ) {
 	const policy = getBlueskySourceModerationPolicy(subscription, input);
 	const decisions: IRemoteContentModerationDecision[] = [];
+	const reviewProjections: {projection: IBlueskyPostProjection; decision: IRemoteContentModerationDecision}[] = [];
 	const moderatedProjections = projections
 		.map((projection) => {
 			const decision = getBlueskyProjectionModerationDecision(projection, policy, {
@@ -857,6 +929,7 @@ function getBlueskyModeratedSourceProjections(
 			});
 			decisions.push(decision);
 			if (!isRemoteContentModerationDecisionImportable(decision)) {
+				reviewProjections.push({projection, decision});
 				return null;
 			}
 			return getBlueskyModeratedProjection(projection, decision);
@@ -864,8 +937,279 @@ function getBlueskyModeratedSourceProjections(
 		.filter(Boolean) as IBlueskyPostProjection[];
 	return {
 		projections: moderatedProjections,
+		reviewProjections,
 		summary: getRemoteContentModerationSummary(decisions)
 	};
+}
+
+async function storeBlueskySourceReviewProjections(models, userId: number, subscription, reviewProjections, refreshedAt: Date): Promise<void> {
+	if (!reviewProjections.length) {
+		return;
+	}
+	assertBlueskyReviewModels(models);
+	for (const reviewProjection of reviewProjections) {
+		await upsertBlueskySourceReviewRecord(models, getBlueskySourceReviewData(userId, subscription, reviewProjection, refreshedAt));
+	}
+}
+
+async function upsertBlueskySourceReviewRecord(models, reviewData) {
+	const existingReview = await models.BlueskySourcePostReview.findOne({
+		where: {
+			sourceSubscriptionId: reviewData.sourceSubscriptionId,
+			uri: reviewData.uri
+		}
+	});
+	if (existingReview) {
+		return updateBlueskySourceReviewRecord(existingReview, getExistingBlueskySourceReviewUpdateData(existingReview, reviewData));
+	}
+
+	try {
+		return await models.BlueskySourcePostReview.create(reviewData);
+	} catch (e) {
+		if (!isBlueskySourceReviewUniqueError(e)) {
+			throw e;
+		}
+		const createdReview = await models.BlueskySourcePostReview.findOne({
+			where: {
+				sourceSubscriptionId: reviewData.sourceSubscriptionId,
+				uri: reviewData.uri
+			}
+		});
+		if (!createdReview) {
+			throw e;
+		}
+		return updateBlueskySourceReviewRecord(createdReview, getExistingBlueskySourceReviewUpdateData(createdReview, reviewData));
+	}
+}
+
+function getBlueskySourceReviewData(userId: number, subscription, reviewProjection, refreshedAt: Date) {
+	const {projection, decision} = reviewProjection;
+	return {
+		userId,
+		sourceSubscriptionId: subscription.id,
+		actor: subscription.actor,
+		uri: projection.uri,
+		cid: projection.cid || null,
+		sourceChannelId: projection.sourceIdentity.sourceChannelId,
+		state: getBlueskySourceReviewStateFromDecision(decision),
+		moderationAction: decision.action,
+		moderationDecisionJson: JSON.stringify(decision),
+		projectionJson: JSON.stringify(projection),
+		publishedAt: getBlueskyProjectionDateValue(projection),
+		importedAt: null,
+		reviewedAt: null,
+		reviewedByUserId: null,
+		lastError: null,
+		updatedAt: refreshedAt
+	};
+}
+
+function getExistingBlueskySourceReviewUpdateData(existingReview, reviewData) {
+	const updateData = {
+		...reviewData,
+		state: getUpdatedBlueskySourceReviewState(existingReview, reviewData.state),
+		importedAt: existingReview.importedAt || null,
+		reviewedAt: getUpdatedBlueskySourceReviewReviewedAt(existingReview, reviewData.state),
+		reviewedByUserId: getUpdatedBlueskySourceReviewReviewedByUserId(existingReview, reviewData.state)
+	};
+	if (updateData.state === existingReview.state) {
+		delete updateData['state'];
+	}
+	return updateData;
+}
+
+function getUpdatedBlueskySourceReviewState(existingReview, nextState: BlueskySourcePostReviewState): BlueskySourcePostReviewState {
+	if (existingReview.state === BlueskySourcePostReviewState.Imported || existingReview.state === BlueskySourcePostReviewState.Rejected) {
+		return existingReview.state;
+	}
+	return nextState;
+}
+
+function getUpdatedBlueskySourceReviewReviewedAt(existingReview, nextState: BlueskySourcePostReviewState): Date | null {
+	if (existingReview.state === BlueskySourcePostReviewState.Imported || existingReview.state === BlueskySourcePostReviewState.Rejected) {
+		return existingReview.reviewedAt || null;
+	}
+	if (nextState === BlueskySourcePostReviewState.Pending || nextState === BlueskySourcePostReviewState.Quarantined || nextState === BlueskySourcePostReviewState.Blocked) {
+		return null;
+	}
+	return existingReview.reviewedAt || null;
+}
+
+function getUpdatedBlueskySourceReviewReviewedByUserId(existingReview, nextState: BlueskySourcePostReviewState): number | null {
+	if (existingReview.state === BlueskySourcePostReviewState.Imported || existingReview.state === BlueskySourcePostReviewState.Rejected) {
+		return existingReview.reviewedByUserId || null;
+	}
+	if (nextState === BlueskySourcePostReviewState.Pending || nextState === BlueskySourcePostReviewState.Quarantined || nextState === BlueskySourcePostReviewState.Blocked) {
+		return null;
+	}
+	return existingReview.reviewedByUserId || null;
+}
+
+function getBlueskySourceReviewStateFromDecision(decision: IRemoteContentModerationDecision): BlueskySourcePostReviewState {
+	if (decision.action === 'block') {
+		return BlueskySourcePostReviewState.Blocked;
+	}
+	if (decision.action === 'quarantine') {
+		return BlueskySourcePostReviewState.Quarantined;
+	}
+	return BlueskySourcePostReviewState.Pending;
+}
+
+function getBlueskySourceReviewWhere(userId: number, subscription, filters: IBlueskySourceReviewFilters = {}) {
+	const where: any = {
+		userId,
+		sourceSubscriptionId: subscription.id
+	};
+	if (isKnownBlueskySourcePostReviewState(filters.state)) {
+		where.state = filters.state;
+	} else {
+		where.state = {
+			[Op.notIn]: [BlueskySourcePostReviewState.Imported, BlueskySourcePostReviewState.Rejected]
+		};
+	}
+	return where;
+}
+
+async function getBlueskySourceReviewRecord(models, userId: number, subscription, reviewId: number | string) {
+	const reviewIdNumber = getNullablePositiveInteger(reviewId);
+	if (!reviewIdNumber) {
+		throw new Error('bluesky_source_review_not_found');
+	}
+	const reviewRecord = await models.BlueskySourcePostReview.findOne({
+		where: {
+			id: reviewIdNumber,
+			userId,
+			sourceSubscriptionId: subscription.id
+		}
+	});
+	if (!reviewRecord) {
+		throw new Error('bluesky_source_review_not_found');
+	}
+	return reviewRecord;
+}
+
+async function updateBlueskySourceReviewRecord(reviewRecord, updateData) {
+	const changedData = getChangedBlueskySourceReviewData(reviewRecord, updateData);
+	if (!Object.keys(changedData).length) {
+		return reviewRecord;
+	}
+	await reviewRecord.update(changedData);
+	return reviewRecord;
+}
+
+function getBlueskySourceReviewStateUpdateData(input: IBlueskySourceReviewUpdateInput, reviewedByUserId: number) {
+	const state = getRequiredMutableBlueskySourcePostReviewState(input.state);
+	return {
+		state,
+		reviewedAt: state === BlueskySourcePostReviewState.Pending ? null : new Date(),
+		reviewedByUserId: state === BlueskySourcePostReviewState.Pending ? null : reviewedByUserId,
+		lastError: null
+	};
+}
+
+function getBlueskySourceReviewImportedData(reviewedByUserId: number) {
+	const now = new Date();
+	return {
+		state: BlueskySourcePostReviewState.Imported,
+		importedAt: now,
+		reviewedAt: now,
+		reviewedByUserId,
+		lastError: null
+	};
+}
+
+function getBlueskySourceReviewReport(reviewRecord) {
+	const projection = getBlueskySourceReviewProjection(reviewRecord);
+	return {
+		id: reviewRecord.id,
+		userId: reviewRecord.userId,
+		sourceSubscriptionId: reviewRecord.sourceSubscriptionId,
+		actor: reviewRecord.actor,
+		uri: reviewRecord.uri,
+		cid: reviewRecord.cid || null,
+		sourceChannelId: reviewRecord.sourceChannelId,
+		state: reviewRecord.state,
+		moderationAction: reviewRecord.moderationAction,
+		moderationDecision: parseBlueskySourceReviewDecision(reviewRecord),
+		preview: projection ? getBlueskyProjectionPreview(projection) : null,
+		publishedAt: reviewRecord.publishedAt || null,
+		importedAt: reviewRecord.importedAt || null,
+		reviewedAt: reviewRecord.reviewedAt || null,
+		reviewedByUserId: reviewRecord.reviewedByUserId || null,
+		lastError: reviewRecord.lastError || null,
+		createdAt: reviewRecord.createdAt,
+		updatedAt: reviewRecord.updatedAt
+	};
+}
+
+function getBlueskySourceReviewProjection(reviewRecord): IBlueskyPostProjection {
+	const projection = parseJsonObject(reviewRecord.projectionJson);
+	if (!projection?.uri) {
+		throw new Error('bluesky_source_review_projection_invalid');
+	}
+	return projection as IBlueskyPostProjection;
+}
+
+function parseBlueskySourceReviewDecision(reviewRecord): IRemoteContentModerationDecision {
+	return parseJsonObject(reviewRecord.moderationDecisionJson) as IRemoteContentModerationDecision;
+}
+
+function getBlueskySourceReviewImportInput(subscription, _input: IBlueskySourceReviewImportInput): IBlueskyPublicAuthorFeedImportInput {
+	return {
+		actor: subscription.actor,
+		accountId: subscription.accountId || null,
+		groupName: subscription.groupName || undefined
+	};
+}
+
+function getBlueskySourceReviewAdvancedSettings(input: IBlueskySourceReviewImportInput): any {
+	return {
+		force: helpers.parseBoolean(input.force, true)
+	};
+}
+
+function assertBlueskySourceReviewImportable(reviewRecord): void {
+	if (reviewRecord.state === BlueskySourcePostReviewState.Pending || reviewRecord.state === BlueskySourcePostReviewState.Quarantined) {
+		return;
+	}
+	throw new Error('bluesky_source_review_not_importable');
+}
+
+function getBlueskyProjectionDateValue(projection: IBlueskyPostProjection): Date | null {
+	return getDateValue(projection?.createdAt) || getDateValue(projection?.indexedAt);
+}
+
+function getChangedBlueskySourceReviewData(reviewRecord, updateData) {
+	const changedData = {};
+	Object.keys(updateData).forEach((key) => {
+		if (isSameBlueskyReviewValue(reviewRecord[key], updateData[key])) {
+			return;
+		}
+		changedData[key] = updateData[key];
+	});
+	return changedData;
+}
+
+function parseJsonObject(value: string | null | undefined): any {
+	if (!value) {
+		return {};
+	}
+	try {
+		const parsed = JSON.parse(value);
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			return {};
+		}
+		return parsed;
+	} catch (_e) {
+		return {};
+	}
+}
+
+function isSameBlueskyReviewValue(left, right): boolean {
+	if (left instanceof Date || right instanceof Date) {
+		return getNullableDateTime(left) === getNullableDateTime(right);
+	}
+	return left === right;
 }
 
 function getBlueskySourceModerationPolicy(subscription, input: {moderationPolicy?: IRemoteContentModerationPolicyInput} = {}): IRemoteContentModerationPolicy {
@@ -1127,6 +1471,10 @@ function isKnownBlueskySourceSubscriptionStatus(status): status is BlueskySource
 	return Object.values(BlueskySourceSubscriptionStatus).includes(status);
 }
 
+function isKnownBlueskySourcePostReviewState(state): state is BlueskySourcePostReviewState {
+	return Object.values(BlueskySourcePostReviewState).includes(state);
+}
+
 function getRequiredMutableBlueskySourceSubscriptionStatus(status): BlueskySourceSubscriptionStatus {
 	if (status === BlueskySourceSubscriptionStatus.Active || status === BlueskySourceSubscriptionStatus.Paused) {
 		return status;
@@ -1134,12 +1482,54 @@ function getRequiredMutableBlueskySourceSubscriptionStatus(status): BlueskySourc
 	throw new Error('bluesky_source_subscription_status_invalid');
 }
 
+function getRequiredMutableBlueskySourcePostReviewState(state): BlueskySourcePostReviewState {
+	if (
+		state === BlueskySourcePostReviewState.Pending ||
+		state === BlueskySourcePostReviewState.Quarantined ||
+		state === BlueskySourcePostReviewState.Blocked ||
+		state === BlueskySourcePostReviewState.Rejected
+	) {
+		return state;
+	}
+	throw new Error('bluesky_source_review_state_invalid');
+}
+
 function isBlueskySourceSubscriptionUniqueError(error): boolean {
 	return error?.name === 'SequelizeUniqueConstraintError';
 }
 
+function isBlueskySourceReviewUniqueError(error): boolean {
+	return error?.name === 'SequelizeUniqueConstraintError';
+}
+
+function assertBlueskyReviewModels(models): void {
+	assertBlueskyModels(models);
+	if (!models?.BlueskySourcePostReview) {
+		throw new Error('bluesky_review_models_unavailable');
+	}
+}
+
 function getErrorMessage(error): string {
 	return error?.message || String(error || 'unknown');
+}
+
+function getNullableDateTime(value): number | null {
+	const date = value ? new Date(value) : null;
+	if (!date || Number.isNaN(date.getTime())) {
+		return null;
+	}
+	return date.getTime();
+}
+
+function getDateValue(value: string | null | undefined): Date | null {
+	if (!value) {
+		return null;
+	}
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return null;
+	}
+	return date;
 }
 
 function getListPageCount(count): number {

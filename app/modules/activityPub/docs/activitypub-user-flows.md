@@ -142,9 +142,11 @@ This flow is bridge-free and belongs to the dedicated Bluesky/ATProto module, no
 5. User refreshes the subscription manually, via queue, or through the optional poller.
 6. Refresh imports one bounded public feed page through the existing `socNetImport` pipeline when the admin policy allows it.
 7. GeeSome applies keyword/regex/source/group-name filters before creating or keeping visible posts.
-8. GeeSome stores imported posts in the linked local group/channel with stable Bluesky AT URI source identity.
-9. User reads the source feed through the cached source-feed API, which returns already-imported group posts with cursor pagination.
-10. User or admin can run a bounded sync that verifies already-imported AT URIs, updates changed records, and tombstones local posts only when the remote record lookup confirms deletion.
+8. In review-first, quarantine, or block cases, GeeSome stores a source review record with the projected post, source identity, moderation decision, and review/import state.
+9. Admin can list cached review records, reject/reset them, or import pending/quarantined records into the linked local group/channel.
+10. GeeSome stores imported posts in the linked local group/channel with stable Bluesky AT URI source identity.
+11. User reads the source feed through the cached source-feed API, which returns already-imported group posts with cursor pagination.
+12. User or admin can run a bounded sync that verifies already-imported AT URIs, updates changed records, and tombstones local posts only when the remote record lookup confirms deletion.
 
 Boundary: public native reads do not need credentials. Credentialed account ownership, private/account-specific reads, and cross-posting require explicit stored `socNetAccount` handling and tests.
 

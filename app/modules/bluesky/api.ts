@@ -102,6 +102,28 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {get} /v1/admin/bluesky/sources/:sourceId/reviews List native Bluesky source review records
+	 * @apiName AdminBlueskySourceReviews
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists cached native Bluesky records that were fetched from a subscribed source but not auto-imported because review-first mode or a moderation filter returned review/quarantine/block. Imported and rejected records are hidden by default unless `state` is requested explicitly.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="pending","quarantined","blocked","rejected","imported"} [state] Optional review/import state filter.
+	 * @apiSuccess {Object} source Source subscription row.
+	 * @apiSuccess {Object[]} list Review records with source identity, moderation decision, sanitized projection preview, review metadata, and import metadata.
+	 * @apiSuccess {Number} total Total matching review records.
+	 */
+	app.ms.api.onAuthorizedGet('admin/bluesky/sources/:sourceId/reviews', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getSourceReviews(req.user.id, req.params.sourceId, req.query, req.query));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/sources Subscribe native Bluesky source
 	 * @apiName AdminBlueskySourceSubscribe
 	 * @apiGroup AdminBluesky
@@ -238,6 +260,47 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 		return res.send(await blueskyModule.syncSourceSubscriptionPosts(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/reviews/:reviewId/state Update native Bluesky source review state
+	 * @apiName AdminBlueskySourceReviewState
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates moderation bookkeeping for a cached native Bluesky source review record. Use the dedicated import route to create a visible GeeSome post; setting state here never imports content by itself.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiParam {Number} reviewId Review record id.
+	 * @apiBody {String="pending","quarantined","blocked","rejected"} state New review state. `imported` is set only by the import route.
+	 * @apiSuccess {Object} result Updated review record.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/reviews/:reviewId/state', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.updateSourceReviewState(req.user.id, req.params.sourceId, req.params.reviewId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/reviews/:reviewId/import Import native Bluesky source review
+	 * @apiName AdminBlueskySourceReviewImport
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Imports one pending or quarantined cached native Bluesky review record into the linked local social-import channel/group. This uses the stored ATProto projection and preserves Bluesky AT URI source identity for idempotency.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiParam {Number} reviewId Review record id.
+	 * @apiBody {Boolean} [force=true] Re-import even when the same social-import message already exists.
+	 * @apiSuccess {Object} result Import result with source row, updated review row, channel summary, and imported count.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/reviews/:reviewId/import', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.importSourceReviewPost(req.user.id, req.params.sourceId, req.params.reviewId, req.body || {}));
 	});
 
 	/**

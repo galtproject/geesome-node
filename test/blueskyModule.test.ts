@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import registerBlueskyApi from '../app/modules/bluesky/api.js';
 import {getModule as getBlueskyModule} from '../app/modules/bluesky/index.js';
-import IGeesomeBlueskyModule, {BlueskySourceSubscriptionStatus} from '../app/modules/bluesky/interface.js';
+import IGeesomeBlueskyModule, {BlueskySourcePostReviewState, BlueskySourceSubscriptionStatus} from '../app/modules/bluesky/interface.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {RemoteContentModerationMode} from '../app/modules/remoteContentModeration/helpers.js';
 import {richTextToPlainText} from '../app/richText.js';
@@ -475,6 +475,7 @@ describe('bluesky module', () => {
 	it('applies moderation policy before native Bluesky source posts become visible imports', async () => {
 		const imports: any[] = [];
 		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const reviewModel = getBlueskySourcePostReviewModel();
 		const module = getBlueskyModule({
 			config: {
 				blueskyConfig: {
@@ -499,7 +500,8 @@ describe('bluesky module', () => {
 			checkUserCan: async () => {}
 		} as any, {
 			models: {
-				BlueskySourceSubscription: subscriptionModel
+				BlueskySourceSubscription: subscriptionModel,
+				BlueskySourcePostReview: reviewModel
 			},
 			fetch: async () => ({
 				ok: true,
@@ -532,12 +534,16 @@ describe('bluesky module', () => {
 			blocked: 1,
 			matches: 1
 		});
+		assert.equal(reviewModel.rows.length, 1);
+		assert.equal(reviewModel.rows[0].uri, 'at://did:plc:alice/app.bsky.feed.post/blocked');
+		assert.equal(reviewModel.rows[0].state, BlueskySourcePostReviewState.Blocked);
 		assert.equal(result.source.lastImportedAt instanceof Date, true);
 	});
 
 	it('keeps review-first native Bluesky source refreshes out of visible posts until review exists', async () => {
 		const imports: any[] = [];
 		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const reviewModel = getBlueskySourcePostReviewModel();
 		const module = getBlueskyModule({
 			config: {},
 			ms: {
@@ -555,7 +561,8 @@ describe('bluesky module', () => {
 			checkUserCan: async () => {}
 		} as any, {
 			models: {
-				BlueskySourceSubscription: subscriptionModel
+				BlueskySourceSubscription: subscriptionModel,
+				BlueskySourcePostReview: reviewModel
 			},
 			fetch: async () => ({
 				ok: true,
@@ -581,8 +588,84 @@ describe('bluesky module', () => {
 			matches: 0
 		});
 		assert.equal(result.dbChannel, null);
-		assert.equal(result.source.lastCursor, 'old-cursor');
+		assert.equal(result.source.lastCursor, 'cursor-after');
 		assert.equal(result.source.lastImportedAt, null);
+		assert.deepEqual(reviewModel.rows.map(row => row.state), [
+			BlueskySourcePostReviewState.Pending,
+			BlueskySourcePostReviewState.Pending
+		]);
+	});
+
+	it('lists, rejects, and imports cached native Bluesky source review records', async () => {
+		const checks: any[] = [];
+		const imports: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const reviewModel = getBlueskySourcePostReviewModel();
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						assert.deepEqual(client.messages.list.map(m => m.id), ['at://did:plc:alice/app.bsky.feed.post/newer']);
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 50}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async (userId, permission) => {
+				checks.push({userId, permission});
+			}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel,
+				BlueskySourcePostReview: reviewModel
+			},
+			fetch: async () => ({
+				ok: true,
+				json: async () => getTwoPostAuthorFeedFixture()
+			})
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social',
+			moderationMode: 'review-first',
+			groupName: 'alice-review'
+		});
+
+		await module.refreshSourceSubscription(7, subscription.id);
+		const reviewQueue = await module.getSourceReviews(7, subscription.id, {
+			state: BlueskySourcePostReviewState.Pending
+		}, {
+			limit: 10
+		});
+		const rejected = await module.updateSourceReviewState(7, subscription.id, reviewQueue.list[1].id!, {
+			state: BlueskySourcePostReviewState.Rejected
+		});
+		const imported = await module.importSourceReviewPost(7, subscription.id, reviewQueue.list[0].id!, {force: true});
+		const defaultQueue = await module.getSourceReviews(7, subscription.id);
+
+		assert.equal(reviewQueue.total, 2);
+		assert.deepEqual(reviewQueue.list.map(item => item.preview?.text), ['Newer post', 'Older post']);
+		assert.equal(rejected.state, BlueskySourcePostReviewState.Rejected);
+		assert.equal(rejected.reviewedByUserId, 7);
+		assert.equal(imported.imported, 1);
+		assert.equal(imported.review.state, BlueskySourcePostReviewState.Imported);
+		assert.equal(imported.review.importedAt instanceof Date, true);
+		assert.equal(imported.source.dbChannelId, 9);
+		assert.equal(imports[0].method, 'importChannelMetadata');
+		assert.equal(imports[0].args[4].name, 'alice-review');
+		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.equal(defaultQueue.total, 0);
+		assert.deepEqual(checks, [
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement}
+		]);
 	});
 
 	it('syncs imported native Bluesky source posts against current ATProto records', async () => {
@@ -966,6 +1049,10 @@ describe('bluesky module', () => {
 				moduleCalls.push({method: 'getSourceFeed', userId, sourceId, filters, listParams});
 				return {source: {id: Number(sourceId)}, dbChannel: {id: 9}, posts: {list: [{id: 44}], total: null}};
 			},
+			getSourceReviews: async (userId, sourceId, filters, listParams) => {
+				moduleCalls.push({method: 'getSourceReviews', userId, sourceId, filters, listParams});
+				return {source: {id: Number(sourceId)}, list: [{id: 6, state: 'pending'}], total: 1};
+			},
 			subscribeSource: async (userId, input) => {
 				moduleCalls.push({method: 'subscribeSource', userId, input});
 				return {id: 5, actor: input.actor};
@@ -989,6 +1076,14 @@ describe('bluesky module', () => {
 			syncSourceSubscriptionPosts: async (userId, sourceId, input) => {
 				moduleCalls.push({method: 'syncSourceSubscriptionPosts', userId, sourceId, input});
 				return {source: {id: Number(sourceId)}, checked: 1, updated: 0, deleted: 1};
+			},
+			updateSourceReviewState: async (userId, sourceId, reviewId, input) => {
+				moduleCalls.push({method: 'updateSourceReviewState', userId, sourceId, reviewId, input});
+				return {id: Number(reviewId), state: input.state};
+			},
+			importSourceReviewPost: async (userId, sourceId, reviewId, input) => {
+				moduleCalls.push({method: 'importSourceReviewPost', userId, sourceId, reviewId, input});
+				return {source: {id: Number(sourceId)}, review: {id: Number(reviewId), state: 'imported'}, imported: 1};
 			}
 		};
 
@@ -1002,6 +1097,11 @@ describe('bluesky module', () => {
 			user: {id: 7},
 			params: {sourceId: '4'},
 			query: {limit: '2', cursorId: '44'}
+		});
+		const reviewsResponse = await callRoute(routes, 'AUTH GET admin/bluesky/sources/:sourceId/reviews', {
+			user: {id: 7},
+			params: {sourceId: '4'},
+			query: {state: 'pending', limit: '2'}
 		});
 		const subscribeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources', {
 			user: {id: 7},
@@ -1028,6 +1128,16 @@ describe('bluesky module', () => {
 			params: {sourceId: '5'},
 			body: {limit: 2}
 		});
+		const reviewStateResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/reviews/:reviewId/state', {
+			user: {id: 7},
+			params: {sourceId: '5', reviewId: '6'},
+			body: {state: 'rejected'}
+		});
+		const reviewImportResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/reviews/:reviewId/import', {
+			user: {id: 7},
+			params: {sourceId: '5', reviewId: '6'},
+			body: {force: true}
+		});
 		const removeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/remove', {
 			user: {id: 7},
 			params: {sourceId: '5'}
@@ -1036,12 +1146,16 @@ describe('bluesky module', () => {
 		assert.deepEqual(permissionChecks, [
 			{userId: 7, permission: CorePermissionName.AdminRead},
 			{userId: 7, permission: CorePermissionName.AdminRead},
+			{userId: 7, permission: CorePermissionName.AdminRead},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.AdminAll}
@@ -1049,20 +1163,26 @@ describe('bluesky module', () => {
 		assert.deepEqual(moduleCalls, [
 			{method: 'getSourceSubscriptions', userId: 7, filters: {status: 'active', limit: '5'}, listParams: {status: 'active', limit: '5'}},
 			{method: 'getSourceFeed', userId: 7, sourceId: '4', filters: {limit: '2', cursorId: '44'}, listParams: {limit: '2', cursorId: '44'}},
+			{method: 'getSourceReviews', userId: 7, sourceId: '4', filters: {state: 'pending', limit: '2'}, listParams: {state: 'pending', limit: '2'}},
 			{method: 'subscribeSource', userId: 7, input: {actor: 'bsky.app'}},
 			{method: 'updateSourceSubscription', userId: 7, sourceId: '5', input: {status: 'paused'}},
 			{method: 'refreshSourceSubscription', userId: 7, sourceId: '5', input: {limit: 1}},
 			{method: 'queueSourceSubscriptionRefresh', userId: 7, sourceId: '5', userApiKeyId: 12, input: {limit: 1, process: false}},
 			{method: 'syncSourceSubscriptionPosts', userId: 7, sourceId: '5', input: {limit: 2}},
+			{method: 'updateSourceReviewState', userId: 7, sourceId: '5', reviewId: '6', input: {state: 'rejected'}},
+			{method: 'importSourceReviewPost', userId: 7, sourceId: '5', reviewId: '6', input: {force: true}},
 			{method: 'removeSourceSubscription', userId: 7, sourceId: '5'}
 		]);
 		assert.deepEqual(listResponse.body, {list: [{id: 4, actor: 'bsky.app'}], total: 1});
 		assert.deepEqual(feedResponse.body, {source: {id: 4}, dbChannel: {id: 9}, posts: {list: [{id: 44}], total: null}});
+		assert.deepEqual(reviewsResponse.body, {source: {id: 4}, list: [{id: 6, state: 'pending'}], total: 1});
 		assert.deepEqual(subscribeResponse.body, {id: 5, actor: 'bsky.app'});
 		assert.deepEqual(updateResponse.body, {id: 5, status: 'paused'});
 		assert.deepEqual(refreshResponse.body, {source: {id: 5}, fetched: 1, imported: 1});
 		assert.deepEqual(refreshQueueResponse.body, {id: 44, module: 'bluesky-source-refresh', userApiKeyId: 12, isWaiting: true});
 		assert.deepEqual(syncResponse.body, {source: {id: 5}, checked: 1, updated: 0, deleted: 1});
+		assert.deepEqual(reviewStateResponse.body, {id: 6, state: 'rejected'});
+		assert.deepEqual(reviewImportResponse.body, {source: {id: 5}, review: {id: 6, state: 'imported'}, imported: 1});
 		assert.deepEqual(removeResponse.body, {id: 5, status: BlueskySourceSubscriptionStatus.Removed});
 	});
 });
@@ -1252,6 +1372,91 @@ function getBlueskySourceSubscriptionModel() {
 				.slice(0, options.limit || rows.length);
 		}
 	};
+}
+
+class FakeBlueskySourcePostReview {
+	id: number;
+	userId: number;
+	sourceSubscriptionId: number;
+	actor: string;
+	uri: string;
+	cid: string | null;
+	sourceChannelId: string;
+	state: string;
+	moderationAction: string;
+	moderationDecisionJson: string | null;
+	projectionJson: string;
+	publishedAt: Date | null;
+	importedAt: Date | null;
+	reviewedAt: Date | null;
+	reviewedByUserId: number | null;
+	lastError: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+
+	constructor(id: number, data: any) {
+		Object.assign(this, {
+			cid: null,
+			state: BlueskySourcePostReviewState.Pending,
+			importedAt: null,
+			reviewedAt: null,
+			reviewedByUserId: null,
+			lastError: null,
+			createdAt: new Date('2026-07-04T08:00:00.000Z'),
+			updatedAt: new Date('2026-07-04T08:00:00.000Z'),
+			...data,
+			id
+		});
+	}
+
+	async update(data: any) {
+		Object.assign(this, data);
+		this.updatedAt = new Date('2026-07-04T08:01:00.000Z');
+		return this;
+	}
+}
+
+function getBlueskySourcePostReviewModel() {
+	const rows: FakeBlueskySourcePostReview[] = [];
+	return {
+		rows,
+		async create(data) {
+			if (rows.some(row => row.sourceSubscriptionId === data.sourceSubscriptionId && row.uri === data.uri)) {
+				throw {name: 'SequelizeUniqueConstraintError'};
+			}
+			const row = new FakeBlueskySourcePostReview(rows.length + 1, data);
+			rows.push(row);
+			return row;
+		},
+		async findOne(options) {
+			return rows.find(row => matchesBlueskySourceReviewWhere(row, options.where)) || null;
+		},
+		async findAndCountAll(options) {
+			const matchingRows = rows
+				.filter(row => matchesBlueskySourceReviewWhere(row, options.where))
+				.sort((a, b) => compareBlueskySourceSubscriptionRows(a, b, options.order));
+			const offset = options.offset || 0;
+			const limit = options.limit || matchingRows.length;
+			return {
+				rows: matchingRows.slice(offset, offset + limit),
+				count: matchingRows.length
+			};
+		}
+	};
+}
+
+function matchesBlueskySourceReviewWhere(row: FakeBlueskySourcePostReview, where: any): boolean {
+	return Object.keys(where || {}).every((key) => {
+		const condition = where[key];
+		const rowValue = row[key];
+		if (key === 'id' || key === 'userId' || key === 'sourceSubscriptionId') {
+			return Number(rowValue) === Number(condition);
+		}
+		if (isNotInCondition(condition)) {
+			return !getNotInConditionValues(condition).includes(rowValue);
+		}
+		return rowValue === condition;
+	});
 }
 
 function matchesBlueskySourceSubscriptionWhere(row: FakeBlueskySourceSubscription, where: any): boolean {
