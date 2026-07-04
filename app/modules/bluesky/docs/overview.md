@@ -11,6 +11,8 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - One-page public feed import through the shared `socNetImport` pipeline.
 - Per-user source subscriptions with actor, filter, display name, local group name, account ID, import limit, moderation mode/rules, cursor, and error state.
 - Manual refresh, queued refresh, due-subscription polling, and source-feed reads over already-imported GeeSome posts through the linked social-import channel.
+- Persistent source-post review records for fetched ATProto posts that were held by review-first mode or moderation filters.
+- Admin review APIs to list cached review records, reject/block/quarantine/reset them, and import pending/quarantined records into the linked local channel.
 - Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
 - Optional refresh worker and poller cron services.
@@ -23,14 +25,14 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - The optional worker processes queued refreshes; the optional poller only queues stale active subscriptions and can also process when the worker is enabled.
 - Imported posts must go through `socNetImport` and preserve Bluesky AT URI source identity.
 - Source refreshes and syncs apply `remoteContentModeration` decisions first. `autoImport` allows posts unless a rule blocks/quarantines/reviews them; `reviewFirst` keeps fetched posts out of visible GeeSome posts until a review/import state exists.
-- Source refreshes do not advance the stored cursor when a fetched page contains review/quarantine decisions, because native Bluesky review/import state is not persisted yet.
+- Source refreshes cache review/quarantine/block decisions before advancing the stored cursor, so later admin import can use the stored projection instead of re-fetching the page.
 
 ## Boundaries
 
 - Bluesky is ATProto, not ActivityPub. Bridge-backed ActivityPub sources belong to `activityPub`.
 - Public feed reads do not require stored credentials; credentialed account ownership and cross-posting need explicit `socNetAccount` handling.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
-- The current review-first path is a safety gate, not a full native Bluesky review queue. A future slice should persist review/import state for skipped native records before exposing a moderation UI.
+- The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
 - Credentialed cross-post semantics remain follow-up work.
 

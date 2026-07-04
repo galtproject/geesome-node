@@ -15,6 +15,14 @@ export enum BlueskySourceSubscriptionStatus {
 	Removed = 'removed'
 }
 
+export enum BlueskySourcePostReviewState {
+	Pending = 'pending',
+	Quarantined = 'quarantined',
+	Blocked = 'blocked',
+	Rejected = 'rejected',
+	Imported = 'imported'
+}
+
 export interface IBlueskyPublicAuthorFeedPreviewInput {
 	actor?: string;
 	filter?: string;
@@ -107,6 +115,58 @@ export interface IBlueskySourceSubscriptionListResponse {
 export interface IBlueskySourceFeedFilters {
 	cursorPublishedAt?: string | Date;
 	cursorId?: number | string;
+}
+
+export interface IBlueskySourceReviewFilters {
+	state?: BlueskySourcePostReviewState | string;
+}
+
+export interface IBlueskySourceReviewUpdateInput {
+	state?: BlueskySourcePostReviewState | string;
+}
+
+export interface IBlueskySourceReviewImportInput {
+	force?: boolean | string;
+}
+
+export interface IBlueskySourceReviewReport {
+	id?: number;
+	userId: number;
+	sourceSubscriptionId: number;
+	actor: string;
+	uri: string;
+	cid?: string | null;
+	sourceChannelId: string;
+	state: BlueskySourcePostReviewState;
+	moderationAction: string;
+	moderationDecision?: any;
+	preview?: any;
+	publishedAt?: Date | null;
+	importedAt?: Date | null;
+	reviewedAt?: Date | null;
+	reviewedByUserId?: number | null;
+	lastError?: string | null;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface IBlueskySourceReviewListResponse {
+	source: IBlueskySourceSubscriptionReport;
+	list: IBlueskySourceReviewReport[];
+	total: number;
+}
+
+export interface IBlueskySourceReviewImportResult {
+	source: IBlueskySourceSubscriptionReport;
+	review: IBlueskySourceReviewReport;
+	dbChannel: {
+		id;
+		groupId;
+		channelId;
+		title;
+		socNet;
+	} | null;
+	imported: number;
 }
 
 export interface IBlueskySourceFeedResponse {
@@ -207,10 +267,13 @@ export default interface IGeesomeBlueskyModule {
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	getSourceSubscriptions(userId: number, filters?: IBlueskySourceSubscriptionFilters, listParams?: IListParams): Promise<IBlueskySourceSubscriptionListResponse>;
 	getSourceFeed(userId: number, sourceId: number | string, filters?: IBlueskySourceFeedFilters, listParams?: IListParams): Promise<IBlueskySourceFeedResponse>;
+	getSourceReviews(userId: number, sourceId: number | string, filters?: IBlueskySourceReviewFilters, listParams?: IListParams): Promise<IBlueskySourceReviewListResponse>;
 	subscribeSource(userId: number, input?: IBlueskySourceSubscriptionInput): Promise<IBlueskySourceSubscriptionReport>;
 	updateSourceSubscription(userId: number, sourceId: number | string, input?: IBlueskySourceSubscriptionUpdateInput): Promise<IBlueskySourceSubscriptionReport>;
 	removeSourceSubscription(userId: number, sourceId: number | string): Promise<IBlueskySourceSubscriptionReport>;
 	refreshSourceSubscription(userId: number, sourceId: number | string, input?: IBlueskySourceRefreshInput): Promise<IBlueskySourceRefreshResult>;
+	updateSourceReviewState(userId: number, sourceId: number | string, reviewId: number | string, input?: IBlueskySourceReviewUpdateInput): Promise<IBlueskySourceReviewReport>;
+	importSourceReviewPost(userId: number, sourceId: number | string, reviewId: number | string, input?: IBlueskySourceReviewImportInput): Promise<IBlueskySourceReviewImportResult>;
 	queueSourceSubscriptionRefresh(userId: number, sourceId: number | string, userApiKeyId?: number | null, input?: IBlueskySourceRefreshQueueInput): Promise<IUserOperationQueue>;
 	processSourceSubscriptionRefreshQueue(options?: IBlueskySourceRefreshQueueProcessOptions): Promise<IBlueskySourceRefreshQueueProcessResult>;
 	queueDueSourceSubscriptionRefreshes(options?: IBlueskySourceRefreshPollOptions): Promise<IBlueskySourceRefreshPollResult>;

@@ -31,6 +31,7 @@ This is a helper area, not a bootstrapped runtime module. Protocol modules such 
 ## Current Integrations
 
 - `bluesky` source refreshes apply the stored subscription policy before importing projected ATProto posts through `socNetImport`.
+- `bluesky` source refreshes persist review/quarantine/block decisions as source review records before advancing the source cursor.
 - `bluesky` source sync applies the same policy before keeping or updating already imported posts visible.
 
 ## Related Docs
