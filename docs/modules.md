@@ -77,6 +77,5 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 3. Integration overviews are in place for `telegramClient`, `twitterClient`, `tgContentBot`, `remoteGroup`, and `communicator`.
 4. API/security/identity overviews are in place for `api`, `invite`, `foreignAccounts`, `ethereumAuthorization`, `socNetAccount`, `accountStorage`, and `staticId`.
 5. Utility/feed overviews are in place for `drivers`, `gateway`, `groupCategory`, and `rss`.
-6. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
-- `accountStorage`: [overview](../app/modules/accountStorage/docs/overview.md)
-- `api`: [overview](../app/modules/api/docs/overview.md)
+6. TODO: Review every module with subagents against its inventory row and overview doc, checking code ownership, public API, models/storage, background jobs, user-facing behavior, and integration boundaries for anything misleading or missing; update the short descriptions and module docs from those findings.
+7. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
