@@ -16,8 +16,9 @@ The goal is to keep protocol machinery out of ordinary publishing. Admins manage
 
 1. Admin configures the node public federation identity:
    - `ACTIVITYPUB_ENABLED=1`
-   - `ACTIVITYPUB_PUBLIC_URL=https://node.example` for an explicit public origin; if omitted, config falls back to `https://ACTIVITYPUB_DOMAIN`
-   - `ACTIVITYPUB_DOMAIN=node.example` for actor/domain identity and the public URL fallback
+   - `DOMAIN=node.example` for the GeeSome node public host and public URL fallback
+   - optional `ACTIVITYPUB_PUBLIC_URL=https://node.example` when ActivityPub should use an explicit public origin instead of `https://DOMAIN`
+   - optional `ACTIVITYPUB_DOMAIN=node.example` when ActivityPub actor/domain identity should be declared separately
 2. Admin enables only the workers the node is ready to run:
    - delivery worker for outbound ActivityPub sends;
    - ActivityPub source refresh worker/poller for remote ActivityPub source feeds;
@@ -175,7 +176,7 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
    - posts in non-public groups;
    - posts with non-image attachments or additional content that would be silently dropped;
    - posts with unsupported images or too many images for Bluesky.
-5. GeeSome uploads supported images first through `com.atproto.repo.uploadBlob`; if image upload fails and the node has `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or `ACTIVITYPUB_DOMAIN`, GeeSome appends the public image URL as a link fallback and uses an external card when no image embeds succeeded.
+5. GeeSome uploads supported images first through `com.atproto.repo.uploadBlob`; if image upload fails and the node has `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or `DOMAIN`, GeeSome appends the public image URL as a link fallback and uses an external card when no image embeds succeeded.
 6. GeeSome creates a native `app.bsky.feed.post` record through `com.atproto.repo.createRecord`.
 7. GeeSome stores the returned Bluesky URI/CID under the local post's `propertiesJson.bluesky.crossPosts[did]` entry so repeating the request for the same account can return the existing remote record instead of duplicating the post.
 8. Remaining media/link policy work:

@@ -1080,7 +1080,7 @@ function getBlueskyCrossPostPublicUrl(app: IGeesomeApp): string | null {
 	if (explicitPublicUrl) {
 		return normalizeBlueskyCrossPostPublicUrl(explicitPublicUrl);
 	}
-	return getBlueskyCrossPostDomainPublicUrl(app.config?.activityPubConfig?.domain);
+	return getBlueskyCrossPostDomainPublicUrl(app.config?.domain);
 }
 
 function getBlueskyCrossPostDomainPublicUrl(value: any): string | null {

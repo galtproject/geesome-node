@@ -705,14 +705,12 @@ describe('bluesky module', () => {
 		});
 	});
 
-	it('uses ActivityPub domain as the public image link fallback', async () => {
+	it('uses GeeSome node domain as the public image link fallback', async () => {
 		let post = getCrossPostPostFixture();
 		const calls: any[] = [];
 		const module = getBlueskyModule({
 			config: {
-				activityPubConfig: {
-					domain: '@node.example/'
-				}
+				domain: '@node.example/'
 			},
 			ms: {
 				socNetAccount: getSocNetAccountModule([{
