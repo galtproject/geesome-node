@@ -16,7 +16,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
 - User-scoped Bluesky account login/verification through ATProto `com.atproto.server.createSession` and profile reads, storing only the selected local `socNetAccount` credential material and returning secret-free account reports.
-- User-scoped text/rich-text plus supported-image cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion and per-account URI/CID idempotency stored in post `propertiesJson`.
+- User-scoped text/rich-text, supported-image, storage-backed attachment link, and safe JSON link-preview cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion and per-account URI/CID idempotency stored in post `propertiesJson`.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries
@@ -36,7 +36,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Account verification proves the authenticated DID matches the stored account identity, tolerating handle changes once a DID is known.
 - Cross-posting currently supports text/rich-text facets plus up to four supported image media/attachments. Images are normalized before upload, sent as ATProto blobs, and attached as `app.bsky.embed.images` with alt text and aspect ratio where possible.
 - If image blob upload fails and a public node URL is configured through `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or the GeeSome node `DOMAIN` fallback, cross-posting adds the public image URL as a link fallback and uses an `app.bsky.embed.external` card when no image embed succeeded. Without a public URL/domain, upload failure still fails the cross-post instead of creating contextless text.
-- Storage-backed non-image media/attachments are now cross-posted as explicit public link facets and can use an `app.bsky.embed.external` card when there is exactly one fallback link and no image embed. Attachments without a public URL and JSON link-preview records are still rejected instead of being silently dropped.
+- Storage-backed non-image media/attachments and JSON link-preview records with safe `http(s)` URLs are cross-posted as explicit public link facets and can use an `app.bsky.embed.external` card when there is exactly one fallback link and no image embed. Attachments without a public URL and unsafe or unsupported link-preview URLs are rejected instead of being silently dropped.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
