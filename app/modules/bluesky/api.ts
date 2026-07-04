@@ -81,6 +81,36 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/bluesky/posts/:postId/update-cross-post Update stored Bluesky cross-post
+	 * @apiName UserBlueskyUpdateCrossPost
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Rebuilds the authenticated account's stored native ATProto `app.bsky.feed.post` record for one GeeSome post and replaces it in place through `com.atproto.repo.putRecord`. The route requires an existing `propertiesJson.bluesky.crossPosts` metadata entry for the authenticated DID, verifies the stored URI belongs to that DID and the feed-post collection, reuses the stored rkey instead of creating a duplicate post, and sends the stored CID as `swapRecord` so remote changes are not overwritten silently. The same public/local post, rich-text, media, attachment, and link-preview safety gates as `cross-post` apply.
+	 * @apiParam {Number} postId Local GeeSome post id.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiBody {String[]} [langs] Optional ATProto language tags, capped by Bluesky helper validation.
+	 * @apiBody {Date} [createdAt] Optional ATProto record creation time; defaults to now.
+	 * @apiSuccess {Object} account Secret-free local account summary.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 * @apiSuccess {Object} post Local post summary.
+	 * @apiSuccess {Object} record Bluesky `uri` and new `cid` returned by `com.atproto.repo.putRecord`.
+	 * @apiSuccess {Object} previousRecord Previous stored Bluesky `uri` and `cid` used for the update.
+	 * @apiSuccess {Boolean} updated Whether the remote record was updated.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/posts/:postId/update-cross-post', async (req, res) => {
+		return res.send(await blueskyModule.updateCrossPostPost(req.user.id, req.params.postId, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/soc-net/bluesky/posts/:postId/delete-cross-post Delete stored Bluesky cross-post
 	 * @apiName UserBlueskyDeleteCrossPost
 	 * @apiGroup UserBluesky
