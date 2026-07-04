@@ -11,6 +11,13 @@ export interface IActivityPubConfig {
 	deliveryWorkerIntervalMs?: number | string;
 	deliveryWorkerLimit?: number | string;
 	deliveryClaimTtlMs?: number | string;
+	sourceRefreshWorker?: boolean | string;
+	sourceRefreshWorkerIntervalMs?: number | string;
+	sourceRefreshWorkerLimit?: number | string;
+	sourceRefreshPoller?: boolean | string;
+	sourceRefreshPollerIntervalMs?: number | string;
+	sourceRefreshPollerLimit?: number | string;
+	sourceRefreshPollerStaleMs?: number | string;
 }
 
 export interface IResolvedActivityPubConfig {
@@ -165,6 +172,12 @@ export enum ActivityPubObjectReviewState {
 	Pending = 'pending',
 	Accepted = 'accepted',
 	Rejected = 'rejected'
+}
+
+export enum ActivityPubSourceSubscriptionStatus {
+	Active = 'active',
+	Paused = 'paused',
+	Removed = 'removed'
 }
 
 export interface IActivityPubFollow {
@@ -337,6 +350,124 @@ export interface IActivityPubRemoteObjectFilters {
 export interface IActivityPubRemoteObjectListResponse {
 	list: IActivityPubRemoteObjectReport[];
 	total: number;
+}
+
+export interface IActivityPubSourceResolveInput {
+	actorUrl?: string;
+	resource?: string;
+	handle?: string;
+	bridgeProvider?: string;
+	preset?: string;
+}
+
+export interface IActivityPubSourceResolveResult {
+	sourceResource?: string;
+	sourceActorUrl: string;
+	bridgeProvider?: string;
+	remoteActor?: IActivityPubRemoteActorReport;
+}
+
+export interface IActivityPubSourceSubscriptionInput extends IActivityPubSourceResolveInput {
+	displayName?: string;
+}
+
+export interface IActivityPubSourceSubscriptionUpdateInput {
+	displayName?: string;
+	status?: ActivityPubSourceSubscriptionStatus | string;
+}
+
+export interface IActivityPubSourceSubscriptionFilters {
+	status?: ActivityPubSourceSubscriptionStatus | string;
+	remoteActorId?: number | string;
+}
+
+export interface IActivityPubSourceSubscriptionReport {
+	id?: number;
+	userId: number;
+	remoteActorId: number;
+	remoteActor?: IActivityPubRemoteActorReport;
+	sourceResource?: string;
+	sourceActorUrl: string;
+	bridgeProvider?: string;
+	displayName?: string;
+	status: ActivityPubSourceSubscriptionStatus;
+	lastReadAt?: Date;
+	lastRefreshRequestedAt?: Date;
+	lastError?: string;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface IActivityPubSourceSubscriptionListResponse {
+	list: IActivityPubSourceSubscriptionReport[];
+	total: number;
+}
+
+export interface IActivityPubSourceFeedFilters extends IActivityPubRemoteObjectFilters {
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+}
+
+export interface IActivityPubSourceFeedItem extends IActivityPubRemoteObjectReport {
+	sourceSubscriptionId?: number;
+	isUnread?: boolean;
+}
+
+export interface IActivityPubSourceFeedResponse {
+	source: IActivityPubSourceSubscriptionReport;
+	list: IActivityPubSourceFeedItem[];
+	total: number | null;
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
+export interface IActivityPubSourceRefreshInput {
+	limit?: number | string;
+	includeFeatured?: boolean | string;
+	includeOutbox?: boolean | string;
+}
+
+export interface IActivityPubSourceRefreshResult {
+	source: IActivityPubSourceSubscriptionReport;
+	fetched: number;
+	cached: number;
+	skipped: number;
+	errors: string[];
+}
+
+export interface IActivityPubSourceRefreshQueueInput extends IActivityPubSourceRefreshInput {
+	process?: boolean | string;
+}
+
+export interface IActivityPubSourceRefreshQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubSourceRefreshQueueProcessResult {
+	processed: number;
+}
+
+export interface IActivityPubSourceRefreshPollOptions {
+	limit?: number | string;
+	staleMs?: number | string;
+	now?: Date | string;
+	refreshInput?: IActivityPubSourceRefreshInput;
+}
+
+export interface IActivityPubSourceRefreshPollResult {
+	queued: number;
+}
+
+export interface IActivityPubSourceReadInput {
+	readAt?: Date | string;
+}
+
+export interface IActivityPubSourceFollowInput {
+	groupName?: string;
+}
+
+export interface IActivityPubSourceFollowResult {
+	source: IActivityPubSourceSubscriptionReport;
+	follow: IActivityPubOutboundFollowResult;
 }
 
 export interface IActivityPubRemoteObjectPostDraftSource {
@@ -557,6 +688,10 @@ export type IActivityPubRemoteActorKeyResolver = (input: {
 
 export type IActivityPubRemoteActorFetcher = (actorUrl: string) => Promise<any>;
 
+export type IActivityPubWebFingerFetcher = (resource: string, domain: string) => Promise<IActivityPubWebFingerResponse>;
+
+export type IActivityPubSourceJsonFetcher = (url: string) => Promise<any>;
+
 export type IActivityPubActorObject = Record<string, any>;
 
 export type IActivityPubNoteObject = Record<string, any>;
@@ -593,6 +728,30 @@ export default interface IGeesomeActivityPubModule {
 	getGroupPostNote(groupName: string, localId: number | string): Promise<IActivityPubNoteObject>;
 
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
+
+	resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult>;
+
+	getActivityPubSourceSubscriptions(userId: number, filters?: IActivityPubSourceSubscriptionFilters, listParams?: IListParams): Promise<IActivityPubSourceSubscriptionListResponse>;
+
+	subscribeActivityPubSource(userId: number, input: IActivityPubSourceSubscriptionInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	updateActivityPubSourceSubscription(userId: number, sourceId: number | string, input: IActivityPubSourceSubscriptionUpdateInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	removeActivityPubSourceSubscription(userId: number, sourceId: number | string): Promise<IActivityPubSourceSubscriptionReport>;
+
+	getActivityPubSourceFeed(userId: number, sourceId: number | string, filters?: IActivityPubSourceFeedFilters, listParams?: IListParams): Promise<IActivityPubSourceFeedResponse>;
+
+	refreshActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceRefreshInput): Promise<IActivityPubSourceRefreshResult>;
+
+	queueActivityPubSourceRefresh(userId: number, sourceId: number | string, userApiKeyId?: number | null, input?: IActivityPubSourceRefreshQueueInput): Promise<IUserOperationQueue>;
+
+	processActivityPubSourceRefreshQueue(options?: IActivityPubSourceRefreshQueueProcessOptions): Promise<IActivityPubSourceRefreshQueueProcessResult>;
+
+	queueDueActivityPubSourceRefreshes(options?: IActivityPubSourceRefreshPollOptions): Promise<IActivityPubSourceRefreshPollResult>;
+
+	markActivityPubSourceRead(userId: number, sourceId: number | string, input?: IActivityPubSourceReadInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	followActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceFollowInput, options?: IActivityPubOutboundFollowOptions): Promise<IActivityPubSourceFollowResult>;
 
 	getGroupRemoteObjects(groupName: string, filters?: IActivityPubRemoteObjectFilters, listParams?: IListParams): Promise<IActivityPubRemoteObjectListResponse>;
 

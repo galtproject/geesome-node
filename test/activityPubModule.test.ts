@@ -5,7 +5,16 @@ import {Op} from 'sequelize';
 import activityPubModule from '../app/modules/activityPub/index.js';
 import registerActivityPubApi from '../app/modules/activityPub/api.js';
 import {generateActivityPubRsaKeyPair, getActivityPubContentDigestHeader, signActivityPubRequestWithKey} from '../app/modules/activityPub/signatureHelpers.js';
-import {ActivityPubDeliveryState, ActivityPubFlagState, ActivityPubFollowDirection, ActivityPubFollowState, ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
+import {
+	ActivityPubDeliveryState,
+	ActivityPubFlagState,
+	ActivityPubFollowDirection,
+	ActivityPubFollowState,
+	ActivityPubObjectOrigin,
+	ActivityPubObjectReviewState,
+	ActivityPubObjectVisibility,
+	ActivityPubSourceSubscriptionStatus
+} from '../app/modules/activityPub/interface.js';
 import {ContentMimeType, ContentView} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {RICH_TEXT_MIME_TYPE} from '../app/richText.js';
@@ -255,6 +264,430 @@ describe('activityPub module', () => {
 		assert.equal(remoteActor.inboxUrl, 'https://remote.example/users/alice/inbox');
 		assert.equal(remoteActor.sharedInboxUrl, 'https://remote.example/inbox');
 		assert.equal(JSON.parse(remoteActor.rawJson).id, remoteActorKey.actorUrl);
+	});
+
+	it('subscribes to ActivityPub sources and returns cached source feed', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchCalls: string[] = [];
+		const webFingerCalls: any[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchActivityPubWebFinger: async (resource, domain) => {
+				webFingerCalls.push({resource, domain});
+				return {
+					subject: resource,
+					aliases: [remoteActorKey.actorUrl],
+					links: [
+						{
+							rel: 'self',
+							type: 'application/activity+json',
+							href: remoteActorKey.actorUrl
+						}
+					]
+				};
+			},
+			fetchRemoteActor: async (actorUrl) => {
+				fetchCalls.push(actorUrl);
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+		const resolved = await module.resolveActivityPubSource({
+			handle: 'bsky.app',
+			bridgeProvider: 'bridgy-bluesky'
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			resource: 'acct:bsky.app@bsky.brid.gy',
+			displayName: 'Bluesky'
+		});
+		const updatedSubscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			displayName: 'Bluesky official'
+		});
+		const remoteObject = await models.ActivityPubObject.create({
+			localActorId: null,
+			localPostId: null,
+			remoteActorId: models.ActivityPubRemoteActor.rows[0].id,
+			remoteObjectUrl: 'https://remote.example/objects/source-1',
+			activityId: 'https://remote.example/activities/source-1',
+			objectId: 'https://remote.example/objects/source-1',
+			objectType: 'Note',
+			origin: ActivityPubObjectOrigin.Remote,
+			visibility: ActivityPubObjectVisibility.Public,
+			publishedAt: new Date('2026-06-01T12:05:00Z'),
+			createdAt: new Date('2026-06-01T12:05:01Z'),
+			rawJson: JSON.stringify({
+				id: 'https://remote.example/objects/source-1',
+				type: 'Note',
+				attributedTo: remoteActorKey.actorUrl,
+				content: '<p>Hello <strong>source</strong><script>alert(1)</script></p>',
+				published: '2026-06-01T12:05:00Z'
+			})
+		});
+		await models.ActivityPubObjectReview.create({
+			activityPubObjectId: remoteObject.id,
+			state: ActivityPubObjectReviewState.Accepted,
+			reviewedAt: new Date('2026-06-01T12:06:00Z'),
+			reviewedByUserId: 7
+		});
+
+		const feed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const readSubscription = await module.markActivityPubSourceRead(7, subscription.id, {
+			readAt: '2026-06-01T12:10:00Z'
+		});
+		const readFeed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const pausedSubscription = await module.updateActivityPubSourceSubscription(7, subscription.id, {
+			status: ActivityPubSourceSubscriptionStatus.Paused,
+			displayName: ''
+		});
+		await assert.rejects(() => module.updateActivityPubSourceSubscription(7, subscription.id, {
+			status: ActivityPubSourceSubscriptionStatus.Removed
+		}), /activitypub_source_subscription_status_invalid/);
+		await assert.rejects(() => module.markActivityPubSourceRead(7, subscription.id, {
+			readAt: 'invalid-date'
+		}), /activitypub_source_read_at_invalid/);
+		const removedSubscription = await module.removeActivityPubSourceSubscription(7, subscription.id);
+		const activeSubscriptions = await module.getActivityPubSourceSubscriptions(7);
+		const removedSubscriptions = await module.getActivityPubSourceSubscriptions(7, {
+			status: ActivityPubSourceSubscriptionStatus.Removed
+		});
+
+		assert.deepEqual(webFingerCalls, [
+			{resource: 'acct:bsky.app@bsky.brid.gy', domain: 'bsky.brid.gy'},
+			{resource: 'acct:bsky.app@bsky.brid.gy', domain: 'bsky.brid.gy'}
+		]);
+		assert.deepEqual(fetchCalls, [remoteActorKey.actorUrl]);
+		assert.equal(resolved.sourceActorUrl, remoteActorKey.actorUrl);
+		assert.equal(resolved.sourceResource, 'acct:bsky.app@bsky.brid.gy');
+		assert.equal(resolved.bridgeProvider, 'bridgy-bluesky');
+		assert.equal(resolved.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(models.ActivityPubSourceSubscription.rows.length, 1);
+		assert.equal(subscription.sourceResource, 'acct:bsky.app@bsky.brid.gy');
+		assert.equal(subscription.displayName, 'Bluesky');
+		assert.equal(subscription.status, ActivityPubSourceSubscriptionStatus.Active);
+		assert.equal(updatedSubscription.id, subscription.id);
+		assert.equal(updatedSubscription.displayName, 'Bluesky official');
+		assert.equal(updatedSubscription.sourceResource, 'acct:bsky.app@bsky.brid.gy');
+		assert.equal(feed.source.id, subscription.id);
+		assert.equal(feed.source.remoteActor?.actorUrl, remoteActorKey.actorUrl);
+		assert.equal(feed.total, 1);
+		assert.equal(feed.list[0].sourceSubscriptionId, subscription.id);
+		assert.equal(feed.list[0].isUnread, true);
+		assert.equal(feed.list[0].reviewState, ActivityPubObjectReviewState.Accepted);
+		assert.equal(feed.list[0].preview?.contentText, 'Hello source');
+		assert.equal(readSubscription.lastReadAt?.toISOString(), '2026-06-01T12:10:00.000Z');
+		assert.equal(readFeed.list[0].isUnread, false);
+		assert.equal(pausedSubscription.status, ActivityPubSourceSubscriptionStatus.Paused);
+		assert.equal(pausedSubscription.displayName, undefined);
+		assert.equal(removedSubscription.status, ActivityPubSourceSubscriptionStatus.Removed);
+		assert.deepEqual(activeSubscriptions, {
+			list: [],
+			total: 0
+		});
+		assert.equal(removedSubscriptions.list.length, 1);
+	});
+
+	it('refreshes ActivityPub source collections into the cached feed', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchJsonCalls: string[] = [];
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			featured: 'https://remote.example/users/alice/collections/featured',
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const publicObject = {
+			id: 'https://remote.example/objects/featured-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Featured <strong>source</strong></p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const privateObject = {
+			id: 'https://remote.example/objects/private-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://remote.example/users/alice/followers',
+			content: 'Private source',
+			published: '2026-06-02T12:05:00Z'
+		};
+		const mismatchedObject = {
+			id: 'https://remote.example/objects/mismatch-1',
+			type: 'Note',
+			attributedTo: 'https://remote.example/users/bob',
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: 'Wrong actor',
+			published: '2026-06-02T12:10:00Z'
+		};
+		const outboxObject = {
+			id: 'https://remote.example/objects/outbox-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Outbox source</p>',
+			published: '2026-06-02T12:15:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			'https://remote.example/users/alice/collections/featured': {
+				type: 'OrderedCollection',
+				orderedItems: [publicObject, privateObject, mismatchedObject]
+			},
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				first: 'https://remote.example/users/alice/outbox?page=1'
+			},
+			'https://remote.example/users/alice/outbox?page=1': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [{
+					id: 'https://remote.example/activities/outbox-1',
+					type: 'Create',
+					actor: remoteActorKey.actorUrl,
+					to: 'https://www.w3.org/ns/activitystreams#Public',
+					object: outboxObject.id
+				}]
+			},
+			[outboxObject.id]: outboxObject
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => {
+				fetchJsonCalls.push(url);
+				return sourceJsonByUrl[url];
+			}
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			displayName: 'Alice source'
+		});
+
+		const refresh = await module.refreshActivityPubSource(7, subscription.id, {limit: 10});
+		const feed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const feedObjectIds = feed.list.map((item) => item.objectId).sort();
+
+		assert.deepEqual(fetchJsonCalls, [
+			'https://remote.example/users/alice/collections/featured',
+			'https://remote.example/users/alice/outbox',
+			'https://remote.example/users/alice/outbox?page=1',
+			'https://remote.example/objects/outbox-1'
+		]);
+		assert.equal(refresh.fetched, 4);
+		assert.equal(refresh.cached, 2);
+		assert.equal(refresh.skipped, 2);
+		assert.deepEqual(refresh.errors, []);
+		assert.equal(refresh.source.id, subscription.id);
+		assert.equal(refresh.source.lastRefreshRequestedAt instanceof Date, true);
+		assert.equal(refresh.source.lastError, undefined);
+		assert.deepEqual(feedObjectIds, [
+			'https://remote.example/objects/featured-1',
+			'https://remote.example/objects/outbox-1'
+		]);
+		assert.equal(feed.list.find((item) => item.objectId === publicObject.id)?.preview?.contentText, 'Featured source');
+		assert.equal(feed.list.find((item) => item.objectId === outboxObject.id)?.preview?.contentText, 'Outbox source');
+		assert.equal(models.ActivityPubObject.rows.every((row) => row.remoteActorId === models.ActivityPubRemoteActor.rows[0].id), true);
+	});
+
+	it('paginates ActivityPub source feeds with a stable cursor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => getRemoteActorDocument(remoteActorKey)
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+		await Promise.all([
+			createSourceFeedObject(models, 'oldest', '2026-06-01T12:00:00Z'),
+			createSourceFeedObject(models, 'same-time-first', '2026-06-01T12:05:00Z'),
+			createSourceFeedObject(models, 'same-time-second', '2026-06-01T12:05:00Z')
+		]);
+
+		const firstPage = await module.getActivityPubSourceFeed(7, subscription.id, {
+			cursorPublishedAt: new Date('2999-01-01T00:00:00.000Z'),
+			cursorId: '999999999'
+		}, {limit: 2});
+		const secondPage = await module.getActivityPubSourceFeed(7, subscription.id, {
+			cursorPublishedAt: firstPage.nextCursor?.publishedAt,
+			cursorId: firstPage.nextCursor?.id
+		}, {limit: 2});
+
+		assert.deepEqual(firstPage.list.map((item) => item.objectId), [
+			'https://remote.example/objects/same-time-second',
+			'https://remote.example/objects/same-time-first'
+		]);
+		assert.equal(firstPage.total, null);
+		assert.equal(firstPage.nextCursor?.publishedAt.toISOString(), '2026-06-01T12:05:00.000Z');
+		assert.equal(firstPage.nextCursor?.id, 2);
+		assert.deepEqual(secondPage.list.map((item) => item.objectId), [
+			'https://remote.example/objects/oldest'
+		]);
+		assert.equal(secondPage.nextCursor, null);
+	});
+
+	it('requests ActivityPub source follows through a local group actor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchCalls: string[] = [];
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async (actorUrl) => {
+				fetchCalls.push(actorUrl);
+				return getRemoteActorDocument(remoteActorKey);
+			}
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+
+		const result = await module.followActivityPubSource(7, subscription.id, {
+			groupName: 'test-channel'
+		}, {
+			now: '2026-06-01T12:00:00Z'
+		});
+		const follow = models.ActivityPubFollow.rows[0];
+		const delivery = models.ActivityPubDelivery.rows[0];
+		const deliveryBody = JSON.parse(delivery.bodyJson);
+
+		assert.deepEqual(fetchCalls, [remoteActorKey.actorUrl]);
+		assert.equal(result.source.id, subscription.id);
+		assert.equal(result.source.sourceActorUrl, remoteActorKey.actorUrl);
+		assert.equal(result.follow.ok, true);
+		assert.equal(result.follow.message, 'activitypub_follow_delivery_queued');
+		assert.equal(result.follow.localActorUrl, 'https://social.example/ap/groups/test-channel');
+		assert.equal(result.follow.remoteActorUrl, remoteActorKey.actorUrl);
+		assert.equal(result.follow.followId, follow.id);
+		assert.equal(result.follow.deliveryId, delivery.id);
+		assert.equal(follow.direction, ActivityPubFollowDirection.Outbound);
+		assert.equal(follow.state, ActivityPubFollowState.Pending);
+		assert.equal(delivery.activityType, 'Follow');
+		assert.equal(delivery.followId, follow.id);
+		assert.equal(deliveryBody.actor, 'https://social.example/ap/groups/test-channel');
+		assert.equal(deliveryBody.object, remoteActorKey.actorUrl);
+		await assert.rejects(() => module.followActivityPubSource(7, subscription.id, {}), /activitypub_source_follow_group_name_required/);
+	});
+
+	it('queues ActivityPub source refreshes through async operations', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const sourceObject = {
+			id: 'https://remote.example/objects/queued-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Queued source</p>',
+			published: '2026-06-01T12:20:00Z'
+		};
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			featured: 'https://remote.example/users/alice/collections/featured',
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const sourceJsonByUrl = {
+			'https://remote.example/users/alice/collections/featured': {
+				type: 'OrderedCollection',
+				orderedItems: [sourceObject]
+			}
+		};
+		const {module, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+		const subscription = await module.subscribeActivityPubSource(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+
+		const queue = await module.queueActivityPubSourceRefresh(7, subscription.id, 13, {
+			limit: 5,
+			includeOutbox: false,
+			process: false
+		});
+		const processResult = await module.processActivityPubSourceRefreshQueue({limit: 1});
+		const feed = await module.getActivityPubSourceFeed(7, subscription.id, {}, {limit: 10});
+		const output = JSON.parse(calls.asyncOperations[0].output);
+
+		assert.equal(queue.module, 'activitypub-source-refresh');
+		assert.equal(queue.userApiKeyId, 13);
+		assert.deepEqual(JSON.parse(queue.inputJson), {
+			type: 'source-refresh',
+			sourceId: subscription.id,
+			input: {
+				limit: 5,
+				includeOutbox: false
+			}
+		});
+		assert.deepEqual(processResult, {processed: 1});
+		assert.equal(queue.isWaiting, false);
+		assert.equal(calls.asyncOperations[0].name, 'refresh-activitypub-source');
+		assert.equal(calls.asyncOperations[0].channel, `activitypub-source-refresh:${subscription.id}`);
+		assert.equal(output.cached, 1);
+		assert.equal(output.source.id, subscription.id);
+		assert.equal(feed.list[0].objectId, sourceObject.id);
+	});
+
+	it('queues only due active ActivityPub source refreshes for polling', async () => {
+		const {module, calls, models} = await createActivityPubHarness();
+		await models.ActivityPubSourceSubscription.create({
+			userId: 7,
+			remoteActorId: 1,
+			sourceActorUrl: 'https://remote.example/users/never-refreshed',
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: null
+		});
+		await models.ActivityPubSourceSubscription.create({
+			userId: 8,
+			remoteActorId: 2,
+			sourceActorUrl: 'https://remote.example/users/stale',
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: new Date('2026-06-01T11:00:00Z')
+		});
+		await models.ActivityPubSourceSubscription.create({
+			userId: 9,
+			remoteActorId: 3,
+			sourceActorUrl: 'https://remote.example/users/recent',
+			status: ActivityPubSourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: new Date('2026-06-01T11:59:00Z')
+		});
+		await models.ActivityPubSourceSubscription.create({
+			userId: 10,
+			remoteActorId: 4,
+			sourceActorUrl: 'https://remote.example/users/paused',
+			status: ActivityPubSourceSubscriptionStatus.Paused,
+			lastRefreshRequestedAt: new Date('2026-06-01T10:00:00Z')
+		});
+
+		const result = await module.queueDueActivityPubSourceRefreshes({
+			limit: 10,
+			staleMs: 15 * 60 * 1000,
+			now: '2026-06-01T12:00:00Z',
+			refreshInput: {
+				limit: 5,
+				includeOutbox: false
+			}
+		});
+		await module.queueDueActivityPubSourceRefreshes({
+			limit: 10,
+			staleMs: 15 * 60 * 1000,
+			now: '2026-06-01T12:00:00Z',
+			refreshInput: {
+				limit: 5,
+				includeOutbox: false
+			}
+		});
+
+		assert.deepEqual(result, {queued: 2});
+		assert.equal(calls.asyncOperationQueues.length, 2);
+		assert.deepEqual(calls.asyncOperationQueues.map((queue) => queue.userId).sort(), [7, 8]);
+		assert.deepEqual(calls.asyncOperationQueues.map((queue) => JSON.parse(queue.inputJson)), [
+			{
+				type: 'source-refresh',
+				sourceId: 1,
+				input: {
+					limit: 5,
+					includeOutbox: false
+				}
+			},
+			{
+				type: 'source-refresh',
+				sourceId: 2,
+				input: {
+					limit: 5,
+					includeOutbox: false
+				}
+			}
+		]);
 	});
 
 	it('records signed Follow activities for group inboxes idempotently', async () => {
@@ -2359,6 +2792,15 @@ describe('activityPub API', () => {
 		const permissionChecks: any[] = [];
 		const remoteObjectPostCreateCalls: any[] = [];
 		const remoteObjectAttachmentBackupQueueCalls: any[] = [];
+		const sourceResolveCalls: any[] = [];
+		const sourceSubscribeCalls: any[] = [];
+		const sourceUpdateCalls: any[] = [];
+		const sourceRemoveCalls: any[] = [];
+		const sourceFollowCalls: any[] = [];
+		const sourceFeedCalls: any[] = [];
+		const sourceRefreshCalls: any[] = [];
+		const sourceRefreshQueueCalls: any[] = [];
+		const sourceReadCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -2379,6 +2821,133 @@ describe('activityPub API', () => {
 				list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
 				total: 1
 			}),
+			resolveActivityPubSource: async (input) => {
+				sourceResolveCalls.push(input);
+				return {
+					sourceResource: 'acct:bsky.app@bsky.brid.gy',
+					sourceActorUrl: 'https://remote.example/users/alice',
+					bridgeProvider: 'bridgy-bluesky',
+					remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'}
+				};
+			},
+			getActivityPubSourceSubscriptions: async (userId, filters, listParams) => ({
+				list: [{
+					id: 4,
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Active,
+					remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'},
+					_filters: filters,
+					_listParams: listParams
+				}],
+				total: 1
+			}),
+			subscribeActivityPubSource: async (userId, input) => {
+				sourceSubscribeCalls.push({userId, input});
+				return {
+					id: 4,
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Active
+				};
+			},
+			updateActivityPubSourceSubscription: async (userId, sourceId, input) => {
+				sourceUpdateCalls.push({userId, sourceId, input});
+				return {
+					id: Number(sourceId),
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: input.status,
+					displayName: input.displayName
+				};
+			},
+			removeActivityPubSourceSubscription: async (userId, sourceId) => {
+				sourceRemoveCalls.push({userId, sourceId});
+				return {
+					id: Number(sourceId),
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Removed
+				};
+			},
+			followActivityPubSource: async (userId, sourceId, input) => {
+				sourceFollowCalls.push({userId, sourceId, input});
+				return {
+					source: {
+						id: Number(sourceId),
+						userId,
+						remoteActorId: 1,
+						sourceActorUrl: 'https://remote.example/users/alice',
+						status: ActivityPubSourceSubscriptionStatus.Active
+					},
+					follow: {
+						ok: true,
+						message: 'activitypub_follow_delivery_queued',
+						localActorUrl: 'https://social.example/ap/groups/test-channel',
+						remoteActorUrl: 'https://remote.example/users/alice',
+						followId: 1,
+						followState: ActivityPubFollowState.Pending,
+						deliveryId: 2
+					}
+				};
+			},
+			getActivityPubSourceFeed: async (userId, sourceId, filters, listParams) => {
+				sourceFeedCalls.push({userId, sourceId, filters, listParams});
+				return {
+					source: {
+						id: Number(sourceId),
+						userId,
+						remoteActorId: 1,
+						sourceActorUrl: 'https://remote.example/users/alice',
+						status: ActivityPubSourceSubscriptionStatus.Active
+					},
+					list: [{id: 9, objectId: 'https://remote.example/objects/1', isUnread: true}],
+					total: 1
+				};
+			},
+			refreshActivityPubSource: async (userId, sourceId, input) => {
+				sourceRefreshCalls.push({userId, sourceId, input});
+				return {
+					source: {
+						id: Number(sourceId),
+						userId,
+						remoteActorId: 1,
+						sourceActorUrl: 'https://remote.example/users/alice',
+						status: ActivityPubSourceSubscriptionStatus.Active,
+						lastRefreshRequestedAt: new Date('2026-06-01T12:11:00Z')
+					},
+					fetched: 2,
+					cached: 1,
+					skipped: 1,
+					errors: []
+				};
+			},
+			queueActivityPubSourceRefresh: async (userId, sourceId, userApiKeyId, input) => {
+				sourceRefreshQueueCalls.push({userId, sourceId, userApiKeyId, input});
+				return {
+					id: 44,
+					userId,
+					module: 'activitypub-source-refresh',
+					userApiKeyId,
+					inputJson: JSON.stringify({sourceId, input}),
+					isWaiting: true
+				};
+			},
+			markActivityPubSourceRead: async (userId, sourceId, input) => {
+				sourceReadCalls.push({userId, sourceId, input});
+				return {
+					id: Number(sourceId),
+					userId,
+					remoteActorId: 1,
+					sourceActorUrl: 'https://remote.example/users/alice',
+					status: ActivityPubSourceSubscriptionStatus.Active,
+					lastReadAt: new Date(input.readAt)
+				};
+			},
 			getGroupRemoteObjects: async () => ({
 				list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
 				total: 1
@@ -2608,6 +3177,139 @@ describe('activityPub API', () => {
 			deliveryId: 2
 		});
 
+		const sourceResolve = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/resolve', {
+			body: {handle: 'bsky.app', bridgeProvider: 'bridgy-bluesky'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceResolveCalls, [{
+			handle: 'bsky.app',
+			bridgeProvider: 'bridgy-bluesky'
+		}]);
+		assert.deepEqual(sourceResolve.body, {
+			sourceResource: 'acct:bsky.app@bsky.brid.gy',
+			sourceActorUrl: 'https://remote.example/users/alice',
+			bridgeProvider: 'bridgy-bluesky',
+			remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'}
+		});
+
+		const sources = await callRoute(routes, 'AUTH GET admin/activity-pub/sources', {
+			query: {status: ActivityPubSourceSubscriptionStatus.Active},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:read'});
+		assert.equal(sources.body.list[0].id, 4);
+		assert.deepEqual(sources.body.list[0]._filters, {status: ActivityPubSourceSubscriptionStatus.Active});
+
+		const sourceSubscribe = await callRoute(routes, 'AUTH POST admin/activity-pub/sources', {
+			body: {resource: 'acct:bsky.app@bsky.brid.gy', displayName: 'Bluesky'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceSubscribeCalls, [{
+			userId: 1,
+			input: {
+				resource: 'acct:bsky.app@bsky.brid.gy',
+				displayName: 'Bluesky'
+			}
+		}]);
+		assert.equal(sourceSubscribe.body.id, 4);
+
+		const sourceFollow = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/follow', {
+			params: {sourceId: '4'},
+			body: {groupName: 'test-channel'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceFollowCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {groupName: 'test-channel'}
+		}]);
+		assert.equal(sourceFollow.body.source.id, 4);
+		assert.equal(sourceFollow.body.follow.message, 'activitypub_follow_delivery_queued');
+
+		const sourceFeed = await callRoute(routes, 'AUTH GET admin/activity-pub/sources/:sourceId/feed', {
+			params: {sourceId: '4'},
+			query: {objectType: 'Note'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(sourceFeedCalls, [{
+			userId: 1,
+			sourceId: '4',
+			filters: {objectType: 'Note'},
+			listParams: {objectType: 'Note'}
+		}]);
+		assert.equal(sourceFeed.body.list[0].isUnread, true);
+
+		const sourceRefresh = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/refresh', {
+			params: {sourceId: '4'},
+			body: {limit: 2, includeFeatured: true},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceRefreshCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {limit: 2, includeFeatured: true}
+		}]);
+		assert.equal(sourceRefresh.body.cached, 1);
+		assert.equal(sourceRefresh.body.source.lastRefreshRequestedAt.toISOString(), '2026-06-01T12:11:00.000Z');
+
+		const sourceRefreshQueue = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/refresh-async', {
+			params: {sourceId: '4'},
+			body: {limit: 2, process: false},
+			user: {id: 1},
+			apiKey: {id: 9}
+		});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceRefreshQueueCalls, [{
+			userId: 1,
+			sourceId: '4',
+			userApiKeyId: 9,
+			input: {limit: 2, process: false}
+		}]);
+		assert.equal(sourceRefreshQueue.body.module, 'activitypub-source-refresh');
+		assert.equal(sourceRefreshQueue.body.userApiKeyId, 9);
+
+		const sourceRead = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/read', {
+			params: {sourceId: '4'},
+			body: {readAt: '2026-06-01T12:10:00Z'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceReadCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {readAt: '2026-06-01T12:10:00Z'}
+		}]);
+		assert.equal(sourceRead.body.lastReadAt.toISOString(), '2026-06-01T12:10:00.000Z');
+
+		const sourceUpdate = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/update', {
+			params: {sourceId: '4'},
+			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceUpdateCalls, [{
+			userId: 1,
+			sourceId: '4',
+			input: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'}
+		}]);
+		assert.equal(sourceUpdate.body.status, ActivityPubSourceSubscriptionStatus.Paused);
+
+		const sourceRemove = await callRoute(routes, 'AUTH POST admin/activity-pub/sources/:sourceId/remove', {
+			params: {sourceId: '4'},
+			user: {id: 1}
+		});
+		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(sourceRemoveCalls, [{
+			userId: 1,
+			sourceId: '4'
+		}]);
+		assert.equal(sourceRemove.body.status, ActivityPubSourceSubscriptionStatus.Removed);
+
 		const groupInbox = await callRoute(routes, 'POST ap/groups/:groupName/inbox', {
 			params: {groupName: 'test-channel'},
 			headers: {},
@@ -2823,6 +3525,8 @@ async function createActivityPubHarness(overrides: any = {}) {
 			models,
 			resolveRemoteActorKey: overrides.resolveRemoteActorKey,
 			fetchRemoteActor: overrides.fetchRemoteActor,
+			fetchActivityPubWebFinger: overrides.fetchActivityPubWebFinger,
+			fetchActivityPubSourceJson: overrides.fetchActivityPubSourceJson,
 			remoteActorCacheMaxAgeMs: overrides.remoteActorCacheMaxAgeMs,
 			deliverActivityPubRequest: overrides.deliverActivityPubRequest
 		}),
@@ -2893,6 +3597,51 @@ function getAsyncOperationStub(calls) {
 			}
 			return queue;
 		},
+		async processModuleOperationQueue(module, options) {
+			let processed = 0;
+			const limit = Number.parseInt(options.limit as any, 10) || Number.MAX_SAFE_INTEGER;
+			while (processed < limit) {
+				const waitingQueue = await this.getWaitingOperationByModule(module);
+				if (!waitingQueue) {
+					return {processed};
+				}
+				if (waitingQueue.asyncOperation?.inProcess) {
+					return {processed};
+				}
+				await this.processModuleOperationQueueItem(waitingQueue, options);
+				processed += 1;
+			}
+			return {processed};
+		},
+		async processModuleOperationQueueItem(waitingQueue, options) {
+			let payload;
+			try {
+				payload = options.getPayload ? await options.getPayload(waitingQueue) : null;
+			} catch (e) {
+				await this.closeUserOperationQueue(waitingQueue.id);
+				return null;
+			}
+
+			await this.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
+			const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
+			const asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
+				userApiKeyId: waitingQueue.userApiKeyId,
+				module: waitingQueue.module,
+				...asyncOperationData
+			});
+			await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+
+			try {
+				const result = await options.run(waitingQueue, asyncOperation, payload);
+				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, getAsyncOperationQueueOutput(result));
+				return result;
+			} catch (e) {
+				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				await this.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, e?.message || String(e));
+				return null;
+			}
+		},
 		async updateUserOperationQueue(id, updateData) {
 			const queue = calls.asyncOperationQueues.find((item) => item.id === Number(id));
 			if (queue) {
@@ -2961,6 +3710,16 @@ function getAsyncOperationStub(calls) {
 	};
 }
 
+function getAsyncOperationQueueOutput(result) {
+	if (result === null || result === undefined) {
+		return null;
+	}
+	if (typeof result === 'string') {
+		return result;
+	}
+	return JSON.stringify(result);
+}
+
 function getApiStub(routes) {
 	return {
 		onUnversionGet(path, handler) {
@@ -3007,6 +3766,7 @@ function getModelsStub() {
 	const models = {
 		ActivityPubActor: getModelStub(),
 		ActivityPubRemoteActor: getModelStub(),
+		ActivityPubSourceSubscription: getModelStub(),
 		ActivityPubFollow: getModelStub(),
 		ActivityPubObject: getModelStub(),
 		ActivityPubDelivery: getModelStub(),
@@ -3068,8 +3828,8 @@ function getModelStub() {
 				return rowMatchesWhere(row, where);
 			}) || null;
 		},
-		async findAll({where} = {}) {
-			return rows.filter((row) => rowMatchesWhere(row, where || {}));
+		async findAll({where, order, limit, offset} = {}) {
+			return getMatchingRows(rows, where, order, limit, offset);
 		},
 		async findAndCountAll({where, limit, offset} = {}) {
 			const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
@@ -3077,6 +3837,9 @@ function getModelStub() {
 				rows: matchingRows.slice(offset || 0, (offset || 0) + (limit || matchingRows.length)),
 				count: matchingRows.length
 			};
+		},
+		async count({where} = {}) {
+			return rows.filter((row) => rowMatchesWhere(row, where || {})).length;
 		},
 		async create(data) {
 			const row = {
@@ -3096,13 +3859,59 @@ function getModelStub() {
 	};
 }
 
+function getMatchingRows(rows, where = {}, order = null, limit = null, offset = 0) {
+	const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
+	if (Array.isArray(order) && order.length) {
+		matchingRows.sort((left, right) => compareOrderRows(left, right, order));
+	}
+	return matchingRows.slice(offset || 0, getRowsSliceEnd(offset || 0, limit, matchingRows.length));
+}
+
+function getRowsSliceEnd(offset: number, limit, length: number): number {
+	const parsedLimit = Number.parseInt(limit as any, 10);
+	if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+		return length;
+	}
+	return offset + parsedLimit;
+}
+
+function compareOrderRows(left, right, order): number {
+	for (const orderItem of order) {
+		const [field, direction = 'ASC'] = Array.isArray(orderItem) ? orderItem : [orderItem, 'ASC'];
+		const diff = compareOrderValues(left[field], right[field]);
+		if (diff !== 0) {
+			return String(direction).toUpperCase() === 'DESC' ? -diff : diff;
+		}
+	}
+	return 0;
+}
+
+function compareOrderValues(left, right): number {
+	if (left === null || left === undefined) {
+		return right === null || right === undefined ? 0 : -1;
+	}
+	if (right === null || right === undefined) {
+		return 1;
+	}
+	return compareValues(left, right);
+}
+
 function rowMatchesWhere(row, where) {
 	return Reflect.ownKeys(where).every((key) => {
+		if (key === Op.or) {
+			return where[key as any].some((item) => rowMatchesWhere(row, item));
+		}
+		if (key === Op.and) {
+			return where[key as any].every((item) => rowMatchesWhere(row, item));
+		}
 		return valueMatchesWhere(row[key as any], where[key as any]);
 	});
 }
 
 function valueMatchesWhere(value, condition) {
+	if (condition === null) {
+		return value === null || value === undefined;
+	}
 	if (isInCondition(condition)) {
 		const key = Reflect.ownKeys(condition)[0];
 		return condition[key as any].includes(value);
@@ -3112,8 +3921,18 @@ function valueMatchesWhere(value, condition) {
 		return !condition[key as any].includes(value);
 	}
 	if (isLteCondition(condition)) {
+		if (value === null || value === undefined) {
+			return false;
+		}
 		const key = Reflect.ownKeys(condition)[0];
 		return compareValues(value, condition[key as any]) <= 0;
+	}
+	if (isLtCondition(condition)) {
+		if (value === null || value === undefined) {
+			return false;
+		}
+		const key = Reflect.ownKeys(condition)[0];
+		return compareValues(value, condition[key as any]) < 0;
 	}
 	return value === condition;
 }
@@ -3138,6 +3957,14 @@ function isArrayCondition(condition, op): boolean {
 }
 
 function isLteCondition(condition): boolean {
+	return isSingleOperatorCondition(condition, 'lte');
+}
+
+function isLtCondition(condition): boolean {
+	return isSingleOperatorCondition(condition, 'lt');
+}
+
+function isSingleOperatorCondition(condition, operatorName: string): boolean {
 	if (!condition || typeof condition !== 'object') {
 		return false;
 	}
@@ -3145,7 +3972,7 @@ function isLteCondition(condition): boolean {
 	if (keys.length !== 1) {
 		return false;
 	}
-	return String(keys[0]).includes('lte');
+	return String(keys[0]).includes(operatorName);
 }
 
 function compareValues(left, right): number {
@@ -3265,6 +4092,28 @@ function getSignedInboxRequest(actorKey, path: string, activity: any) {
 		rawBody: Buffer.from(body),
 		now: date
 	};
+}
+
+async function createSourceFeedObject(models, slug: string, publishedAt: string) {
+	return models.ActivityPubObject.create({
+		localActorId: null,
+		localPostId: null,
+		remoteActorId: models.ActivityPubRemoteActor.rows[0].id,
+		remoteObjectUrl: `https://remote.example/objects/${slug}`,
+		activityId: `https://remote.example/activities/${slug}`,
+		objectId: `https://remote.example/objects/${slug}`,
+		objectType: 'Note',
+		origin: ActivityPubObjectOrigin.Remote,
+		visibility: ActivityPubObjectVisibility.Public,
+		publishedAt: new Date(publishedAt),
+		rawJson: JSON.stringify({
+			id: `https://remote.example/objects/${slug}`,
+			type: 'Note',
+			attributedTo: models.ActivityPubRemoteActor.rows[0].actorUrl,
+			content: `<p>${slug}</p>`,
+			published: publishedAt
+		})
+	});
 }
 
 function getSignedContentDigestInboxRequest(actorKey, path: string, activity: any) {

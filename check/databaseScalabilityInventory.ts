@@ -99,6 +99,24 @@ function modelRows(): ModelRow[] {
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
+  const activityPubModelSource = read('app/modules/activityPub/models.ts');
+  const activityPubIndexSource = read('app/modules/activityPub/index.ts');
+  const hasActivityPubSourceSubscriptionUnique = has(activityPubModelSource, 'activity_pub_source_subscriptions_user_remote_unique')
+    && has(activityPubModelSource, "fields: ['userId', 'remoteActorId']")
+    && has(activityPubModelSource, 'unique: true');
+  const hasActivityPubSourceSubscriptionUserStatusIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_user_status_idx')
+    && has(activityPubModelSource, "fields: ['userId', 'status', 'updatedAt']");
+  const hasActivityPubSourceSubscriptionRemoteStatusIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_remote_status_idx')
+    && has(activityPubModelSource, "fields: ['remoteActorId', 'status']");
+  const hasActivityPubSourceSubscriptionStatusRefreshIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_status_refresh_idx')
+    && has(activityPubModelSource, "fields: ['status', 'lastRefreshRequestedAt', 'id']");
+  const hasActivityPubObjectLocalActorListIndex = has(activityPubModelSource, 'activity_pub_objects_local_actor_origin_published_idx')
+    && has(activityPubModelSource, "fields: ['localActorId', 'origin', 'publishedAt', 'id']");
+  const hasActivityPubObjectRemoteActorListIndex = has(activityPubModelSource, 'activity_pub_objects_remote_actor_origin_published_idx')
+    && has(activityPubModelSource, "fields: ['remoteActorId', 'origin', 'publishedAt', 'id']");
+  const hasActivityPubSourceFeedRemoteActorFilter = has(activityPubIndexSource, 'getActivityPubSourceFeedWhere')
+    && has(activityPubIndexSource, 'remoteActorId: subscription.remoteActorId')
+    && has(activityPubIndexSource, 'origin: ActivityPubObjectOrigin.Remote');
   const hasStaticIdCurrentBinding = has(staticIdSource, 'StaticIdBinding')
     && has(staticIdSource, 'static_id_bindings_static_unique')
     && has(staticIdSource, "fields: ['staticId']")
@@ -274,7 +292,39 @@ function modelRows(): ModelRow[] {
       notes: [
         hasPostEventSourceIdentityIndex
           ? 'model-sync-created append-only post event table is ready for source-identity import audit/replay rows'
-          : 'source import lifecycle remains represented only by mutable Post rows',
+        : 'source import lifecycle remains represented only by mutable Post rows',
+      ],
+    },
+    {
+      area: 'ActivityPub source subscriptions',
+      source: 'app/modules/activityPub/models.ts',
+      model: 'ActivityPubSourceSubscription',
+      indexes: [
+        hasActivityPubSourceSubscriptionUnique ? 'userId,remoteActorId unique subscription identity' : 'missing user/remote source identity',
+        hasActivityPubSourceSubscriptionUserStatusIndex ? 'userId,status,updatedAt list index' : 'missing user/status list index',
+        hasActivityPubSourceSubscriptionRemoteStatusIndex ? 'remoteActorId,status reverse lookup' : 'missing remote/status lookup index',
+        hasActivityPubSourceSubscriptionStatusRefreshIndex ? 'status,lastRefreshRequestedAt,id poller index' : 'missing source refresh poller index',
+      ],
+      notes: [
+        hasActivityPubSourceSubscriptionUnique && hasActivityPubSourceSubscriptionUserStatusIndex && hasActivityPubSourceSubscriptionStatusRefreshIndex && hasActivityPubSourceFeedRemoteActorFilter
+          ? 'source subscriptions are model-sync-created, duplicate-resistant per user/remote actor, feed reads join through cached remote ActivityPub objects by remoteActorId, and refresh polling scans stale active subscriptions by indexed refresh time'
+        : 'source subscription/feed scalability should be reviewed before broad frontend rollout',
+      ],
+    },
+    {
+      area: 'ActivityPub remote object cache',
+      source: 'app/modules/activityPub/models.ts',
+      model: 'ActivityPubObject',
+      indexes: [
+        'objectId unique canonical object identity',
+        'activityId unique activity identity',
+        hasActivityPubObjectLocalActorListIndex ? 'localActorId,origin,publishedAt,id group review list' : 'missing local actor remote-object review list index',
+        hasActivityPubObjectRemoteActorListIndex ? 'remoteActorId,origin,publishedAt,id source feed list' : 'missing remote actor source feed list index',
+      ],
+      notes: [
+        hasActivityPubObjectLocalActorListIndex && hasActivityPubObjectRemoteActorListIndex
+          ? 'group-scoped remote-object review and source-feed reads have actor/origin/publishedAt list indexes for default sort order'
+          : 'ActivityPub cached object list queries can scan the growing object cache without actor/origin list indexes',
       ],
     },
     {
@@ -784,6 +834,8 @@ function hotspotRows(): HotspotRow[] {
   const generatedOutputPressureSource = read('check/databaseGeneratedOutputPressure.ts');
   const storageSpaceReportSource = read('check/databaseStorageSpaceReport.ts');
   const databaseValuesTestSource = read('test/databaseValues.test.ts');
+  const activityPubSource = read('app/modules/activityPub/index.ts');
+  const activityPubModelSource = read('app/modules/activityPub/models.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
@@ -1319,6 +1371,14 @@ function hotspotRows(): HotspotRow[] {
     && has(scalabilityExplainSource, 'findTargetCategory')
     && has(scalabilityExplainSource, 'findSampleStaticBinding')
     && has(scalabilityExplainSource, 'findSampleContent');
+  const hasActivityPubSourceFeed = has(activityPubSource, 'async function getActivityPubSourceFeed')
+    && has(activityPubSource, 'getActivityPubSourceFeedWhere')
+    && has(activityPubSource, 'remoteActorId: subscription.remoteActorId')
+    && has(activityPubSource, 'helpers.getCursorListOrder(cursor, preparedListParams)')
+    && has(activityPubSource, 'helpers.getCursorListOffset(cursor, preparedListParams.offset)')
+    && has(activityPubSource, 'helpers.getNextListCursor(cursor, objectRows, preparedListParams.limit)');
+  const hasActivityPubSourceFeedIndex = has(activityPubModelSource, 'activity_pub_objects_remote_actor_origin_published_idx')
+    && has(activityPubModelSource, "fields: ['remoteActorId', 'origin', 'publishedAt', 'id']");
 
   return [
     {
@@ -1513,6 +1573,17 @@ function hotspotRows(): HotspotRow[] {
         : (hasSourceImportPostEvents
           ? 'remote import tombstone replay/audit risk is reduced for source-identity upserts; the broader post revision/event model and derived manifest jobs remain future work'
           : 'remote import deletes and edits cannot be replayed or audited beyond current mutable row state'),
+    },
+    {
+      area: 'ActivityPub source feed',
+      source: 'app/modules/activityPub/index.ts',
+      hotspot: 'getActivityPubSourceFeed',
+      observedPattern: hasActivityPubSourceFeed
+        ? 'selects cached remote ActivityPub objects by subscribed remoteActorId/origin with cursor-aware bounded pagination, deterministic id tiebreaker, optional count skipping, and sanitized preview projection reuse'
+        : 'review source feed implementation',
+      scalabilityRisk: hasActivityPubSourceFeedIndex
+        ? 'default source feed pages can use the remoteActorId/origin/publishedAt/id index and cursor pages avoid large offsets/counts; future live timeline backfill still needs bounded fetch/queue policy'
+        : 'source feeds can scan the growing ActivityPub object cache without a remote actor list index',
     },
     {
       area: 'Static site rendering',

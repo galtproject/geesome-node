@@ -11,7 +11,7 @@
 const modulePacks = {
   'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'entityJsonManifest', 'remoteGroup'],
   'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'fileCatalog', 'storageSpace', 'gateway'],
-  'socNet': ['socNetAccount', 'socNetImport', 'telegramClient', 'twitterClient', 'tgContentBot']
+  'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
 
 //TODO: refactor modules config
@@ -36,7 +36,25 @@ export default {
     deliveryWorker: process.env.ACTIVITYPUB_DELIVERY_WORKER === '1',
     deliveryWorkerIntervalMs: process.env.ACTIVITYPUB_DELIVERY_WORKER_INTERVAL_MS,
     deliveryWorkerLimit: process.env.ACTIVITYPUB_DELIVERY_WORKER_LIMIT,
-    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS
+    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS,
+    sourceRefreshWorker: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER === '1',
+    sourceRefreshWorkerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_INTERVAL_MS,
+    sourceRefreshWorkerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_LIMIT,
+    sourceRefreshPoller: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER === '1',
+    sourceRefreshPollerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_INTERVAL_MS,
+    sourceRefreshPollerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_LIMIT,
+    sourceRefreshPollerStaleMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_STALE_MS
+  },
+  blueskyConfig: {
+    publicApiOrigin: process.env.BLUESKY_PUBLIC_API_ORIGIN || 'https://public.api.bsky.app',
+    publicApiTimeoutMs: process.env.BLUESKY_PUBLIC_API_TIMEOUT_MS,
+    sourceRefreshWorker: process.env.BLUESKY_SOURCE_REFRESH_WORKER === '1',
+    sourceRefreshWorkerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_WORKER_INTERVAL_MS,
+    sourceRefreshWorkerLimit: process.env.BLUESKY_SOURCE_REFRESH_WORKER_LIMIT,
+    sourceRefreshPoller: process.env.BLUESKY_SOURCE_REFRESH_POLLER === '1',
+    sourceRefreshPollerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_INTERVAL_MS,
+    sourceRefreshPollerLimit: process.env.BLUESKY_SOURCE_REFRESH_POLLER_LIMIT,
+    sourceRefreshPollerStaleMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_STALE_MS
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };
