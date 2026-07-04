@@ -46,6 +46,7 @@ export default {
     sourceRefreshPollerStaleMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_STALE_MS
   },
   blueskyConfig: {
+    publicUrl: process.env.BLUESKY_PUBLIC_URL || '',
     publicApiOrigin: process.env.BLUESKY_PUBLIC_API_ORIGIN || 'https://public.api.bsky.app',
     publicApiTimeoutMs: process.env.BLUESKY_PUBLIC_API_TIMEOUT_MS,
     authApiOrigin: process.env.BLUESKY_AUTH_API_ORIGIN || 'https://bsky.social',

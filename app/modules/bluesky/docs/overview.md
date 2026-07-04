@@ -35,6 +35,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Public feed reads do not require stored credentials; credentialed login/verification uses explicit `socNetAccount` rows.
 - Account verification proves the authenticated DID matches the stored account identity, tolerating handle changes once a DID is known.
 - Cross-posting currently supports text/rich-text facets plus up to four supported image media/attachments. Images are normalized before upload, sent as ATProto blobs, and attached as `app.bsky.embed.images` with alt text and aspect ratio where possible.
+- If image blob upload fails and a public node URL is configured through `BLUESKY_PUBLIC_URL` or `ACTIVITYPUB_PUBLIC_URL`, cross-posting adds the public image URL as a link fallback and uses an `app.bsky.embed.external` card when no image embed succeeded. Without a public URL, upload failure still fails the cross-post instead of creating contextless text.
 - Non-image GeeSome attachments still need an explicit link-or-reject policy before they are allowed, so they are rejected instead of being silently dropped from Bluesky records.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.

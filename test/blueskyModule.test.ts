@@ -586,6 +586,125 @@ describe('bluesky module', () => {
 		assert.equal(result.record.uri, 'at://did:plc:alice/app.bsky.feed.post/image-created');
 	});
 
+	it('falls back to public image links when Bluesky image upload fails', async () => {
+		let post = getCrossPostPostFixture();
+		const calls: any[] = [];
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicUrl: 'https://node.example/geesome/'
+				}
+			},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				storage: {
+					getFileData: async (storageId) => {
+						calls.push({method: 'getFileData', storageId});
+						return getTinyPngData();
+					}
+				},
+				group: {
+					getPost: async () => post,
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Photo post'
+						},
+						{
+							id: 102,
+							type: 'image',
+							view: ContentView.Media,
+							mimeType: 'image/png',
+							storageId: 'bafyimage',
+							description: 'Alt fallback'
+						}
+					],
+					updatePost: async (userId, postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				if (String(url).includes('uploadBlob')) {
+					return {
+						ok: false,
+						status: 500,
+						json: async () => ({})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/fallback-created',
+						cid: 'bafyfallbackcreated'
+					})
+				};
+			}
+		});
+
+		const result = await module.crossPostPost(7, 44, {accountData: {id: 1}});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+		const fallbackUrl = 'https://node.example/geesome/ipfs/bafyimage';
+		const fallbackByteStart = Buffer.byteLength('Photo post\n', 'utf8');
+
+		assert.equal(result.record.uri, 'at://did:plc:alice/app.bsky.feed.post/fallback-created');
+		assert.equal(createRecordBody.record.text, `Photo post\n${fallbackUrl}`);
+		assert.deepEqual(createRecordBody.record.facets, [{
+			$type: 'app.bsky.richtext.facet',
+			index: {
+				byteStart: fallbackByteStart,
+				byteEnd: fallbackByteStart + Buffer.byteLength(fallbackUrl, 'utf8')
+			},
+			features: [{
+				$type: 'app.bsky.richtext.facet#link',
+				uri: fallbackUrl
+			}]
+		}]);
+		assert.deepEqual(createRecordBody.record.embed, {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: fallbackUrl,
+				title: 'Alt fallback',
+				description: 'GeeSome image attachment'
+			}
+		});
+	});
+
 	it('rejects oversized Bluesky image cross-posts before reading storage bytes', async () => {
 		const module = getBlueskyModule({
 			config: {},

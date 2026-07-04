@@ -175,7 +175,7 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
    - posts in non-public groups;
    - posts with non-image attachments or additional content that would be silently dropped;
    - posts with unsupported images or too many images for Bluesky.
-5. GeeSome uploads supported images first through `com.atproto.repo.uploadBlob`; if any image upload fails, no text-only remote post is created.
+5. GeeSome uploads supported images first through `com.atproto.repo.uploadBlob`; if image upload fails and the node has `BLUESKY_PUBLIC_URL` or `ACTIVITYPUB_PUBLIC_URL`, GeeSome appends the public image URL as a link fallback and uses an external card when no image embeds succeeded.
 6. GeeSome creates a native `app.bsky.feed.post` record through `com.atproto.repo.createRecord`.
 7. GeeSome stores the returned Bluesky URI/CID under the local post's `propertiesJson.bluesky.crossPosts[did]` entry so repeating the request for the same account can return the existing remote record instead of duplicating the post.
 8. Remaining media/link policy work:

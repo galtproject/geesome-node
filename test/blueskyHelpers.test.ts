@@ -8,6 +8,7 @@ import {
 	buildBlueskyAuthorFeedUrl,
 	buildBlueskyCreateRecordUrl,
 	buildBlueskyCreateSessionUrl,
+	buildBlueskyExternalEmbed,
 	buildBlueskyFeedPostRecord,
 	buildBlueskyImageEmbed,
 	buildBlueskyPostRecordUrl,
@@ -246,6 +247,27 @@ describe('bluesky helpers', () => {
 		assert.throws(
 			() => buildBlueskyImageEmbed(new Array(5).fill({image: blob})),
 			/bluesky_cross_post_too_many_images/
+		);
+	});
+
+	it('builds external embeds for public image URL fallbacks', () => {
+		const embed = buildBlueskyExternalEmbed({
+			uri: 'https://node.example/ipfs/bafyimage',
+			title: 'Image fallback',
+			description: 'GeeSome image attachment'
+		});
+
+		assert.deepEqual(embed, {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: 'https://node.example/ipfs/bafyimage',
+				title: 'Image fallback',
+				description: 'GeeSome image attachment'
+			}
+		});
+		assert.throws(
+			() => buildBlueskyExternalEmbed({uri: 'ipfs://bafyimage'}),
+			/bluesky_external_uri_invalid/
 		);
 	});
 

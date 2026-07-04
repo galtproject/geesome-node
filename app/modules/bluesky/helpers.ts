@@ -21,6 +21,7 @@ export const blueskyImageEmbedType = 'app.bsky.embed.images';
 export const blueskyImageMaxCount = 4;
 export const blueskyImageMaxSize = 2000000;
 export const blueskyImageMaxInputSize = 20000000;
+export const blueskyExternalEmbedType = 'app.bsky.embed.external';
 export const blueskyAuthorFeedFilters = new Set([
 	'posts_with_replies',
 	'posts_no_replies',
@@ -123,6 +124,13 @@ export interface IBlueskyImageEmbedInput {
 		width: number;
 		height: number;
 	} | null;
+}
+
+export interface IBlueskyExternalEmbedInput {
+	uri: string;
+	title?: string | null;
+	description?: string | null;
+	thumb?: any | null;
 }
 
 export interface IBlueskyFeedPostRecordInput {
@@ -274,6 +282,22 @@ export function buildBlueskyImageEmbed(images: IBlueskyImageEmbedInput[]): any {
 	return {
 		$type: blueskyImageEmbedType,
 		images: images.map(image => getBlueskyImageEmbedItem(image))
+	};
+}
+
+export function buildBlueskyExternalEmbed(input: IBlueskyExternalEmbedInput): any {
+	const uri = normalizeBlueskyExternalUri(input.uri);
+	const external: any = {
+		uri,
+		title: getBoundedOptionalString(input.title, 200) || uri,
+		description: getBoundedOptionalString(input.description, 1000) || ''
+	};
+	if (input.thumb) {
+		external.thumb = input.thumb;
+	}
+	return {
+		$type: blueskyExternalEmbedType,
+		external
 	};
 }
 
@@ -1003,6 +1027,26 @@ function normalizeBlueskyImageMimeType(value: string): string {
 		return mimeType;
 	}
 	throw new Error('bluesky_cross_post_image_type_unsupported');
+}
+
+function normalizeBlueskyExternalUri(value: string): string {
+	const uri = String(value || '').trim();
+	if (!uri) {
+		throw new Error('bluesky_external_uri_required');
+	}
+	const parsedUrl = new URL(uri);
+	if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+		throw new Error('bluesky_external_uri_invalid');
+	}
+	return parsedUrl.toString();
+}
+
+function getBoundedOptionalString(value: any, limit: number): string | null {
+	const text = getOptionalString(value);
+	if (!text) {
+		return null;
+	}
+	return text.slice(0, limit);
 }
 
 async function encodeBlueskyImageUploadData(data: Buffer, mimeType: string): Promise<Buffer> {
