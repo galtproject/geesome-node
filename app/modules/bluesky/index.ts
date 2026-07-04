@@ -34,6 +34,7 @@ import {
 	buildBlueskyFeedPostRecord,
 	createBlueskyRecord,
 	createBlueskySession,
+	deleteBlueskyRecord,
 	fetchBlueskyAuthorFeed,
 	fetchBlueskyActorProfile,
 	fetchBlueskyPostRecord,
@@ -52,6 +53,8 @@ import IGeesomeBlueskyModule, {
 	IBlueskyAccountVerifyInput,
 	IBlueskyCrossPostInput,
 	IBlueskyCrossPostResult,
+	IBlueskyDeleteCrossPostInput,
+	IBlueskyDeleteCrossPostResult,
 	IBlueskyPublicAuthorFeedImportInput,
 	IBlueskyPublicAuthorFeedPreviewInput,
 	IBlueskySourceFeedFilters,
@@ -100,6 +103,11 @@ interface IBlueskyCrossPostFallbackLink {
 interface IBlueskyCrossPostImageResult {
 	embeds: any[];
 	fallbackLinks: IBlueskyCrossPostFallbackLink[];
+}
+
+interface IBlueskyStoredCrossPostRecord {
+	uri: string;
+	cid?: string | null;
 }
 
 export default async (app: IGeesomeApp) => {
@@ -232,6 +240,34 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			});
 			const updatedPost = await storeBlueskyCrossPostRecord(app, userId, post, account, profile, session, record);
 			return getBlueskyCrossPostResult(updatedPost, account, profile, session, record, false);
+		}
+
+		async deleteCrossPostPost(userId: number, postId: number | string, input: IBlueskyDeleteCrossPostInput = {}): Promise<IBlueskyDeleteCrossPostResult> {
+			app.checkModules(['group', 'socNetAccount']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const post = await app.ms.group.getPost(userId, postId);
+			await assertCanDeleteBlueskyCrossPost(app, userId, post);
+			const account = await getBlueskyAccountRecord(app, userId, input.accountData);
+			const session = await getBlueskyAccountSession(app, options, {
+				identifier: getBlueskyAccountIdentifier(account, input),
+				password: getBlueskyAccountPassword(account, input)
+			});
+			assertBlueskyAccountMatchesSession(account, session);
+			const profile = await getBlueskyAccountProfile(app, options, session);
+			const record = getStoredBlueskyCrossPostRecord(post, session.did);
+			if (!record) {
+				throw new Error('bluesky_cross_post_record_not_found');
+			}
+			assertCanDeleteBlueskyCrossPostRecord(record, session.did);
+			const deleteRecord = await deleteBlueskyRecord({
+				uri: record.uri,
+				origin: getBlueskyAuthApiOrigin(app),
+				timeoutMs: getBlueskyAuthApiTimeoutMs(app),
+				fetch: options.fetch,
+				accessJwt: session.accessJwt
+			});
+			const updatedPost = await removeBlueskyCrossPostRecord(app, userId, post, session.did);
+			return getBlueskyDeleteCrossPostResult(updatedPost, account, profile, session, record, deleteRecord);
 		}
 
 		async getSourceSubscriptions(userId: number, filters: IBlueskySourceSubscriptionFilters = {}, listParams?: IListParams) {
@@ -801,6 +837,16 @@ async function assertCanCrossPostBlueskyPost(app: IGeesomeApp, userId: number, p
 	}
 }
 
+async function assertCanDeleteBlueskyCrossPost(app: IGeesomeApp, userId: number, post: IPost): Promise<void> {
+	if (!post?.id) {
+		throw new Error('bluesky_cross_post_post_not_found');
+	}
+	const canEditPost = await app.ms.group.canEditPostInGroup(userId, post.groupId, post.id);
+	if (!canEditPost) {
+		throw new Error('bluesky_cross_post_post_not_editable');
+	}
+}
+
 async function getBlueskyCrossPostRecordInput(
 	app: IGeesomeApp,
 	options: any,
@@ -1270,9 +1316,20 @@ function normalizeBlueskyCrossPostPublicUrl(value: string): string {
 	}
 }
 
-function getExistingBlueskyCrossPostRecord(post: IPost, did: string): IBlueskyRecordCreateResult | null {
+function getStoredBlueskyCrossPostRecord(post: IPost, did: string): IBlueskyStoredCrossPostRecord | null {
 	const existingRecord = getPostBlueskyProperties(post).crossPosts?.[did];
-	if (!existingRecord?.uri || !existingRecord?.cid) {
+	if (!existingRecord?.uri) {
+		return null;
+	}
+	return {
+		uri: existingRecord.uri,
+		cid: existingRecord.cid || null
+	};
+}
+
+function getExistingBlueskyCrossPostRecord(post: IPost, did: string): IBlueskyRecordCreateResult | null {
+	const existingRecord = getStoredBlueskyCrossPostRecord(post, did);
+	if (!existingRecord?.cid) {
 		return null;
 	}
 	return {
@@ -1302,6 +1359,18 @@ async function storeBlueskyCrossPostRecord(
 	});
 }
 
+async function removeBlueskyCrossPostRecord(app: IGeesomeApp, userId: number, post: IPost, did: string): Promise<IPost> {
+	const properties = parseBlueskyPropertiesJson(post.propertiesJson);
+	const blueskyProperties = getPlainObject(properties.bluesky);
+	const crossPosts = getPlainObject(blueskyProperties.crossPosts);
+	delete crossPosts[did];
+	blueskyProperties.crossPosts = crossPosts;
+	properties.bluesky = blueskyProperties;
+	return app.ms.group.updatePost(userId, post.id, {
+		propertiesJson: JSON.stringify(properties)
+	});
+}
+
 function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProfile, session: IBlueskySession, record: IBlueskyRecordCreateResult) {
 	return {
 		uri: record.uri,
@@ -1312,6 +1381,19 @@ function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProf
 		collection: blueskyFeedPostCollection,
 		postedAt: new Date().toISOString()
 	};
+}
+
+function assertCanDeleteBlueskyCrossPostRecord(record: IBlueskyStoredCrossPostRecord, did: string): void {
+	const parts = parseBlueskyPostAtUri(record.uri);
+	if (!parts) {
+		throw new Error('bluesky_cross_post_record_uri_invalid');
+	}
+	if (parts.repo !== did) {
+		throw new Error('bluesky_cross_post_record_identity_mismatch');
+	}
+	if (parts.collection !== blueskyFeedPostCollection) {
+		throw new Error('bluesky_cross_post_record_collection_invalid');
+	}
 }
 
 function getBlueskyCrossPostResult(
@@ -1334,6 +1416,29 @@ function getBlueskyCrossPostResult(
 		},
 		record,
 		alreadyExists
+	};
+}
+
+function getBlueskyDeleteCrossPostResult(
+	post: IPost,
+	account,
+	profile: IBlueskyActorProfile,
+	session: IBlueskySession,
+	record: IBlueskyStoredCrossPostRecord,
+	deleteRecord
+): IBlueskyDeleteCrossPostResult {
+	return {
+		account: getBlueskyAccountReport(account),
+		profile,
+		did: session.did,
+		handle: profile.handle || session.handle,
+		post: {
+			id: post.id,
+			groupId: post.groupId,
+			status: post.status
+		},
+		record,
+		deleteRecord
 	};
 }
 
