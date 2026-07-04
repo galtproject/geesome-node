@@ -17,6 +17,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
 - User-scoped Bluesky account login/verification through ATProto `com.atproto.server.createSession` and profile reads, storing only the selected local `socNetAccount` credential material and returning secret-free account reports.
 - User-scoped text/rich-text, supported-image, storage-backed attachment link, and safe JSON link-preview cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion and per-account URI/CID idempotency stored in post `propertiesJson`.
+- User-scoped in-place update of stored Bluesky cross-post records through `com.atproto.repo.putRecord`, with stored URI ownership checks, rkey reuse, stored CID `swapRecord`, and per-DID metadata refresh.
 - User-scoped deletion of stored Bluesky cross-post records through `com.atproto.repo.deleteRecord`, with stored URI ownership checks and per-DID metadata cleanup.
 - Optional refresh worker and poller cron services.
 
@@ -41,7 +42,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
-- Richer credentialed cross-post update/replace semantics remain follow-up work and must not bypass moderation, canonical rich-text conversion, source identity, attachment policy, upload failure handling, delete safety, or idempotency rules.
+- Richer credentialed cross-post UI, replies, and quotes remain follow-up work and must not bypass moderation, canonical rich-text conversion, source identity, attachment policy, upload failure handling, update/delete safety, or idempotency rules.
 
 ## Related Docs
 

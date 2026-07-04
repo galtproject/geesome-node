@@ -43,6 +43,7 @@ import {
 	normalizeBlueskyAuthorFeedFilter,
 	parseBlueskyPostAtUri,
 	prepareBlueskyImageUploadData,
+	putBlueskyRecord,
 	uploadBlueskyBlob,
 	projectBlueskyAuthorFeed
 } from './helpers.js';
@@ -69,7 +70,9 @@ import IGeesomeBlueskyModule, {
 	IBlueskySourceSyncInput,
 	IBlueskySourceSubscriptionFilters,
 	IBlueskySourceSubscriptionInput,
-	IBlueskySourceSubscriptionUpdateInput
+	IBlueskySourceSubscriptionUpdateInput,
+	IBlueskyUpdateCrossPostInput,
+	IBlueskyUpdateCrossPostResult
 } from './interface.js';
 
 const blueskySourceRefreshQueueModuleName = 'bluesky-source-refresh';
@@ -242,6 +245,39 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			return getBlueskyCrossPostResult(updatedPost, account, profile, session, record, false);
 		}
 
+		async updateCrossPostPost(userId: number, postId: number | string, input: IBlueskyUpdateCrossPostInput = {}): Promise<IBlueskyUpdateCrossPostResult> {
+			app.checkModules(['group', 'socNetAccount', 'storage']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const post = await app.ms.group.getPost(userId, postId);
+			await assertCanCrossPostBlueskyPost(app, userId, post);
+			const account = await getBlueskyAccountRecord(app, userId, input.accountData);
+			const session = await getBlueskyAccountSession(app, options, {
+				identifier: getBlueskyAccountIdentifier(account, input),
+				password: getBlueskyAccountPassword(account, input)
+			});
+			assertBlueskyAccountMatchesSession(account, session);
+			const profile = await getBlueskyAccountProfile(app, options, session);
+			const existingRecord = getExistingBlueskyCrossPostRecord(post, session.did);
+			if (!existingRecord) {
+				throw new Error('bluesky_cross_post_record_not_found');
+			}
+			assertStoredBlueskyCrossPostRecordMatchesSession(existingRecord, session.did);
+			const recordInput = await getBlueskyCrossPostRecordInput(app, options, post, input, session);
+			const record = await putBlueskyRecord({
+				uri: existingRecord.uri,
+				record: buildBlueskyFeedPostRecord(recordInput),
+				swapRecord: existingRecord.cid,
+				origin: getBlueskyAuthApiOrigin(app),
+				timeoutMs: getBlueskyAuthApiTimeoutMs(app),
+				fetch: options.fetch,
+				accessJwt: session.accessJwt
+			});
+			const updatedPost = await storeBlueskyCrossPostRecord(app, userId, post, account, profile, session, record, {
+				preservePostedAt: true
+			});
+			return getBlueskyUpdateCrossPostResult(updatedPost, account, profile, session, record, existingRecord);
+		}
+
 		async deleteCrossPostPost(userId: number, postId: number | string, input: IBlueskyDeleteCrossPostInput = {}): Promise<IBlueskyDeleteCrossPostResult> {
 			app.checkModules(['group', 'socNetAccount']);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
@@ -258,7 +294,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			if (!record) {
 				throw new Error('bluesky_cross_post_record_not_found');
 			}
-			assertCanDeleteBlueskyCrossPostRecord(record, session.did);
+			assertStoredBlueskyCrossPostRecordMatchesSession(record, session.did);
 			const deleteRecord = await deleteBlueskyRecord({
 				uri: record.uri,
 				origin: getBlueskyAuthApiOrigin(app),
@@ -1130,7 +1166,7 @@ function appendBlueskyCrossPostFallbackLinks(
 	textWithFacets: {text: string; facets: any[]},
 	fallbackLinks: IBlueskyCrossPostFallbackLink[]
 ): {text: string; facets: any[]} {
-	const result = {
+	const result: any = {
 		text: textWithFacets.text,
 		facets: [...textWithFacets.facets]
 	};
@@ -1345,13 +1381,16 @@ async function storeBlueskyCrossPostRecord(
 	account,
 	profile: IBlueskyActorProfile,
 	session: IBlueskySession,
-	record: IBlueskyRecordCreateResult
+	record: IBlueskyRecordCreateResult,
+	options: {preservePostedAt?: boolean} = {}
 ): Promise<IPost> {
 	const properties = parseBlueskyPropertiesJson(post.propertiesJson);
 	const blueskyProperties = getPlainObject(properties.bluesky);
+	const crossPosts = getPlainObject(blueskyProperties.crossPosts);
+	const previousRecordProperties = options.preservePostedAt ? getPlainObject(crossPosts[session.did]) : null;
 	blueskyProperties.crossPosts = {
-		...getPlainObject(blueskyProperties.crossPosts),
-		[session.did]: getBlueskyCrossPostRecordProperties(account, profile, session, record)
+		...crossPosts,
+		[session.did]: getBlueskyCrossPostRecordProperties(account, profile, session, record, previousRecordProperties)
 	};
 	properties.bluesky = blueskyProperties;
 	return app.ms.group.updatePost(userId, post.id, {
@@ -1371,19 +1410,24 @@ async function removeBlueskyCrossPostRecord(app: IGeesomeApp, userId: number, po
 	});
 }
 
-function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProfile, session: IBlueskySession, record: IBlueskyRecordCreateResult) {
-	return {
+function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProfile, session: IBlueskySession, record: IBlueskyRecordCreateResult, previousRecordProperties: any = null) {
+	const now = new Date().toISOString();
+	const result = {
 		uri: record.uri,
 		cid: record.cid,
 		did: session.did,
 		handle: profile.handle || session.handle || null,
 		accountId: account?.id || null,
 		collection: blueskyFeedPostCollection,
-		postedAt: new Date().toISOString()
+		postedAt: getOptionalString(previousRecordProperties?.postedAt) || now
 	};
+	if (previousRecordProperties) {
+		result['updatedAt'] = now;
+	}
+	return result;
 }
 
-function assertCanDeleteBlueskyCrossPostRecord(record: IBlueskyStoredCrossPostRecord, did: string): void {
+function assertStoredBlueskyCrossPostRecordMatchesSession(record: IBlueskyStoredCrossPostRecord, did: string): void {
 	const parts = parseBlueskyPostAtUri(record.uri);
 	if (!parts) {
 		throw new Error('bluesky_cross_post_record_uri_invalid');
@@ -1416,6 +1460,30 @@ function getBlueskyCrossPostResult(
 		},
 		record,
 		alreadyExists
+	};
+}
+
+function getBlueskyUpdateCrossPostResult(
+	post: IPost,
+	account,
+	profile: IBlueskyActorProfile,
+	session: IBlueskySession,
+	record: IBlueskyRecordCreateResult,
+	previousRecord: IBlueskyStoredCrossPostRecord
+): IBlueskyUpdateCrossPostResult {
+	return {
+		account: getBlueskyAccountReport(account),
+		profile,
+		did: session.did,
+		handle: profile.handle || session.handle,
+		post: {
+			id: post.id,
+			groupId: post.groupId,
+			status: post.status
+		},
+		record,
+		previousRecord,
+		updated: true
 	};
 }
 

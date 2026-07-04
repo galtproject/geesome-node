@@ -13,6 +13,7 @@ import {
 	buildBlueskyFeedPostRecord,
 	buildBlueskyImageEmbed,
 	buildBlueskyPostRecordUrl,
+	buildBlueskyPutRecordUrl,
 	buildBlueskyUploadBlobUrl,
 	createBlueskyRecord,
 	createBlueskySession,
@@ -26,6 +27,7 @@ import {
 	parseBlueskyPostAtUri,
 	prepareBlueskyImageUploadData,
 	projectBlueskyAuthorFeed,
+	putBlueskyRecord,
 	uploadBlueskyBlob
 } from '../app/modules/bluesky/helpers.js';
 import {richTextToPlainText} from '../app/richText.js';
@@ -239,6 +241,55 @@ describe('bluesky helpers', () => {
 		await assert.rejects(
 			() => deleteBlueskyRecord({
 				uri: 'https://example.com/not-at-uri',
+				accessJwt: 'access-token'
+			}),
+			/bluesky_post_uri_invalid/
+		);
+	});
+
+	it('updates native ATProto records by stored AT URI with swapRecord', async () => {
+		const calls: any[] = [];
+		const record = buildBlueskyFeedPostRecord({
+			text: 'Updated text',
+			createdAt: '2026-07-04T09:00:00.000Z'
+		});
+		const updated = await putBlueskyRecord({
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+			record,
+			swapRecord: 'bafyold',
+			origin: 'https://bsky.social/',
+			accessJwt: 'access-token',
+			fetch: async (url, options) => {
+				calls.push({url, options});
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+						cid: 'bafyupdated'
+					})
+				};
+			}
+		});
+
+		assert.equal(buildBlueskyPutRecordUrl({origin: 'https://bsky.social/'}), 'https://bsky.social/xrpc/com.atproto.repo.putRecord');
+		assert.deepEqual(updated, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+			cid: 'bafyupdated'
+		});
+		assert.equal(calls[0].url, 'https://bsky.social/xrpc/com.atproto.repo.putRecord');
+		assert.equal(calls[0].options.method, 'POST');
+		assert.equal(calls[0].options.headers.Authorization, 'Bearer access-token');
+		assert.deepEqual(JSON.parse(calls[0].options.body), {
+			repo: 'did:plc:alice',
+			collection: blueskyFeedPostCollection,
+			rkey: '3k4duaz5vfs2b',
+			record,
+			swapRecord: 'bafyold'
+		});
+		await assert.rejects(
+			() => putBlueskyRecord({
+				uri: 'https://example.com/not-at-uri',
+				record,
 				accessJwt: 'access-token'
 			}),
 			/bluesky_post_uri_invalid/

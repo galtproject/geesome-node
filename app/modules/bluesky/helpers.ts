@@ -74,6 +74,16 @@ export interface IBlueskyRecordCreateOptions {
 	accessJwt: string;
 }
 
+export interface IBlueskyRecordPutOptions {
+	uri: string;
+	record: any;
+	swapRecord?: string | null;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+	accessJwt: string;
+}
+
 export interface IBlueskyRecordDeleteOptions {
 	uri: string;
 	origin?: string;
@@ -266,6 +276,10 @@ export function buildBlueskyCreateRecordUrl(options: {origin?: string} = {}): st
 	return new URL('/xrpc/com.atproto.repo.createRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
 }
 
+export function buildBlueskyPutRecordUrl(options: {origin?: string} = {}): string {
+	return new URL('/xrpc/com.atproto.repo.putRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
+}
+
 export function buildBlueskyDeleteRecordUrl(options: {origin?: string} = {}): string {
 	return new URL('/xrpc/com.atproto.repo.deleteRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
 }
@@ -439,6 +453,43 @@ export async function createBlueskyRecord(options: IBlueskyRecordCreateOptions):
 		});
 		if (!response.ok) {
 			throw new Error(`bluesky_record_create_failed:${response.status}`);
+		}
+		return getBlueskyRecordCreateResponse(await response.json());
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function putBlueskyRecord(options: IBlueskyRecordPutOptions): Promise<IBlueskyRecordCreateResult> {
+	const parts = parseBlueskyPostAtUri(options.uri);
+	if (!parts) {
+		throw new Error('bluesky_post_uri_invalid');
+	}
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const body: any = {
+			repo: normalizeBlueskyActor(parts.repo),
+			collection: parts.collection,
+			rkey: parts.rkey,
+			record: options.record
+		};
+		if (options.swapRecord) {
+			body.swapRecord = options.swapRecord;
+		}
+		const response = await fetchImpl(buildBlueskyPutRecordUrl(options), {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				Authorization: `Bearer ${options.accessJwt}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(body),
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			throw new Error(`bluesky_record_put_failed:${response.status}`);
 		}
 		return getBlueskyRecordCreateResponse(await response.json());
 	} finally {

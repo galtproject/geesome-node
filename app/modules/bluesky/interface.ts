@@ -122,6 +122,26 @@ export interface IBlueskyCrossPostResult {
 	alreadyExists: boolean;
 }
 
+export interface IBlueskyUpdateCrossPostInput extends IBlueskyCrossPostInput {}
+
+export interface IBlueskyUpdateCrossPostResult {
+	account: IBlueskyAccountReport;
+	profile: IBlueskyActorProfile;
+	did: string;
+	handle: string | null;
+	post: {
+		id?: number;
+		groupId?: number;
+		status?: string;
+	};
+	record: IBlueskyRecordCreateResult;
+	previousRecord: {
+		uri: string;
+		cid?: string | null;
+	};
+	updated: boolean;
+}
+
 export interface IBlueskyDeleteCrossPostInput extends IBlueskyAccountVerifyInput {}
 
 export interface IBlueskyDeleteCrossPostResult {
@@ -350,6 +370,7 @@ export default interface IGeesomeBlueskyModule {
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;
 	crossPostPost(userId: number, postId: number | string, input?: IBlueskyCrossPostInput): Promise<IBlueskyCrossPostResult>;
+	updateCrossPostPost(userId: number, postId: number | string, input?: IBlueskyUpdateCrossPostInput): Promise<IBlueskyUpdateCrossPostResult>;
 	deleteCrossPostPost(userId: number, postId: number | string, input?: IBlueskyDeleteCrossPostInput): Promise<IBlueskyDeleteCrossPostResult>;
 	getSourceSubscriptions(userId: number, filters?: IBlueskySourceSubscriptionFilters, listParams?: IListParams): Promise<IBlueskySourceSubscriptionListResponse>;
 	getSourceFeed(userId: number, sourceId: number | string, filters?: IBlueskySourceFeedFilters, listParams?: IListParams): Promise<IBlueskySourceFeedResponse>;
