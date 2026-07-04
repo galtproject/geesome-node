@@ -273,6 +273,117 @@ describe('bluesky module', () => {
 		);
 	});
 
+	it('reads imported native Bluesky source feed from the linked channel', async () => {
+		const calls: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const subscription = await subscriptionModel.create({
+			userId: 7,
+			actor: 'alice.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Active,
+			dbChannelId: 9
+		});
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetImport: {
+					getDbChannel: async (userId, where) => {
+						calls.push({method: 'getDbChannel', userId, where});
+						return getDbChannel();
+					}
+				},
+				group: {
+					getGroupPosts: async (groupId, filters, listParams) => {
+						calls.push({method: 'getGroupPosts', groupId, filters, listParams});
+						return {
+							list: [{id: 44, sourcePostId: 'at://did:plc:alice/app.bsky.feed.post/newer'}],
+							total: null,
+							nextCursor: {publishedAt: '2026-07-04T08:00:00.000Z', id: 44}
+						};
+					}
+				}
+			},
+			checkModules: () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			}
+		});
+
+		const feed = await module.getSourceFeed(7, subscription.id, {
+			cursorPublishedAt: '2026-07-04T08:01:00.000Z',
+			cursorId: '45',
+			status: 'draft',
+			includeAllStatuses: true,
+			isDeleted: true
+		} as any, {
+			limit: 2
+		});
+
+		assert.deepEqual(calls, [
+			{method: 'getDbChannel', userId: 7, where: {id: 9}},
+			{
+				method: 'getGroupPosts',
+				groupId: 3,
+				filters: {
+					cursorPublishedAt: '2026-07-04T08:01:00.000Z',
+					cursorId: '45'
+				},
+				listParams: {limit: 2}
+			}
+		]);
+		assert.equal(feed.source.id, subscription.id);
+		assert.equal(feed.source.actor, 'alice.bsky.social');
+		assert.deepEqual(feed.dbChannel, {
+			id: 9,
+			groupId: 3,
+			channelId: 'did:plc:alice',
+			title: 'Alice',
+			socNet: 'bluesky'
+		});
+		assert.equal(feed.posts.list[0].id, 44);
+
+		const notReadySubscription = await subscriptionModel.create({
+			userId: 7,
+			actor: 'not-ready.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Active
+		});
+		await assert.rejects(
+			() => module.getSourceFeed(7, notReadySubscription.id),
+			/bluesky_source_feed_not_ready/
+		);
+	});
+
+	it('does not expose a Bluesky source feed through another user subscription', async () => {
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const subscription = await subscriptionModel.create({
+			userId: 8,
+			actor: 'private.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Active,
+			dbChannelId: 9
+		});
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetImport: {
+					getDbChannel: async () => getDbChannel()
+				},
+				group: {
+					getGroupPosts: async () => ({list: [], total: 0})
+				}
+			},
+			checkModules: () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			}
+		});
+
+		await assert.rejects(
+			() => module.getSourceFeed(7, subscription.id),
+			/bluesky_source_subscription_not_found/
+		);
+	});
+
 	it('refreshes native Bluesky source subscriptions through the social import pipeline', async () => {
 		const checks: any[] = [];
 		const imports: any[] = [];
@@ -603,6 +714,10 @@ describe('bluesky module', () => {
 				moduleCalls.push({method: 'getSourceSubscriptions', userId, filters, listParams});
 				return {list: [{id: 4, actor: 'bsky.app'}], total: 1};
 			},
+			getSourceFeed: async (userId, sourceId, filters, listParams) => {
+				moduleCalls.push({method: 'getSourceFeed', userId, sourceId, filters, listParams});
+				return {source: {id: Number(sourceId)}, dbChannel: {id: 9}, posts: {list: [{id: 44}], total: null}};
+			},
 			subscribeSource: async (userId, input) => {
 				moduleCalls.push({method: 'subscribeSource', userId, input});
 				return {id: 5, actor: input.actor};
@@ -631,6 +746,11 @@ describe('bluesky module', () => {
 			user: {id: 7},
 			query: {status: 'active', limit: '5'}
 		});
+		const feedResponse = await callRoute(routes, 'AUTH GET admin/bluesky/sources/:sourceId/feed', {
+			user: {id: 7},
+			params: {sourceId: '4'},
+			query: {limit: '2', cursorId: '44'}
+		});
 		const subscribeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources', {
 			user: {id: 7},
 			body: {actor: 'bsky.app'}
@@ -658,6 +778,7 @@ describe('bluesky module', () => {
 
 		assert.deepEqual(permissionChecks, [
 			{userId: 7, permission: CorePermissionName.AdminRead},
+			{userId: 7, permission: CorePermissionName.AdminRead},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.AdminAll},
@@ -668,6 +789,7 @@ describe('bluesky module', () => {
 		]);
 		assert.deepEqual(moduleCalls, [
 			{method: 'getSourceSubscriptions', userId: 7, filters: {status: 'active', limit: '5'}, listParams: {status: 'active', limit: '5'}},
+			{method: 'getSourceFeed', userId: 7, sourceId: '4', filters: {limit: '2', cursorId: '44'}, listParams: {limit: '2', cursorId: '44'}},
 			{method: 'subscribeSource', userId: 7, input: {actor: 'bsky.app'}},
 			{method: 'updateSourceSubscription', userId: 7, sourceId: '5', input: {status: 'paused'}},
 			{method: 'refreshSourceSubscription', userId: 7, sourceId: '5', input: {limit: 1}},
@@ -675,6 +797,7 @@ describe('bluesky module', () => {
 			{method: 'removeSourceSubscription', userId: 7, sourceId: '5'}
 		]);
 		assert.deepEqual(listResponse.body, {list: [{id: 4, actor: 'bsky.app'}], total: 1});
+		assert.deepEqual(feedResponse.body, {source: {id: 4}, dbChannel: {id: 9}, posts: {list: [{id: 44}], total: null}});
 		assert.deepEqual(subscribeResponse.body, {id: 5, actor: 'bsky.app'});
 		assert.deepEqual(updateResponse.body, {id: 5, status: 'paused'});
 		assert.deepEqual(refreshResponse.body, {source: {id: 5}, fetched: 1, imported: 1});
