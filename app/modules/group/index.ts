@@ -1317,7 +1317,10 @@ function getModule(app: IGeesomeApp, models) {
 				}
 				return contentData;
 			}
-			return null;
+			return {
+				type: 'file',
+				...baseData
+			};
 		}
 
 		async prepareContentDataWithUrl(c: IContent, baseStorageUri: string, options: IContentDataProjectionOptions = {}): Promise<IContentData> {

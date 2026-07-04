@@ -809,6 +809,111 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('cross-posts local posts with public non-image attachment links to Bluesky', async () => {
+		let post = getCrossPostPostFixture();
+		const calls: any[] = [];
+		const module = getBlueskyModule({
+			config: {
+				domain: 'node.example'
+			},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				group: {
+					getPost: async () => post,
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => [
+						{
+							id: 101,
+							type: 'text',
+							view: ContentView.Contents,
+							mimeType: 'text/plain',
+							text: 'Document post'
+						},
+						{
+							id: 102,
+							type: 'file',
+							view: ContentView.Attachment,
+							mimeType: 'application/pdf',
+							storageId: 'bafydocument',
+							name: 'report.pdf',
+							description: 'Quarterly report'
+						}
+					],
+					updatePost: async (userId, postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				if (String(url).includes('getProfile')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/document-created',
+						cid: 'bafydocumentcreated'
+					})
+				};
+			}
+		});
+
+		const result = await module.crossPostPost(7, 44, {accountData: {id: 1}});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+		const fallbackUrl = 'https://node.example/ipfs/bafydocument';
+		const fallbackByteStart = Buffer.byteLength('Document post\n', 'utf8');
+
+		assert.equal(result.record.uri, 'at://did:plc:alice/app.bsky.feed.post/document-created');
+		assert.equal(createRecordBody.record.text, `Document post\n${fallbackUrl}`);
+		assert.deepEqual(createRecordBody.record.facets, [{
+			$type: 'app.bsky.richtext.facet',
+			index: {
+				byteStart: fallbackByteStart,
+				byteEnd: fallbackByteStart + Buffer.byteLength(fallbackUrl, 'utf8')
+			},
+			features: [{
+				$type: 'app.bsky.richtext.facet#link',
+				uri: fallbackUrl
+			}]
+		}]);
+		assert.deepEqual(createRecordBody.record.embed, {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: fallbackUrl,
+				title: 'report.pdf',
+				description: 'Quarterly report'
+			}
+		});
+	});
+
 	it('rejects oversized Bluesky image cross-posts before reading storage bytes', async () => {
 		const module = getBlueskyModule({
 			config: {},
@@ -880,7 +985,7 @@ describe('bluesky module', () => {
 		);
 	});
 
-	it('rejects Bluesky cross-posts that would silently drop attachments or remote source identity', async () => {
+	it('rejects Bluesky cross-posts without public attachment URLs or remote source identity', async () => {
 		const calls: any[] = [];
 		const attachmentModule = getBlueskyModule({
 			config: {},
@@ -962,7 +1067,7 @@ describe('bluesky module', () => {
 
 		await assert.rejects(
 			() => attachmentModule.crossPostPost(7, 44, {accountData: {id: 1}}),
-			/bluesky_cross_post_attachments_unsupported/
+			/bluesky_cross_post_attachment_public_url_required/
 		);
 		await assert.rejects(
 			() => remoteModule.crossPostPost(7, 44, {accountData: {id: 1}}),
