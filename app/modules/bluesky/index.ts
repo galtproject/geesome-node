@@ -21,8 +21,10 @@ import {
 import {
 	IBlueskyAuthorProjection,
 	IBlueskyActorProfile,
+	IBlueskyFeedPostRecordInput,
 	IBlueskyPostProjection,
 	IBlueskyRecordCreateResult,
+	IBlueskyRecordRef,
 	IBlueskySession,
 	blueskyFeedPostCollection,
 	blueskyImageMaxCount,
@@ -30,8 +32,10 @@ import {
 	blueskyPostSource,
 	blueskySocNet,
 	buildBlueskyExternalEmbed,
-	buildBlueskyImageEmbed,
 	buildBlueskyFeedPostRecord,
+	buildBlueskyImageEmbed,
+	buildBlueskyRecordEmbed,
+	buildBlueskyRecordWithMediaEmbed,
 	createBlueskyRecord,
 	createBlueskySession,
 	deleteBlueskyRecord,
@@ -111,6 +115,12 @@ interface IBlueskyCrossPostImageResult {
 interface IBlueskyStoredCrossPostRecord {
 	uri: string;
 	cid?: string | null;
+	replyRootUri?: string | null;
+	replyRootCid?: string | null;
+	replyParentUri?: string | null;
+	replyParentCid?: string | null;
+	quoteUri?: string | null;
+	quoteCid?: string | null;
 }
 
 export default async (app: IGeesomeApp) => {
@@ -241,7 +251,9 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				fetch: options.fetch,
 				accessJwt: session.accessJwt
 			});
-			const updatedPost = await storeBlueskyCrossPostRecord(app, userId, post, account, profile, session, record);
+			const updatedPost = await storeBlueskyCrossPostRecord(app, userId, post, account, profile, session, record, {
+				recordInput
+			});
 			return getBlueskyCrossPostResult(updatedPost, account, profile, session, record, false);
 		}
 
@@ -273,7 +285,8 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				accessJwt: session.accessJwt
 			});
 			const updatedPost = await storeBlueskyCrossPostRecord(app, userId, post, account, profile, session, record, {
-				preservePostedAt: true
+				preservePostedAt: true,
+				recordInput
 			});
 			return getBlueskyUpdateCrossPostResult(updatedPost, account, profile, session, record, existingRecord);
 		}
@@ -889,7 +902,7 @@ async function getBlueskyCrossPostRecordInput(
 	post: IPost,
 	input: IBlueskyCrossPostInput,
 	session: IBlueskySession
-) {
+): Promise<IBlueskyFeedPostRecordInput> {
 	const contents = await app.ms.group.getPostContentData(post, '', {
 		includeText: true,
 		includeJson: true
@@ -913,6 +926,8 @@ async function getBlueskyCrossPostRecordInput(
 	}
 	const attachmentFallbackLinks = getBlueskyCrossPostAttachmentFallbackLinks(app, attachmentContents);
 	const linkPreviewFallbackLinks = getBlueskyCrossPostLinkPreviewFallbackLinks(linkPreviewContents);
+	const quoteRecord = await getBlueskyCrossPostQuoteRecord(app, post, session.did);
+	const reply = await getBlueskyCrossPostReplyRef(app, options, post, session.did);
 	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents);
 	const fallbackLinks = [
 		...imageResult.fallbackLinks,
@@ -926,13 +941,180 @@ async function getBlueskyCrossPostRecordInput(
 	if (!textWithFacets.text.trim()) {
 		throw new Error('bluesky_cross_post_text_required');
 	}
+	const mediaEmbed = getBlueskyCrossPostEmbed(imageResult, fallbackLinks);
 	return {
 		text: textWithFacets.text,
 		facets: textWithFacets.facets,
 		langs: getBlueskyCrossPostLangs(input, primaryContent),
 		createdAt: input.createdAt,
-		embed: getBlueskyCrossPostEmbed(imageResult, fallbackLinks)
+		embed: getBlueskyCrossPostFinalEmbed(mediaEmbed, quoteRecord),
+		reply
 	};
+}
+
+async function getBlueskyCrossPostReplyRef(
+	app: IGeesomeApp,
+	options: any,
+	post: IPost,
+	did: string
+) {
+	const parentPost = await getBlueskyCrossPostRelatedPost(app, post.replyToId);
+	if (!parentPost) {
+		return null;
+	}
+	assertBlueskyCrossPostRelatedPostSafe(parentPost, 'bluesky_cross_post_reply_parent_not_publishable');
+	const parentRecord = getBlueskyCrossPostTargetRecord(parentPost, did);
+	if (!parentRecord) {
+		throw new Error('bluesky_cross_post_reply_parent_record_required');
+	}
+	return {
+		root: await getBlueskyCrossPostReplyRootRecord(app, options, parentPost, parentRecord, did),
+		parent: parentRecord
+	};
+}
+
+async function getBlueskyCrossPostQuoteRecord(app: IGeesomeApp, post: IPost, did: string): Promise<IBlueskyRecordRef | null> {
+	const quotePost = await getBlueskyCrossPostRelatedPost(app, post.repostOfId);
+	if (!quotePost) {
+		return null;
+	}
+	assertBlueskyCrossPostRelatedPostSafe(quotePost, 'bluesky_cross_post_quote_post_not_publishable');
+	const quoteRecord = getBlueskyCrossPostTargetRecord(quotePost, did);
+	if (!quoteRecord) {
+		throw new Error('bluesky_cross_post_quote_record_required');
+	}
+	return quoteRecord;
+}
+
+async function getBlueskyCrossPostRelatedPost(app: IGeesomeApp, postId: any): Promise<IPost | null> {
+	const parsedId = getNullablePositiveInteger(postId);
+	if (!parsedId) {
+		return null;
+	}
+	if (typeof app.ms.group.getPostPure === 'function') {
+		return app.ms.group.getPostPure(parsedId);
+	}
+	return app.ms.database.models.Post.findOne({where: {id: parsedId}});
+}
+
+function getBlueskyCrossPostFinalEmbed(mediaEmbed: any, quoteRecord: IBlueskyRecordRef | null): any {
+	if (!quoteRecord) {
+		return mediaEmbed;
+	}
+	if (mediaEmbed) {
+		return buildBlueskyRecordWithMediaEmbed(quoteRecord, mediaEmbed);
+	}
+	return buildBlueskyRecordEmbed(quoteRecord);
+}
+
+async function getBlueskyCrossPostReplyRootRecord(
+	app: IGeesomeApp,
+	options: any,
+	parentPost: IPost,
+	parentRecord: IBlueskyRecordRef,
+	did: string
+): Promise<IBlueskyRecordRef> {
+	const rootRecord = getBlueskyCrossPostStoredReplyRootRecord(parentPost, did) ||
+		getImportedBlueskyReplyRootRecord(parentPost);
+	if (!rootRecord) {
+		return parentRecord;
+	}
+	if (rootRecord.cid) {
+		return {
+			uri: rootRecord.uri,
+			cid: rootRecord.cid
+		};
+	}
+	if (rootRecord.uri === parentRecord.uri) {
+		return parentRecord;
+	}
+	return fetchBlueskyCrossPostRecordRef(app, options, rootRecord.uri, 'bluesky_cross_post_reply_root_record_required');
+}
+
+async function fetchBlueskyCrossPostRecordRef(
+	app: IGeesomeApp,
+	options: any,
+	uri: string,
+	errorCode: string
+): Promise<IBlueskyRecordRef> {
+	const record = await fetchBlueskyPostRecord({
+		uri,
+		origin: getBlueskyPublicApiOrigin(app),
+		timeoutMs: getBlueskyPublicApiTimeoutMs(app),
+		fetch: options.fetch
+	});
+	if (!record.exists || !record.cid) {
+		throw new Error(errorCode);
+	}
+	return {
+		uri: record.uri,
+		cid: record.cid
+	};
+}
+
+function getBlueskyCrossPostTargetRecord(post: IPost, did: string): IBlueskyRecordRef | null {
+	return getStoredBlueskyCrossPostRecordRef(post, did) ||
+		getImportedBlueskyPostRecordRef(post);
+}
+
+function getStoredBlueskyCrossPostRecordRef(post: IPost, did: string): IBlueskyRecordRef | null {
+	return getBlueskyRecordRefFromData(getPostBlueskyProperties(post).crossPosts?.[did]);
+}
+
+function getImportedBlueskyPostRecordRef(post: IPost): IBlueskyRecordRef | null {
+	if (post.source !== blueskyPostSource) {
+		return null;
+	}
+	const blueskyProperties = getPostBlueskyProperties(post);
+	return getBlueskyRecordRefFromData({
+		uri: getOptionalString(post.sourcePostId) || blueskyProperties.uri,
+		cid: blueskyProperties.cid
+	});
+}
+
+function getBlueskyCrossPostStoredReplyRootRecord(post: IPost, did: string): {uri: string; cid?: string | null} | null {
+	const record = getPostBlueskyProperties(post).crossPosts?.[did];
+	const uri = getOptionalString(record?.replyRootUri);
+	if (!uri || !parseBlueskyPostAtUri(uri)) {
+		return null;
+	}
+	return {
+		uri,
+		cid: getOptionalString(record?.replyRootCid)
+	};
+}
+
+function getImportedBlueskyReplyRootRecord(post: IPost): {uri: string; cid?: string | null} | null {
+	const reply = getPostBlueskyProperties(post).reply;
+	const uri = getOptionalString(reply?.rootUri);
+	if (!uri || !parseBlueskyPostAtUri(uri)) {
+		return null;
+	}
+	return {
+		uri,
+		cid: getOptionalString(reply?.rootCid)
+	};
+}
+
+function getBlueskyRecordRefFromData(data: any): IBlueskyRecordRef | null {
+	const uri = getOptionalString(data?.uri);
+	const cid = getOptionalString(data?.cid);
+	if (!uri || !cid || !parseBlueskyPostAtUri(uri)) {
+		return null;
+	}
+	return {uri, cid};
+}
+
+function assertBlueskyCrossPostRelatedPostSafe(post: IPost, errorCode: string): void {
+	if (!post?.id || post.isDeleted || post.status !== PostStatus.Published) {
+		throw new Error(errorCode);
+	}
+	if (post.isEncrypted || post.group?.isEncrypted) {
+		throw new Error(errorCode);
+	}
+	if (post.group && !post.group.isPublic) {
+		throw new Error(errorCode);
+	}
 }
 
 function getBlueskyCrossPostPrimaryContent(contents: IContentData[]): IContentData | null {
@@ -1382,7 +1564,7 @@ async function storeBlueskyCrossPostRecord(
 	profile: IBlueskyActorProfile,
 	session: IBlueskySession,
 	record: IBlueskyRecordCreateResult,
-	options: {preservePostedAt?: boolean} = {}
+	options: {preservePostedAt?: boolean; recordInput?: IBlueskyFeedPostRecordInput | null} = {}
 ): Promise<IPost> {
 	const properties = parseBlueskyPropertiesJson(post.propertiesJson);
 	const blueskyProperties = getPlainObject(properties.bluesky);
@@ -1390,7 +1572,7 @@ async function storeBlueskyCrossPostRecord(
 	const previousRecordProperties = options.preservePostedAt ? getPlainObject(crossPosts[session.did]) : null;
 	blueskyProperties.crossPosts = {
 		...crossPosts,
-		[session.did]: getBlueskyCrossPostRecordProperties(account, profile, session, record, previousRecordProperties)
+		[session.did]: getBlueskyCrossPostRecordProperties(account, profile, session, record, previousRecordProperties, options.recordInput)
 	};
 	properties.bluesky = blueskyProperties;
 	return app.ms.group.updatePost(userId, post.id, {
@@ -1410,7 +1592,14 @@ async function removeBlueskyCrossPostRecord(app: IGeesomeApp, userId: number, po
 	});
 }
 
-function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProfile, session: IBlueskySession, record: IBlueskyRecordCreateResult, previousRecordProperties: any = null) {
+function getBlueskyCrossPostRecordProperties(
+	account,
+	profile: IBlueskyActorProfile,
+	session: IBlueskySession,
+	record: IBlueskyRecordCreateResult,
+	previousRecordProperties: any = null,
+	recordInput: IBlueskyFeedPostRecordInput | null = null
+) {
 	const now = new Date().toISOString();
 	const result = {
 		uri: record.uri,
@@ -1424,7 +1613,32 @@ function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProf
 	if (previousRecordProperties) {
 		result['updatedAt'] = now;
 	}
+	appendBlueskyCrossPostRelationRecordProperties(result, recordInput);
 	return result;
+}
+
+function appendBlueskyCrossPostRelationRecordProperties(properties: any, recordInput: IBlueskyFeedPostRecordInput | null): void {
+	if (recordInput?.reply) {
+		properties.replyRootUri = recordInput.reply.root.uri;
+		properties.replyRootCid = recordInput.reply.root.cid;
+		properties.replyParentUri = recordInput.reply.parent.uri;
+		properties.replyParentCid = recordInput.reply.parent.cid;
+	}
+	const quoteRecord = getBlueskyQuoteRecordFromEmbed(recordInput?.embed);
+	if (quoteRecord) {
+		properties.quoteUri = quoteRecord.uri;
+		properties.quoteCid = quoteRecord.cid;
+	}
+}
+
+function getBlueskyQuoteRecordFromEmbed(embed: any): IBlueskyRecordRef | null {
+	if (embed?.$type === 'app.bsky.embed.record') {
+		return getBlueskyRecordRefFromData(embed.record);
+	}
+	if (embed?.$type === 'app.bsky.embed.recordWithMedia') {
+		return getBlueskyRecordRefFromData(embed.record?.record);
+	}
+	return null;
 }
 
 function assertStoredBlueskyCrossPostRecordMatchesSession(record: IBlueskyStoredCrossPostRecord, did: string): void {

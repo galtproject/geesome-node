@@ -16,7 +16,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
 - User-scoped Bluesky account login/verification through ATProto `com.atproto.server.createSession` and profile reads, storing only the selected local `socNetAccount` credential material and returning secret-free account reports.
-- User-scoped text/rich-text, supported-image, storage-backed attachment link, and safe JSON link-preview cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion and per-account URI/CID idempotency stored in post `propertiesJson`.
+- User-scoped text/rich-text, supported-image, storage-backed attachment link, safe JSON link-preview, reply, and quote cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion, relation targets resolved only from stored/imported Bluesky URI/CID metadata, and per-account URI/CID idempotency stored in post `propertiesJson`.
 - User-scoped in-place update of stored Bluesky cross-post records through `com.atproto.repo.putRecord`, with stored URI ownership checks, rkey reuse, stored CID `swapRecord`, and per-DID metadata refresh.
 - User-scoped deletion of stored Bluesky cross-post records through `com.atproto.repo.deleteRecord`, with stored URI ownership checks and per-DID metadata cleanup.
 - Optional refresh worker and poller cron services.
@@ -39,10 +39,11 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Cross-posting currently supports text/rich-text facets plus up to four supported image media/attachments. Images are normalized before upload, sent as ATProto blobs, and attached as `app.bsky.embed.images` with alt text and aspect ratio where possible.
 - If image blob upload fails and a public node URL is configured through `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or the GeeSome node `DOMAIN` fallback, cross-posting adds the public image URL as a link fallback and uses an `app.bsky.embed.external` card when no image embed succeeded. Without a public URL/domain, upload failure still fails the cross-post instead of creating contextless text.
 - Storage-backed non-image media/attachments and JSON link-preview records with safe `http(s)` URLs are cross-posted as explicit public link facets and can use an `app.bsky.embed.external` card when there is exactly one fallback link and no image embed. Attachments without a public URL and unsafe or unsupported link-preview URLs are rejected instead of being silently dropped.
+- Local `replyToId` is cross-posted as a native Bluesky reply only when the referenced post has stored/imported Bluesky URI/CID metadata. Local `repostOfId` is cross-posted as a native quote embed under the same rule. Missing relation identity is rejected instead of silently dropping thread/quote context.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
-- Richer credentialed cross-post UI, replies, and quotes remain follow-up work and must not bypass moderation, canonical rich-text conversion, source identity, attachment policy, upload failure handling, update/delete safety, or idempotency rules.
+- Richer credentialed cross-post UI and broader relation policy remain follow-up work and must not bypass moderation, canonical rich-text conversion, source identity, attachment policy, upload failure handling, update/delete safety, reply/quote identity checks, or idempotency rules.
 
 ## Related Docs
 
