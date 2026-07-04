@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import registerBlueskyApi from '../app/modules/bluesky/api.js';
 import {getModule as getBlueskyModule} from '../app/modules/bluesky/index.js';
-import IGeesomeBlueskyModule from '../app/modules/bluesky/interface.js';
+import IGeesomeBlueskyModule, {BlueskySourceSubscriptionStatus} from '../app/modules/bluesky/interface.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {richTextToPlainText} from '../app/richText.js';
 
@@ -176,6 +176,103 @@ describe('bluesky module', () => {
 		);
 	});
 
+	it('manages native Bluesky source subscriptions as local state', async () => {
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {},
+			checkModules: (modulesList) => {
+				assert.deepEqual(modulesList, ['api']);
+			}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			}
+		});
+
+		const first = await module.subscribeSource(7, {
+			actor: '@bsky.app',
+			filter: 'posts_no_replies',
+			displayName: ' Official ',
+			groupName: 'official-feed',
+			accountId: 1234,
+			importLimit: 500
+		});
+
+		assert.equal(first.actor, 'bsky.app');
+		assert.equal(first.status, BlueskySourceSubscriptionStatus.Active);
+		assert.equal(first.filter, 'posts_no_replies');
+		assert.equal(first.displayName, 'Official');
+		assert.equal(first.accountId, 1234);
+		assert.equal(first.importLimit, 100);
+
+		const updatedExisting = await module.subscribeSource(7, {
+			actor: 'bsky.app',
+			filter: 'posts_with_media',
+			displayName: 'Media',
+			groupName: 'media-feed',
+			accountId: null,
+			importLimit: 2
+		});
+
+		assert.equal(updatedExisting.id, first.id);
+		assert.equal(subscriptionModel.rows.length, 1);
+		assert.equal(updatedExisting.filter, 'posts_with_media');
+		assert.equal(updatedExisting.displayName, 'Media');
+		assert.equal(updatedExisting.groupName, 'media-feed');
+		assert.equal(updatedExisting.accountId, null);
+		assert.equal(updatedExisting.importLimit, 2);
+
+		const activeList = await module.getSourceSubscriptions(7, {
+			status: BlueskySourceSubscriptionStatus.Active
+		}, {
+			limit: 10
+		});
+
+		assert.equal(activeList.total, 1);
+		assert.equal(activeList.list[0].actor, 'bsky.app');
+
+		const paused = await module.updateSourceSubscription(7, first.id, {
+			status: BlueskySourceSubscriptionStatus.Paused,
+			filter: null,
+			displayName: null,
+			groupName: null,
+			accountId: null,
+			importLimit: null
+		});
+
+		assert.equal(paused.status, BlueskySourceSubscriptionStatus.Paused);
+		assert.equal(paused.filter, null);
+		assert.equal(paused.displayName, null);
+		assert.equal(paused.groupName, null);
+		assert.equal(paused.accountId, null);
+		assert.equal(paused.importLimit, null);
+
+		await assert.rejects(
+			() => module.updateSourceSubscription(7, first.id, {status: BlueskySourceSubscriptionStatus.Removed}),
+			/bluesky_source_subscription_status_invalid/
+		);
+		await assert.rejects(
+			() => module.updateSourceSubscription(7, 'bad-source-id', {status: BlueskySourceSubscriptionStatus.Active}),
+			/bluesky_source_subscription_not_found/
+		);
+
+		const removed = await module.removeSourceSubscription(7, first.id);
+		assert.equal(removed.status, BlueskySourceSubscriptionStatus.Removed);
+
+		const defaultList = await module.getSourceSubscriptions(7);
+		assert.equal(defaultList.total, 0);
+
+		const removedList = await module.getSourceSubscriptions(7, {
+			status: BlueskySourceSubscriptionStatus.Removed
+		});
+		assert.equal(removedList.total, 1);
+
+		await assert.rejects(
+			() => module.updateSourceSubscription(7, first.id, {status: BlueskySourceSubscriptionStatus.Active}),
+			/bluesky_source_subscription_not_found/
+		);
+	});
+
 	it('registers an admin read-only public author feed preview route', async () => {
 		const routes = {};
 		const permissionChecks: any[] = [];
@@ -185,6 +282,9 @@ describe('bluesky module', () => {
 				api: {
 					onAuthorizedPost: (path, handler) => {
 						routes[`AUTH POST ${path}`] = handler;
+					},
+					onAuthorizedGet: (path, handler) => {
+						routes[`AUTH GET ${path}`] = handler;
 					}
 				}
 			},
@@ -233,6 +333,9 @@ describe('bluesky module', () => {
 				api: {
 					onAuthorizedPost: (path, handler) => {
 						routes[`AUTH POST ${path}`] = handler;
+					},
+					onAuthorizedGet: (path, handler) => {
+						routes[`AUTH GET ${path}`] = handler;
 					}
 				}
 			},
@@ -277,6 +380,84 @@ describe('bluesky module', () => {
 			dbChannel: {id: 9},
 			asyncOperation: {id: 44}
 		});
+	});
+
+	it('registers native Bluesky source subscription admin routes', async () => {
+		const routes = {};
+		const permissionChecks: any[] = [];
+		const moduleCalls: any[] = [];
+		const app = {
+			ms: {
+				api: {
+					onAuthorizedPost: (path, handler) => {
+						routes[`AUTH POST ${path}`] = handler;
+					},
+					onAuthorizedGet: (path, handler) => {
+						routes[`AUTH GET ${path}`] = handler;
+					}
+				}
+			},
+			checkUserCan: async (userId, permission) => {
+				permissionChecks.push({userId, permission});
+			}
+		};
+		const module = {
+			getPublicAuthorFeedPreview: async () => ({actor: 'bsky.app', cursor: null, list: []}),
+			importPublicAuthorFeed: async () => ({actor: 'bsky.app', cursor: null, projectedPostsCount: 0}),
+			getSourceSubscriptions: async (userId, filters, listParams) => {
+				moduleCalls.push({method: 'getSourceSubscriptions', userId, filters, listParams});
+				return {list: [{id: 4, actor: 'bsky.app'}], total: 1};
+			},
+			subscribeSource: async (userId, input) => {
+				moduleCalls.push({method: 'subscribeSource', userId, input});
+				return {id: 5, actor: input.actor};
+			},
+			updateSourceSubscription: async (userId, sourceId, input) => {
+				moduleCalls.push({method: 'updateSourceSubscription', userId, sourceId, input});
+				return {id: Number(sourceId), ...input};
+			},
+			removeSourceSubscription: async (userId, sourceId) => {
+				moduleCalls.push({method: 'removeSourceSubscription', userId, sourceId});
+				return {id: Number(sourceId), status: BlueskySourceSubscriptionStatus.Removed};
+			}
+		};
+
+		registerBlueskyApi(app as any, module as IGeesomeBlueskyModule);
+
+		const listResponse = await callRoute(routes, 'AUTH GET admin/bluesky/sources', {
+			user: {id: 7},
+			query: {status: 'active', limit: '5'}
+		});
+		const subscribeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources', {
+			user: {id: 7},
+			body: {actor: 'bsky.app'}
+		});
+		const updateResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/update', {
+			user: {id: 7},
+			params: {sourceId: '5'},
+			body: {status: 'paused'}
+		});
+		const removeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/remove', {
+			user: {id: 7},
+			params: {sourceId: '5'}
+		});
+
+		assert.deepEqual(permissionChecks, [
+			{userId: 7, permission: CorePermissionName.AdminRead},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.AdminAll}
+		]);
+		assert.deepEqual(moduleCalls, [
+			{method: 'getSourceSubscriptions', userId: 7, filters: {status: 'active', limit: '5'}, listParams: {status: 'active', limit: '5'}},
+			{method: 'subscribeSource', userId: 7, input: {actor: 'bsky.app'}},
+			{method: 'updateSourceSubscription', userId: 7, sourceId: '5', input: {status: 'paused'}},
+			{method: 'removeSourceSubscription', userId: 7, sourceId: '5'}
+		]);
+		assert.deepEqual(listResponse.body, {list: [{id: 4, actor: 'bsky.app'}], total: 1});
+		assert.deepEqual(subscribeResponse.body, {id: 5, actor: 'bsky.app'});
+		assert.deepEqual(updateResponse.body, {id: 5, status: 'paused'});
+		assert.deepEqual(removeResponse.body, {id: 5, status: BlueskySourceSubscriptionStatus.Removed});
 	});
 });
 
@@ -373,4 +554,110 @@ function getDbChannel() {
 
 function waitForBackgroundTasks() {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+class FakeBlueskySourceSubscription {
+	id: number;
+	userId: number;
+	actor: string;
+	filter: string | null;
+	displayName: string | null;
+	status: string;
+	groupName: string | null;
+	accountId: number | null;
+	importLimit: number | null;
+	dbChannelId: number | null;
+	lastCursor: string | null;
+	lastRefreshRequestedAt: Date | null;
+	lastImportedAt: Date | null;
+	lastError: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+
+	constructor(id: number, data: any) {
+		Object.assign(this, {
+			dbChannelId: null,
+			lastCursor: null,
+			lastRefreshRequestedAt: null,
+			lastImportedAt: null,
+			createdAt: new Date('2026-07-04T08:00:00.000Z'),
+			updatedAt: new Date('2026-07-04T08:00:00.000Z'),
+			...data,
+			id
+		});
+	}
+
+	async update(data: any) {
+		Object.assign(this, data);
+		this.updatedAt = new Date('2026-07-04T08:01:00.000Z');
+		return this;
+	}
+}
+
+function getBlueskySourceSubscriptionModel() {
+	const rows: FakeBlueskySourceSubscription[] = [];
+	return {
+		rows,
+		async create(data) {
+			if (rows.some(row => row.userId === data.userId && row.actor === data.actor)) {
+				throw {name: 'SequelizeUniqueConstraintError'};
+			}
+			const row = new FakeBlueskySourceSubscription(rows.length + 1, data);
+			rows.push(row);
+			return row;
+		},
+		async findOne(options) {
+			return rows.find(row => matchesBlueskySourceSubscriptionWhere(row, options.where)) || null;
+		},
+		async findAndCountAll(options) {
+			const matchingRows = rows
+				.filter(row => matchesBlueskySourceSubscriptionWhere(row, options.where))
+				.sort((a, b) => compareBlueskySourceSubscriptionRows(a, b, options.order));
+			const offset = options.offset || 0;
+			const limit = options.limit || matchingRows.length;
+			return {
+				rows: matchingRows.slice(offset, offset + limit),
+				count: matchingRows.length
+			};
+		}
+	};
+}
+
+function matchesBlueskySourceSubscriptionWhere(row: FakeBlueskySourceSubscription, where: any): boolean {
+	return Object.keys(where || {}).every((key) => {
+		const condition = where[key];
+		const rowValue = row[key];
+		if (key === 'id') {
+			return Number(rowValue) === Number(condition);
+		}
+		if (isNotInCondition(condition)) {
+			return !getNotInConditionValues(condition).includes(rowValue);
+		}
+		return rowValue === condition;
+	});
+}
+
+function isNotInCondition(condition: any): boolean {
+	return getNotInConditionValues(condition).length > 0;
+}
+
+function getNotInConditionValues(condition: any): any[] {
+	if (!condition || typeof condition !== 'object') {
+		return [];
+	}
+	const notInValues = Object.getOwnPropertySymbols(condition)
+		.map(symbol => condition[symbol])
+		.find(value => Array.isArray(value));
+	return notInValues || [];
+}
+
+function compareBlueskySourceSubscriptionRows(a: any, b: any, order: any[]): number {
+	const [sortBy, sortDir] = order?.[0] || ['id', 'ASC'];
+	if (a[sortBy] === b[sortBy]) {
+		return 0;
+	}
+	if (sortDir === 'DESC') {
+		return a[sortBy] > b[sortBy] ? -1 : 1;
+	}
+	return a[sortBy] > b[sortBy] ? 1 : -1;
 }
