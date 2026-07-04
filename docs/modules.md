@@ -80,4 +80,5 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 4. API/security/identity overviews are in place for `api`, `invite`, `foreignAccounts`, `ethereumAuthorization`, `socNetAccount`, `accountStorage`, and `staticId`.
 5. Utility/feed overviews are in place for `drivers`, `gateway`, `groupCategory`, and `rss`.
 6. Subagent review pass completed across all module inventory rows and overview docs; keep future reviews focused on code ownership, public API, models/storage, background jobs, user-facing behavior, and integration boundaries.
-7. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
+7. Add the module-doc index to the same runtime docs-discovery path as API docs: the future `docs/README.md` portal and `/v1` discovery JSON should point agents and users to this file and to the published IPFS path when docs are pinned.
+8. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
