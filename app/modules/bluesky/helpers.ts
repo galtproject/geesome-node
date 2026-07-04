@@ -10,9 +10,12 @@ import type {IRemoteContentModerationDecision} from '../remoteContentModeration/
 
 export const blueskySocNet = 'bluesky';
 export const blueskyPostSource = `socNetImport:${blueskySocNet}`;
+export const blueskyFeedPostCollection = 'app.bsky.feed.post';
 export const defaultBlueskyOfficialHandle = 'bsky.app';
 export const defaultBlueskyPublicApiOrigin = 'https://public.api.bsky.app';
 export const defaultBlueskyAuthApiOrigin = 'https://bsky.social';
+export const blueskyFeedPostMaxTextLength = 3000;
+export const blueskyFeedPostMaxGraphemes = 300;
 export const blueskyAuthorFeedFilters = new Set([
 	'posts_with_replies',
 	'posts_no_replies',
@@ -55,6 +58,16 @@ export interface IBlueskyActorProfileFetchOptions {
 	accessJwt?: string | null;
 }
 
+export interface IBlueskyRecordCreateOptions {
+	repo: string;
+	collection: string;
+	record: any;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+	accessJwt: string;
+}
+
 export interface IBlueskySession {
 	did: string;
 	handle: string | null;
@@ -68,6 +81,18 @@ export interface IBlueskyActorProfile {
 	displayName: string | null;
 	description: string | null;
 	avatar: string | null;
+}
+
+export interface IBlueskyRecordCreateResult {
+	uri: string;
+	cid: string;
+}
+
+export interface IBlueskyFeedPostRecordInput {
+	text: string;
+	facets?: any[];
+	langs?: string[];
+	createdAt?: string | Date;
 }
 
 export interface IBlueskyPostAtUriParts {
@@ -177,6 +202,28 @@ export function buildBlueskyActorProfileUrl(options: IBlueskyActorProfileFetchOp
 	return url.toString();
 }
 
+export function buildBlueskyCreateRecordUrl(options: {origin?: string} = {}): string {
+	return new URL('/xrpc/com.atproto.repo.createRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
+}
+
+export function buildBlueskyFeedPostRecord(input: IBlueskyFeedPostRecordInput): any {
+	const text = String(input.text || '');
+	assertValidBlueskyFeedPostText(text);
+	const record: any = {
+		$type: blueskyFeedPostCollection,
+		text,
+		createdAt: getBlueskyPostCreatedAt(input.createdAt)
+	};
+	if (input.facets?.length) {
+		record.facets = input.facets;
+	}
+	const langs = getBoundedStringList(input.langs, 3);
+	if (langs.length) {
+		record.langs = langs;
+	}
+	return record;
+}
+
 export async function fetchBlueskyAuthorFeed(options: IBlueskyAuthorFeedFetchOptions): Promise<any> {
 	const fetchImpl = options.fetch || fetch;
 	const abortController = new AbortController();
@@ -271,6 +318,34 @@ export async function fetchBlueskyActorProfile(options: IBlueskyActorProfileFetc
 			throw new Error(`bluesky_actor_profile_fetch_failed:${response.status}`);
 		}
 		return getBlueskyActorProfileResponse(await response.json());
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function createBlueskyRecord(options: IBlueskyRecordCreateOptions): Promise<IBlueskyRecordCreateResult> {
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const response = await fetchImpl(buildBlueskyCreateRecordUrl(options), {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				Authorization: `Bearer ${options.accessJwt}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				repo: normalizeBlueskyActor(options.repo),
+				collection: options.collection,
+				record: options.record
+			}),
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			throw new Error(`bluesky_record_create_failed:${response.status}`);
+		}
+		return getBlueskyRecordCreateResponse(await response.json());
 	} finally {
 		clearTimeout(timeout);
 	}
@@ -614,6 +689,15 @@ function getBlueskyActorProfileResponse(response: any): IBlueskyActorProfile {
 	};
 }
 
+function getBlueskyRecordCreateResponse(response: any): IBlueskyRecordCreateResult {
+	const uri = getOptionalString(response?.uri);
+	const cid = getOptionalString(response?.cid);
+	if (!uri || !cid) {
+		throw new Error('bluesky_record_create_response_invalid');
+	}
+	return {uri, cid};
+}
+
 function getBlueskyReplyProjection(reply: any): IBlueskyReplyProjection | null {
 	if (!reply || typeof reply !== 'object') {
 		return null;
@@ -754,6 +838,45 @@ function getRequiredBlueskyPassword(value: string): string {
 		throw new Error('bluesky_account_password_required');
 	}
 	return password;
+}
+
+function assertValidBlueskyFeedPostText(text: string): void {
+	if (!text.trim()) {
+		throw new Error('bluesky_cross_post_text_required');
+	}
+	if (text.length > blueskyFeedPostMaxTextLength) {
+		throw new Error('bluesky_cross_post_text_too_long');
+	}
+	if (getGraphemeCount(text) > blueskyFeedPostMaxGraphemes) {
+		throw new Error('bluesky_cross_post_text_too_long');
+	}
+}
+
+function getBlueskyPostCreatedAt(value?: string | Date): string {
+	const date = value ? new Date(value) : new Date();
+	if (!Number.isFinite(date.getTime())) {
+		throw new Error('bluesky_cross_post_created_at_invalid');
+	}
+	return date.toISOString();
+}
+
+function getGraphemeCount(text: string): number {
+	const segmenter = getIntlSegmenter();
+	if (!segmenter) {
+		return Array.from(text).length;
+	}
+	return Array.from(segmenter.segment(text)).length;
+}
+
+function getIntlSegmenter(): any {
+	if (typeof Intl === 'undefined') {
+		return null;
+	}
+	const intlObject: any = Intl;
+	if (typeof intlObject.Segmenter !== 'function') {
+		return null;
+	}
+	return new intlObject.Segmenter(undefined, {granularity: 'grapheme'});
 }
 
 function getFiniteNumber(value: any): number | null {

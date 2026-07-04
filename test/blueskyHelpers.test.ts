@@ -1,11 +1,15 @@
 import assert from 'node:assert';
 import {
 	atProtoPostRecordToRichText,
+	blueskyFeedPostCollection,
 	blueskyPostSource,
 	buildBlueskyActorProfileUrl,
 	buildBlueskyAuthorFeedUrl,
+	buildBlueskyCreateRecordUrl,
 	buildBlueskyCreateSessionUrl,
+	buildBlueskyFeedPostRecord,
 	buildBlueskyPostRecordUrl,
+	createBlueskyRecord,
 	createBlueskySession,
 	fetchBlueskyAuthorFeed,
 	fetchBlueskyActorProfile,
@@ -107,6 +111,76 @@ describe('bluesky helpers', () => {
 				fetch: async () => ({ok: true, json: async () => ({})})
 			}),
 			/bluesky_account_password_required/
+		);
+	});
+
+	it('builds and creates native ATProto feed post records', async () => {
+		const calls: any[] = [];
+		const record = buildBlueskyFeedPostRecord({
+			text: 'Hello site',
+			facets: [{
+				$type: 'app.bsky.richtext.facet',
+				index: {byteStart: 6, byteEnd: 10},
+				features: [{
+					$type: 'app.bsky.richtext.facet#link',
+					uri: 'https://example.com'
+				}]
+			}],
+			langs: ['en', 'pt', 'extra', 'ignored'],
+			createdAt: '2026-07-04T08:00:00.000Z'
+		});
+		const created = await createBlueskyRecord({
+			repo: 'did:plc:alice',
+			collection: blueskyFeedPostCollection,
+			record,
+			origin: 'https://bsky.social/',
+			accessJwt: 'access-token',
+			fetch: async (url, options) => {
+				calls.push({url, options});
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+						cid: 'bafycreate'
+					})
+				};
+			}
+		});
+
+		assert.equal(buildBlueskyCreateRecordUrl({origin: 'https://bsky.social/'}), 'https://bsky.social/xrpc/com.atproto.repo.createRecord');
+		assert.deepEqual(record, {
+			$type: 'app.bsky.feed.post',
+			text: 'Hello site',
+			createdAt: '2026-07-04T08:00:00.000Z',
+			facets: [{
+				$type: 'app.bsky.richtext.facet',
+				index: {byteStart: 6, byteEnd: 10},
+				features: [{
+					$type: 'app.bsky.richtext.facet#link',
+					uri: 'https://example.com'
+				}]
+			}],
+			langs: ['en', 'pt', 'extra']
+		});
+		assert.deepEqual(created, {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+			cid: 'bafycreate'
+		});
+		assert.equal(calls[0].url, 'https://bsky.social/xrpc/com.atproto.repo.createRecord');
+		assert.equal(calls[0].options.method, 'POST');
+		assert.equal(calls[0].options.headers.Authorization, 'Bearer access-token');
+		assert.deepEqual(JSON.parse(calls[0].options.body), {
+			repo: 'did:plc:alice',
+			collection: blueskyFeedPostCollection,
+			record
+		});
+		assert.throws(
+			() => buildBlueskyFeedPostRecord({text: '   '}),
+			/bluesky_cross_post_text_required/
+		);
+		assert.throws(
+			() => buildBlueskyFeedPostRecord({text: 'a'.repeat(301)}),
+			/bluesky_cross_post_text_too_long/
 		);
 	});
 

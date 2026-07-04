@@ -1,8 +1,10 @@
 import {IGeesomeApp} from '../../interface.js';
 import {Op} from 'sequelize';
 import helpers from '../../helpers.js';
-import {CorePermissionName, IListParams, IListParamsOptions} from '../database/interface.js';
+import {ContentView, CorePermissionName, IContentData, IListParams, IListParamsOptions} from '../database/interface.js';
 import {ISocNetDbChannel} from '../socNetImport/interface.js';
+import {IPost, PostStatus} from '../group/interface.js';
+import {RICH_TEXT_MIME_TYPE, isRichTextDocument, richTextToAtProtoTextWithFacets} from '../../richText.js';
 import {BlueskyImportClient} from './importClient.js';
 import {
 	IRemoteContentModerationDecision,
@@ -19,9 +21,13 @@ import {
 	IBlueskyAuthorProjection,
 	IBlueskyActorProfile,
 	IBlueskyPostProjection,
+	IBlueskyRecordCreateResult,
 	IBlueskySession,
+	blueskyFeedPostCollection,
 	blueskyPostSource,
 	blueskySocNet,
+	buildBlueskyFeedPostRecord,
+	createBlueskyRecord,
 	createBlueskySession,
 	fetchBlueskyAuthorFeed,
 	fetchBlueskyActorProfile,
@@ -37,6 +43,8 @@ import IGeesomeBlueskyModule, {
 	BlueskySourceSubscriptionStatus,
 	IBlueskyAccountLoginInput,
 	IBlueskyAccountVerifyInput,
+	IBlueskyCrossPostInput,
+	IBlueskyCrossPostResult,
 	IBlueskyPublicAuthorFeedImportInput,
 	IBlueskyPublicAuthorFeedPreviewInput,
 	IBlueskySourceFeedFilters,
@@ -176,6 +184,36 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			assertBlueskyAccountMatchesSession(account, session);
 			const profile = await getBlueskyAccountProfile(app, options, session);
 			return getBlueskyAccountVerificationResult(account, profile, session);
+		}
+
+		async crossPostPost(userId: number, postId: number | string, input: IBlueskyCrossPostInput = {}): Promise<IBlueskyCrossPostResult> {
+			app.checkModules(['group', 'socNetAccount']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const post = await app.ms.group.getPost(userId, postId);
+			await assertCanCrossPostBlueskyPost(app, userId, post);
+			const account = await getBlueskyAccountRecord(app, userId, input.accountData);
+			const session = await getBlueskyAccountSession(app, options, {
+				identifier: getBlueskyAccountIdentifier(account, input),
+				password: getBlueskyAccountPassword(account, input)
+			});
+			assertBlueskyAccountMatchesSession(account, session);
+			const profile = await getBlueskyAccountProfile(app, options, session);
+			const existingRecord = getExistingBlueskyCrossPostRecord(post, session.did);
+			if (existingRecord && !helpers.parseBoolean(input.force, false)) {
+				return getBlueskyCrossPostResult(post, account, profile, session, existingRecord, true);
+			}
+			const recordInput = await getBlueskyCrossPostRecordInput(app, post, input);
+			const record = await createBlueskyRecord({
+				repo: session.did,
+				collection: blueskyFeedPostCollection,
+				record: buildBlueskyFeedPostRecord(recordInput),
+				origin: getBlueskyAuthApiOrigin(app),
+				timeoutMs: getBlueskyAuthApiTimeoutMs(app),
+				fetch: options.fetch,
+				accessJwt: session.accessJwt
+			});
+			const updatedPost = await storeBlueskyCrossPostRecord(app, userId, post, account, profile, session, record);
+			return getBlueskyCrossPostResult(updatedPost, account, profile, session, record, false);
 		}
 
 		async getSourceSubscriptions(userId: number, filters: IBlueskySourceSubscriptionFilters = {}, listParams?: IListParams) {
@@ -723,6 +761,180 @@ function getBlueskyAccountReport(account) {
 	};
 }
 
+async function assertCanCrossPostBlueskyPost(app: IGeesomeApp, userId: number, post: IPost): Promise<void> {
+	if (!post?.id) {
+		throw new Error('bluesky_cross_post_post_not_found');
+	}
+	if (post.status !== PostStatus.Published || post.isDeleted) {
+		throw new Error('bluesky_cross_post_post_not_published');
+	}
+	if (post.isEncrypted || post.group?.isEncrypted) {
+		throw new Error('bluesky_cross_post_encrypted_post_not_supported');
+	}
+	if (post.isRemote || getOptionalString(post.source)) {
+		throw new Error('bluesky_cross_post_remote_post_not_supported');
+	}
+	if (!post.group?.isPublic) {
+		throw new Error('bluesky_cross_post_group_not_public');
+	}
+	const canEditPost = await app.ms.group.canEditPostInGroup(userId, post.groupId, post.id);
+	if (!canEditPost) {
+		throw new Error('bluesky_cross_post_post_not_editable');
+	}
+}
+
+async function getBlueskyCrossPostRecordInput(app: IGeesomeApp, post: IPost, input: IBlueskyCrossPostInput) {
+	const contents = await app.ms.group.getPostContentData(post, '', {
+		includeText: true,
+		includeJson: true
+	});
+	const primaryContent = getBlueskyCrossPostPrimaryContent(contents);
+	if (!primaryContent) {
+		throw new Error('bluesky_cross_post_text_required');
+	}
+	const unsupportedContents = getBlueskyCrossPostUnsupportedContents(contents, primaryContent);
+	if (unsupportedContents.length > 0) {
+		throw new Error('bluesky_cross_post_attachments_unsupported');
+	}
+	const textWithFacets = getBlueskyCrossPostAtProtoText(primaryContent);
+	if (!textWithFacets.text.trim()) {
+		throw new Error('bluesky_cross_post_text_required');
+	}
+	return {
+		text: textWithFacets.text,
+		facets: textWithFacets.facets,
+		langs: getBlueskyCrossPostLangs(input, primaryContent),
+		createdAt: input.createdAt
+	};
+}
+
+function getBlueskyCrossPostPrimaryContent(contents: IContentData[]): IContentData | null {
+	return contents.find((content) => {
+		if (!isBlueskyCrossPostBodyContent(content)) {
+			return false;
+		}
+		const textWithFacets = getBlueskyCrossPostAtProtoText(content);
+		return !!textWithFacets.text.trim();
+	}) || null;
+}
+
+function getBlueskyCrossPostUnsupportedContents(contents: IContentData[], primaryContent: IContentData): IContentData[] {
+	return contents.filter((content) => {
+		if (content === primaryContent) {
+			return false;
+		}
+		return hasBlueskyCrossPostContentPayload(content);
+	});
+}
+
+function isBlueskyCrossPostBodyContent(content: IContentData): boolean {
+	return content?.view === ContentView.Contents;
+}
+
+function hasBlueskyCrossPostContentPayload(content: IContentData): boolean {
+	if (!content) {
+		return false;
+	}
+	if (content.text || content.json || content.storageId || content.manifestId || content.id) {
+		return true;
+	}
+	return false;
+}
+
+function getBlueskyCrossPostAtProtoText(content: IContentData): {text: string; facets: any[]} {
+	if (content.mimeType === RICH_TEXT_MIME_TYPE && isRichTextDocument(content.json)) {
+		return richTextToAtProtoTextWithFacets(content.json);
+	}
+	if (typeof content.text === 'string') {
+		return {
+			text: content.text,
+			facets: []
+		};
+	}
+	return {
+		text: '',
+		facets: []
+	};
+}
+
+function getBlueskyCrossPostLangs(input: IBlueskyCrossPostInput, primaryContent: IContentData): string[] {
+	const inputLangs = getOptionalStringArray(input.langs, 3);
+	if (inputLangs.length > 0) {
+		return inputLangs;
+	}
+	if (isRichTextDocument(primaryContent.json) && primaryContent.json.lang) {
+		return [primaryContent.json.lang];
+	}
+	return [];
+}
+
+function getExistingBlueskyCrossPostRecord(post: IPost, did: string): IBlueskyRecordCreateResult | null {
+	const existingRecord = getPostBlueskyProperties(post).crossPosts?.[did];
+	if (!existingRecord?.uri || !existingRecord?.cid) {
+		return null;
+	}
+	return {
+		uri: existingRecord.uri,
+		cid: existingRecord.cid
+	};
+}
+
+async function storeBlueskyCrossPostRecord(
+	app: IGeesomeApp,
+	userId: number,
+	post: IPost,
+	account,
+	profile: IBlueskyActorProfile,
+	session: IBlueskySession,
+	record: IBlueskyRecordCreateResult
+): Promise<IPost> {
+	const properties = parsePostPropertiesJson(post.propertiesJson);
+	const blueskyProperties = getPlainObject(properties.bluesky);
+	blueskyProperties.crossPosts = {
+		...getPlainObject(blueskyProperties.crossPosts),
+		[session.did]: getBlueskyCrossPostRecordProperties(account, profile, session, record)
+	};
+	properties.bluesky = blueskyProperties;
+	return app.ms.group.updatePost(userId, post.id, {
+		propertiesJson: JSON.stringify(properties)
+	});
+}
+
+function getBlueskyCrossPostRecordProperties(account, profile: IBlueskyActorProfile, session: IBlueskySession, record: IBlueskyRecordCreateResult) {
+	return {
+		uri: record.uri,
+		cid: record.cid,
+		did: session.did,
+		handle: profile.handle || session.handle || null,
+		accountId: account?.id || null,
+		collection: blueskyFeedPostCollection,
+		postedAt: new Date().toISOString()
+	};
+}
+
+function getBlueskyCrossPostResult(
+	post: IPost,
+	account,
+	profile: IBlueskyActorProfile,
+	session: IBlueskySession,
+	record: IBlueskyRecordCreateResult,
+	alreadyExists: boolean
+): IBlueskyCrossPostResult {
+	return {
+		account: getBlueskyAccountReport(account),
+		profile,
+		did: session.did,
+		handle: profile.handle || session.handle,
+		post: {
+			id: post.id,
+			groupId: post.groupId,
+			status: post.status
+		},
+		record,
+		alreadyExists
+	};
+}
+
 function getBlueskyImportProjectionOrder(projections: IBlueskyPostProjection[]): IBlueskyPostProjection[] {
 	return [...projections].reverse();
 }
@@ -803,6 +1015,23 @@ function getOptionalString(value: any): string | null {
 		return null;
 	}
 	return value;
+}
+
+function getOptionalStringArray(value: any, limit: number): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value
+		.map(item => getOptionalString(item))
+		.filter(Boolean)
+		.slice(0, limit) as string[];
+}
+
+function getPlainObject(value: any): any {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return {};
+	}
+	return {...value};
 }
 
 async function importBlueskyPublicAuthorFeedProjections(app: IGeesomeApp, userId: number, dbChannel: ISocNetDbChannel, projections: IBlueskyPostProjection[], advancedSettings: any, asyncOperation: any = null): Promise<number> {
