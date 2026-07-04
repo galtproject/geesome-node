@@ -9,7 +9,7 @@ The `telegramClient` module connects user Telegram accounts, reads Telegram chan
 - Telegram login flows, including phone-code, QR-code, password, session key, and `socNetAccount` persistence.
 - Telegram client creation from stored account data.
 - User/channel lookup, channel metadata import, media download, and remote post links.
-- Telegram-specific `IGeesomeSocNetImportClient` implementation for messages, replies, reposts, media, and properties.
+- Telegram-specific `IGeesomeSocNetImportClient` implementation for messages, replies, reposts, media, remote links, and a currently empty properties hook.
 - Async channel import startup and progress/cancellation callbacks through `asyncOperation`.
 
 ## Integration Boundaries

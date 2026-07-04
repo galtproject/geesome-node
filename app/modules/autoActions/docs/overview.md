@@ -11,6 +11,7 @@ The `autoActions` module stores scheduled module function calls and executes due
 - Due-action claiming with optional DB-backed claim TTLs to avoid duplicate execution.
 - A cron service that polls every minute, groups actions by target module, executes allowed module functions, and queues follow-up actions.
 - Success/failure handling that reschedules repeating actions or deactivates exhausted actions with errors.
+- `AutoActionLog` rows for execution responses/errors, failure state, and root-action linkage across chained actions.
 
 ## Worker Boundaries
 

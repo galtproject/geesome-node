@@ -9,7 +9,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - ActivityPub/WebFinger/NodeInfo route serialization for local group actors, outboxes, followers, following, and post objects.
 - Local actor keys, remote actor cache, HTTP signature verification/signing, follow/block/flag/object/delivery state, and source subscriptions.
 - Delivery queue processing for outbound follows, follow accepts, and local post `Create(Note)` deliveries.
-- Remote-object caching, review state, sanitized previews, native post creation for accepted/allowed Notes, tombstone/update handling, and attachment backup retries.
+- Remote-object caching, review state, sanitized previews, explicit local post draft/creation for accepted public Notes, tombstone/update handling, and attachment backup retries.
 - ActivityPub source resolve/subscribe/read/refresh flows, including optional source refresh worker and poller.
 
 ## Queue And Worker Boundaries

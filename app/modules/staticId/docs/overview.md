@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `staticId` module maps stable static identities to current dynamic storage IDs and keeps a bounded history of those bindings.
+The `staticId` module maps stable static identities to current dynamic storage IDs, keeps a bounded history of those bindings, and exposes public IPNS-style resolve/stream routes.
 
 ## Owns
 
@@ -10,6 +10,7 @@ The `staticId` module maps stable static identities to current dynamic storage I
 - Static ID binding, group binding, resolution, fallback from history, and history compaction.
 - Static account creation/rename helpers for user and group identities.
 - Static ID peer lookup delegation through the communicator.
+- Public static-ID HTTP routes for self-account ID, storage resolution, and `/ipns/*` content GET/HEAD streaming through the `content` module.
 - Startup compaction when configured.
 
 ## Security Boundaries

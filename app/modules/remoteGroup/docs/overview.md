@@ -2,11 +2,12 @@
 
 ## Purpose
 
-The `remoteGroup` module imports GeeSome groups and posts from remote GeeSome manifest storage IDs or static IDs.
+The `remoteGroup` module imports or refreshes GeeSome groups and posts from remote GeeSome manifest storage IDs or static IDs, and backs local-or-remote group lookup.
 
 ## Owns
 
 - Resolving a remote group static ID to the current manifest storage ID when needed.
+- Local-or-remote `GET /group/:groupId` behavior that returns an existing local group or imports a remote ID first.
 - Creating local remote-group rows from GeeSome group manifests.
 - Importing missing published post refs from remote group manifests.
 - Removing stale local imported posts when the remote manifest no longer references them.

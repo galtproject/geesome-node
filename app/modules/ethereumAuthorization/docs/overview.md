@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `ethereumAuthorization` module verifies Ethereum account ownership for login and invite/register flows by checking signed GeeSome messages.
+The `ethereumAuthorization` module verifies Ethereum account ownership for auth-message login and for registration flows that invoke the registration-validation hook, using signed GeeSome messages bound to the node static identity.
 
 ## Owns
 
@@ -14,8 +14,9 @@ The `ethereumAuthorization` module verifies Ethereum account ownership for login
 ## Security Boundaries
 
 - Login must match auth-message ID, address, foreign account, and signature.
-- Registration signatures are required for Ethereum foreign accounts unless an admin registration path is explicitly allowed.
+- Registration signatures are required only for flows that call this module's registration-validation hook.
 - Signature verification is delegated to `geesome-libs` Ethereum helpers.
+- Login depends on the foreign-account auth-message linkage remaining consistent with the `foreignAccounts` module contract.
 - Dependency fallback info logs are suppressed unless they are meaningful.
 
 ## Boundaries

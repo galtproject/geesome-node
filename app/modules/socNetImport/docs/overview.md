@@ -7,8 +7,10 @@ The `socNetImport` module is the shared import pipeline for social-network chann
 ## Owns
 
 - Local database channels and imported message records for social-network drivers.
+- Content-message link rows used to preserve imported attachment/message ordering.
 - Channel metadata import and local group creation/reinitialization for imported sources.
 - Import-range preparation, existing-message detection, source-identity lookup, and idempotent post publishing.
+- Message merge behavior for grouped IDs and merge windows, including consolidating already-created posts when needed.
 - Related reply/repost handling before publishing the main imported post.
 - Async-operation opening for channel imports while the concrete client module runs the import loop.
 - Local-ID reversal helpers for imported channels that need chronological correction.
@@ -18,7 +20,7 @@ The `socNetImport` module is the shared import pipeline for social-network chann
 - This module opens async-operation records but does not own a generic durable queue for every import.
 - Driver modules such as `telegramClient`, `twitterClient`, and `bluesky` provide concrete clients, fetch messages/feed items, and call `importChannelPosts`.
 - Long imports must call back into `asyncOperation` for cancellation/progress through the concrete driver/client.
-- Source identity is `(group/channel source fields + sourcePostId)`; retries must update the matching imported post instead of creating duplicates.
+- Source identity is the exact tuple `(groupId, source, sourceChannelId, sourcePostId)`; retries must update the matching imported post instead of creating duplicates.
 
 ## Boundaries
 

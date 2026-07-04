@@ -2,15 +2,17 @@
 
 ## Purpose
 
-The `invite` module manages invite-code creation, status checks, join flows, invite-derived permissions, limits, and optional group membership.
+The `invite` module manages invite-code creation, rate-limited status checks and join flows, invite-derived permissions, limits, and optional group membership.
 
 ## Owns
 
 - Invite records, creator ownership, active/exhausted status, usage counts, and joined-user pivots.
-- Public invite status and register-by-code flows.
+- Public invite status and register-by-code flows with separate status and failed-join IP rate limiters.
 - Invite-created user API key generation with invite permissions.
 - Optional invite-provided user limits and groups-to-join.
 - Register messages used by signature-verified registration flows.
+- Invite code generation with configured length and minimum entropy.
+- Structured public invite API errors with error codes, retry metadata, and agent-action hints.
 
 ## Security Boundaries
 

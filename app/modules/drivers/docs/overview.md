@@ -11,6 +11,7 @@ The `drivers` module registers media/file drivers used by higher-level content f
 - Conversion drivers for video streamability and image watermarking.
 - Metadata drivers for image inspection.
 - The shared driver contract for stream/content/source/path inputs and processed outputs.
+- Runtime media/tooling integration for dependencies such as `sharp`, ffmpeg/media-info tooling, ImageMagick `convert`, `yt-dlp`, and archive streams.
 
 ## Boundaries
 

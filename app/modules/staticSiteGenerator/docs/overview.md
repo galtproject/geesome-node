@@ -10,6 +10,7 @@ The `staticSiteGenerator` module renders GeeSome groups and content lists into s
 - Render-queue entry points such as `addRenderToQueueAndProcess` and `runRenderAndWaitForFinish`.
 - A single-module queue processor that uses `asyncOperation` queue rows and progress records.
 - Group and content-list render flows, including sanitized text/HTML output and bundled frontend assets.
+- Render option normalization: site names are validated, custom CSS is size-capped, and header/footer HTML is sanitized before generation.
 - Storage ID allow checks for generated site responses.
 
 ## Queue Boundaries

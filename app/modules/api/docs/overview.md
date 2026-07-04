@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `api` module owns the Express HTTP surface, route registration helpers, authorization wrappers, route discovery, and API documentation/OpenAPI serving.
+The `api` module owns the Express HTTP surface, route registration helpers, authorization wrappers, route discovery, generated documentation, and core setup/auth/user/admin/storage helper routes.
 
 ## Owns
 
@@ -11,6 +11,7 @@ The `api` module owns the Express HTTP surface, route registration helpers, auth
 - Request/response adapter objects passed into feature modules.
 - Raw JSON body capture for signed/protocol-style routes such as ActivityPub inboxes.
 - Default CORS/storage headers, route discovery, generated API docs, and OpenAPI output.
+- Core app routes such as setup, password login, current user/API-key flows, admin user/permission/boot-node helpers, node-address list, IPLD/IPFS refs proxy, and save-object helpers.
 
 ## Security Boundaries
 
@@ -23,6 +24,7 @@ The `api` module owns the Express HTTP surface, route registration helpers, auth
 ## Boundaries
 
 - Keep business logic in feature modules, not inside route wrappers.
+- Feature-specific behavior belongs in feature modules; `api` owns cross-cutting/core routes that delegate to app/database/storage helpers.
 - Do not bypass `app.runWithApiKey` for authorized routes that need API-key-scoped behavior.
 - Keep route list output and generated docs aligned with the registered route surface.
 

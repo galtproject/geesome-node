@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, and cached feed reading for Bluesky sources.
+The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, and local GeeSome feed reading for Bluesky sources.
 
 ## Owns
 
@@ -10,7 +10,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Projection of ATProto posts into canonical rich text, source identity, replies, and embed metadata.
 - One-page public feed import through the shared `socNetImport` pipeline.
 - Per-user source subscriptions with actor, filter, display name, local group name, account ID, import limit, cursor, and error state.
-- Manual refresh, queued refresh, due-subscription polling, and cached source-feed reads.
+- Manual refresh, queued refresh, due-subscription polling, and source-feed reads over already-imported GeeSome posts through the linked social-import channel.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries

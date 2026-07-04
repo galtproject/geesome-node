@@ -8,7 +8,8 @@ The `communicator` module provides the network communication adapter for static-
 
 - Runtime selection of the Fluence-backed communicator, with a maintenance-mode disabled implementation.
 - Static ID account lookup, binding, resolution, and key lookup delegation.
-- Boot-node and node-address listing/mutation APIs.
+- Boot-node and node-address service methods consumed by API routes.
+- Authorized private-key export route for communicator key material; treat responses as secrets.
 - Pubsub publish/subscribe helpers for generic topics and static-id update topics.
 - Peer discovery helpers for static IDs, topics, and account/group update topics.
 

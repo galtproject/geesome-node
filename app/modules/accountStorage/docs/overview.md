@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `accountStorage` module stores local and remote static-id account key records used by static identity, communicator, and group binding flows.
+The `accountStorage` module stores local static-id peer keys and remote public-key records used by static identity, communicator, group binding, and manifest identity flows.
 
 ## Owns
 
