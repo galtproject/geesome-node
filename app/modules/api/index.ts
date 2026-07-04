@@ -88,7 +88,8 @@ async function getModule(app: IGeesomeApp, version, port) {
 		// Point clients/agents at the API docs. Use the IPFS path (served at /ipfs/
 		// regardless of any reverse-proxy prefix) so it is unambiguous; the JSON
 		// discovery index is reachable at the API base root (GET /{version}).
-		res.setHeader('X-Api-Docs', app.docsStorageId ? `/ipfs/${app.docsStorageId}` : 'https://github.com/galtproject/geesome-node');
+		const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId);
+		setDocsHeaders(res, docsLinks);
 	}
 
 	class GeesomeApiModule implements IGeesomeApiModule {
@@ -358,10 +359,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 	// Primary spec is generated from the node's apiDoc annotations (full param
 	// schemas); fall back to the route-registry map if apiDoc parsing is
 	// unavailable at runtime.
-	const openapiHandler = (req, res) => res.send(buildOpenApiFromApiDoc(version, app.docsStorageId) || buildOpenApi(), 200);
+	const openapiHandler = (req, res) => res.send(buildOpenApiFromApiDoc(version, app.docsStorageId) || buildOpenApi());
 	apiModule.onGet('openapi.json', openapiHandler);
 	// Raw apiDoc data (native format) for clients that prefer it.
-	apiModule.onGet('apidoc.json', (req, res) => res.send(getApiDocData() || [], 200));
+	apiModule.onGet('apidoc.json', (req, res) => res.send(getApiDocData() || []));
 	// Also serve at conventional unversioned paths an agent is likely to guess, so
 	// they return the real spec instead of being shadowed by the frontend SPA.
 	['openapi.json', 'swagger.json', 'api-docs.json', '.well-known/openapi.json'].forEach((p) => apiModule.onUnversionGet(p, openapiHandler));
@@ -369,21 +370,69 @@ async function getModule(app: IGeesomeApp, version, port) {
 	// Machine-readable discovery index so an agent with only the node URL can find
 	// the route map and the published API docs. Served at GET /{version} and
 	// /{version}/ (e.g. /api/v1 behind nginx). Fast JSON, never the SPA shell.
-	const discoveryHandler = (req, res) => res.send({
-		name: 'geesome-node',
-		version,
-		docs: {
-			description: 'Full API reference (apiDoc) is generated and published to IPFS on each node boot.',
-			openapi: `/${version}/openapi.json`,
-			ipfsStorageId: app.docsStorageId || null,
-			ipfsPath: app.docsStorageId ? `/ipfs/${app.docsStorageId}` : null,
-			repo: 'https://github.com/galtproject/geesome-node',
-		},
-		routesCount: registeredRoutes.length,
-		routes: registeredRoutes,
-	}, 200);
+	const discoveryHandler = (req, res) => {
+		const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId);
+		return res.send({
+			name: 'geesome-node',
+			version,
+			docs: {
+				description: 'Full API reference (apiDoc) is generated and published to IPFS on each node boot.',
+				discovery: docsLinks.discovery,
+				openapi: docsLinks.openapi,
+				apidoc: docsLinks.apidoc,
+				apiHtml: docsLinks.apiHtml,
+				repoDocs: docsLinks.repoDocs,
+				moduleDocs: docsLinks.moduleDocs,
+				agentMap: docsLinks.agentMap,
+				conventionalOpenapi: docsLinks.conventionalOpenapi,
+				ipfsStorageId: app.docsStorageId || null,
+				ipfsPath: docsLinks.ipfsRoot,
+				repo: docsLinks.repo,
+			},
+			routesCount: registeredRoutes.length,
+			routes: registeredRoutes,
+		});
+	};
 	apiModule.onGet('', discoveryHandler);
 	apiModule.onUnversionGet(version, discoveryHandler);
 
 	return apiModule;
+}
+
+function buildDocsDiscoveryLinks(version: string, docsStorageId?: string) {
+	const repo = 'https://github.com/galtproject/geesome-node';
+	const docsRepoRoot = `${repo}/tree/master/docs`;
+	const docsRepoBlob = `${repo}/blob/master/docs`;
+	const ipfsRoot = docsStorageId ? `/ipfs/${docsStorageId}` : null;
+	return {
+		repo,
+		discovery: `/${version}`,
+		openapi: `/${version}/openapi.json`,
+		apidoc: `/${version}/apidoc.json`,
+		apiHtml: ipfsRoot || docsRepoRoot,
+		repoDocs: ipfsRoot ? `${ipfsRoot}/README.md` : `${docsRepoBlob}/README.md`,
+		moduleDocs: ipfsRoot ? `${ipfsRoot}/modules.md` : `${docsRepoBlob}/modules.md`,
+		agentMap: ipfsRoot ? `${ipfsRoot}/agent-map.md` : `${docsRepoBlob}/agent-map.md`,
+		ipfsRoot,
+		conventionalOpenapi: {
+			openapi: '/openapi.json',
+			swagger: '/swagger.json',
+			apiDocs: '/api-docs.json',
+			wellKnown: '/.well-known/openapi.json',
+		},
+	};
+}
+
+function setDocsHeaders(res, docsLinks) {
+	res.setHeader('X-Api-Docs', docsLinks.apiHtml);
+	res.setHeader('X-Api-Docs-Openapi', docsLinks.openapi);
+	res.setHeader('X-Api-Docs-Discovery', docsLinks.discovery);
+	if (docsLinks.ipfsRoot) {
+		res.setHeader('X-Api-Docs-Ipfs', docsLinks.ipfsRoot);
+	}
+	res.setHeader('Link', [
+		`<${docsLinks.openapi}>; rel="service-desc"; type="application/openapi+json"`,
+		`<${docsLinks.repoDocs}>; rel="describedby"; type="text/markdown"`,
+		`<${docsLinks.moduleDocs}>; rel="describedby"; type="text/markdown"`,
+	].join(', '));
 }

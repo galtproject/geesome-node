@@ -253,11 +253,15 @@ Verification:
 
 Documentation discovery follow-up:
 
-- Add `docs/README.md` as a stable docs portal for humans and agents. It should link to generated API docs, `docs/modules.md`, security/scalability/debug docs, and module-owned docs.
-- Add a compact agent/docs map, either as a section in `docs/README.md` or a separate `docs/agent-map.md`, mapping common work types to the right docs and verification commands.
-- Extend the existing `/v1` discovery JSON so the `docs` object includes generated API HTML, OpenAPI JSON, raw apiDoc JSON, the repo docs portal, the module-doc index, and the published IPFS paths when `app.docsStorageId` is available.
-- Add or restore dedicated docs headers such as `X-Api-Docs-Ipfs`, and consider standard `Link` headers with `service-desc` / `describedby` relations so generic tools can find the OpenAPI spec and human docs without knowing GeeSome conventions.
-- Keep conventional unversioned paths (`/openapi.json`, `/swagger.json`, `/api-docs.json`, `/.well-known/openapi.json`) returning machine-readable API docs instead of the frontend SPA shell.
+Status: implemented for the repo docs portal, compact agent map, richer `/v1`
+docs object, docs headers, and module-doc IPFS/repo links. Keep this section as
+the checklist for future generated-docs layout changes.
+
+- Add `docs/README.md` as a stable docs portal for humans and agents. Status: implemented.
+- Add a compact agent/docs map, either as a section in `docs/README.md` or a separate `docs/agent-map.md`, mapping common work types to the right docs and verification commands. Status: implemented as `docs/agent-map.md`.
+- Extend the existing `/v1` discovery JSON so the `docs` object includes generated API HTML, OpenAPI JSON, raw apiDoc JSON, the repo docs portal, the module-doc index, and the published IPFS paths when `app.docsStorageId` is available. Status: implemented.
+- Add or restore dedicated docs headers such as `X-Api-Docs-Ipfs`, and consider standard `Link` headers with `service-desc` / `describedby` relations so generic tools can find the OpenAPI spec and human docs without knowing GeeSome conventions. Status: implemented with `X-Api-Docs-Ipfs`, `X-Api-Docs-Openapi`, `X-Api-Docs-Discovery`, and `Link` headers.
+- Keep conventional unversioned paths (`/openapi.json`, `/swagger.json`, `/api-docs.json`, `/.well-known/openapi.json`) returning machine-readable API docs instead of the frontend SPA shell. Status: already implemented in the API docs discovery work.
 - Do not move the generated API docs root until there is a planned compatibility change; if it is later moved to `docs/api/`, keep redirects or published links so existing `/ipfs/<docsStorageId>/` docs links keep working.
 
 ### 8. API And Encryption Security Review
