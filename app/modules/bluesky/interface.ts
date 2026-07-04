@@ -155,6 +155,37 @@ export interface IBlueskySourceRefreshPollResult {
 	queued: number;
 }
 
+export interface IBlueskySourceSyncInput {
+	limit?: number | string;
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+	force?: boolean | string;
+}
+
+export interface IBlueskySourceSyncError {
+	postId?: number;
+	sourcePostId?: string | null;
+	message: string;
+}
+
+export interface IBlueskySourceSyncResult {
+	source: IBlueskySourceSubscriptionReport;
+	dbChannel: {
+		id;
+		groupId;
+		channelId;
+		title;
+		socNet;
+	} | null;
+	checked: number;
+	updated: number;
+	deleted: number;
+	skipped: number;
+	failed: number;
+	errors: IBlueskySourceSyncError[];
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
 export default interface IGeesomeBlueskyModule {
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
@@ -167,4 +198,5 @@ export default interface IGeesomeBlueskyModule {
 	queueSourceSubscriptionRefresh(userId: number, sourceId: number | string, userApiKeyId?: number | null, input?: IBlueskySourceRefreshQueueInput): Promise<IUserOperationQueue>;
 	processSourceSubscriptionRefreshQueue(options?: IBlueskySourceRefreshQueueProcessOptions): Promise<IBlueskySourceRefreshQueueProcessResult>;
 	queueDueSourceSubscriptionRefreshes(options?: IBlueskySourceRefreshPollOptions): Promise<IBlueskySourceRefreshPollResult>;
+	syncSourceSubscriptionPosts(userId: number, sourceId: number | string, input?: IBlueskySourceSyncInput): Promise<IBlueskySourceSyncResult>;
 }

@@ -456,6 +456,113 @@ describe('bluesky module', () => {
 		assert.ok(result.source.lastImportedAt);
 	});
 
+	it('syncs imported native Bluesky source posts against current ATProto records', async () => {
+		const checks: any[] = [];
+		const imports: any[] = [];
+		const deletedPostIds: number[] = [];
+		const fetchUrls: string[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/'
+				}
+			},
+			ms: {
+				socNetImport: {
+					getDbChannel: async (userId, where) => {
+						assert.equal(userId, 7);
+						assert.deepEqual(where, {id: 9});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						assert.deepEqual(client.messages.list.map(m => m.id), ['at://did:plc:alice/app.bsky.feed.post/updated']);
+						assert.equal(client.advancedSettings.force, true);
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 21}, 'post');
+					}
+				},
+				group: {
+					getGroupPostRefs: async (groupId, filters, listParams, options) => {
+						assert.equal(groupId, 3);
+						assert.deepEqual(filters, {
+							source: 'socNetImport:bluesky',
+							sourceChannelId: 'did:plc:alice',
+							sourcePostIdNe: null,
+							cursorPublishedAt: undefined,
+							cursorId: undefined
+						});
+						assert.deepEqual(listParams, {sortBy: 'publishedAt', sortDir: 'DESC', limit: 3});
+						assert.deepEqual(options.attributes, ['id', 'publishedAt', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson']);
+						return [
+							getImportedBlueskyPostRef(21, 'updated', 'oldcid', '2026-07-04T08:03:00.000Z'),
+							getImportedBlueskyPostRef(22, 'same', 'samecid', '2026-07-04T08:02:00.000Z'),
+							getImportedBlueskyPostRef(23, 'deleted', 'deletedcid', '2026-07-04T08:01:00.000Z')
+						];
+					},
+					deletePosts: async (userId, postIds) => {
+						assert.equal(userId, 7);
+						deletedPostIds.push(...postIds);
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async (userId, permission) => {
+				checks.push({userId, permission});
+			}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			},
+			fetch: async (url) => {
+				fetchUrls.push(url);
+				if (String(url).includes('rkey=deleted')) {
+					return {
+						ok: false,
+						status: 404,
+						json: async () => ({error: 'RecordNotFound'})
+					};
+				}
+				const isUpdated = String(url).includes('rkey=updated');
+				return {
+					ok: true,
+					json: async () => ({
+						uri: `at://did:plc:alice/app.bsky.feed.post/${isUpdated ? 'updated' : 'same'}`,
+						cid: isUpdated ? 'newcid' : 'samecid',
+						value: {
+							$type: 'app.bsky.feed.post',
+							text: isUpdated ? 'Updated text' : 'Same text',
+							createdAt: '2026-07-04T08:00:00.000Z'
+						}
+					})
+				};
+			}
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social'
+		});
+		await subscriptionModel.rows[0].update({dbChannelId: 9});
+
+		const result = await module.syncSourceSubscriptionPosts(7, subscription.id, {limit: 3});
+
+		assert.deepEqual(checks, [{
+			userId: 7,
+			permission: CorePermissionName.UserGroupManagement
+		}]);
+		assert.equal(fetchUrls.length, 3);
+		assert.equal(fetchUrls[0], 'https://public.example/xrpc/com.atproto.repo.getRecord?repo=did%3Aplc%3Aalice&collection=app.bsky.feed.post&rkey=updated');
+		assert.equal(imports.length, 1);
+		assert.deepEqual(deletedPostIds, [23]);
+		assert.equal(result.checked, 3);
+		assert.equal(result.updated, 1);
+		assert.equal(result.deleted, 1);
+		assert.equal(result.skipped, 1);
+		assert.equal(result.failed, 0);
+		assert.deepEqual(result.errors, []);
+		assert.deepEqual(result.nextCursor, {publishedAt: new Date('2026-07-04T08:01:00.000Z'), id: 23});
+		assert.equal(result.dbChannel?.id, 9);
+	});
+
 	it('queues and polls native Bluesky source refreshes through async operations', async () => {
 		const calls = getAsyncOperationCalls();
 		const subscriptionModel = getBlueskySourceSubscriptionModel();
@@ -737,6 +844,10 @@ describe('bluesky module', () => {
 			queueSourceSubscriptionRefresh: async (userId, sourceId, userApiKeyId, input) => {
 				moduleCalls.push({method: 'queueSourceSubscriptionRefresh', userId, sourceId, userApiKeyId, input});
 				return {id: 44, module: 'bluesky-source-refresh', userApiKeyId, isWaiting: true};
+			},
+			syncSourceSubscriptionPosts: async (userId, sourceId, input) => {
+				moduleCalls.push({method: 'syncSourceSubscriptionPosts', userId, sourceId, input});
+				return {source: {id: Number(sourceId)}, checked: 1, updated: 0, deleted: 1};
 			}
 		};
 
@@ -771,6 +882,11 @@ describe('bluesky module', () => {
 			params: {sourceId: '5'},
 			body: {limit: 1, process: false}
 		});
+		const syncResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/sync', {
+			user: {id: 7},
+			params: {sourceId: '5'},
+			body: {limit: 2}
+		});
 		const removeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/remove', {
 			user: {id: 7},
 			params: {sourceId: '5'}
@@ -785,6 +901,8 @@ describe('bluesky module', () => {
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.AdminAll}
 		]);
 		assert.deepEqual(moduleCalls, [
@@ -794,6 +912,7 @@ describe('bluesky module', () => {
 			{method: 'updateSourceSubscription', userId: 7, sourceId: '5', input: {status: 'paused'}},
 			{method: 'refreshSourceSubscription', userId: 7, sourceId: '5', input: {limit: 1}},
 			{method: 'queueSourceSubscriptionRefresh', userId: 7, sourceId: '5', userApiKeyId: 12, input: {limit: 1, process: false}},
+			{method: 'syncSourceSubscriptionPosts', userId: 7, sourceId: '5', input: {limit: 2}},
 			{method: 'removeSourceSubscription', userId: 7, sourceId: '5'}
 		]);
 		assert.deepEqual(listResponse.body, {list: [{id: 4, actor: 'bsky.app'}], total: 1});
@@ -802,6 +921,7 @@ describe('bluesky module', () => {
 		assert.deepEqual(updateResponse.body, {id: 5, status: 'paused'});
 		assert.deepEqual(refreshResponse.body, {source: {id: 5}, fetched: 1, imported: 1});
 		assert.deepEqual(refreshQueueResponse.body, {id: 44, module: 'bluesky-source-refresh', userApiKeyId: 12, isWaiting: true});
+		assert.deepEqual(syncResponse.body, {source: {id: 5}, checked: 1, updated: 0, deleted: 1});
 		assert.deepEqual(removeResponse.body, {id: 5, status: BlueskySourceSubscriptionStatus.Removed});
 	});
 });
@@ -894,6 +1014,21 @@ function getDbChannel() {
 		channelId: 'did:plc:alice',
 		socNet: 'bluesky',
 		title: 'Alice'
+	};
+}
+
+function getImportedBlueskyPostRef(id: number, rkey: string, cid: string, publishedAt: string) {
+	return {
+		id,
+		publishedAt: new Date(publishedAt),
+		source: 'socNetImport:bluesky',
+		sourceChannelId: 'did:plc:alice',
+		sourcePostId: `at://did:plc:alice/app.bsky.feed.post/${rkey}`,
+		propertiesJson: JSON.stringify({
+			bluesky: {
+				cid
+			}
+		})
 	};
 }
 

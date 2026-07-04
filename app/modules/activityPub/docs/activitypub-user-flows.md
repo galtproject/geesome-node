@@ -144,7 +144,7 @@ This flow is bridge-free and belongs to the dedicated Bluesky/ATProto module, no
 7. GeeSome applies keyword/regex/source filters before creating or keeping visible posts.
 8. GeeSome stores imported posts in the linked local group/channel with stable Bluesky AT URI source identity.
 9. User reads the source feed through the cached source-feed API, which returns already-imported group posts with cursor pagination.
-10. Future update/delete sync should update or tombstone local posts only when the stored source identity still matches the remote AT URI.
+10. User or admin can run a bounded sync that verifies already-imported AT URIs, updates changed records, and tombstones local posts only when the remote record lookup confirms deletion.
 
 Boundary: public native reads do not need credentials. Credentialed account ownership, private/account-specific reads, and cross-posting require explicit stored `socNetAccount` handling and tests.
 
