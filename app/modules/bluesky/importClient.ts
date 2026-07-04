@@ -255,7 +255,7 @@ function getRepoFromAtUri(uri: string): string | null {
 }
 
 function getBlueskyMessageProperties(m: IBlueskyImportMessage, type: string): any {
-	return {
+	const properties = {
 		type,
 		uri: m.uri,
 		cid: m.cid || null,
@@ -268,6 +268,10 @@ function getBlueskyMessageProperties(m: IBlueskyImportMessage, type: string): an
 		embed: m.embed,
 		facetsCount: m.facetsCount
 	};
+	if (m.moderationDecision) {
+		properties['moderation'] = m.moderationDecision;
+	}
+	return properties;
 }
 
 function getBlueskyContentFileName(m: IBlueskyImportMessage): string {

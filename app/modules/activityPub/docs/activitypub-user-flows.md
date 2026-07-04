@@ -138,10 +138,10 @@ This flow is bridge-free and belongs to the dedicated Bluesky/ATProto module, no
 1. User opens the native Bluesky source section.
 2. User previews a public Bluesky actor such as `bsky.app` through public ATProto/XRPC.
 3. GeeSome projects feed items into canonical rich text, source identity, reply metadata, and embed metadata.
-4. User subscribes to the Bluesky source with optional filter, display name, group name, account id, and import limit.
+4. User subscribes to the Bluesky source with optional filter, display name, group name, account id, import limit, moderation mode, and moderation rules.
 5. User refreshes the subscription manually, via queue, or through the optional poller.
 6. Refresh imports one bounded public feed page through the existing `socNetImport` pipeline when the admin policy allows it.
-7. GeeSome applies keyword/regex/source filters before creating or keeping visible posts.
+7. GeeSome applies keyword/regex/source/group-name filters before creating or keeping visible posts.
 8. GeeSome stores imported posts in the linked local group/channel with stable Bluesky AT URI source identity.
 9. User reads the source feed through the cached source-feed API, which returns already-imported group posts with cursor pagination.
 10. User or admin can run a bounded sync that verifies already-imported AT URIs, updates changed records, and tombstones local posts only when the remote record lookup confirms deletion.

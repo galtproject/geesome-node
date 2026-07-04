@@ -30,6 +30,8 @@ Useful live endpoints:
 - Read `app/modules/activityPub/docs/activitypub-user-flows.md`.
 - Read `app/modules/activityPub/docs/overview.md` and
   `app/modules/bluesky/docs/overview.md`.
+- For review-first/auto-import policy or remote-source filters, also read
+  `app/modules/remoteContentModeration/docs/overview.md`.
 
 ## Data Scale, Migrations, And Storage
 
