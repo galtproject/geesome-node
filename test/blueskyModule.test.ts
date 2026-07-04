@@ -177,6 +177,154 @@ describe('bluesky module', () => {
 		);
 	});
 
+	it('connects and verifies user-scoped Bluesky social accounts', async () => {
+		const calls: any[] = [];
+		const accounts = getSocNetAccountModule([{
+			id: 1,
+			userId: 7,
+			socNet: 'telegram',
+			accountId: 'telegram-account',
+			username: 'telegram-user',
+			apiKey: 'telegram-secret'
+		}]);
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					authApiOrigin: 'https://auth.example/',
+					authApiTimeoutMs: 1234
+				}
+			},
+			ms: {
+				socNetAccount: accounts
+			},
+			checkModules: (modulesList) => {
+				calls.push({method: 'checkModules', modulesList});
+			}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token',
+							refreshJwt: 'refresh-token'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						displayName: 'Alice'
+					})
+				};
+			}
+		});
+
+		const connected = await module.loginAccount(7, {
+			identifier: '@alice.bsky.social',
+			appPassword: 'app-password'
+		});
+		const verified = await module.verifyAccount(7, {
+			accountData: {id: connected.account.id}
+		});
+
+		assert.equal(accounts.rows.length, 2);
+		assert.equal(accounts.rows[0].socNet, 'telegram');
+		assert.equal(accounts.rows[0].apiKey, 'telegram-secret');
+		assert.equal(accounts.rows[1].socNet, 'bluesky');
+		assert.equal(accounts.rows[1].accountId, 'did:plc:alice');
+		assert.equal(accounts.rows[1].username, 'alice.bsky.social');
+		assert.equal(accounts.rows[1].apiKey, 'app-password');
+		assert.equal(connected.account.hasApiKey, true);
+		assert.equal(connected.account['apiKey'], undefined);
+		assert.equal(connected.did, 'did:plc:alice');
+		assert.equal(connected.handle, 'alice.bsky.social');
+		assert.equal(connected.profile.displayName, 'Alice');
+		assert.equal(verified.account.id, connected.account.id);
+		assert.equal(verified.did, 'did:plc:alice');
+		assert.deepEqual(calls.filter(call => call.method === 'checkModules'), [
+			{method: 'checkModules', modulesList: ['api']},
+			{method: 'checkModules', modulesList: ['socNetAccount']},
+			{method: 'checkModules', modulesList: ['socNetAccount']}
+		]);
+		assert.equal(calls.filter(call => call.method === 'fetch').length, 4);
+		const createSessionCall = calls.find(call => call.method === 'fetch' && call.url.includes('createSession'));
+		assert.equal(JSON.parse(createSessionCall.options.body).identifier, 'alice.bsky.social');
+
+		accounts.rows[1].username = 'previous.handle';
+		const verifiedAfterHandleChange = await module.verifyAccount(7, {
+			accountData: {id: connected.account.id},
+			appPassword: 'app-password'
+		});
+		assert.equal(verifiedAfterHandleChange.did, 'did:plc:alice');
+
+		accounts.rows[1].accountId = 'did:plc:other';
+		await assert.rejects(
+			() => module.verifyAccount(7, {accountData: {id: connected.account.id}, appPassword: 'app-password'}),
+			/bluesky_account_identity_mismatch/
+		);
+		await assert.rejects(
+			() => module.verifyAccount(8, {accountData: {id: connected.account.id}, appPassword: 'app-password'}),
+			/bluesky_account_not_found/
+		);
+	});
+
+	it('requires plaintext password overrides for encrypted Bluesky account verification', async () => {
+		const accounts = getSocNetAccountModule();
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetAccount: accounts
+			},
+			checkModules: () => {}
+		} as any, {
+			fetch: async (url) => {
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:bob',
+							handle: 'bob.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:bob',
+						handle: 'bob.bsky.social'
+					})
+				};
+			}
+		});
+
+		const connected = await module.loginAccount(7, {
+			identifier: 'bob.bsky.social',
+			appPassword: 'plain-app-password',
+			encryptedApiKey: 'encrypted-app-password',
+			isEncrypted: true
+		});
+
+		assert.equal(accounts.rows[0].apiKey, 'encrypted-app-password');
+		assert.equal(accounts.rows[0].isEncrypted, true);
+		assert.equal(connected.account.hasApiKey, true);
+		await assert.rejects(
+			() => module.verifyAccount(7, {accountData: {id: connected.account.id}}),
+			/bluesky_account_password_required/
+		);
+		const verified = await module.verifyAccount(7, {
+			accountData: {id: connected.account.id},
+			appPassword: 'plain-app-password'
+		});
+		assert.equal(verified.did, 'did:plc:bob');
+	});
+
 	it('manages native Bluesky source subscriptions as local state', async () => {
 		const subscriptionModel = getBlueskySourceSubscriptionModel();
 		const module = getBlueskyModule({
@@ -910,6 +1058,50 @@ describe('bluesky module', () => {
 		]);
 	});
 
+	it('registers user Bluesky account routes', async () => {
+		const routes = {};
+		const moduleCalls: any[] = [];
+		const app = {
+			ms: {
+				api: {
+					onAuthorizedPost: (path, handler) => {
+						routes[`AUTH POST ${path}`] = handler;
+					},
+					onAuthorizedGet: (path, handler) => {
+						routes[`AUTH GET ${path}`] = handler;
+					}
+				}
+			}
+		};
+		const module = {
+			loginAccount: async (userId, input) => {
+				moduleCalls.push({method: 'loginAccount', userId, input});
+				return {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}};
+			},
+			verifyAccount: async (userId, input) => {
+				moduleCalls.push({method: 'verifyAccount', userId, input});
+				return {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}};
+			}
+		};
+
+		registerBlueskyApi(app as any, module as IGeesomeBlueskyModule);
+		const loginResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/login', {
+			user: {id: 7},
+			body: {identifier: 'alice.bsky.social', appPassword: 'app-password'}
+		});
+		const verifyResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/verify-account', {
+			user: {id: 7},
+			body: {accountData: {id: 3}}
+		});
+
+		assert.deepEqual(moduleCalls, [
+			{method: 'loginAccount', userId: 7, input: {identifier: 'alice.bsky.social', appPassword: 'app-password'}},
+			{method: 'verifyAccount', userId: 7, input: {accountData: {id: 3}}}
+		]);
+		assert.deepEqual(loginResponse.body, {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}});
+		assert.deepEqual(verifyResponse.body, {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}});
+	});
+
 	it('registers an admin read-only public author feed preview route', async () => {
 		const routes = {};
 		const permissionChecks: any[] = [];
@@ -1295,6 +1487,88 @@ function getImportedBlueskyPostRef(id: number, rkey: string, cid: string, publis
 
 function waitForBackgroundTasks() {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+class FakeSocNetAccount {
+	id: number;
+	userId: number;
+	socNet: string;
+	accountId: string | null;
+	username: string | null;
+	fullName: string | null;
+	apiKey: string | null;
+	accessToken: string | null;
+	sessionKey: string | null;
+	isEncrypted: boolean;
+
+	constructor(id: number, data: any) {
+		Object.assign(this, {
+			accountId: null,
+			username: null,
+			fullName: null,
+			apiKey: null,
+			accessToken: null,
+			sessionKey: null,
+			isEncrypted: false,
+			...data,
+			id
+		});
+	}
+
+	async update(data: any) {
+		Object.assign(this, data);
+		return this;
+	}
+
+	toJSON() {
+		return {...this};
+	}
+}
+
+function getSocNetAccountModule(initialRows: any[] = []) {
+	const rows = initialRows.map((row, index) => new FakeSocNetAccount(index + 1, row));
+	return {
+		rows,
+		async getAccount(userId, socNet, accountData) {
+			return rows.find(row => matchesSocNetAccountWhere(row, {userId, socNet, ...accountData})) || null;
+		},
+		async createOrUpdateAccount(userId, accountData) {
+			const where = getSocNetAccountLookupWhere(userId, accountData);
+			const existingAccount = rows.find(row => matchesSocNetAccountWhere(row, where));
+			if (existingAccount) {
+				await existingAccount.update(accountData);
+				return existingAccount;
+			}
+			const row = new FakeSocNetAccount(rows.length + 1, {...accountData, userId});
+			rows.push(row);
+			return row;
+		}
+	};
+}
+
+function getSocNetAccountLookupWhere(userId, accountData) {
+	if (accountData.id) {
+		return {userId, id: accountData.id};
+	}
+	if (accountData.socNet && accountData.accountId) {
+		return {userId, socNet: accountData.socNet, accountId: accountData.accountId};
+	}
+	if (accountData.socNet && accountData.username) {
+		return {userId, socNet: accountData.socNet, username: accountData.username};
+	}
+	if (accountData.socNet && accountData.phoneNumber) {
+		return {userId, socNet: accountData.socNet, phoneNumber: accountData.phoneNumber};
+	}
+	return {userId, id: null};
+}
+
+function matchesSocNetAccountWhere(row: FakeSocNetAccount, where: any): boolean {
+	return Object.keys(where || {}).every((key) => {
+		if (key === 'id' || key === 'userId') {
+			return Number(row[key]) === Number(where[key]);
+		}
+		return row[key] === where[key];
+	});
 }
 
 class FakeBlueskySourceSubscription {

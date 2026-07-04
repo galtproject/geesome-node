@@ -12,6 +12,7 @@ export const blueskySocNet = 'bluesky';
 export const blueskyPostSource = `socNetImport:${blueskySocNet}`;
 export const defaultBlueskyOfficialHandle = 'bsky.app';
 export const defaultBlueskyPublicApiOrigin = 'https://public.api.bsky.app';
+export const defaultBlueskyAuthApiOrigin = 'https://bsky.social';
 export const blueskyAuthorFeedFilters = new Set([
 	'posts_with_replies',
 	'posts_no_replies',
@@ -36,6 +37,37 @@ export interface IBlueskyPostRecordFetchOptions {
 	origin?: string;
 	timeoutMs?: number;
 	fetch?: BlueskyFetch;
+}
+
+export interface IBlueskySessionCreateOptions {
+	identifier: string;
+	password: string;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+}
+
+export interface IBlueskyActorProfileFetchOptions {
+	actor: string;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+	accessJwt?: string | null;
+}
+
+export interface IBlueskySession {
+	did: string;
+	handle: string | null;
+	accessJwt: string;
+	refreshJwt: string | null;
+}
+
+export interface IBlueskyActorProfile {
+	did: string | null;
+	handle: string | null;
+	displayName: string | null;
+	description: string | null;
+	avatar: string | null;
 }
 
 export interface IBlueskyPostAtUriParts {
@@ -135,6 +167,16 @@ export function buildBlueskyPostRecordUrl(options: IBlueskyPostRecordFetchOption
 	return url.toString();
 }
 
+export function buildBlueskyCreateSessionUrl(options: {origin?: string} = {}): string {
+	return new URL('/xrpc/com.atproto.server.createSession', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
+}
+
+export function buildBlueskyActorProfileUrl(options: IBlueskyActorProfileFetchOptions): string {
+	const url = new URL('/xrpc/app.bsky.actor.getProfile', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin));
+	url.searchParams.set('actor', normalizeBlueskyActor(options.actor));
+	return url.toString();
+}
+
 export async function fetchBlueskyAuthorFeed(options: IBlueskyAuthorFeedFetchOptions): Promise<any> {
 	const fetchImpl = options.fetch || fetch;
 	const abortController = new AbortController();
@@ -179,6 +221,56 @@ export async function fetchBlueskyPostRecord(options: IBlueskyPostRecordFetchOpt
 			throw new Error(`bluesky_post_record_fetch_failed:${response.status}`);
 		}
 		return projectBlueskyPostRecordResponse(await response.json(), options.uri);
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function createBlueskySession(options: IBlueskySessionCreateOptions): Promise<IBlueskySession> {
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const response = await fetchImpl(buildBlueskyCreateSessionUrl(options), {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				identifier: normalizeBlueskyActor(options.identifier),
+				password: getRequiredBlueskyPassword(options.password)
+			}),
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			throw new Error(`bluesky_session_create_failed:${response.status}`);
+		}
+		return getBlueskySessionResponse(await response.json());
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function fetchBlueskyActorProfile(options: IBlueskyActorProfileFetchOptions): Promise<IBlueskyActorProfile> {
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const headers: any = {
+			Accept: 'application/json'
+		};
+		if (options.accessJwt) {
+			headers.Authorization = `Bearer ${options.accessJwt}`;
+		}
+		const response = await fetchImpl(buildBlueskyActorProfileUrl(options), {
+			headers,
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			throw new Error(`bluesky_actor_profile_fetch_failed:${response.status}`);
+		}
+		return getBlueskyActorProfileResponse(await response.json());
 	} finally {
 		clearTimeout(timeout);
 	}
@@ -498,6 +590,30 @@ function projectBlueskyPostRecordResponse(response: any, fallbackUri: string): I
 	};
 }
 
+function getBlueskySessionResponse(response: any): IBlueskySession {
+	const did = getOptionalString(response?.did);
+	const accessJwt = getOptionalString(response?.accessJwt);
+	if (!did || !accessJwt) {
+		throw new Error('bluesky_session_response_invalid');
+	}
+	return {
+		did,
+		handle: getOptionalString(response?.handle),
+		accessJwt,
+		refreshJwt: getOptionalString(response?.refreshJwt)
+	};
+}
+
+function getBlueskyActorProfileResponse(response: any): IBlueskyActorProfile {
+	return {
+		did: getOptionalString(response?.did),
+		handle: getOptionalString(response?.handle),
+		displayName: getOptionalString(response?.displayName),
+		description: getOptionalString(response?.description),
+		avatar: getOptionalString(response?.avatar)
+	};
+}
+
 function getBlueskyReplyProjection(reply: any): IBlueskyReplyProjection | null {
 	if (!reply || typeof reply !== 'object') {
 		return null;
@@ -624,12 +740,20 @@ function getBlueskyFetchTimeoutMs(value: number | undefined): number {
 	return parsed;
 }
 
-function normalizeBlueskyApiOrigin(value: string | undefined): string {
-	const url = new URL(value || defaultBlueskyPublicApiOrigin);
+function normalizeBlueskyApiOrigin(value: string | undefined, fallback: string = defaultBlueskyPublicApiOrigin): string {
+	const url = new URL(value || fallback);
 	url.pathname = url.pathname.replace(/\/+$/, '');
 	url.search = '';
 	url.hash = '';
 	return url.toString().replace(/\/+$/, '');
+}
+
+function getRequiredBlueskyPassword(value: string): string {
+	const password = String(value || '').trim();
+	if (!password) {
+		throw new Error('bluesky_account_password_required');
+	}
+	return password;
 }
 
 function getFiniteNumber(value: any): number | null {

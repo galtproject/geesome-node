@@ -48,6 +48,8 @@ export default {
   blueskyConfig: {
     publicApiOrigin: process.env.BLUESKY_PUBLIC_API_ORIGIN || 'https://public.api.bsky.app',
     publicApiTimeoutMs: process.env.BLUESKY_PUBLIC_API_TIMEOUT_MS,
+    authApiOrigin: process.env.BLUESKY_AUTH_API_ORIGIN || 'https://bsky.social',
+    authApiTimeoutMs: process.env.BLUESKY_AUTH_API_TIMEOUT_MS,
     sourceRefreshWorker: process.env.BLUESKY_SOURCE_REFRESH_WORKER === '1',
     sourceRefreshWorkerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_WORKER_INTERVAL_MS,
     sourceRefreshWorkerLimit: process.env.BLUESKY_SOURCE_REFRESH_WORKER_LIMIT,

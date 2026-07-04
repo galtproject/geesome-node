@@ -1,4 +1,4 @@
-import {IBlueskyPostProjection} from './helpers.js';
+import {IBlueskyActorProfile, IBlueskyPostProjection} from './helpers.js';
 import {IListParams} from '../database/interface.js';
 import {IUserOperationQueue} from '../asyncOperation/interface.js';
 import {IPostListResponse} from '../group/interface.js';
@@ -57,6 +57,49 @@ export interface IBlueskyPublicAuthorFeedImportResult {
 		socNet;
 	};
 	asyncOperation;
+}
+
+export interface IBlueskyAccountDataInput {
+	id?: number | string;
+	accountId?: string;
+	username?: string;
+}
+
+export interface IBlueskyAccountLoginInput {
+	identifier?: string;
+	password?: string;
+	appPassword?: string;
+	apiKey?: string;
+	encryptedApiKey?: string;
+	accountData?: IBlueskyAccountDataInput;
+	isEncrypted?: boolean | string;
+}
+
+export interface IBlueskyAccountVerifyInput {
+	accountData?: IBlueskyAccountDataInput;
+	password?: string;
+	appPassword?: string;
+	apiKey?: string;
+}
+
+export interface IBlueskyAccountReport {
+	id?: number;
+	userId: number;
+	socNet: string;
+	accountId?: string | null;
+	username?: string | null;
+	fullName?: string | null;
+	hasApiKey: boolean;
+	hasAccessToken: boolean;
+	hasSessionKey: boolean;
+	isEncrypted?: boolean;
+}
+
+export interface IBlueskyAccountVerificationResult {
+	account: IBlueskyAccountReport;
+	profile: IBlueskyActorProfile;
+	did: string;
+	handle: string | null;
 }
 
 export interface IBlueskySourceSubscriptionInput {
@@ -265,6 +308,8 @@ export interface IBlueskySourceSyncResult {
 export default interface IGeesomeBlueskyModule {
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
+	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
+	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;
 	getSourceSubscriptions(userId: number, filters?: IBlueskySourceSubscriptionFilters, listParams?: IListParams): Promise<IBlueskySourceSubscriptionListResponse>;
 	getSourceFeed(userId: number, sourceId: number | string, filters?: IBlueskySourceFeedFilters, listParams?: IListParams): Promise<IBlueskySourceFeedResponse>;
 	getSourceReviews(userId: number, sourceId: number | string, filters?: IBlueskySourceReviewFilters, listParams?: IListParams): Promise<IBlueskySourceReviewListResponse>;

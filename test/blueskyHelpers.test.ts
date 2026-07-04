@@ -2,9 +2,13 @@ import assert from 'node:assert';
 import {
 	atProtoPostRecordToRichText,
 	blueskyPostSource,
+	buildBlueskyActorProfileUrl,
 	buildBlueskyAuthorFeedUrl,
+	buildBlueskyCreateSessionUrl,
 	buildBlueskyPostRecordUrl,
+	createBlueskySession,
 	fetchBlueskyAuthorFeed,
+	fetchBlueskyActorProfile,
 	fetchBlueskyPostRecord,
 	getBlueskyProjectionPreview,
 	normalizeBlueskyAuthorFeedFilter,
@@ -33,6 +37,77 @@ describe('bluesky helpers', () => {
 		assert.equal(normalizeBlueskyAuthorFeedFilter('posts_and_author_threads'), 'posts_and_author_threads');
 		assert.equal(normalizeBlueskyAuthorFeedFilter(undefined), undefined);
 		assert.throws(() => normalizeBlueskyAuthorFeedFilter('likes'), /bluesky_author_feed_filter_invalid/);
+	});
+
+	it('creates authenticated sessions and fetches actor profiles through injectable XRPC calls', async () => {
+		const calls: any[] = [];
+		const session = await createBlueskySession({
+			identifier: '@alice.bsky.social',
+			password: 'app-password',
+			origin: 'https://bsky.social/',
+			fetch: async (url, options) => {
+				calls.push({url, options});
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						accessJwt: 'access-token',
+						refreshJwt: 'refresh-token'
+					})
+				};
+			}
+		});
+		const profile = await fetchBlueskyActorProfile({
+			actor: session.did,
+			origin: 'https://bsky.social/',
+			accessJwt: session.accessJwt,
+			fetch: async (url, options) => {
+				calls.push({url, options});
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						displayName: 'Alice',
+						description: 'hello',
+						avatar: 'https://cdn.example/avatar.jpg'
+					})
+				};
+			}
+		});
+
+		assert.equal(buildBlueskyCreateSessionUrl({origin: 'https://bsky.social/'}), 'https://bsky.social/xrpc/com.atproto.server.createSession');
+		assert.equal(buildBlueskyActorProfileUrl({origin: 'https://bsky.social/', actor: '@alice.bsky.social'}), 'https://bsky.social/xrpc/app.bsky.actor.getProfile?actor=alice.bsky.social');
+		assert.equal(calls[0].url, 'https://bsky.social/xrpc/com.atproto.server.createSession');
+		assert.equal(calls[0].options.method, 'POST');
+		assert.deepEqual(JSON.parse(calls[0].options.body), {
+			identifier: 'alice.bsky.social',
+			password: 'app-password'
+		});
+		assert.equal(calls[1].url, 'https://bsky.social/xrpc/app.bsky.actor.getProfile?actor=did%3Aplc%3Aalice');
+		assert.equal(calls[1].options.headers.Authorization, 'Bearer access-token');
+		assert.deepEqual(session, {
+			did: 'did:plc:alice',
+			handle: 'alice.bsky.social',
+			accessJwt: 'access-token',
+			refreshJwt: 'refresh-token'
+		});
+		assert.deepEqual(profile, {
+			did: 'did:plc:alice',
+			handle: 'alice.bsky.social',
+			displayName: 'Alice',
+			description: 'hello',
+			avatar: 'https://cdn.example/avatar.jpg'
+		});
+		await assert.rejects(
+			() => createBlueskySession({
+				identifier: 'alice.bsky.social',
+				password: '',
+				fetch: async () => ({ok: true, json: async () => ({})})
+			}),
+			/bluesky_account_password_required/
+		);
 	});
 
 	it('builds and fetches native ATProto post record lookups', async () => {
