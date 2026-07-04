@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, and local GeeSome feed reading for Bluesky sources.
+The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, and local GeeSome feed reading for Bluesky sources.
 
 ## Owns
 
@@ -11,6 +11,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - One-page public feed import through the shared `socNetImport` pipeline.
 - Per-user source subscriptions with actor, filter, display name, local group name, account ID, import limit, cursor, and error state.
 - Manual refresh, queued refresh, due-subscription polling, and source-feed reads over already-imported GeeSome posts through the linked social-import channel.
+- Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries
@@ -26,7 +27,8 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Bluesky is ATProto, not ActivityPub. Bridge-backed ActivityPub sources belong to `activityPub`.
 - Public feed reads do not require stored credentials; credentialed account ownership and cross-posting need explicit `socNetAccount` handling.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
-- Update/delete sync and credentialed cross-post semantics remain follow-up work.
+- Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
+- Credentialed cross-post semantics remain follow-up work.
 
 ## Related Docs
 

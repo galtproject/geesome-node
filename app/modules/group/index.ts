@@ -1787,7 +1787,18 @@ function getModule(app: IGeesomeApp, models) {
 				cursorIdFilter: 'publishedAfterCursorId',
 				direction: 'after'
 			});
-			['id', 'status', 'replyToId', 'repostOfId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
+			[
+				'id',
+				'status',
+				'replyToId',
+				'repostOfId',
+				'name',
+				'groupId',
+				'isDeleted',
+				'source',
+				'sourceChannelId',
+				'sourcePostId'
+			].forEach((name) => {
 				if(filters[name] === 'null') {
 					filters[name] = null;
 				}

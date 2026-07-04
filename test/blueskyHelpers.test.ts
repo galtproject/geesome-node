@@ -3,10 +3,13 @@ import {
 	atProtoPostRecordToRichText,
 	blueskyPostSource,
 	buildBlueskyAuthorFeedUrl,
+	buildBlueskyPostRecordUrl,
 	fetchBlueskyAuthorFeed,
+	fetchBlueskyPostRecord,
 	getBlueskyProjectionPreview,
 	normalizeBlueskyAuthorFeedFilter,
 	normalizeBlueskyActor,
+	parseBlueskyPostAtUri,
 	projectBlueskyAuthorFeed
 } from '../app/modules/bluesky/helpers.js';
 import {richTextToPlainText} from '../app/richText.js';
@@ -30,6 +33,59 @@ describe('bluesky helpers', () => {
 		assert.equal(normalizeBlueskyAuthorFeedFilter('posts_and_author_threads'), 'posts_and_author_threads');
 		assert.equal(normalizeBlueskyAuthorFeedFilter(undefined), undefined);
 		assert.throws(() => normalizeBlueskyAuthorFeedFilter('likes'), /bluesky_author_feed_filter_invalid/);
+	});
+
+	it('builds and fetches native ATProto post record lookups', async () => {
+		const url = buildBlueskyPostRecordUrl({
+			origin: 'https://public.api.bsky.app/',
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b'
+		});
+		const calls: any[] = [];
+		const record = await fetchBlueskyPostRecord({
+			uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+			fetch: async (fetchUrl, options) => {
+				calls.push({url: fetchUrl, options});
+				return {
+					ok: true,
+					json: async () => ({
+						uri: 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b',
+						cid: 'bafyupdated',
+						value: {
+							$type: 'app.bsky.feed.post',
+							text: 'Updated record',
+							createdAt: '2026-07-04T08:00:00.000Z'
+						}
+					})
+				};
+			}
+		});
+		const missing = await fetchBlueskyPostRecord({
+			uri: 'at://did:plc:alice/app.bsky.feed.post/deleted',
+			fetch: async () => ({
+				ok: false,
+				status: 400,
+				json: async () => ({message: 'Could not locate record: deleted'})
+			})
+		});
+
+		assert.equal(
+			url,
+			'https://public.api.bsky.app/xrpc/com.atproto.repo.getRecord?repo=did%3Aplc%3Aalice&collection=app.bsky.feed.post&rkey=3k4duaz5vfs2b'
+		);
+		assert.deepEqual(parseBlueskyPostAtUri('at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b'), {
+			repo: 'did:plc:alice',
+			collection: 'app.bsky.feed.post',
+			rkey: '3k4duaz5vfs2b'
+		});
+		assert.equal(parseBlueskyPostAtUri('at://did:plc:alice/app.bsky.feed.like/abc'), null);
+		assert.equal(calls[0].url, 'https://public.api.bsky.app/xrpc/com.atproto.repo.getRecord?repo=did%3Aplc%3Aalice&collection=app.bsky.feed.post&rkey=3k4duaz5vfs2b');
+		assert.equal(calls[0].options.headers.Accept, 'application/json');
+		assert.equal(record.exists, true);
+		assert.equal(record.cid, 'bafyupdated');
+		assert.equal(record.projection?.sourceIdentity.sourcePostId, 'at://did:plc:alice/app.bsky.feed.post/3k4duaz5vfs2b');
+		assert.equal(richTextToPlainText(record.projection!.richText), 'Updated record');
+		assert.equal(missing.exists, false);
+		assert.equal(missing.projection, null);
 	});
 
 	it('fetches public author feeds through an injectable XRPC fetcher', async () => {

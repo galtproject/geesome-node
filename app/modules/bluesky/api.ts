@@ -205,6 +205,29 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/sync Sync native Bluesky source posts
+	 * @apiName AdminBlueskySourceSync
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Verifies a bounded page of already-imported native Bluesky posts against `com.atproto.repo.getRecord`. Posts whose AT records still exist but have a changed CID are re-imported with source identity preserved. Posts are soft-deleted only when the AT record lookup confirms the record is missing; absence from an author feed page is not treated as deletion. Use `cursorPublishedAt` and `cursorId` from `nextCursor` to continue through the next page.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Number} [limit=20] Maximum imported posts to verify, capped at 100.
+	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous sync result.
+	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous sync result.
+	 * @apiBody {Boolean} [force=false] Re-import existing records even when the stored CID matches.
+	 * @apiSuccess {Object} result Sync result with checked, updated, deleted, skipped, failed, bounded errors, and optional nextCursor.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/sync', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.syncSourceSubscriptionPosts(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/sources/:sourceId/remove Remove native Bluesky source subscription
 	 * @apiName AdminBlueskySourceRemove
 	 * @apiGroup AdminBluesky

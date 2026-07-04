@@ -7,10 +7,13 @@ import {BlueskyImportClient} from './importClient.js';
 import {
 	IBlueskyAuthorProjection,
 	IBlueskyPostProjection,
+	blueskyPostSource,
 	blueskySocNet,
 	fetchBlueskyAuthorFeed,
+	fetchBlueskyPostRecord,
 	normalizeBlueskyActor,
 	normalizeBlueskyAuthorFeedFilter,
+	parseBlueskyPostAtUri,
 	projectBlueskyAuthorFeed
 } from './helpers.js';
 import IGeesomeBlueskyModule, {
@@ -22,6 +25,8 @@ import IGeesomeBlueskyModule, {
 	IBlueskySourceRefreshPollOptions,
 	IBlueskySourceRefreshQueueInput,
 	IBlueskySourceRefreshQueueProcessOptions,
+	IBlueskySourceSyncError,
+	IBlueskySourceSyncInput,
 	IBlueskySourceSubscriptionFilters,
 	IBlueskySourceSubscriptionInput,
 	IBlueskySourceSubscriptionUpdateInput
@@ -36,6 +41,13 @@ const blueskySourceSubscriptionListParams: IListParamsOptions = {
 	allowedSortBy: ['actor', 'status', 'createdAt', 'updatedAt', 'id'],
 	maxLimit: 100
 };
+const blueskySourceSyncListParams: IListParamsOptions = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
+const blueskySourceSyncDefaultLimit = 20;
+const blueskySourceSyncErrorLimit = 20;
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['api', 'database']);
@@ -144,6 +156,70 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 					helpers.sanitizePublicPostFilters(filters),
 					listParams
 				)
+			};
+		}
+
+		async syncSourceSubscriptionPosts(userId: number, sourceId: number | string, input: IBlueskySourceSyncInput = {}) {
+			app.checkModules(['socNetImport', 'group', 'content']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			assertBlueskyModels(models);
+			const subscription = await getBlueskySourceSubscriptionRecord(models, userId, sourceId);
+			const dbChannel = await getBlueskySourceFeedDbChannel(app, userId, subscription);
+			const listParams = getBlueskySourceSyncListParams(input);
+			const postRefs = await app.ms.group.getGroupPostRefs(
+				dbChannel.groupId,
+				getBlueskySourceSyncPostFilters(dbChannel, input),
+				listParams,
+				{
+					attributes: ['id', 'publishedAt', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson'],
+					defaultListParams: blueskySourceSyncListParams
+				}
+			);
+			const syncState = getEmptyBlueskySourceSyncState();
+			const updateProjections: IBlueskyPostProjection[] = [];
+			const deletePostIds: number[] = [];
+
+			for (const postRef of postRefs) {
+				const syncDecision = await getBlueskySourcePostSyncDecision(app, postRef, dbChannel, input, options.fetch);
+				syncState.checked += 1;
+				if (syncDecision.error) {
+					appendBlueskySourceSyncError(syncState.errors, syncDecision.error);
+					syncState.failed += 1;
+					continue;
+				}
+				if (syncDecision.deletePostId) {
+					deletePostIds.push(syncDecision.deletePostId);
+					continue;
+				}
+				if (syncDecision.updateProjection) {
+					updateProjections.push(syncDecision.updateProjection);
+					continue;
+				}
+				syncState.skipped += 1;
+			}
+
+			if (updateProjections.length) {
+				syncState.updated = await importBlueskyPublicAuthorFeedProjections(
+					app,
+					userId,
+					dbChannel,
+					getBlueskyImportProjectionOrder(updateProjections),
+					{force: true}
+				);
+			}
+			if (deletePostIds.length) {
+				await app.ms.group.deletePosts(userId, deletePostIds);
+				syncState.deleted = deletePostIds.length;
+			}
+
+			return {
+				source: getBlueskySourceSubscriptionReport(subscription),
+				dbChannel: getBlueskyImportChannelResult(dbChannel),
+				...syncState,
+				nextCursor: helpers.getNextCursorFromRows(postRefs, listParams.limit, {
+					valueField: 'publishedAt',
+					idField: 'id'
+				})
 			};
 		}
 
@@ -422,6 +498,115 @@ function assertBlueskyModels(models): void {
 
 function getBlueskySourceSubscriptionListParams(listParams?: IListParams): IListParams {
 	return helpers.prepareListParams(listParams, blueskySourceSubscriptionListParams);
+}
+
+function getBlueskySourceSyncListParams(input: IBlueskySourceSyncInput): IListParams {
+	return helpers.prepareListParams({
+		limit: input.limit === undefined ? blueskySourceSyncDefaultLimit : input.limit,
+		sortBy: 'publishedAt',
+		sortDir: 'DESC'
+	}, blueskySourceSyncListParams);
+}
+
+function getBlueskySourceSyncPostFilters(dbChannel: ISocNetDbChannel, input: IBlueskySourceSyncInput = {}) {
+	return {
+		source: blueskyPostSource,
+		sourceChannelId: dbChannel.channelId,
+		sourcePostIdNe: null,
+		cursorPublishedAt: input.cursorPublishedAt,
+		cursorId: input.cursorId
+	};
+}
+
+function getEmptyBlueskySourceSyncState() {
+	return {
+		checked: 0,
+		updated: 0,
+		deleted: 0,
+		skipped: 0,
+		failed: 0,
+		errors: [] as IBlueskySourceSyncError[]
+	};
+}
+
+async function getBlueskySourcePostSyncDecision(app: IGeesomeApp, postRef, dbChannel: ISocNetDbChannel, input: IBlueskySourceSyncInput, fetchImpl) {
+	const sourcePostId = getOptionalString(postRef?.sourcePostId);
+	if (!sourcePostId || !parseBlueskyPostAtUri(sourcePostId)) {
+		return {
+			error: getBlueskySourceSyncError(postRef, 'bluesky_post_uri_invalid')
+		};
+	}
+	try {
+		const record = await fetchBlueskyPostRecord({
+			uri: sourcePostId,
+			origin: getBlueskyPublicApiOrigin(app),
+			timeoutMs: getBlueskyPublicApiTimeoutMs(app),
+			fetch: fetchImpl
+		});
+		if (!record.exists) {
+			return {deletePostId: postRef.id};
+		}
+		if (!record.projection) {
+			return {};
+		}
+		if (!isBlueskyProjectionForDbChannel(record.projection, dbChannel)) {
+			return {
+				error: getBlueskySourceSyncError(postRef, 'bluesky_source_identity_mismatch')
+			};
+		}
+		if (!shouldUpdateBlueskyImportedPost(postRef, record.projection, input)) {
+			return {};
+		}
+		return {updateProjection: record.projection};
+	} catch (e) {
+		return {
+			error: getBlueskySourceSyncError(postRef, getErrorMessage(e))
+		};
+	}
+}
+
+function isBlueskyProjectionForDbChannel(projection: IBlueskyPostProjection, dbChannel: ISocNetDbChannel): boolean {
+	return projection.sourceIdentity.source === blueskyPostSource &&
+		projection.sourceIdentity.sourceChannelId === dbChannel.channelId;
+}
+
+function shouldUpdateBlueskyImportedPost(postRef, projection: IBlueskyPostProjection, input: IBlueskySourceSyncInput): boolean {
+	if (helpers.parseBoolean(input.force, false)) {
+		return true;
+	}
+	const existingBlueskyProperties = getPostBlueskyProperties(postRef);
+	return (existingBlueskyProperties.cid || null) !== (projection.cid || null);
+}
+
+function getPostBlueskyProperties(postRef): any {
+	const properties = parsePostPropertiesJson(postRef?.propertiesJson);
+	return properties.bluesky || {};
+}
+
+function parsePostPropertiesJson(propertiesJson: string | null | undefined): any {
+	if (!propertiesJson) {
+		return {};
+	}
+	try {
+		return JSON.parse(propertiesJson);
+	} catch (_e) {
+		return {};
+	}
+}
+
+function getBlueskySourceSyncError(postRef, message: string): IBlueskySourceSyncError {
+	return {
+		postId: postRef?.id,
+		sourcePostId: getOptionalString(postRef?.sourcePostId),
+		message
+	};
+}
+
+function appendBlueskySourceSyncError(errors: IBlueskySourceSyncError[], error: IBlueskySourceSyncError): void {
+	if (errors.length >= blueskySourceSyncErrorLimit) {
+		return;
+	}
+	errors.push(error);
 }
 
 function getBlueskySourceSubscriptionWhere(userId: number, filters: IBlueskySourceSubscriptionFilters = {}) {

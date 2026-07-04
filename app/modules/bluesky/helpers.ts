@@ -30,6 +30,26 @@ export interface IBlueskyAuthorFeedFetchOptions {
 	fetch?: BlueskyFetch;
 }
 
+export interface IBlueskyPostRecordFetchOptions {
+	uri: string;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+}
+
+export interface IBlueskyPostAtUriParts {
+	repo: string;
+	collection: string;
+	rkey: string;
+}
+
+export interface IBlueskyPostRecordResult {
+	exists: boolean;
+	uri: string;
+	cid: string | null;
+	projection: IBlueskyPostProjection | null;
+}
+
 export interface IBlueskyPostSourceIdentity {
 	source: string;
 	sourceChannelId: string;
@@ -101,6 +121,18 @@ export function buildBlueskyAuthorFeedUrl(options: IBlueskyAuthorFeedFetchOption
 	return url.toString();
 }
 
+export function buildBlueskyPostRecordUrl(options: IBlueskyPostRecordFetchOptions): string {
+	const parts = parseBlueskyPostAtUri(options.uri);
+	if (!parts) {
+		throw new Error('bluesky_post_uri_invalid');
+	}
+	const url = new URL('/xrpc/com.atproto.repo.getRecord', normalizeBlueskyApiOrigin(options.origin));
+	url.searchParams.set('repo', parts.repo);
+	url.searchParams.set('collection', parts.collection);
+	url.searchParams.set('rkey', parts.rkey);
+	return url.toString();
+}
+
 export async function fetchBlueskyAuthorFeed(options: IBlueskyAuthorFeedFetchOptions): Promise<any> {
 	const fetchImpl = options.fetch || fetch;
 	const abortController = new AbortController();
@@ -121,10 +153,54 @@ export async function fetchBlueskyAuthorFeed(options: IBlueskyAuthorFeedFetchOpt
 	}
 }
 
+export async function fetchBlueskyPostRecord(options: IBlueskyPostRecordFetchOptions): Promise<IBlueskyPostRecordResult> {
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const response = await fetchImpl(buildBlueskyPostRecordUrl(options), {
+			headers: {
+				Accept: 'application/json'
+			},
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			const errorPayload = await readBlueskyErrorPayload(response);
+			if (isBlueskyRecordNotFoundResponse(response.status, errorPayload)) {
+				return {
+					exists: false,
+					uri: options.uri,
+					cid: null,
+					projection: null
+				};
+			}
+			throw new Error(`bluesky_post_record_fetch_failed:${response.status}`);
+		}
+		return projectBlueskyPostRecordResponse(await response.json(), options.uri);
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 export function projectBlueskyAuthorFeed(feedResponse: any): IBlueskyPostProjection[] {
 	return getArrayValues(feedResponse?.feed)
 		.map(feedItem => projectBlueskyFeedItem(feedItem))
 		.filter(Boolean) as IBlueskyPostProjection[];
+}
+
+export function parseBlueskyPostAtUri(uri: string): IBlueskyPostAtUriParts | null {
+	const match = String(uri || '').match(/^at:\/\/([^/]+)\/([^/]+)\/([^/]+)$/);
+	if (!match) {
+		return null;
+	}
+	if (match[2] !== 'app.bsky.feed.post') {
+		return null;
+	}
+	return {
+		repo: match[1],
+		collection: match[2],
+		rkey: match[3]
+	};
 }
 
 export function projectBlueskyFeedItem(feedItem: any): IBlueskyPostProjection | null {
@@ -372,6 +448,52 @@ function getRepoFromAtUri(uri: string): string | null {
 		return null;
 	}
 	return match[1] || null;
+}
+
+async function readBlueskyErrorPayload(response: any): Promise<any> {
+	if (typeof response.json !== 'function') {
+		return null;
+	}
+	try {
+		return await response.json();
+	} catch (_e) {
+		return null;
+	}
+}
+
+function isBlueskyRecordNotFoundResponse(status: number, errorPayload: any): boolean {
+	if (status === 404 || status === 410) {
+		return true;
+	}
+	const errorText = `${getOptionalString(errorPayload?.error) || ''} ${getOptionalString(errorPayload?.message) || ''}`.toLowerCase();
+	if (!errorText) {
+		return false;
+	}
+	return errorText.includes('recordnotfound') ||
+		errorText.includes('record not found') ||
+		errorText.includes('could not locate record');
+}
+
+function projectBlueskyPostRecordResponse(response: any, fallbackUri: string): IBlueskyPostRecordResult {
+	const uri = getOptionalString(response?.uri) || fallbackUri;
+	const parts = parseBlueskyPostAtUri(uri);
+	const projection = projectBlueskyFeedItem({
+		post: {
+			uri,
+			cid: getOptionalString(response?.cid),
+			author: {
+				did: parts?.repo || null
+			},
+			indexedAt: getOptionalString(response?.value?.createdAt),
+			record: response?.value
+		}
+	});
+	return {
+		exists: true,
+		uri,
+		cid: getOptionalString(response?.cid),
+		projection
+	};
 }
 
 function getBlueskyReplyProjection(reply: any): IBlueskyReplyProjection | null {
