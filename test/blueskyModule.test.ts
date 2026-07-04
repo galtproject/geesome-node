@@ -273,6 +273,201 @@ describe('bluesky module', () => {
 		);
 	});
 
+	it('refreshes native Bluesky source subscriptions through the social import pipeline', async () => {
+		const checks: any[] = [];
+		const imports: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/'
+				}
+			},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						assert.equal(client.messages.list.length, 2);
+						assert.equal(client.messages.list[0].id, 'at://did:plc:alice/app.bsky.feed.post/older');
+						assert.equal(client.messages.list[1].id, 'at://did:plc:alice/app.bsky.feed.post/newer');
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 1}, 'post');
+						await client.onRemotePostProcess(client.messages.list[1], getDbChannel(), {id: 2}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async (userId, permission) => {
+				checks.push({userId, permission});
+			}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			},
+			fetch: async (url) => {
+				assert.equal(url, 'https://public.example/xrpc/app.bsky.feed.getAuthorFeed?actor=alice.bsky.social&limit=2&filter=posts_no_replies');
+				return {
+					ok: true,
+					json: async () => getTwoPostAuthorFeedFixture()
+				};
+			}
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social',
+			filter: 'posts_no_replies',
+			groupName: 'alice-feed',
+			importLimit: 2
+		});
+
+		const result = await module.refreshSourceSubscription(7, subscription.id);
+
+		assert.deepEqual(checks, [{
+			userId: 7,
+			permission: CorePermissionName.UserGroupManagement
+		}]);
+		assert.equal(imports[0].method, 'importChannelMetadata');
+		assert.equal(imports[0].args[0], 7);
+		assert.equal(imports[0].args[1], 'bluesky');
+		assert.equal(imports[0].args[4].name, 'alice-feed');
+		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.equal(result.actor, 'alice.bsky.social');
+		assert.equal(result.cursor, 'cursor-after');
+		assert.equal(result.fetched, 2);
+		assert.equal(result.imported, 2);
+		assert.equal(result.dbChannel.id, 9);
+		assert.equal(result.source.dbChannelId, 9);
+		assert.equal(result.source.lastCursor, 'cursor-after');
+		assert.equal(result.source.lastError, null);
+		assert.ok(result.source.lastRefreshRequestedAt);
+		assert.ok(result.source.lastImportedAt);
+	});
+
+	it('queues and polls native Bluesky source refreshes through async operations', async () => {
+		const calls = getAsyncOperationCalls();
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/'
+				}
+			},
+			ms: {
+				asyncOperation: getAsyncOperationModule(calls),
+				socNetImport: {
+					importChannelMetadata: async () => getDbChannel(),
+					importChannelPosts: async (client) => {
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 1}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			},
+			fetch: async () => ({
+				ok: true,
+				json: async () => ({
+					cursor: null,
+					feed: [getFeedItem('queued', 'Queued post', '2026-07-04T08:00:00.000Z')]
+				})
+			})
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social'
+		});
+
+		const queue = await module.queueSourceSubscriptionRefresh(7, subscription.id, 13, {
+			limit: '1',
+			filter: 'posts_with_media',
+			process: false
+		});
+		const processResult = await module.processSourceSubscriptionRefreshQueue({limit: 1});
+
+		assert.equal(queue.module, 'bluesky-source-refresh');
+		assert.equal(queue.userApiKeyId, 13);
+		assert.deepEqual(JSON.parse(queue.inputJson), {
+			type: 'source-refresh',
+			sourceId: subscription.id,
+			input: {
+				filter: 'posts_with_media',
+				limit: 1
+			}
+		});
+		assert.deepEqual(processResult, {processed: 1});
+		assert.equal(queue.isWaiting, false);
+		assert.equal(calls.asyncOperations[0].name, 'refresh-bluesky-source');
+		assert.equal(calls.asyncOperations[0].channel, `bluesky-source-refresh:${subscription.id}`);
+		assert.equal(calls.processedResults[0].source.id, subscription.id);
+		assert.equal(calls.processedResults[0].imported, 1);
+		assert.deepEqual(calls.asyncOperationProgress, [{
+			userId: 7,
+			asyncOperationId: 1,
+			percent: 99
+		}]);
+
+		await subscriptionModel.create({
+			userId: 7,
+			actor: 'never-refreshed.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: null
+		});
+		await subscriptionModel.create({
+			userId: 8,
+			actor: 'stale.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: new Date('2026-06-01T11:00:00Z')
+		});
+		await subscriptionModel.create({
+			userId: 9,
+			actor: 'recent.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Active,
+			lastRefreshRequestedAt: new Date('2026-06-01T11:59:00Z')
+		});
+		await subscriptionModel.create({
+			userId: 10,
+			actor: 'paused.bsky.social',
+			status: BlueskySourceSubscriptionStatus.Paused,
+			lastRefreshRequestedAt: new Date('2026-06-01T10:00:00Z')
+		});
+
+		const dueResult = await module.queueDueSourceSubscriptionRefreshes({
+			limit: 10,
+			staleMs: 15 * 60 * 1000,
+			now: '2026-06-01T12:00:00Z',
+			refreshInput: {
+				limit: 5
+			}
+		});
+		await module.queueDueSourceSubscriptionRefreshes({
+			limit: 10,
+			staleMs: 15 * 60 * 1000,
+			now: '2026-06-01T12:00:00Z',
+			refreshInput: {
+				limit: 5
+			}
+		});
+
+		assert.deepEqual(dueResult, {queued: 2});
+		assert.deepEqual(calls.asyncOperationQueues.slice(1).map((item) => item.userId).sort(), [7, 8]);
+		assert.deepEqual(calls.asyncOperationQueues.slice(1).map((item) => JSON.parse(item.inputJson)), [
+			{
+				type: 'source-refresh',
+				sourceId: 2,
+				input: {limit: 5}
+			},
+			{
+				type: 'source-refresh',
+				sourceId: 3,
+				input: {limit: 5}
+			}
+		]);
+	});
+
 	it('registers an admin read-only public author feed preview route', async () => {
 		const routes = {};
 		const permissionChecks: any[] = [];
@@ -419,6 +614,14 @@ describe('bluesky module', () => {
 			removeSourceSubscription: async (userId, sourceId) => {
 				moduleCalls.push({method: 'removeSourceSubscription', userId, sourceId});
 				return {id: Number(sourceId), status: BlueskySourceSubscriptionStatus.Removed};
+			},
+			refreshSourceSubscription: async (userId, sourceId, input) => {
+				moduleCalls.push({method: 'refreshSourceSubscription', userId, sourceId, input});
+				return {source: {id: Number(sourceId)}, fetched: 1, imported: 1};
+			},
+			queueSourceSubscriptionRefresh: async (userId, sourceId, userApiKeyId, input) => {
+				moduleCalls.push({method: 'queueSourceSubscriptionRefresh', userId, sourceId, userApiKeyId, input});
+				return {id: 44, module: 'bluesky-source-refresh', userApiKeyId, isWaiting: true};
 			}
 		};
 
@@ -437,6 +640,17 @@ describe('bluesky module', () => {
 			params: {sourceId: '5'},
 			body: {status: 'paused'}
 		});
+		const refreshResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/refresh', {
+			user: {id: 7},
+			params: {sourceId: '5'},
+			body: {limit: 1}
+		});
+		const refreshQueueResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/refresh-async', {
+			user: {id: 7},
+			apiKey: {id: 12},
+			params: {sourceId: '5'},
+			body: {limit: 1, process: false}
+		});
 		const removeResponse = await callRoute(routes, 'AUTH POST admin/bluesky/sources/:sourceId/remove', {
 			user: {id: 7},
 			params: {sourceId: '5'}
@@ -446,17 +660,25 @@ describe('bluesky module', () => {
 			{userId: 7, permission: CorePermissionName.AdminRead},
 			{userId: 7, permission: CorePermissionName.AdminAll},
 			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.AdminAll}
 		]);
 		assert.deepEqual(moduleCalls, [
 			{method: 'getSourceSubscriptions', userId: 7, filters: {status: 'active', limit: '5'}, listParams: {status: 'active', limit: '5'}},
 			{method: 'subscribeSource', userId: 7, input: {actor: 'bsky.app'}},
 			{method: 'updateSourceSubscription', userId: 7, sourceId: '5', input: {status: 'paused'}},
+			{method: 'refreshSourceSubscription', userId: 7, sourceId: '5', input: {limit: 1}},
+			{method: 'queueSourceSubscriptionRefresh', userId: 7, sourceId: '5', userApiKeyId: 12, input: {limit: 1, process: false}},
 			{method: 'removeSourceSubscription', userId: 7, sourceId: '5'}
 		]);
 		assert.deepEqual(listResponse.body, {list: [{id: 4, actor: 'bsky.app'}], total: 1});
 		assert.deepEqual(subscribeResponse.body, {id: 5, actor: 'bsky.app'});
 		assert.deepEqual(updateResponse.body, {id: 5, status: 'paused'});
+		assert.deepEqual(refreshResponse.body, {source: {id: 5}, fetched: 1, imported: 1});
+		assert.deepEqual(refreshQueueResponse.body, {id: 44, module: 'bluesky-source-refresh', userApiKeyId: 12, isWaiting: true});
 		assert.deepEqual(removeResponse.body, {id: 5, status: BlueskySourceSubscriptionStatus.Removed});
 	});
 });
@@ -619,12 +841,18 @@ function getBlueskySourceSubscriptionModel() {
 				rows: matchingRows.slice(offset, offset + limit),
 				count: matchingRows.length
 			};
+		},
+		async findAll(options) {
+			return rows
+				.filter(row => matchesBlueskySourceSubscriptionWhere(row, options.where))
+				.sort((a, b) => compareBlueskySourceSubscriptionRows(a, b, options.order))
+				.slice(0, options.limit || rows.length);
 		}
 	};
 }
 
 function matchesBlueskySourceSubscriptionWhere(row: FakeBlueskySourceSubscription, where: any): boolean {
-	return Object.keys(where || {}).every((key) => {
+	const keyMatches = Object.keys(where || {}).every((key) => {
 		const condition = where[key];
 		const rowValue = row[key];
 		if (key === 'id') {
@@ -633,8 +861,19 @@ function matchesBlueskySourceSubscriptionWhere(row: FakeBlueskySourceSubscriptio
 		if (isNotInCondition(condition)) {
 			return !getNotInConditionValues(condition).includes(rowValue);
 		}
+		if (isLessThanCondition(condition)) {
+			return rowValue < getLessThanConditionValue(condition);
+		}
 		return rowValue === condition;
 	});
+	const symbolMatches = Object.getOwnPropertySymbols(where || {}).every((symbol) => {
+		const condition = where[symbol];
+		if (Array.isArray(condition)) {
+			return condition.some(item => matchesBlueskySourceSubscriptionWhere(row, item));
+		}
+		return true;
+	});
+	return keyMatches && symbolMatches;
 }
 
 function isNotInCondition(condition: any): boolean {
@@ -651,6 +890,19 @@ function getNotInConditionValues(condition: any): any[] {
 	return notInValues || [];
 }
 
+function isLessThanCondition(condition: any): boolean {
+	return getLessThanConditionValue(condition) !== undefined;
+}
+
+function getLessThanConditionValue(condition: any): any {
+	if (!condition || typeof condition !== 'object') {
+		return undefined;
+	}
+	return Object.getOwnPropertySymbols(condition)
+		.map(symbol => condition[symbol])
+		.find(value => value instanceof Date);
+}
+
 function compareBlueskySourceSubscriptionRows(a: any, b: any, order: any[]): number {
 	const [sortBy, sortDir] = order?.[0] || ['id', 'ASC'];
 	if (a[sortBy] === b[sortBy]) {
@@ -660,4 +912,60 @@ function compareBlueskySourceSubscriptionRows(a: any, b: any, order: any[]): num
 		return a[sortBy] > b[sortBy] ? -1 : 1;
 	}
 	return a[sortBy] > b[sortBy] ? 1 : -1;
+}
+
+function getAsyncOperationCalls() {
+	return {
+		asyncOperationQueues: [],
+		asyncOperations: [],
+		processedResults: [],
+		asyncOperationProgress: []
+	};
+}
+
+function getAsyncOperationModule(calls) {
+	return {
+		async addUniqueUserOperationQueue(userId, module, userApiKeyId, input) {
+			const inputJson = JSON.stringify(input);
+			const existingQueue = calls.asyncOperationQueues.find((queue) => {
+				return queue.module === module && queue.inputJson === inputJson && queue.isWaiting;
+			});
+			if (existingQueue) {
+				return existingQueue;
+			}
+			const queue = {
+				id: calls.asyncOperationQueues.length + 1,
+				userId,
+				module,
+				userApiKeyId,
+				inputJson,
+				isWaiting: true
+			};
+			calls.asyncOperationQueues.push(queue);
+			return queue;
+		},
+		async processModuleOperationQueue(moduleName, options) {
+			let processed = 0;
+			const queues = calls.asyncOperationQueues.filter(queue => queue.module === moduleName && queue.isWaiting);
+			for (const queue of queues.slice(0, options.limit)) {
+				const payload = await options.getPayload(queue);
+				const asyncOperation = {
+					id: calls.asyncOperations.length + 1,
+					userId: queue.userId,
+					module: moduleName,
+					...(await options.getAsyncOperationData(queue, payload))
+				};
+				calls.asyncOperations.push(asyncOperation);
+				const result = await options.run(queue, asyncOperation, payload);
+				calls.processedResults.push(result);
+				queue.isWaiting = false;
+				processed += 1;
+			}
+			return {processed};
+		},
+		async handleOperationCancel() {},
+		async updateAsyncOperation(userId, asyncOperationId, percent) {
+			calls.asyncOperationProgress.push({userId, asyncOperationId, percent});
+		}
+	};
 }

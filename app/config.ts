@@ -47,7 +47,14 @@ export default {
   },
   blueskyConfig: {
     publicApiOrigin: process.env.BLUESKY_PUBLIC_API_ORIGIN || 'https://public.api.bsky.app',
-    publicApiTimeoutMs: process.env.BLUESKY_PUBLIC_API_TIMEOUT_MS
+    publicApiTimeoutMs: process.env.BLUESKY_PUBLIC_API_TIMEOUT_MS,
+    sourceRefreshWorker: process.env.BLUESKY_SOURCE_REFRESH_WORKER === '1',
+    sourceRefreshWorkerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_WORKER_INTERVAL_MS,
+    sourceRefreshWorkerLimit: process.env.BLUESKY_SOURCE_REFRESH_WORKER_LIMIT,
+    sourceRefreshPoller: process.env.BLUESKY_SOURCE_REFRESH_POLLER === '1',
+    sourceRefreshPollerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_INTERVAL_MS,
+    sourceRefreshPollerLimit: process.env.BLUESKY_SOURCE_REFRESH_POLLER_LIMIT,
+    sourceRefreshPollerStaleMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_STALE_MS
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };
