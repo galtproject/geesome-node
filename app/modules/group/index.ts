@@ -1278,6 +1278,7 @@ function getModule(app: IGeesomeApp, models) {
 			const baseData = {
 				id: c.id,
 				name: c.name,
+				description: c.description,
 				storageId: c.storageId,
 				previewStorageId: c.mediumPreviewStorageId,
 				view: attachmentView,
@@ -1285,6 +1286,7 @@ function getModule(app: IGeesomeApp, models) {
 				extension: c.extension,
 				previewExtension: c.previewExtension,
 				mimeType: c.mimeType,
+				size: c.size,
 			}
 			if (c.mimeType.startsWith('text/')) {
 				const contentData: IContentData = {

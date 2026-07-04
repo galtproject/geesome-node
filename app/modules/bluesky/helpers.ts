@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import sharp from 'sharp';
 import {
 	RichTextDocument,
 	RichTextInlineNode,
@@ -16,6 +17,11 @@ export const defaultBlueskyPublicApiOrigin = 'https://public.api.bsky.app';
 export const defaultBlueskyAuthApiOrigin = 'https://bsky.social';
 export const blueskyFeedPostMaxTextLength = 3000;
 export const blueskyFeedPostMaxGraphemes = 300;
+export const blueskyImageEmbedType = 'app.bsky.embed.images';
+export const blueskyImageMaxCount = 4;
+export const blueskyImageMaxSize = 2000000;
+export const blueskyImageMaxInputSize = 20000000;
+export const blueskyExternalEmbedType = 'app.bsky.embed.external';
 export const blueskyAuthorFeedFilters = new Set([
 	'posts_with_replies',
 	'posts_no_replies',
@@ -68,6 +74,20 @@ export interface IBlueskyRecordCreateOptions {
 	accessJwt: string;
 }
 
+export interface IBlueskyBlobUploadOptions {
+	data: Buffer | ArrayBuffer | Uint8Array | string;
+	mimeType: string;
+	origin?: string;
+	timeoutMs?: number;
+	fetch?: BlueskyFetch;
+	accessJwt: string;
+}
+
+export interface IBlueskyImageUploadPrepareOptions {
+	data: Buffer | ArrayBuffer | Uint8Array | string;
+	mimeType: string;
+}
+
 export interface IBlueskySession {
 	did: string;
 	handle: string | null;
@@ -88,11 +108,37 @@ export interface IBlueskyRecordCreateResult {
 	cid: string;
 }
 
+export interface IBlueskyPreparedImageUpload {
+	data: Buffer;
+	mimeType: string;
+	aspectRatio: {
+		width: number;
+		height: number;
+	} | null;
+}
+
+export interface IBlueskyImageEmbedInput {
+	image: any;
+	alt?: string | null;
+	aspectRatio?: {
+		width: number;
+		height: number;
+	} | null;
+}
+
+export interface IBlueskyExternalEmbedInput {
+	uri: string;
+	title?: string | null;
+	description?: string | null;
+	thumb?: any | null;
+}
+
 export interface IBlueskyFeedPostRecordInput {
 	text: string;
 	facets?: any[];
 	langs?: string[];
 	createdAt?: string | Date;
+	embed?: any;
 }
 
 export interface IBlueskyPostAtUriParts {
@@ -206,6 +252,10 @@ export function buildBlueskyCreateRecordUrl(options: {origin?: string} = {}): st
 	return new URL('/xrpc/com.atproto.repo.createRecord', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
 }
 
+export function buildBlueskyUploadBlobUrl(options: {origin?: string} = {}): string {
+	return new URL('/xrpc/com.atproto.repo.uploadBlob', normalizeBlueskyApiOrigin(options.origin, defaultBlueskyAuthApiOrigin)).toString();
+}
+
 export function buildBlueskyFeedPostRecord(input: IBlueskyFeedPostRecordInput): any {
 	const text = String(input.text || '');
 	assertValidBlueskyFeedPostText(text);
@@ -221,7 +271,34 @@ export function buildBlueskyFeedPostRecord(input: IBlueskyFeedPostRecordInput): 
 	if (langs.length) {
 		record.langs = langs;
 	}
+	if (input.embed) {
+		record.embed = input.embed;
+	}
 	return record;
+}
+
+export function buildBlueskyImageEmbed(images: IBlueskyImageEmbedInput[]): any {
+	assertValidBlueskyImageEmbedImages(images);
+	return {
+		$type: blueskyImageEmbedType,
+		images: images.map(image => getBlueskyImageEmbedItem(image))
+	};
+}
+
+export function buildBlueskyExternalEmbed(input: IBlueskyExternalEmbedInput): any {
+	const uri = normalizeBlueskyExternalUri(input.uri);
+	const external: any = {
+		uri,
+		title: getBoundedOptionalString(input.title, 200) || uri,
+		description: getBoundedOptionalString(input.description, 1000) || ''
+	};
+	if (input.thumb) {
+		external.thumb = input.thumb;
+	}
+	return {
+		$type: blueskyExternalEmbedType,
+		external
+	};
 }
 
 export async function fetchBlueskyAuthorFeed(options: IBlueskyAuthorFeedFetchOptions): Promise<any> {
@@ -349,6 +426,47 @@ export async function createBlueskyRecord(options: IBlueskyRecordCreateOptions):
 	} finally {
 		clearTimeout(timeout);
 	}
+}
+
+export async function uploadBlueskyBlob(options: IBlueskyBlobUploadOptions): Promise<any> {
+	const fetchImpl = options.fetch || fetch;
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), getBlueskyFetchTimeoutMs(options.timeoutMs));
+	try {
+		const response = await fetchImpl(buildBlueskyUploadBlobUrl(options), {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				Authorization: `Bearer ${options.accessJwt}`,
+				'Content-Type': normalizeBlueskyImageMimeType(options.mimeType)
+			},
+			body: getBlueskyBlobUploadBody(options.data),
+			signal: abortController.signal
+		});
+		if (!response.ok) {
+			throw new Error(`bluesky_blob_upload_failed:${response.status}`);
+		}
+		return getBlueskyBlobUploadResponse(await response.json());
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function prepareBlueskyImageUploadData(options: IBlueskyImageUploadPrepareOptions): Promise<IBlueskyPreparedImageUpload> {
+	const mimeType = normalizeBlueskyImageMimeType(options.mimeType);
+	const inputData = getBlueskyBlobUploadBody(options.data);
+	if (inputData.length > blueskyImageMaxInputSize) {
+		throw new Error('bluesky_cross_post_image_too_large');
+	}
+	const data = await encodeBlueskyImageUploadData(inputData, mimeType);
+	if (data.length > blueskyImageMaxSize) {
+		throw new Error('bluesky_cross_post_image_too_large');
+	}
+	return {
+		data,
+		mimeType,
+		aspectRatio: await getBlueskyImageDataAspectRatio(data)
+	};
 }
 
 export function projectBlueskyAuthorFeed(feedResponse: any): IBlueskyPostProjection[] {
@@ -698,6 +816,13 @@ function getBlueskyRecordCreateResponse(response: any): IBlueskyRecordCreateResu
 	return {uri, cid};
 }
 
+function getBlueskyBlobUploadResponse(response: any): any {
+	if (!response?.blob || typeof response.blob !== 'object' || Array.isArray(response.blob)) {
+		throw new Error('bluesky_blob_upload_response_invalid');
+	}
+	return response.blob;
+}
+
 function getBlueskyReplyProjection(reply: any): IBlueskyReplyProjection | null {
 	if (!reply || typeof reply !== 'object') {
 		return null;
@@ -858,6 +983,129 @@ function getBlueskyPostCreatedAt(value?: string | Date): string {
 		throw new Error('bluesky_cross_post_created_at_invalid');
 	}
 	return date.toISOString();
+}
+
+function assertValidBlueskyImageEmbedImages(images: IBlueskyImageEmbedInput[]): void {
+	if (!Array.isArray(images) || images.length === 0) {
+		throw new Error('bluesky_cross_post_image_required');
+	}
+	if (images.length > blueskyImageMaxCount) {
+		throw new Error('bluesky_cross_post_too_many_images');
+	}
+	images.forEach((image) => {
+		if (!image?.image || typeof image.image !== 'object' || Array.isArray(image.image)) {
+			throw new Error('bluesky_cross_post_image_blob_required');
+		}
+	});
+}
+
+function getBlueskyImageEmbedItem(input: IBlueskyImageEmbedInput): any {
+	const item: any = {
+		alt: getBlueskyImageAlt(input.alt),
+		image: input.image
+	};
+	const aspectRatio = getAspectRatioProjection(input.aspectRatio);
+	if (aspectRatio) {
+		item.aspectRatio = aspectRatio;
+	}
+	return item;
+}
+
+function getBlueskyImageAlt(value: string | null | undefined): string {
+	if (typeof value !== 'string') {
+		return '';
+	}
+	return value.slice(0, 1000);
+}
+
+function normalizeBlueskyImageMimeType(value: string): string {
+	const mimeType = String(value || '').split(';')[0].trim().toLowerCase();
+	if (mimeType === 'image/jpg') {
+		return 'image/jpeg';
+	}
+	if (mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp') {
+		return mimeType;
+	}
+	throw new Error('bluesky_cross_post_image_type_unsupported');
+}
+
+function normalizeBlueskyExternalUri(value: string): string {
+	const uri = String(value || '').trim();
+	if (!uri) {
+		throw new Error('bluesky_external_uri_required');
+	}
+	const parsedUrl = new URL(uri);
+	if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+		throw new Error('bluesky_external_uri_invalid');
+	}
+	return parsedUrl.toString();
+}
+
+function getBoundedOptionalString(value: any, limit: number): string | null {
+	const text = getOptionalString(value);
+	if (!text) {
+		return null;
+	}
+	return text.slice(0, limit);
+}
+
+async function encodeBlueskyImageUploadData(data: Buffer, mimeType: string): Promise<Buffer> {
+	try {
+		if (mimeType === 'image/png') {
+			return await getSharpImagePipeline(data).png({compressionLevel: 9, adaptiveFiltering: true}).toBuffer();
+		}
+		const qualities = [85, 75, 65];
+		let lastData: Buffer | null = null;
+		for (const quality of qualities) {
+			lastData = await encodeBlueskyLossyImageUploadData(data, mimeType, quality);
+			if (lastData.length <= blueskyImageMaxSize) {
+				return lastData;
+			}
+		}
+		return lastData as Buffer;
+	} catch (_e) {
+		throw new Error('bluesky_cross_post_image_invalid');
+	}
+}
+
+async function encodeBlueskyLossyImageUploadData(data: Buffer, mimeType: string, quality: number): Promise<Buffer> {
+	if (mimeType === 'image/webp') {
+		return getSharpImagePipeline(data).webp({quality}).toBuffer();
+	}
+	return getSharpImagePipeline(data).jpeg({quality, mozjpeg: true}).toBuffer();
+}
+
+function getSharpImagePipeline(data: Buffer): any {
+	return sharp(data, {limitInputPixels: 100000000})
+		.rotate()
+		.resize({
+			width: 2000,
+			height: 2000,
+			fit: 'inside',
+			withoutEnlargement: true
+		});
+}
+
+async function getBlueskyImageDataAspectRatio(data: Buffer): Promise<{width: number; height: number} | null> {
+	try {
+		const metadata = await sharp(data).metadata();
+		return getAspectRatioProjection({
+			width: metadata.width,
+			height: metadata.height
+		});
+	} catch (_e) {
+		return null;
+	}
+}
+
+function getBlueskyBlobUploadBody(data: Buffer | ArrayBuffer | Uint8Array | string): Buffer {
+	if (Buffer.isBuffer(data)) {
+		return data;
+	}
+	if (typeof data === 'string') {
+		return Buffer.from(data);
+	}
+	return Buffer.from(data as any);
 }
 
 function getGraphemeCount(text: string): number {

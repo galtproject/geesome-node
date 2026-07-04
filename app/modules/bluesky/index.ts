@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import {IGeesomeApp} from '../../interface.js';
 import {Op} from 'sequelize';
 import helpers from '../../helpers.js';
@@ -24,8 +25,12 @@ import {
 	IBlueskyRecordCreateResult,
 	IBlueskySession,
 	blueskyFeedPostCollection,
+	blueskyImageMaxCount,
+	blueskyImageMaxInputSize,
 	blueskyPostSource,
 	blueskySocNet,
+	buildBlueskyExternalEmbed,
+	buildBlueskyImageEmbed,
 	buildBlueskyFeedPostRecord,
 	createBlueskyRecord,
 	createBlueskySession,
@@ -36,6 +41,8 @@ import {
 	normalizeBlueskyActor,
 	normalizeBlueskyAuthorFeedFilter,
 	parseBlueskyPostAtUri,
+	prepareBlueskyImageUploadData,
+	uploadBlueskyBlob,
 	projectBlueskyAuthorFeed
 } from './helpers.js';
 import IGeesomeBlueskyModule, {
@@ -83,6 +90,17 @@ const blueskySourceReviewListParams: IListParamsOptions = {
 };
 const blueskySourceSyncDefaultLimit = 20;
 const blueskySourceSyncErrorLimit = 20;
+
+interface IBlueskyCrossPostImageFallbackLink {
+	uri: string;
+	title: string;
+	description: string;
+}
+
+interface IBlueskyCrossPostImageResult {
+	embeds: any[];
+	fallbackLinks: IBlueskyCrossPostImageFallbackLink[];
+}
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['api', 'database']);
@@ -187,7 +205,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 		}
 
 		async crossPostPost(userId: number, postId: number | string, input: IBlueskyCrossPostInput = {}): Promise<IBlueskyCrossPostResult> {
-			app.checkModules(['group', 'socNetAccount']);
+			app.checkModules(['group', 'socNetAccount', 'storage']);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			const post = await app.ms.group.getPost(userId, postId);
 			await assertCanCrossPostBlueskyPost(app, userId, post);
@@ -202,7 +220,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			if (existingRecord && !helpers.parseBoolean(input.force, false)) {
 				return getBlueskyCrossPostResult(post, account, profile, session, existingRecord, true);
 			}
-			const recordInput = await getBlueskyCrossPostRecordInput(app, post, input);
+			const recordInput = await getBlueskyCrossPostRecordInput(app, options, post, input, session);
 			const record = await createBlueskyRecord({
 				repo: session.did,
 				collection: blueskyFeedPostCollection,
@@ -783,7 +801,13 @@ async function assertCanCrossPostBlueskyPost(app: IGeesomeApp, userId: number, p
 	}
 }
 
-async function getBlueskyCrossPostRecordInput(app: IGeesomeApp, post: IPost, input: IBlueskyCrossPostInput) {
+async function getBlueskyCrossPostRecordInput(
+	app: IGeesomeApp,
+	options: any,
+	post: IPost,
+	input: IBlueskyCrossPostInput,
+	session: IBlueskySession
+) {
 	const contents = await app.ms.group.getPostContentData(post, '', {
 		includeText: true,
 		includeJson: true
@@ -792,11 +816,16 @@ async function getBlueskyCrossPostRecordInput(app: IGeesomeApp, post: IPost, inp
 	if (!primaryContent) {
 		throw new Error('bluesky_cross_post_text_required');
 	}
-	const unsupportedContents = getBlueskyCrossPostUnsupportedContents(contents, primaryContent);
+	const imageContents = getBlueskyCrossPostImageContents(contents, primaryContent);
+	const unsupportedContents = getBlueskyCrossPostUnsupportedContents(contents, primaryContent, imageContents);
 	if (unsupportedContents.length > 0) {
 		throw new Error('bluesky_cross_post_attachments_unsupported');
 	}
-	const textWithFacets = getBlueskyCrossPostAtProtoText(primaryContent);
+	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents);
+	const textWithFacets = appendBlueskyCrossPostFallbackLinks(
+		getBlueskyCrossPostAtProtoText(primaryContent),
+		imageResult.fallbackLinks
+	);
 	if (!textWithFacets.text.trim()) {
 		throw new Error('bluesky_cross_post_text_required');
 	}
@@ -804,7 +833,8 @@ async function getBlueskyCrossPostRecordInput(app: IGeesomeApp, post: IPost, inp
 		text: textWithFacets.text,
 		facets: textWithFacets.facets,
 		langs: getBlueskyCrossPostLangs(input, primaryContent),
-		createdAt: input.createdAt
+		createdAt: input.createdAt,
+		embed: getBlueskyCrossPostEmbed(imageResult)
 	};
 }
 
@@ -818,9 +848,27 @@ function getBlueskyCrossPostPrimaryContent(contents: IContentData[]): IContentDa
 	}) || null;
 }
 
-function getBlueskyCrossPostUnsupportedContents(contents: IContentData[], primaryContent: IContentData): IContentData[] {
-	return contents.filter((content) => {
+function getBlueskyCrossPostImageContents(contents: IContentData[], primaryContent: IContentData): IContentData[] {
+	const imageContents = contents.filter((content) => {
 		if (content === primaryContent) {
+			return false;
+		}
+		return isBlueskyCrossPostImageContent(content);
+	});
+	if (imageContents.length > blueskyImageMaxCount) {
+		throw new Error('bluesky_cross_post_too_many_images');
+	}
+	return imageContents;
+}
+
+function getBlueskyCrossPostUnsupportedContents(
+	contents: IContentData[],
+	primaryContent: IContentData,
+	imageContents: IContentData[]
+): IContentData[] {
+	const supportedContents = new Set([primaryContent, ...imageContents]);
+	return contents.filter((content) => {
+		if (supportedContents.has(content)) {
 			return false;
 		}
 		return hasBlueskyCrossPostContentPayload(content);
@@ -839,6 +887,104 @@ function hasBlueskyCrossPostContentPayload(content: IContentData): boolean {
 		return true;
 	}
 	return false;
+}
+
+async function getBlueskyCrossPostImageResult(
+	app: IGeesomeApp,
+	options: any,
+	session: IBlueskySession,
+	contents: IContentData[]
+): Promise<IBlueskyCrossPostImageResult> {
+	const result: IBlueskyCrossPostImageResult = {
+		embeds: [],
+		fallbackLinks: []
+	};
+	for (const content of contents) {
+		const item = await getBlueskyCrossPostImageEmbedOrFallback(app, options, session, content);
+		if (item.embed) {
+			result.embeds.push(item.embed);
+		}
+		if (item.fallbackLink) {
+			result.fallbackLinks.push(item.fallbackLink);
+		}
+	}
+	return result;
+}
+
+async function getBlueskyCrossPostImageEmbedOrFallback(
+	app: IGeesomeApp,
+	options: any,
+	session: IBlueskySession,
+	content: IContentData
+): Promise<{embed?: any; fallbackLink?: IBlueskyCrossPostImageFallbackLink}> {
+	try {
+		return {
+			embed: await getBlueskyCrossPostImageEmbed(app, options, session, content)
+		};
+	} catch (e) {
+		const fallbackLink = getBlueskyCrossPostImageFallbackLink(app, content);
+		if (!fallbackLink) {
+			throw e;
+		}
+		return {fallbackLink};
+	}
+}
+
+async function getBlueskyCrossPostImageEmbed(app: IGeesomeApp, options: any, session: IBlueskySession, content: IContentData): Promise<any> {
+	assertBlueskyCrossPostImageStorage(content);
+	const preparedImage = await prepareBlueskyImageUploadData({
+		data: await app.ms.storage.getFileData(content.storageId),
+		mimeType: content.mimeType
+	});
+	const blob = await uploadBlueskyBlob({
+		data: preparedImage.data,
+		mimeType: preparedImage.mimeType,
+		origin: getBlueskyAuthApiOrigin(app),
+		timeoutMs: getBlueskyAuthApiTimeoutMs(app),
+		fetch: options.fetch,
+		accessJwt: session.accessJwt
+	});
+	return {
+		image: blob,
+		alt: getBlueskyCrossPostImageAlt(content),
+		aspectRatio: preparedImage.aspectRatio
+	};
+}
+
+function assertBlueskyCrossPostImageStorage(content: IContentData): void {
+	if (!content.storageId) {
+		throw new Error('bluesky_cross_post_image_storage_required');
+	}
+	const contentSize = getNullablePositiveInteger(content.size);
+	if (contentSize && contentSize > blueskyImageMaxInputSize) {
+		throw new Error('bluesky_cross_post_image_too_large');
+	}
+}
+
+function isBlueskyCrossPostImageContent(content: IContentData): boolean {
+	if (!content) {
+		return false;
+	}
+	const mimeType = getOptionalString(content.mimeType)?.toLowerCase() || '';
+	if (mimeType.startsWith('image/')) {
+		return true;
+	}
+	return content.type === 'image';
+}
+
+function getBlueskyCrossPostEmbed(imageResult: IBlueskyCrossPostImageResult): any {
+	if (imageResult.embeds.length > 0) {
+		return buildBlueskyImageEmbed(imageResult.embeds);
+	}
+	if (imageResult.fallbackLinks.length === 1) {
+		const fallbackLink = imageResult.fallbackLinks[0];
+		return buildBlueskyExternalEmbed({
+			uri: fallbackLink.uri,
+			title: fallbackLink.title,
+			description: fallbackLink.description
+		});
+	}
+	return undefined;
 }
 
 function getBlueskyCrossPostAtProtoText(content: IContentData): {text: string; facets: any[]} {
@@ -868,6 +1014,113 @@ function getBlueskyCrossPostLangs(input: IBlueskyCrossPostInput, primaryContent:
 	return [];
 }
 
+function appendBlueskyCrossPostFallbackLinks(
+	textWithFacets: {text: string; facets: any[]},
+	fallbackLinks: IBlueskyCrossPostImageFallbackLink[]
+): {text: string; facets: any[]} {
+	const result = {
+		text: textWithFacets.text,
+		facets: [...textWithFacets.facets]
+	};
+	fallbackLinks.forEach((link) => {
+		appendBlueskyCrossPostFallbackLink(result, link.uri);
+	});
+	return result;
+}
+
+function appendBlueskyCrossPostFallbackLink(textWithFacets: {text: string; facets: any[]}, uri: string): void {
+	const separator = textWithFacets.text.endsWith('\n') || textWithFacets.text.length === 0 ? '' : '\n';
+	const textBeforeLink = `${textWithFacets.text}${separator}`;
+	const byteStart = Buffer.byteLength(textBeforeLink, 'utf8');
+	const byteEnd = byteStart + Buffer.byteLength(uri, 'utf8');
+	textWithFacets.text = `${textBeforeLink}${uri}`;
+	textWithFacets.facets.push({
+		$type: 'app.bsky.richtext.facet',
+		index: {
+			byteStart,
+			byteEnd
+		},
+		features: [{
+			$type: 'app.bsky.richtext.facet#link',
+			uri
+		}]
+	});
+}
+
+function getBlueskyCrossPostImageAlt(content: IContentData): string {
+	return getOptionalString(content.description) || getOptionalString(content.name) || '';
+}
+
+function getBlueskyCrossPostImageFallbackLink(app: IGeesomeApp, content: IContentData): IBlueskyCrossPostImageFallbackLink | null {
+	if (!content.storageId) {
+		return null;
+	}
+	const baseUrl = getBlueskyCrossPostContentBaseUrl(app);
+	if (!baseUrl) {
+		return null;
+	}
+	return {
+		uri: `${baseUrl}${content.storageId}`,
+		title: getBlueskyCrossPostImageAlt(content) || 'GeeSome image',
+		description: 'GeeSome image attachment'
+	};
+}
+
+function getBlueskyCrossPostContentBaseUrl(app: IGeesomeApp): string | null {
+	const publicUrl = getBlueskyCrossPostPublicUrl(app);
+	if (!publicUrl) {
+		return null;
+	}
+	return `${publicUrl}/ipfs/`;
+}
+
+function getBlueskyCrossPostPublicUrl(app: IGeesomeApp): string | null {
+	const explicitPublicUrl = getOptionalString(app.config?.blueskyConfig?.publicUrl) ||
+		getOptionalString(app.config?.activityPubConfig?.publicUrl);
+	if (explicitPublicUrl) {
+		return normalizeBlueskyCrossPostPublicUrl(explicitPublicUrl);
+	}
+	return getBlueskyCrossPostDomainPublicUrl(app.config?.domain);
+}
+
+function getBlueskyCrossPostDomainPublicUrl(value: any): string | null {
+	const rawDomain = getOptionalString(value);
+	if (!rawDomain) {
+		return null;
+	}
+	const domain = rawDomain.trim().replace(/^@/, '');
+	if (!domain) {
+		return null;
+	}
+	if (domain.includes('://')) {
+		const parsedUrl = new URL(domain);
+		return normalizeBlueskyCrossPostPublicUrl(`${parsedUrl.protocol}//${parsedUrl.host}`);
+	}
+	const cleanDomain = domain.replace(/^\/+/, '').split('/')[0];
+	if (!cleanDomain) {
+		return null;
+	}
+	return normalizeBlueskyCrossPostPublicUrl(`https://${cleanDomain}`);
+}
+
+function normalizeBlueskyCrossPostPublicUrl(value: string): string {
+	try {
+		const parsedUrl = new URL(value);
+		if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+			throw new Error('bluesky_public_url_invalid');
+		}
+		parsedUrl.search = '';
+		parsedUrl.hash = '';
+		const path = parsedUrl.pathname === '/' ? '' : parsedUrl.pathname.replace(/\/+$/, '');
+		return `${parsedUrl.origin}${path}`;
+	} catch (e) {
+		if (e?.message === 'bluesky_public_url_invalid') {
+			throw e;
+		}
+		throw new Error('bluesky_public_url_invalid');
+	}
+}
+
 function getExistingBlueskyCrossPostRecord(post: IPost, did: string): IBlueskyRecordCreateResult | null {
 	const existingRecord = getPostBlueskyProperties(post).crossPosts?.[did];
 	if (!existingRecord?.uri || !existingRecord?.cid) {
@@ -888,7 +1141,7 @@ async function storeBlueskyCrossPostRecord(
 	session: IBlueskySession,
 	record: IBlueskyRecordCreateResult
 ): Promise<IPost> {
-	const properties = parsePostPropertiesJson(post.propertiesJson);
+	const properties = parseBlueskyPropertiesJson(post.propertiesJson);
 	const blueskyProperties = getPlainObject(properties.bluesky);
 	blueskyProperties.crossPosts = {
 		...getPlainObject(blueskyProperties.crossPosts),
@@ -1159,11 +1412,11 @@ function shouldUpdateBlueskyImportedPost(postRef, projection: IBlueskyPostProjec
 }
 
 function getPostBlueskyProperties(postRef): any {
-	const properties = parsePostPropertiesJson(postRef?.propertiesJson);
+	const properties = parseBlueskyPropertiesJson(postRef?.propertiesJson);
 	return properties.bluesky || {};
 }
 
-function parsePostPropertiesJson(propertiesJson: string | null | undefined): any {
+function parseBlueskyPropertiesJson(propertiesJson: string | null | undefined): any {
 	if (!propertiesJson) {
 		return {};
 	}
