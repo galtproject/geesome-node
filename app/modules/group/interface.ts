@@ -26,6 +26,8 @@ export default interface IGeesomeGroupModule {
 
 	canCreatePostInGroup(userId, groupId);
 
+	canEditPostInGroup(userId, groupId, postId): Promise<boolean>;
+
 	canEditGroup(userId, groupId);
 
 	isAdminInGroup(userId, groupId): Promise<boolean>;

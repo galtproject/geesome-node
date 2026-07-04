@@ -51,6 +51,36 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/bluesky/posts/:postId/cross-post Cross-post GeeSome post to Bluesky
+	 * @apiName UserBlueskyCrossPost
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Creates an authenticated native ATProto `app.bsky.feed.post` record from one published local GeeSome post and stores the returned Bluesky URI/CID in the post `propertiesJson` for idempotency. This first write path supports text/rich-text facets only: media, attachments, encrypted posts, remote/imported posts, unpublished posts, and non-public groups are rejected until the richer publish policy is implemented. Repeating the request for the same post/account returns the stored record unless `force=true`.
+	 * @apiParam {Number} postId Local GeeSome post id.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiBody {String[]} [langs] Optional ATProto language tags, capped by Bluesky helper validation.
+	 * @apiBody {Date} [createdAt] Optional ATProto record creation time; defaults to now.
+	 * @apiBody {Boolean} [force=false] Create another Bluesky record even when this post/account already has stored cross-post metadata.
+	 * @apiSuccess {Object} account Secret-free local account summary.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 * @apiSuccess {Object} post Local post summary.
+	 * @apiSuccess {Object} record Bluesky `uri` and `cid` returned by `com.atproto.repo.createRecord`.
+	 * @apiSuccess {Boolean} alreadyExists Whether the stored idempotency record was returned without writing to Bluesky.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/posts/:postId/cross-post', async (req, res) => {
+		return res.send(await blueskyModule.crossPostPost(req.user.id, req.params.postId, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/public-author-feed/preview Preview public Bluesky author feed
 	 * @apiName AdminBlueskyPublicAuthorFeedPreview
 	 * @apiGroup AdminBluesky

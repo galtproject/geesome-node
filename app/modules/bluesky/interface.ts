@@ -1,4 +1,4 @@
-import {IBlueskyActorProfile, IBlueskyPostProjection} from './helpers.js';
+import {IBlueskyActorProfile, IBlueskyPostProjection, IBlueskyRecordCreateResult} from './helpers.js';
 import {IListParams} from '../database/interface.js';
 import {IUserOperationQueue} from '../asyncOperation/interface.js';
 import {IPostListResponse} from '../group/interface.js';
@@ -100,6 +100,26 @@ export interface IBlueskyAccountVerificationResult {
 	profile: IBlueskyActorProfile;
 	did: string;
 	handle: string | null;
+}
+
+export interface IBlueskyCrossPostInput extends IBlueskyAccountVerifyInput {
+	langs?: string[];
+	createdAt?: string | Date;
+	force?: boolean | string;
+}
+
+export interface IBlueskyCrossPostResult {
+	account: IBlueskyAccountReport;
+	profile: IBlueskyActorProfile;
+	did: string;
+	handle: string | null;
+	post: {
+		id?: number;
+		groupId?: number;
+		status?: string;
+	};
+	record: IBlueskyRecordCreateResult;
+	alreadyExists: boolean;
 }
 
 export interface IBlueskySourceSubscriptionInput {
@@ -310,6 +330,7 @@ export default interface IGeesomeBlueskyModule {
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;
+	crossPostPost(userId: number, postId: number | string, input?: IBlueskyCrossPostInput): Promise<IBlueskyCrossPostResult>;
 	getSourceSubscriptions(userId: number, filters?: IBlueskySourceSubscriptionFilters, listParams?: IListParams): Promise<IBlueskySourceSubscriptionListResponse>;
 	getSourceFeed(userId: number, sourceId: number | string, filters?: IBlueskySourceFeedFilters, listParams?: IListParams): Promise<IBlueskySourceFeedResponse>;
 	getSourceReviews(userId: number, sourceId: number | string, filters?: IBlueskySourceReviewFilters, listParams?: IListParams): Promise<IBlueskySourceReviewListResponse>;
