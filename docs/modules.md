@@ -6,12 +6,18 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 
 ## Documented Modules
 
-- `activityPub`: [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md)
+- `activityPub`: [overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md)
+- `asyncOperation`: [overview](../app/modules/asyncOperation/docs/overview.md)
+- `autoActions`: [overview](../app/modules/autoActions/docs/overview.md)
+- `bluesky`: [overview](../app/modules/bluesky/docs/overview.md)
 - `content`: [overview](../app/modules/content/docs/overview.md)
 - `database`: [overview](../app/modules/database/docs/overview.md)
 - `entityJsonManifest`: [overview](../app/modules/entityJsonManifest/docs/overview.md)
 - `fileCatalog`: [overview](../app/modules/fileCatalog/docs/overview.md)
 - `group`: [overview](../app/modules/group/docs/overview.md)
+- `pin`: [overview](../app/modules/pin/docs/overview.md)
+- `socNetImport`: [overview](../app/modules/socNetImport/docs/overview.md)
+- `staticSiteGenerator`: [overview](../app/modules/staticSiteGenerator/docs/overview.md)
 - `storage`: [overview](../app/modules/storage/docs/overview.md)
 - `storageSpace`: [overview](../app/modules/storageSpace/docs/overview.md)
 
@@ -20,11 +26,11 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | Module | Purpose | Docs |
 | --- | --- | --- |
 | `accountStorage` | Stores static-id account keys and peer identity records for users and groups. | Planned |
-| `activityPub` | Federates public GeeSome groups/posts and reads remote ActivityPub source feeds. | [Research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md) |
+| `activityPub` | Federates public GeeSome groups/posts and reads remote ActivityPub source feeds. | [Overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md) |
 | `api` | Runs the HTTP API server, auth wrappers, route registry, and generated API docs surface. | Planned |
-| `asyncOperation` | Tracks long-running user operations and processes queued background work. | Planned |
-| `autoActions` | Stores and claims scheduled module function calls. | Planned |
-| `bluesky` | Imports and refreshes native Bluesky/ATProto public source feeds. | Planned |
+| `asyncOperation` | Tracks long-running user operations and processes queued background work. | [Overview](../app/modules/asyncOperation/docs/overview.md) |
+| `autoActions` | Stores and claims scheduled module function calls. | [Overview](../app/modules/autoActions/docs/overview.md) |
+| `bluesky` | Imports and refreshes native Bluesky/ATProto public source feeds. | [Overview](../app/modules/bluesky/docs/overview.md) |
 | `communicator` | Provides network communication, static-id lookup/binding, and pubsub-style event hooks. | Planned |
 | `content` | Creates, serves, previews, restores, and deletes user content records. | [Overview](../app/modules/content/docs/overview.md) |
 | `database` | Owns Sequelize setup, models, permissions, API keys, sessions, and shared query helpers. | [Overview](../app/modules/database/docs/overview.md) |
@@ -37,13 +43,13 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `group` | Owns groups, memberships, posts, permissions, post contents, and group manifests. | [Overview](../app/modules/group/docs/overview.md) |
 | `groupCategory` | Organizes groups/posts into categories and group sections. | Planned |
 | `invite` | Manages invite-code status, registration, permissions, and invite lifecycle. | Planned |
-| `pin` | Stores pinning accounts and sends storage pin requests. | Planned |
+| `pin` | Stores pinning accounts and sends storage pin requests. | [Overview](../app/modules/pin/docs/overview.md) |
 | `remoteGroup` | Imports GeeSome groups/posts from remote manifest storage IDs. | Planned |
 | `rss` | Generates RSS feeds for group posts. | Planned |
 | `socNetAccount` | Stores account credentials and identity data for social-network integrations. | Planned |
-| `socNetImport` | Provides the shared channel/message/post pipeline for social-network imports. | Planned |
+| `socNetImport` | Provides the shared channel/message/post pipeline for social-network imports. | [Overview](../app/modules/socNetImport/docs/overview.md) |
 | `staticId` | Manages static ID history, account/group bindings, and static identity resolution. | Planned |
-| `staticSiteGenerator` | Generates static sites for groups/posts and manages render state. | Planned |
+| `staticSiteGenerator` | Generates static sites for groups/posts and manages render state. | [Overview](../app/modules/staticSiteGenerator/docs/overview.md) |
 | `storage` | Wraps the configured storage backend for files, directories, streams, and storage IDs. | [Overview](../app/modules/storage/docs/overview.md) |
 | `storageSpace` | Analyzes storage usage, reference state, cleanup blockers, and availability signals. | [Overview](../app/modules/storageSpace/docs/overview.md) |
 | `telegramClient` | Imports Telegram account/channel data through the shared social-import pipeline. | Planned |
@@ -53,7 +59,8 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 ## Documentation Plan
 
 1. Core module overviews are in place for `database`, `group`, `content`, `storage`, `entityJsonManifest`, `fileCatalog`, and `storageSpace`.
-2. Add background-worker docs for modules that run or schedule asynchronous work: `asyncOperation`, `autoActions`, `pin`, `staticSiteGenerator`, `socNetImport`, `activityPub`, and `bluesky`.
-3. Add integration docs for external network modules: `bluesky`, `telegramClient`, `twitterClient`, `tgContentBot`, `remoteGroup`, and `communicator`.
+2. Background-worker and async-flow overviews are in place for `asyncOperation`, `autoActions`, `pin`, `staticSiteGenerator`, `socNetImport`, `activityPub`, and `bluesky`.
+3. Add integration docs for remaining external network modules: `telegramClient`, `twitterClient`, `tgContentBot`, `remoteGroup`, and `communicator`.
 4. Add API/security docs where behavior is cross-cutting: `api`, `invite`, `foreignAccounts`, `ethereumAuthorization`, `socNetAccount`, `accountStorage`, and `staticId`.
-5. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
+5. Add utility/feed docs for remaining local modules: `drivers`, `gateway`, `groupCategory`, and `rss`.
+6. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
