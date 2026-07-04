@@ -10,7 +10,7 @@ Corrections and added requirements:
 
 - Chat groups are not finished. They are only a proof of concept, and encryption currently works only in the backend, which is not secure enough. Real secure chat needs frontend-side end-to-end encryption with users' private keys and recipients' public keys. Status: reflected in the secure chat slice and issue cluster.
 - Review the Vas3k E2EE article as background for why backend-only encryption is insufficient. Status: referenced in the secure chat notes.
-- ActivityPub/Fediverse integration is an important feature. Research it, review the current implementation, document where it should be implemented in `geesome-node`, and decide whether current model schemas or API endpoints should be adjusted for ActivityPub best practices. Status: reflected in this TODO plan and detailed in `docs/activitypub-research.md`.
+- ActivityPub/Fediverse integration is an important feature. Research it, review the current implementation, document where it should be implemented in `geesome-node`, and decide whether current model schemas or API endpoints should be adjusted for ActivityPub best practices. Status: reflected in this TODO plan and detailed in `app/modules/activityPub/docs/activitypub-research.md`.
 - User post text should not use raw HTML as the canonical storage format for social-network and decentralized interop. Store a small versioned semantic rich-text document as the source of truth, render sanitized HTML only for ActivityPub/Matrix/static/admin adapter outputs, and export plain text plus structured facets/tags/mentions for Bluesky/ATProto, Farcaster, Nostr-like protocols, and similar networks. Status: added to the ActivityPub/Fediverse plan as the content-format backlog.
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
@@ -344,11 +344,11 @@ Native Bluesky/ATProto phase:
 - Reuse the same moderation, review/import, source identity, group/post creation, tombstone/update, and retry boundaries used by ActivityPub remote-object import and other social import drivers. Add a shared moderation-policy layer so admins can choose review-first or auto-import for user-requested/trusted sources, with bounded keyword/regex/source/group-name filters before post creation.
 - Add a native Bluesky frontend/feed path after the backend import/cross-post API is stable, reusing the ActivityPub Sources UX patterns where they fit but showing ATProto account/credential and bridge-free states honestly.
 
-Research note: [activitypub-research.md](./activitypub-research.md).
+Research note: [activitypub-research.md](../app/modules/activityPub/docs/activitypub-research.md).
 
 Rich-text content-format design note: [rich-text-content-format.md](./rich-text-content-format.md).
 
-ActivityPub and Bluesky user-flow note: [activitypub-user-flows.md](./activitypub-user-flows.md). Keep it aligned when adding source-reader, moderation, native Bluesky, credential, or cross-post flows. Current intended moderation direction: admin-configurable review-first or auto-import mode, with keyword/regex/source/group-name filters that can block or quarantine remote content before it becomes a GeeSome post.
+ActivityPub and Bluesky user-flow note: [activitypub-user-flows.md](../app/modules/activityPub/docs/activitypub-user-flows.md). Keep it aligned when adding source-reader, moderation, native Bluesky, credential, or cross-post flows. Current intended moderation direction: admin-configurable review-first or auto-import mode, with keyword/regex/source/group-name filters that can block or quarantine remote content before it becomes a GeeSome post.
 
 Content format direction:
 

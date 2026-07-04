@@ -59,7 +59,7 @@ Newer decentralized social protocols point the other way:
 
 Recommendation: GeeSome should store post text as a versioned semantic rich-text document, not raw HTML. HTML should be an adapter/rendering format for ActivityPub, Matrix, static sites, admin previews, and legacy clients. Plain text plus facets/tags should be exported for ATProto, Farcaster, Nostr-like networks, and other protocols that do not accept HTML as source data.
 
-Detailed schema and adapter plan: [rich-text-content-format.md](./rich-text-content-format.md).
+Detailed schema and adapter plan: [rich-text-content-format.md](../../../../docs/rich-text-content-format.md).
 
 Initial canonical shape should be deliberately small:
 
