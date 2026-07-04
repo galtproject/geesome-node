@@ -13,14 +13,18 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 - `communicator`: [overview](../app/modules/communicator/docs/overview.md)
 - `content`: [overview](../app/modules/content/docs/overview.md)
 - `database`: [overview](../app/modules/database/docs/overview.md)
+- `drivers`: [overview](../app/modules/drivers/docs/overview.md)
 - `entityJsonManifest`: [overview](../app/modules/entityJsonManifest/docs/overview.md)
 - `ethereumAuthorization`: [overview](../app/modules/ethereumAuthorization/docs/overview.md)
 - `fileCatalog`: [overview](../app/modules/fileCatalog/docs/overview.md)
 - `foreignAccounts`: [overview](../app/modules/foreignAccounts/docs/overview.md)
+- `gateway`: [overview](../app/modules/gateway/docs/overview.md)
 - `group`: [overview](../app/modules/group/docs/overview.md)
+- `groupCategory`: [overview](../app/modules/groupCategory/docs/overview.md)
 - `invite`: [overview](../app/modules/invite/docs/overview.md)
 - `pin`: [overview](../app/modules/pin/docs/overview.md)
 - `remoteGroup`: [overview](../app/modules/remoteGroup/docs/overview.md)
+- `rss`: [overview](../app/modules/rss/docs/overview.md)
 - `socNetAccount`: [overview](../app/modules/socNetAccount/docs/overview.md)
 - `socNetImport`: [overview](../app/modules/socNetImport/docs/overview.md)
 - `staticId`: [overview](../app/modules/staticId/docs/overview.md)
@@ -44,18 +48,18 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `communicator` | Provides network communication, static-id lookup/binding, and pubsub-style event hooks. | [Overview](../app/modules/communicator/docs/overview.md) |
 | `content` | Creates, serves, previews, restores, and deletes user content records. | [Overview](../app/modules/content/docs/overview.md) |
 | `database` | Owns Sequelize setup, models, permissions, API keys, sessions, and shared query helpers. | [Overview](../app/modules/database/docs/overview.md) |
-| `drivers` | Registers media/file preview, upload, metadata, and conversion drivers. | Planned |
+| `drivers` | Registers media/file preview, upload, metadata, and conversion drivers. | [Overview](../app/modules/drivers/docs/overview.md) |
 | `entityJsonManifest` | Builds and reads GeeSome JSON manifests for groups, posts, categories, and generated state. | [Overview](../app/modules/entityJsonManifest/docs/overview.md) |
 | `ethereumAuthorization` | Authenticates users through Ethereum account signature challenges. | [Overview](../app/modules/ethereumAuthorization/docs/overview.md) |
 | `fileCatalog` | Manages user/group folder trees and path-based content organization. | [Overview](../app/modules/fileCatalog/docs/overview.md) |
 | `foreignAccounts` | Stores external account identities and auth-message records. | [Overview](../app/modules/foreignAccounts/docs/overview.md) |
-| `gateway` | Serves the frontend/static gateway and routes DNSLink-style requests. | Planned |
+| `gateway` | Serves the frontend/static gateway and routes DNSLink-style requests. | [Overview](../app/modules/gateway/docs/overview.md) |
 | `group` | Owns groups, memberships, posts, permissions, post contents, and group manifests. | [Overview](../app/modules/group/docs/overview.md) |
-| `groupCategory` | Organizes groups/posts into categories and group sections. | Planned |
+| `groupCategory` | Organizes groups/posts into categories and group sections. | [Overview](../app/modules/groupCategory/docs/overview.md) |
 | `invite` | Manages invite-code status, registration, permissions, and invite lifecycle. | [Overview](../app/modules/invite/docs/overview.md) |
 | `pin` | Stores pinning accounts and sends storage pin requests. | [Overview](../app/modules/pin/docs/overview.md) |
 | `remoteGroup` | Imports GeeSome groups/posts from remote manifest storage IDs. | [Overview](../app/modules/remoteGroup/docs/overview.md) |
-| `rss` | Generates RSS feeds for group posts. | Planned |
+| `rss` | Generates RSS feeds for group posts. | [Overview](../app/modules/rss/docs/overview.md) |
 | `socNetAccount` | Stores account credentials and identity data for social-network integrations. | [Overview](../app/modules/socNetAccount/docs/overview.md) |
 | `socNetImport` | Provides the shared channel/message/post pipeline for social-network imports. | [Overview](../app/modules/socNetImport/docs/overview.md) |
 | `staticId` | Manages static ID history, account/group bindings, and static identity resolution. | [Overview](../app/modules/staticId/docs/overview.md) |
@@ -72,7 +76,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 2. Background-worker and async-flow overviews are in place for `asyncOperation`, `autoActions`, `pin`, `staticSiteGenerator`, `socNetImport`, `activityPub`, and `bluesky`.
 3. Integration overviews are in place for `telegramClient`, `twitterClient`, `tgContentBot`, `remoteGroup`, and `communicator`.
 4. API/security/identity overviews are in place for `api`, `invite`, `foreignAccounts`, `ethereumAuthorization`, `socNetAccount`, `accountStorage`, and `staticId`.
-5. Add utility/feed docs for remaining local modules: `drivers`, `gateway`, `groupCategory`, and `rss`.
+5. Utility/feed overviews are in place for `drivers`, `gateway`, `groupCategory`, and `rss`.
 6. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.
 - `accountStorage`: [overview](../app/modules/accountStorage/docs/overview.md)
 - `api`: [overview](../app/modules/api/docs/overview.md)
