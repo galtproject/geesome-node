@@ -17,6 +17,7 @@ import IGeesomeBlueskyModule, {
 	BlueskySourceSubscriptionStatus,
 	IBlueskyPublicAuthorFeedImportInput,
 	IBlueskyPublicAuthorFeedPreviewInput,
+	IBlueskySourceFeedFilters,
 	IBlueskySourceRefreshInput,
 	IBlueskySourceRefreshPollOptions,
 	IBlueskySourceRefreshQueueInput,
@@ -127,6 +128,22 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			return {
 				list: subscriptionPage.rows.map(subscription => getBlueskySourceSubscriptionReport(subscription)),
 				total: getListPageCount(subscriptionPage.count)
+			};
+		}
+
+		async getSourceFeed(userId: number, sourceId: number | string, filters: IBlueskySourceFeedFilters = {}, listParams?: IListParams) {
+			app.checkModules(['socNetImport', 'group']);
+			assertBlueskyModels(models);
+			const subscription = await getBlueskySourceSubscriptionRecord(models, userId, sourceId);
+			const dbChannel = await getBlueskySourceFeedDbChannel(app, userId, subscription);
+			return {
+				source: getBlueskySourceSubscriptionReport(subscription),
+				dbChannel: getBlueskyImportChannelResult(dbChannel),
+				posts: await app.ms.group.getGroupPosts(
+					dbChannel.groupId,
+					helpers.sanitizePublicPostFilters(filters),
+					listParams
+				)
 			};
 		}
 
@@ -351,6 +368,17 @@ function getBlueskyImportChannelResult(dbChannel: ISocNetDbChannel) {
 		title: dbChannel.title,
 		socNet: dbChannel.socNet
 	};
+}
+
+async function getBlueskySourceFeedDbChannel(app: IGeesomeApp, userId: number, subscription) {
+	if (!subscription.dbChannelId) {
+		throw new Error('bluesky_source_feed_not_ready');
+	}
+	const dbChannel = await app.ms.socNetImport.getDbChannel(userId, {id: subscription.dbChannelId});
+	if (!dbChannel) {
+		throw new Error('bluesky_source_feed_not_ready');
+	}
+	return dbChannel;
 }
 
 function getBlueskyImportProgress(processed: number, total: number): number {

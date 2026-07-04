@@ -1,6 +1,7 @@
 import {IBlueskyPostProjection} from './helpers.js';
 import {IListParams} from '../database/interface.js';
 import {IUserOperationQueue} from '../asyncOperation/interface.js';
+import {IPostListResponse} from '../group/interface.js';
 
 export enum BlueskySourceSubscriptionStatus {
 	Active = 'active',
@@ -90,6 +91,23 @@ export interface IBlueskySourceSubscriptionListResponse {
 	total: number;
 }
 
+export interface IBlueskySourceFeedFilters {
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+}
+
+export interface IBlueskySourceFeedResponse {
+	source: IBlueskySourceSubscriptionReport;
+	dbChannel: {
+		id;
+		groupId;
+		channelId;
+		title;
+		socNet;
+	} | null;
+	posts: IPostListResponse;
+}
+
 export interface IBlueskySourceRefreshInput {
 	filter?: string | null;
 	cursor?: string | null;
@@ -141,6 +159,7 @@ export default interface IGeesomeBlueskyModule {
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	getSourceSubscriptions(userId: number, filters?: IBlueskySourceSubscriptionFilters, listParams?: IListParams): Promise<IBlueskySourceSubscriptionListResponse>;
+	getSourceFeed(userId: number, sourceId: number | string, filters?: IBlueskySourceFeedFilters, listParams?: IListParams): Promise<IBlueskySourceFeedResponse>;
 	subscribeSource(userId: number, input?: IBlueskySourceSubscriptionInput): Promise<IBlueskySourceSubscriptionReport>;
 	updateSourceSubscription(userId: number, sourceId: number | string, input?: IBlueskySourceSubscriptionUpdateInput): Promise<IBlueskySourceSubscriptionReport>;
 	removeSourceSubscription(userId: number, sourceId: number | string): Promise<IBlueskySourceSubscriptionReport>;

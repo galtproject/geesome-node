@@ -79,6 +79,29 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {get} /v1/admin/bluesky/sources/:sourceId/feed List native Bluesky source feed
+	 * @apiName AdminBlueskySourceFeed
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists already-imported GeeSome posts for a native Bluesky source subscription through the linked social-import channel. Passing `cursorPublishedAt` and `cursorId` enables the existing group-post keyset pagination path and skips expensive totals. This route is read-only: it does not fetch Bluesky, import posts, poll feeds, delete content, or use credentials.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {Date} [cursorPublishedAt] Keyset cursor timestamp for source-feed pages.
+	 * @apiQuery {Number} [cursorId] Keyset cursor id for source-feed pages.
+	 * @apiSuccess {Object} source Source subscription row with refresh/channel metadata.
+	 * @apiSuccess {Object} dbChannel Linked local social-import channel summary.
+	 * @apiSuccess {Object} posts Imported GeeSome post page with `list`, `total`, and optional `nextCursor`.
+	 */
+	app.ms.api.onAuthorizedGet('admin/bluesky/sources/:sourceId/feed', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getSourceFeed(req.user.id, req.params.sourceId, req.query, req.query));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/sources Subscribe native Bluesky source
 	 * @apiName AdminBlueskySourceSubscribe
 	 * @apiGroup AdminBluesky
