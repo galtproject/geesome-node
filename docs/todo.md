@@ -348,6 +348,8 @@ Research note: [activitypub-research.md](./activitypub-research.md).
 
 Rich-text content-format design note: [rich-text-content-format.md](./rich-text-content-format.md).
 
+ActivityPub and Bluesky user-flow note: [activitypub-user-flows.md](./activitypub-user-flows.md). Keep it aligned when adding source-reader, moderation, native Bluesky, credential, or cross-post flows.
+
 Content format direction:
 
 - Do not make raw HTML the canonical user-content format. ActivityStreams/ActivityPub and Matrix need sanitized HTML adapter output, but newer decentralized social protocols such as Bluesky/ATProto, Farcaster, and Nostr-style text notes prefer plain text plus structured facets, mentions, tags, embeds, or protocol tags.
