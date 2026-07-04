@@ -126,6 +126,62 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/refresh Refresh native Bluesky source subscription
+	 * @apiName AdminBlueskySourceRefresh
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Fetches one public ATProto author-feed page for the stored source subscription, imports projected posts through the social-import pipeline, and updates local cursor/channel/error metadata. This is a bounded manual refresh, not a long-running poller or credentialed cross-post operation.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional one-off feed filter override; defaults to the stored subscription filter.
+	 * @apiBody {Number} [limit] Optional one-off page import limit, capped at 100; defaults to the stored subscription import limit.
+	 * @apiBody {String} [cursor] Optional one-off ATProto cursor; defaults to the stored subscription cursor.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this refresh.
+	 * @apiSuccess {Object} result Refresh result with updated source row, fetched/imported counts, cursor, and channel summary.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/refresh', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.refreshSourceSubscription(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/refresh-async Queue native Bluesky source refresh
+	 * @apiName AdminBlueskySourceRefreshAsync
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Queues one public ATProto author-feed page refresh for the stored source subscription as a normal user async operation. Duplicate waiting jobs for the same source/options are reused. Set `process=false` when an external worker should process the queue later.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional one-off feed filter override.
+	 * @apiBody {Number} [limit] Optional one-off page import limit, capped at 100.
+	 * @apiBody {String} [cursor] Optional one-off ATProto cursor.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this refresh.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing.
+	 * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/refresh-async', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.queueSourceSubscriptionRefresh(
+			req.user.id,
+			req.params.sourceId,
+			req.apiKey?.id || null,
+			req.body || {}
+		));
+	});
+
+	/**
 	 * @api {post} /v1/admin/bluesky/sources/:sourceId/remove Remove native Bluesky source subscription
 	 * @apiName AdminBlueskySourceRemove
 	 * @apiGroup AdminBluesky
