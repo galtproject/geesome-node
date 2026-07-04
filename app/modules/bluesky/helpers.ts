@@ -6,6 +6,7 @@ import {
 	createRichTextDocument,
 	richTextToPlainText
 } from '../../richText.js';
+import type {IRemoteContentModerationDecision} from '../remoteContentModeration/helpers.js';
 
 export const blueskySocNet = 'bluesky';
 export const blueskyPostSource = `socNetImport:${blueskySocNet}`;
@@ -69,6 +70,7 @@ export interface IBlueskyPostProjection {
 	reply: IBlueskyReplyProjection | null;
 	embed: IBlueskyEmbedProjection;
 	facetsCount: number;
+	moderationDecision?: IRemoteContentModerationDecision;
 }
 
 export interface IBlueskyAuthorProjection {

@@ -2,6 +2,12 @@ import {IBlueskyPostProjection} from './helpers.js';
 import {IListParams} from '../database/interface.js';
 import {IUserOperationQueue} from '../asyncOperation/interface.js';
 import {IPostListResponse} from '../group/interface.js';
+import type {
+	IRemoteContentModerationPolicyInput,
+	IRemoteContentModerationRule,
+	IRemoteContentModerationSummary,
+	RemoteContentModerationMode
+} from '../remoteContentModeration/helpers.js';
 
 export enum BlueskySourceSubscriptionStatus {
 	Active = 'active',
@@ -22,6 +28,7 @@ export interface IBlueskyPublicAuthorFeedImportInput extends IBlueskyPublicAutho
 	advancedSettings?: any;
 	force?: boolean;
 	mergeSeconds?: number;
+	moderationPolicy?: IRemoteContentModerationPolicyInput;
 }
 
 export interface IBlueskyPublicAuthorFeedPreview {
@@ -51,6 +58,8 @@ export interface IBlueskySourceSubscriptionInput {
 	groupName?: string;
 	accountId?: number | null;
 	importLimit?: number | string | null;
+	moderationMode?: RemoteContentModerationMode | string | null;
+	moderationRules?: IRemoteContentModerationRule[] | any[] | null;
 }
 
 export interface IBlueskySourceSubscriptionUpdateInput {
@@ -60,6 +69,8 @@ export interface IBlueskySourceSubscriptionUpdateInput {
 	groupName?: string | null;
 	accountId?: number | null;
 	importLimit?: number | string | null;
+	moderationMode?: RemoteContentModerationMode | string | null;
+	moderationRules?: IRemoteContentModerationRule[] | any[] | null;
 }
 
 export interface IBlueskySourceSubscriptionFilters {
@@ -77,6 +88,8 @@ export interface IBlueskySourceSubscriptionReport {
 	groupName?: string | null;
 	accountId?: number | null;
 	importLimit?: number | null;
+	moderationMode?: RemoteContentModerationMode;
+	moderationRules?: IRemoteContentModerationRule[];
 	dbChannelId?: number | null;
 	lastCursor?: string | null;
 	lastRefreshRequestedAt?: Date | null;
@@ -115,6 +128,7 @@ export interface IBlueskySourceRefreshInput {
 	force?: boolean | string;
 	mergeSeconds?: number | string | null;
 	advancedSettings?: any;
+	moderationPolicy?: IRemoteContentModerationPolicyInput;
 }
 
 export interface IBlueskySourceRefreshQueueInput extends IBlueskySourceRefreshInput {
@@ -127,6 +141,7 @@ export interface IBlueskySourceRefreshResult {
 	cursor: string | null;
 	fetched: number;
 	imported: number;
+	moderation?: IRemoteContentModerationSummary;
 	dbChannel?: {
 		id;
 		groupId;
@@ -182,6 +197,7 @@ export interface IBlueskySourceSyncResult {
 	deleted: number;
 	skipped: number;
 	failed: number;
+	moderation?: IRemoteContentModerationSummary;
 	errors: IBlueskySourceSyncError[];
 	nextCursor?: {publishedAt: any; id: any} | null;
 }

@@ -1,5 +1,6 @@
 import {DataTypes, Sequelize} from 'sequelize';
 import {BlueskySourceSubscriptionStatus} from './interface.js';
+import {RemoteContentModerationMode} from '../remoteContentModeration/helpers.js';
 
 export default async function (sequelize: Sequelize) {
 	const BlueskySourceSubscription = sequelize.define('blueskySourceSubscription', {
@@ -34,6 +35,15 @@ export default async function (sequelize: Sequelize) {
 		},
 		importLimit: {
 			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		moderationMode: {
+			type: DataTypes.STRING(30),
+			allowNull: false,
+			defaultValue: RemoteContentModerationMode.AutoImport
+		},
+		moderationRulesJson: {
+			type: DataTypes.TEXT,
 			allowNull: true
 		},
 		dbChannelId: {

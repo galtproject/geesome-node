@@ -3,6 +3,7 @@ import registerBlueskyApi from '../app/modules/bluesky/api.js';
 import {getModule as getBlueskyModule} from '../app/modules/bluesky/index.js';
 import IGeesomeBlueskyModule, {BlueskySourceSubscriptionStatus} from '../app/modules/bluesky/interface.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
+import {RemoteContentModerationMode} from '../app/modules/remoteContentModeration/helpers.js';
 import {richTextToPlainText} from '../app/richText.js';
 
 describe('bluesky module', () => {
@@ -204,6 +205,8 @@ describe('bluesky module', () => {
 		assert.equal(first.displayName, 'Official');
 		assert.equal(first.accountId, 1234);
 		assert.equal(first.importLimit, 100);
+		assert.equal(first.moderationMode, RemoteContentModerationMode.AutoImport);
+		assert.deepEqual(first.moderationRules, []);
 
 		const updatedExisting = await module.subscribeSource(7, {
 			actor: 'bsky.app',
@@ -211,7 +214,9 @@ describe('bluesky module', () => {
 			displayName: 'Media',
 			groupName: 'media-feed',
 			accountId: null,
-			importLimit: 2
+			importLimit: 2,
+			moderationMode: 'review-first',
+			moderationRules: [{name: 'spam', value: 'spam', action: 'block'}]
 		});
 
 		assert.equal(updatedExisting.id, first.id);
@@ -221,6 +226,14 @@ describe('bluesky module', () => {
 		assert.equal(updatedExisting.groupName, 'media-feed');
 		assert.equal(updatedExisting.accountId, null);
 		assert.equal(updatedExisting.importLimit, 2);
+		assert.equal(updatedExisting.moderationMode, RemoteContentModerationMode.ReviewFirst);
+		assert.deepEqual(updatedExisting.moderationRules, [{
+			name: 'spam',
+			type: 'keyword',
+			field: 'text',
+			value: 'spam',
+			action: 'block'
+		}]);
 
 		const activeList = await module.getSourceSubscriptions(7, {
 			status: BlueskySourceSubscriptionStatus.Active
@@ -237,7 +250,8 @@ describe('bluesky module', () => {
 			displayName: null,
 			groupName: null,
 			accountId: null,
-			importLimit: null
+			importLimit: null,
+			moderationMode: RemoteContentModerationMode.AutoImport
 		});
 
 		assert.equal(paused.status, BlueskySourceSubscriptionStatus.Paused);
@@ -246,6 +260,8 @@ describe('bluesky module', () => {
 		assert.equal(paused.groupName, null);
 		assert.equal(paused.accountId, null);
 		assert.equal(paused.importLimit, null);
+		assert.equal(paused.moderationMode, RemoteContentModerationMode.AutoImport);
+		assert.deepEqual(paused.moderationRules, updatedExisting.moderationRules);
 
 		await assert.rejects(
 			() => module.updateSourceSubscription(7, first.id, {status: BlueskySourceSubscriptionStatus.Removed}),
@@ -456,6 +472,119 @@ describe('bluesky module', () => {
 		assert.ok(result.source.lastImportedAt);
 	});
 
+	it('applies moderation policy before native Bluesky source posts become visible imports', async () => {
+		const imports: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/'
+				}
+			},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						assert.deepEqual(client.messages.list.map(m => m.text), ['Allowed post']);
+						assert.equal(client.messages.list[0].moderationDecision.action, 'allow');
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 10}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			},
+			fetch: async () => ({
+				ok: true,
+				json: async () => ({
+					cursor: 'cursor-after',
+					feed: [
+						getFeedItem('blocked', 'Blocked spam post', '2026-07-04T08:00:00.000Z'),
+						getFeedItem('allowed', 'Allowed post', '2026-07-04T07:59:00.000Z')
+					]
+				})
+			})
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social',
+			importLimit: 2,
+			moderationRules: [{name: 'spam filter', value: 'spam', action: 'block'}]
+		});
+
+		const result = await module.refreshSourceSubscription(7, subscription.id);
+
+		assert.equal(imports[0].method, 'importChannelMetadata');
+		assert.equal(imports[0].args[3].id, 'did:plc:alice');
+		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.equal(result.fetched, 2);
+		assert.equal(result.imported, 1);
+		assert.deepEqual(result.moderation, {
+			allowed: 1,
+			review: 0,
+			quarantined: 0,
+			blocked: 1,
+			matches: 1
+		});
+		assert.equal(result.source.lastImportedAt instanceof Date, true);
+	});
+
+	it('keeps review-first native Bluesky source refreshes out of visible posts until review exists', async () => {
+		const imports: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			},
+			fetch: async () => ({
+				ok: true,
+				json: async () => getTwoPostAuthorFeedFixture()
+			})
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social',
+			moderationMode: 'review-first'
+		});
+		await subscriptionModel.rows[0].update({lastCursor: 'old-cursor'});
+
+		const result = await module.refreshSourceSubscription(7, subscription.id);
+
+		assert.deepEqual(imports, []);
+		assert.equal(result.fetched, 2);
+		assert.equal(result.imported, 0);
+		assert.deepEqual(result.moderation, {
+			allowed: 0,
+			review: 2,
+			quarantined: 0,
+			blocked: 0,
+			matches: 0
+		});
+		assert.equal(result.dbChannel, null);
+		assert.equal(result.source.lastCursor, 'old-cursor');
+		assert.equal(result.source.lastImportedAt, null);
+	});
+
 	it('syncs imported native Bluesky source posts against current ATProto records', async () => {
 		const checks: any[] = [];
 		const imports: any[] = [];
@@ -602,6 +731,9 @@ describe('bluesky module', () => {
 		const queue = await module.queueSourceSubscriptionRefresh(7, subscription.id, 13, {
 			limit: '1',
 			filter: 'posts_with_media',
+			moderationPolicy: {
+				rules: [{name: 'spam', value: 'spam'}]
+			},
 			process: false
 		});
 		const processResult = await module.processSourceSubscriptionRefreshQueue({limit: 1});
@@ -611,11 +743,20 @@ describe('bluesky module', () => {
 		assert.deepEqual(JSON.parse(queue.inputJson), {
 			type: 'source-refresh',
 			sourceId: subscription.id,
-			input: {
-				filter: 'posts_with_media',
-				limit: 1
-			}
-		});
+				input: {
+					filter: 'posts_with_media',
+					limit: 1,
+					moderationPolicy: {
+						rules: [{
+							name: 'spam',
+							type: 'keyword',
+							field: 'text',
+							value: 'spam',
+							action: 'block'
+						}]
+					}
+				}
+			});
 		assert.deepEqual(processResult, {processed: 1});
 		assert.equal(queue.isWaiting, false);
 		assert.equal(calls.asyncOperations[0].name, 'refresh-bluesky-source');
@@ -1046,6 +1187,8 @@ class FakeBlueskySourceSubscription {
 	groupName: string | null;
 	accountId: number | null;
 	importLimit: number | null;
+	moderationMode: string;
+	moderationRulesJson: string | null;
 	dbChannelId: number | null;
 	lastCursor: string | null;
 	lastRefreshRequestedAt: Date | null;
@@ -1056,6 +1199,8 @@ class FakeBlueskySourceSubscription {
 
 	constructor(id: number, data: any) {
 		Object.assign(this, {
+			moderationMode: RemoteContentModerationMode.AutoImport,
+			moderationRulesJson: null,
 			dbChannelId: null,
 			lastCursor: null,
 			lastRefreshRequestedAt: null,

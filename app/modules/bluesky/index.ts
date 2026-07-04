@@ -5,6 +5,17 @@ import {CorePermissionName, IListParams, IListParamsOptions} from '../database/i
 import {ISocNetDbChannel} from '../socNetImport/interface.js';
 import {BlueskyImportClient} from './importClient.js';
 import {
+	IRemoteContentModerationDecision,
+	IRemoteContentModerationPolicy,
+	IRemoteContentModerationPolicyInput,
+	IRemoteContentModerationSummary,
+	RemoteContentModerationMode,
+	evaluateRemoteContentModerationPolicy,
+	getRemoteContentModerationSummary,
+	isRemoteContentModerationDecisionImportable,
+	normalizeRemoteContentModerationPolicy
+} from '../remoteContentModeration/helpers.js';
+import {
 	IBlueskyAuthorProjection,
 	IBlueskyPostProjection,
 	blueskyPostSource,
@@ -178,9 +189,21 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			const syncState = getEmptyBlueskySourceSyncState();
 			const updateProjections: IBlueskyPostProjection[] = [];
 			const deletePostIds: number[] = [];
+			const moderationPolicy = getBlueskySourceModerationPolicy(subscription, input);
+			const moderationDecisions: IRemoteContentModerationDecision[] = [];
+			const moderationContext = getBlueskySourceSyncModerationContext(subscription, dbChannel);
 
 			for (const postRef of postRefs) {
-				const syncDecision = await getBlueskySourcePostSyncDecision(app, postRef, dbChannel, input, options.fetch);
+				const syncDecision = await getBlueskySourcePostSyncDecision(
+					app,
+					postRef,
+					dbChannel,
+					input,
+					moderationPolicy,
+					moderationDecisions,
+					moderationContext,
+					options.fetch
+				);
 				syncState.checked += 1;
 				if (syncDecision.error) {
 					appendBlueskySourceSyncError(syncState.errors, syncDecision.error);
@@ -216,6 +239,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				source: getBlueskySourceSubscriptionReport(subscription),
 				dbChannel: getBlueskyImportChannelResult(dbChannel),
 				...syncState,
+				moderation: getRemoteContentModerationSummary(moderationDecisions),
 				nextCursor: helpers.getNextCursorFromRows(postRefs, listParams.limit, {
 					valueField: 'publishedAt',
 					idField: 'id'
@@ -254,7 +278,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 		async updateSourceSubscription(userId: number, sourceId: number | string, input: IBlueskySourceSubscriptionUpdateInput = {}) {
 			assertBlueskyModels(models);
 			const subscription = await getBlueskySourceSubscriptionRecord(models, userId, sourceId);
-			await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceSubscriptionUpdateData(input));
+			await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceSubscriptionUpdateData(input, subscription));
 			return getBlueskySourceSubscriptionReport(subscription);
 		}
 
@@ -282,25 +306,34 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 						imported: 0,
 						refreshedAt
 					}));
-					return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, 0, null);
+					return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, 0, null, getEmptyRemoteContentModerationSummary());
+				}
+				const moderation = getBlueskyModeratedSourceProjections(preview.actor, subscription, refreshInput, projections);
+				if (!moderation.projections.length) {
+					await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
+						cursor: getBlueskySourceRefreshPersistedCursor(preview.cursor, moderation.summary),
+						imported: 0,
+						refreshedAt
+					}));
+					return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, 0, null, moderation.summary);
 				}
 
-				const dbChannel = await this.importPublicAuthorChannel(userId, refreshInput, preview.actor, projections[0]);
+				const dbChannel = await this.importPublicAuthorChannel(userId, refreshInput, preview.actor, moderation.projections[0]);
 				const imported = await importBlueskyPublicAuthorFeedProjections(
 					app,
 					userId,
 					dbChannel,
-					getBlueskyImportProjectionOrder(projections),
+					getBlueskyImportProjectionOrder(moderation.projections),
 					getBlueskyImportAdvancedSettings(refreshInput),
 					refreshOptions.asyncOperation
 				);
 				await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
 					dbChannel,
-					cursor: preview.cursor,
+					cursor: getBlueskySourceRefreshPersistedCursor(preview.cursor, moderation.summary),
 					imported,
 					refreshedAt
 				}));
-				return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, imported, dbChannel);
+				return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, imported, dbChannel, moderation.summary);
 			} catch (e) {
 				await updateBlueskySourceSubscriptionRecord(subscription, {
 					lastRefreshRequestedAt: refreshedAt,
@@ -529,7 +562,16 @@ function getEmptyBlueskySourceSyncState() {
 	};
 }
 
-async function getBlueskySourcePostSyncDecision(app: IGeesomeApp, postRef, dbChannel: ISocNetDbChannel, input: IBlueskySourceSyncInput, fetchImpl) {
+async function getBlueskySourcePostSyncDecision(
+	app: IGeesomeApp,
+	postRef,
+	dbChannel: ISocNetDbChannel,
+	input: IBlueskySourceSyncInput,
+	moderationPolicy: IRemoteContentModerationPolicy,
+	moderationDecisions: IRemoteContentModerationDecision[],
+	moderationContext: {actor?: string | null; groupName?: string | null},
+	fetchImpl
+) {
 	const sourcePostId = getOptionalString(postRef?.sourcePostId);
 	if (!sourcePostId || !parseBlueskyPostAtUri(sourcePostId)) {
 		return {
@@ -554,10 +596,17 @@ async function getBlueskySourcePostSyncDecision(app: IGeesomeApp, postRef, dbCha
 				error: getBlueskySourceSyncError(postRef, 'bluesky_source_identity_mismatch')
 			};
 		}
+		const moderationDecision = getBlueskyProjectionModerationDecision(record.projection, moderationPolicy, moderationContext);
+		moderationDecisions.push(moderationDecision);
+		if (!isRemoteContentModerationDecisionImportable(moderationDecision)) {
+			return {deletePostId: postRef.id};
+		}
 		if (!shouldUpdateBlueskyImportedPost(postRef, record.projection, input)) {
 			return {};
 		}
-		return {updateProjection: record.projection};
+		return {
+			updateProjection: getBlueskyModeratedProjection(record.projection, moderationDecision)
+		};
 	} catch (e) {
 		return {
 			error: getBlueskySourceSyncError(postRef, getErrorMessage(e))
@@ -627,6 +676,7 @@ function getBlueskySourceSubscriptionWhere(userId: number, filters: IBlueskySour
 }
 
 function getBlueskySourceSubscriptionCreateData(userId: number, input: IBlueskySourceSubscriptionInput) {
+	const moderationPolicy = getBlueskyInputModerationPolicy(input);
 	return {
 		userId,
 		actor: getRequiredBlueskySourceActor(input),
@@ -636,6 +686,8 @@ function getBlueskySourceSubscriptionCreateData(userId: number, input: IBlueskyS
 		groupName: getOptionalBoundedString(input.groupName, 200) || null,
 		accountId: getNullablePositiveInteger(input.accountId),
 		importLimit: getNullableImportLimit(input.importLimit),
+		moderationMode: moderationPolicy.mode,
+		moderationRulesJson: getBlueskyModerationRulesJson(moderationPolicy.rules),
 		lastError: null
 	};
 }
@@ -648,11 +700,13 @@ function getExistingBlueskySourceSubscriptionUpdateData(subscriptionData) {
 		groupName: subscriptionData.groupName,
 		accountId: subscriptionData.accountId,
 		importLimit: subscriptionData.importLimit,
+		moderationMode: subscriptionData.moderationMode,
+		moderationRulesJson: subscriptionData.moderationRulesJson,
 		lastError: null
 	};
 }
 
-function getBlueskySourceSubscriptionUpdateData(input: IBlueskySourceSubscriptionUpdateInput) {
+function getBlueskySourceSubscriptionUpdateData(input: IBlueskySourceSubscriptionUpdateInput, subscription) {
 	const updateData = {} as any;
 	if (input.filter !== undefined) {
 		updateData.filter = getOptionalBlueskySourceFilter(input.filter);
@@ -672,6 +726,11 @@ function getBlueskySourceSubscriptionUpdateData(input: IBlueskySourceSubscriptio
 	if (input.importLimit !== undefined) {
 		updateData.importLimit = getNullableImportLimit(input.importLimit);
 	}
+	if (input.moderationMode !== undefined || input.moderationRules !== undefined) {
+		const moderationPolicy = getBlueskyInputModerationPolicy(input, getBlueskySubscriptionModerationPolicyInput(subscription));
+		updateData.moderationMode = moderationPolicy.mode;
+		updateData.moderationRulesJson = getBlueskyModerationRulesJson(moderationPolicy.rules);
+	}
 	return updateData;
 }
 
@@ -685,7 +744,8 @@ function getBlueskySourceRefreshImportInput(subscription, input: IBlueskySourceR
 		groupName: subscription.groupName || undefined,
 		advancedSettings: input.advancedSettings || {},
 		force: input.force === undefined ? undefined : helpers.parseBoolean(input.force, false),
-		mergeSeconds: getNullablePositiveInteger(input.mergeSeconds) || undefined
+		mergeSeconds: getNullablePositiveInteger(input.mergeSeconds) || undefined,
+		moderationPolicy: input.moderationPolicy
 	};
 }
 
@@ -703,12 +763,14 @@ function getBlueskySourceRefreshLimit(subscription, input: IBlueskySourceRefresh
 	return subscription.importLimit || undefined;
 }
 
-function getBlueskySourceRefreshSuccessData(options: {dbChannel?: ISocNetDbChannel | null; cursor: string | null; imported: number; refreshedAt: Date}) {
+function getBlueskySourceRefreshSuccessData(options: {dbChannel?: ISocNetDbChannel | null; cursor?: string | null; imported: number; refreshedAt: Date}) {
 	const updateData: any = {
-		lastCursor: options.cursor || null,
 		lastRefreshRequestedAt: options.refreshedAt,
 		lastError: null
 	};
+	if (options.cursor !== undefined) {
+		updateData.lastCursor = options.cursor || null;
+	}
 	if (options.dbChannel) {
 		updateData.dbChannelId = options.dbChannel.id;
 	}
@@ -718,15 +780,31 @@ function getBlueskySourceRefreshSuccessData(options: {dbChannel?: ISocNetDbChann
 	return updateData;
 }
 
-function getBlueskySourceRefreshResult(subscription, actor: string, cursor: string | null, fetched: number, imported: number, dbChannel: ISocNetDbChannel | null) {
+function getBlueskySourceRefreshResult(
+	subscription,
+	actor: string,
+	cursor: string | null,
+	fetched: number,
+	imported: number,
+	dbChannel: ISocNetDbChannel | null,
+	moderation: IRemoteContentModerationSummary = getEmptyRemoteContentModerationSummary()
+) {
 	return {
 		source: getBlueskySourceSubscriptionReport(subscription),
 		actor,
 		cursor,
 		fetched,
 		imported,
+		moderation,
 		dbChannel: dbChannel ? getBlueskyImportChannelResult(dbChannel) : null
 	};
+}
+
+function getBlueskySourceRefreshPersistedCursor(cursor: string | null, moderation: IRemoteContentModerationSummary): string | null | undefined {
+	if (moderation.review > 0 || moderation.quarantined > 0) {
+		return undefined;
+	}
+	return cursor;
 }
 
 function getBlueskySourceRefreshJobInput(subscription, input: IBlueskySourceRefreshQueueInput = {}) {
@@ -757,7 +835,153 @@ function getBlueskySourceRefreshJobInputData(input: IBlueskySourceRefreshQueueIn
 	if (input.advancedSettings !== undefined) {
 		jobInput.advancedSettings = input.advancedSettings || {};
 	}
+	if (input.moderationPolicy !== undefined) {
+		jobInput.moderationPolicy = getBlueskySourceRefreshJobModerationPolicy(input.moderationPolicy);
+	}
 	return jobInput;
+}
+
+function getBlueskyModeratedSourceProjections(
+	actor: string,
+	subscription,
+	input: IBlueskyPublicAuthorFeedImportInput,
+	projections: IBlueskyPostProjection[]
+) {
+	const policy = getBlueskySourceModerationPolicy(subscription, input);
+	const decisions: IRemoteContentModerationDecision[] = [];
+	const moderatedProjections = projections
+		.map((projection) => {
+			const decision = getBlueskyProjectionModerationDecision(projection, policy, {
+				actor,
+				groupName: input.groupName || subscription.groupName
+			});
+			decisions.push(decision);
+			if (!isRemoteContentModerationDecisionImportable(decision)) {
+				return null;
+			}
+			return getBlueskyModeratedProjection(projection, decision);
+		})
+		.filter(Boolean) as IBlueskyPostProjection[];
+	return {
+		projections: moderatedProjections,
+		summary: getRemoteContentModerationSummary(decisions)
+	};
+}
+
+function getBlueskySourceModerationPolicy(subscription, input: {moderationPolicy?: IRemoteContentModerationPolicyInput} = {}): IRemoteContentModerationPolicy {
+	return normalizeRemoteContentModerationPolicy({
+		mode: input.moderationPolicy?.mode ?? getBlueskySubscriptionModerationMode(subscription),
+		rules: input.moderationPolicy?.rules ?? getBlueskySubscriptionModerationRules(subscription)
+	});
+}
+
+function getBlueskySourceSyncModerationContext(subscription, dbChannel: ISocNetDbChannel) {
+	return {
+		actor: subscription.actor || dbChannel.channelId,
+		groupName: subscription.groupName || dbChannel.title
+	};
+}
+
+function getBlueskyInputModerationPolicy(input: any, fallback: IRemoteContentModerationPolicyInput = {}): IRemoteContentModerationPolicy {
+	const policyInput = input?.moderationPolicy || {};
+	return normalizeRemoteContentModerationPolicy({
+		mode: input?.moderationMode ?? policyInput.mode ?? fallback.mode,
+		rules: input?.moderationRules ?? policyInput.rules ?? fallback.rules
+	});
+}
+
+function getBlueskySourceRefreshJobModerationPolicy(input: IRemoteContentModerationPolicyInput): IRemoteContentModerationPolicyInput {
+	const normalizedPolicy = getBlueskyInputModerationPolicy({moderationPolicy: input});
+	const jobPolicy: IRemoteContentModerationPolicyInput = {};
+	if (input?.mode !== undefined) {
+		jobPolicy.mode = normalizedPolicy.mode;
+	}
+	if (input?.rules !== undefined) {
+		jobPolicy.rules = normalizedPolicy.rules;
+	}
+	return jobPolicy;
+}
+
+function getBlueskySubscriptionModerationPolicyInput(subscription): IRemoteContentModerationPolicyInput {
+	return {
+		mode: getBlueskySubscriptionModerationMode(subscription),
+		rules: getBlueskySubscriptionModerationRules(subscription)
+	};
+}
+
+function getBlueskyProjectionModerationDecision(
+	projection: IBlueskyPostProjection,
+	policy: IRemoteContentModerationPolicy,
+	context: {actor?: string | null; groupName?: string | null} = {}
+): IRemoteContentModerationDecision {
+	return evaluateRemoteContentModerationPolicy(policy, {
+		text: projection.text || '',
+		source: getBlueskyProjectionSourceModerationValues(projection, context.actor),
+		groupName: context.groupName || ''
+	});
+}
+
+function getBlueskyModeratedProjection(
+	projection: IBlueskyPostProjection,
+	moderationDecision: IRemoteContentModerationDecision
+): IBlueskyPostProjection {
+	return {
+		...projection,
+		moderationDecision
+	};
+}
+
+function getBlueskyProjectionSourceModerationValues(projection: IBlueskyPostProjection, actor?: string | null): string[] {
+	return [
+		actor || '',
+		projection.author?.did || '',
+		projection.author?.handle || '',
+		projection.author?.displayName || '',
+		projection.sourceIdentity?.sourceChannelId || ''
+	].filter(Boolean);
+}
+
+function getBlueskySubscriptionModerationMode(subscription): RemoteContentModerationMode {
+	return getBlueskyInputModerationPolicy({
+		moderationMode: subscription?.moderationMode || RemoteContentModerationMode.AutoImport,
+		moderationRules: getBlueskySubscriptionModerationRules(subscription)
+	}).mode;
+}
+
+function getBlueskySubscriptionModerationRules(subscription) {
+	return getBlueskyInputModerationPolicy({
+		moderationMode: subscription?.moderationMode || RemoteContentModerationMode.AutoImport,
+		moderationRules: parseBlueskyModerationRulesJson(subscription?.moderationRulesJson)
+	}).rules;
+}
+
+function getBlueskyModerationRulesJson(rules): string | null {
+	if (!rules || !rules.length) {
+		return null;
+	}
+	return JSON.stringify(rules);
+}
+
+function parseBlueskyModerationRulesJson(value: string | null | undefined) {
+	if (!value) {
+		return [];
+	}
+	try {
+		const parsed = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch (_e) {
+		return [];
+	}
+}
+
+function getEmptyRemoteContentModerationSummary(): IRemoteContentModerationSummary {
+	return {
+		allowed: 0,
+		review: 0,
+		quarantined: 0,
+		blocked: 0,
+		matches: 0
+	};
 }
 
 function parseBlueskySourceRefreshJob(inputJson: string) {
@@ -852,6 +1076,8 @@ function getBlueskySourceSubscriptionReport(subscription) {
 		groupName: subscription.groupName || null,
 		accountId: subscription.accountId || null,
 		importLimit: subscription.importLimit || null,
+		moderationMode: getBlueskySubscriptionModerationMode(subscription),
+		moderationRules: getBlueskySubscriptionModerationRules(subscription),
 		dbChannelId: subscription.dbChannelId || null,
 		lastCursor: subscription.lastCursor || null,
 		lastRefreshRequestedAt: subscription.lastRefreshRequestedAt || null,

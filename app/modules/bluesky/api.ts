@@ -70,7 +70,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String="active","paused","removed"} [status] Filter by subscription status.
 	 * @apiQuery {String} [actor] Filter by normalized Bluesky handle or DID.
-	 * @apiSuccess {Object[]} list Source subscription rows with actor, filter, import settings, channel link, and last refresh metadata.
+	 * @apiSuccess {Object[]} list Source subscription rows with actor, filter, import settings, moderation policy, channel link, and last refresh metadata.
 	 * @apiSuccess {Number} total Total matching subscriptions.
 	 */
 	app.ms.api.onAuthorizedGet('admin/bluesky/sources', async (req, res) => {
@@ -117,6 +117,13 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {String} [groupName] Optional local group name to use when future refresh/import creates a channel.
 	 * @apiBody {Number} [accountId] Optional stored social account id to associate with future imports.
 	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationMode="autoImport"] Source moderation mode. `reviewFirst` fetches source records but keeps them out of visible GeeSome posts until a review/import flow exists.
+	 * @apiBody {Object[]} [moderationRules] Optional bounded keyword/regex filter rules for this source.
+	 * @apiBody {String} [moderationRules.name] Optional rule label returned in moderation decisions.
+	 * @apiBody {String="keyword","regex"} [moderationRules.type="keyword"] Rule match type.
+	 * @apiBody {String="text","source","groupName"} [moderationRules.field="text"] Field to match.
+	 * @apiBody {String} moderationRules.value Bounded keyword or regex pattern.
+	 * @apiBody {String="block","quarantine","review"} [moderationRules.action="block"] Action to take when the rule matches.
 	 * @apiSuccess {Object} result Source subscription row.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources', async (req, res) => {
@@ -141,6 +148,8 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {String} [groupName] Optional local group name for future imports, or empty to clear.
 	 * @apiBody {Number} [accountId] Optional stored social account id for future imports, or empty to clear.
 	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100, or empty to clear.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationMode] Optional source moderation mode. If omitted while rules are updated, the previous mode is preserved.
+	 * @apiBody {Object[]} [moderationRules] Optional replacement moderation rules. If omitted while mode is updated, previous rules are preserved.
 	 * @apiSuccess {Object} result Updated source subscription row.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/update', async (req, res) => {
@@ -165,7 +174,10 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
 	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
 	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this refresh.
-	 * @apiSuccess {Object} result Refresh result with updated source row, fetched/imported counts, cursor, and channel summary.
+	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this refresh.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationPolicy.mode] Optional one-off moderation mode.
+	 * @apiBody {Object[]} [moderationPolicy.rules] Optional one-off bounded keyword/regex/source/group-name rules.
+	 * @apiSuccess {Object} result Refresh result with updated source row, fetched/imported counts, moderation summary, cursor, and channel summary.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/refresh', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
@@ -190,6 +202,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
 	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
 	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this refresh.
+	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this queued refresh.
 	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing.
 	 * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
 	 */
@@ -219,7 +232,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous sync result.
 	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous sync result.
 	 * @apiBody {Boolean} [force=false] Re-import existing records even when the stored CID matches.
-	 * @apiSuccess {Object} result Sync result with checked, updated, deleted, skipped, failed, bounded errors, and optional nextCursor.
+	 * @apiSuccess {Object} result Sync result with checked, updated, deleted, skipped, failed, moderation summary, bounded errors, and optional nextCursor.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/sync', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
