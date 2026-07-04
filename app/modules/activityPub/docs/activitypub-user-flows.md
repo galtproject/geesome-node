@@ -166,7 +166,7 @@ Boundary: account verification does not create posts, store short-lived access/r
 
 ## User Flow: Credentialed Bluesky Cross-Posting
 
-This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts plus supported image media/attachments. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; external embeds, non-image attachments, replies, quotes, updates, and delete propagation remain follow-up policy work.
+This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts plus supported image media/attachments. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; storage-backed non-image media/attachments are published as explicit public links. JSON link-preview records, replies, quotes, updates, and delete propagation remain follow-up policy work.
 
 1. User chooses a GeeSome group/post to cross-post.
 2. GeeSome verifies the selected user-scoped Bluesky account can still authenticate and belongs to the same DID.
@@ -174,14 +174,16 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
 4. GeeSome rejects posts that are not safe for this first write path:
    - unpublished, deleted, encrypted, or remote/imported posts;
    - posts in non-public groups;
-   - posts with non-image attachments or additional content that would be silently dropped;
+   - posts with additional content that would be silently dropped, including JSON link-preview records;
    - posts with unsupported images or too many images for Bluesky.
 5. GeeSome uploads supported images first through `com.atproto.repo.uploadBlob`; if image upload fails and the node has `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or `DOMAIN`, GeeSome appends the public image URL as a link fallback and uses an external card when no image embeds succeeded.
-6. GeeSome creates a native `app.bsky.feed.post` record through `com.atproto.repo.createRecord`.
-7. GeeSome stores the returned Bluesky URI/CID under the local post's `propertiesJson.bluesky.crossPosts[did]` entry so repeating the request for the same account can return the existing remote record instead of duplicating the post.
-8. Remaining media/link policy work:
-   - links become link facets or external embeds;
-   - videos, audio, documents, archives, IPFS/IPNS-only attachments, and private/encrypted attachments need a clear link-or-reject policy before they are allowed.
+6. GeeSome appends storage-backed non-image media/attachment public URLs as link facets; when there is exactly one fallback link and no image embed, GeeSome uses that link as an external card.
+7. GeeSome creates a native `app.bsky.feed.post` record through `com.atproto.repo.createRecord`.
+8. GeeSome stores the returned Bluesky URI/CID under the local post's `propertiesJson.bluesky.crossPosts[did]` entry so repeating the request for the same account can return the existing remote record instead of duplicating the post.
+9. Remaining media/link policy work:
+   - JSON link-preview records need explicit external-embed mapping;
+   - private/encrypted or missing-public-URL attachments stay rejected;
+   - replies, quotes, updates, and delete propagation remain follow-up.
 9. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
 
 Safety result: cross-posting is opt-in, source-bound, credential-scoped, and does not bypass rich-text, attachment, or moderation policy.
