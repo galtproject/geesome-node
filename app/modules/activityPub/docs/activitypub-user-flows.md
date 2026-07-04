@@ -165,7 +165,7 @@ Boundary: account verification does not create posts, store short-lived access/r
 
 ## User Flow: Credentialed Bluesky Cross-Posting
 
-This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts only; media uploads, external embeds, replies, quotes, updates, and delete propagation remain follow-up policy work.
+This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts only. Bluesky can publish photos, but GeeSome still needs an explicit image-upload slice that uploads supported image blobs first and then attaches them as `app.bsky.embed.images`; external embeds, non-image attachments, replies, quotes, updates, and delete propagation remain follow-up policy work.
 
 1. User chooses a GeeSome group/post to cross-post.
 2. GeeSome verifies the selected user-scoped Bluesky account can still authenticate and belongs to the same DID.
@@ -176,10 +176,11 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
    - posts with media, attachments, or additional content that would be silently dropped.
 5. GeeSome creates a native `app.bsky.feed.post` record through `com.atproto.repo.createRecord`.
 6. GeeSome stores the returned Bluesky URI/CID under the local post's `propertiesJson.bluesky.crossPosts[did]` entry so repeating the request for the same account can return the existing remote record instead of duplicating the post.
-7. Later richer cross-post flows should apply attachment/embed policy explicitly:
+7. The next media cross-post slice should apply attachment/embed policy explicitly:
    - links become link facets or external embeds;
-   - images need supported upload/alt-text policy;
-   - unsupported attachments stay as links or are rejected with a clear reason.
+   - supported images upload to Bluesky first, preserve alt text and dimensions where possible, then attach as image embeds;
+   - upload failures should fail the cross-post before creating a text-only remote post;
+   - videos, audio, documents, archives, IPFS/IPNS-only attachments, and private/encrypted attachments need a clear link-or-reject policy before they are allowed.
 8. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
 
 Safety result: cross-posting is opt-in, source-bound, credential-scoped, and does not bypass rich-text, attachment, or moderation policy.
