@@ -41,7 +41,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Storage-backed non-image media/attachments and JSON link-preview records with safe `http(s)` URLs are cross-posted as explicit public link facets and can use an `app.bsky.embed.external` card when there is exactly one fallback link and no image embed. Attachments without a public URL and unsafe or unsupported link-preview URLs are rejected instead of being silently dropped.
 - Local `replyToId` is cross-posted as a native Bluesky reply only when the referenced post has stored/imported Bluesky URI/CID metadata. Local `repostOfId` is cross-posted as a native quote embed under the same rule. Missing relation identity is rejected instead of silently dropping thread/quote context.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
-- The current review path is backend/API-only. Frontend policy and review-history UI remain follow-up work.
+- The source review path is exposed in the Bluesky Sources UI with review-history, import, reject, and reset actions. Broader frontend policy controls remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
 - Richer credentialed cross-post UI and broader relation policy remain follow-up work and must not bypass moderation, canonical rich-text conversion, source identity, attachment policy, upload failure handling, update/delete safety, reply/quote identity checks, or idempotency rules.
 
