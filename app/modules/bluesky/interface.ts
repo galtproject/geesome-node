@@ -62,6 +62,19 @@ export interface IBlueskyMigrationImportResult extends IBlueskyPublicAuthorFeedI
 	ownership: IBlueskyMigrationPreview['ownership'];
 }
 
+export interface IBlueskyMigrationImportQueueInput extends IBlueskyMigrationImportInput {
+	async?: boolean | string;
+	process?: boolean | string;
+}
+
+export interface IBlueskyMigrationImportQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IBlueskyMigrationImportQueueProcessResult {
+	processed: number;
+}
+
 export interface IBlueskyPublicAuthorFeedImportResult {
 	actor: string;
 	cursor: string | null;
@@ -385,6 +398,8 @@ export default interface IGeesomeBlueskyModule {
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
 	getMigrationPreview(userId: number, input?: IBlueskyMigrationPreviewInput): Promise<IBlueskyMigrationPreviewResult>;
 	importMigration(userId: number, userApiKeyId: number | null, input?: IBlueskyMigrationImportInput): Promise<IBlueskyMigrationImportResult>;
+	queueMigrationImport(userId: number, userApiKeyId?: number | null, input?: IBlueskyMigrationImportQueueInput): Promise<IUserOperationQueue>;
+	processMigrationImportQueue(options?: IBlueskyMigrationImportQueueProcessOptions): Promise<IBlueskyMigrationImportQueueProcessResult>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;

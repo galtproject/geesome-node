@@ -16,18 +16,20 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - Bounded source-post sync that verifies stored Bluesky AT URIs with `com.atproto.repo.getRecord`, updates changed CIDs, and soft-deletes only records confirmed missing.
 - Source moderation policy application before refresh creates visible posts and before sync keeps/updates visible posts.
 - User-scoped Bluesky account login/verification through ATProto `com.atproto.server.createSession` and profile reads, storing only the selected local `socNetAccount` credential material and returning secret-free account reports.
-- User-scoped migration preview and claimed one-page import APIs for bounded public account feeds, with stored-account DID/handle ownership proof before a personal-page migration import can start.
+- User-scoped migration preview and claimed one-page import API for bounded public account feeds, with stored-account DID/handle ownership proof before a personal-page migration import can start and `async=true` support for persistent queueing.
 - User-scoped text/rich-text, supported-image, storage-backed attachment link, safe JSON link-preview, reply, and quote cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion, relation targets resolved only from stored/imported Bluesky URI/CID metadata, and per-account URI/CID idempotency stored in post `propertiesJson`.
 - User-scoped in-place update of stored Bluesky cross-post records through `com.atproto.repo.putRecord`, with stored URI ownership checks, rkey reuse, stored CID `swapRecord`, and per-DID metadata refresh.
 - User-scoped deletion of stored Bluesky cross-post records through `com.atproto.repo.deleteRecord`, with stored URI ownership checks and per-DID metadata cleanup.
-- Migration preview/import for Bluesky accounts into GeeSome personal groups: bounded public feed/profile projection, ownership proof through `socNetAccount` DID for claimed migrations, relation preservation for replies/reposts/quotes, remote placeholders for referenced actors/groups, and later reconciliation by DID/AT URI/CID. The current claimed import route can start one bounded `socNetImport` async operation after ownership proof, but it does not page through the full account history, create placeholder rows, subscribe future updates, or reconcile remote placeholders yet.
+- Migration preview/import for Bluesky accounts into GeeSome personal groups: bounded public feed/profile projection, ownership proof through `socNetAccount` DID for claimed migrations, relation preservation for replies/reposts/quotes, remote placeholders for referenced actors/groups, and later reconciliation by DID/AT URI/CID. The current claimed import route can start one bounded `socNetImport` async operation after ownership proof, either immediately or through the persistent async-operation queue when `async=true`; it does not page through the full account history, create placeholder rows, subscribe future updates, or reconcile remote placeholders yet.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries
 
 - Queue module name is `bluesky-source-refresh`.
+- Migration import queue module name is `bluesky-migration-import`.
 - Manual `refreshSourceSubscription` fetches one bounded page immediately.
 - `queueSourceSubscriptionRefresh` stores a unique async-operation queue row and may kick bounded processing.
+- `queueMigrationImport` stores only normalized import options and account selectors. It rejects plaintext password/API-key overrides so queued payloads do not contain reusable secrets; workers verify the stored account again before import.
 - The optional worker processes queued refreshes; the optional poller only queues stale active subscriptions and can also process when the worker is enabled.
 - Imported posts must go through `socNetImport` and preserve Bluesky AT URI source identity.
 - Source refreshes and syncs apply `remoteContentModeration` decisions first. `autoImport` allows posts unless a rule blocks/quarantines/reviews them; `reviewFirst` keeps fetched posts out of visible GeeSome posts until a review/import state exists.
