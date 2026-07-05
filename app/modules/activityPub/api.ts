@@ -1,4 +1,5 @@
 import {IGeesomeApp} from '../../interface.js';
+import helpers from '../../helpers.js';
 import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import IGeesomeActivityPubModule, {IActivityPubInboxResult, IActivityPubInboundRequest} from './interface.js';
@@ -172,6 +173,48 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/preview', async (req, res) => {
 		return res.send(await activityPubModule.getMigrationPreview(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/import Import ActivityPub migration candidates
+	 * @apiName UserActivityPubMigrationImport
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` page as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. This is the first write job for ActivityPub migration, but it intentionally does not create visible GeeSome posts yet because claimed ActivityPub ownership is still unverified until a signed challenge or admin-approved proof exists. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, and actor-mismatched objects are skipped and reported. Use `async=true` to enqueue the same bounded cache job in the persistent async-operation queue.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page. The current job records the unverified ownership report but does not create visible posts from it.
+	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiBody {Boolean} [async=false] Queue the import in the persistent async-operation queue instead of processing it immediately.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing when `async=true`.
+	 * @apiSuccess {String} actor ActivityPub actor id used for migration ownership classification.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
+	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
+	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} cached Number of remote-object candidates cached.
+	 * @apiSuccess {Number} skipped Number of fetched items skipped before caching.
+	 * @apiSuccess {Number[]} remoteObjectIds Cached ActivityPub remote-object ids.
+	 * @apiSuccess {String[]} errors Bounded fetch/cache errors encountered while processing the import.
+	 * @apiSuccess (Queued async response) {Number} id Operation queue id when `async=true`.
+	 * @apiSuccess (Queued async response) {String} module Queue module name `activitypub-migration-import` when `async=true`.
+	 * @apiSuccess (Queued async response) {Number} [asyncOperationId] Linked async operation id after queue processing starts.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/import', async (req, res) => {
+		const input = req.body || {};
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		if (helpers.parseBoolean(input.async, false)) {
+			return res.send(await activityPubModule.queueMigrationImport(req.user.id, req.apiKey?.id || null, input));
+		}
+		return res.send(await activityPubModule.importMigration(req.user.id, input));
 	});
 
 	/**

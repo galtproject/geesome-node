@@ -15,7 +15,7 @@ import {
 	ActivityPubObjectVisibility,
 	ActivityPubSourceSubscriptionStatus
 } from '../app/modules/activityPub/interface.js';
-import {ContentMimeType, ContentView} from '../app/modules/database/interface.js';
+import {ContentMimeType, ContentView, CorePermissionName} from '../app/modules/database/interface.js';
 import {GroupType, GroupView, PostStatus} from '../app/modules/group/interface.js';
 import {RICH_TEXT_MIME_TYPE} from '../app/richText.js';
 
@@ -645,6 +645,172 @@ describe('activityPub module', () => {
 			objectType: 'Object',
 			relationTypes: ['announce']
 		}]);
+	});
+
+	it('caches ActivityPub migration candidates without creating visible posts', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			featured: 'https://remote.example/users/alice/collections/featured',
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const rootObject = {
+			id: 'https://remote.example/objects/root-migration',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Root migration</p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const replyObject = {
+			id: 'https://remote.example/objects/reply-migration',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			inReplyTo: 'https://other.example/objects/root',
+			content: '<p>Reply migration</p>',
+			published: '2026-06-02T12:05:00Z'
+		};
+		const announceObject = {
+			id: 'https://other.example/objects/reblogged',
+			type: 'Note',
+			attributedTo: 'https://other.example/users/bob',
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Reblogged migration</p>',
+			published: '2026-06-02T12:10:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			'https://remote.example/users/alice/collections/featured': {
+				type: 'OrderedCollection',
+				orderedItems: [rootObject]
+			},
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [
+					{
+						id: 'https://remote.example/activities/reply-migration',
+						type: 'Create',
+						actor: remoteActorKey.actorUrl,
+						object: replyObject.id
+					},
+					{
+						id: 'https://remote.example/activities/announce-migration',
+						type: 'Announce',
+						actor: remoteActorKey.actorUrl,
+						object: announceObject.id
+					}
+				]
+			},
+			[replyObject.id]: replyObject,
+			[announceObject.id]: announceObject
+		};
+		const {module, models, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+
+		const result = await module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			limit: 10
+		});
+
+		assert.deepEqual(calls.checkUserCan, [{
+			userId: 7,
+			permission: CorePermissionName.UserGroupManagement
+		}]);
+		assert.equal(result.ownership.verified, false);
+		assert.equal(result.ownership.reason, 'activitypub_migration_ownership_unverified');
+		assert.equal(result.fetched, 3);
+		assert.equal(result.cached, 2);
+		assert.equal(result.skipped, 1);
+		assert.deepEqual(result.errors, []);
+		assert.deepEqual(result.remoteObjectIds, [1, 2]);
+		assert.equal(models.ActivityPubRemoteActor.rows.length, 1);
+		assert.deepEqual(models.ActivityPubObject.rows.map(row => ({
+			localActorId: row.localActorId,
+			localPostId: row.localPostId,
+			remoteActorId: row.remoteActorId,
+			objectId: row.objectId,
+			activityId: row.activityId,
+			origin: row.origin,
+			visibility: row.visibility
+		})), [
+			{
+				localActorId: null,
+				localPostId: null,
+				remoteActorId: 1,
+				objectId: rootObject.id,
+				activityId: `${rootObject.id}#geesome-migration-import-create`,
+				origin: ActivityPubObjectOrigin.Remote,
+				visibility: ActivityPubObjectVisibility.Public
+			},
+			{
+				localActorId: null,
+				localPostId: null,
+				remoteActorId: 1,
+				objectId: replyObject.id,
+				activityId: 'https://remote.example/activities/reply-migration',
+				origin: ActivityPubObjectOrigin.Remote,
+				visibility: ActivityPubObjectVisibility.Public
+			}
+		]);
+	});
+
+	it('queues ActivityPub migration candidate imports through async operations', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				orderedItems: [{
+					id: 'https://remote.example/objects/queued-migration',
+					type: 'Note',
+					attributedTo: remoteActorKey.actorUrl,
+					to: 'https://www.w3.org/ns/activitystreams#Public',
+					content: '<p>Queued migration</p>',
+					published: '2026-06-02T12:00:00Z'
+				}]
+			}
+		};
+		const {module, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+
+		const queue = await module.queueMigrationImport(7, 12, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: 'true',
+			limit: '1',
+			includeFeatured: 'false',
+			process: false
+		});
+		const processResult = await module.processMigrationImportQueue({limit: 1});
+		const output = JSON.parse(calls.asyncOperations[0].output);
+
+		assert.equal(queue.module, 'activitypub-migration-import');
+		assert.equal(queue.userApiKeyId, 12);
+		assert.deepEqual(JSON.parse(queue.inputJson), {
+			type: 'migration-import',
+			input: {
+				actorUrl: remoteActorKey.actorUrl,
+				claimed: true,
+				limit: 1,
+				includeFeatured: false
+			}
+		});
+		assert.deepEqual(processResult, {processed: 1});
+		assert.equal(calls.asyncOperations[0].name, 'import-activitypub-migration');
+		assert.equal(calls.asyncOperations[0].channel, `activitypub-migration-import:${remoteActorKey.actorUrl}`);
+		assert.equal(output.cached, 1);
+		assert.equal(output.skipped, 0);
+		assert.deepEqual(calls.checkUserCan, [
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement}
+		]);
 	});
 
 	it('paginates ActivityPub source feeds with a stable cursor', async () => {
@@ -2965,6 +3131,8 @@ describe('activityPub API', () => {
 		const sourceRefreshQueueCalls: any[] = [];
 		const sourceReadCalls: any[] = [];
 		const migrationPreviewCalls: any[] = [];
+		const migrationImportCalls: any[] = [];
+		const migrationImportQueueCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -3022,6 +3190,47 @@ describe('activityPub API', () => {
 					remotePlaceholders: [],
 					fetched: 1,
 					errors: []
+				};
+			},
+			importMigration: async (userId, input) => {
+				migrationImportCalls.push({userId, input});
+				return {
+					actor: 'https://remote.example/users/alice',
+					sourceActorUrl: 'https://remote.example/users/alice',
+					ownership: {
+						claimed: Boolean(input.claimed),
+						verified: false,
+						method: null,
+						actor: 'https://remote.example/users/alice',
+						reason: 'activitypub_migration_ownership_unverified'
+					},
+					summary: {
+						total: 1,
+						localPosts: 1,
+						remoteContextPosts: 0,
+						replies: 0,
+						announces: 0,
+						quotes: 0,
+						mentions: 0,
+						remoteActors: 0,
+						remoteObjects: 0,
+						remotePlaceholders: 0
+					},
+					list: [{objectId: 'https://remote.example/objects/1'}],
+					remotePlaceholders: [],
+					fetched: 1,
+					errors: [],
+					cached: 1,
+					skipped: 0,
+					remoteObjectIds: [2]
+				};
+			},
+			queueMigrationImport: async (userId, userApiKeyId, input) => {
+				migrationImportQueueCalls.push({userId, userApiKeyId, input});
+				return {
+					id: 45,
+					module: 'activitypub-migration-import',
+					userApiKeyId
 				};
 			},
 			getActivityPubSourceSubscriptions: async (userId, filters, listParams) => ({
@@ -3272,12 +3481,42 @@ describe('activityPub API', () => {
 		assert.equal(migrationPreview.body.actor, 'https://remote.example/users/alice');
 		assert.equal(migrationPreview.body.summary.localPosts, 1);
 
+		const migrationImport = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/import', {
+			body: {actorUrl: 'https://remote.example/users/alice', claimed: true},
+			user: {id: 1}
+		});
+		const migrationImportAsync = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/import', {
+			body: {actorUrl: 'https://remote.example/users/alice', claimed: true, async: true, process: false},
+			user: {id: 1},
+			apiKey: {id: 12}
+		});
+		assert.deepEqual(migrationImportCalls, [{
+			userId: 1,
+			input: {actorUrl: 'https://remote.example/users/alice', claimed: true}
+		}]);
+		assert.deepEqual(migrationImportQueueCalls, [{
+			userId: 1,
+			userApiKeyId: 12,
+			input: {actorUrl: 'https://remote.example/users/alice', claimed: true, async: true, process: false}
+		}]);
+		assert.deepEqual(permissionChecks.slice(1, 3), [
+			{userId: 1, permission: CorePermissionName.UserGroupManagement},
+			{userId: 1, permission: CorePermissionName.UserGroupManagement}
+		]);
+		assert.equal(migrationImport.body.cached, 1);
+		assert.deepEqual(migrationImport.body.remoteObjectIds, [2]);
+		assert.deepEqual(migrationImportAsync.body, {
+			id: 45,
+			module: 'activitypub-migration-import',
+			userApiKeyId: 12
+		});
+
 		const remoteObjects = await callRoute(routes, 'AUTH GET admin/activity-pub/groups/:groupName/remote-objects', {
 			params: {groupName: 'test-channel'},
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[1], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[3], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObjects.body, {
 			list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
 			total: 1
@@ -3287,7 +3526,7 @@ describe('activityPub API', () => {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[2], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObject.body, {
 			id: 2,
 			objectId: 'https://remote.example/objects/reply-1'
@@ -3297,7 +3536,7 @@ describe('activityPub API', () => {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[3], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObjectPostDraft.body, {
 			canCreatePost: true,
 			reasons: [],
@@ -3312,7 +3551,7 @@ describe('activityPub API', () => {
 			body: {importRemoteAttachments: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[4], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectPostCreateCalls, [{
 			groupName: 'test-channel',
 			remoteObjectId: '2',
@@ -3330,7 +3569,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[7], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectAttachmentBackupQueueCalls, [{
 			groupName: 'test-channel',
 			remoteObjectId: '2',
@@ -3348,7 +3587,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubObjectReviewState.Rejected},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectReviewState.body, {
 			id: 2,
 			reviewState: ActivityPubObjectReviewState.Rejected,
@@ -3360,7 +3599,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[7], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -3371,7 +3610,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',
@@ -3386,7 +3625,7 @@ describe('activityPub API', () => {
 			body: {handle: 'bsky.app', bridgeProvider: 'bridgy-bluesky'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceResolveCalls, [{
 			handle: 'bsky.app',
 			bridgeProvider: 'bridgy-bluesky'
@@ -3402,7 +3641,7 @@ describe('activityPub API', () => {
 			query: {status: ActivityPubSourceSubscriptionStatus.Active},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:read'});
 		assert.equal(sources.body.list[0].id, 4);
 		assert.deepEqual(sources.body.list[0]._filters, {status: ActivityPubSourceSubscriptionStatus.Active});
 
@@ -3410,7 +3649,7 @@ describe('activityPub API', () => {
 			body: {resource: 'acct:bsky.app@bsky.brid.gy', displayName: 'Bluesky'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceSubscribeCalls, [{
 			userId: 1,
 			input: {
@@ -3425,7 +3664,7 @@ describe('activityPub API', () => {
 			body: {groupName: 'test-channel'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceFollowCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3439,7 +3678,7 @@ describe('activityPub API', () => {
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(sourceFeedCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3453,7 +3692,7 @@ describe('activityPub API', () => {
 			body: {limit: 2, includeFeatured: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3468,7 +3707,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshQueueCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3483,7 +3722,7 @@ describe('activityPub API', () => {
 			body: {readAt: '2026-06-01T12:10:00Z'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceReadCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3496,7 +3735,7 @@ describe('activityPub API', () => {
 			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[19], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceUpdateCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3508,7 +3747,7 @@ describe('activityPub API', () => {
 			params: {sourceId: '4'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[20], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRemoveCalls, [{
 			userId: 1,
 			sourceId: '4'
@@ -3592,6 +3831,7 @@ async function createActivityPubHarness(overrides: any = {}) {
 		deletePostsPure: [],
 		asyncOperationQueues: [],
 		asyncOperations: [],
+		checkUserCan: [],
 		remotePosts: {}
 	};
 	const group = getGroup();
@@ -3607,6 +3847,9 @@ async function createActivityPubHarness(overrides: any = {}) {
 		},
 		checkModules(modules) {
 			assert.deepEqual(modules, ['api', 'group', 'database', 'content', 'asyncOperation']);
+		},
+		async checkUserCan(userId, permission) {
+			calls.checkUserCan.push({userId, permission});
 		},
 		encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
 		decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
