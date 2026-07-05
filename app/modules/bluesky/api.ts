@@ -81,6 +81,40 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/bluesky/migration/import Import claimed Bluesky migration
+	 * @apiName UserBlueskyMigrationImport
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies a stored user-scoped Bluesky account, fetches one bounded public author-feed page, verifies that the authenticated DID/handle owns the previewed actor, then starts the existing social-import async operation for that page. Imported posts preserve Bluesky AT URI source identity, projected reply/repost/quote metadata, and canonical rich-text content. `claimed=true` and a matching `accountData` selector are required to avoid creating a personal migration for someone else's account. This route does not create Bluesky records, follow sources, subscribe pollers, or reconcile remote placeholders yet.
+	 * @apiBody {String} actor Bluesky handle or DID to import, for example `alice.bsky.social`.
+	 * @apiBody {Boolean} claimed Must be `true`; the selected stored Bluesky account must match the imported actor.
+	 * @apiBody {Object} accountData Stored Bluesky account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override for encrypted accounts. Alias: `password` or `apiKey`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter.
+	 * @apiBody {Number} [limit=10] Maximum feed items to import from this page, capped by the public ATProto helper.
+	 * @apiBody {String} [cursor] Optional ATProto feed cursor for the page to import.
+	 * @apiBody {String} [groupName] Optional target personal group name to use when the import channel creates a new group.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this batch.
+	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
+	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
+	 * @apiSuccess {Object} ownership Verified ownership report for the claimed migration.
+	 * @apiSuccess {Number} projectedPostsCount Number of projected feed items queued for import.
+	 * @apiSuccess {Object} dbChannel Local social-import channel summary.
+	 * @apiSuccess {Object} asyncOperation Async import operation to track or cancel.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/migration/import', async (req, res) => {
+		return res.send(await blueskyModule.importMigration(req.user.id, req.apiKey?.id || null, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/soc-net/bluesky/posts/:postId/cross-post Cross-post GeeSome post to Bluesky
 	 * @apiName UserBlueskyCrossPost
 	 * @apiGroup UserBluesky

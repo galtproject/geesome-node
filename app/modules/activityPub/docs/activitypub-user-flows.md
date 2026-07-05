@@ -178,7 +178,7 @@ This flow is for a user who wants a simple path to bring an existing public Blue
    - ActivityPub can start with admin-approved/public-source imports and should add a signed challenge or other explicit proof before automatic ownership claims.
 4. GeeSome previews a bounded page of public profile/outbox/feed records with counts for original posts, replies, reposts/reblogs, quotes, and referenced external actors/groups.
 5. For ActivityPub sources, the backend preview API resolves the public actor, reads bounded `featured`/`outbox` items, classifies public `Create`, direct object, and `Announce` records into local posts versus remote context, creates stable actor/object placeholder keys, and sanitizes preview text so the UI can show what would happen without writing data.
-6. User starts a resumable async migration job.
+6. User starts a migration job. Native Bluesky currently supports a claimed one-page async import after stored-account DID/handle proof; the broader resumable all-pages migration flow and the equivalent ActivityPub write job remain follow-up work.
 7. GeeSome imports the migrating user's own public posts into the target GeeSome group while preserving original protocol identity, remote URL, timestamps, and import metadata.
 8. Replies, reposts/reblogs, quotes, and mentions keep their relation type. If the referenced item, author, or group is not local, GeeSome creates or reuses a remote source/group/account placeholder keyed by stable protocol identity:
    - ActivityPub actor/object IDs;
