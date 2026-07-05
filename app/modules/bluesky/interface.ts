@@ -83,6 +83,42 @@ export interface IBlueskyMigrationImportQueueProcessResult {
 	processed: number;
 }
 
+export interface IBlueskyMigrationRelationReconcileInput {
+	groupId?: number | string;
+	sourceChannelId?: string | null;
+	limit?: number | string;
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+	allowCrossGroup?: boolean | string;
+	force?: boolean | string;
+	dryRun?: boolean | string;
+}
+
+export interface IBlueskyMigrationRelationReconcileRow {
+	postId: number;
+	sourcePostId?: string | null;
+	replyToId?: number | null;
+	repostOfId?: number | null;
+	updated?: boolean;
+	changes?: {
+		replyToId?: number | null;
+		repostOfId?: number | null;
+	};
+	skipped?: boolean;
+	reason?: string;
+}
+
+export interface IBlueskyMigrationRelationReconcileResult {
+	checked: number;
+	updated: number;
+	skipped: number;
+	failed: number;
+	dryRun: boolean;
+	rows: IBlueskyMigrationRelationReconcileRow[];
+	errors: IBlueskySourceSyncError[];
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
 export interface IBlueskyPublicAuthorFeedImportResult {
 	actor: string;
 	cursor: string | null;
@@ -408,6 +444,7 @@ export default interface IGeesomeBlueskyModule {
 	importMigration(userId: number, userApiKeyId: number | null, input?: IBlueskyMigrationImportInput): Promise<IBlueskyMigrationImportResult>;
 	queueMigrationImport(userId: number, userApiKeyId?: number | null, input?: IBlueskyMigrationImportQueueInput): Promise<IUserOperationQueue>;
 	processMigrationImportQueue(options?: IBlueskyMigrationImportQueueProcessOptions): Promise<IBlueskyMigrationImportQueueProcessResult>;
+	reconcileMigrationRelations(userId: number, input?: IBlueskyMigrationRelationReconcileInput): Promise<IBlueskyMigrationRelationReconcileResult>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;

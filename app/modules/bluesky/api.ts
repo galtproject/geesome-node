@@ -130,6 +130,30 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/bluesky/migration/reconcile-relations Reconcile Bluesky migration relations
+	 * @apiName UserBlueskyMigrationReconcileRelations
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Bounded post-migration repair for already-imported native Bluesky posts in one GeeSome group. The job reads stored Bluesky source metadata from imported posts, resolves `reply.parentUri` to local `replyToId`, resolves `quote.uri` to local `repostOfId`, and updates only when the matching target post already exists by source identity. Same-group targets are preferred; cross-group targets are used only when unambiguous and `allowCrossGroup` is not false. Use `dryRun=true` to preview changes without writing. Reposts are intentionally not rewritten in this first relation pass because repost authorship policy needs a separate product decision.
+	 * @apiBody {Number} groupId Local GeeSome group id whose imported Bluesky posts should be inspected.
+	 * @apiBody {String} [sourceChannelId] Optional imported Bluesky source channel/DID filter.
+	 * @apiBody {Number} [limit=20] Maximum imported posts to inspect, capped at 100.
+	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous result.
+	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous result.
+	 * @apiBody {Boolean} [allowCrossGroup=true] Whether to link to unambiguous target posts in other GeeSome groups.
+	 * @apiBody {Boolean} [force=false] Recompute relation fields even when they are already set.
+	 * @apiBody {Boolean} [dryRun=false] Return the rows that would change without updating posts.
+	 * @apiSuccess {Object} result Reconciliation result with checked, updated, skipped, failed, dryRun, row details, bounded errors, and optional nextCursor.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/migration/reconcile-relations', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.reconcileMigrationRelations(req.user.id, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/soc-net/bluesky/posts/:postId/cross-post Cross-post GeeSome post to Bluesky
 	 * @apiName UserBlueskyCrossPost
 	 * @apiGroup UserBluesky

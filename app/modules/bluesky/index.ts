@@ -68,6 +68,9 @@ import IGeesomeBlueskyModule, {
 	IBlueskyMigrationImportQueueProcessResult,
 	IBlueskyMigrationImportQueueResult,
 	IBlueskyMigrationImportResult,
+	IBlueskyMigrationRelationReconcileInput,
+	IBlueskyMigrationRelationReconcileRow,
+	IBlueskyMigrationRelationReconcileResult,
 	IBlueskyMigrationPreviewInput,
 	IBlueskyMigrationPreviewResult,
 	IBlueskyPublicAuthorFeedPreview,
@@ -104,6 +107,11 @@ const blueskySourceSubscriptionListParams: IListParamsOptions = {
 	maxLimit: 100
 };
 const blueskySourceSyncListParams: IListParamsOptions = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
+const blueskyMigrationRelationReconcileListParams: IListParamsOptions = {
 	sortBy: 'publishedAt',
 	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
 	maxLimit: 100
@@ -254,6 +262,27 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				}),
 				run: (waitingQueue, asyncOperation, job) => this.processMigrationImportQueueJob(waitingQueue.userId, job.input, asyncOperation)
 			});
+		}
+
+		async reconcileMigrationRelations(userId: number, input: IBlueskyMigrationRelationReconcileInput = {}): Promise<IBlueskyMigrationRelationReconcileResult> {
+			app.checkModules(['database', 'group']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const groupId = await getRequiredBlueskyMigrationRelationReconcileGroupId(app, userId, input);
+			const listParams = getBlueskyMigrationRelationReconcileListParams(input);
+			const postRefs = await app.ms.group.getGroupPostRefs(
+				groupId,
+				getBlueskyMigrationRelationReconcilePostFilters(input),
+				listParams,
+				{
+					attributes: ['id', 'groupId', 'publishedAt', 'replyToId', 'repostOfId', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson'],
+					defaultListParams: blueskyMigrationRelationReconcileListParams,
+					cursor: {
+						valueField: 'publishedAt',
+						idField: 'id'
+					}
+				}
+			);
+			return reconcileBlueskyMigrationPostRelations(app, models || app.ms.database.models, userId, postRefs, input, listParams);
 		}
 
 		async processMigrationImportQueueJob(userId: number, input: IBlueskyMigrationImportQueueInput, asyncOperation): Promise<IBlueskyMigrationImportQueueResult> {
@@ -565,7 +594,11 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				listParams,
 				{
 					attributes: ['id', 'publishedAt', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson'],
-					defaultListParams: blueskySourceSyncListParams
+					defaultListParams: blueskySourceSyncListParams,
+					cursor: {
+						valueField: 'publishedAt',
+						idField: 'id'
+					}
 				}
 			);
 			const syncState = getEmptyBlueskySourceSyncState();
@@ -2001,6 +2034,14 @@ function getOptionalString(value: any): string | null {
 	return value;
 }
 
+function getOptionalPositiveInteger(value: any): number | null {
+	const integerValue = Number(value);
+	if (!Number.isFinite(integerValue) || integerValue <= 0) {
+		return null;
+	}
+	return Math.floor(integerValue);
+}
+
 function getOptionalStringArray(value: any, limit: number): string[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -2050,6 +2091,254 @@ function getBlueskySourceSyncListParams(input: IBlueskySourceSyncInput): IListPa
 		sortBy: 'publishedAt',
 		sortDir: 'DESC'
 	}, blueskySourceSyncListParams);
+}
+
+function getBlueskyMigrationRelationReconcileListParams(input: IBlueskyMigrationRelationReconcileInput): IListParams {
+	return helpers.prepareListParams({
+		limit: input.limit === undefined ? blueskySourceSyncDefaultLimit : input.limit,
+		sortBy: 'publishedAt',
+		sortDir: 'DESC'
+	}, blueskyMigrationRelationReconcileListParams);
+}
+
+async function getRequiredBlueskyMigrationRelationReconcileGroupId(app: IGeesomeApp, userId: number, input: IBlueskyMigrationRelationReconcileInput): Promise<number> {
+	const groupId = Number(input?.groupId);
+	if (!Number.isFinite(groupId) || groupId <= 0) {
+		throw new Error('bluesky_migration_reconcile_group_required');
+	}
+	await app.ms.group.getLocalGroup(userId, Math.floor(groupId));
+	return Math.floor(groupId);
+}
+
+function getBlueskyMigrationRelationReconcilePostFilters(input: IBlueskyMigrationRelationReconcileInput) {
+	const filters: any = {
+		source: blueskyPostSource,
+		sourcePostIdNe: null,
+		cursorPublishedAt: input.cursorPublishedAt,
+		cursorId: input.cursorId
+	};
+	const sourceChannelId = getOptionalString(input.sourceChannelId);
+	if (sourceChannelId) {
+		filters.sourceChannelId = sourceChannelId;
+	}
+	return filters;
+}
+
+async function reconcileBlueskyMigrationPostRelations(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	postRefs: IPost[],
+	input: IBlueskyMigrationRelationReconcileInput,
+	listParams: IListParams
+): Promise<IBlueskyMigrationRelationReconcileResult> {
+	const state = getEmptyBlueskyMigrationRelationReconcileState(input);
+	for (const postRef of postRefs) {
+		state.checked += 1;
+		try {
+			const row = await getBlueskyMigrationRelationReconcileRow(app, models, userId, postRef, input);
+			state.rows.push(row);
+			if (!row.changes || Object.keys(row.changes).length === 0) {
+				state.skipped += 1;
+				continue;
+			}
+			if (!state.dryRun) {
+				await app.ms.group.updatePost(userId, postRef.id, row.changes);
+			}
+			state.updated += 1;
+		} catch (e) {
+			state.failed += 1;
+			appendBlueskySourceSyncError(state.errors, getBlueskySourceSyncError(postRef, getErrorMessage(e)));
+		}
+	}
+	return {
+		...state,
+		nextCursor: helpers.getNextCursorFromRows(postRefs, listParams.limit, {
+			valueField: 'publishedAt',
+			idField: 'id'
+		})
+	};
+}
+
+function getEmptyBlueskyMigrationRelationReconcileState(input: IBlueskyMigrationRelationReconcileInput) {
+	return {
+		checked: 0,
+		updated: 0,
+		skipped: 0,
+		failed: 0,
+		dryRun: helpers.parseBoolean(input.dryRun, false),
+		rows: [] as IBlueskyMigrationRelationReconcileRow[],
+		errors: [] as IBlueskySourceSyncError[]
+	};
+}
+
+async function getBlueskyMigrationRelationReconcileRow(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	postRef: IPost,
+	input: IBlueskyMigrationRelationReconcileInput
+): Promise<IBlueskyMigrationRelationReconcileRow> {
+	const properties = getPostBlueskyProperties(postRef);
+	const relationState = getEmptyBlueskyMigrationRelationState(postRef);
+	await appendBlueskyMigrationReplyRelationChange(app, models, userId, postRef, properties, input, relationState);
+	await appendBlueskyMigrationQuoteRelationChange(models, postRef, properties, input, relationState);
+	return getBlueskyMigrationRelationReconcileRowResult(postRef, relationState);
+}
+
+function getEmptyBlueskyMigrationRelationState(postRef: IPost) {
+	return {
+		changes: {} as {replyToId?: number | null; repostOfId?: number | null},
+		reasons: [] as string[],
+		originalReplyToId: getOptionalPositiveInteger(postRef.replyToId),
+		originalRepostOfId: getOptionalPositiveInteger(postRef.repostOfId)
+	};
+}
+
+async function appendBlueskyMigrationReplyRelationChange(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	postRef: IPost,
+	properties: any,
+	input: IBlueskyMigrationRelationReconcileInput,
+	relationState
+): Promise<void> {
+	if (!shouldReconcileBlueskyMigrationRelation(postRef.replyToId, input)) {
+		return appendBlueskyMigrationRelationReason(relationState, 'bluesky_migration_reply_already_set');
+	}
+	const targetUri = getBlueskyMigrationReplyTargetUri(properties);
+	if (!targetUri) {
+		return appendBlueskyMigrationRelationReason(relationState, 'bluesky_migration_reply_target_missing');
+	}
+	const target = await getBlueskyMigrationRelationTarget(models, postRef, targetUri, input);
+	if (!target.post) {
+		return appendBlueskyMigrationRelationReason(relationState, target.reason);
+	}
+	if (!await app.ms.group.canReplyToPost(userId, target.post.id)) {
+		return appendBlueskyMigrationRelationReason(relationState, 'bluesky_migration_reply_not_permitted');
+	}
+	relationState.changes.replyToId = target.post.id;
+}
+
+async function appendBlueskyMigrationQuoteRelationChange(
+	models,
+	postRef: IPost,
+	properties: any,
+	input: IBlueskyMigrationRelationReconcileInput,
+	relationState
+): Promise<void> {
+	if (!shouldReconcileBlueskyMigrationRelation(postRef.repostOfId, input)) {
+		return appendBlueskyMigrationRelationReason(relationState, 'bluesky_migration_quote_already_set');
+	}
+	const targetUri = getBlueskyMigrationQuoteTargetUri(properties);
+	if (!targetUri) {
+		return appendBlueskyMigrationRelationReason(relationState, 'bluesky_migration_quote_target_missing');
+	}
+	const target = await getBlueskyMigrationRelationTarget(models, postRef, targetUri, input);
+	if (!target.post) {
+		return appendBlueskyMigrationRelationReason(relationState, target.reason);
+	}
+	relationState.changes.repostOfId = target.post.id;
+}
+
+function shouldReconcileBlueskyMigrationRelation(existingPostId: number | string | null | undefined, input: IBlueskyMigrationRelationReconcileInput): boolean {
+	return helpers.parseBoolean(input.force, false) || !getOptionalPositiveInteger(existingPostId);
+}
+
+function getBlueskyMigrationReplyTargetUri(properties: any): string | null {
+	return getOptionalString(properties?.reply?.parentUri) || getOptionalString(properties?.reply?.rootUri);
+}
+
+function getBlueskyMigrationQuoteTargetUri(properties: any): string | null {
+	return getOptionalString(properties?.quote?.uri);
+}
+
+async function getBlueskyMigrationRelationTarget(models, postRef: IPost, targetUri: string, input: IBlueskyMigrationRelationReconcileInput) {
+	const sameGroupTarget = await getSingleBlueskyMigrationRelationTarget(models, postRef, targetUri, {sameGroup: true});
+	if (sameGroupTarget.post || sameGroupTarget.reason === 'bluesky_migration_relation_target_ambiguous') {
+		return sameGroupTarget;
+	}
+	if (!helpers.parseBoolean(input.allowCrossGroup, true)) {
+		return {post: null, reason: 'bluesky_migration_relation_target_missing'};
+	}
+	return getSingleBlueskyMigrationRelationTarget(models, postRef, targetUri, {sameGroup: false});
+}
+
+async function getSingleBlueskyMigrationRelationTarget(models, postRef: IPost, targetUri: string, options: {sameGroup: boolean}) {
+	const where = getBlueskyMigrationRelationTargetWhere(postRef, targetUri, options);
+	const targets = await models.Post.findAll({
+		where,
+		order: [['publishedAt', 'ASC'], ['id', 'ASC']],
+		limit: 2
+	});
+	if (targets.length === 1) {
+		return {post: targets[0], reason: null};
+	}
+	if (targets.length > 1) {
+		return {post: null, reason: 'bluesky_migration_relation_target_ambiguous'};
+	}
+	return {post: null, reason: 'bluesky_migration_relation_target_missing'};
+}
+
+function getBlueskyMigrationRelationTargetWhere(postRef: IPost, targetUri: string, options: {sameGroup: boolean}) {
+	const where: any = {
+		id: {[Op.ne]: postRef.id},
+		source: blueskyPostSource,
+		sourcePostId: targetUri,
+		status: PostStatus.Published,
+		isDeleted: false
+	};
+	if (options.sameGroup) {
+		where.groupId = postRef.groupId;
+	} else {
+		where.groupId = {[Op.ne]: postRef.groupId};
+	}
+	return where;
+}
+
+function getBlueskyMigrationRelationReconcileRowResult(postRef: IPost, relationState): IBlueskyMigrationRelationReconcileRow {
+	const changes = getNonEmptyBlueskyMigrationRelationChanges(relationState.changes);
+	if (changes) {
+		return {
+			postId: Number(postRef.id),
+			sourcePostId: getOptionalString(postRef.sourcePostId),
+			replyToId: relationState.originalReplyToId,
+			repostOfId: relationState.originalRepostOfId,
+			updated: true,
+			changes
+		};
+	}
+	return {
+		postId: Number(postRef.id),
+		sourcePostId: getOptionalString(postRef.sourcePostId),
+		replyToId: relationState.originalReplyToId,
+		repostOfId: relationState.originalRepostOfId,
+		skipped: true,
+		reason: getBlueskyMigrationRelationSkipReason(relationState.reasons)
+	};
+}
+
+function getNonEmptyBlueskyMigrationRelationChanges(changes: {replyToId?: number | null; repostOfId?: number | null}) {
+	const result: any = {};
+	if (changes.replyToId) {
+		result.replyToId = changes.replyToId;
+	}
+	if (changes.repostOfId) {
+		result.repostOfId = changes.repostOfId;
+	}
+	return Object.keys(result).length ? result : null;
+}
+
+function appendBlueskyMigrationRelationReason(relationState, reason: string): void {
+	if (!relationState.reasons.includes(reason)) {
+		relationState.reasons.push(reason);
+	}
+}
+
+function getBlueskyMigrationRelationSkipReason(reasons: string[]): string {
+	const actionableReason = reasons.find(reason => !reason.endsWith('_missing') && !reason.endsWith('_already_set'));
+	return actionableReason || reasons[0] || 'bluesky_migration_relation_change_missing';
 }
 
 function getBlueskySourceReviewListParams(listParams?: IListParams): IListParams {
