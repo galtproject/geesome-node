@@ -2,6 +2,7 @@ import {IBlueskyActorProfile, IBlueskyPostProjection, IBlueskyRecordCreateResult
 import {IListParams} from '../database/interface.js';
 import {IUserOperationQueue} from '../asyncOperation/interface.js';
 import {IPostListResponse} from '../group/interface.js';
+import type {IBlueskyMigrationPreview} from './migration.js';
 import type {
 	IRemoteContentModerationPolicyInput,
 	IRemoteContentModerationRule,
@@ -43,6 +44,14 @@ export interface IBlueskyPublicAuthorFeedPreview {
 	actor: string;
 	cursor: string | null;
 	list: IBlueskyPostProjection[];
+}
+
+export interface IBlueskyMigrationPreviewInput extends IBlueskyPublicAuthorFeedPreviewInput, IBlueskyAccountVerifyInput {
+	claimed?: boolean | string;
+}
+
+export interface IBlueskyMigrationPreviewResult extends IBlueskyMigrationPreview {
+	cursor: string | null;
 }
 
 export interface IBlueskyPublicAuthorFeedImportResult {
@@ -366,6 +375,7 @@ export interface IBlueskySourceSyncResult {
 
 export default interface IGeesomeBlueskyModule {
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
+	getMigrationPreview(userId: number, input?: IBlueskyMigrationPreviewInput): Promise<IBlueskyMigrationPreviewResult>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;

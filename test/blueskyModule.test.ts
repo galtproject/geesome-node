@@ -48,6 +48,84 @@ describe('bluesky module', () => {
 		assert.equal(richTextToPlainText(preview.list[0].richText), 'Hello site');
 	});
 
+	it('previews Bluesky social-page migrations with optional ownership proof', async () => {
+		const calls: any[] = [];
+		const accounts = getSocNetAccountModule([{
+			userId: 7,
+			socNet: 'bluesky',
+			accountId: 'did:plc:alice',
+			username: 'alice.bsky.social',
+			apiKey: 'app-password'
+		}]);
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/',
+					authApiOrigin: 'https://auth.example/'
+				}
+			},
+			ms: {
+				socNetAccount: accounts
+			},
+			checkModules: (modulesList) => {
+				calls.push({method: 'checkModules', modulesList});
+			}
+		} as any, {
+			fetch: async (url, options) => {
+				calls.push({method: 'fetch', url, options});
+				if (String(url).includes('getAuthorFeed')) {
+					return {
+						ok: true,
+						json: async () => getAuthorFeedFixture()
+					};
+				}
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						displayName: 'Alice'
+					})
+				};
+			}
+		});
+
+		const preview = await module.getMigrationPreview(7, {
+			actor: '@alice.bsky.social',
+			claimed: true,
+			accountData: {id: 1},
+			limit: 1
+		});
+
+		assert.equal(preview.actor, 'alice.bsky.social');
+		assert.equal(preview.cursor, 'cursor-after');
+		assert.equal(preview.ownership.verified, true);
+		assert.equal(preview.ownership.method, 'did');
+		assert.equal(preview.summary.total, 1);
+		assert.equal(preview.summary.localPosts, 1);
+		assert.equal(preview.summary.remotePlaceholders, 0);
+		assert.equal(preview.list[0].importKind, 'localPost');
+		assert.deepEqual(calls.filter(call => call.method === 'checkModules'), [
+			{method: 'checkModules', modulesList: ['api']},
+			{method: 'checkModules', modulesList: ['socNetAccount']}
+		]);
+		assert.equal(calls.filter(call => call.method === 'fetch').length, 3);
+		assert.equal(
+			calls.find(call => call.method === 'fetch' && call.url.includes('getAuthorFeed')).url,
+			'https://public.example/xrpc/app.bsky.feed.getAuthorFeed?actor=alice.bsky.social&limit=1'
+		);
+	});
+
 	it('starts an async public author feed import through socNetImport', async () => {
 		const checks: any[] = [];
 		const imports: any[] = [];
@@ -2615,6 +2693,10 @@ describe('bluesky module', () => {
 				moduleCalls.push({method: 'verifyAccount', userId, input});
 				return {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}};
 			},
+			getMigrationPreview: async (userId, input) => {
+				moduleCalls.push({method: 'getMigrationPreview', userId, input});
+				return {actor: 'alice.bsky.social', summary: {total: 1}, list: []};
+			},
 			crossPostPost: async (userId, postId, input) => {
 				moduleCalls.push({method: 'crossPostPost', userId, postId, input});
 				return {
@@ -2652,6 +2734,10 @@ describe('bluesky module', () => {
 			user: {id: 7},
 			body: {accountData: {id: 3}}
 		});
+		const migrationPreviewResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/migration/preview', {
+			user: {id: 7},
+			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}}
+		});
 		const crossPostResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/posts/:postId/cross-post', {
 			user: {id: 7},
 			params: {postId: '44'},
@@ -2671,12 +2757,14 @@ describe('bluesky module', () => {
 		assert.deepEqual(moduleCalls, [
 			{method: 'loginAccount', userId: 7, input: {identifier: 'alice.bsky.social', appPassword: 'app-password'}},
 			{method: 'verifyAccount', userId: 7, input: {accountData: {id: 3}}},
+			{method: 'getMigrationPreview', userId: 7, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}}},
 			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'updateCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'deleteCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}
 		]);
 		assert.deepEqual(loginResponse.body, {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}});
 		assert.deepEqual(verifyResponse.body, {did: 'did:plc:alice', account: {id: 3, hasApiKey: true}});
+		assert.deepEqual(migrationPreviewResponse.body, {actor: 'alice.bsky.social', summary: {total: 1}, list: []});
 		assert.deepEqual(crossPostResponse.body, {
 			record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
 			alreadyExists: false

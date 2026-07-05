@@ -7,6 +7,7 @@ import {ISocNetDbChannel} from '../socNetImport/interface.js';
 import {IPost, PostStatus} from '../group/interface.js';
 import {RICH_TEXT_MIME_TYPE, isRichTextDocument, richTextToAtProtoTextWithFacets} from '../../richText.js';
 import {BlueskyImportClient} from './importClient.js';
+import {createBlueskyMigrationPreview} from './migration.js';
 import {
 	IRemoteContentModerationDecision,
 	IRemoteContentModerationPolicy,
@@ -60,6 +61,8 @@ import IGeesomeBlueskyModule, {
 	IBlueskyCrossPostResult,
 	IBlueskyDeleteCrossPostInput,
 	IBlueskyDeleteCrossPostResult,
+	IBlueskyMigrationPreviewInput,
+	IBlueskyMigrationPreviewResult,
 	IBlueskyPublicAuthorFeedImportInput,
 	IBlueskyPublicAuthorFeedPreviewInput,
 	IBlueskySourceFeedFilters,
@@ -152,6 +155,22 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				actor,
 				cursor: getOptionalString(feedResponse?.cursor),
 				list: projectBlueskyAuthorFeed(feedResponse)
+			};
+		}
+
+		async getMigrationPreview(userId: number, input: IBlueskyMigrationPreviewInput = {}): Promise<IBlueskyMigrationPreviewResult> {
+			const claimed = helpers.parseBoolean(input.claimed, false);
+			const accountVerification = claimed ? await this.verifyAccount(userId, input) : null;
+			const preview = await this.getPublicAuthorFeedPreview(input);
+			return {
+				...createBlueskyMigrationPreview({
+					actor: preview.actor,
+					projections: preview.list,
+					claimed,
+					accountDid: accountVerification?.did || null,
+					accountHandle: accountVerification?.handle || accountVerification?.profile?.handle || null
+				}),
+				cursor: preview.cursor
 			};
 		}
 
