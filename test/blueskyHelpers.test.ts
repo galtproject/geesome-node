@@ -623,7 +623,9 @@ describe('bluesky helpers', () => {
 			externalEmbeds: 1,
 			imageEmbeds: 1,
 			unsupportedEmbedTypes: [],
-			reply: projection.reply
+			reply: projection.reply,
+			repost: null,
+			quote: null
 		});
 	});
 

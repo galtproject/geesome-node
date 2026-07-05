@@ -208,6 +208,8 @@ export interface IBlueskyPostProjection {
 	langs: string[];
 	richText: RichTextDocument;
 	reply: IBlueskyReplyProjection | null;
+	repost: IBlueskyRepostProjection | null;
+	quote: IBlueskyRecordProjection | null;
 	embed: IBlueskyEmbedProjection;
 	facetsCount: number;
 	moderationDecision?: IRemoteContentModerationDecision;
@@ -222,6 +224,17 @@ export interface IBlueskyAuthorProjection {
 export interface IBlueskyReplyProjection {
 	rootUri: string | null;
 	parentUri: string | null;
+}
+
+export interface IBlueskyRepostProjection {
+	by: IBlueskyAuthorProjection;
+	indexedAt: string | null;
+}
+
+export interface IBlueskyRecordProjection {
+	uri: string;
+	cid: string | null;
+	author: IBlueskyAuthorProjection | null;
 }
 
 export interface IBlueskyEmbedProjection {
@@ -670,6 +683,8 @@ export function projectBlueskyFeedItem(feedItem: any): IBlueskyPostProjection | 
 			}
 		}),
 		reply: getBlueskyReplyProjection(record.reply),
+		repost: getBlueskyRepostProjection(feedItem.reason),
+		quote: getBlueskyQuoteProjection(record.embed, post.embed),
 		embed: getBlueskyEmbedProjection(record.embed, post.embed),
 		facetsCount: getArrayValues(record.facets).length
 	};
@@ -725,7 +740,9 @@ export function getBlueskyProjectionPreview(projection: IBlueskyPostProjection) 
 		externalEmbeds: projection.embed.external.length,
 		imageEmbeds: projection.embed.images.length,
 		unsupportedEmbedTypes: projection.embed.unsupportedTypes,
-		reply: projection.reply
+		reply: projection.reply,
+		repost: projection.repost,
+		quote: projection.quote
 	};
 }
 
@@ -998,6 +1015,55 @@ function getBlueskyReplyProjection(reply: any): IBlueskyReplyProjection | null {
 		return null;
 	}
 	return {rootUri, parentUri};
+}
+
+function getBlueskyRepostProjection(reason: any): IBlueskyRepostProjection | null {
+	if (reason?.$type !== 'app.bsky.feed.defs#reasonRepost') {
+		return null;
+	}
+	const by = getBlueskyAuthorProjection(reason.by);
+	if (!hasBlueskyAuthorIdentity(by)) {
+		return null;
+	}
+	return {
+		by,
+		indexedAt: getOptionalString(reason.indexedAt)
+	};
+}
+
+function getBlueskyQuoteProjection(recordEmbed: any, viewEmbed: any): IBlueskyRecordProjection | null {
+	return getBlueskyRecordEmbedProjection(viewEmbed) || getBlueskyRecordEmbedProjection(recordEmbed);
+}
+
+function getBlueskyRecordEmbedProjection(embed: any): IBlueskyRecordProjection | null {
+	const embedType = getOptionalString(embed?.$type);
+	if (!embedType) {
+		return getBlueskyRecordProjection(embed);
+	}
+	if (embedType === 'app.bsky.embed.recordWithMedia' || embedType === 'app.bsky.embed.recordWithMedia#view') {
+		return getBlueskyRecordEmbedProjection(embed.record);
+	}
+	if (embedType === 'app.bsky.embed.record' || embedType === 'app.bsky.embed.record#view') {
+		return getBlueskyRecordEmbedProjection(embed.record);
+	}
+	return null;
+}
+
+function getBlueskyRecordProjection(record: any): IBlueskyRecordProjection | null {
+	const uri = getOptionalString(record?.uri);
+	if (!uri) {
+		return null;
+	}
+	const author = getBlueskyAuthorProjection(record.author);
+	return {
+		uri,
+		cid: getOptionalString(record.cid),
+		author: hasBlueskyAuthorIdentity(author) ? author : null
+	};
+}
+
+function hasBlueskyAuthorIdentity(author: IBlueskyAuthorProjection): boolean {
+	return Boolean(author.did || author.handle);
 }
 
 function getBlueskyEmbedProjection(recordEmbed: any, viewEmbed: any): IBlueskyEmbedProjection {
