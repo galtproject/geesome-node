@@ -187,13 +187,18 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` pages as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. This is the first write job for ActivityPub migration, but it intentionally does not create visible GeeSome posts yet because claimed ActivityPub ownership is still unverified until a signed challenge or admin-approved proof exists. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, and actor-mismatched objects are skipped and reported. Use `async=true` to enqueue the same bounded cache job in the persistent async-operation queue.
+	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` pages as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. By default this is a cache-only write job. When `createPosts=true`, an admin-approved ownership claim and target GeeSome group are required; importable candidates are accepted, filtered by the optional moderation policy, and created as visible GeeSome remote posts through the same duplicate-resistant remote-object post path used by the admin review tools. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, actor-mismatched objects, and moderation-blocked objects are skipped and reported. Use `async=true` to enqueue the same bounded import job in the persistent async-operation queue.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
 	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
 	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
-	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page. The current job records the unverified ownership report but does not create visible posts from it.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
+	 * @apiBody {Boolean} [createPosts=false] Create visible GeeSome posts for importable candidates. Requires `ownershipApproved=true`, `groupName`, and admin permission.
+	 * @apiBody {String} [groupName] Target public GeeSome group name for visible post creation.
+	 * @apiBody {Boolean} [ownershipApproved=false] Admin approval that the caller's claimed ActivityPub ownership has been verified outside this request.
+	 * @apiBody {Boolean} [importRemoteAttachments=false] Back up supported remote attachments before creating visible posts.
+	 * @apiBody {Object} [moderationPolicy] Optional remote-content moderation policy with `mode` and `rules`; non-allow decisions are skipped before visible post creation.
 	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
 	 * @apiBody {Number} [maxPages=1] Maximum ActivityPub collection pages to inspect per selected collection, capped at 25.
 	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
@@ -210,6 +215,9 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.
 	 * @apiSuccess {Boolean} hasMore Whether at least one inspected collection had another page beyond the configured limit.
 	 * @apiSuccess {Number} cached Number of remote-object candidates cached.
+	 * @apiSuccess {Number} created Number of visible GeeSome posts created.
+	 * @apiSuccess {Object} [moderation] Moderation summary when `createPosts=true`.
+	 * @apiSuccess {Number[]} postIds Created GeeSome post ids.
 	 * @apiSuccess {Number} skipped Number of fetched items skipped before caching.
 	 * @apiSuccess {Number[]} remoteObjectIds Cached ActivityPub remote-object ids.
 	 * @apiSuccess {String[]} errors Bounded fetch/cache errors encountered while processing the import.
@@ -220,6 +228,9 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/import', async (req, res) => {
 		const input = req.body || {};
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		if (helpers.parseBoolean(input.createPosts, false)) {
+			await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		}
 		if (helpers.parseBoolean(input.async, false)) {
 			return res.send(await activityPubModule.queueMigrationImport(req.user.id, req.apiKey?.id || null, input));
 		}

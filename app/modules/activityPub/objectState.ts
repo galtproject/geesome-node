@@ -71,7 +71,7 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 	if (existingObject) {
 		assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, 'activitypub_create_object_actor_mismatch');
 		assertActivityPubObjectNotTombstoned(existingObject);
-		return updateActivityPubObjectRecord(existingObject, objectData);
+		return updateActivityPubObjectRecord(existingObject, getRemoteActivityPubObjectSyncData(existingObject, objectData));
 	}
 
 	try {
@@ -86,7 +86,7 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 		}
 		assertRemoteActivityPubObjectActor(createdObject, options.remoteActorRecord, 'activitypub_create_object_actor_mismatch');
 		assertActivityPubObjectNotTombstoned(createdObject);
-		return updateActivityPubObjectRecord(createdObject, objectData);
+		return updateActivityPubObjectRecord(createdObject, getRemoteActivityPubObjectSyncData(createdObject, objectData));
 	}
 }
 
@@ -180,6 +180,14 @@ function getRemoteActivityPubObjectData(options: ISyncRemoteActivityPubObjectOpt
 
 function getRemoteActivityPubObjectLocalActorId(options: ISyncRemoteActivityPubObjectOptions): number | null {
 	return options.targetObjectRecord?.localActorId || options.localActorRecord?.id || null;
+}
+
+function getRemoteActivityPubObjectSyncData(existingObject, objectData) {
+	return {
+		...objectData,
+		localActorId: objectData.localActorId || existingObject.localActorId || null,
+		localPostId: existingObject.localPostId || null
+	};
 }
 
 function getRemoteActivityPubObjectUpdateData(existingObject, options: IUpdateRemoteActivityPubObjectOptions) {

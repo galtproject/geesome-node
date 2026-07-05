@@ -52,7 +52,7 @@ Interpretation notes:
 | activityPub | POST | `/v1/admin/activity-pub/sources/:sourceId/remove` | authorized | AdminAll | - | `app/modules/activityPub/api.ts` |
 | activityPub | POST | `/v1/admin/activity-pub/sources/:sourceId/update` | authorized | AdminAll | - | `app/modules/activityPub/api.ts` |
 | activityPub | POST | `/v1/admin/activity-pub/sources/resolve` | authorized | AdminAll | - | `app/modules/activityPub/api.ts` |
-| activityPub | POST | `/v1/soc-net/activity-pub/migration/import` | authorized | UserGroupManagement | social account credential boundary | `app/modules/activityPub/api.ts` |
+| activityPub | POST | `/v1/soc-net/activity-pub/migration/import` | authorized | AdminAll, UserGroupManagement | social account credential boundary | `app/modules/activityPub/api.ts` |
 | activityPub | POST | `/v1/soc-net/activity-pub/migration/preview` | authorized | - | social account credential boundary; token only; module/user ownership checks expected | `app/modules/activityPub/api.ts` |
 | api | POST | `/v1/admin/add-user-api-key` | authorized | AdminAddUserApiKey | - | `app/modules/api/api.ts` |
 | api | POST | `/v1/admin/add-user` | authorized | AdminAddUser, AdminSetPermissions | - | `app/modules/api/api.ts` |

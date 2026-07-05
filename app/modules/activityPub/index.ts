@@ -7,7 +7,16 @@ import {ContentView, CorePermissionName} from '../database/interface.js';
 import type {IContent, IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
-import {createActivityPubMigrationPreview} from './migration.js';
+import {createActivityPubMigrationPreview, type IActivityPubMigrationPreviewItem} from './migration.js';
+import {
+	evaluateRemoteContentModerationPolicy,
+	getRemoteContentModerationSummary,
+	isRemoteContentModerationDecisionImportable,
+	normalizeRemoteContentModerationPolicy,
+	type IRemoteContentModerationDecision,
+	type IRemoteContentModerationPolicy,
+	type IRemoteContentModerationPolicyInput
+} from '../remoteContentModeration/helpers.js';
 import IGeesomeActivityPubModule, {
 	ActivityPubRemoteAttachmentImportMode,
 	ActivityPubFollowDirection,
@@ -152,6 +161,12 @@ type IActivityPubRemoteObjectPostContentResult = {
 	contents: IContent[];
 	attachmentBackups: IActivityPubRemoteAttachmentBackup[];
 	attachmentImportMode: ActivityPubRemoteAttachmentImportMode;
+};
+
+type IActivityPubMigrationVisibleImportContext = {
+	group: IGroup;
+	actorRecord: any;
+	moderationPolicy: IRemoteContentModerationPolicy;
 };
 type IActivityPubRemoteAttachmentBackupJob = {
 	type: 'remote-attachment-backup';
@@ -375,14 +390,22 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		}
 
 		async importMigration(userId: number, input: IActivityPubMigrationImportInput = {}): Promise<IActivityPubMigrationImportResult> {
-			getResolvedActivityPubConfig(app);
+			const config = getResolvedActivityPubConfig(app);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			return importActivityPubMigration(models, input, options);
+			if (isActivityPubMigrationVisibleImport(input)) {
+				assertActivityPubMigrationVisibleImportApproved(input);
+				await app.checkUserCan(userId, CorePermissionName.AdminAll);
+			}
+			return importActivityPubMigration(app, models, config, userId, input, options);
 		}
 
 		async queueMigrationImport(userId: number, userApiKeyId: number | null = null, input: IActivityPubMigrationImportQueueInput = {}) {
 			getResolvedActivityPubConfig(app);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			if (isActivityPubMigrationVisibleImport(input)) {
+				assertActivityPubMigrationVisibleImportApproved(input);
+				await app.checkUserCan(userId, CorePermissionName.AdminAll);
+			}
 			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
 				userId,
 				activityPubMigrationImportQueueModuleName,
@@ -601,21 +624,7 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			if (!objectRecord) {
 				throwActivityPubError('activitypub_remote_object_not_found', 404);
 			}
-			const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
-			const postDraft = await getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
-			assertActivityPubRemoteObjectPostDraftCreatable(postDraft);
-			const contentResult = await createActivityPubRemoteObjectPostContents(app, userId, postDraft, options);
-			const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, contentResult));
-			await updateActivityPubRemoteObjectLocalPostId(objectRecord, post);
-
-			const result: IActivityPubRemoteObjectPostCreateResult = {
-				post,
-				remoteObject: await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord)
-			};
-			if (contentResult.attachmentBackups.length) {
-				result.attachmentBackups = contentResult.attachmentBackups;
-			}
-			return result;
+			return createActivityPubRemoteObjectPostFromRecord(app, models, userId, group, actorRecord, objectRecord, options);
 		}
 
 		async queueGroupRemoteObjectAttachmentBackups(groupName: string, remoteObjectId: number | string, userId: number, userApiKeyId: number | null = null, options: IActivityPubRemoteAttachmentBackupQueueOptions = {}) {
@@ -1196,7 +1205,10 @@ async function getActivityPubMigrationPreview(input: IActivityPubMigrationPrevie
 }
 
 async function importActivityPubMigration(
+	app: IGeesomeApp,
 	models,
+	config: IResolvedActivityPubConfig,
+	userId: number,
 	input: IActivityPubMigrationImportInput,
 	options: IActivityPubModuleOptions
 ): Promise<IActivityPubMigrationImportResult> {
@@ -1205,12 +1217,18 @@ async function importActivityPubMigration(
 	if (!actorDocument || typeof actorDocument !== 'object' || Array.isArray(actorDocument)) {
 		throwActivityPubError('activitypub_migration_actor_document_invalid', 401);
 	}
+	const visibleContext = await getActivityPubMigrationVisibleImportContext(app, models, config, input);
 	const context = await getActivityPubMigrationPreviewContext(input, options, {
 		actorUrl: resolution.sourceActorUrl,
 		sourceResource: resolution.sourceResource,
 		actorDocument
+	}, {
+		ownershipVerified: Boolean(visibleContext),
+		ownershipMethod: visibleContext ? 'admin' : null
 	});
 	const remoteObjectIds: number[] = [];
+	const postIds: number[] = [];
+	const moderationDecisions: IRemoteContentModerationDecision[] = [];
 	let skipped = 0;
 	const errors = [...context.errors];
 
@@ -1221,13 +1239,24 @@ async function importActivityPubMigration(
 			continue;
 		}
 		try {
+			if (!isActivityPubMigrationPreviewItemImportable(previewItem, context, visibleContext, moderationDecisions)) {
+				skipped += 1;
+				continue;
+			}
 			const cacheInput = getActivityPubMigrationObjectCacheInput(resolution.remoteActorRecord, context.items[index]);
 			if (!cacheInput) {
 				skipped += 1;
 				continue;
 			}
+			if (visibleContext) {
+				cacheInput.localActorRecord = visibleContext.actorRecord;
+			}
 			const objectRecord = await syncRemoteActivityPubObject(models, cacheInput);
 			remoteObjectIds.push(objectRecord.id);
+			const postId = await createActivityPubMigrationVisiblePost(app, models, userId, input, visibleContext, objectRecord);
+			if (postId) {
+				postIds.push(postId);
+			}
 		} catch (e) {
 			skipped += 1;
 			errors.push(getActivityPubMigrationPreviewErrorMessage(e));
@@ -1245,15 +1274,87 @@ async function importActivityPubMigration(
 		hasMore: context.hasMore,
 		errors,
 		cached: remoteObjectIds.length,
+		created: postIds.length,
+		moderation: visibleContext ? getRemoteContentModerationSummary(moderationDecisions) : undefined,
+		postIds,
 		skipped,
 		remoteObjectIds
 	};
 }
 
+async function getActivityPubMigrationVisibleImportContext(
+	app: IGeesomeApp,
+	models,
+	config: IResolvedActivityPubConfig,
+	input: IActivityPubMigrationImportInput
+): Promise<IActivityPubMigrationVisibleImportContext | null> {
+	if (!isActivityPubMigrationVisibleImport(input)) {
+		return null;
+	}
+	assertActivityPubMigrationVisibleImportApproved(input);
+	const group = await getFederatableGroup(app, getActivityPubMigrationVisibleImportGroupName(input));
+	const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
+	return {
+		group,
+		actorRecord,
+		moderationPolicy: getActivityPubMigrationImportModerationPolicy(input)
+	};
+}
+
+function isActivityPubMigrationPreviewItemImportable(
+	previewItem: IActivityPubMigrationPreviewItem | undefined,
+	context,
+	visibleContext: IActivityPubMigrationVisibleImportContext | null,
+	moderationDecisions: IRemoteContentModerationDecision[]
+): boolean {
+	if (!visibleContext) {
+		return true;
+	}
+	const decision = evaluateRemoteContentModerationPolicy(visibleContext.moderationPolicy, {
+		text: getActivityPubMigrationPreviewItemModerationText(previewItem),
+		source: getActivityPubMigrationPreviewItemModerationSources(context, previewItem),
+		groupName: visibleContext.group.name
+	});
+	moderationDecisions.push(decision);
+	return isRemoteContentModerationDecisionImportable(decision);
+}
+
+async function createActivityPubMigrationVisiblePost(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	input: IActivityPubMigrationImportInput,
+	visibleContext: IActivityPubMigrationVisibleImportContext | null,
+	objectRecord
+): Promise<number | null> {
+	if (!visibleContext) {
+		return null;
+	}
+	if (Number(objectRecord.localPostId || 0) > 0) {
+		return null;
+	}
+	await setActivityPubObjectReviewStateRecord(models, {
+		objectRecord,
+		state: ActivityPubObjectReviewState.Accepted,
+		reviewedByUserId: userId
+	});
+	const result = await createActivityPubRemoteObjectPostFromRecord(
+		app,
+		models,
+		userId,
+		visibleContext.group,
+		visibleContext.actorRecord,
+		objectRecord,
+		{importRemoteAttachments: input.importRemoteAttachments}
+	);
+	return Number(result.post?.id || 0) || null;
+}
+
 async function getActivityPubMigrationPreviewContext(
 	input: IActivityPubMigrationPreviewInput,
 	options: IActivityPubModuleOptions,
-	resolvedInput: {actorUrl?: string; sourceResource?: string; actorDocument?: any} = {}
+	resolvedInput: {actorUrl?: string; sourceResource?: string; actorDocument?: any} = {},
+	previewOptions: {ownershipVerified?: boolean; ownershipMethod?: 'admin' | 'signedChallenge' | null} = {}
 ) {
 	const lookup = resolvedInput.actorUrl
 		? {actorUrl: resolvedInput.actorUrl, sourceResource: resolvedInput.sourceResource}
@@ -1270,7 +1371,9 @@ async function getActivityPubMigrationPreviewContext(
 			actor,
 			actorDocument,
 			items: items.list,
-			claimed: helpers.parseBoolean(input?.claimed, false)
+			claimed: helpers.parseBoolean(input?.claimed, false),
+			ownershipVerified: previewOptions.ownershipVerified,
+			ownershipMethod: previewOptions.ownershipMethod
 		}),
 		fetched: items.fetched,
 		pages: items.pages,
@@ -1436,6 +1539,56 @@ function getActivityPubUrlHost(value: string): string | undefined {
 
 function getActivityPubMigrationPreviewErrorMessage(error): string {
 	return getOptionalBoundedString(error?.message || String(error), 500) || 'activitypub_migration_preview_error';
+}
+
+function isActivityPubMigrationVisibleImport(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): boolean {
+	return helpers.parseBoolean(input?.createPosts, false);
+}
+
+function assertActivityPubMigrationVisibleImportApproved(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): void {
+	if (!helpers.parseBoolean(input?.claimed, false)) {
+		throwActivityPubError('activitypub_migration_visible_import_claim_required', 400);
+	}
+	if (!helpers.parseBoolean(input?.ownershipApproved, false)) {
+		throwActivityPubError('activitypub_migration_visible_import_ownership_required', 403);
+	}
+	getActivityPubMigrationVisibleImportGroupName(input);
+}
+
+function getActivityPubMigrationVisibleImportGroupName(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): string {
+	const groupName = getOptionalBoundedString(input?.groupName, 200);
+	if (!groupName) {
+		throwActivityPubError('activitypub_migration_visible_import_group_name_required', 400);
+	}
+	return groupName;
+}
+
+function getActivityPubMigrationImportModerationPolicy(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): IRemoteContentModerationPolicy {
+	const policyInput = input?.moderationPolicy || {};
+	return normalizeRemoteContentModerationPolicy({
+		mode: input?.moderationMode ?? policyInput.mode,
+		rules: input?.moderationRules ?? policyInput.rules
+	});
+}
+
+function getActivityPubMigrationPreviewItemModerationText(previewItem: IActivityPubMigrationPreviewItem | undefined): string {
+	const preview = previewItem?.preview || {};
+	return [
+		preview.name,
+		preview.contentText,
+		preview.summaryText,
+		preview.url
+	].filter(Boolean).join('\n');
+}
+
+function getActivityPubMigrationPreviewItemModerationSources(context, previewItem: IActivityPubMigrationPreviewItem | undefined): string[] {
+	return [
+		context?.actor,
+		previewItem?.actor,
+		previewItem?.attributedTo,
+		previewItem?.activityId,
+		previewItem?.objectId
+	].filter(Boolean);
 }
 
 function getActivityPubMigrationObjectCacheInput(remoteActorRecord, item) {
@@ -2534,6 +2687,22 @@ function getActivityPubMigrationImportJobImportInput(input: IActivityPubMigratio
 	if (input?.claimed !== undefined) {
 		importInput.claimed = helpers.parseBoolean(input.claimed, false);
 	}
+	if (input?.createPosts !== undefined) {
+		importInput.createPosts = helpers.parseBoolean(input.createPosts, false);
+	}
+	const groupName = getOptionalBoundedString(input?.groupName, 200);
+	if (groupName) {
+		importInput.groupName = groupName;
+	}
+	if (input?.ownershipApproved !== undefined) {
+		importInput.ownershipApproved = helpers.parseBoolean(input.ownershipApproved, false);
+	}
+	if (input?.importRemoteAttachments !== undefined) {
+		importInput.importRemoteAttachments = helpers.parseBoolean(input.importRemoteAttachments, false);
+	}
+	if (input?.moderationMode !== undefined || input?.moderationRules !== undefined || input?.moderationPolicy !== undefined) {
+		importInput.moderationPolicy = getActivityPubMigrationImportJobModerationPolicy(input);
+	}
 	if (input?.limit !== undefined) {
 		importInput.limit = getActivityPubMigrationPreviewLimit(input);
 	}
@@ -2547,6 +2716,18 @@ function getActivityPubMigrationImportJobImportInput(input: IActivityPubMigratio
 		importInput.includeOutbox = helpers.parseBoolean(input.includeOutbox, true);
 	}
 	return importInput;
+}
+
+function getActivityPubMigrationImportJobModerationPolicy(input: IActivityPubMigrationImportQueueInput): IRemoteContentModerationPolicyInput {
+	const policy = getActivityPubMigrationImportModerationPolicy(input);
+	const jobPolicy: IRemoteContentModerationPolicyInput = {};
+	if (input?.moderationMode !== undefined || input?.moderationPolicy?.mode !== undefined) {
+		jobPolicy.mode = policy.mode;
+	}
+	if (input?.moderationRules !== undefined || input?.moderationPolicy?.rules !== undefined) {
+		jobPolicy.rules = policy.rules;
+	}
+	return jobPolicy;
 }
 
 function parseActivityPubSourceRefreshJob(inputJson: string): IActivityPubSourceRefreshJob {
@@ -2752,6 +2933,32 @@ function getErrorMessage(error): string {
 		return error.message;
 	}
 	return String(error);
+}
+
+async function createActivityPubRemoteObjectPostFromRecord(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	group: IGroup,
+	actorRecord,
+	objectRecord,
+	options: IActivityPubRemoteObjectPostCreateOptions = {}
+): Promise<IActivityPubRemoteObjectPostCreateResult> {
+	const remoteObject = await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord);
+	const postDraft = await getActivityPubRemoteObjectPostDraft(models, actorRecord, remoteObject);
+	assertActivityPubRemoteObjectPostDraftCreatable(postDraft);
+	const contentResult = await createActivityPubRemoteObjectPostContents(app, userId, postDraft, options);
+	const post = await app.ms.group.createRemotePostByObject(userId, getActivityPubRemoteObjectPostData(group, remoteObject, postDraft, contentResult));
+	await updateActivityPubRemoteObjectLocalPostId(objectRecord, post);
+
+	const result: IActivityPubRemoteObjectPostCreateResult = {
+		post,
+		remoteObject: await getActivityPubRemoteObjectReportWithRemoteActor(models, objectRecord)
+	};
+	if (contentResult.attachmentBackups.length) {
+		result.attachmentBackups = contentResult.attachmentBackups;
+	}
+	return result;
 }
 
 function getActivityPubRemoteObjectPostData(group: IGroup, remoteObject: IActivityPubRemoteObjectReport, postDraft: IActivityPubRemoteObjectPostDraft, contentResult: IActivityPubRemoteObjectPostContentResult) {
