@@ -54,6 +54,14 @@ export interface IBlueskyMigrationPreviewResult extends IBlueskyMigrationPreview
 	cursor: string | null;
 }
 
+export interface IBlueskyMigrationImportInput extends IBlueskyPublicAuthorFeedImportInput, IBlueskyAccountVerifyInput {
+	claimed?: boolean | string;
+}
+
+export interface IBlueskyMigrationImportResult extends IBlueskyPublicAuthorFeedImportResult {
+	ownership: IBlueskyMigrationPreview['ownership'];
+}
+
 export interface IBlueskyPublicAuthorFeedImportResult {
 	actor: string;
 	cursor: string | null;
@@ -376,6 +384,7 @@ export interface IBlueskySourceSyncResult {
 export default interface IGeesomeBlueskyModule {
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
 	getMigrationPreview(userId: number, input?: IBlueskyMigrationPreviewInput): Promise<IBlueskyMigrationPreviewResult>;
+	importMigration(userId: number, userApiKeyId: number | null, input?: IBlueskyMigrationImportInput): Promise<IBlueskyMigrationImportResult>;
 	importPublicAuthorFeed(userId: number, userApiKeyId: number | null, input?: IBlueskyPublicAuthorFeedImportInput): Promise<IBlueskyPublicAuthorFeedImportResult>;
 	loginAccount(userId: number, input?: IBlueskyAccountLoginInput): Promise<IBlueskyAccountVerificationResult>;
 	verifyAccount(userId: number, input?: IBlueskyAccountVerifyInput): Promise<IBlueskyAccountVerificationResult>;
