@@ -51,6 +51,36 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/bluesky/migration/preview Preview Bluesky migration
+	 * @apiName UserBlueskyMigrationPreview
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Fetches a bounded public Bluesky account feed through native ATProto/XRPC and returns a read-only GeeSome migration preview. The preview classifies projected posts as local-owned posts or remote context, reports reply/repost/quote counts, and lists remote actor/post placeholders that a later migration job can reconcile. When `claimed=true`, GeeSome verifies the selected stored Bluesky account first and marks ownership as verified only when the authenticated DID/handle matches the previewed actor. This route does not create social-import channels, GeeSome posts, migration jobs, remote follows, or Bluesky records.
+	 * @apiBody {String} actor Bluesky handle or DID to preview, for example `alice.bsky.social`.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this Bluesky account as their own page.
+	 * @apiBody {Object} [accountData] Required when `claimed=true`; stored Bluesky account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override for encrypted accounts. Alias: `password` or `apiKey`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter.
+	 * @apiBody {Number} [limit=10] Maximum feed items to inspect, capped at 100.
+	 * @apiBody {String} [cursor] Optional ATProto feed cursor for the next page.
+	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
+	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
+	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
+	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, reposts, quotes, and placeholders.
+	 * @apiSuccess {Object[]} list Migration preview items with source preview and placeholder keys.
+	 * @apiSuccess {Object[]} remotePlaceholders ATProto actor/post placeholders for referenced remote context.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/migration/preview', async (req, res) => {
+		return res.send(await blueskyModule.getMigrationPreview(req.user.id, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/soc-net/bluesky/posts/:postId/cross-post Cross-post GeeSome post to Bluesky
 	 * @apiName UserBlueskyCrossPost
 	 * @apiGroup UserBluesky
