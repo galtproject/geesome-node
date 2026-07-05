@@ -2,6 +2,7 @@ import type {IGroup, IPost} from '../group/interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IUserOperationQueue} from '../asyncOperation/interface.js';
 import type {RichTextDocument} from '../../richText.js';
+import type {IActivityPubMigrationPreview} from './migration.js';
 
 export interface IActivityPubConfig {
 	enabled?: boolean | string;
@@ -426,6 +427,18 @@ export interface IActivityPubSourceRefreshInput {
 	includeOutbox?: boolean | string;
 }
 
+export interface IActivityPubMigrationPreviewInput extends IActivityPubSourceResolveInput, IActivityPubSourceRefreshInput {
+	claimed?: boolean | string;
+}
+
+export interface IActivityPubMigrationPreviewResult extends IActivityPubMigrationPreview {
+	sourceActorUrl: string;
+	sourceResource?: string;
+	bridgeProvider?: string;
+	fetched: number;
+	errors: string[];
+}
+
 export interface IActivityPubSourceRefreshResult {
 	source: IActivityPubSourceSubscriptionReport;
 	fetched: number;
@@ -730,6 +743,8 @@ export default interface IGeesomeActivityPubModule {
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
 
 	resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult>;
+
+	getMigrationPreview(userId: number, input?: IActivityPubMigrationPreviewInput): Promise<IActivityPubMigrationPreviewResult>;
 
 	getActivityPubSourceSubscriptions(userId: number, filters?: IActivityPubSourceSubscriptionFilters, listParams?: IListParams): Promise<IActivityPubSourceSubscriptionListResponse>;
 
