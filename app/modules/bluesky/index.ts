@@ -202,9 +202,19 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			if (!migrationPreview.ownership.verified) {
 				throw new Error(migrationPreview.ownership.reason || 'bluesky_migration_account_mismatch');
 			}
-			const importResult = await this.importPublicAuthorFeedPreview(userId, userApiKeyId, getBlueskyMigrationImportInput(input, accountVerification), preview);
+			const importInput = getBlueskyMigrationImportInput(input, accountVerification);
+			const moderation = getBlueskyModeratedMigrationProjections(preview.actor, importInput, preview.list);
+			if (preview.list.length > 0 && !moderation.projections.length) {
+				throw new Error('bluesky_migration_moderation_no_importable_posts');
+			}
+			const importResult = await this.importPublicAuthorFeedPreview(userId, userApiKeyId, importInput, {
+				...preview,
+				list: moderation.projections
+			});
 			return {
 				...importResult,
+				projectedPostsCount: preview.list.length,
+				moderation: moderation.summary,
 				ownership: migrationPreview.ownership
 			};
 		}
@@ -261,6 +271,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			let projectedPostsCount = 0;
 			let imported = 0;
 			let pages = 0;
+			let moderation = getEmptyRemoteContentModerationSummary();
 			const maxPages = getBlueskyMigrationImportMaxPages(input);
 			for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
 				const pageInput = getBlueskyMigrationImportPageInput(importInput, cursor);
@@ -285,15 +296,19 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 					cursor = preview.cursor;
 					break;
 				}
-				dbChannel = dbChannel || await this.importPublicAuthorChannel(userId, importInput, preview.actor, projections[0]);
-				imported += await importBlueskyPublicAuthorFeedProjections(
-					app,
-					userId,
-					dbChannel,
-					getBlueskyImportProjectionOrder(projections),
-					getBlueskyImportAdvancedSettings(importInput),
-					asyncOperation
-				);
+				const moderated = getBlueskyModeratedMigrationProjections(preview.actor, importInput, projections);
+				moderation = getMergedRemoteContentModerationSummary(moderation, moderated.summary);
+				if (moderated.projections.length > 0) {
+					dbChannel = dbChannel || await this.importPublicAuthorChannel(userId, importInput, preview.actor, moderated.projections[0]);
+					imported += await importBlueskyPublicAuthorFeedProjections(
+						app,
+						userId,
+						dbChannel,
+						getBlueskyImportProjectionOrder(moderated.projections),
+						getBlueskyImportAdvancedSettings(importInput),
+						asyncOperation
+					);
+				}
 				projectedPostsCount += projections.length;
 				pages += 1;
 				cursor = preview.cursor;
@@ -302,6 +317,9 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				}
 			}
 			if (!dbChannel || !ownership) {
+				if (projectedPostsCount > 0) {
+					throw new Error('bluesky_migration_moderation_no_importable_posts');
+				}
 				throw new Error('bluesky_feed_empty');
 			}
 			return {
@@ -311,6 +329,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				dbChannel: getBlueskyImportChannelResult(dbChannel),
 				asyncOperation,
 				ownership,
+				moderation,
 				imported,
 				pages,
 				maxPages
@@ -2355,6 +2374,9 @@ function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQue
 	if (input.advancedSettings !== undefined) {
 		jobInput.advancedSettings = input.advancedSettings || {};
 	}
+	if (input.moderationPolicy !== undefined) {
+		jobInput.moderationPolicy = getBlueskySourceRefreshJobModerationPolicy(input.moderationPolicy);
+	}
 	return jobInput;
 }
 
@@ -2446,17 +2468,40 @@ function getBlueskyModeratedSourceProjections(
 	projections: IBlueskyPostProjection[]
 ) {
 	const policy = getBlueskySourceModerationPolicy(subscription, input);
+	const moderated = getBlueskyModeratedProjections(actor, input.groupName || subscription.groupName, policy, projections);
+	return {
+		projections: moderated.projections,
+		reviewProjections: moderated.skipped,
+		summary: moderated.summary
+	};
+}
+
+function getBlueskyModeratedMigrationProjections(
+	actor: string,
+	input: IBlueskyPublicAuthorFeedImportInput,
+	projections: IBlueskyPostProjection[]
+) {
+	const policy = getBlueskyInputModerationPolicy(input);
+	return getBlueskyModeratedProjections(actor, input.groupName || null, policy, projections);
+}
+
+function getBlueskyModeratedProjections(
+	actor: string,
+	groupName: string | null | undefined,
+	policy: IRemoteContentModerationPolicy,
+	projections: IBlueskyPostProjection[]
+) {
 	const decisions: IRemoteContentModerationDecision[] = [];
-	const reviewProjections: {projection: IBlueskyPostProjection; decision: IRemoteContentModerationDecision}[] = [];
+	const skipped: {projection: IBlueskyPostProjection; decision: IRemoteContentModerationDecision}[] = [];
 	const moderatedProjections = projections
 		.map((projection) => {
 			const decision = getBlueskyProjectionModerationDecision(projection, policy, {
 				actor,
-				groupName: input.groupName || subscription.groupName
+				groupName
 			});
 			decisions.push(decision);
 			if (!isRemoteContentModerationDecisionImportable(decision)) {
-				reviewProjections.push({projection, decision});
+				skipped.push({projection, decision});
 				return null;
 			}
 			return getBlueskyModeratedProjection(projection, decision);
@@ -2464,7 +2509,7 @@ function getBlueskyModeratedSourceProjections(
 		.filter(Boolean) as IBlueskyPostProjection[];
 	return {
 		projections: moderatedProjections,
-		reviewProjections,
+		skipped,
 		summary: getRemoteContentModerationSummary(decisions)
 	};
 }
@@ -2852,6 +2897,19 @@ function getEmptyRemoteContentModerationSummary(): IRemoteContentModerationSumma
 		quarantined: 0,
 		blocked: 0,
 		matches: 0
+	};
+}
+
+function getMergedRemoteContentModerationSummary(
+	left: IRemoteContentModerationSummary,
+	right: IRemoteContentModerationSummary
+): IRemoteContentModerationSummary {
+	return {
+		allowed: left.allowed + right.allowed,
+		review: left.review + right.review,
+		quarantined: left.quarantined + right.quarantined,
+		blocked: left.blocked + right.blocked,
+		matches: left.matches + right.matches
 	};
 }
 

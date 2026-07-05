@@ -387,6 +387,122 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('applies moderation before claimed Bluesky migration imports become visible', async () => {
+		const imports: any[] = [];
+		const asyncUpdates: any[] = [];
+		let closedOperation;
+		const accounts = getSocNetAccountModule([{
+			userId: 7,
+			socNet: 'bluesky',
+			accountId: 'did:plc:alice',
+			username: 'alice.bsky.social',
+			apiKey: 'app-password'
+		}]);
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/',
+					authApiOrigin: 'https://auth.example/'
+				}
+			},
+			ms: {
+				socNetAccount: accounts,
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					openImportAsyncOperation: async () => {
+						imports.push({method: 'openImportAsyncOperation'});
+						return {id: 44, channel: 'import-channel', inProcess: true};
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 1}, 'post');
+					}
+				},
+				asyncOperation: {
+					handleOperationCancel: async (userId, asyncOperationId) => {
+						asyncUpdates.push({method: 'handleOperationCancel', userId, asyncOperationId});
+					},
+					updateAsyncOperation: async (userId, asyncOperationId, percent) => {
+						asyncUpdates.push({method: 'updateAsyncOperation', userId, asyncOperationId, percent});
+					},
+					closeImportAsyncOperation: async (userId, asyncOperation, error) => {
+						closedOperation = {userId, asyncOperation, error};
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url) => {
+				if (String(url).includes('getAuthorFeed')) {
+					return {
+						ok: true,
+						json: async () => ({
+							cursor: null,
+							feed: [
+								getFeedItem('allowed', 'Allowed post', '2026-07-04T08:00:00.000Z'),
+								getFeedItem('spam', 'Spam post', '2026-07-04T07:59:00.000Z')
+							]
+						})
+					};
+				}
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						displayName: 'Alice'
+					})
+				};
+			}
+		});
+
+		const result = await module.importMigration(7, 12, {
+			actor: '@alice.bsky.social',
+			claimed: true,
+			accountData: {id: 1},
+			groupName: 'alice-migration',
+			moderationPolicy: {
+				rules: [{name: 'spam', value: 'spam'}]
+			}
+		});
+		await waitForBackgroundTasks();
+
+		assert.equal(result.projectedPostsCount, 2);
+		assert.deepEqual(result.moderation, {
+			allowed: 1,
+			review: 0,
+			quarantined: 0,
+			blocked: 1,
+			matches: 1
+		});
+		assert.equal(imports[2].method, 'importChannelPosts');
+		assert.equal(imports[2].client.messages.list.length, 1);
+		assert.equal(imports[2].client.messages.list[0].text, 'Allowed post');
+		assert.deepEqual(asyncUpdates, [
+			{method: 'handleOperationCancel', userId: 7, asyncOperationId: 44},
+			{method: 'updateAsyncOperation', userId: 7, asyncOperationId: 44, percent: 99}
+		]);
+		assert.deepEqual(closedOperation, {
+			userId: 7,
+			asyncOperation: {id: 44, channel: 'import-channel', inProcess: true},
+			error: null
+		});
+	});
+
 	it('queues claimed Bluesky migration imports through async operations without storing secrets', async () => {
 		const calls = getAsyncOperationCalls();
 		const checks: any[] = [];
@@ -475,6 +591,9 @@ describe('bluesky module', () => {
 			filter: 'posts_no_replies',
 			groupName: 'alice-migration',
 			force: 'true' as any,
+			moderationPolicy: {
+				rules: [{name: 'skip', value: 'not-in-feed'}]
+			},
 			maxPages: '2',
 			process: false
 		});
@@ -492,6 +611,15 @@ describe('bluesky module', () => {
 				limit: 2,
 				groupName: 'alice-migration',
 				force: true,
+				moderationPolicy: {
+					rules: [{
+						name: 'skip',
+						type: 'keyword',
+						field: 'text',
+						value: 'not-in-feed',
+						action: 'block'
+					}]
+				},
 				maxPages: 2
 			}
 		});
@@ -529,6 +657,13 @@ describe('bluesky module', () => {
 		assert.equal(calls.processedResults[0].imported, 3);
 		assert.equal(calls.processedResults[0].pages, 2);
 		assert.equal(calls.processedResults[0].maxPages, 2);
+		assert.deepEqual(calls.processedResults[0].moderation, {
+			allowed: 3,
+			review: 0,
+			quarantined: 0,
+			blocked: 0,
+			matches: 0
+		});
 		assert.equal(calls.processedResults[0].ownership.verified, true);
 
 		await assert.rejects(
