@@ -475,6 +475,49 @@ export interface IActivityPubMigrationImportQueueProcessResult {
 	processed: number;
 }
 
+export interface IActivityPubMigrationRelationReconcileInput {
+	groupId?: number | string;
+	groupName?: string;
+	sourceChannelId?: string | null;
+	limit?: number | string;
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+	allowCrossGroup?: boolean | string;
+	force?: boolean | string;
+	dryRun?: boolean | string;
+}
+
+export interface IActivityPubMigrationRelationReconcileRow {
+	postId: number;
+	sourcePostId?: string | null;
+	replyToId?: number | null;
+	repostOfId?: number | null;
+	updated?: boolean;
+	changes?: {
+		replyToId?: number | null;
+		repostOfId?: number | null;
+	};
+	skipped?: boolean;
+	reason?: string;
+}
+
+export interface IActivityPubMigrationRelationReconcileError {
+	postId?: number;
+	sourcePostId?: string | null;
+	message: string;
+}
+
+export interface IActivityPubMigrationRelationReconcileResult {
+	checked: number;
+	updated: number;
+	skipped: number;
+	failed: number;
+	dryRun: boolean;
+	rows: IActivityPubMigrationRelationReconcileRow[];
+	errors: IActivityPubMigrationRelationReconcileError[];
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
 export interface IActivityPubSourceRefreshResult {
 	source: IActivityPubSourceSubscriptionReport;
 	fetched: number;
@@ -787,6 +830,8 @@ export default interface IGeesomeActivityPubModule {
 	queueMigrationImport(userId: number, userApiKeyId?: number | null, input?: IActivityPubMigrationImportQueueInput): Promise<IUserOperationQueue>;
 
 	processMigrationImportQueue(options?: IActivityPubMigrationImportQueueProcessOptions): Promise<IActivityPubMigrationImportQueueProcessResult>;
+
+	reconcileMigrationRelations(userId: number, input?: IActivityPubMigrationRelationReconcileInput): Promise<IActivityPubMigrationRelationReconcileResult>;
 
 	getActivityPubSourceSubscriptions(userId: number, filters?: IActivityPubSourceSubscriptionFilters, listParams?: IListParams): Promise<IActivityPubSourceSubscriptionListResponse>;
 
