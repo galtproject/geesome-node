@@ -105,6 +105,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
 	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this batch.
 	 * @apiBody {Boolean} [async=false] Queue the import in the persistent async-operation queue instead of starting it immediately.
+	 * @apiBody {Number} [maxPages=1] Maximum author-feed pages for queued imports when `async=true`, capped at 25. Immediate imports always process one page.
 	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing when `async=true`.
 	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
 	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
