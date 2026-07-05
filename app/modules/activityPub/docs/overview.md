@@ -11,6 +11,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Delivery queue processing for outbound follows, follow accepts, and local post `Create(Note)` deliveries.
 - Remote-object caching, review state, sanitized previews, explicit local post draft/creation for accepted public Notes, tombstone/update handling, and attachment backup retries.
 - ActivityPub source resolve/subscribe/read/refresh flows, including optional source refresh worker and poller.
+- Deterministic migration-preview classification for public ActivityPub actor/outbox objects before a later write job imports a social page.
 
 ## Queue And Worker Boundaries
 
@@ -25,6 +26,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Do not send federation requests inline from post creation; enqueue delivery work.
 - Do not render raw remote HTML; use sanitized previews and canonical rich-text projection before import.
 - Do not let arbitrary unsolicited remote inbox activity become visible local content; apply verification, source identity, moderation policy, and filters first.
+- Do not treat ActivityPub migration previews as writes. They classify public `Create`, `Announce`, reply, quote, and mention context, but later import jobs still need moderation, source identity, idempotency, and bounded-page controls.
 - Do not mix ActivityPub signing keys with user chat/E2EE keys or Bluesky credentials.
 - Keep direct Bluesky/ATProto behavior in the `bluesky` module.
 

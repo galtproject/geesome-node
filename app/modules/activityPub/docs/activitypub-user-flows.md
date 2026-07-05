@@ -177,14 +177,15 @@ This flow is for a user who wants a simple path to bring an existing public Blue
    - Bluesky uses the stored `socNetAccount` DID match;
    - ActivityPub can start with admin-approved/public-source imports and should add a signed challenge or other explicit proof before automatic ownership claims.
 4. GeeSome previews a bounded page of public profile/outbox/feed records with counts for original posts, replies, reposts/reblogs, quotes, and referenced external actors/groups.
-5. User starts a resumable async migration job.
-6. GeeSome imports the migrating user's own public posts into the target GeeSome group while preserving original protocol identity, remote URL, timestamps, and import metadata.
-7. Replies, reposts/reblogs, quotes, and mentions keep their relation type. If the referenced item, author, or group is not local, GeeSome creates or reuses a remote source/group/account placeholder keyed by stable protocol identity:
+5. For ActivityPub sources, the backend preview helper classifies public `Create`, direct object, and `Announce` records into local posts versus remote context, creates stable actor/object placeholder keys, and sanitizes preview text so the UI can show what would happen without writing data.
+6. User starts a resumable async migration job.
+7. GeeSome imports the migrating user's own public posts into the target GeeSome group while preserving original protocol identity, remote URL, timestamps, and import metadata.
+8. Replies, reposts/reblogs, quotes, and mentions keep their relation type. If the referenced item, author, or group is not local, GeeSome creates or reuses a remote source/group/account placeholder keyed by stable protocol identity:
    - ActivityPub actor/object IDs;
    - ATProto DID, AT URI, and CID.
-8. Content authored by other people or groups stays remote-origin content. It can appear in the migrated personal timeline as context, but GeeSome must not rewrite it as a local post authored by the migrating user.
-9. If a remote placeholder later migrates to GeeSome, reconciliation links the placeholder to the new local group/account/posts by protocol identity so partial thread/history content becomes connected without duplicate posts.
-10. The job records progress, errors, and source cursors, dedupes by source identity, and can be safely rerun after backup/restore or partial failure.
+9. Content authored by other people or groups stays remote-origin content. It can appear in the migrated personal timeline as context, but GeeSome must not rewrite it as a local post authored by the migrating user.
+10. If a remote placeholder later migrates to GeeSome, reconciliation links the placeholder to the new local group/account/posts by protocol identity so partial thread/history content becomes connected without duplicate posts.
+11. The job records progress, errors, and source cursors, dedupes by source identity, and can be safely rerun after backup/restore or partial failure.
 
 Boundary: migration imports only public or explicitly authorized content. It must reuse moderation review/auto-import/filter rules, canonical rich-text conversion, source identity, update/delete semantics, and bounded-page async-job limits. Private messages, private followers-only posts, encrypted content, and unproven ownership claims stay out of the first migration path.
 
