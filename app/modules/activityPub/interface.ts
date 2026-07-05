@@ -3,6 +3,7 @@ import type {IContentData, IListParams} from '../database/interface.js';
 import type {IUserOperationQueue} from '../asyncOperation/interface.js';
 import type {RichTextDocument} from '../../richText.js';
 import type {IActivityPubMigrationPreview} from './migration.js';
+import type {IRemoteContentModerationPolicyInput, IRemoteContentModerationSummary} from '../remoteContentModeration/helpers.js';
 
 export interface IActivityPubConfig {
 	enabled?: boolean | string;
@@ -445,11 +446,21 @@ export interface IActivityPubMigrationPreviewResult extends IActivityPubMigratio
 
 export interface IActivityPubMigrationImportInput extends IActivityPubMigrationPreviewInput {
 	async?: boolean | string;
+	createPosts?: boolean | string;
+	groupName?: string;
+	importRemoteAttachments?: boolean | string;
+	moderationMode?: string | null;
+	moderationPolicy?: IRemoteContentModerationPolicyInput;
+	moderationRules?: any[] | null;
+	ownershipApproved?: boolean | string;
 	process?: boolean | string;
 }
 
 export interface IActivityPubMigrationImportResult extends IActivityPubMigrationPreviewResult {
 	cached: number;
+	created: number;
+	moderation?: IRemoteContentModerationSummary;
+	postIds: number[];
 	skipped: number;
 	remoteObjectIds: number[];
 }
