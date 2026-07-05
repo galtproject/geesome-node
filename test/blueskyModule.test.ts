@@ -387,6 +387,134 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('queues claimed Bluesky migration imports through async operations without storing secrets', async () => {
+		const calls = getAsyncOperationCalls();
+		const checks: any[] = [];
+		const imports: any[] = [];
+		const accounts = getSocNetAccountModule([{
+			userId: 7,
+			socNet: 'bluesky',
+			accountId: 'did:plc:alice',
+			username: 'alice.bsky.social',
+			apiKey: 'app-password'
+		}]);
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/',
+					authApiOrigin: 'https://auth.example/'
+				}
+			},
+			ms: {
+				asyncOperation: getAsyncOperationModule(calls),
+				socNetAccount: accounts,
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						assert.equal(client.messages.list.length, 2);
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 1}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async (userId, permission) => {
+				checks.push({userId, permission});
+			}
+		} as any, {
+			fetch: async (url) => {
+				if (String(url).includes('getAuthorFeed')) {
+					return {
+						ok: true,
+						json: async () => getTwoPostAuthorFeedFixture()
+					};
+				}
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						displayName: 'Alice'
+					})
+				};
+			}
+		});
+
+		const queue = await module.queueMigrationImport(7, 13, {
+			actor: '@alice.bsky.social',
+			claimed: true,
+			accountData: {id: '1'},
+			appPassword: '',
+			limit: '2' as any,
+			filter: 'posts_no_replies',
+			groupName: 'alice-migration',
+			force: 'true' as any,
+			process: false
+		});
+		const processResult = await module.processMigrationImportQueue({limit: 1});
+
+		assert.equal(queue.module, 'bluesky-migration-import');
+		assert.equal(queue.userApiKeyId, 13);
+		assert.deepEqual(JSON.parse(queue.inputJson), {
+			type: 'migration-import',
+			input: {
+				actor: 'alice.bsky.social',
+				claimed: true,
+				accountData: {id: 1},
+				filter: 'posts_no_replies',
+				limit: 2,
+				groupName: 'alice-migration',
+				force: true
+			}
+		});
+		assert.deepEqual(processResult, {processed: 1});
+		assert.deepEqual(calls.asyncOperations[0], {
+			id: 1,
+			userId: 7,
+			module: 'bluesky-migration-import',
+			name: 'import-bluesky-migration',
+			channel: 'bluesky-migration-import:alice.bsky.social',
+			percent: 5
+		});
+		assert.deepEqual(checks, [
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement}
+		]);
+		assert.equal(imports[0].method, 'importChannelMetadata');
+		assert.equal(imports[0].args[2], 1);
+		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.deepEqual(calls.asyncOperationProgress, [
+			{userId: 7, asyncOperationId: 1, percent: 50}
+		]);
+		assert.equal(calls.processedResults[0].actor, 'alice.bsky.social');
+		assert.equal(calls.processedResults[0].imported, 1);
+		assert.equal(calls.processedResults[0].ownership.verified, true);
+
+		await assert.rejects(
+			() => module.queueMigrationImport(7, 13, {
+				actor: '@alice.bsky.social',
+				claimed: true,
+				accountData: {id: 1},
+				appPassword: 'do-not-store',
+				process: false
+			}),
+			/bluesky_migration_queue_secret_not_supported/
+		);
+	});
+
 	it('rejects claimed Bluesky migration imports when the stored account does not own the actor', async () => {
 		const imports: any[] = [];
 		const accounts = getSocNetAccountModule([{
@@ -2924,6 +3052,10 @@ describe('bluesky module', () => {
 					asyncOperation: {id: 44}
 				};
 			},
+			queueMigrationImport: async (userId, userApiKeyId, input) => {
+				moduleCalls.push({method: 'queueMigrationImport', userId, userApiKeyId, input});
+				return {id: 45, module: 'bluesky-migration-import', userApiKeyId};
+			},
 			crossPostPost: async (userId, postId, input) => {
 				moduleCalls.push({method: 'crossPostPost', userId, postId, input});
 				return {
@@ -2970,6 +3102,11 @@ describe('bluesky module', () => {
 			apiKey: {id: 12},
 			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page'}
 		});
+		const migrationImportAsyncResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/migration/import-async', {
+			user: {id: 7},
+			apiKey: {id: 12},
+			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', process: false}
+		});
 		const crossPostResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/posts/:postId/cross-post', {
 			user: {id: 7},
 			params: {postId: '44'},
@@ -2991,6 +3128,7 @@ describe('bluesky module', () => {
 			{method: 'verifyAccount', userId: 7, input: {accountData: {id: 3}}},
 			{method: 'getMigrationPreview', userId: 7, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}}},
 			{method: 'importMigration', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page'}},
+			{method: 'queueMigrationImport', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', process: false}},
 			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'updateCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'deleteCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}
@@ -3004,6 +3142,7 @@ describe('bluesky module', () => {
 			ownership: {verified: true},
 			asyncOperation: {id: 44}
 		});
+		assert.deepEqual(migrationImportAsyncResponse.body, {id: 45, module: 'bluesky-migration-import', userApiKeyId: 12});
 		assert.deepEqual(crossPostResponse.body, {
 			record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
 			alreadyExists: false

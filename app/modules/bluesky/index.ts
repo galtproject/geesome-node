@@ -63,6 +63,9 @@ import IGeesomeBlueskyModule, {
 	IBlueskyDeleteCrossPostInput,
 	IBlueskyDeleteCrossPostResult,
 	IBlueskyMigrationImportInput,
+	IBlueskyMigrationImportQueueInput,
+	IBlueskyMigrationImportQueueProcessOptions,
+	IBlueskyMigrationImportQueueProcessResult,
 	IBlueskyMigrationImportResult,
 	IBlueskyMigrationPreviewInput,
 	IBlueskyMigrationPreviewResult,
@@ -86,6 +89,8 @@ import IGeesomeBlueskyModule, {
 	IBlueskyUpdateCrossPostResult
 } from './interface.js';
 
+const blueskyMigrationImportQueueModuleName = 'bluesky-migration-import';
+const blueskyMigrationImportQueueKickBatchLimit = 3;
 const blueskySourceRefreshQueueModuleName = 'bluesky-source-refresh';
 const blueskySourceRefreshQueueKickBatchLimit = 3;
 const blueskySourceRefreshPollDefaultLimit = 20;
@@ -198,6 +203,86 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			return {
 				...importResult,
 				ownership: migrationPreview.ownership
+			};
+		}
+
+		async queueMigrationImport(userId: number, userApiKeyId: number | null = null, input: IBlueskyMigrationImportQueueInput = {}) {
+			app.checkModules(['asyncOperation']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				blueskyMigrationImportQueueModuleName,
+				userApiKeyId,
+				getBlueskyMigrationImportJobInput(input)
+			);
+			if (helpers.parseBoolean(input?.process, true)) {
+				this.startMigrationImportQueueProcessing();
+			}
+			return queue;
+		}
+
+		startMigrationImportQueueProcessing(options: IBlueskyMigrationImportQueueProcessOptions = {}) {
+			const limit = helpers.parsePositiveInteger(options.limit, blueskyMigrationImportQueueKickBatchLimit);
+			void this.processMigrationImportQueue({limit}).catch((e) => {
+				console.error('processBlueskyMigrationImportQueue error', e);
+			});
+		}
+
+		async processMigrationImportQueue(options: IBlueskyMigrationImportQueueProcessOptions = {}): Promise<IBlueskyMigrationImportQueueProcessResult> {
+			app.checkModules(['asyncOperation']);
+			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+			return app.ms.asyncOperation.processModuleOperationQueue(blueskyMigrationImportQueueModuleName, {
+				limit,
+				getPayload: (waitingQueue) => parseBlueskyMigrationImportJob(waitingQueue.inputJson),
+				getAsyncOperationData: (_waitingQueue, job) => ({
+					name: 'import-bluesky-migration',
+					channel: getBlueskyMigrationImportJobChannel(job),
+					percent: 5
+				}),
+				run: (waitingQueue, asyncOperation, job) => this.processMigrationImportQueueJob(waitingQueue.userId, waitingQueue.userApiKeyId || null, job.input, asyncOperation)
+			});
+		}
+
+		async processMigrationImportQueueJob(userId: number, userApiKeyId: number | null, input: IBlueskyMigrationImportInput, asyncOperation): Promise<IBlueskyMigrationImportResult & {imported: number}> {
+			if (!helpers.parseBoolean(input.claimed, false)) {
+				throw new Error('bluesky_migration_claim_required');
+			}
+			const accountVerification = await this.verifyAccount(userId, input);
+			const preview = await this.getPublicAuthorFeedPreview(input);
+			const migrationPreview = createBlueskyMigrationPreview({
+				actor: preview.actor,
+				projections: preview.list,
+				claimed: true,
+				accountDid: accountVerification.did,
+				accountHandle: accountVerification.handle || accountVerification.profile?.handle || null
+			});
+			if (!migrationPreview.ownership.verified) {
+				throw new Error(migrationPreview.ownership.reason || 'bluesky_migration_account_mismatch');
+			}
+			const importInput = getBlueskyMigrationImportInput(input, accountVerification);
+			app.checkModules(['asyncOperation', 'group', 'content', 'socNetImport']);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const projections = preview.list;
+			if (projections.length === 0) {
+				throw new Error('bluesky_feed_empty');
+			}
+			const dbChannel = await this.importPublicAuthorChannel(userId, importInput, preview.actor, projections[0]);
+			const imported = await importBlueskyPublicAuthorFeedProjections(
+				app,
+				userId,
+				dbChannel,
+				getBlueskyImportProjectionOrder(projections),
+				getBlueskyImportAdvancedSettings(importInput),
+				asyncOperation
+			);
+			return {
+				actor: preview.actor,
+				cursor: preview.cursor,
+				projectedPostsCount: projections.length,
+				dbChannel: getBlueskyImportChannelResult(dbChannel),
+				asyncOperation,
+				ownership: migrationPreview.ownership,
+				imported
 			};
 		}
 
@@ -2180,6 +2265,94 @@ function getBlueskySourceRefreshResult(
 	};
 }
 
+function getBlueskyMigrationImportJobInput(input: IBlueskyMigrationImportQueueInput = {}) {
+	return {
+		type: 'migration-import',
+		input: getBlueskyMigrationImportJobInputData(input)
+	};
+}
+
+function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQueueInput): IBlueskyMigrationImportInput {
+	if (!helpers.parseBoolean(input.claimed, false)) {
+		throw new Error('bluesky_migration_claim_required');
+	}
+	assertNoBlueskyMigrationQueueSecrets(input);
+	const jobInput: IBlueskyMigrationImportInput = {
+		actor: getRequiredBlueskyActor(input),
+		claimed: true
+	};
+	const accountData = getBlueskyMigrationQueueAccountData(input.accountData);
+	if (accountData) {
+		jobInput.accountData = accountData;
+	}
+	if (Object.prototype.hasOwnProperty.call(input, 'cursor')) {
+		const cursor = getOptionalString(input.cursor);
+		if (cursor) {
+			jobInput.cursor = cursor;
+		}
+	}
+	if (input.filter !== undefined) {
+		const filter = getOptionalBlueskySourceFilter(input.filter);
+		if (filter) {
+			jobInput.filter = filter;
+		}
+	}
+	if (input.limit !== undefined) {
+		const limit = getNullableImportLimit(input.limit);
+		if (limit) {
+			jobInput.limit = limit;
+		}
+	}
+	if (input.groupName !== undefined) {
+		const groupName = getOptionalString(input.groupName);
+		if (groupName) {
+			jobInput.groupName = groupName;
+		}
+	}
+	if (input.force !== undefined) {
+		jobInput.force = helpers.parseBoolean(input.force, false);
+	}
+	if (input.mergeSeconds !== undefined) {
+		const mergeSeconds = getNullablePositiveInteger(input.mergeSeconds);
+		if (mergeSeconds) {
+			jobInput.mergeSeconds = mergeSeconds;
+		}
+	}
+	if (input.advancedSettings !== undefined) {
+		jobInput.advancedSettings = input.advancedSettings || {};
+	}
+	return jobInput;
+}
+
+function assertNoBlueskyMigrationQueueSecrets(input: IBlueskyMigrationImportQueueInput): void {
+	if (getOptionalString(input.password) || getOptionalString(input.appPassword) || getOptionalString(input.apiKey)) {
+		throw new Error('bluesky_migration_queue_secret_not_supported');
+	}
+}
+
+function getBlueskyMigrationQueueAccountData(accountData: any): any {
+	if (!accountData || typeof accountData !== 'object') {
+		return undefined;
+	}
+	const result = {};
+	const id = getNullablePositiveInteger(accountData.id);
+	if (id) {
+		result['id'] = id;
+	}
+	const accountId = getOptionalString(accountData.accountId);
+	if (accountId) {
+		result['accountId'] = accountId;
+	}
+	const username = getOptionalString(accountData.username);
+	if (username) {
+		result['username'] = username;
+	}
+	if (Object.keys(result).length === 0) {
+		return undefined;
+	}
+	return result;
+}
+
 function getBlueskySourceRefreshJobInput(subscription, input: IBlueskySourceRefreshQueueInput = {}) {
 	return {
 		type: 'source-refresh',
@@ -2628,6 +2801,21 @@ function getEmptyRemoteContentModerationSummary(): IRemoteContentModerationSumma
 		blocked: 0,
 		matches: 0
 	};
+}
+
+function parseBlueskyMigrationImportJob(inputJson: string) {
+	const job = JSON.parse(inputJson || '{}');
+	if (job.type !== 'migration-import') {
+		throw new Error('bluesky_migration_import_job_invalid');
+	}
+	return {
+		type: 'migration-import',
+		input: getBlueskyMigrationImportJobInputData(job.input || {})
+	};
+}
+
+function getBlueskyMigrationImportJobChannel(job): string {
+	return `bluesky-migration-import:${job.input.actor}`;
 }
 
 function parseBlueskySourceRefreshJob(inputJson: string) {
