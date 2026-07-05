@@ -2,12 +2,12 @@
 
 ## Purpose
 
-The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, credentialed account verification, first-pass local post cross-posting, local GeeSome feed reading, and the planned Bluesky side of remote social-page migration.
+The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, credentialed account verification, first-pass local post cross-posting, local GeeSome feed reading, and migration-preview helpers for the Bluesky side of remote social-page migration.
 
 ## Owns
 
 - Public Bluesky author-feed preview through configured public XRPC origin/timeout.
-- Projection of ATProto posts into canonical rich text, source identity, replies, and embed metadata.
+- Projection of ATProto posts into canonical rich text, source identity, replies, reposts, quotes, and embed metadata, including import-property preservation for that context.
 - One-page public feed import through the shared `socNetImport` pipeline.
 - Per-user source subscriptions with actor, filter, display name, local group name, account ID, import limit, moderation mode/rules, cursor, and error state.
 - Manual refresh, queued refresh, due-subscription polling, and source-feed reads over already-imported GeeSome posts through the linked social-import channel.
@@ -19,7 +19,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - User-scoped text/rich-text, supported-image, storage-backed attachment link, safe JSON link-preview, reply, and quote cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion, relation targets resolved only from stored/imported Bluesky URI/CID metadata, and per-account URI/CID idempotency stored in post `propertiesJson`.
 - User-scoped in-place update of stored Bluesky cross-post records through `com.atproto.repo.putRecord`, with stored URI ownership checks, rkey reuse, stored CID `swapRecord`, and per-DID metadata refresh.
 - User-scoped deletion of stored Bluesky cross-post records through `com.atproto.repo.deleteRecord`, with stored URI ownership checks and per-DID metadata cleanup.
-- Planned personal-page migration from Bluesky accounts into GeeSome personal groups: bounded public feed/profile import, ownership proof through `socNetAccount` DID for claimed migrations, relation preservation for replies/reposts/quotes, remote placeholders for referenced actors/groups, and later reconciliation by DID/AT URI/CID.
+- Migration preview for Bluesky accounts into GeeSome personal groups: bounded public feed/profile projection, ownership proof through `socNetAccount` DID for claimed migrations, relation preservation for replies/reposts/quotes, remote placeholders for referenced actors/groups, and later reconciliation by DID/AT URI/CID.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries

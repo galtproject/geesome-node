@@ -265,6 +265,8 @@ function getBlueskyMessageProperties(m: IBlueskyImportMessage, type: string): an
 		indexedAt: m.indexedAt,
 		langs: m.langs,
 		reply: m.reply,
+		repost: m.repost,
+		quote: m.quote,
 		embed: m.embed,
 		facetsCount: m.facetsCount
 	};

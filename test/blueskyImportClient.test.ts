@@ -83,6 +83,8 @@ describe('bluesky import client', () => {
 		assert.equal(properties.bluesky.uri, replyMessage.uri);
 		assert.equal(properties.bluesky.sourceIdentity.sourcePostId, replyMessage.uri);
 		assert.equal(properties.bluesky.reply.parentUri, rootMessage.uri);
+		assert.equal(properties.bluesky.repost, null);
+		assert.equal(properties.bluesky.quote, null);
 	});
 
 	it('does not link replies to parents from a different channel', async () => {
