@@ -150,7 +150,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Fetches a bounded public ActivityPub actor `featured` and/or `outbox` page and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders that a later migration job can reconcile. When `claimed=true`, ownership remains unverified until a later ActivityPub signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, or federate ActivityPub requests.
+	 * @apiDescription Fetches bounded public ActivityPub actor `featured` and/or `outbox` pages and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders that a later migration job can reconcile. When `claimed=true`, ownership remains unverified until a later ActivityPub signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, or federate ActivityPub requests.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
@@ -158,6 +158,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
 	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
 	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
+	 * @apiBody {Number} [maxPages=1] Maximum ActivityPub collection pages to inspect per selected collection, capped at 25.
 	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
 	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
 	 * @apiSuccess {String} actor ActivityPub actor id used for migration ownership classification.
@@ -169,6 +170,9 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {Object[]} list Migration preview items with sanitized preview data and placeholder keys.
 	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context.
 	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} pages Number of ActivityPub collection pages inspected.
+	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.
+	 * @apiSuccess {Boolean} hasMore Whether at least one inspected collection had another page beyond the configured limit.
 	 * @apiSuccess {String[]} errors Bounded fetch/preview errors encountered while building the preview.
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/preview', async (req, res) => {
@@ -183,7 +187,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` page as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. This is the first write job for ActivityPub migration, but it intentionally does not create visible GeeSome posts yet because claimed ActivityPub ownership is still unverified until a signed challenge or admin-approved proof exists. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, and actor-mismatched objects are skipped and reported. Use `async=true` to enqueue the same bounded cache job in the persistent async-operation queue.
+	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` pages as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. This is the first write job for ActivityPub migration, but it intentionally does not create visible GeeSome posts yet because claimed ActivityPub ownership is still unverified until a signed challenge or admin-approved proof exists. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, and actor-mismatched objects are skipped and reported. Use `async=true` to enqueue the same bounded cache job in the persistent async-operation queue.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
@@ -191,6 +195,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
 	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page. The current job records the unverified ownership report but does not create visible posts from it.
 	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
+	 * @apiBody {Number} [maxPages=1] Maximum ActivityPub collection pages to inspect per selected collection, capped at 25.
 	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
 	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
 	 * @apiBody {Boolean} [async=false] Queue the import in the persistent async-operation queue instead of processing it immediately.
@@ -200,6 +205,9 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
 	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
 	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} pages Number of ActivityPub collection pages inspected.
+	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.
+	 * @apiSuccess {Boolean} hasMore Whether at least one inspected collection had another page beyond the configured limit.
 	 * @apiSuccess {Number} cached Number of remote-object candidates cached.
 	 * @apiSuccess {Number} skipped Number of fetched items skipped before caching.
 	 * @apiSuccess {Number[]} remoteObjectIds Cached ActivityPub remote-object ids.

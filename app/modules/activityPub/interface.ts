@@ -429,6 +429,7 @@ export interface IActivityPubSourceRefreshInput {
 
 export interface IActivityPubMigrationPreviewInput extends IActivityPubSourceResolveInput, IActivityPubSourceRefreshInput {
 	claimed?: boolean | string;
+	maxPages?: number | string;
 }
 
 export interface IActivityPubMigrationPreviewResult extends IActivityPubMigrationPreview {
@@ -436,6 +437,9 @@ export interface IActivityPubMigrationPreviewResult extends IActivityPubMigratio
 	sourceResource?: string;
 	bridgeProvider?: string;
 	fetched: number;
+	pages: number;
+	maxPages: number;
+	hasMore: boolean;
 	errors: string[];
 }
 

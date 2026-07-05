@@ -757,6 +757,90 @@ describe('activityPub module', () => {
 		]);
 	});
 
+	it('walks bounded ActivityPub migration pages when maxPages is set', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchJsonCalls: string[] = [];
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const firstObject = {
+			id: 'https://remote.example/objects/page-1',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Page 1</p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const secondObject = {
+			id: 'https://remote.example/objects/page-2',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Page 2</p>',
+			published: '2026-06-02T12:01:00Z'
+		};
+		const thirdObject = {
+			id: 'https://remote.example/objects/page-3',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Page 3</p>',
+			published: '2026-06-02T12:02:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				first: 'https://remote.example/users/alice/outbox?page=1'
+			},
+			'https://remote.example/users/alice/outbox?page=1': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [firstObject],
+				next: 'https://remote.example/users/alice/outbox?page=2'
+			},
+			'https://remote.example/users/alice/outbox?page=2': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [secondObject],
+				next: 'https://remote.example/users/alice/outbox?page=3'
+			},
+			'https://remote.example/users/alice/outbox?page=3': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [thirdObject]
+			}
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => {
+				fetchJsonCalls.push(url);
+				return sourceJsonByUrl[url];
+			}
+		});
+
+		const result = await module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			includeFeatured: false,
+			limit: 10,
+			maxPages: 2
+		});
+
+		assert.deepEqual(fetchJsonCalls, [
+			'https://remote.example/users/alice/outbox',
+			'https://remote.example/users/alice/outbox?page=1',
+			'https://remote.example/users/alice/outbox?page=2'
+		]);
+		assert.equal(result.fetched, 2);
+		assert.equal(result.pages, 2);
+		assert.equal(result.maxPages, 2);
+		assert.equal(result.hasMore, true);
+		assert.equal(result.cached, 2);
+		assert.deepEqual(result.remoteObjectIds, [1, 2]);
+		assert.deepEqual(models.ActivityPubObject.rows.map(row => row.objectId), [
+			firstObject.id,
+			secondObject.id
+		]);
+	});
+
 	it('queues ActivityPub migration candidate imports through async operations', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const actorDocument = {
@@ -785,6 +869,7 @@ describe('activityPub module', () => {
 			actorUrl: remoteActorKey.actorUrl,
 			claimed: 'true',
 			limit: '1',
+			maxPages: '2',
 			includeFeatured: 'false',
 			process: false
 		});
@@ -799,6 +884,7 @@ describe('activityPub module', () => {
 				actorUrl: remoteActorKey.actorUrl,
 				claimed: true,
 				limit: 1,
+				maxPages: 2,
 				includeFeatured: false
 			}
 		});

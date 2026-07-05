@@ -11,7 +11,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Delivery queue processing for outbound follows, follow accepts, and local post `Create(Note)` deliveries.
 - Remote-object caching, review state, sanitized previews, explicit local post draft/creation for accepted public Notes, tombstone/update handling, and attachment backup retries.
 - ActivityPub source resolve/subscribe/read/refresh flows, including optional source refresh worker and poller.
-- ActivityPub migration preview/import-candidate APIs that resolve a public source actor, fetch bounded `featured`/`outbox` items, classify them, and cache eligible own-authored public remote-object candidates without creating visible GeeSome posts.
+- ActivityPub migration preview/import-candidate APIs that resolve a public source actor, fetch bounded `featured`/`outbox` pages with explicit `maxPages` controls, classify them, and cache eligible own-authored public remote-object candidates without creating visible GeeSome posts.
 
 ## Queue And Worker Boundaries
 
