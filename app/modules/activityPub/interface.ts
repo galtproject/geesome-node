@@ -439,6 +439,27 @@ export interface IActivityPubMigrationPreviewResult extends IActivityPubMigratio
 	errors: string[];
 }
 
+export interface IActivityPubMigrationImportInput extends IActivityPubMigrationPreviewInput {
+	async?: boolean | string;
+	process?: boolean | string;
+}
+
+export interface IActivityPubMigrationImportResult extends IActivityPubMigrationPreviewResult {
+	cached: number;
+	skipped: number;
+	remoteObjectIds: number[];
+}
+
+export interface IActivityPubMigrationImportQueueInput extends IActivityPubMigrationImportInput {}
+
+export interface IActivityPubMigrationImportQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubMigrationImportQueueProcessResult {
+	processed: number;
+}
+
 export interface IActivityPubSourceRefreshResult {
 	source: IActivityPubSourceSubscriptionReport;
 	fetched: number;
@@ -745,6 +766,12 @@ export default interface IGeesomeActivityPubModule {
 	resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult>;
 
 	getMigrationPreview(userId: number, input?: IActivityPubMigrationPreviewInput): Promise<IActivityPubMigrationPreviewResult>;
+
+	importMigration(userId: number, input?: IActivityPubMigrationImportInput): Promise<IActivityPubMigrationImportResult>;
+
+	queueMigrationImport(userId: number, userApiKeyId?: number | null, input?: IActivityPubMigrationImportQueueInput): Promise<IUserOperationQueue>;
+
+	processMigrationImportQueue(options?: IActivityPubMigrationImportQueueProcessOptions): Promise<IActivityPubMigrationImportQueueProcessResult>;
 
 	getActivityPubSourceSubscriptions(userId: number, filters?: IActivityPubSourceSubscriptionFilters, listParams?: IListParams): Promise<IActivityPubSourceSubscriptionListResponse>;
 

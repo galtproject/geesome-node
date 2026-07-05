@@ -3,7 +3,7 @@ import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
 import {RICH_TEXT_MIME_TYPE, htmlToRichText} from '../../richText.js';
-import {ContentView} from '../database/interface.js';
+import {ContentView, CorePermissionName} from '../database/interface.js';
 import type {IContent, IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
@@ -23,6 +23,11 @@ import IGeesomeActivityPubModule, {
 	IActivityPubFlagReportTarget,
 	IActivityPubMigrationPreviewInput,
 	IActivityPubMigrationPreviewResult,
+	IActivityPubMigrationImportInput,
+	IActivityPubMigrationImportQueueInput,
+	IActivityPubMigrationImportQueueProcessOptions,
+	IActivityPubMigrationImportQueueProcessResult,
+	IActivityPubMigrationImportResult,
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
@@ -68,6 +73,7 @@ import IGeesomeActivityPubModule, {
 	IResolvedActivityPubConfig
 } from './interface.js';
 import {
+	activityPubPublicCollection,
 	buildActivityPubNodeInfoDiscoveryResponse,
 	buildActivityPubNodeInfoResponse,
 	buildActivityPubGroupWebFingerResponse,
@@ -157,6 +163,10 @@ type IActivityPubSourceRefreshJob = {
 	sourceId: number;
 	input: IActivityPubSourceRefreshInput;
 };
+type IActivityPubMigrationImportJob = {
+	type: 'migration-import';
+	input: IActivityPubMigrationImportQueueInput;
+};
 type IActivityPubRemoteAttachmentBackupFailure = {
 	url: string;
 	errorMessage: string;
@@ -211,6 +221,8 @@ const activityPubRemoteAttachmentBackupQueueKickBatchLimit = 3;
 const activityPubRemoteAttachmentBackupQueueMaxAttempts = 5;
 const activityPubSourceRefreshQueueModuleName = 'activitypub-source-refresh';
 const activityPubSourceRefreshQueueKickBatchLimit = 3;
+const activityPubMigrationImportQueueModuleName = 'activitypub-migration-import';
+const activityPubMigrationImportQueueKickBatchLimit = 3;
 const activityPubSourceRefreshPollDefaultLimit = 20;
 const activityPubSourceRefreshPollDefaultStaleMs = 15 * 60 * 1000;
 const activityPubMigrationPreviewDefaultLimit = 20;
@@ -357,6 +369,49 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		async getMigrationPreview(_userId: number, input: IActivityPubMigrationPreviewInput = {}): Promise<IActivityPubMigrationPreviewResult> {
 			getResolvedActivityPubConfig(app);
 			return getActivityPubMigrationPreview(input, options);
+		}
+
+		async importMigration(userId: number, input: IActivityPubMigrationImportInput = {}): Promise<IActivityPubMigrationImportResult> {
+			getResolvedActivityPubConfig(app);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			return importActivityPubMigration(models, input, options);
+		}
+
+		async queueMigrationImport(userId: number, userApiKeyId: number | null = null, input: IActivityPubMigrationImportQueueInput = {}) {
+			getResolvedActivityPubConfig(app);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				activityPubMigrationImportQueueModuleName,
+				userApiKeyId,
+				getActivityPubMigrationImportJobInput(input)
+			);
+			if (helpers.parseBoolean(input?.process, true)) {
+				this.startMigrationImportQueueProcessing();
+			}
+			return queue;
+		}
+
+		startMigrationImportQueueProcessing(options: IActivityPubMigrationImportQueueProcessOptions = {}) {
+			const limit = helpers.parsePositiveInteger(options.limit, activityPubMigrationImportQueueKickBatchLimit);
+			void this.processMigrationImportQueue({limit}).catch((e) => {
+				console.error('processActivityPubMigrationImportQueue error', e);
+			});
+		}
+
+		async processMigrationImportQueue(options: IActivityPubMigrationImportQueueProcessOptions = {}): Promise<IActivityPubMigrationImportQueueProcessResult> {
+			getResolvedActivityPubConfig(app);
+			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
+			return app.ms.asyncOperation.processModuleOperationQueue(activityPubMigrationImportQueueModuleName, {
+				limit,
+				getPayload: (waitingQueue) => parseActivityPubMigrationImportJob(waitingQueue.inputJson),
+				getAsyncOperationData: (_waitingQueue, job) => ({
+					name: 'import-activitypub-migration',
+					channel: getActivityPubMigrationImportJobChannel(job),
+					percent: 5
+				}),
+				run: (waitingQueue, _asyncOperation, job) => this.importMigration(waitingQueue.userId, job.input)
+			});
 		}
 
 		async getActivityPubSourceSubscriptions(userId: number, filters: IActivityPubSourceSubscriptionFilters = {}, listParams: IListParams = {}): Promise<IActivityPubSourceSubscriptionListResponse> {
@@ -1123,20 +1178,91 @@ async function getActivityPubSourceResolveResult(models, input: IActivityPubSour
 }
 
 async function getActivityPubMigrationPreview(input: IActivityPubMigrationPreviewInput, options: IActivityPubModuleOptions): Promise<IActivityPubMigrationPreviewResult> {
-	const lookup = await getActivityPubSourceLookup(input, options);
-	const actorDocument = await getActivityPubMigrationPreviewActorDocument(lookup.actorUrl, options);
+	const context = await getActivityPubMigrationPreviewContext(input, options);
+	return {
+		...context.preview,
+		sourceActorUrl: context.actor,
+		sourceResource: context.lookup.sourceResource,
+		bridgeProvider: getActivityPubMigrationPreviewBridgeProvider(input, context.lookup.sourceResource, context.actor),
+		fetched: context.fetched,
+		errors: context.errors
+	};
+}
+
+async function importActivityPubMigration(
+	models,
+	input: IActivityPubMigrationImportInput,
+	options: IActivityPubModuleOptions
+): Promise<IActivityPubMigrationImportResult> {
+	const resolution = await getActivityPubSourceResolution(models, input, options);
+	const actorDocument = parseActivityPubJson(resolution.remoteActorRecord.rawJson);
+	if (!actorDocument || typeof actorDocument !== 'object' || Array.isArray(actorDocument)) {
+		throwActivityPubError('activitypub_migration_actor_document_invalid', 401);
+	}
+	const context = await getActivityPubMigrationPreviewContext(input, options, {
+		actorUrl: resolution.sourceActorUrl,
+		sourceResource: resolution.sourceResource,
+		actorDocument
+	});
+	const remoteObjectIds: number[] = [];
+	let skipped = 0;
+	const errors = [...context.errors];
+
+	for (let index = 0; index < context.items.length; index += 1) {
+		const previewItem = context.preview.list[index];
+		if (previewItem?.importKind !== 'localPost') {
+			skipped += 1;
+			continue;
+		}
+		try {
+			const cacheInput = getActivityPubMigrationObjectCacheInput(resolution.remoteActorRecord, context.items[index]);
+			if (!cacheInput) {
+				skipped += 1;
+				continue;
+			}
+			const objectRecord = await syncRemoteActivityPubObject(models, cacheInput);
+			remoteObjectIds.push(objectRecord.id);
+		} catch (e) {
+			skipped += 1;
+			errors.push(getActivityPubMigrationPreviewErrorMessage(e));
+		}
+	}
+
+	return {
+		...context.preview,
+		sourceActorUrl: context.actor,
+		sourceResource: resolution.sourceResource,
+		bridgeProvider: resolution.bridgeProvider,
+		fetched: context.fetched,
+		errors,
+		cached: remoteObjectIds.length,
+		skipped,
+		remoteObjectIds
+	};
+}
+
+async function getActivityPubMigrationPreviewContext(
+	input: IActivityPubMigrationPreviewInput,
+	options: IActivityPubModuleOptions,
+	resolvedInput: {actorUrl?: string; sourceResource?: string; actorDocument?: any} = {}
+) {
+	const lookup = resolvedInput.actorUrl
+		? {actorUrl: resolvedInput.actorUrl, sourceResource: resolvedInput.sourceResource}
+		: await getActivityPubSourceLookup(input, options);
+	const actorDocument = resolvedInput.actorDocument || await getActivityPubMigrationPreviewActorDocument(lookup.actorUrl, options);
 	const actor = getActivityPubMigrationPreviewActorUrl(lookup.actorUrl, actorDocument);
 	const items = await getActivityPubMigrationPreviewItems(actorDocument, input, options);
 	return {
-		...createActivityPubMigrationPreview({
+		lookup,
+		actorDocument,
+		actor,
+		items: items.list,
+		preview: createActivityPubMigrationPreview({
 			actor,
 			actorDocument,
 			items: items.list,
 			claimed: helpers.parseBoolean(input?.claimed, false)
 		}),
-		sourceActorUrl: actor,
-		sourceResource: lookup.sourceResource,
-		bridgeProvider: getActivityPubMigrationPreviewBridgeProvider(input, lookup.sourceResource, actor),
 		fetched: items.fetched,
 		errors: items.errors
 	};
@@ -1286,6 +1412,103 @@ function getActivityPubUrlHost(value: string): string | undefined {
 
 function getActivityPubMigrationPreviewErrorMessage(error): string {
 	return getOptionalBoundedString(error?.message || String(error), 500) || 'activitypub_migration_preview_error';
+}
+
+function getActivityPubMigrationObjectCacheInput(remoteActorRecord, item) {
+	const cacheData = getActivityPubMigrationObjectCacheData(remoteActorRecord, item);
+	if (!cacheData) {
+		return null;
+	}
+	if (!isActivityPubMigrationCacheObjectFromActor(remoteActorRecord, cacheData.activity, cacheData.object)) {
+		return null;
+	}
+	if (!isActivityPubMigrationCacheObjectPublic(cacheData.activity, cacheData.object)) {
+		return null;
+	}
+	return {
+		remoteActorRecord,
+		activity: cacheData.activity,
+		object: cacheData.object
+	};
+}
+
+function getActivityPubMigrationObjectCacheData(remoteActorRecord, item) {
+	if (!item || typeof item !== 'object' || Array.isArray(item)) {
+		return null;
+	}
+	if (getActivityType(item) === 'Create') {
+		const object = getActivityPubMigrationCacheObject(item.object);
+		return object ? {activity: item, object} : null;
+	}
+	const object = getActivityPubMigrationCacheObject(item);
+	if (!object) {
+		return null;
+	}
+	return {
+		activity: buildActivityPubMigrationCacheCreateActivity(remoteActorRecord, object),
+		object
+	};
+}
+
+function getActivityPubMigrationCacheObject(value) {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return null;
+	}
+	if (!isActivityPubReviewObjectType(value.type)) {
+		return null;
+	}
+	return value;
+}
+
+function buildActivityPubMigrationCacheCreateActivity(remoteActorRecord, object) {
+	const objectId = getRequiredObjectId(object, 'activitypub_migration_import_object_id_required');
+	return {
+		'@context': 'https://www.w3.org/ns/activitystreams',
+		id: `${objectId}#geesome-migration-import-create`,
+		type: 'Create',
+		actor: remoteActorRecord.actorUrl,
+		to: getActivityPubReferenceValues(object?.to),
+		cc: getActivityPubReferenceValues(object?.cc),
+		published: object.published,
+		object
+	};
+}
+
+function isActivityPubMigrationCacheObjectFromActor(remoteActorRecord, activity, object): boolean {
+	const activityActor = getActivityActor(activity);
+	if (activityActor && activityActor !== remoteActorRecord.actorUrl) {
+		return false;
+	}
+	const objectActors = [
+		...getActivityPubReferenceValues(object?.attributedTo),
+		...getActivityPubReferenceValues(object?.actor)
+	];
+	if (objectActors.length) {
+		return objectActors.includes(remoteActorRecord.actorUrl);
+	}
+	return activityActor === remoteActorRecord.actorUrl;
+}
+
+function isActivityPubMigrationCacheObjectPublic(activity, object): boolean {
+	return [
+		...getActivityPubReferenceValues(activity?.to),
+		...getActivityPubReferenceValues(activity?.cc),
+		...getActivityPubReferenceValues(object?.to),
+		...getActivityPubReferenceValues(object?.cc)
+	].includes(activityPubPublicCollection);
+}
+
+function getActivityPubReferenceValues(value): string[] {
+	if (typeof value === 'string') {
+		return [value];
+	}
+	if (Array.isArray(value)) {
+		return value.flatMap(item => getActivityPubReferenceValues(item));
+	}
+	if (typeof value?.id === 'string' && value.id) {
+		return [value.id];
+	}
+	return [];
 }
 
 async function getActivityPubSourceSubscriptionList(app: IGeesomeApp, models, userId: number, filters: IActivityPubSourceSubscriptionFilters, listParams: IListParams): Promise<IActivityPubSourceSubscriptionListResponse> {
@@ -2244,6 +2467,61 @@ function getActivityPubSourceRefreshJobInput(subscription, input: IActivityPubSo
 	};
 }
 
+function getActivityPubMigrationImportJobInput(input: IActivityPubMigrationImportQueueInput): IActivityPubMigrationImportJob {
+	return {
+		type: 'migration-import',
+		input: getActivityPubMigrationImportJobImportInput(input)
+	};
+}
+
+function parseActivityPubMigrationImportJob(inputJson: string): IActivityPubMigrationImportJob {
+	const job = parseActivityPubJson(String(inputJson || '{}'));
+	if (job?.type !== 'migration-import') {
+		throwActivityPubError('activitypub_migration_import_job_invalid', 400);
+	}
+	return {
+		type: 'migration-import',
+		input: getActivityPubMigrationImportJobImportInput(job.input || {})
+	};
+}
+
+function getActivityPubMigrationImportJobImportInput(input: IActivityPubMigrationImportQueueInput): IActivityPubMigrationImportQueueInput {
+	const importInput: IActivityPubMigrationImportQueueInput = {};
+	const actorUrl = getOptionalActivityPubSourceActorUrl(input);
+	if (actorUrl) {
+		importInput.actorUrl = actorUrl;
+	}
+	const resource = getOptionalActivityPubSourceResource(input);
+	if (resource) {
+		importInput.resource = resource;
+	}
+	const handle = getOptionalBoundedString(input?.handle, 500);
+	if (handle) {
+		importInput.handle = handle;
+	}
+	const bridgeProvider = getOptionalBoundedString(input?.bridgeProvider, 100);
+	if (bridgeProvider) {
+		importInput.bridgeProvider = bridgeProvider;
+	}
+	const preset = getOptionalBoundedString(input?.preset, 100);
+	if (preset) {
+		importInput.preset = preset;
+	}
+	if (input?.claimed !== undefined) {
+		importInput.claimed = helpers.parseBoolean(input.claimed, false);
+	}
+	if (input?.limit !== undefined) {
+		importInput.limit = getActivityPubMigrationPreviewLimit(input);
+	}
+	if (input?.includeFeatured !== undefined) {
+		importInput.includeFeatured = helpers.parseBoolean(input.includeFeatured, true);
+	}
+	if (input?.includeOutbox !== undefined) {
+		importInput.includeOutbox = helpers.parseBoolean(input.includeOutbox, true);
+	}
+	return importInput;
+}
+
 function parseActivityPubSourceRefreshJob(inputJson: string): IActivityPubSourceRefreshJob {
 	const job = parseActivityPubJson(String(inputJson || '{}'));
 	if (job?.type !== 'source-refresh') {
@@ -2277,6 +2555,11 @@ function getActivityPubSourceRefreshJobRefreshInput(input: IActivityPubSourceRef
 
 function getActivityPubSourceRefreshJobChannel(job: IActivityPubSourceRefreshJob): string {
 	return `${activityPubSourceRefreshQueueModuleName}:${job.sourceId}`;
+}
+
+function getActivityPubMigrationImportJobChannel(job: IActivityPubMigrationImportJob): string {
+	const input = job.input || {};
+	return `${activityPubMigrationImportQueueModuleName}:${input.actorUrl || input.resource || input.handle || input.preset || 'unknown'}`;
 }
 
 function parseActivityPubRemoteAttachmentBackupJob(inputJson: string): IActivityPubRemoteAttachmentBackupJob {
