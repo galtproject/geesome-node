@@ -2974,6 +2974,7 @@ describe('bluesky module', () => {
 						});
 						assert.deepEqual(listParams, {sortBy: 'publishedAt', sortDir: 'DESC', limit: 3});
 						assert.deepEqual(options.attributes, ['id', 'publishedAt', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson']);
+						assert.deepEqual(options.cursor, {valueField: 'publishedAt', idField: 'id'});
 						return [
 							getImportedBlueskyPostRef(21, 'updated', 'oldcid', '2026-07-04T08:03:00.000Z'),
 							getImportedBlueskyPostRef(22, 'same', 'samecid', '2026-07-04T08:02:00.000Z'),
@@ -3041,6 +3042,128 @@ describe('bluesky module', () => {
 		assert.deepEqual(result.errors, []);
 		assert.deepEqual(result.nextCursor, {publishedAt: new Date('2026-07-04T08:01:00.000Z'), id: 23});
 		assert.equal(result.dbChannel?.id, 9);
+	});
+
+	it('reconciles native Bluesky migration reply and quote relations', async () => {
+		const calls: any[] = [];
+		const relationTargets = [
+			getBlueskyRelationTarget(20, 200, 'at://did:plc:bob/app.bsky.feed.post/root'),
+			getBlueskyRelationTarget(30, 100, 'at://did:plc:alice/app.bsky.feed.post/quote'),
+			getBlueskyRelationTarget(40, 200, 'at://did:plc:carol/app.bsky.feed.post/ambiguous'),
+			getBlueskyRelationTarget(41, 201, 'at://did:plc:carol/app.bsky.feed.post/ambiguous')
+		];
+		const postRefs = [
+			getBlueskyMigrationRelationPostRef(11, 100, 'reply', {
+				reply: {parentUri: 'at://did:plc:bob/app.bsky.feed.post/root'}
+			}, '2026-07-04T08:04:00.000Z'),
+			getBlueskyMigrationRelationPostRef(12, 100, 'quote-local', {
+				quote: {uri: 'at://did:plc:alice/app.bsky.feed.post/quote'}
+			}, '2026-07-04T08:03:00.000Z'),
+			getBlueskyMigrationRelationPostRef(13, 100, 'ambiguous', {
+				reply: {parentUri: 'at://did:plc:carol/app.bsky.feed.post/ambiguous'}
+			}, '2026-07-04T08:02:00.000Z'),
+			getBlueskyMigrationRelationPostRef(14, 100, 'plain', {}, '2026-07-04T08:01:00.000Z')
+		];
+		const models = {
+			Post: {
+				findAll: async (options) => {
+					calls.push({method: 'findAll', where: options.where, limit: options.limit});
+					const sameGroup = options.where.groupId === 100;
+					return relationTargets
+						.filter(target => {
+							if (target.sourcePostId !== options.where.sourcePostId) {
+								return false;
+							}
+							if (sameGroup) {
+								return target.groupId === 100;
+							}
+							return target.groupId !== 100;
+						})
+						.slice(0, options.limit || relationTargets.length);
+				}
+			}
+		};
+		const app = {
+			ms: {
+				database: {models},
+				group: {
+					getLocalGroup: async (userId, groupId) => {
+						calls.push({method: 'getLocalGroup', userId, groupId});
+						return {id: groupId};
+					},
+					getGroupPostRefs: async (groupId, filters, listParams, options) => {
+						calls.push({method: 'getGroupPostRefs', groupId, filters, listParams, options});
+						assert.equal(groupId, 100);
+						assert.deepEqual(filters, {
+							source: 'socNetImport:bluesky',
+							sourcePostIdNe: null,
+							cursorPublishedAt: undefined,
+							cursorId: undefined,
+							sourceChannelId: 'did:plc:alice'
+						});
+						assert.deepEqual(listParams, {sortBy: 'publishedAt', sortDir: 'DESC', limit: 4});
+						assert.deepEqual(options.attributes, ['id', 'groupId', 'publishedAt', 'replyToId', 'repostOfId', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson']);
+						assert.deepEqual(options.cursor, {valueField: 'publishedAt', idField: 'id'});
+						return postRefs;
+					},
+					canReplyToPost: async (userId, postId) => {
+						calls.push({method: 'canReplyToPost', userId, postId});
+						return true;
+					},
+					updatePost: async (userId, postId, postData) => {
+						calls.push({method: 'updatePost', userId, postId, postData});
+						return {id: postId, ...postData};
+					}
+				}
+			},
+			checkModules: (modulesList) => {
+				calls.push({method: 'checkModules', modulesList});
+			},
+			checkUserCan: async (userId, permission) => {
+				calls.push({method: 'checkUserCan', userId, permission});
+			}
+		} as any;
+		const module = getBlueskyModule(app, {models});
+
+		const dryRun = await module.reconcileMigrationRelations(7, {
+			groupId: 100,
+			sourceChannelId: 'did:plc:alice',
+			limit: 4,
+			dryRun: true
+		});
+		const updateCallsAfterDryRun = calls.filter(call => call.method === 'updatePost');
+
+		assert.equal(dryRun.checked, 4);
+		assert.equal(dryRun.updated, 2);
+		assert.equal(dryRun.skipped, 2);
+		assert.equal(dryRun.failed, 0);
+		assert.equal(dryRun.dryRun, true);
+		assert.deepEqual(dryRun.errors, []);
+		assert.deepEqual(dryRun.rows.find(row => row.postId === 11)?.changes, {replyToId: 20});
+		assert.deepEqual(dryRun.rows.find(row => row.postId === 12)?.changes, {repostOfId: 30});
+		assert.equal(dryRun.rows.find(row => row.postId === 13)?.reason, 'bluesky_migration_relation_target_ambiguous');
+		assert.equal(dryRun.rows.find(row => row.postId === 14)?.reason, 'bluesky_migration_reply_target_missing');
+		assert.deepEqual(dryRun.nextCursor, {publishedAt: new Date('2026-07-04T08:01:00.000Z'), id: 14});
+		assert.deepEqual(updateCallsAfterDryRun, []);
+
+		const applied = await module.reconcileMigrationRelations(7, {
+			groupId: '100',
+			sourceChannelId: 'did:plc:alice',
+			limit: 4
+		});
+		const updateCalls = calls.filter(call => call.method === 'updatePost');
+
+		assert.equal(applied.dryRun, false);
+		assert.equal(applied.updated, 2);
+		assert.deepEqual(updateCalls, [
+			{method: 'updatePost', userId: 7, postId: 11, postData: {replyToId: 20}},
+			{method: 'updatePost', userId: 7, postId: 12, postData: {repostOfId: 30}}
+		]);
+		assert.deepEqual(calls.filter(call => call.method === 'canReplyToPost').map(call => call.postId), [20, 20]);
+		assert.deepEqual(calls.filter(call => call.method === 'checkUserCan').map(call => call.permission), [
+			CorePermissionName.UserGroupManagement,
+			CorePermissionName.UserGroupManagement
+		]);
 	});
 
 	it('queues and polls native Bluesky source refreshes through async operations', async () => {
@@ -3191,6 +3314,9 @@ describe('bluesky module', () => {
 						routes[`AUTH GET ${path}`] = handler;
 					}
 				}
+			},
+			checkUserCan: async (userId, permission) => {
+				moduleCalls.push({method: 'checkUserCan', userId, permission});
 			}
 		};
 		const module = {
@@ -3218,6 +3344,10 @@ describe('bluesky module', () => {
 			queueMigrationImport: async (userId, userApiKeyId, input) => {
 				moduleCalls.push({method: 'queueMigrationImport', userId, userApiKeyId, input});
 				return {id: 45, module: 'bluesky-migration-import', userApiKeyId};
+			},
+			reconcileMigrationRelations: async (userId, input) => {
+				moduleCalls.push({method: 'reconcileMigrationRelations', userId, input});
+				return {checked: 1, updated: 1, skipped: 0, failed: 0, dryRun: true, rows: [], errors: []};
 			},
 			crossPostPost: async (userId, postId, input) => {
 				moduleCalls.push({method: 'crossPostPost', userId, postId, input});
@@ -3270,6 +3400,10 @@ describe('bluesky module', () => {
 			apiKey: {id: 12},
 			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', async: true, process: false}
 		});
+		const migrationReconcileResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/migration/reconcile-relations', {
+			user: {id: 7},
+			body: {groupId: 99, dryRun: true}
+		});
 		const crossPostResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/posts/:postId/cross-post', {
 			user: {id: 7},
 			params: {postId: '44'},
@@ -3292,6 +3426,8 @@ describe('bluesky module', () => {
 			{method: 'getMigrationPreview', userId: 7, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}}},
 			{method: 'importMigration', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page'}},
 			{method: 'queueMigrationImport', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', async: true, process: false}},
+			{method: 'checkUserCan', userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{method: 'reconcileMigrationRelations', userId: 7, input: {groupId: 99, dryRun: true}},
 			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'updateCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'deleteCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}
@@ -3306,6 +3442,7 @@ describe('bluesky module', () => {
 			asyncOperation: {id: 44}
 		});
 		assert.deepEqual(migrationImportAsyncResponse.body, {id: 45, module: 'bluesky-migration-import', userApiKeyId: 12});
+		assert.deepEqual(migrationReconcileResponse.body, {checked: 1, updated: 1, skipped: 0, failed: 0, dryRun: true, rows: [], errors: []});
 		assert.deepEqual(crossPostResponse.body, {
 			record: {uri: 'at://did:plc:alice/app.bsky.feed.post/created', cid: 'bafycreated'},
 			alreadyExists: false
@@ -3713,6 +3850,36 @@ function getImportedBlueskyPostRef(id: number, rkey: string, cid: string, publis
 				cid
 			}
 		})
+	};
+}
+
+function getBlueskyMigrationRelationPostRef(id: number, groupId: number, rkey: string, blueskyProperties: any, publishedAt: string) {
+	return {
+		id,
+		groupId,
+		status: PostStatus.Published,
+		isDeleted: false,
+		replyToId: null,
+		repostOfId: null,
+		publishedAt: new Date(publishedAt),
+		source: 'socNetImport:bluesky',
+		sourceChannelId: 'did:plc:alice',
+		sourcePostId: `at://did:plc:alice/app.bsky.feed.post/${rkey}`,
+		propertiesJson: JSON.stringify({
+			bluesky: blueskyProperties
+		})
+	};
+}
+
+function getBlueskyRelationTarget(id: number, groupId: number, sourcePostId: string) {
+	return {
+		id,
+		groupId,
+		status: PostStatus.Published,
+		isDeleted: false,
+		source: 'socNetImport:bluesky',
+		sourcePostId,
+		publishedAt: new Date('2026-07-04T08:00:00.000Z')
 	};
 }
 
