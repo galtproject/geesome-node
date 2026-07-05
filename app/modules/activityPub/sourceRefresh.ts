@@ -15,9 +15,19 @@ export type IActivityPubSourceRefreshOptions = IActivityPubRemoteActorCacheOptio
 	fetchActivityPubSourceJson?: IActivityPubSourceJsonFetcher;
 };
 type IActivityPubSourceRefreshWorkResult = Omit<IActivityPubSourceRefreshResult, 'source'>;
+export type IActivityPubSourceCollectionItemsInput = {
+	maxPages?: number | string;
+};
+export type IActivityPubSourceCollectionItemsResult = {
+	items: any[];
+	pages: number;
+	hasMore: boolean;
+};
 
 const activityPubSourceRefreshDefaultLimit = 20;
 const activityPubSourceRefreshMaxLimit = 50;
+const activityPubSourceCollectionMaxPagesDefault = 1;
+const activityPubSourceCollectionMaxPagesLimit = 25;
 export async function refreshActivityPubSourceSubscription(
 	models,
 	subscription,
@@ -121,25 +131,85 @@ function addActivityPubSourceRefreshTargetUrl(targetUrls: string[], value): void
 	}
 }
 
-export async function fetchActivityPubSourceCollectionItems(targetUrl: string, options: IActivityPubSourceRefreshOptions, limit: number): Promise<any[]> {
+export async function fetchActivityPubSourceCollectionItems(
+	targetUrl: string,
+	options: IActivityPubSourceRefreshOptions,
+	limit: number,
+	input: IActivityPubSourceCollectionItemsInput = {}
+): Promise<any[]> {
+	const result = await fetchActivityPubSourceCollectionItemsWithState(targetUrl, options, limit, input);
+	return result.items;
+}
+
+export async function fetchActivityPubSourceCollectionItemsWithState(
+	targetUrl: string,
+	options: IActivityPubSourceRefreshOptions,
+	limit: number,
+	input: IActivityPubSourceCollectionItemsInput = {}
+): Promise<IActivityPubSourceCollectionItemsResult> {
+	const result = getEmptyActivityPubSourceCollectionItemsResult();
 	if (limit <= 0) {
-		return [];
+		return result;
 	}
+	const maxPages = getActivityPubSourceCollectionMaxPages(input);
 	const collection = await fetchActivityPubSourceJson(targetUrl, options);
 	const directItems = getActivityPubSourceCollectionItems(collection);
 	if (directItems.length) {
-		return directItems.slice(0, limit);
+		await appendActivityPubSourceCollectionPageAndNextPages(result, collection, options, limit, maxPages);
+		return result;
 	}
 
 	const firstPage = await getActivityPubSourceCollectionFirstPage(collection, options);
 	if (!firstPage) {
-		return [];
+		return result;
 	}
-	return getActivityPubSourceCollectionItems(firstPage).slice(0, limit);
+	await appendActivityPubSourceCollectionPageAndNextPages(result, firstPage, options, limit, maxPages);
+	return result;
+}
+
+async function appendActivityPubSourceCollectionPageAndNextPages(
+	result: IActivityPubSourceCollectionItemsResult,
+	page,
+	options: IActivityPubSourceRefreshOptions,
+	limit: number,
+	maxPages: number
+): Promise<void> {
+	appendActivityPubSourceCollectionPageItems(result, page, limit);
+	if (hasActivityPubSourceCollectionResultEnoughItems(result, limit)) {
+		result.hasMore = result.hasMore || Boolean(getActivityPubSourceCollectionNextPageReference(page));
+		return;
+	}
+	await appendActivityPubSourceCollectionNextPages(result, page, options, limit, maxPages);
+}
+
+async function appendActivityPubSourceCollectionNextPages(
+	result: IActivityPubSourceCollectionItemsResult,
+	page,
+	options: IActivityPubSourceRefreshOptions,
+	limit: number,
+	maxPages: number
+): Promise<void> {
+	let nextPageReference = getActivityPubSourceCollectionNextPageReference(page);
+	while (nextPageReference && !hasActivityPubSourceCollectionResultEnoughItems(result, limit)) {
+		if (result.pages >= maxPages) {
+			result.hasMore = true;
+			return;
+		}
+		const nextPage = await getActivityPubSourceCollectionPageByReference(nextPageReference, options);
+		if (!nextPage) {
+			return;
+		}
+		appendActivityPubSourceCollectionPageItems(result, nextPage, limit);
+		nextPageReference = getActivityPubSourceCollectionNextPageReference(nextPage);
+	}
 }
 
 async function getActivityPubSourceCollectionFirstPage(collection, options: IActivityPubSourceRefreshOptions): Promise<any | null> {
 	const page = collection?.first || collection?.current;
+	return getActivityPubSourceCollectionPageByReference(page, options);
+}
+
+async function getActivityPubSourceCollectionPageByReference(page, options: IActivityPubSourceRefreshOptions): Promise<any | null> {
 	if (typeof page === 'string' && page) {
 		return fetchActivityPubSourceJson(page, options);
 	}
@@ -147,6 +217,49 @@ async function getActivityPubSourceCollectionFirstPage(collection, options: IAct
 		return page;
 	}
 	return null;
+}
+
+function appendActivityPubSourceCollectionPageItems(
+	result: IActivityPubSourceCollectionItemsResult,
+	page,
+	limit: number
+): void {
+	result.pages += 1;
+	const remainingLimit = limit - result.items.length;
+	const pageItems = getActivityPubSourceCollectionItems(page);
+	result.items.push(...pageItems.slice(0, remainingLimit));
+	if (pageItems.length > remainingLimit) {
+		result.hasMore = true;
+	}
+}
+
+function hasActivityPubSourceCollectionResultEnoughItems(result: IActivityPubSourceCollectionItemsResult, limit: number): boolean {
+	return result.items.length >= limit;
+}
+
+function getActivityPubSourceCollectionNextPageReference(collection) {
+	if (typeof collection?.next === 'string' && collection.next) {
+		return collection.next;
+	}
+	if (collection?.next && typeof collection.next === 'object' && !Array.isArray(collection.next)) {
+		return collection.next;
+	}
+	return null;
+}
+
+function getEmptyActivityPubSourceCollectionItemsResult(): IActivityPubSourceCollectionItemsResult {
+	return {
+		items: [],
+		pages: 0,
+		hasMore: false
+	};
+}
+
+function getActivityPubSourceCollectionMaxPages(input: IActivityPubSourceCollectionItemsInput): number {
+	return Math.min(
+		helpers.parsePositiveInteger(input?.maxPages, activityPubSourceCollectionMaxPagesDefault),
+		activityPubSourceCollectionMaxPagesLimit
+	);
 }
 
 function getActivityPubSourceCollectionItems(collection): any[] {

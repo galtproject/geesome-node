@@ -133,6 +133,7 @@ import {
 } from './objectReviewState.js';
 import {
 	fetchActivityPubSourceCollectionItems,
+	fetchActivityPubSourceCollectionItemsWithState,
 	fetchActivityPubSourceJson,
 	getActivityPubSourceRefreshUpdateData,
 	refreshActivityPubSourceSubscription
@@ -227,6 +228,8 @@ const activityPubSourceRefreshPollDefaultLimit = 20;
 const activityPubSourceRefreshPollDefaultStaleMs = 15 * 60 * 1000;
 const activityPubMigrationPreviewDefaultLimit = 20;
 const activityPubMigrationPreviewMaxLimit = 50;
+const activityPubMigrationPreviewMaxPagesDefault = 1;
+const activityPubMigrationPreviewMaxPagesLimit = 25;
 const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
 const activityPubBlueskyOfficialPreset = 'bluesky-official';
 const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
@@ -1185,6 +1188,9 @@ async function getActivityPubMigrationPreview(input: IActivityPubMigrationPrevie
 		sourceResource: context.lookup.sourceResource,
 		bridgeProvider: getActivityPubMigrationPreviewBridgeProvider(input, context.lookup.sourceResource, context.actor),
 		fetched: context.fetched,
+		pages: context.pages,
+		maxPages: context.maxPages,
+		hasMore: context.hasMore,
 		errors: context.errors
 	};
 }
@@ -1234,6 +1240,9 @@ async function importActivityPubMigration(
 		sourceResource: resolution.sourceResource,
 		bridgeProvider: resolution.bridgeProvider,
 		fetched: context.fetched,
+		pages: context.pages,
+		maxPages: context.maxPages,
+		hasMore: context.hasMore,
 		errors,
 		cached: remoteObjectIds.length,
 		skipped,
@@ -1264,6 +1273,9 @@ async function getActivityPubMigrationPreviewContext(
 			claimed: helpers.parseBoolean(input?.claimed, false)
 		}),
 		fetched: items.fetched,
+		pages: items.pages,
+		maxPages: getActivityPubMigrationPreviewMaxPages(input),
+		hasMore: items.hasMore,
 		errors: items.errors
 	};
 }
@@ -1283,6 +1295,7 @@ function getActivityPubMigrationPreviewActorUrl(actorUrl: string, actorDocument)
 async function getActivityPubMigrationPreviewItems(actorDocument, input: IActivityPubMigrationPreviewInput, options: IActivityPubModuleOptions) {
 	const targetUrls = getActivityPubMigrationPreviewTargetUrls(actorDocument, input);
 	const limit = getActivityPubMigrationPreviewLimit(input);
+	const maxPages = getActivityPubMigrationPreviewMaxPages(input);
 	const result = getEmptyActivityPubMigrationPreviewItemsResult();
 	if (!targetUrls.length) {
 		result.errors.push('activitypub_migration_preview_collection_not_found');
@@ -1292,15 +1305,17 @@ async function getActivityPubMigrationPreviewItems(actorDocument, input: IActivi
 		if (result.fetched >= limit) {
 			break;
 		}
-		await appendActivityPubMigrationPreviewCollectionItems(result, targetUrl, limit, options);
+		await appendActivityPubMigrationPreviewCollectionItems(result, targetUrl, limit, maxPages, options);
 	}
 	return result;
 }
 
-async function appendActivityPubMigrationPreviewCollectionItems(result, targetUrl: string, limit: number, options: IActivityPubModuleOptions): Promise<void> {
+async function appendActivityPubMigrationPreviewCollectionItems(result, targetUrl: string, limit: number, maxPages: number, options: IActivityPubModuleOptions): Promise<void> {
 	try {
-		const items = await fetchActivityPubSourceCollectionItems(targetUrl, options, limit - result.fetched);
-		for (const item of items) {
+		const collectionResult = await fetchActivityPubSourceCollectionItemsWithState(targetUrl, options, limit - result.fetched, {maxPages});
+		result.pages += collectionResult.pages;
+		result.hasMore = result.hasMore || collectionResult.hasMore;
+		for (const item of collectionResult.items) {
 			if (result.fetched >= limit) {
 				break;
 			}
@@ -1388,10 +1403,19 @@ function getActivityPubMigrationPreviewLimit(input: IActivityPubMigrationPreview
 	);
 }
 
+function getActivityPubMigrationPreviewMaxPages(input: IActivityPubMigrationPreviewInput): number {
+	return Math.min(
+		helpers.parsePositiveInteger(input?.maxPages, activityPubMigrationPreviewMaxPagesDefault),
+		activityPubMigrationPreviewMaxPagesLimit
+	);
+}
+
 function getEmptyActivityPubMigrationPreviewItemsResult() {
 	return {
 		list: [],
 		fetched: 0,
+		pages: 0,
+		hasMore: false,
 		errors: []
 	};
 }
@@ -2512,6 +2536,9 @@ function getActivityPubMigrationImportJobImportInput(input: IActivityPubMigratio
 	}
 	if (input?.limit !== undefined) {
 		importInput.limit = getActivityPubMigrationPreviewLimit(input);
+	}
+	if (input?.maxPages !== undefined) {
+		importInput.maxPages = getActivityPubMigrationPreviewMaxPages(input);
 	}
 	if (input?.includeFeatured !== undefined) {
 		importInput.includeFeatured = helpers.parseBoolean(input.includeFeatured, true);
