@@ -63,6 +63,7 @@ export interface IBlueskyMigrationImportResult extends IBlueskyPublicAuthorFeedI
 }
 
 export interface IBlueskyMigrationImportQueueInput extends IBlueskyMigrationImportInput {
+	async?: boolean | string;
 	process?: boolean | string;
 }
 

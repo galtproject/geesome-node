@@ -458,6 +458,7 @@ describe('bluesky module', () => {
 			claimed: true,
 			accountData: {id: '1'},
 			appPassword: '',
+			async: true,
 			limit: '2' as any,
 			filter: 'posts_no_replies',
 			groupName: 'alice-migration',
@@ -3102,10 +3103,10 @@ describe('bluesky module', () => {
 			apiKey: {id: 12},
 			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page'}
 		});
-		const migrationImportAsyncResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/migration/import-async', {
+		const migrationImportAsyncResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/migration/import', {
 			user: {id: 7},
 			apiKey: {id: 12},
-			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', process: false}
+			body: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', async: true, process: false}
 		});
 		const crossPostResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/posts/:postId/cross-post', {
 			user: {id: 7},
@@ -3128,7 +3129,7 @@ describe('bluesky module', () => {
 			{method: 'verifyAccount', userId: 7, input: {accountData: {id: 3}}},
 			{method: 'getMigrationPreview', userId: 7, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}}},
 			{method: 'importMigration', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page'}},
-			{method: 'queueMigrationImport', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', process: false}},
+			{method: 'queueMigrationImport', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', async: true, process: false}},
 			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'updateCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'deleteCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}
