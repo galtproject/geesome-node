@@ -142,6 +142,39 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/preview Preview ActivityPub migration
+	 * @apiName UserActivityPubMigrationPreview
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Fetches a bounded public ActivityPub actor `featured` and/or `outbox` page and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders that a later migration job can reconcile. When `claimed=true`, ownership remains unverified until a later ActivityPub signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, or federate ActivityPub requests.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
+	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiSuccess {String} actor ActivityPub actor id used for migration ownership classification.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {String} [sourceResource] Resolved WebFinger resource when one was used.
+	 * @apiSuccess {String} [bridgeProvider] Bridge provider detected from input or resolved actor metadata.
+	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
+	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
+	 * @apiSuccess {Object[]} list Migration preview items with sanitized preview data and placeholder keys.
+	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context.
+	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {String[]} errors Bounded fetch/preview errors encountered while building the preview.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/preview', async (req, res) => {
+		return res.send(await activityPubModule.getMigrationPreview(req.user.id, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/sources/resolve Resolve ActivityPub source
 	 * @apiName AdminActivityPubSourceResolve
 	 * @apiGroup AdminActivityPub

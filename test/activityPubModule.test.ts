@@ -484,6 +484,169 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubObject.rows.every((row) => row.remoteActorId === models.ActivityPubRemoteActor.rows[0].id), true);
 	});
 
+	it('previews ActivityPub social-page migration from public actor collections without caching objects', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const fetchJsonCalls: string[] = [];
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			featured: 'https://remote.example/users/alice/collections/featured',
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const rootObject = {
+			id: 'https://remote.example/objects/root-migration',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Root <script>alert(1)</script>migration</p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const replyObject = {
+			id: 'https://remote.example/objects/reply-migration',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			inReplyTo: {
+				id: 'https://other.example/objects/root',
+				type: 'Note',
+				attributedTo: 'https://other.example/users/bob'
+			},
+			content: '<p>Reply migration</p>',
+			published: '2026-06-02T12:05:00Z'
+		};
+		const announceObject = {
+			id: 'https://other.example/objects/reblogged',
+			type: 'Note',
+			attributedTo: 'https://other.example/users/bob',
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Reblogged migration</p>',
+			published: '2026-06-02T12:10:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			[remoteActorKey.actorUrl]: actorDocument,
+			'https://remote.example/users/alice/collections/featured': {
+				type: 'OrderedCollection',
+				orderedItems: [rootObject]
+			},
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollectionPage',
+				orderedItems: [
+					{
+						id: 'https://remote.example/activities/reply-migration',
+						type: 'Create',
+						actor: remoteActorKey.actorUrl,
+						object: replyObject.id
+					},
+					{
+						id: 'https://remote.example/activities/announce-migration',
+						type: 'Announce',
+						actor: remoteActorKey.actorUrl,
+						object: announceObject.id
+					}
+				]
+			},
+			[replyObject.id]: replyObject,
+			[announceObject.id]: announceObject
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchActivityPubSourceJson: async (url) => {
+				fetchJsonCalls.push(url);
+				return sourceJsonByUrl[url];
+			}
+		});
+
+		const preview = await module.getMigrationPreview(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			limit: 10
+		});
+
+		assert.deepEqual(fetchJsonCalls, [
+			remoteActorKey.actorUrl,
+			'https://remote.example/users/alice/collections/featured',
+			'https://remote.example/users/alice/outbox',
+			replyObject.id,
+			announceObject.id
+		]);
+		assert.equal(preview.actor, remoteActorKey.actorUrl);
+		assert.equal(preview.sourceActorUrl, remoteActorKey.actorUrl);
+		assert.equal(preview.ownership.claimed, true);
+		assert.equal(preview.ownership.verified, false);
+		assert.equal(preview.ownership.reason, 'activitypub_migration_ownership_unverified');
+		assert.deepEqual(preview.summary, {
+			total: 3,
+			localPosts: 2,
+			remoteContextPosts: 1,
+			replies: 1,
+			announces: 1,
+			quotes: 0,
+			mentions: 0,
+			remoteActors: 1,
+			remoteObjects: 2,
+			remotePlaceholders: 3
+		});
+		assert.equal(preview.fetched, 3);
+		assert.deepEqual(preview.errors, []);
+		assert.equal(preview.list[0].preview?.contentHtml, '<p>Root migration</p>');
+		assert.equal(preview.list[1].relationTypes[0], 'reply');
+		assert.equal(preview.list[2].relationTypes[0], 'announce');
+		assert.equal(models.ActivityPubObject.rows.length, 0);
+		assert.equal(models.ActivityPubRemoteActor.rows.length, 0);
+	});
+
+	it('keeps ActivityPub migration preview placeholders when referenced objects fail to load', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const missingObjectUrl = 'https://other.example/objects/missing-reblog';
+		const sourceJsonByUrl: Record<string, any> = {
+			[remoteActorKey.actorUrl]: {
+				...getRemoteActorDocument(remoteActorKey),
+				outbox: 'https://remote.example/users/alice/outbox'
+			},
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				orderedItems: [{
+					id: 'https://remote.example/activities/announce-missing',
+					type: 'Announce',
+					actor: remoteActorKey.actorUrl,
+					object: missingObjectUrl
+				}]
+			}
+		};
+		const {module} = await createActivityPubHarness({
+			fetchActivityPubSourceJson: async (url) => {
+				if (!sourceJsonByUrl[url]) {
+					throw new Error(`missing ${url}`);
+				}
+				return sourceJsonByUrl[url];
+			}
+		});
+
+		const preview = await module.getMigrationPreview(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			includeFeatured: false,
+			limit: 5
+		});
+
+		assert.equal(preview.fetched, 1);
+		assert.deepEqual(preview.errors, [`missing ${missingObjectUrl}`]);
+		assert.deepEqual(preview.list.map(item => ({
+			objectId: item.objectId,
+			relationTypes: item.relationTypes,
+			importKind: item.importKind
+		})), [{
+			objectId: missingObjectUrl,
+			relationTypes: ['announce'],
+			importKind: 'remoteContext'
+		}]);
+		assert.deepEqual(preview.remotePlaceholders, [{
+			key: `activitypub:object:${missingObjectUrl}`,
+			protocol: 'activitypub',
+			type: 'object',
+			objectId: missingObjectUrl,
+			objectType: 'Object',
+			relationTypes: ['announce']
+		}]);
+	});
+
 	it('paginates ActivityPub source feeds with a stable cursor', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -2801,6 +2964,7 @@ describe('activityPub API', () => {
 		const sourceRefreshCalls: any[] = [];
 		const sourceRefreshQueueCalls: any[] = [];
 		const sourceReadCalls: any[] = [];
+		const migrationPreviewCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -2828,6 +2992,36 @@ describe('activityPub API', () => {
 					sourceActorUrl: 'https://remote.example/users/alice',
 					bridgeProvider: 'bridgy-bluesky',
 					remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'}
+				};
+			},
+			getMigrationPreview: async (userId, input) => {
+				migrationPreviewCalls.push({userId, input});
+				return {
+					actor: 'https://remote.example/users/alice',
+					sourceActorUrl: 'https://remote.example/users/alice',
+					ownership: {
+						claimed: Boolean(input.claimed),
+						verified: false,
+						method: null,
+						actor: 'https://remote.example/users/alice',
+						reason: 'activitypub_migration_ownership_unverified'
+					},
+					summary: {
+						total: 1,
+						localPosts: 1,
+						remoteContextPosts: 0,
+						replies: 0,
+						announces: 0,
+						quotes: 0,
+						mentions: 0,
+						remoteActors: 0,
+						remoteObjects: 0,
+						remotePlaceholders: 0
+					},
+					list: [{objectId: 'https://remote.example/objects/1'}],
+					remotePlaceholders: [],
+					fetched: 1,
+					errors: []
 				};
 			},
 			getActivityPubSourceSubscriptions: async (userId, filters, listParams) => ({
@@ -3066,6 +3260,17 @@ describe('activityPub API', () => {
 			list: [{id: 1, activityId: 'https://remote.example/activities/flag-1'}],
 			total: 1
 		});
+
+		const migrationPreview = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/preview', {
+			body: {actorUrl: 'https://remote.example/users/alice', claimed: true},
+			user: {id: 1}
+		});
+		assert.deepEqual(migrationPreviewCalls, [{
+			userId: 1,
+			input: {actorUrl: 'https://remote.example/users/alice', claimed: true}
+		}]);
+		assert.equal(migrationPreview.body.actor, 'https://remote.example/users/alice');
+		assert.equal(migrationPreview.body.summary.localPosts, 1);
 
 		const remoteObjects = await callRoute(routes, 'AUTH GET admin/activity-pub/groups/:groupName/remote-objects', {
 			params: {groupName: 'test-channel'},

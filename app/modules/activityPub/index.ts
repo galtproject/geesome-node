@@ -7,6 +7,7 @@ import {ContentView} from '../database/interface.js';
 import type {IContent, IContentData, IListParams} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
+import {createActivityPubMigrationPreview} from './migration.js';
 import IGeesomeActivityPubModule, {
 	ActivityPubRemoteAttachmentImportMode,
 	ActivityPubFollowDirection,
@@ -20,6 +21,8 @@ import IGeesomeActivityPubModule, {
 	IActivityPubFlagReportFilters,
 	IActivityPubFlagReportListResponse,
 	IActivityPubFlagReportTarget,
+	IActivityPubMigrationPreviewInput,
+	IActivityPubMigrationPreviewResult,
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
@@ -123,6 +126,8 @@ import {
 	setActivityPubObjectReviewState as setActivityPubObjectReviewStateRecord
 } from './objectReviewState.js';
 import {
+	fetchActivityPubSourceCollectionItems,
+	fetchActivityPubSourceJson,
 	getActivityPubSourceRefreshUpdateData,
 	refreshActivityPubSourceSubscription
 } from './sourceRefresh.js';
@@ -208,6 +213,8 @@ const activityPubSourceRefreshQueueModuleName = 'activitypub-source-refresh';
 const activityPubSourceRefreshQueueKickBatchLimit = 3;
 const activityPubSourceRefreshPollDefaultLimit = 20;
 const activityPubSourceRefreshPollDefaultStaleMs = 15 * 60 * 1000;
+const activityPubMigrationPreviewDefaultLimit = 20;
+const activityPubMigrationPreviewMaxLimit = 50;
 const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
 const activityPubBlueskyOfficialPreset = 'bluesky-official';
 const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
@@ -345,6 +352,11 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 		async resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult> {
 			getResolvedActivityPubConfig(app);
 			return getActivityPubSourceResolveResult(models, input, options);
+		}
+
+		async getMigrationPreview(_userId: number, input: IActivityPubMigrationPreviewInput = {}): Promise<IActivityPubMigrationPreviewResult> {
+			getResolvedActivityPubConfig(app);
+			return getActivityPubMigrationPreview(input, options);
 		}
 
 		async getActivityPubSourceSubscriptions(userId: number, filters: IActivityPubSourceSubscriptionFilters = {}, listParams: IListParams = {}): Promise<IActivityPubSourceSubscriptionListResponse> {
@@ -1108,6 +1120,172 @@ async function getGroupFlagReportList(app: IGeesomeApp, models, actorRecord, fil
 async function getActivityPubSourceResolveResult(models, input: IActivityPubSourceResolveInput, options: IActivityPubModuleOptions): Promise<IActivityPubSourceResolveResult> {
 	const resolution = await getActivityPubSourceResolution(models, input, options);
 	return getActivityPubSourceResolveResultFromResolution(resolution);
+}
+
+async function getActivityPubMigrationPreview(input: IActivityPubMigrationPreviewInput, options: IActivityPubModuleOptions): Promise<IActivityPubMigrationPreviewResult> {
+	const lookup = await getActivityPubSourceLookup(input, options);
+	const actorDocument = await getActivityPubMigrationPreviewActorDocument(lookup.actorUrl, options);
+	const actor = getActivityPubMigrationPreviewActorUrl(lookup.actorUrl, actorDocument);
+	const items = await getActivityPubMigrationPreviewItems(actorDocument, input, options);
+	return {
+		...createActivityPubMigrationPreview({
+			actor,
+			actorDocument,
+			items: items.list,
+			claimed: helpers.parseBoolean(input?.claimed, false)
+		}),
+		sourceActorUrl: actor,
+		sourceResource: lookup.sourceResource,
+		bridgeProvider: getActivityPubMigrationPreviewBridgeProvider(input, lookup.sourceResource, actor),
+		fetched: items.fetched,
+		errors: items.errors
+	};
+}
+
+async function getActivityPubMigrationPreviewActorDocument(actorUrl: string, options: IActivityPubModuleOptions) {
+	const actorDocument = await fetchActivityPubSourceJson(actorUrl, options);
+	if (!actorDocument || typeof actorDocument !== 'object' || Array.isArray(actorDocument)) {
+		throwActivityPubError('activitypub_migration_actor_document_invalid', 401);
+	}
+	return actorDocument;
+}
+
+function getActivityPubMigrationPreviewActorUrl(actorUrl: string, actorDocument): string {
+	return getOptionalBoundedString(actorDocument?.id, 700) || actorUrl;
+}
+
+async function getActivityPubMigrationPreviewItems(actorDocument, input: IActivityPubMigrationPreviewInput, options: IActivityPubModuleOptions) {
+	const targetUrls = getActivityPubMigrationPreviewTargetUrls(actorDocument, input);
+	const limit = getActivityPubMigrationPreviewLimit(input);
+	const result = getEmptyActivityPubMigrationPreviewItemsResult();
+	if (!targetUrls.length) {
+		result.errors.push('activitypub_migration_preview_collection_not_found');
+		return result;
+	}
+	for (const targetUrl of targetUrls) {
+		if (result.fetched >= limit) {
+			break;
+		}
+		await appendActivityPubMigrationPreviewCollectionItems(result, targetUrl, limit, options);
+	}
+	return result;
+}
+
+async function appendActivityPubMigrationPreviewCollectionItems(result, targetUrl: string, limit: number, options: IActivityPubModuleOptions): Promise<void> {
+	try {
+		const items = await fetchActivityPubSourceCollectionItems(targetUrl, options, limit - result.fetched);
+		for (const item of items) {
+			if (result.fetched >= limit) {
+				break;
+			}
+			result.fetched += 1;
+			await appendActivityPubMigrationPreviewItem(result, item, options);
+		}
+	} catch (e) {
+		result.errors.push(getActivityPubMigrationPreviewErrorMessage(e));
+	}
+}
+
+async function appendActivityPubMigrationPreviewItem(result, item, options: IActivityPubModuleOptions): Promise<void> {
+	try {
+		const resolvedItem = await getActivityPubMigrationPreviewResolvedItem(item, options, result.errors);
+		if (!resolvedItem) {
+			return;
+		}
+		result.list.push(resolvedItem);
+	} catch (e) {
+		result.errors.push(getActivityPubMigrationPreviewErrorMessage(e));
+	}
+}
+
+async function getActivityPubMigrationPreviewResolvedItem(item, options: IActivityPubModuleOptions, errors: string[]) {
+	const itemJson = await getActivityPubMigrationPreviewReferencedJson(item, options);
+	if (!itemJson) {
+		return null;
+	}
+	const activityType = getActivityType(itemJson);
+	if (activityType === 'Create' || activityType === 'Announce') {
+		return getActivityPubMigrationPreviewResolvedActivity(itemJson, options, errors);
+	}
+	return itemJson;
+}
+
+async function getActivityPubMigrationPreviewResolvedActivity(activity, options: IActivityPubModuleOptions, errors: string[]) {
+	let referencedObject;
+	try {
+		referencedObject = await getActivityPubMigrationPreviewReferencedJson(activity?.object, options);
+	} catch (e) {
+		errors.push(getActivityPubMigrationPreviewErrorMessage(e));
+		return activity;
+	}
+	if (!referencedObject) {
+		return activity;
+	}
+	return {
+		...activity,
+		object: referencedObject
+	};
+}
+
+async function getActivityPubMigrationPreviewReferencedJson(value, options: IActivityPubModuleOptions) {
+	if (typeof value === 'string' && value) {
+		return fetchActivityPubSourceJson(value, options);
+	}
+	if (value && typeof value === 'object' && !Array.isArray(value)) {
+		return value;
+	}
+	return null;
+}
+
+function getActivityPubMigrationPreviewTargetUrls(actorDocument, input: IActivityPubMigrationPreviewInput): string[] {
+	const targetUrls: string[] = [];
+	if (helpers.parseBoolean(input?.includeFeatured, true)) {
+		addActivityPubMigrationPreviewTargetUrl(targetUrls, actorDocument?.featured);
+	}
+	if (helpers.parseBoolean(input?.includeOutbox, true)) {
+		addActivityPubMigrationPreviewTargetUrl(targetUrls, actorDocument?.outbox);
+	}
+	return [...new Set(targetUrls)];
+}
+
+function addActivityPubMigrationPreviewTargetUrl(targetUrls: string[], value): void {
+	const targetUrl = sanitizeAbsoluteHref(value);
+	if (targetUrl) {
+		targetUrls.push(targetUrl);
+	}
+}
+
+function getActivityPubMigrationPreviewLimit(input: IActivityPubMigrationPreviewInput): number {
+	return Math.min(
+		helpers.parsePositiveInteger(input?.limit, activityPubMigrationPreviewDefaultLimit),
+		activityPubMigrationPreviewMaxLimit
+	);
+}
+
+function getEmptyActivityPubMigrationPreviewItemsResult() {
+	return {
+		list: [],
+		fetched: 0,
+		errors: []
+	};
+}
+
+function getActivityPubMigrationPreviewBridgeProvider(input: IActivityPubSourceResolveInput, sourceResource: string | undefined, actorUrl: string): string | undefined {
+	return getActivityPubSourceBridgeProvider(input, sourceResource, {
+		domain: getActivityPubUrlHost(actorUrl)
+	});
+}
+
+function getActivityPubUrlHost(value: string): string | undefined {
+	try {
+		return new URL(value).host.toLowerCase();
+	} catch (e) {
+		return undefined;
+	}
+}
+
+function getActivityPubMigrationPreviewErrorMessage(error): string {
+	return getOptionalBoundedString(error?.message || String(error), 500) || 'activitypub_migration_preview_error';
 }
 
 async function getActivityPubSourceSubscriptionList(app: IGeesomeApp, models, userId: number, filters: IActivityPubSourceSubscriptionFilters, listParams: IListParams): Promise<IActivityPubSourceSubscriptionListResponse> {

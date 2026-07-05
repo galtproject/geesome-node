@@ -11,7 +11,7 @@ import type {
 	IActivityPubSourceRefreshResult
 } from './interface.js';
 
-type IActivityPubSourceRefreshOptions = IActivityPubRemoteActorCacheOptions & {
+export type IActivityPubSourceRefreshOptions = IActivityPubRemoteActorCacheOptions & {
 	fetchActivityPubSourceJson?: IActivityPubSourceJsonFetcher;
 };
 type IActivityPubSourceRefreshWorkResult = Omit<IActivityPubSourceRefreshResult, 'source'>;
@@ -121,7 +121,7 @@ function addActivityPubSourceRefreshTargetUrl(targetUrls: string[], value): void
 	}
 }
 
-async function fetchActivityPubSourceCollectionItems(targetUrl: string, options: IActivityPubSourceRefreshOptions, limit: number): Promise<any[]> {
+export async function fetchActivityPubSourceCollectionItems(targetUrl: string, options: IActivityPubSourceRefreshOptions, limit: number): Promise<any[]> {
 	if (limit <= 0) {
 		return [];
 	}
@@ -305,7 +305,7 @@ function buildActivityPubSourceRefreshCreateActivity(remoteActorRecord, object) 
 	};
 }
 
-async function fetchActivityPubSourceJson(url: string, options: IActivityPubSourceRefreshOptions) {
+export async function fetchActivityPubSourceJson(url: string, options: IActivityPubSourceRefreshOptions) {
 	if (options.fetchActivityPubSourceJson) {
 		return options.fetchActivityPubSourceJson(url);
 	}
