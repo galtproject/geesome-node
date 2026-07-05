@@ -44,6 +44,15 @@ export interface IActivityPubMigrationRemotePlaceholder {
 	objectId?: string | null;
 	objectType?: string | null;
 	relationTypes: ActivityPubMigrationRelationType[];
+	sourceIdentity: IActivityPubMigrationSourceIdentity;
+}
+
+export interface IActivityPubMigrationSourceIdentity {
+	protocol: 'activitypub';
+	source?: 'activityPub';
+	actorUrl?: string | null;
+	objectId?: string | null;
+	sourcePostId?: string | null;
 }
 
 export interface IActivityPubMigrationObjectPreview {
@@ -346,7 +355,8 @@ function appendActivityPubMigrationObjectPlaceholder(
 		type: 'object',
 		objectId,
 		objectType,
-		relationTypes: [relationType]
+		relationTypes: [relationType],
+		sourceIdentity: getActivityPubMigrationObjectSourceIdentity(objectId)
 	};
 	placeholders.set(key, placeholder);
 	appendUniqueActivityPubMigrationPlaceholderKey(placeholderKeys, key);
@@ -373,7 +383,8 @@ function appendActivityPubMigrationActorPlaceholder(
 		protocol: 'activitypub',
 		type: 'actor',
 		actorUrl,
-		relationTypes: [relationType]
+		relationTypes: [relationType],
+		sourceIdentity: getActivityPubMigrationActorSourceIdentity(actorUrl)
 	};
 	placeholders.set(key, placeholder);
 	appendUniqueActivityPubMigrationPlaceholderKey(placeholderKeys, key);
@@ -394,6 +405,22 @@ function appendUniqueActivityPubMigrationPlaceholderKey(placeholderKeys: string[
 		return;
 	}
 	placeholderKeys.push(key);
+}
+
+function getActivityPubMigrationObjectSourceIdentity(objectId: string): IActivityPubMigrationSourceIdentity {
+	return {
+		protocol: 'activitypub',
+		source: 'activityPub',
+		objectId,
+		sourcePostId: objectId
+	};
+}
+
+function getActivityPubMigrationActorSourceIdentity(actorUrl: string): IActivityPubMigrationSourceIdentity {
+	return {
+		protocol: 'activitypub',
+		actorUrl
+	};
 }
 
 function getActivityPubMigrationObjectPreview(object: any): IActivityPubMigrationObjectPreview | null {

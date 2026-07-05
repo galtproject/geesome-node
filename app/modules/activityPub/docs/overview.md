@@ -11,7 +11,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Delivery queue processing for outbound follows, follow accepts, and local post `Create(Note)` deliveries.
 - Remote-object caching, review state, sanitized previews, explicit local post draft/creation for accepted public Notes, tombstone/update handling, and attachment backup retries.
 - ActivityPub source resolve/subscribe/read/refresh flows, including optional source refresh worker and poller.
-- ActivityPub migration preview/import-candidate APIs that resolve a public source actor, fetch bounded `featured`/`outbox` pages with explicit `maxPages` controls, classify them, and cache eligible own-authored public remote-object candidates without creating visible GeeSome posts.
+- ActivityPub migration preview/import-candidate APIs that resolve a public source actor, fetch bounded `featured`/`outbox` pages with explicit `maxPages` controls, classify them, expose stable placeholder source-identity metadata for later reconciliation, and cache eligible own-authored public remote-object candidates without creating visible GeeSome posts.
 
 ## Queue And Worker Boundaries
 
@@ -27,7 +27,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Do not send federation requests inline from post creation; enqueue delivery work.
 - Do not render raw remote HTML; use sanitized previews and canonical rich-text projection before import.
 - Do not let arbitrary unsolicited remote inbox activity become visible local content; apply verification, source identity, moderation policy, and filters first.
-- Do not treat ActivityPub migration preview as a write. The import-candidate job may cache eligible own-authored public remote objects for later review/import, but it must not subscribe, follow, or create visible posts until ownership proof, moderation policy, source identity, idempotency, and bounded-page controls are in place.
+- Do not treat ActivityPub migration preview as a write. The import-candidate job may cache eligible own-authored public remote objects for later review/import, but it must not subscribe, follow, or create visible posts until ownership proof, moderation policy, idempotency, visible-post policy, and bounded-page controls are in place. Placeholder `sourceIdentity` metadata is only a reconciliation hint until a later job rewrites local relations safely.
 - Do not mix ActivityPub signing keys with user chat/E2EE keys or Bluesky credentials.
 - Keep direct Bluesky/ATProto behavior in the `bluesky` module.
 

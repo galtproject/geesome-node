@@ -643,7 +643,13 @@ describe('activityPub module', () => {
 			type: 'object',
 			objectId: missingObjectUrl,
 			objectType: 'Object',
-			relationTypes: ['announce']
+			relationTypes: ['announce'],
+			sourceIdentity: {
+				protocol: 'activitypub',
+				source: 'activityPub',
+				objectId: missingObjectUrl,
+				sourcePostId: missingObjectUrl
+			}
 		}]);
 	});
 

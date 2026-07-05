@@ -65,35 +65,73 @@ describe('bluesky migration helpers', () => {
 			type: placeholder.type,
 			did: placeholder.did,
 			uri: placeholder.uri,
-			relationTypes: placeholder.relationTypes
+			relationTypes: placeholder.relationTypes,
+			sourceIdentity: placeholder.sourceIdentity
 		})), [
 			{
 				key: 'atproto:post:at://did:plc:bob/app.bsky.feed.post/root',
 				type: 'post',
 				did: 'did:plc:bob',
 				uri: 'at://did:plc:bob/app.bsky.feed.post/root',
-				relationTypes: ['reply']
+				relationTypes: ['reply'],
+				sourceIdentity: {
+					protocol: 'atproto',
+					source: 'socNetImport:bluesky',
+					sourceChannelId: 'did:plc:bob',
+					sourcePostId: 'at://did:plc:bob/app.bsky.feed.post/root',
+					did: 'did:plc:bob',
+					handle: null,
+					uri: 'at://did:plc:bob/app.bsky.feed.post/root',
+					cid: null
+				}
 			},
 			{
 				key: 'atproto:actor:did:plc:bob',
 				type: 'actor',
 				did: 'did:plc:bob',
 				uri: undefined,
-				relationTypes: ['reply', 'repost', 'quote']
+				relationTypes: ['reply', 'repost', 'quote'],
+				sourceIdentity: {
+					protocol: 'atproto',
+					source: 'socNetImport:bluesky',
+					sourceChannelId: 'did:plc:bob',
+					did: 'did:plc:bob',
+					handle: 'bob.bsky.social'
+				}
 			},
 			{
 				key: 'atproto:post:at://did:plc:bob/app.bsky.feed.post/reposted',
 				type: 'post',
 				did: 'did:plc:bob',
 				uri: 'at://did:plc:bob/app.bsky.feed.post/reposted',
-				relationTypes: ['repost']
+				relationTypes: ['repost'],
+				sourceIdentity: {
+					protocol: 'atproto',
+					source: 'socNetImport:bluesky',
+					sourceChannelId: 'did:plc:bob',
+					sourcePostId: 'at://did:plc:bob/app.bsky.feed.post/reposted',
+					did: 'did:plc:bob',
+					handle: 'bob.bsky.social',
+					uri: 'at://did:plc:bob/app.bsky.feed.post/reposted',
+					cid: 'bafyreibsky'
+				}
 			},
 			{
 				key: 'atproto:post:at://did:plc:bob/app.bsky.feed.post/quote-target',
 				type: 'post',
 				did: 'did:plc:bob',
 				uri: 'at://did:plc:bob/app.bsky.feed.post/quote-target',
-				relationTypes: ['quote']
+				relationTypes: ['quote'],
+				sourceIdentity: {
+					protocol: 'atproto',
+					source: 'socNetImport:bluesky',
+					sourceChannelId: 'did:plc:bob',
+					sourcePostId: 'at://did:plc:bob/app.bsky.feed.post/quote-target',
+					did: 'did:plc:bob',
+					handle: 'bob.bsky.social',
+					uri: 'at://did:plc:bob/app.bsky.feed.post/quote-target',
+					cid: 'bafyquote'
+				}
 			}
 		]);
 	});
