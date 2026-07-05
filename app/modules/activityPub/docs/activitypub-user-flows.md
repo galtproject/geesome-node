@@ -164,6 +164,30 @@ This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is se
 
 Boundary: account verification does not create posts, store short-lived access/refresh JWTs, read private timelines, or bypass moderation/source identity.
 
+## User Flow: Migrate A Remote Social Page To GeeSome
+
+This flow is for a user who wants a simple path to bring an existing public Bluesky or ActivityPub presence into GeeSome without losing replies, reposts, quotes, or source identity.
+
+1. User opens a migration/import screen and chooses the source type:
+   - native Bluesky/ATProto handle or DID;
+   - ActivityPub actor URL or handle;
+   - bridge-backed ActivityPub source only when the user explicitly chooses the bridge path.
+2. User selects or creates the target personal GeeSome group/page.
+3. For a claimed "this is my page" migration, GeeSome verifies ownership when the protocol supports it:
+   - Bluesky uses the stored `socNetAccount` DID match;
+   - ActivityPub can start with admin-approved/public-source imports and should add a signed challenge or other explicit proof before automatic ownership claims.
+4. GeeSome previews a bounded page of public profile/outbox/feed records with counts for original posts, replies, reposts/reblogs, quotes, and referenced external actors/groups.
+5. User starts a resumable async migration job.
+6. GeeSome imports the migrating user's own public posts into the target GeeSome group while preserving original protocol identity, remote URL, timestamps, and import metadata.
+7. Replies, reposts/reblogs, quotes, and mentions keep their relation type. If the referenced item, author, or group is not local, GeeSome creates or reuses a remote source/group/account placeholder keyed by stable protocol identity:
+   - ActivityPub actor/object IDs;
+   - ATProto DID, AT URI, and CID.
+8. Content authored by other people or groups stays remote-origin content. It can appear in the migrated personal timeline as context, but GeeSome must not rewrite it as a local post authored by the migrating user.
+9. If a remote placeholder later migrates to GeeSome, reconciliation links the placeholder to the new local group/account/posts by protocol identity so partial thread/history content becomes connected without duplicate posts.
+10. The job records progress, errors, and source cursors, dedupes by source identity, and can be safely rerun after backup/restore or partial failure.
+
+Boundary: migration imports only public or explicitly authorized content. It must reuse moderation review/auto-import/filter rules, canonical rich-text conversion, source identity, update/delete semantics, and bounded-page async-job limits. Private messages, private followers-only posts, encrypted content, and unproven ownership claims stay out of the first migration path.
+
 ## User Flow: Credentialed Bluesky Cross-Posting
 
 This is bridge-free and uses the dedicated Bluesky/ATProto module. The current backend slice supports text/rich-text posts, supported image media/attachments, storage-backed attachment links, safe JSON link-preview records, first-pass reply/quote publishing, in-place update of stored cross-post records, and deletion of stored cross-post records. Images are normalized, uploaded as ATProto blobs, and attached as `app.bsky.embed.images`; storage-backed non-image media/attachments and JSON link-preview records are published as explicit public links and can become a Bluesky external card when the post has exactly one fallback link and no image embed. Reply and quote publishing is conservative: GeeSome only emits native ATProto relation metadata when the referenced local/imported post already has a Bluesky URI/CID.
@@ -220,6 +244,8 @@ The UI should make these states explicit:
 - last refresh failed with a bounded error message;
 - content is cached but not accepted for import;
 - content was blocked or quarantined by an admin filter;
+- migration source ownership cannot be proven for a claimed personal-page import;
+- referenced remote group/account placeholder exists but has not migrated or reconciled yet;
 - remote delete/update reset an object to pending review.
 
 ## Required Safety Boundaries
@@ -233,6 +259,9 @@ The UI should make these states explicit:
 - Do not allow unbounded regex moderation rules to create CPU spikes.
 - Do not mix ActivityPub server-side signing keys with chat E2EE keys or client account credentials.
 - Do not treat Bluesky as ActivityPub unless the user explicitly chooses a bridge path.
+- Do not claim ownership of a migrated remote profile without protocol proof or admin-approved trust policy.
+- Do not rewrite third-party replies, reposts, quotes, or group content as local-authored posts by the migrating user.
+- Do not run unbounded "entire social history" migrations inline; keep imports resumable, cursor/page-bounded, and reviewable.
 
 ## Completion Checklist
 
@@ -246,5 +275,6 @@ The UI should make these states explicit:
 - Native Bluesky source reader can preview, subscribe, refresh/import, and read cached imported posts.
 - Native Bluesky update/delete sync is covered.
 - Credentialed Bluesky account ownership, first-pass text/facet/media/link/reply/quote cross-post idempotency, stored cross-post update, and stored cross-post deletion are covered; richer frontend relation controls and broader media/embed policy remain follow-up work before calling Bluesky publishing complete.
+- Simple remote social-page migration can import a user's public Bluesky or ActivityPub presence into a GeeSome personal group, preserve replies/reposts/quotes, create remote placeholders for referenced groups/accounts, and reconcile those placeholders when they later migrate.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
 - Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads.
