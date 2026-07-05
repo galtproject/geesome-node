@@ -391,6 +391,7 @@ describe('bluesky module', () => {
 		const calls = getAsyncOperationCalls();
 		const checks: any[] = [];
 		const imports: any[] = [];
+		const feedUrls: string[] = [];
 		const accounts = getSocNetAccountModule([{
 			userId: 7,
 			socNet: 'bluesky',
@@ -415,8 +416,9 @@ describe('bluesky module', () => {
 					},
 					importChannelPosts: async (client) => {
 						imports.push({method: 'importChannelPosts', client});
-						assert.equal(client.messages.list.length, 2);
-						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 1}, 'post');
+						for (const message of client.messages.list) {
+							await client.onRemotePostProcess(message, getDbChannel(), {id: 1}, 'post');
+						}
 					}
 				}
 			},
@@ -427,6 +429,16 @@ describe('bluesky module', () => {
 		} as any, {
 			fetch: async (url) => {
 				if (String(url).includes('getAuthorFeed')) {
+					feedUrls.push(String(url));
+					if (String(url).includes('cursor=cursor-after')) {
+						return {
+							ok: true,
+							json: async () => ({
+								cursor: null,
+								feed: [getFeedItem('oldest', 'Oldest post', '2026-07-04T07:58:00.000Z')]
+							})
+						};
+					}
 					return {
 						ok: true,
 						json: async () => getTwoPostAuthorFeedFixture()
@@ -463,6 +475,7 @@ describe('bluesky module', () => {
 			filter: 'posts_no_replies',
 			groupName: 'alice-migration',
 			force: 'true' as any,
+			maxPages: '2',
 			process: false
 		});
 		const processResult = await module.processMigrationImportQueue({limit: 1});
@@ -478,7 +491,8 @@ describe('bluesky module', () => {
 				filter: 'posts_no_replies',
 				limit: 2,
 				groupName: 'alice-migration',
-				force: true
+				force: true,
+				maxPages: 2
 			}
 		});
 		assert.deepEqual(processResult, {processed: 1});
@@ -497,11 +511,24 @@ describe('bluesky module', () => {
 		assert.equal(imports[0].method, 'importChannelMetadata');
 		assert.equal(imports[0].args[2], 1);
 		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.equal(imports[1].client.messages.list.length, 2);
+		assert.equal(imports[2].method, 'importChannelPosts');
+		assert.equal(imports[2].client.messages.list.length, 1);
+		assert.deepEqual(feedUrls, [
+			'https://public.example/xrpc/app.bsky.feed.getAuthorFeed?actor=alice.bsky.social&limit=2&filter=posts_no_replies',
+			'https://public.example/xrpc/app.bsky.feed.getAuthorFeed?actor=alice.bsky.social&limit=2&filter=posts_no_replies&cursor=cursor-after'
+		]);
 		assert.deepEqual(calls.asyncOperationProgress, [
-			{userId: 7, asyncOperationId: 1, percent: 50}
+			{userId: 7, asyncOperationId: 1, percent: 50},
+			{userId: 7, asyncOperationId: 1, percent: 99},
+			{userId: 7, asyncOperationId: 1, percent: 99}
 		]);
 		assert.equal(calls.processedResults[0].actor, 'alice.bsky.social');
-		assert.equal(calls.processedResults[0].imported, 1);
+		assert.equal(calls.processedResults[0].cursor, null);
+		assert.equal(calls.processedResults[0].projectedPostsCount, 3);
+		assert.equal(calls.processedResults[0].imported, 3);
+		assert.equal(calls.processedResults[0].pages, 2);
+		assert.equal(calls.processedResults[0].maxPages, 2);
 		assert.equal(calls.processedResults[0].ownership.verified, true);
 
 		await assert.rejects(

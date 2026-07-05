@@ -66,6 +66,7 @@ import IGeesomeBlueskyModule, {
 	IBlueskyMigrationImportQueueInput,
 	IBlueskyMigrationImportQueueProcessOptions,
 	IBlueskyMigrationImportQueueProcessResult,
+	IBlueskyMigrationImportQueueResult,
 	IBlueskyMigrationImportResult,
 	IBlueskyMigrationPreviewInput,
 	IBlueskyMigrationPreviewResult,
@@ -91,6 +92,8 @@ import IGeesomeBlueskyModule, {
 
 const blueskyMigrationImportQueueModuleName = 'bluesky-migration-import';
 const blueskyMigrationImportQueueKickBatchLimit = 3;
+const blueskyMigrationImportMaxPagesDefault = 1;
+const blueskyMigrationImportMaxPagesLimit = 25;
 const blueskySourceRefreshQueueModuleName = 'bluesky-source-refresh';
 const blueskySourceRefreshQueueKickBatchLimit = 3;
 const blueskySourceRefreshPollDefaultLimit = 20;
@@ -239,50 +242,78 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 					channel: getBlueskyMigrationImportJobChannel(job),
 					percent: 5
 				}),
-				run: (waitingQueue, asyncOperation, job) => this.processMigrationImportQueueJob(waitingQueue.userId, waitingQueue.userApiKeyId || null, job.input, asyncOperation)
+				run: (waitingQueue, asyncOperation, job) => this.processMigrationImportQueueJob(waitingQueue.userId, job.input, asyncOperation)
 			});
 		}
 
-		async processMigrationImportQueueJob(userId: number, userApiKeyId: number | null, input: IBlueskyMigrationImportInput, asyncOperation): Promise<IBlueskyMigrationImportResult & {imported: number}> {
+		async processMigrationImportQueueJob(userId: number, input: IBlueskyMigrationImportQueueInput, asyncOperation): Promise<IBlueskyMigrationImportQueueResult> {
 			if (!helpers.parseBoolean(input.claimed, false)) {
 				throw new Error('bluesky_migration_claim_required');
 			}
 			const accountVerification = await this.verifyAccount(userId, input);
-			const preview = await this.getPublicAuthorFeedPreview(input);
-			const migrationPreview = createBlueskyMigrationPreview({
-				actor: preview.actor,
-				projections: preview.list,
-				claimed: true,
-				accountDid: accountVerification.did,
-				accountHandle: accountVerification.handle || accountVerification.profile?.handle || null
-			});
-			if (!migrationPreview.ownership.verified) {
-				throw new Error(migrationPreview.ownership.reason || 'bluesky_migration_account_mismatch');
-			}
 			const importInput = getBlueskyMigrationImportInput(input, accountVerification);
 			app.checkModules(['asyncOperation', 'group', 'content', 'socNetImport']);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			const projections = preview.list;
-			if (projections.length === 0) {
+			let cursor = getOptionalString(importInput.cursor);
+			let actor = '';
+			let ownership = null;
+			let dbChannel: ISocNetDbChannel | null = null;
+			let projectedPostsCount = 0;
+			let imported = 0;
+			let pages = 0;
+			const maxPages = getBlueskyMigrationImportMaxPages(input);
+			for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+				const pageInput = getBlueskyMigrationImportPageInput(importInput, cursor);
+				const preview = await this.getPublicAuthorFeedPreview(pageInput);
+				actor = actor || preview.actor;
+				const migrationPreview = createBlueskyMigrationPreview({
+					actor: preview.actor,
+					projections: preview.list,
+					claimed: true,
+					accountDid: accountVerification.did,
+					accountHandle: accountVerification.handle || accountVerification.profile?.handle || null
+				});
+				if (!migrationPreview.ownership.verified) {
+					throw new Error(migrationPreview.ownership.reason || 'bluesky_migration_account_mismatch');
+				}
+				ownership = ownership || migrationPreview.ownership;
+				const projections = preview.list;
+				if (projections.length === 0) {
+					if (pages === 0) {
+						throw new Error('bluesky_feed_empty');
+					}
+					cursor = preview.cursor;
+					break;
+				}
+				dbChannel = dbChannel || await this.importPublicAuthorChannel(userId, importInput, preview.actor, projections[0]);
+				imported += await importBlueskyPublicAuthorFeedProjections(
+					app,
+					userId,
+					dbChannel,
+					getBlueskyImportProjectionOrder(projections),
+					getBlueskyImportAdvancedSettings(importInput),
+					asyncOperation
+				);
+				projectedPostsCount += projections.length;
+				pages += 1;
+				cursor = preview.cursor;
+				if (!cursor) {
+					break;
+				}
+			}
+			if (!dbChannel || !ownership) {
 				throw new Error('bluesky_feed_empty');
 			}
-			const dbChannel = await this.importPublicAuthorChannel(userId, importInput, preview.actor, projections[0]);
-			const imported = await importBlueskyPublicAuthorFeedProjections(
-				app,
-				userId,
-				dbChannel,
-				getBlueskyImportProjectionOrder(projections),
-				getBlueskyImportAdvancedSettings(importInput),
-				asyncOperation
-			);
 			return {
-				actor: preview.actor,
-				cursor: preview.cursor,
-				projectedPostsCount: projections.length,
+				actor,
+				cursor,
+				projectedPostsCount,
 				dbChannel: getBlueskyImportChannelResult(dbChannel),
 				asyncOperation,
-				ownership: migrationPreview.ownership,
-				imported
+				ownership,
+				imported,
+				pages,
+				maxPages
 			};
 		}
 
@@ -2272,12 +2303,12 @@ function getBlueskyMigrationImportJobInput(input: IBlueskyMigrationImportQueueIn
 	};
 }
 
-function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQueueInput): IBlueskyMigrationImportInput {
+function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQueueInput): IBlueskyMigrationImportQueueInput {
 	if (!helpers.parseBoolean(input.claimed, false)) {
 		throw new Error('bluesky_migration_claim_required');
 	}
 	assertNoBlueskyMigrationQueueSecrets(input);
-	const jobInput: IBlueskyMigrationImportInput = {
+	const jobInput: IBlueskyMigrationImportQueueInput = {
 		actor: getRequiredBlueskyActor(input),
 		claimed: true
 	};
@@ -2303,6 +2334,9 @@ function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQue
 			jobInput.limit = limit;
 		}
 	}
+	if (input.maxPages !== undefined) {
+		jobInput.maxPages = getBlueskyMigrationImportMaxPages(input);
+	}
 	if (input.groupName !== undefined) {
 		const groupName = getOptionalString(input.groupName);
 		if (groupName) {
@@ -2322,6 +2356,24 @@ function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQue
 		jobInput.advancedSettings = input.advancedSettings || {};
 	}
 	return jobInput;
+}
+
+function getBlueskyMigrationImportPageInput(input: IBlueskyMigrationImportInput, cursor: string | null): IBlueskyMigrationImportInput {
+	const pageInput = {...input};
+	if (cursor) {
+		pageInput.cursor = cursor;
+	} else {
+		delete pageInput.cursor;
+	}
+	return pageInput;
+}
+
+function getBlueskyMigrationImportMaxPages(input: IBlueskyMigrationImportQueueInput): number {
+	const parsed = getNullablePositiveInteger(input.maxPages);
+	if (!parsed) {
+		return blueskyMigrationImportMaxPagesDefault;
+	}
+	return Math.min(parsed, blueskyMigrationImportMaxPagesLimit);
 }
 
 function assertNoBlueskyMigrationQueueSecrets(input: IBlueskyMigrationImportQueueInput): void {

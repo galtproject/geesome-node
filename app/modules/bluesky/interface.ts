@@ -64,7 +64,14 @@ export interface IBlueskyMigrationImportResult extends IBlueskyPublicAuthorFeedI
 
 export interface IBlueskyMigrationImportQueueInput extends IBlueskyMigrationImportInput {
 	async?: boolean | string;
+	maxPages?: number | string;
 	process?: boolean | string;
+}
+
+export interface IBlueskyMigrationImportQueueResult extends IBlueskyMigrationImportResult {
+	imported: number;
+	pages: number;
+	maxPages: number;
 }
 
 export interface IBlueskyMigrationImportQueueProcessOptions {
