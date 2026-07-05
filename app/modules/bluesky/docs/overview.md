@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, credentialed account verification, first-pass local post cross-posting, and local GeeSome feed reading for Bluesky sources.
+The `bluesky` module provides native ATProto/XRPC public-feed preview, import, subscription, refresh, bounded imported-post sync, credentialed account verification, first-pass local post cross-posting, local GeeSome feed reading, and the planned Bluesky side of remote social-page migration.
 
 ## Owns
 
@@ -19,6 +19,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - User-scoped text/rich-text, supported-image, storage-backed attachment link, safe JSON link-preview, reply, and quote cross-posting for published local public GeeSome posts through `com.atproto.repo.uploadBlob` and `com.atproto.repo.createRecord`, with canonical rich-text to ATProto text/facet conversion, relation targets resolved only from stored/imported Bluesky URI/CID metadata, and per-account URI/CID idempotency stored in post `propertiesJson`.
 - User-scoped in-place update of stored Bluesky cross-post records through `com.atproto.repo.putRecord`, with stored URI ownership checks, rkey reuse, stored CID `swapRecord`, and per-DID metadata refresh.
 - User-scoped deletion of stored Bluesky cross-post records through `com.atproto.repo.deleteRecord`, with stored URI ownership checks and per-DID metadata cleanup.
+- Planned personal-page migration from Bluesky accounts into GeeSome personal groups: bounded public feed/profile import, ownership proof through `socNetAccount` DID for claimed migrations, relation preservation for replies/reposts/quotes, remote placeholders for referenced actors/groups, and later reconciliation by DID/AT URI/CID.
 - Optional refresh worker and poller cron services.
 
 ## Queue And Worker Boundaries
@@ -40,6 +41,7 @@ The `bluesky` module provides native ATProto/XRPC public-feed preview, import, s
 - If image blob upload fails and a public node URL is configured through `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or the GeeSome node `DOMAIN` fallback, cross-posting adds the public image URL as a link fallback and uses an `app.bsky.embed.external` card when no image embed succeeded. Without a public URL/domain, upload failure still fails the cross-post instead of creating contextless text.
 - Storage-backed non-image media/attachments and JSON link-preview records with safe `http(s)` URLs are cross-posted as explicit public link facets and can use an `app.bsky.embed.external` card when there is exactly one fallback link and no image embed. Attachments without a public URL and unsafe or unsupported link-preview URLs are rejected instead of being silently dropped.
 - Local `replyToId` is cross-posted as a native Bluesky reply only when the referenced post has stored/imported Bluesky URI/CID metadata. Local `repostOfId` is cross-posted as a native quote embed under the same rule. Missing relation identity is rejected instead of silently dropping thread/quote context.
+- Migration must preserve third-party source identity. Reposts, quotes, replies, and referenced groups/accounts should become remote-context placeholders or linked imported records, not local-authored posts by the migrating user.
 - Refreshes should stay page-bounded and avoid bypassing moderation/source-identity rules.
 - The source review path is exposed in the Bluesky Sources UI with review-history, import, reject, and reset actions. Broader frontend policy controls remain follow-up work.
 - Sync is explicit and page-bounded; absence from an author-feed page is not enough to delete a local post.
