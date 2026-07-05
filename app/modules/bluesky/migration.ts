@@ -2,6 +2,7 @@ import {
 	IBlueskyAuthorProjection,
 	IBlueskyPostProjection,
 	IBlueskyRecordProjection,
+	blueskyPostSource,
 	getBlueskyProjectionPreview,
 	normalizeBlueskyActor,
 	parseBlueskyPostAtUri
@@ -48,6 +49,18 @@ export interface IBlueskyMigrationRemotePlaceholder {
 	uri?: string | null;
 	cid?: string | null;
 	relationTypes: BlueskyMigrationRelationType[];
+	sourceIdentity: IBlueskyMigrationSourceIdentity;
+}
+
+export interface IBlueskyMigrationSourceIdentity {
+	protocol: 'atproto';
+	source: string;
+	sourceChannelId?: string | null;
+	sourcePostId?: string | null;
+	did?: string | null;
+	handle?: string | null;
+	uri?: string | null;
+	cid?: string | null;
 }
 
 export interface IBlueskyMigrationPreview {
@@ -278,6 +291,7 @@ function appendBlueskyMigrationPostPlaceholder(
 	const key = `atproto:post:${uri}`;
 	const existing = placeholders.get(key);
 	if (existing) {
+		mergeBlueskyMigrationPostPlaceholderIdentity(existing, uri, cid, author);
 		appendPlaceholderRelationType(existing, relationType);
 		appendUniquePlaceholderKey(placeholderKeys, key);
 		return;
@@ -290,7 +304,8 @@ function appendBlueskyMigrationPostPlaceholder(
 		cid: cid || null,
 		did: author?.did || getRepoFromBlueskyAtUri(uri),
 		handle: author?.handle || null,
-		relationTypes: [relationType]
+		relationTypes: [relationType],
+		sourceIdentity: getBlueskyMigrationPostSourceIdentity(uri, cid, author)
 	};
 	placeholders.set(key, placeholder);
 	appendUniquePlaceholderKey(placeholderKeys, key);
@@ -309,6 +324,7 @@ function appendBlueskyMigrationActorPlaceholder(
 	const key = `atproto:actor:${keyValue}`;
 	const existing = placeholders.get(key);
 	if (existing) {
+		mergeBlueskyMigrationActorPlaceholderIdentity(existing, author);
 		appendPlaceholderRelationType(existing, relationType);
 		appendUniquePlaceholderKey(placeholderKeys, key);
 		return;
@@ -319,7 +335,8 @@ function appendBlueskyMigrationActorPlaceholder(
 		type: 'actor',
 		did: author.did || null,
 		handle: author.handle || null,
-		relationTypes: [relationType]
+		relationTypes: [relationType],
+		sourceIdentity: getBlueskyMigrationActorSourceIdentity(author)
 	};
 	placeholders.set(key, placeholder);
 	appendUniquePlaceholderKey(placeholderKeys, key);
@@ -340,6 +357,75 @@ function appendUniquePlaceholderKey(placeholderKeys: string[], key: string): voi
 		return;
 	}
 	placeholderKeys.push(key);
+}
+
+function mergeBlueskyMigrationPostPlaceholderIdentity(
+	placeholder: IBlueskyMigrationRemotePlaceholder,
+	uri: string,
+	cid: string | null,
+	author: IBlueskyAuthorProjection | null
+): void {
+	const sourceIdentity = getBlueskyMigrationPostSourceIdentity(uri, cid, author);
+	if (!placeholder.cid && sourceIdentity.cid) {
+		placeholder.cid = sourceIdentity.cid;
+	}
+	mergeBlueskyMigrationPlaceholderIdentity(placeholder, sourceIdentity);
+}
+
+function mergeBlueskyMigrationActorPlaceholderIdentity(
+	placeholder: IBlueskyMigrationRemotePlaceholder,
+	author: IBlueskyAuthorProjection
+): void {
+	mergeBlueskyMigrationPlaceholderIdentity(placeholder, getBlueskyMigrationActorSourceIdentity(author));
+}
+
+function mergeBlueskyMigrationPlaceholderIdentity(
+	placeholder: IBlueskyMigrationRemotePlaceholder,
+	sourceIdentity: IBlueskyMigrationSourceIdentity
+): void {
+	if (!placeholder.did && sourceIdentity.did) {
+		placeholder.did = sourceIdentity.did;
+	}
+	if (!placeholder.handle && sourceIdentity.handle) {
+		placeholder.handle = sourceIdentity.handle;
+	}
+	placeholder.sourceIdentity = {
+		...placeholder.sourceIdentity,
+		...getDefinedBlueskyMigrationSourceIdentityFields(sourceIdentity)
+	};
+}
+
+function getDefinedBlueskyMigrationSourceIdentityFields(sourceIdentity: IBlueskyMigrationSourceIdentity): IBlueskyMigrationSourceIdentity {
+	return Object.fromEntries(Object.entries(sourceIdentity).filter(([, value]) => value !== undefined && value !== null)) as IBlueskyMigrationSourceIdentity;
+}
+
+function getBlueskyMigrationPostSourceIdentity(
+	uri: string,
+	cid: string | null,
+	author: IBlueskyAuthorProjection | null
+): IBlueskyMigrationSourceIdentity {
+	const did = author?.did || getRepoFromBlueskyAtUri(uri);
+	const handle = author?.handle || null;
+	return {
+		protocol: 'atproto',
+		source: blueskyPostSource,
+		sourceChannelId: did || handle,
+		sourcePostId: uri,
+		did,
+		handle,
+		uri,
+		cid: cid || null
+	};
+}
+
+function getBlueskyMigrationActorSourceIdentity(author: IBlueskyAuthorProjection): IBlueskyMigrationSourceIdentity {
+	return {
+		protocol: 'atproto',
+		source: blueskyPostSource,
+		sourceChannelId: author.did || author.handle,
+		did: author.did || null,
+		handle: author.handle || null
+	};
 }
 
 function isBlueskyMigrationOwnAuthor(author: IBlueskyAuthorProjection, owner: IBlueskyMigrationOwnerIdentity): boolean {

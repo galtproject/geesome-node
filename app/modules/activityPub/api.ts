@@ -150,7 +150,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Fetches bounded public ActivityPub actor `featured` and/or `outbox` pages and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders that a later migration job can reconcile. When `claimed=true`, ownership remains unverified until a later ActivityPub signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, or federate ActivityPub requests.
+	 * @apiDescription Fetches bounded public ActivityPub actor `featured` and/or `outbox` pages and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders with stable protocol source-identity metadata that a later migration job can reconcile. When `claimed=true`, ownership remains unverified until a later ActivityPub signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, or federate ActivityPub requests.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
@@ -168,7 +168,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
 	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
 	 * @apiSuccess {Object[]} list Migration preview items with sanitized preview data and placeholder keys.
-	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context.
+	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context, including `sourceIdentity` metadata for future reconciliation.
 	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
 	 * @apiSuccess {Number} pages Number of ActivityPub collection pages inspected.
 	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.
@@ -204,6 +204,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
 	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
 	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
+	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context, including `sourceIdentity` metadata for future reconciliation.
 	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
 	 * @apiSuccess {Number} pages Number of ActivityPub collection pages inspected.
 	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.

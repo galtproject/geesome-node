@@ -83,49 +83,82 @@ describe('activityPub migration helpers', () => {
 			type: placeholder.type,
 			actorUrl: placeholder.actorUrl,
 			objectId: placeholder.objectId,
-			relationTypes: placeholder.relationTypes
+			relationTypes: placeholder.relationTypes,
+			sourceIdentity: placeholder.sourceIdentity
 		})), [
 			{
 				key: `activitypub:object:${bobActor}/statuses/root`,
 				type: 'object',
 				actorUrl: undefined,
 				objectId: `${bobActor}/statuses/root`,
-				relationTypes: ['reply']
+				relationTypes: ['reply'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					source: 'activityPub',
+					objectId: `${bobActor}/statuses/root`,
+					sourcePostId: `${bobActor}/statuses/root`
+				}
 			},
 			{
 				key: `activitypub:actor:${bobActor}`,
 				type: 'actor',
 				actorUrl: bobActor,
 				objectId: undefined,
-				relationTypes: ['reply', 'mention', 'announce', 'quote']
+				relationTypes: ['reply', 'mention', 'announce', 'quote'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					actorUrl: bobActor
+				}
 			},
 			{
 				key: `activitypub:object:${bobActor}/statuses/reblogged`,
 				type: 'object',
 				actorUrl: undefined,
 				objectId: `${bobActor}/statuses/reblogged`,
-				relationTypes: ['announce']
+				relationTypes: ['announce'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					source: 'activityPub',
+					objectId: `${bobActor}/statuses/reblogged`,
+					sourcePostId: `${bobActor}/statuses/reblogged`
+				}
 			},
 			{
 				key: `activitypub:object:${bobActor}/statuses/quote-target`,
 				type: 'object',
 				actorUrl: undefined,
 				objectId: `${bobActor}/statuses/quote-target`,
-				relationTypes: ['quote']
+				relationTypes: ['quote'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					source: 'activityPub',
+					objectId: `${bobActor}/statuses/quote-target`,
+					sourcePostId: `${bobActor}/statuses/quote-target`
+				}
 			},
 			{
 				key: `activitypub:object:${carolActor}/statuses/mention`,
 				type: 'object',
 				actorUrl: undefined,
 				objectId: `${carolActor}/statuses/mention`,
-				relationTypes: ['mention']
+				relationTypes: ['mention'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					source: 'activityPub',
+					objectId: `${carolActor}/statuses/mention`,
+					sourcePostId: `${carolActor}/statuses/mention`
+				}
 			},
 			{
 				key: `activitypub:actor:${carolActor}`,
 				type: 'actor',
 				actorUrl: carolActor,
 				objectId: undefined,
-				relationTypes: ['mention']
+				relationTypes: ['mention'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					actorUrl: carolActor
+				}
 			}
 		]);
 	});
@@ -180,7 +213,13 @@ describe('activityPub migration helpers', () => {
 				type: 'object',
 				objectId: `${bobActor}/statuses/bare-reblog`,
 				objectType: 'Object',
-				relationTypes: ['announce']
+				relationTypes: ['announce'],
+				sourceIdentity: {
+					protocol: 'activitypub',
+					source: 'activityPub',
+					objectId: `${bobActor}/statuses/bare-reblog`,
+					sourcePostId: `${bobActor}/statuses/bare-reblog`
+				}
 			}
 		]);
 	});
