@@ -4,7 +4,7 @@ import helpers from '../../helpers.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
 import {RICH_TEXT_MIME_TYPE, htmlToRichText} from '../../richText.js';
 import {ContentView, CorePermissionName} from '../database/interface.js';
-import type {IContent, IContentData, IListParams} from '../database/interface.js';
+import type {IContent, IContentData, IListParams, IListParamsOptions} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
 import {createActivityPubMigrationPreview, type IActivityPubMigrationPreviewItem} from './migration.js';
@@ -37,6 +37,9 @@ import IGeesomeActivityPubModule, {
 	IActivityPubMigrationImportQueueProcessOptions,
 	IActivityPubMigrationImportQueueProcessResult,
 	IActivityPubMigrationImportResult,
+	IActivityPubMigrationRelationReconcileInput,
+	IActivityPubMigrationRelationReconcileResult,
+	IActivityPubMigrationRelationReconcileRow,
 	IActivityPubRemoteObjectFilters,
 	IActivityPubRemoteObjectListResponse,
 	IActivityPubRemoteObjectPostCreateResult,
@@ -239,6 +242,11 @@ const activityPubSourceRefreshQueueModuleName = 'activitypub-source-refresh';
 const activityPubSourceRefreshQueueKickBatchLimit = 3;
 const activityPubMigrationImportQueueModuleName = 'activitypub-migration-import';
 const activityPubMigrationImportQueueKickBatchLimit = 3;
+const activityPubMigrationRelationReconcileListParams: IListParamsOptions = {
+	sortBy: 'publishedAt',
+	allowedSortBy: ['publishedAt', 'updatedAt', 'createdAt', 'id'],
+	maxLimit: 100
+};
 const activityPubSourceRefreshPollDefaultLimit = 20;
 const activityPubSourceRefreshPollDefaultStaleMs = 15 * 60 * 1000;
 const activityPubMigrationPreviewDefaultLimit = 20;
@@ -438,6 +446,27 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 				}),
 				run: (waitingQueue, _asyncOperation, job) => this.importMigration(waitingQueue.userId, job.input)
 			});
+		}
+
+		async reconcileMigrationRelations(userId: number, input: IActivityPubMigrationRelationReconcileInput = {}): Promise<IActivityPubMigrationRelationReconcileResult> {
+			getResolvedActivityPubConfig(app);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const groupId = await getRequiredActivityPubMigrationRelationReconcileGroupId(app, userId, input);
+			const listParams = getActivityPubMigrationRelationReconcileListParams(input);
+			const postRefs = await app.ms.group.getGroupPostRefs(
+				groupId,
+				getActivityPubMigrationRelationReconcilePostFilters(input),
+				listParams,
+				{
+					attributes: ['id', 'groupId', 'publishedAt', 'replyToId', 'repostOfId', 'source', 'sourceChannelId', 'sourcePostId', 'propertiesJson'],
+					defaultListParams: activityPubMigrationRelationReconcileListParams,
+					cursor: {
+						valueField: 'publishedAt',
+						idField: 'id'
+					}
+				}
+			);
+			return reconcileActivityPubMigrationPostRelations(app, models, userId, postRefs, input, listParams);
 		}
 
 		async getActivityPubSourceSubscriptions(userId: number, filters: IActivityPubSourceSubscriptionFilters = {}, listParams: IListParams = {}): Promise<IActivityPubSourceSubscriptionListResponse> {
@@ -1539,6 +1568,418 @@ function getActivityPubUrlHost(value: string): string | undefined {
 
 function getActivityPubMigrationPreviewErrorMessage(error): string {
 	return getOptionalBoundedString(error?.message || String(error), 500) || 'activitypub_migration_preview_error';
+}
+
+function getActivityPubMigrationRelationReconcileListParams(input: IActivityPubMigrationRelationReconcileInput): IListParams {
+	return helpers.prepareListParams({
+		limit: input.limit === undefined ? activityPubSourceRefreshPollDefaultLimit : input.limit,
+		sortBy: 'publishedAt',
+		sortDir: 'DESC'
+	}, activityPubMigrationRelationReconcileListParams);
+}
+
+async function getRequiredActivityPubMigrationRelationReconcileGroupId(app: IGeesomeApp, userId: number, input: IActivityPubMigrationRelationReconcileInput): Promise<number> {
+	const groupId = Number(input?.groupId);
+	if (Number.isFinite(groupId) && groupId > 0) {
+		return Number((await app.ms.group.getLocalGroup(userId, Math.floor(groupId))).id);
+	}
+	const groupName = getOptionalBoundedString(input?.groupName, 200);
+	if (groupName) {
+		const group = await app.ms.group.getGroupByParams({name: groupName});
+		if (group?.id) {
+			await app.ms.group.getLocalGroup(userId, group.id);
+			return Number(group.id);
+		}
+	}
+	throwActivityPubError('activitypub_migration_reconcile_group_required', 400);
+}
+
+function getActivityPubMigrationRelationReconcilePostFilters(input: IActivityPubMigrationRelationReconcileInput) {
+	const filters: any = {
+		source: 'activityPub',
+		sourcePostIdNe: null,
+		cursorPublishedAt: input.cursorPublishedAt,
+		cursorId: input.cursorId
+	};
+	const sourceChannelId = getOptionalActivityPubString(input.sourceChannelId);
+	if (sourceChannelId) {
+		filters.sourceChannelId = sourceChannelId;
+	}
+	return filters;
+}
+
+async function reconcileActivityPubMigrationPostRelations(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	postRefs: IPost[],
+	input: IActivityPubMigrationRelationReconcileInput,
+	listParams: IListParams
+): Promise<IActivityPubMigrationRelationReconcileResult> {
+	const state = getEmptyActivityPubMigrationRelationReconcileState(input);
+	for (const postRef of postRefs) {
+		state.checked += 1;
+		try {
+			const row = await getActivityPubMigrationRelationReconcileRow(app, models, userId, postRef, input);
+			state.rows.push(row);
+			if (!row.changes || Object.keys(row.changes).length === 0) {
+				state.skipped += 1;
+				continue;
+			}
+			if (!state.dryRun) {
+				await app.ms.group.updatePost(userId, postRef.id, row.changes);
+			}
+			state.updated += 1;
+		} catch (e) {
+			state.failed += 1;
+			appendActivityPubMigrationRelationError(state.errors, getActivityPubMigrationRelationError(postRef, getErrorMessage(e)));
+		}
+	}
+	return {
+		...state,
+		nextCursor: helpers.getNextCursorFromRows(postRefs, listParams.limit, {
+			valueField: 'publishedAt',
+			idField: 'id'
+		})
+	};
+}
+
+function getEmptyActivityPubMigrationRelationReconcileState(input: IActivityPubMigrationRelationReconcileInput) {
+	return {
+		checked: 0,
+		updated: 0,
+		skipped: 0,
+		failed: 0,
+		dryRun: helpers.parseBoolean(input.dryRun, false),
+		rows: [] as IActivityPubMigrationRelationReconcileRow[],
+		errors: []
+	};
+}
+
+async function getActivityPubMigrationRelationReconcileRow(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	postRef: IPost,
+	input: IActivityPubMigrationRelationReconcileInput
+): Promise<IActivityPubMigrationRelationReconcileRow> {
+	const relationState = getEmptyActivityPubMigrationRelationState(postRef);
+	const objectRecord = await getActivityPubMigrationRelationPostObjectRecord(models, postRef);
+	if (!objectRecord) {
+		appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_relation_object_missing');
+		return getActivityPubMigrationRelationReconcileRowResult(postRef, relationState);
+	}
+	const object = getActivityPubMigrationRelationObject(objectRecord);
+	if (!object) {
+		appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_relation_object_invalid');
+		return getActivityPubMigrationRelationReconcileRowResult(postRef, relationState);
+	}
+	await appendActivityPubMigrationReplyRelationChange(app, models, userId, postRef, object, input, relationState);
+	await appendActivityPubMigrationQuoteRelationChange(models, postRef, object, input, relationState);
+	return getActivityPubMigrationRelationReconcileRowResult(postRef, relationState);
+}
+
+function getEmptyActivityPubMigrationRelationState(postRef: IPost) {
+	return {
+		changes: {} as {replyToId?: number | null; repostOfId?: number | null},
+		reasons: [] as string[],
+		originalReplyToId: getOptionalPositiveActivityPubInteger(postRef.replyToId),
+		originalRepostOfId: getOptionalPositiveActivityPubInteger(postRef.repostOfId)
+	};
+}
+
+async function appendActivityPubMigrationReplyRelationChange(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	postRef: IPost,
+	object,
+	input: IActivityPubMigrationRelationReconcileInput,
+	relationState
+): Promise<void> {
+	if (!shouldReconcileActivityPubMigrationRelation(postRef.replyToId, input)) {
+		return appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_reply_already_set');
+	}
+	const targetObjectId = getActivityPubMigrationReplyTargetId(object);
+	if (!targetObjectId) {
+		return appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_reply_target_missing');
+	}
+	const target = await getActivityPubMigrationRelationTarget(models, postRef, targetObjectId, input);
+	if (!target.post) {
+		return appendActivityPubMigrationRelationReason(relationState, target.reason);
+	}
+	if (!await app.ms.group.canReplyToPost(userId, target.post.id)) {
+		return appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_reply_not_permitted');
+	}
+	relationState.changes.replyToId = target.post.id;
+}
+
+async function appendActivityPubMigrationQuoteRelationChange(
+	models,
+	postRef: IPost,
+	object,
+	input: IActivityPubMigrationRelationReconcileInput,
+	relationState
+): Promise<void> {
+	if (!shouldReconcileActivityPubMigrationRelation(postRef.repostOfId, input)) {
+		return appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_quote_already_set');
+	}
+	const targetObjectId = getActivityPubMigrationQuoteTargetId(object);
+	if (!targetObjectId) {
+		return appendActivityPubMigrationRelationReason(relationState, 'activitypub_migration_quote_target_missing');
+	}
+	const target = await getActivityPubMigrationRelationTarget(models, postRef, targetObjectId, input);
+	if (!target.post) {
+		return appendActivityPubMigrationRelationReason(relationState, target.reason);
+	}
+	relationState.changes.repostOfId = target.post.id;
+}
+
+async function getActivityPubMigrationRelationPostObjectRecord(models, postRef: IPost) {
+	const remoteObjectId = getActivityPubMigrationRemoteObjectRecordId(postRef.sourcePostId);
+	if (remoteObjectId) {
+		const objectRecord = await models.ActivityPubObject.findOne({
+			where: {
+				id: remoteObjectId,
+				origin: ActivityPubObjectOrigin.Remote
+			}
+		});
+		if (objectRecord) {
+			return objectRecord;
+		}
+	}
+	const sourceObjectId = getOptionalActivityPubString(getPostActivityPubProperties(postRef)?.objectId);
+	if (!sourceObjectId) {
+		return null;
+	}
+	return models.ActivityPubObject.findOne({
+		where: {
+			objectId: sourceObjectId,
+			origin: ActivityPubObjectOrigin.Remote
+		}
+	});
+}
+
+function getActivityPubMigrationRelationObject(objectRecord) {
+	const rawObject = parseActivityPubJson(String(objectRecord?.rawJson || '{}'));
+	if (!rawObject || typeof rawObject !== 'object' || Array.isArray(rawObject)) {
+		return null;
+	}
+	if (rawObject.object && typeof rawObject.object === 'object' && !Array.isArray(rawObject.object)) {
+		return rawObject.object;
+	}
+	return rawObject;
+}
+
+function shouldReconcileActivityPubMigrationRelation(existingPostId: number | string | null | undefined, input: IActivityPubMigrationRelationReconcileInput): boolean {
+	return helpers.parseBoolean(input.force, false) || !getOptionalPositiveActivityPubInteger(existingPostId);
+}
+
+function getActivityPubMigrationReplyTargetId(object): string | null {
+	return getActivityPubMigrationRelationReferenceId(object?.inReplyTo);
+}
+
+function getActivityPubMigrationQuoteTargetId(object): string | null {
+	return getActivityPubMigrationRelationReferenceId(
+		object?.quoteUrl,
+		object?.quoteUri,
+		object?.quote,
+		object?._misskey_quote
+	);
+}
+
+async function getActivityPubMigrationRelationTarget(models, postRef: IPost, targetObjectId: string, input: IActivityPubMigrationRelationReconcileInput) {
+	const targetObjects = await getActivityPubMigrationRelationTargetObjects(models, targetObjectId);
+	if (!targetObjects.length) {
+		return {post: null, reason: 'activitypub_migration_relation_target_missing'};
+	}
+	const sameGroupTarget = await getSingleActivityPubMigrationRelationTarget(models, postRef, targetObjects, {sameGroup: true});
+	if (sameGroupTarget.post || sameGroupTarget.reason === 'activitypub_migration_relation_target_ambiguous') {
+		return sameGroupTarget;
+	}
+	if (!helpers.parseBoolean(input.allowCrossGroup, true)) {
+		return {post: null, reason: 'activitypub_migration_relation_target_missing'};
+	}
+	return getSingleActivityPubMigrationRelationTarget(models, postRef, targetObjects, {sameGroup: false});
+}
+
+async function getActivityPubMigrationRelationTargetObjects(models, targetObjectId: string) {
+	return models.ActivityPubObject.findAll({
+		where: {
+			objectId: targetObjectId
+		},
+		order: [['id', 'ASC']],
+		limit: 20
+	});
+}
+
+async function getSingleActivityPubMigrationRelationTarget(models, postRef: IPost, targetObjects: any[], options: {sameGroup: boolean}) {
+	const where = getActivityPubMigrationRelationTargetWhere(postRef, targetObjects, options);
+	if (!where) {
+		return {post: null, reason: 'activitypub_migration_relation_target_missing'};
+	}
+	const targets = await models.Post.findAll({
+		where,
+		order: [['publishedAt', 'ASC'], ['id', 'ASC']],
+		limit: 2
+	});
+	if (targets.length === 1) {
+		return {post: targets[0], reason: null};
+	}
+	if (targets.length > 1) {
+		return {post: null, reason: 'activitypub_migration_relation_target_ambiguous'};
+	}
+	return {post: null, reason: 'activitypub_migration_relation_target_missing'};
+}
+
+function getActivityPubMigrationRelationTargetWhere(postRef: IPost, targetObjects: any[], options: {sameGroup: boolean}) {
+	const identityFilters = getActivityPubMigrationRelationTargetIdentityFilters(targetObjects);
+	if (!identityFilters.length) {
+		return null;
+	}
+	return {
+		groupId: options.sameGroup ? postRef.groupId : {[Op.ne]: postRef.groupId},
+		status: PostStatus.Published,
+		isDeleted: false,
+		[Op.and]: [
+			{id: {[Op.ne]: postRef.id}},
+			{[Op.or]: identityFilters}
+		]
+	};
+}
+
+function getActivityPubMigrationRelationTargetIdentityFilters(targetObjects: any[]) {
+	const remoteSourcePostIds = targetObjects
+		.filter(objectRecord => objectRecord?.origin === ActivityPubObjectOrigin.Remote)
+		.map(objectRecord => getOptionalPositiveActivityPubInteger(objectRecord?.id))
+		.filter(id => id)
+		.map(id => `remoteObject:${id}`);
+	const localPostIds = targetObjects
+		.map(objectRecord => getOptionalPositiveActivityPubInteger(objectRecord?.localPostId))
+		.filter(id => id);
+	const filters: any[] = [];
+	if (remoteSourcePostIds.length) {
+		filters.push({
+			source: 'activityPub',
+			sourcePostId: {[Op.in]: remoteSourcePostIds}
+		});
+	}
+	if (localPostIds.length) {
+		filters.push({
+			id: {[Op.in]: localPostIds}
+		});
+	}
+	return filters;
+}
+
+function getActivityPubMigrationRelationReconcileRowResult(postRef: IPost, relationState): IActivityPubMigrationRelationReconcileRow {
+	const changes = getNonEmptyActivityPubMigrationRelationChanges(relationState.changes);
+	if (changes) {
+		return {
+			postId: Number(postRef.id),
+			sourcePostId: getOptionalActivityPubString(postRef.sourcePostId),
+			replyToId: relationState.originalReplyToId,
+			repostOfId: relationState.originalRepostOfId,
+			updated: true,
+			changes
+		};
+	}
+	return {
+		postId: Number(postRef.id),
+		sourcePostId: getOptionalActivityPubString(postRef.sourcePostId),
+		replyToId: relationState.originalReplyToId,
+		repostOfId: relationState.originalRepostOfId,
+		skipped: true,
+		reason: getActivityPubMigrationRelationSkipReason(relationState.reasons)
+	};
+}
+
+function getNonEmptyActivityPubMigrationRelationChanges(changes: {replyToId?: number | null; repostOfId?: number | null}) {
+	const result: any = {};
+	if (changes.replyToId) {
+		result.replyToId = changes.replyToId;
+	}
+	if (changes.repostOfId) {
+		result.repostOfId = changes.repostOfId;
+	}
+	return Object.keys(result).length ? result : null;
+}
+
+function appendActivityPubMigrationRelationReason(relationState, reason: string): void {
+	if (!relationState.reasons.includes(reason)) {
+		relationState.reasons.push(reason);
+	}
+}
+
+function getActivityPubMigrationRelationSkipReason(reasons: string[]): string {
+	const actionableReason = reasons.find(reason => !reason.endsWith('_missing') && !reason.endsWith('_already_set'));
+	return actionableReason || reasons[0] || 'activitypub_migration_relation_change_missing';
+}
+
+function getActivityPubMigrationRelationError(postRef: IPost, message: string) {
+	return {
+		postId: Number(postRef?.id) || undefined,
+		sourcePostId: getOptionalActivityPubString(postRef?.sourcePostId),
+		message
+	};
+}
+
+function appendActivityPubMigrationRelationError(errors, error): void {
+	if (errors.length < 20) {
+		errors.push(error);
+	}
+}
+
+function getActivityPubMigrationRemoteObjectRecordId(sourcePostId: any): number | null {
+	const match = getOptionalActivityPubString(sourcePostId)?.match(/^remoteObject:(\d+)$/);
+	if (!match) {
+		return null;
+	}
+	const id = Number(match[1]);
+	return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+function getActivityPubMigrationRelationReferenceId(...values: any[]): string | null {
+	for (const value of values) {
+		const referenceId = getActivityPubMigrationRelationSingleReferenceId(value);
+		if (referenceId) {
+			return referenceId;
+		}
+	}
+	return null;
+}
+
+function getActivityPubMigrationRelationSingleReferenceId(value: any): string | null {
+	if (typeof value === 'string') {
+		return getOptionalActivityPubString(value);
+	}
+	if (Array.isArray(value)) {
+		return getActivityPubMigrationRelationReferenceId(...value);
+	}
+	if (value && typeof value === 'object') {
+		return getActivityPubMigrationRelationReferenceId(value.id, value.href, value.url);
+	}
+	return null;
+}
+
+function getPostActivityPubProperties(post: IPost) {
+	return parseActivityPubJson(String(post?.propertiesJson || '{}'))?.activityPub || {};
+}
+
+function getOptionalActivityPubString(value: any): string | null {
+	if (typeof value !== 'string') {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed || null;
+}
+
+function getOptionalPositiveActivityPubInteger(value: any): number | null {
+	const id = Number(value);
+	if (!Number.isFinite(id) || id <= 0) {
+		return null;
+	}
+	return Math.floor(id);
 }
 
 function isActivityPubMigrationVisibleImport(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): boolean {

@@ -1074,6 +1074,98 @@ describe('activityPub module', () => {
 		});
 	});
 
+	it('reconciles ActivityPub migration reply and quote relations after visible posts exist', async () => {
+		const {module, models, calls} = await createActivityPubHarness();
+		const rootObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/root',
+			rawObject: {id: 'https://remote.example/objects/root', type: 'Note'}
+		});
+		const quoteObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/quote-target',
+			rawObject: {id: 'https://remote.example/objects/quote-target', type: 'Note'}
+		});
+		const ambiguousObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/ambiguous-target',
+			rawObject: {id: 'https://remote.example/objects/ambiguous-target', type: 'Note'}
+		});
+		const replyObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/reply',
+			rawObject: {
+				id: 'https://remote.example/objects/reply',
+				type: 'Note',
+				inReplyTo: rootObject.objectId
+			}
+		});
+		const quotePostObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/quote-post',
+			rawObject: {
+				id: 'https://remote.example/objects/quote-post',
+				type: 'Note',
+				quoteUrl: quoteObject.objectId
+			}
+		});
+		const ambiguousReplyObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/ambiguous-reply',
+			rawObject: {
+				id: 'https://remote.example/objects/ambiguous-reply',
+				type: 'Note',
+				inReplyTo: ambiguousObject.objectId
+			}
+		});
+		const plainObject = await createActivityPubRelationObject(models, {
+			objectId: 'https://remote.example/objects/plain',
+			rawObject: {id: 'https://remote.example/objects/plain', type: 'Note'}
+		});
+		models.Post.rows.push(
+			getActivityPubRelationPost(rootObject, {id: 20, groupId: 100, publishedAt: '2026-06-01T08:00:00Z'}),
+			getActivityPubRelationPost(quoteObject, {id: 30, groupId: 100, publishedAt: '2026-06-01T08:01:00Z'}),
+			getActivityPubRelationPost(ambiguousObject, {id: 31, groupId: 101, publishedAt: '2026-06-01T08:02:00Z'}),
+			getActivityPubRelationPost(ambiguousObject, {id: 32, groupId: 102, publishedAt: '2026-06-01T08:03:00Z'}),
+			getActivityPubRelationPost(replyObject, {id: 11, groupId: 100, publishedAt: '2026-06-02T08:01:00Z'}),
+			getActivityPubRelationPost(quotePostObject, {id: 12, groupId: 100, publishedAt: '2026-06-02T08:02:00Z'}),
+			getActivityPubRelationPost(ambiguousReplyObject, {id: 13, groupId: 100, publishedAt: '2026-06-02T08:03:00Z'}),
+			getActivityPubRelationPost(plainObject, {id: 14, groupId: 100, publishedAt: '2026-06-02T08:04:00Z'})
+		);
+
+		const dryRun = await module.reconcileMigrationRelations(7, {
+			groupId: 100,
+			sourceChannelId: 'remoteActor:1',
+			limit: 4,
+			dryRun: true
+		});
+
+		assert.equal(dryRun.checked, 4);
+		assert.equal(dryRun.updated, 2);
+		assert.equal(dryRun.skipped, 2);
+		assert.equal(dryRun.failed, 0);
+		assert.equal(dryRun.dryRun, true);
+		assert.deepEqual(dryRun.errors, []);
+		assert.deepEqual(dryRun.rows.find(row => row.postId === 11)?.changes, {replyToId: 20});
+		assert.deepEqual(dryRun.rows.find(row => row.postId === 12)?.changes, {repostOfId: 30});
+		assert.equal(dryRun.rows.find(row => row.postId === 13)?.reason, 'activitypub_migration_relation_target_ambiguous');
+		assert.equal(dryRun.rows.find(row => row.postId === 14)?.reason, 'activitypub_migration_reply_target_missing');
+		assert.deepEqual(dryRun.nextCursor, {publishedAt: new Date('2026-06-02T08:01:00.000Z'), id: 11});
+		assert.deepEqual(calls.updatePost, []);
+
+		const applied = await module.reconcileMigrationRelations(7, {
+			groupName: 'group-100',
+			sourceChannelId: 'remoteActor:1',
+			limit: 4
+		});
+
+		assert.equal(applied.dryRun, false);
+		assert.equal(applied.updated, 2);
+		assert.deepEqual(calls.updatePost, [
+			{userId: 7, postId: 12, postData: {repostOfId: 30}},
+			{userId: 7, postId: 11, postData: {replyToId: 20}}
+		]);
+		assert.deepEqual(calls.canReplyToPost.map(call => call.postId), [20, 20]);
+		assert.deepEqual(calls.checkUserCan.map(call => call.permission), [
+			CorePermissionName.UserGroupManagement,
+			CorePermissionName.UserGroupManagement
+		]);
+	});
+
 	it('paginates ActivityPub source feeds with a stable cursor', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, models} = await createActivityPubHarness({
@@ -3394,6 +3486,7 @@ describe('activityPub API', () => {
 		const migrationPreviewCalls: any[] = [];
 		const migrationImportCalls: any[] = [];
 		const migrationImportQueueCalls: any[] = [];
+		const migrationReconcileCalls: any[] = [];
 		registerActivityPubApi({
 			checkUserCan: async (userId, permission) => {
 				permissionChecks.push({userId, permission});
@@ -3492,6 +3585,18 @@ describe('activityPub API', () => {
 					id: 45,
 					module: 'activitypub-migration-import',
 					userApiKeyId
+				};
+			},
+			reconcileMigrationRelations: async (userId, input) => {
+				migrationReconcileCalls.push({userId, input});
+				return {
+					checked: 1,
+					updated: 1,
+					skipped: 0,
+					failed: 0,
+					dryRun: true,
+					rows: [{postId: 11, changes: {replyToId: 20}}],
+					errors: []
 				};
 			},
 			getActivityPubSourceSubscriptions: async (userId, filters, listParams) => ({
@@ -3761,6 +3866,10 @@ describe('activityPub API', () => {
 			},
 			user: {id: 1}
 		});
+		const migrationReconcile = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/reconcile-relations', {
+			body: {groupId: 3, dryRun: true},
+			user: {id: 1}
+		});
 		assert.deepEqual(migrationImportCalls, [
 			{
 				userId: 1,
@@ -3782,14 +3891,20 @@ describe('activityPub API', () => {
 			userApiKeyId: 12,
 			input: {actorUrl: 'https://remote.example/users/alice', claimed: true, async: true, process: false}
 		}]);
-		assert.deepEqual(permissionChecks.slice(1, 5), [
+		assert.deepEqual(migrationReconcileCalls, [{
+			userId: 1,
+			input: {groupId: 3, dryRun: true}
+		}]);
+		assert.deepEqual(permissionChecks.slice(1, 6), [
 			{userId: 1, permission: CorePermissionName.UserGroupManagement},
 			{userId: 1, permission: CorePermissionName.UserGroupManagement},
 			{userId: 1, permission: CorePermissionName.UserGroupManagement},
-			{userId: 1, permission: CorePermissionName.AdminAll}
+			{userId: 1, permission: CorePermissionName.AdminAll},
+			{userId: 1, permission: CorePermissionName.UserGroupManagement}
 		]);
 		assert.equal(migrationImport.body.cached, 1);
 		assert.equal(migrationImportVisible.body.cached, 1);
+		assert.equal(migrationReconcile.body.updated, 1);
 		assert.deepEqual(migrationImport.body.remoteObjectIds, [2]);
 		assert.deepEqual(migrationImportAsync.body, {
 			id: 45,
@@ -3802,7 +3917,7 @@ describe('activityPub API', () => {
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[5], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObjects.body, {
 			list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
 			total: 1
@@ -3822,7 +3937,7 @@ describe('activityPub API', () => {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[7], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObjectPostDraft.body, {
 			canCreatePost: true,
 			reasons: [],
@@ -3837,7 +3952,7 @@ describe('activityPub API', () => {
 			body: {importRemoteAttachments: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectPostCreateCalls, [{
 			groupName: 'test-channel',
 			remoteObjectId: '2',
@@ -3855,7 +3970,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectAttachmentBackupQueueCalls, [{
 			groupName: 'test-channel',
 			remoteObjectId: '2',
@@ -3873,7 +3988,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubObjectReviewState.Rejected},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectReviewState.body, {
 			id: 2,
 			reviewState: ActivityPubObjectReviewState.Rejected,
@@ -3885,7 +4000,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -3896,7 +4011,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',
@@ -3911,7 +4026,7 @@ describe('activityPub API', () => {
 			body: {handle: 'bsky.app', bridgeProvider: 'bridgy-bluesky'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceResolveCalls, [{
 			handle: 'bsky.app',
 			bridgeProvider: 'bridgy-bluesky'
@@ -3927,7 +4042,7 @@ describe('activityPub API', () => {
 			query: {status: ActivityPubSourceSubscriptionStatus.Active},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:read'});
 		assert.equal(sources.body.list[0].id, 4);
 		assert.deepEqual(sources.body.list[0]._filters, {status: ActivityPubSourceSubscriptionStatus.Active});
 
@@ -3935,7 +4050,7 @@ describe('activityPub API', () => {
 			body: {resource: 'acct:bsky.app@bsky.brid.gy', displayName: 'Bluesky'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceSubscribeCalls, [{
 			userId: 1,
 			input: {
@@ -3950,7 +4065,7 @@ describe('activityPub API', () => {
 			body: {groupName: 'test-channel'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceFollowCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3964,7 +4079,7 @@ describe('activityPub API', () => {
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(sourceFeedCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3978,7 +4093,7 @@ describe('activityPub API', () => {
 			body: {limit: 2, includeFeatured: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[19], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -3993,7 +4108,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[19], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[20], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshQueueCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4008,7 +4123,7 @@ describe('activityPub API', () => {
 			body: {readAt: '2026-06-01T12:10:00Z'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[20], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[21], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceReadCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4021,7 +4136,7 @@ describe('activityPub API', () => {
 			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[21], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[22], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceUpdateCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4033,7 +4148,7 @@ describe('activityPub API', () => {
 			params: {sourceId: '4'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[22], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[23], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRemoveCalls, [{
 			userId: 1,
 			sourceId: '4'
@@ -4109,6 +4224,10 @@ async function createActivityPubHarness(overrides: any = {}) {
 	const calls: any = {
 		getGroupByParams: [],
 		getGroupPosts: [],
+		getGroupPostRefs: [],
+		getLocalGroup: [],
+		canReplyToPost: [],
+		updatePost: [],
 		getFileStream: [],
 		saveData: [],
 		saveDataByUrl: [],
@@ -4186,6 +4305,10 @@ async function createActivityPubHarness(overrides: any = {}) {
 					if (params.name === 'private-channel') {
 						return {...group, name: 'private-channel', isPublic: false};
 					}
+					const groupNameMatch = String(params.name || '').match(/^group-(\d+)$/);
+					if (groupNameMatch) {
+						return {...group, id: Number(groupNameMatch[1]), name: params.name};
+					}
 					if (params.name !== group.name) {
 						return null;
 					}
@@ -4198,11 +4321,42 @@ async function createActivityPubHarness(overrides: any = {}) {
 						total: null
 					};
 				},
+				async getGroupPostRefs(groupId, filters, listParams) {
+					calls.getGroupPostRefs.push({groupId, filters, listParams});
+					const filteredPosts = models.Post.rows.filter((post) => {
+						if (Number(post.groupId) !== Number(groupId)) {
+							return false;
+						}
+						if (filters.source && post.source !== filters.source) {
+							return false;
+						}
+						if (filters.sourceChannelId && post.sourceChannelId !== filters.sourceChannelId) {
+							return false;
+						}
+						if (filters.sourcePostIdNe === null && (post.sourcePostId === null || post.sourcePostId === undefined)) {
+							return false;
+						}
+						if (post.status !== PostStatus.Published || post.isDeleted === true) {
+							return false;
+						}
+						return true;
+					});
+					const sortBy = listParams?.sortBy || 'publishedAt';
+					const sortDir = listParams?.sortDir || 'DESC';
+					const orderedPosts = [...filteredPosts].sort((left, right) => compareOrderRows(left, right, [[sortBy, sortDir], ['id', sortDir]]));
+					return orderedPosts.slice(0, Number(listParams?.limit || orderedPosts.length));
+				},
 				async getGroupPostRefsByLocalIds(groupId, localIds) {
 					if (Number(groupId) !== group.id || !localIds.includes('7')) {
 						return [];
 					}
 					return [publishedPost];
+				},
+				async getLocalGroup(userId, groupId) {
+					calls.getLocalGroup.push({userId, groupId});
+					return Number(groupId) === group.id
+						? group
+						: {...group, id: Number(groupId), name: `group-${groupId}`};
 				},
 				async getPostPure(postId) {
 					if (Number(postId) !== publishedPost.id) {
@@ -4239,6 +4393,18 @@ async function createActivityPubHarness(overrides: any = {}) {
 					calls.updateRemotePostByObject.push({userId, postId, postData, options});
 					Object.assign(calls.remotePosts[Number(postId)], postData);
 					return calls.remotePosts[Number(postId)];
+				},
+				async updatePost(userId, postId, postData) {
+					calls.updatePost.push({userId, postId, postData});
+					const post = models.Post.rows.find(row => Number(row.id) === Number(postId));
+					if (post) {
+						Object.assign(post, postData);
+					}
+					return post;
+				},
+				async canReplyToPost(userId, postId) {
+					calls.canReplyToPost.push({userId, postId});
+					return true;
 				},
 				async deletePostsPure(userId, postIds, options) {
 					calls.deletePostsPure.push({userId, postIds, options});
@@ -4287,6 +4453,51 @@ function addImportedRemotePost(calls, remoteObject, overrides: any = {}) {
 	remoteObject.localPostId = post.id;
 	calls.remotePosts[post.id] = post;
 	return post;
+}
+
+async function createActivityPubRelationObject(models, overrides: any = {}) {
+	const rawObject = overrides.rawObject || {
+		id: overrides.objectId || 'https://remote.example/objects/relation',
+		type: 'Note'
+	};
+	const {rawObject: _rawObject, ...recordOverrides} = overrides;
+	return models.ActivityPubObject.create({
+		remoteActorId: 1,
+		localActorId: null,
+		localPostId: null,
+		remoteObjectUrl: rawObject.url || rawObject.id,
+		activityId: `https://remote.example/activities/${models.ActivityPubObject.rows.length + 1}`,
+		objectId: rawObject.id,
+		objectType: rawObject.type || 'Note',
+		origin: ActivityPubObjectOrigin.Remote,
+		visibility: ActivityPubObjectVisibility.Public,
+		publishedAt: new Date('2026-06-01T08:00:00Z'),
+		rawJson: JSON.stringify(rawObject),
+		...recordOverrides
+	});
+}
+
+function getActivityPubRelationPost(objectRecord, overrides: any = {}) {
+	return {
+		id: objectRecord.localPostId || 1000 + Number(objectRecord.id),
+		userId: 7,
+		groupId: 100,
+		status: PostStatus.Published,
+		isDeleted: false,
+		source: 'activityPub',
+		sourceChannelId: `remoteActor:${objectRecord.remoteActorId}`,
+		sourcePostId: `remoteObject:${objectRecord.id}`,
+		publishedAt: objectRecord.publishedAt || new Date('2026-06-01T08:00:00Z'),
+		replyToId: null,
+		repostOfId: null,
+		propertiesJson: JSON.stringify({
+			activityPub: {
+				objectId: objectRecord.objectId
+			}
+		}),
+		...overrides,
+		publishedAt: overrides.publishedAt ? new Date(overrides.publishedAt) : (objectRecord.publishedAt || new Date('2026-06-01T08:00:00Z'))
+	};
 }
 
 function getAsyncOperationStub(calls) {
@@ -4505,7 +4716,8 @@ function getModelsStub() {
 		ActivityPubObject: getModelStub(),
 		ActivityPubDelivery: getModelStub(),
 		ActivityPubObjectReview: getModelStub(),
-		ActivityPubFlag: getModelStub()
+		ActivityPubFlag: getModelStub(),
+		Post: getModelStub()
 	};
 
 	return models;
@@ -4654,6 +4866,10 @@ function valueMatchesWhere(value, condition) {
 		const key = Reflect.ownKeys(condition)[0];
 		return !condition[key as any].includes(value);
 	}
+	if (isNeCondition(condition)) {
+		const key = Reflect.ownKeys(condition)[0];
+		return value !== condition[key as any];
+	}
 	if (isLteCondition(condition)) {
 		if (value === null || value === undefined) {
 			return false;
@@ -4677,6 +4893,10 @@ function isInCondition(condition): boolean {
 
 function isNotInCondition(condition): boolean {
 	return isArrayCondition(condition, Op.notIn);
+}
+
+function isNeCondition(condition): boolean {
+	return isSingleOperatorCondition(condition, 'ne');
 }
 
 function isArrayCondition(condition, op): boolean {

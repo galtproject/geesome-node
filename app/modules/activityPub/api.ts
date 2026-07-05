@@ -238,6 +238,31 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/reconcile-relations Reconcile ActivityPub migration relations
+	 * @apiName UserActivityPubMigrationReconcileRelations
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Bounded post-migration repair for already-created ActivityPub migration posts in one GeeSome group. The job scans imported ActivityPub posts by source identity, reads their cached ActivityStreams object JSON, resolves `inReplyTo` to local `replyToId`, resolves quote references (`quoteUrl`, `quoteUri`, `quote`, or `_misskey_quote`) to local `repostOfId`, and updates only when the matching target post already exists by ActivityPub object identity. Same-group targets are preferred; cross-group targets are used only when unambiguous and `allowCrossGroup` is not false. Use `dryRun=true` to preview changes without writing. Announces/reblogs are intentionally not rewritten in this first relation pass because repost authorship policy needs a separate product decision.
+	 * @apiBody {Number} [groupId] Local GeeSome group id whose imported ActivityPub posts should be inspected.
+	 * @apiBody {String} [groupName] Local GeeSome group name used when `groupId` is not supplied.
+	 * @apiBody {String} [sourceChannelId] Optional imported ActivityPub source channel filter such as `remoteActor:123`.
+	 * @apiBody {Number} [limit=20] Maximum imported posts to inspect, capped at 100.
+	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous result.
+	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous result.
+	 * @apiBody {Boolean} [allowCrossGroup=true] Whether to link to unambiguous target posts in other GeeSome groups.
+	 * @apiBody {Boolean} [force=false] Recompute relation fields even when they are already set.
+	 * @apiBody {Boolean} [dryRun=false] Return the rows that would change without updating posts.
+	 * @apiSuccess {Object} result Reconciliation result with checked, updated, skipped, failed, dryRun, row details, bounded errors, and optional nextCursor.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/reconcile-relations', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await activityPubModule.reconcileMigrationRelations(req.user.id, req.body || {}));
+	});
+
+	/**
 	 * @api {post} /v1/admin/activity-pub/sources/resolve Resolve ActivityPub source
 	 * @apiName AdminActivityPubSourceResolve
 	 * @apiGroup AdminActivityPub
