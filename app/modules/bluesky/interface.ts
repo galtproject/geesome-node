@@ -60,6 +60,7 @@ export interface IBlueskyMigrationImportInput extends IBlueskyPublicAuthorFeedIm
 
 export interface IBlueskyMigrationImportResult extends IBlueskyPublicAuthorFeedImportResult {
 	ownership: IBlueskyMigrationPreview['ownership'];
+	moderation?: IRemoteContentModerationSummary;
 }
 
 export interface IBlueskyMigrationImportQueueInput extends IBlueskyMigrationImportInput {

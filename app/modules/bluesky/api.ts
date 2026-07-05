@@ -89,7 +89,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Verifies a stored user-scoped Bluesky account, fetches one bounded public author-feed page, verifies that the authenticated DID/handle owns the previewed actor, then starts the existing social-import async operation for that page. When `async=true`, the same claimed import is stored in the persistent async-operation queue instead; the queued payload stores only bounded import options and account selectors, then verifies the stored account again when processed. Plaintext `appPassword`, `password`, and `apiKey` overrides are rejected for queued imports so secrets are not stored in the queue; omit `async` when a one-off plaintext override is required. Imported posts preserve Bluesky AT URI source identity, projected reply/repost/quote metadata, and canonical rich-text content. `claimed=true` and a matching `accountData` selector are required to avoid creating a personal migration for someone else's account. This route does not create Bluesky records, follow sources, subscribe pollers, or reconcile remote placeholders yet.
+	 * @apiDescription Verifies a stored user-scoped Bluesky account, fetches one bounded public author-feed page, verifies that the authenticated DID/handle owns the previewed actor, applies optional write-time moderation rules before any local post import starts, then starts the existing social-import async operation for the allowed records from that page. When `async=true`, the same claimed import is stored in the persistent async-operation queue instead; the queued payload stores only bounded import options, moderation policy, and account selectors, then verifies the stored account again when processed. Plaintext `appPassword`, `password`, and `apiKey` overrides are rejected for queued imports so secrets are not stored in the queue; omit `async` when a one-off plaintext override is required. Imported posts preserve Bluesky AT URI source identity, projected reply/repost/quote metadata, moderation decision metadata, and canonical rich-text content. `claimed=true` and a matching `accountData` selector are required to avoid creating a personal migration for someone else's account. This route does not create Bluesky records, follow sources, subscribe pollers, or reconcile remote placeholders yet.
 	 * @apiBody {String} actor Bluesky handle or DID to import, for example `alice.bsky.social`.
 	 * @apiBody {Boolean} claimed Must be `true`; the selected stored Bluesky account must match the imported actor.
 	 * @apiBody {Object} accountData Stored Bluesky account selector.
@@ -104,13 +104,17 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
 	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
 	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this batch.
+	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this migration import. Non-allow decisions are not written as visible GeeSome posts by this route.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationPolicy.mode] Optional moderation mode.
+	 * @apiBody {Object[]} [moderationPolicy.rules] Optional bounded keyword/regex/source/group-name rules.
 	 * @apiBody {Boolean} [async=false] Queue the import in the persistent async-operation queue instead of starting it immediately.
 	 * @apiBody {Number} [maxPages=1] Maximum author-feed pages for queued imports when `async=true`, capped at 25. Immediate imports always process one page.
 	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing when `async=true`.
 	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
 	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
 	 * @apiSuccess {Object} ownership Verified ownership report for the claimed migration.
-	 * @apiSuccess {Number} projectedPostsCount Number of projected feed items queued for import.
+	 * @apiSuccess {Object} moderation Summary of allowed, review, quarantine, block, and match decisions for fetched records.
+	 * @apiSuccess {Number} projectedPostsCount Number of projected feed items fetched before moderation filtering.
 	 * @apiSuccess {Object} dbChannel Local social-import channel summary.
 	 * @apiSuccess {Object} asyncOperation Async import operation to track or cancel.
 	 * @apiSuccess (Queued async response) {Number} id Operation queue id when `async=true`.
