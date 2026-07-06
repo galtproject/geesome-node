@@ -390,7 +390,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Creates or reactivates a native Bluesky/ATProto source subscription for the current admin user. Duplicate subscribes for the same normalized actor are idempotent updates. This stores refresh/import preferences only; it does not fetch Bluesky, import posts, create a social-import channel, or configure credentialed cross-posting.
+	 * @apiDescription Creates or reactivates a native Bluesky/ATProto source subscription for the current admin user. Duplicate subscribes for the same normalized actor are idempotent updates. This stores refresh/import preferences, moderation defaults, and default relation/media import policies only; it does not fetch Bluesky, import posts, create a social-import channel, or configure credentialed cross-posting.
 	 * @apiBody {String} actor Bluesky handle or DID, for example `bsky.app`.
 	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter for future refreshes/imports.
 	 * @apiBody {String} [displayName] Optional UI label.
@@ -404,6 +404,14 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {String="text","source","groupName"} [moderationRules.field="text"] Field to match.
 	 * @apiBody {String} moderationRules.value Bounded keyword or regex pattern.
 	 * @apiBody {String="block","quarantine","review"} [moderationRules.action="block"] Action to take when the rule matches.
+	 * @apiBody {Object} [mediaPolicy] Optional default import media policy for future source refresh/review imports.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.images="preserve"] Preserve, strip, or reject imported Bluesky image embed metadata.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.linkPreviews="preserve"] Preserve, strip, or reject imported Bluesky external/link-preview embed metadata.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.unsupportedEmbeds="preserve"] Preserve, strip, or reject unsupported embed type metadata.
+	 * @apiBody {Object} [relationPolicy] Optional default import relation policy for future source refresh/review imports.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.replies="preserve"] Preserve, strip, or reject imported reply metadata.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.quotes="preserve"] Preserve, strip, or reject imported quote metadata.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.reposts="preserve"] Preserve, skip, or reject repost feed items.
 	 * @apiSuccess {Object} result Source subscription row.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources', async (req, res) => {
@@ -420,7 +428,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Updates local native Bluesky source subscription metadata such as display label, feed filter, future import settings, or active/paused status. It does not fetch Bluesky, import posts, delete GeeSome posts, or alter credentials.
+	 * @apiDescription Updates local native Bluesky source subscription metadata such as display label, feed filter, future import settings, stored moderation defaults, default relation/media import policies, or active/paused status. It does not fetch Bluesky, import posts, delete GeeSome posts, or alter credentials.
 	 * @apiParam {Number} sourceId Source subscription id.
 	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter, or empty to clear.
 	 * @apiBody {String} [displayName] Optional UI label, or empty to clear.
@@ -430,6 +438,8 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100, or empty to clear.
 	 * @apiBody {String="autoImport","reviewFirst"} [moderationMode] Optional source moderation mode. If omitted while rules are updated, the previous mode is preserved.
 	 * @apiBody {Object[]} [moderationRules] Optional replacement moderation rules. If omitted while mode is updated, previous rules are preserved.
+	 * @apiBody {Object} [mediaPolicy] Optional replacement default import media policy. Send `null` or `{}` to clear stored defaults back to preserve behavior.
+	 * @apiBody {Object} [relationPolicy] Optional replacement default import relation policy. Send `null` or `{}` to clear stored defaults back to preserve behavior.
 	 * @apiSuccess {Object} result Updated source subscription row.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/update', async (req, res) => {
@@ -446,7 +456,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Fetches one public ATProto author-feed page for the stored source subscription, applies optional one-off relation/media import policy, imports projected posts through the social-import pipeline, and updates local cursor/channel/error metadata. This is a bounded manual refresh, not a long-running poller or credentialed cross-post operation.
+	 * @apiDescription Fetches one public ATProto author-feed page for the stored source subscription, applies stored default relation/media import policies plus optional one-off overrides, imports projected posts through the social-import pipeline, and updates local cursor/channel/error metadata. This is a bounded manual refresh, not a long-running poller or credentialed cross-post operation.
 	 * @apiParam {Number} sourceId Source subscription id.
 	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional one-off feed filter override; defaults to the stored subscription filter.
 	 * @apiBody {Number} [limit] Optional one-off page import limit, capped at 100; defaults to the stored subscription import limit.
@@ -457,8 +467,8 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this refresh.
 	 * @apiBody {String="autoImport","reviewFirst"} [moderationPolicy.mode] Optional one-off moderation mode.
 	 * @apiBody {Object[]} [moderationPolicy.rules] Optional one-off bounded keyword/regex/source/group-name rules.
-	 * @apiBody {Object} [mediaPolicy] Optional one-off import media policy with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`.
-	 * @apiBody {Object} [relationPolicy] Optional one-off import relation policy with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`.
+	 * @apiBody {Object} [mediaPolicy] Optional one-off import media policy override with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`; omitted uses the stored source default.
+	 * @apiBody {Object} [relationPolicy] Optional one-off import relation policy override with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`; omitted uses the stored source default.
 	 * @apiSuccess {Object} result Refresh result with updated source row, fetched/imported counts, moderation summary, cursor, and channel summary.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/refresh', async (req, res) => {
@@ -476,7 +486,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Queues one public ATProto author-feed page refresh for the stored source subscription as a normal user async operation. Duplicate waiting jobs for the same source/options are reused. Optional relation/media import policies are normalized before being stored in the queue. Set `process=false` when an external worker should process the queue later.
+	 * @apiDescription Queues one public ATProto author-feed page refresh for the stored source subscription as a normal user async operation. Duplicate waiting jobs for the same source/options are reused. Optional one-off relation/media import policy overrides are normalized before being stored in the queue; omitted policy fields use the stored source defaults when the job runs. Set `process=false` when an external worker should process the queue later.
 	 * @apiParam {Number} sourceId Source subscription id.
 	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional one-off feed filter override.
 	 * @apiBody {Number} [limit] Optional one-off page import limit, capped at 100.
@@ -553,12 +563,12 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Imports one pending or quarantined cached native Bluesky review record into the linked local social-import channel/group. This uses the stored ATProto projection and preserves Bluesky AT URI source identity for idempotency unless optional relation/media policy strips or rejects a projection class.
+	 * @apiDescription Imports one pending or quarantined cached native Bluesky review record into the linked local social-import channel/group. This uses the stored ATProto projection and preserves Bluesky AT URI source identity for idempotency unless stored source defaults or optional one-off relation/media policy overrides strip or reject a projection class.
 	 * @apiParam {Number} sourceId Source subscription id.
 	 * @apiParam {Number} reviewId Review record id.
 	 * @apiBody {Boolean} [force=true] Re-import even when the same social-import message already exists.
-	 * @apiBody {Object} [mediaPolicy] Optional import media policy with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`.
-	 * @apiBody {Object} [relationPolicy] Optional import relation policy with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`.
+	 * @apiBody {Object} [mediaPolicy] Optional one-off import media policy override with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`; omitted uses the stored source default.
+	 * @apiBody {Object} [relationPolicy] Optional one-off import relation policy override with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`; omitted uses the stored source default.
 	 * @apiSuccess {Object} result Import result with source row, updated review row, channel summary, and imported count.
 	 */
 	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/reviews/:reviewId/import', async (req, res) => {

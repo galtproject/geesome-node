@@ -2817,7 +2817,14 @@ describe('bluesky module', () => {
 			displayName: ' Official ',
 			groupName: 'official-feed',
 			accountId: 1234,
-			importLimit: 500
+			importLimit: 500,
+			mediaPolicy: {
+				images: 'ignore',
+				linkPreviews: 'reject'
+			},
+			relationPolicy: {
+				reposts: 'omit'
+			}
 		});
 
 		assert.equal(first.actor, 'bsky.app');
@@ -2828,6 +2835,13 @@ describe('bluesky module', () => {
 		assert.equal(first.importLimit, 100);
 		assert.equal(first.moderationMode, RemoteContentModerationMode.AutoImport);
 		assert.deepEqual(first.moderationRules, []);
+		assert.deepEqual(first.mediaPolicy, {
+			images: 'ignore',
+			linkPreviews: 'reject'
+		});
+		assert.deepEqual(first.relationPolicy, {
+			reposts: 'omit'
+		});
 
 		const updatedExisting = await module.subscribeSource(7, {
 			actor: 'bsky.app',
@@ -2837,7 +2851,14 @@ describe('bluesky module', () => {
 			accountId: null,
 			importLimit: 2,
 			moderationMode: 'review-first',
-			moderationRules: [{name: 'spam', value: 'spam', action: 'block'}]
+			moderationRules: [{name: 'spam', value: 'spam', action: 'block'}],
+			mediaPolicy: {
+				images: 'preserve',
+				unsupportedEmbeds: 'ignore'
+			},
+			relationPolicy: {
+				quotes: 'reject'
+			}
 		});
 
 		assert.equal(updatedExisting.id, first.id);
@@ -2855,6 +2876,13 @@ describe('bluesky module', () => {
 			value: 'spam',
 			action: 'block'
 		}]);
+		assert.deepEqual(updatedExisting.mediaPolicy, {
+			images: 'preserve',
+			unsupportedEmbeds: 'ignore'
+		});
+		assert.deepEqual(updatedExisting.relationPolicy, {
+			quotes: 'reject'
+		});
 
 		const activeList = await module.getSourceSubscriptions(7, {
 			status: BlueskySourceSubscriptionStatus.Active
@@ -2872,7 +2900,9 @@ describe('bluesky module', () => {
 			groupName: null,
 			accountId: null,
 			importLimit: null,
-			moderationMode: RemoteContentModerationMode.AutoImport
+			moderationMode: RemoteContentModerationMode.AutoImport,
+			mediaPolicy: null,
+			relationPolicy: null
 		});
 
 		assert.equal(paused.status, BlueskySourceSubscriptionStatus.Paused);
@@ -2883,6 +2913,8 @@ describe('bluesky module', () => {
 		assert.equal(paused.importLimit, null);
 		assert.equal(paused.moderationMode, RemoteContentModerationMode.AutoImport);
 		assert.deepEqual(paused.moderationRules, updatedExisting.moderationRules);
+		assert.deepEqual(paused.mediaPolicy, {});
+		assert.deepEqual(paused.relationPolicy, {});
 
 		await assert.rejects(
 			() => module.updateSourceSubscription(7, first.id, {status: BlueskySourceSubscriptionStatus.Removed}),
@@ -3093,6 +3125,76 @@ describe('bluesky module', () => {
 		assert.ok(result.source.lastImportedAt);
 	});
 
+	it('applies stored native Bluesky source import policies during refresh', async () => {
+		const imports: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/'
+				}
+			},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						const message = client.messages.list[0];
+						assert.equal(client.messages.list.length, 1);
+						assert.equal(message.id, 'at://did:plc:alice/app.bsky.feed.post/policy-normal');
+						assert.equal(message.reply, null);
+						assert.equal(message.quote, null);
+						assert.equal(message.repost, null);
+						assert.deepEqual(message.embed.images, []);
+						assert.deepEqual(message.embed.external, []);
+						await client.onRemotePostProcess(message, getDbChannel(), {id: 1}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel
+			},
+			fetch: async () => ({
+				ok: true,
+				json: async () => getPolicyAuthorFeedFixture()
+			})
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social',
+			mediaPolicy: {
+				images: 'ignore',
+				linkPreviews: 'ignore'
+			},
+			relationPolicy: {
+				replies: 'omit',
+				quotes: 'omit',
+				reposts: 'omit'
+			}
+		});
+
+		const result = await module.refreshSourceSubscription(7, subscription.id);
+
+		assert.equal(imports[0].method, 'importChannelMetadata');
+		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.equal(result.fetched, 2);
+		assert.equal(result.imported, 1);
+		assert.deepEqual(result.source.mediaPolicy, {
+			images: 'ignore',
+			linkPreviews: 'ignore'
+		});
+		assert.deepEqual(result.source.relationPolicy, {
+			replies: 'omit',
+			quotes: 'omit',
+			reposts: 'omit'
+		});
+	});
+
 	it('applies moderation policy before native Bluesky source posts become visible imports', async () => {
 		const imports: any[] = [];
 		const subscriptionModel = getBlueskySourceSubscriptionModel();
@@ -3215,6 +3317,77 @@ describe('bluesky module', () => {
 			BlueskySourcePostReviewState.Pending,
 			BlueskySourcePostReviewState.Pending
 		]);
+	});
+
+	it('applies stored native Bluesky source import policies during review import', async () => {
+		const imports: any[] = [];
+		const subscriptionModel = getBlueskySourceSubscriptionModel();
+		const reviewModel = getBlueskySourcePostReviewModel();
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						const message = client.messages.list[0];
+						assert.deepEqual(client.messages.list.map(m => m.id), ['at://did:plc:alice/app.bsky.feed.post/policy-normal']);
+						assert.equal(message.reply, null);
+						assert.equal(message.quote, null);
+						assert.deepEqual(message.embed.images, []);
+						assert.deepEqual(message.embed.external, []);
+						await client.onRemotePostProcess(message, getDbChannel(), {id: 50}, 'post');
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			models: {
+				BlueskySourceSubscription: subscriptionModel,
+				BlueskySourcePostReview: reviewModel
+			},
+			fetch: async () => ({
+				ok: true,
+				json: async () => getPolicyAuthorFeedFixture()
+			})
+		});
+		const subscription = await module.subscribeSource(7, {
+			actor: '@alice.bsky.social',
+			moderationMode: 'review-first',
+			mediaPolicy: {
+				images: 'ignore',
+				linkPreviews: 'ignore'
+			},
+			relationPolicy: {
+				replies: 'omit',
+				quotes: 'omit'
+			}
+		});
+
+		await module.refreshSourceSubscription(7, subscription.id);
+		const reviewQueue = await module.getSourceReviews(7, subscription.id, {
+			state: BlueskySourcePostReviewState.Pending
+		}, {
+			limit: 10
+		});
+		const imported = await module.importSourceReviewPost(7, subscription.id, reviewQueue.list[0].id!, {force: true});
+
+		assert.equal(reviewQueue.total, 2);
+		assert.equal(imported.imported, 1);
+		assert.equal(imports[0].method, 'importChannelMetadata');
+		assert.equal(imports[1].method, 'importChannelPosts');
+		assert.deepEqual(imported.source.mediaPolicy, {
+			images: 'ignore',
+			linkPreviews: 'ignore'
+		});
+		assert.deepEqual(imported.source.relationPolicy, {
+			replies: 'omit',
+			quotes: 'omit'
+		});
 	});
 
 	it('lists, rejects, and imports cached native Bluesky source review records', async () => {
@@ -4510,6 +4683,8 @@ class FakeBlueskySourceSubscription {
 	importLimit: number | null;
 	moderationMode: string;
 	moderationRulesJson: string | null;
+	importMediaPolicyJson: string | null;
+	importRelationPolicyJson: string | null;
 	dbChannelId: number | null;
 	lastCursor: string | null;
 	lastRefreshRequestedAt: Date | null;
@@ -4522,6 +4697,8 @@ class FakeBlueskySourceSubscription {
 		Object.assign(this, {
 			moderationMode: RemoteContentModerationMode.AutoImport,
 			moderationRulesJson: null,
+			importMediaPolicyJson: null,
+			importRelationPolicyJson: null,
 			dbChannelId: null,
 			lastCursor: null,
 			lastRefreshRequestedAt: null,
