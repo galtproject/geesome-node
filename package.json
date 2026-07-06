@@ -66,7 +66,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@geesome/ui": "https://github.com/galtproject/geesome-ui#6e9772d",
+    "@geesome/ui": "https://github.com/galtproject/geesome-ui#631526c",
     "@revoinc/async-busboy": "^2.0.3",
     "apidoc": "^1.2.0",
     "apidoc-plugin-ts": "git+https://github.com/MicrowaveDev/apidoc-plugin-ts.git#afc63f1",
