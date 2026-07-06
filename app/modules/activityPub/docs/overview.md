@@ -11,7 +11,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Delivery queue processing for outbound follows, follow accepts, and local post `Create(Note)` deliveries.
 - Remote-object caching, review state, sanitized previews, explicit local post draft/creation for accepted public Notes, tombstone/update handling, and attachment backup retries.
 - ActivityPub source resolve/subscribe/read/refresh flows, including optional source refresh worker and poller.
-- ActivityPub migration preview/import/reconcile APIs that resolve a public source actor, fetch bounded `featured`/`outbox` pages with explicit `maxPages` controls, classify them, expose stable placeholder source-identity metadata, cache eligible own-authored public remote-object candidates by default, create visible GeeSome remote posts only when an admin-approved ownership claim or matching public profile proof token, target group, and moderation policy allow it, and repair imported-post reply/quote relations after matching target posts exist. The paired social migration UI covers Bluesky/ActivityPub preview/import and one-off moderation filters; richer relation/media policy controls and explicit post-import reconciliation UI remain follow-up work.
+- ActivityPub migration preview/import/reconcile APIs that resolve a public source actor, fetch bounded `featured`/`outbox` pages with explicit `maxPages` controls, classify them, expose stable placeholder source-identity metadata, cache eligible own-authored public remote-object candidates by default, create visible GeeSome remote posts only when an admin-approved ownership claim, matching public profile proof token, or short-lived actor-signed ownership challenge plus target group and moderation policy allow it, and repair imported-post reply/quote relations after matching target posts exist.
 
 ## Queue And Worker Boundaries
 
@@ -27,7 +27,7 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 - Do not send federation requests inline from post creation; enqueue delivery work.
 - Do not render raw remote HTML; use sanitized previews and canonical rich-text projection before import.
 - Do not let arbitrary unsolicited remote inbox activity become visible local content; apply verification, source identity, moderation policy, and filters first.
-- Do not treat ActivityPub migration preview as a write. The import job may cache eligible own-authored public remote objects for later review/import, and `createPosts=true` may create visible posts only after admin-approved ownership or a matching public profile proof token, target-group validation, moderation checks, accepted review state, idempotency, and bounded-page controls. Relation reconciliation is an explicit bounded dry-run/apply operation, not an implicit side effect of preview/import.
+- Do not treat ActivityPub migration preview as a write. The import job may cache eligible own-authored public remote objects for later review/import, and `createPosts=true` may create visible posts only after admin-approved ownership, a matching public profile proof token, or a verified short-lived actor-signed ownership challenge plus target-group validation, moderation checks, accepted review state, idempotency, and bounded-page controls. Relation reconciliation is an explicit bounded dry-run/apply operation, not an implicit side effect of preview/import.
 - Do not mix ActivityPub signing keys with user chat/E2EE keys or Bluesky credentials.
 - Keep direct Bluesky/ATProto behavior in the `bluesky` module.
 
