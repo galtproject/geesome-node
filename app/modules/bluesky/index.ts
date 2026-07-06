@@ -135,6 +135,25 @@ interface IBlueskyCrossPostImageResult {
 	fallbackLinks: IBlueskyCrossPostFallbackLink[];
 }
 
+type BlueskyCrossPostImagePolicy = 'upload' | 'link' | 'reject';
+type BlueskyCrossPostImageUploadFailurePolicy = 'link' | 'reject';
+type BlueskyCrossPostFallbackContentPolicy = 'card' | 'link' | 'reject' | 'ignore';
+type BlueskyCrossPostRelationPolicy = 'require' | 'omit';
+
+interface IBlueskyCrossPostPolicy {
+	images: BlueskyCrossPostImagePolicy;
+	imageUploadFailure: BlueskyCrossPostImageUploadFailurePolicy;
+	attachments: BlueskyCrossPostFallbackContentPolicy;
+	linkPreviews: BlueskyCrossPostFallbackContentPolicy;
+	replies: BlueskyCrossPostRelationPolicy;
+	quotes: BlueskyCrossPostRelationPolicy;
+}
+
+interface IBlueskyCrossPostFallbackLinksResult {
+	textLinks: IBlueskyCrossPostFallbackLink[];
+	embedLinks: IBlueskyCrossPostFallbackLink[];
+}
+
 interface IBlueskyStoredCrossPostRecord {
 	uri: string;
 	cid?: string | null;
@@ -1121,6 +1140,7 @@ async function getBlueskyCrossPostRecordInput(
 	input: IBlueskyCrossPostInput,
 	session: IBlueskySession
 ): Promise<IBlueskyFeedPostRecordInput> {
+	const policy = getBlueskyCrossPostPolicy(input);
 	const contents = await app.ms.group.getPostContentData(post, '', {
 		includeText: true,
 		includeJson: true
@@ -1142,15 +1162,21 @@ async function getBlueskyCrossPostRecordInput(
 	if (unsupportedContents.length > 0) {
 		throw new Error('bluesky_cross_post_attachments_unsupported');
 	}
-	const attachmentFallbackLinks = getBlueskyCrossPostAttachmentFallbackLinks(app, attachmentContents);
-	const linkPreviewFallbackLinks = getBlueskyCrossPostLinkPreviewFallbackLinks(linkPreviewContents);
-	const quoteRecord = await getBlueskyCrossPostQuoteRecord(app, post, session.did);
-	const reply = await getBlueskyCrossPostReplyRef(app, options, post, session.did);
-	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents);
+	assertBlueskyCrossPostImagePolicyAllows(imageContents, policy);
+	const attachmentFallbackLinks = getBlueskyCrossPostAttachmentFallbackLinks(app, attachmentContents, policy);
+	const linkPreviewFallbackLinks = getBlueskyCrossPostLinkPreviewFallbackLinks(linkPreviewContents, policy);
+	const quoteRecord = await getBlueskyCrossPostQuoteRecord(app, post, session.did, policy);
+	const reply = await getBlueskyCrossPostReplyRef(app, options, post, session.did, policy);
+	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents, policy);
 	const fallbackLinks = [
 		...imageResult.fallbackLinks,
-		...attachmentFallbackLinks,
-		...linkPreviewFallbackLinks
+		...attachmentFallbackLinks.textLinks,
+		...linkPreviewFallbackLinks.textLinks
+	];
+	const embedFallbackLinks = [
+		...imageResult.fallbackLinks,
+		...attachmentFallbackLinks.embedLinks,
+		...linkPreviewFallbackLinks.embedLinks
 	];
 	const textWithFacets = appendBlueskyCrossPostFallbackLinks(
 		getBlueskyCrossPostAtProtoText(primaryContent),
@@ -1159,7 +1185,7 @@ async function getBlueskyCrossPostRecordInput(
 	if (!textWithFacets.text.trim()) {
 		throw new Error('bluesky_cross_post_text_required');
 	}
-	const mediaEmbed = getBlueskyCrossPostEmbed(imageResult, fallbackLinks);
+	const mediaEmbed = getBlueskyCrossPostEmbed(imageResult, embedFallbackLinks);
 	return {
 		text: textWithFacets.text,
 		facets: textWithFacets.facets,
@@ -1174,8 +1200,12 @@ async function getBlueskyCrossPostReplyRef(
 	app: IGeesomeApp,
 	options: any,
 	post: IPost,
-	did: string
+	did: string,
+	policy: IBlueskyCrossPostPolicy
 ) {
+	if (policy.replies === 'omit') {
+		return null;
+	}
 	const parentPost = await getBlueskyCrossPostRelatedPost(app, post.replyToId);
 	if (!parentPost) {
 		return null;
@@ -1191,7 +1221,15 @@ async function getBlueskyCrossPostReplyRef(
 	};
 }
 
-async function getBlueskyCrossPostQuoteRecord(app: IGeesomeApp, post: IPost, did: string): Promise<IBlueskyRecordRef | null> {
+async function getBlueskyCrossPostQuoteRecord(
+	app: IGeesomeApp,
+	post: IPost,
+	did: string,
+	policy: IBlueskyCrossPostPolicy
+): Promise<IBlueskyRecordRef | null> {
+	if (policy.quotes === 'omit') {
+		return null;
+	}
 	const quotePost = await getBlueskyCrossPostRelatedPost(app, post.repostOfId);
 	if (!quotePost) {
 		return null;
@@ -1358,6 +1396,64 @@ function getBlueskyCrossPostImageContents(contents: IContentData[], primaryConte
 	return imageContents;
 }
 
+function assertBlueskyCrossPostImagePolicyAllows(imageContents: IContentData[], policy: IBlueskyCrossPostPolicy): void {
+	if (policy.images !== 'reject' || imageContents.length === 0) {
+		return;
+	}
+	throw new Error('bluesky_cross_post_image_policy_reject');
+}
+
+function getBlueskyCrossPostPolicy(input: IBlueskyCrossPostInput): IBlueskyCrossPostPolicy {
+	const mediaPolicy = getPlainObject(input.mediaPolicy);
+	const relationPolicy = getPlainObject(input.relationPolicy);
+	return {
+		images: getBlueskyCrossPostImagePolicy(mediaPolicy.images),
+		imageUploadFailure: getBlueskyCrossPostImageUploadFailurePolicy(mediaPolicy.imageUploadFailure),
+		attachments: getBlueskyCrossPostFallbackContentPolicy(mediaPolicy.attachments, 'card'),
+		linkPreviews: getBlueskyCrossPostFallbackContentPolicy(mediaPolicy.linkPreviews, 'card'),
+		replies: getBlueskyCrossPostRelationPolicy(relationPolicy.replies),
+		quotes: getBlueskyCrossPostRelationPolicy(relationPolicy.quotes)
+	};
+}
+
+function getBlueskyCrossPostImagePolicy(value: any): BlueskyCrossPostImagePolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'linkOnly' || normalizedValue === 'fallbackLink') {
+		return 'link';
+	}
+	if (normalizedValue === 'link' || normalizedValue === 'reject') {
+		return normalizedValue;
+	}
+	return 'upload';
+}
+
+function getBlueskyCrossPostImageUploadFailurePolicy(value: any): BlueskyCrossPostImageUploadFailurePolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'reject') {
+		return 'reject';
+	}
+	return 'link';
+}
+
+function getBlueskyCrossPostFallbackContentPolicy(
+	value: any,
+	defaultValue: BlueskyCrossPostFallbackContentPolicy
+): BlueskyCrossPostFallbackContentPolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'card' || normalizedValue === 'link' || normalizedValue === 'reject' || normalizedValue === 'ignore') {
+		return normalizedValue;
+	}
+	return defaultValue;
+}
+
+function getBlueskyCrossPostRelationPolicy(value: any): BlueskyCrossPostRelationPolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'omit' || normalizedValue === 'ignore') {
+		return 'omit';
+	}
+	return 'require';
+}
+
 function getBlueskyCrossPostUnsupportedContents(
 	contents: IContentData[],
 	primaryContent: IContentData,
@@ -1441,14 +1537,15 @@ async function getBlueskyCrossPostImageResult(
 	app: IGeesomeApp,
 	options: any,
 	session: IBlueskySession,
-	contents: IContentData[]
+	contents: IContentData[],
+	policy: IBlueskyCrossPostPolicy
 ): Promise<IBlueskyCrossPostImageResult> {
 	const result: IBlueskyCrossPostImageResult = {
 		embeds: [],
 		fallbackLinks: []
 	};
 	for (const content of contents) {
-		const item = await getBlueskyCrossPostImageEmbedOrFallback(app, options, session, content);
+		const item = await getBlueskyCrossPostImageEmbedOrFallback(app, options, session, content, policy);
 		if (item.embed) {
 			result.embeds.push(item.embed);
 		}
@@ -1463,13 +1560,20 @@ async function getBlueskyCrossPostImageEmbedOrFallback(
 	app: IGeesomeApp,
 	options: any,
 	session: IBlueskySession,
-	content: IContentData
+	content: IContentData,
+	policy: IBlueskyCrossPostPolicy
 ): Promise<{embed?: any; fallbackLink?: IBlueskyCrossPostFallbackLink}> {
+	if (policy.images === 'link') {
+		return {fallbackLink: getRequiredBlueskyCrossPostImageFallbackLink(app, content)};
+	}
 	try {
 		return {
 			embed: await getBlueskyCrossPostImageEmbed(app, options, session, content)
 		};
 	} catch (e) {
+		if (policy.imageUploadFailure === 'reject') {
+			throw e;
+		}
 		const fallbackLink = getBlueskyCrossPostImageFallbackLink(app, content);
 		if (!fallbackLink) {
 			throw e;
@@ -1614,18 +1718,62 @@ function getBlueskyCrossPostImageFallbackLink(app: IGeesomeApp, content: IConten
 	};
 }
 
-function getBlueskyCrossPostAttachmentFallbackLinks(app: IGeesomeApp, contents: IContentData[]): IBlueskyCrossPostFallbackLink[] {
-	return contents.map(content => getBlueskyCrossPostAttachmentFallbackLink(app, content));
+function getRequiredBlueskyCrossPostImageFallbackLink(app: IGeesomeApp, content: IContentData): IBlueskyCrossPostFallbackLink {
+	const fallbackLink = getBlueskyCrossPostImageFallbackLink(app, content);
+	if (!fallbackLink) {
+		throw new Error('bluesky_cross_post_image_public_url_required');
+	}
+	return fallbackLink;
 }
 
-function getBlueskyCrossPostLinkPreviewFallbackLinks(contents: IContentData[]): IBlueskyCrossPostFallbackLink[] {
-	return contents.map((content) => {
-		const link = getBlueskyCrossPostLinkPreviewFallbackLink(content);
-		if (!link) {
-			throw new Error('bluesky_cross_post_link_preview_unsupported');
+function getBlueskyCrossPostAttachmentFallbackLinks(
+	app: IGeesomeApp,
+	contents: IContentData[],
+	policy: IBlueskyCrossPostPolicy
+): IBlueskyCrossPostFallbackLinksResult {
+	return getBlueskyCrossPostPolicyFallbackLinks(
+		contents,
+		policy.attachments,
+		'bluesky_cross_post_attachment_policy_reject',
+		content => getBlueskyCrossPostAttachmentFallbackLink(app, content)
+	);
+}
+
+function getBlueskyCrossPostLinkPreviewFallbackLinks(
+	contents: IContentData[],
+	policy: IBlueskyCrossPostPolicy
+): IBlueskyCrossPostFallbackLinksResult {
+	return getBlueskyCrossPostPolicyFallbackLinks(
+		contents,
+		policy.linkPreviews,
+		'bluesky_cross_post_link_preview_policy_reject',
+		(content) => {
+			const link = getBlueskyCrossPostLinkPreviewFallbackLink(content);
+			if (!link) {
+				throw new Error('bluesky_cross_post_link_preview_unsupported');
+			}
+			return link;
 		}
-		return link;
-	});
+	);
+}
+
+function getBlueskyCrossPostPolicyFallbackLinks(
+	contents: IContentData[],
+	policy: BlueskyCrossPostFallbackContentPolicy,
+	rejectErrorCode: string,
+	getLink: (content: IContentData) => IBlueskyCrossPostFallbackLink
+): IBlueskyCrossPostFallbackLinksResult {
+	if (contents.length === 0 || policy === 'ignore') {
+		return {textLinks: [], embedLinks: []};
+	}
+	if (policy === 'reject') {
+		throw new Error(rejectErrorCode);
+	}
+	const textLinks = contents.map(content => getLink(content));
+	return {
+		textLinks,
+		embedLinks: policy === 'card' ? textLinks : []
+	};
 }
 
 function getBlueskyCrossPostAttachmentFallbackLink(app: IGeesomeApp, content: IContentData): IBlueskyCrossPostFallbackLink {
