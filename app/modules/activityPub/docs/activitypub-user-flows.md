@@ -280,3 +280,13 @@ The UI should make these states explicit:
 - Simple remote social-page migration can import a user's public Bluesky or ActivityPub presence into a GeeSome personal group, preserve replies/reposts/quotes, create remote placeholders for referenced groups/accounts, and reconcile those placeholders when they later migrate. Native Bluesky imported-post reply/quote reconciliation is covered for already-imported group posts by `groupId` or `groupName`, and ActivityPub imported-post reply/quote reconciliation is covered for already-created visible remote posts. ActivityPub now has a first non-admin public profile-token proof for claimed visible imports; stronger signed challenges remain a future hardening option. The first social migration wizard and e2e path are covered; remaining migration work is richer relation/media policy controls plus explicit reconciliation action/status UI.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
 - Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads.
+
+## Remaining Plan
+
+1. Add post-import relation reconciliation controls to the migration UI so users can run dry-run/apply repair and see progress/results after a Bluesky or ActivityPub migration.
+2. Add richer relation/media policy controls for migration and cross-posting, including unsupported attachments, link-preview cards, image fallback, reply/quote/repost behavior, and remote-context authorship.
+3. Add a stronger signed ActivityPub ownership challenge for non-admin claimed profile migrations, while keeping admin approval and public profile proof token as supported methods.
+4. Expose moderation-policy controls beyond the migration wizard for source subscriptions, review/import surfaces, and link-preview/import policy.
+5. Finish canonical GeeSome rich-text storage/editor integration for social content, keeping sanitized HTML as derived adapter output rather than the trusted editable source.
+6. Improve large social-page migration UX for long-running history imports, progress/errors/cursors, remote-context placeholders, and later reconciliation when referenced actors/groups migrate.
+7. Expand live interop/conformance checks with more real Fediverse fixtures and a focused Fedify/ActivityPub.Academy spike if it reveals protocol gaps worth addressing.

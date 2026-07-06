@@ -368,6 +368,16 @@ Rich-text content-format design note: [rich-text-content-format.md](./rich-text-
 
 ActivityPub and Bluesky user-flow note: [activitypub-user-flows.md](../app/modules/activityPub/docs/activitypub-user-flows.md). Keep it aligned when adding source-reader, moderation, native Bluesky, credential, or cross-post flows. Current intended moderation direction: admin-configurable review-first or auto-import mode, with keyword/regex/source/group-name filters that can block or quarantine remote content before it becomes a GeeSome post.
 
+Remaining ActivityPub/Bluesky integration plan:
+
+1. Add an explicit post-import relation reconciliation action/status UI. The backend can already dry-run/apply Bluesky and ActivityPub reply/quote repair; the user-facing migration flow still needs a clear button/progress/result state so users can run it after migration without knowing raw group ids.
+2. Add richer relation and media policy controls. Cross-posting and migration should expose product choices for unsupported attachments, link-preview/card behavior, image fallback, reply/quote/repost semantics, and remote-context authorship without silently dropping data or bypassing moderation.
+3. Harden ActivityPub claimed migration ownership with a signed challenge. Keep admin approval and the public profile proof token as supported first-pass methods, but add a stronger signed challenge before treating non-admin ActivityPub profile claims as complete.
+4. Broaden moderation-policy UI outside the one-off migration wizard. Source subscriptions and review/import surfaces should expose review-first/auto-import plus bounded keyword/regex/source/group-name rules, and link-preview import policy should be explicit.
+5. Finish canonical rich-text storage/editor wiring for social content. Keep sanitized HTML as adapter output/cache, but make editable/imported social posts use the versioned GeeSome rich-text model and protocol adapters.
+6. Deepen social-page migration history and placeholder reconciliation. The next migration UX should better cover long-running history imports, progress/errors/cursors, remote-context replies/reposts/quotes from other actors, and later reconciliation when those actors or groups migrate.
+7. Expand live interop/conformance coverage. Keep the current deterministic/local/live smoke scripts, then add deeper Fediverse compatibility checks, more real-server fixtures, and a focused Fedify/ActivityPub.Academy spike only if it replaces brittle protocol boilerplate or exposes gaps in the custom module.
+
 Content format direction:
 
 - Do not make raw HTML the canonical user-content format. ActivityStreams/ActivityPub and Matrix need sanitized HTML adapter output, but newer decentralized social protocols such as Bluesky/ATProto, Farcaster, and Nostr-style text notes prefer plain text plus structured facets, mentions, tags, embeds, or protocol tags.
