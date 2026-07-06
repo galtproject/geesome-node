@@ -162,7 +162,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Creates an authenticated native ATProto `app.bsky.feed.post` record from one published local GeeSome post and stores the returned Bluesky URI/CID in the post `propertiesJson` for idempotency. The write path supports text/rich-text facets plus up to four supported image media/attachments. Images are uploaded as ATProto blobs before record creation; if blob upload fails and `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or `DOMAIN` is configured, GeeSome adds the public image URL as a link fallback and uses a Bluesky external card when no image embed succeeded. Storage-backed non-image media/attachments are added as public link facets and can become a Bluesky external card when there is exactly one fallback link and no image embed. JSON link-preview records with safe `http(s)` URLs are added as link facets and can become an external card. Local `replyToId` and `repostOfId` relations are preserved as native Bluesky reply and quote metadata only when the referenced post already has a stored/imported Bluesky URI/CID; otherwise GeeSome rejects the request instead of silently flattening context. Unsafe link-preview URLs, encrypted posts, remote/imported posts, unpublished posts, non-public groups, attachments without a public node URL, and relation targets without Bluesky identity are rejected until richer publishing policy is implemented. Repeating the request for the same post/account returns the stored record unless `force=true`.
+	 * @apiDescription Creates an authenticated native ATProto `app.bsky.feed.post` record from one published local GeeSome post and stores the returned Bluesky URI/CID in the post `propertiesJson` for idempotency. The write path supports text/rich-text facets plus up to four supported image media/attachments. Images are uploaded as ATProto blobs before record creation; if blob upload fails and `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or `DOMAIN` is configured, GeeSome adds the public image URL as a link fallback and uses a Bluesky external card when no image embed succeeded. Storage-backed non-image media/attachments are added as public link facets and can become a Bluesky external card when there is exactly one fallback link and no image embed. JSON link-preview records with safe `http(s)` URLs are added as link facets and can become an external card. Local `replyToId` and `repostOfId` relations are preserved as native Bluesky reply and quote metadata only when the referenced post already has a stored/imported Bluesky URI/CID. Optional `mediaPolicy` and `relationPolicy` fields let callers explicitly choose link-only media handling, reject/ignore attachment classes, reject upload-failure fallback, or omit reply/quote metadata; defaults preserve the existing fail-closed behavior so context is not silently flattened. Unsafe link-preview URLs, encrypted posts, remote/imported posts, unpublished posts, non-public groups, attachments without a public node URL, and required relation targets without Bluesky identity are rejected. Repeating the request for the same post/account returns the stored record unless `force=true`.
 	 * @apiParam {Number} postId Local GeeSome post id.
 	 * @apiBody {Object} accountData Account selector.
 	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
@@ -172,6 +172,14 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {String[]} [langs] Optional ATProto language tags, capped by Bluesky helper validation.
 	 * @apiBody {Date} [createdAt] Optional ATProto record creation time; defaults to now.
 	 * @apiBody {Boolean} [force=false] Create another Bluesky record even when this post/account already has stored cross-post metadata.
+	 * @apiBody {Object} [mediaPolicy] Optional explicit media publishing policy.
+	 * @apiBody {String="upload","link","reject"} [mediaPolicy.images="upload"] Upload image blobs, publish public image links only, or reject posts with images.
+	 * @apiBody {String="link","reject"} [mediaPolicy.imageUploadFailure="link"] Fall back to a public image link when blob upload fails, or reject instead.
+	 * @apiBody {String="card","link","reject","ignore"} [mediaPolicy.attachments="card"] Publish non-image storage attachments as link facets plus possible external card, link facets only, reject, or explicitly ignore them.
+	 * @apiBody {String="card","link","reject","ignore"} [mediaPolicy.linkPreviews="card"] Publish safe JSON link previews as link facets plus possible external card, link facets only, reject, or explicitly ignore them.
+	 * @apiBody {Object} [relationPolicy] Optional explicit relation publishing policy.
+	 * @apiBody {String="require","omit"} [relationPolicy.replies="require"] Require a Bluesky identity for local reply parents or omit native reply metadata.
+	 * @apiBody {String="require","omit"} [relationPolicy.quotes="require"] Require a Bluesky identity for local quote/repost targets or omit native quote metadata.
 	 * @apiSuccess {Object} account Secret-free local account summary.
 	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
 	 * @apiSuccess {String} did Authenticated account DID.
@@ -192,7 +200,7 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Rebuilds the authenticated account's stored native ATProto `app.bsky.feed.post` record for one GeeSome post and replaces it in place through `com.atproto.repo.putRecord`. The route requires an existing `propertiesJson.bluesky.crossPosts` metadata entry for the authenticated DID, verifies the stored URI belongs to that DID and the feed-post collection, reuses the stored rkey instead of creating a duplicate post, and sends the stored CID as `swapRecord` so remote changes are not overwritten silently. The same public/local post, rich-text, media, attachment, link-preview, reply, and quote safety gates as `cross-post` apply.
+	 * @apiDescription Rebuilds the authenticated account's stored native ATProto `app.bsky.feed.post` record for one GeeSome post and replaces it in place through `com.atproto.repo.putRecord`. The route requires an existing `propertiesJson.bluesky.crossPosts` metadata entry for the authenticated DID, verifies the stored URI belongs to that DID and the feed-post collection, reuses the stored rkey instead of creating a duplicate post, and sends the stored CID as `swapRecord` so remote changes are not overwritten silently. The same public/local post, rich-text, media, attachment, link-preview, reply, quote, `mediaPolicy`, and `relationPolicy` safety gates as `cross-post` apply.
 	 * @apiParam {Number} postId Local GeeSome post id.
 	 * @apiBody {Object} accountData Account selector.
 	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
@@ -201,6 +209,8 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
 	 * @apiBody {String[]} [langs] Optional ATProto language tags, capped by Bluesky helper validation.
 	 * @apiBody {Date} [createdAt] Optional ATProto record creation time; defaults to now.
+	 * @apiBody {Object} [mediaPolicy] Optional explicit media publishing policy, with the same fields and defaults as `cross-post`.
+	 * @apiBody {Object} [relationPolicy] Optional explicit relation publishing policy, with the same fields and defaults as `cross-post`.
 	 * @apiSuccess {Object} account Secret-free local account summary.
 	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
 	 * @apiSuccess {String} did Authenticated account DID.

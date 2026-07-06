@@ -181,6 +181,16 @@ export interface IBlueskyCrossPostInput extends IBlueskyAccountVerifyInput {
 	langs?: string[];
 	createdAt?: string | Date;
 	force?: boolean | string;
+	mediaPolicy?: {
+		images?: 'upload' | 'link' | 'reject' | string;
+		imageUploadFailure?: 'link' | 'reject' | string;
+		attachments?: 'card' | 'link' | 'reject' | 'ignore' | string;
+		linkPreviews?: 'card' | 'link' | 'reject' | 'ignore' | string;
+	};
+	relationPolicy?: {
+		replies?: 'require' | 'omit' | string;
+		quotes?: 'require' | 'omit' | string;
+	};
 }
 
 export interface IBlueskyCrossPostResult {

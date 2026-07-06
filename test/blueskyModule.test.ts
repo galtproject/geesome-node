@@ -2215,6 +2215,166 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('applies explicit Bluesky cross-post media and relation policy controls', async () => {
+		const {module, calls} = getCrossPostPolicyModule([
+			{
+				id: 101,
+				type: 'text',
+				view: ContentView.Contents,
+				mimeType: 'text/plain',
+				text: 'Policy post'
+			},
+			{
+				id: 102,
+				type: 'image',
+				view: ContentView.Media,
+				mimeType: 'image/png',
+				storageId: 'bafyimage',
+				description: 'Linked image'
+			},
+			{
+				id: 103,
+				type: 'file',
+				view: ContentView.Attachment,
+				mimeType: 'application/pdf',
+				storageId: 'bafydocument',
+				name: 'paper.pdf'
+			},
+			{
+				id: 104,
+				type: 'json',
+				view: ContentView.Link,
+				mimeType: 'application/json',
+				json: {
+					url: 'https://example.com/article',
+					title: 'Example article',
+					description: 'Readable preview'
+				}
+			}
+		], {
+			config: {domain: 'node.example'},
+			post: {
+				id: 47,
+				replyToId: 44,
+				repostOfId: 41
+			}
+		});
+
+		await module.crossPostPost(7, 47, {
+			accountData: {id: 1},
+			mediaPolicy: {
+				images: 'link',
+				attachments: 'link',
+				linkPreviews: 'link'
+			},
+			relationPolicy: {
+				replies: 'omit',
+				quotes: 'omit'
+			}
+		});
+		const createRecordCall = calls.find(call => call.method === 'fetch' && String(call.url).includes('createRecord'));
+		const createRecordBody = JSON.parse(createRecordCall.options.body);
+
+		assert.equal(calls.some(call => call.method === 'getFileData'), false);
+		assert.equal(calls.some(call => call.method === 'getPostPure'), false);
+		assert.equal(calls.some(call => call.method === 'fetch' && String(call.url).includes('uploadBlob')), false);
+		assert.equal(createRecordBody.record.text, [
+			'Policy post',
+			'https://node.example/ipfs/bafyimage',
+			'https://node.example/ipfs/bafydocument',
+			'https://example.com/article'
+		].join('\n'));
+		assert.equal(createRecordBody.record.reply, undefined);
+		assert.deepEqual(createRecordBody.record.embed, {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: 'https://node.example/ipfs/bafyimage',
+				title: 'Linked image',
+				description: 'GeeSome image attachment'
+			}
+		});
+	});
+
+	it('rejects Bluesky cross-post media when explicit policy forbids it', async () => {
+		const imageModule = getCrossPostPolicyModule([
+			{
+				id: 101,
+				type: 'text',
+				view: ContentView.Contents,
+				mimeType: 'text/plain',
+				text: 'Reject image'
+			},
+			{
+				id: 102,
+				type: 'image',
+				view: ContentView.Media,
+				mimeType: 'image/png',
+				storageId: 'bafyimage'
+			}
+		]);
+		await assert.rejects(
+			() => imageModule.module.crossPostPost(7, 44, {
+				accountData: {id: 1},
+				mediaPolicy: {images: 'reject'}
+			}),
+			/bluesky_cross_post_image_policy_reject/
+		);
+		assert.equal(imageModule.calls.some(call => call.method === 'fetch' && String(call.url).includes('createRecord')), false);
+
+		const attachmentModule = getCrossPostPolicyModule([
+			{
+				id: 101,
+				type: 'text',
+				view: ContentView.Contents,
+				mimeType: 'text/plain',
+				text: 'Reject attachment'
+			},
+			{
+				id: 102,
+				type: 'file',
+				view: ContentView.Attachment,
+				mimeType: 'application/pdf',
+				storageId: 'bafydocument'
+			}
+		], {config: {domain: 'node.example'}});
+		await assert.rejects(
+			() => attachmentModule.module.crossPostPost(7, 44, {
+				accountData: {id: 1},
+				mediaPolicy: {attachments: 'reject'}
+			}),
+			/bluesky_cross_post_attachment_policy_reject/
+		);
+		assert.equal(attachmentModule.calls.some(call => call.method === 'fetch' && String(call.url).includes('createRecord')), false);
+
+		const linkPreviewModule = getCrossPostPolicyModule([
+			{
+				id: 101,
+				type: 'text',
+				view: ContentView.Contents,
+				mimeType: 'text/plain',
+				text: 'Reject link preview'
+			},
+			{
+				id: 102,
+				type: 'json',
+				view: ContentView.Link,
+				mimeType: 'application/json',
+				json: {
+					url: 'https://example.com/article',
+					title: 'Example article'
+				}
+			}
+		]);
+		await assert.rejects(
+			() => linkPreviewModule.module.crossPostPost(7, 44, {
+				accountData: {id: 1},
+				mediaPolicy: {linkPreviews: 'reject'}
+			}),
+			/bluesky_cross_post_link_preview_policy_reject/
+		);
+		assert.equal(linkPreviewModule.calls.some(call => call.method === 'fetch' && String(call.url).includes('createRecord')), false);
+	});
+
 	it('rejects oversized Bluesky image cross-posts before reading storage bytes', async () => {
 		const module = getBlueskyModule({
 			config: {},
@@ -3921,6 +4081,53 @@ function getBlueskyAccountFetch(calls: any[], record: {uri: string; cid: string}
 			ok: true,
 			json: async () => record
 		};
+	};
+}
+
+function getCrossPostPolicyModule(contents: any[], options: any = {}) {
+	const calls: any[] = [];
+	let post = getCrossPostPostFixture(options.post || {});
+	return {
+		calls,
+		module: getBlueskyModule({
+			config: options.config || {},
+			ms: {
+				socNetAccount: getSocNetAccountModule([{
+					id: 1,
+					userId: 7,
+					socNet: 'bluesky',
+					accountId: 'did:plc:alice',
+					username: 'alice.bsky.social',
+					apiKey: 'app-password'
+				}]),
+				storage: {
+					getFileData: async (storageId) => {
+						calls.push({method: 'getFileData', storageId});
+						return getTinyPngData();
+					}
+				},
+				group: {
+					getPost: async () => post,
+					getPostPure: async (postId) => {
+						calls.push({method: 'getPostPure', postId});
+						return options.relatedPosts?.[postId] || null;
+					},
+					canEditPostInGroup: async () => true,
+					getPostContentData: async () => contents,
+					updatePost: async (_userId, _postId, postData) => {
+						post = {...post, ...postData};
+						return post;
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: options.fetch || getBlueskyAccountFetch(calls, {
+				uri: 'at://did:plc:alice/app.bsky.feed.post/policy-created',
+				cid: 'bafypolicycreated'
+			})
+		})
 	};
 }
 
