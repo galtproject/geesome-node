@@ -3,7 +3,7 @@ import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.j
 export type ActivityPubMigrationImportKind = 'localPost' | 'remoteContext';
 export type ActivityPubMigrationRelationType = 'post' | 'reply' | 'announce' | 'quote' | 'mention';
 export type ActivityPubMigrationPlaceholderType = 'actor' | 'object';
-export type ActivityPubMigrationOwnershipMethod = 'admin' | 'signedChallenge' | null;
+export type ActivityPubMigrationOwnershipMethod = 'admin' | 'profileToken' | 'signedChallenge' | null;
 
 export interface IActivityPubMigrationPreviewInput {
 	actor: string;

@@ -593,6 +593,43 @@ describe('activityPub module', () => {
 		assert.equal(models.ActivityPubRemoteActor.rows.length, 0);
 	});
 
+	it('verifies ActivityPub migration ownership through a public actor profile token', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const ownershipProofToken = 'geesome-proof:activitypub-profile-token';
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			attachment: [{
+				type: 'PropertyValue',
+				name: 'GeeSome ownership proof',
+				value: `<p>${ownershipProofToken}</p>`
+			}],
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			[remoteActorKey.actorUrl]: actorDocument,
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				orderedItems: []
+			}
+		};
+		const {module} = await createActivityPubHarness({
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+
+		const preview = await module.getMigrationPreview(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			ownershipProofToken
+		});
+
+		assert.equal(preview.ownership.claimed, true);
+		assert.equal(preview.ownership.verified, true);
+		assert.equal(preview.ownership.method, 'profileToken');
+		assert.equal(preview.ownership.reason, null);
+		assert.equal(preview.fetched, 0);
+		assert.deepEqual(preview.errors, []);
+	});
+
 	it('keeps ActivityPub migration preview placeholders when referenced objects fail to load', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const missingObjectUrl = 'https://other.example/objects/missing-reblog';
@@ -877,6 +914,59 @@ describe('activityPub module', () => {
 		assert.equal(JSON.parse(calls.createRemotePostByObject[0].postData.propertiesJson).summaryText, 'Visible summary');
 	});
 
+	it('creates visible ActivityPub migration posts with a public profile ownership token', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const ownershipProofToken = 'geesome-proof:visible-migration-profile-token';
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			attachment: [{
+				type: 'PropertyValue',
+				name: 'GeeSome ownership proof',
+				value: ownershipProofToken
+			}],
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const visibleObject = {
+			id: 'https://remote.example/objects/profile-token-migration',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Profile token migration body</p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				orderedItems: [visibleObject]
+			}
+		};
+		const {module, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+
+		const result = await module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			createPosts: true,
+			groupName: 'test-channel',
+			ownershipProofToken,
+			includeFeatured: false
+		});
+
+		assert.deepEqual(calls.checkUserCan, [{
+			userId: 7,
+			permission: CorePermissionName.UserGroupManagement
+		}]);
+		assert.equal(result.ownership.verified, true);
+		assert.equal(result.ownership.method, 'profileToken');
+		assert.equal(result.cached, 1);
+		assert.equal(result.created, 1);
+		assert.deepEqual(result.postIds, [88]);
+		assert.equal(calls.createRemotePostByObject.length, 1);
+		assert.equal(calls.createRemotePostByObject[0].postData.groupId, 3);
+	});
+
 	it('rejects visible ActivityPub migration imports without an approved ownership claim', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const {module, calls} = await createActivityPubHarness();
@@ -886,6 +976,29 @@ describe('activityPub module', () => {
 			claimed: true,
 			createPosts: true,
 			groupName: 'test-channel'
+		}), /activitypub_migration_visible_import_ownership_required/);
+		assert.deepEqual(calls.checkUserCan, [{
+			userId: 7,
+			permission: CorePermissionName.UserGroupManagement
+		}]);
+	});
+
+	it('rejects visible ActivityPub migration imports when the profile token is missing from the actor', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const {module, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument
+		});
+
+		await assert.rejects(() => module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			createPosts: true,
+			groupName: 'test-channel',
+			ownershipProofToken: 'geesome-proof:missing-profile-token'
 		}), /activitypub_migration_visible_import_ownership_required/);
 		assert.deepEqual(calls.checkUserCan, [{
 			userId: 7,
@@ -1027,6 +1140,14 @@ describe('activityPub module', () => {
 			},
 			process: false
 		});
+		const proofQueue = await module.queueMigrationImport(7, 12, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: 'true',
+			createPosts: 'true',
+			groupName: 'test-channel',
+			ownershipProofToken: 'geesome-proof:queued-profile-token',
+			process: false
+		});
 
 		assert.equal(queue.module, 'activitypub-migration-import');
 		assert.equal(queue.userApiKeyId, 12);
@@ -1049,7 +1170,8 @@ describe('activityPub module', () => {
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
 			{userId: 7, permission: CorePermissionName.UserGroupManagement},
-			{userId: 7, permission: CorePermissionName.AdminAll}
+			{userId: 7, permission: CorePermissionName.AdminAll},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement}
 		]);
 		assert.deepEqual(JSON.parse(visibleQueue.inputJson), {
 			type: 'migration-import',
@@ -1070,6 +1192,16 @@ describe('activityPub module', () => {
 						action: 'block'
 					}]
 				}
+			}
+		});
+		assert.deepEqual(JSON.parse(proofQueue.inputJson), {
+			type: 'migration-import',
+			input: {
+				actorUrl: remoteActorKey.actorUrl,
+				claimed: true,
+				createPosts: true,
+				groupName: 'test-channel',
+				ownershipProofToken: 'geesome-proof:queued-profile-token'
 			}
 		});
 	});

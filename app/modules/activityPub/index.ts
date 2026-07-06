@@ -7,7 +7,7 @@ import {ContentView, CorePermissionName} from '../database/interface.js';
 import type {IContent, IContentData, IListParams, IListParamsOptions} from '../database/interface.js';
 import type {IGroup, IPost} from '../group/interface.js';
 import {PostStatus} from '../group/interface.js';
-import {createActivityPubMigrationPreview, type IActivityPubMigrationPreviewItem} from './migration.js';
+import {createActivityPubMigrationPreview, type ActivityPubMigrationOwnershipMethod, type IActivityPubMigrationPreviewItem} from './migration.js';
 import {
 	evaluateRemoteContentModerationPolicy,
 	getRemoteContentModerationSummary,
@@ -170,6 +170,7 @@ type IActivityPubMigrationVisibleImportContext = {
 	group: IGroup;
 	actorRecord: any;
 	moderationPolicy: IRemoteContentModerationPolicy;
+	ownershipMethod: Exclude<ActivityPubMigrationOwnershipMethod, null>;
 };
 type IActivityPubRemoteAttachmentBackupJob = {
 	type: 'remote-attachment-backup';
@@ -253,6 +254,11 @@ const activityPubMigrationPreviewDefaultLimit = 20;
 const activityPubMigrationPreviewMaxLimit = 50;
 const activityPubMigrationPreviewMaxPagesDefault = 1;
 const activityPubMigrationPreviewMaxPagesLimit = 25;
+const activityPubMigrationOwnershipProofTokenMinLength = 12;
+const activityPubMigrationOwnershipProofTokenMaxLength = 512;
+const activityPubMigrationOwnershipProofValueMaxLength = 5000;
+const activityPubMigrationOwnershipProofValueMaxCount = 100;
+const activityPubMigrationOwnershipProofMaxDepth = 4;
 const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
 const activityPubBlueskyOfficialPreset = 'bluesky-official';
 const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
@@ -401,8 +407,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			const config = getResolvedActivityPubConfig(app);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			if (isActivityPubMigrationVisibleImport(input)) {
-				assertActivityPubMigrationVisibleImportApproved(input);
-				await app.checkUserCan(userId, CorePermissionName.AdminAll);
+				assertActivityPubMigrationVisibleImportCanStart(input);
+				if (isActivityPubMigrationVisibleImportAdminApproved(input)) {
+					await app.checkUserCan(userId, CorePermissionName.AdminAll);
+				}
 			}
 			return importActivityPubMigration(app, models, config, userId, input, options);
 		}
@@ -411,8 +419,10 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			getResolvedActivityPubConfig(app);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 			if (isActivityPubMigrationVisibleImport(input)) {
-				assertActivityPubMigrationVisibleImportApproved(input);
-				await app.checkUserCan(userId, CorePermissionName.AdminAll);
+				assertActivityPubMigrationVisibleImportCanStart(input);
+				if (isActivityPubMigrationVisibleImportAdminApproved(input)) {
+					await app.checkUserCan(userId, CorePermissionName.AdminAll);
+				}
 			}
 			const queue = await app.ms.asyncOperation.addUniqueUserOperationQueue(
 				userId,
@@ -1246,14 +1256,14 @@ async function importActivityPubMigration(
 	if (!actorDocument || typeof actorDocument !== 'object' || Array.isArray(actorDocument)) {
 		throwActivityPubError('activitypub_migration_actor_document_invalid', 401);
 	}
-	const visibleContext = await getActivityPubMigrationVisibleImportContext(app, models, config, input);
+	const visibleContext = await getActivityPubMigrationVisibleImportContext(app, models, config, input, actorDocument);
 	const context = await getActivityPubMigrationPreviewContext(input, options, {
 		actorUrl: resolution.sourceActorUrl,
 		sourceResource: resolution.sourceResource,
 		actorDocument
 	}, {
 		ownershipVerified: Boolean(visibleContext),
-		ownershipMethod: visibleContext ? 'admin' : null
+		ownershipMethod: visibleContext?.ownershipMethod || null
 	});
 	const remoteObjectIds: number[] = [];
 	const postIds: number[] = [];
@@ -1315,18 +1325,20 @@ async function getActivityPubMigrationVisibleImportContext(
 	app: IGeesomeApp,
 	models,
 	config: IResolvedActivityPubConfig,
-	input: IActivityPubMigrationImportInput
+	input: IActivityPubMigrationImportInput,
+	actorDocument
 ): Promise<IActivityPubMigrationVisibleImportContext | null> {
 	if (!isActivityPubMigrationVisibleImport(input)) {
 		return null;
 	}
-	assertActivityPubMigrationVisibleImportApproved(input);
+	const ownershipMethod = getActivityPubMigrationVisibleImportOwnershipMethod(input, actorDocument);
 	const group = await getFederatableGroup(app, getActivityPubMigrationVisibleImportGroupName(input));
 	const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
 	return {
 		group,
 		actorRecord,
-		moderationPolicy: getActivityPubMigrationImportModerationPolicy(input)
+		moderationPolicy: getActivityPubMigrationImportModerationPolicy(input),
+		ownershipMethod
 	};
 }
 
@@ -1383,7 +1395,7 @@ async function getActivityPubMigrationPreviewContext(
 	input: IActivityPubMigrationPreviewInput,
 	options: IActivityPubModuleOptions,
 	resolvedInput: {actorUrl?: string; sourceResource?: string; actorDocument?: any} = {},
-	previewOptions: {ownershipVerified?: boolean; ownershipMethod?: 'admin' | 'signedChallenge' | null} = {}
+	previewOptions: {ownershipVerified?: boolean; ownershipMethod?: ActivityPubMigrationOwnershipMethod} = {}
 ) {
 	const lookup = resolvedInput.actorUrl
 		? {actorUrl: resolvedInput.actorUrl, sourceResource: resolvedInput.sourceResource}
@@ -1391,6 +1403,7 @@ async function getActivityPubMigrationPreviewContext(
 	const actorDocument = resolvedInput.actorDocument || await getActivityPubMigrationPreviewActorDocument(lookup.actorUrl, options);
 	const actor = getActivityPubMigrationPreviewActorUrl(lookup.actorUrl, actorDocument);
 	const items = await getActivityPubMigrationPreviewItems(actorDocument, input, options);
+	const ownershipProof = getActivityPubMigrationOwnershipProof(input, actorDocument);
 	return {
 		lookup,
 		actorDocument,
@@ -1401,8 +1414,8 @@ async function getActivityPubMigrationPreviewContext(
 			actorDocument,
 			items: items.list,
 			claimed: helpers.parseBoolean(input?.claimed, false),
-			ownershipVerified: previewOptions.ownershipVerified,
-			ownershipMethod: previewOptions.ownershipMethod
+			ownershipVerified: previewOptions.ownershipVerified || ownershipProof.verified,
+			ownershipMethod: previewOptions.ownershipMethod || ownershipProof.method
 		}),
 		fetched: items.fetched,
 		pages: items.pages,
@@ -1986,14 +1999,148 @@ function isActivityPubMigrationVisibleImport(input: IActivityPubMigrationImportI
 	return helpers.parseBoolean(input?.createPosts, false);
 }
 
-function assertActivityPubMigrationVisibleImportApproved(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): void {
+function assertActivityPubMigrationVisibleImportCanStart(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): void {
 	if (!helpers.parseBoolean(input?.claimed, false)) {
 		throwActivityPubError('activitypub_migration_visible_import_claim_required', 400);
 	}
-	if (!helpers.parseBoolean(input?.ownershipApproved, false)) {
-		throwActivityPubError('activitypub_migration_visible_import_ownership_required', 403);
-	}
 	getActivityPubMigrationVisibleImportGroupName(input);
+	if (isActivityPubMigrationVisibleImportAdminApproved(input)) {
+		return;
+	}
+	if (getActivityPubMigrationOwnershipProofToken(input)) {
+		return;
+	}
+	if (input?.ownershipProofToken !== undefined) {
+		throwActivityPubError('activitypub_migration_ownership_proof_token_invalid', 400);
+	}
+	throwActivityPubError('activitypub_migration_visible_import_ownership_required', 403);
+}
+
+function isActivityPubMigrationVisibleImportAdminApproved(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): boolean {
+	return helpers.parseBoolean(input?.ownershipApproved, false);
+}
+
+function getActivityPubMigrationVisibleImportOwnershipMethod(
+	input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput,
+	actorDocument
+): Exclude<ActivityPubMigrationOwnershipMethod, null> {
+	assertActivityPubMigrationVisibleImportCanStart(input);
+	if (isActivityPubMigrationVisibleImportAdminApproved(input)) {
+		return 'admin';
+	}
+	if (isActivityPubMigrationOwnershipProofVerified(input, actorDocument)) {
+		return 'profileToken';
+	}
+	throwActivityPubError('activitypub_migration_visible_import_ownership_required', 403);
+}
+
+function getActivityPubMigrationOwnershipProof(
+	input: IActivityPubMigrationPreviewInput,
+	actorDocument
+): {verified: boolean; method: ActivityPubMigrationOwnershipMethod} {
+	if (isActivityPubMigrationOwnershipProofVerified(input, actorDocument)) {
+		return {verified: true, method: 'profileToken'};
+	}
+	return {verified: false, method: null};
+}
+
+function isActivityPubMigrationOwnershipProofVerified(input: IActivityPubMigrationPreviewInput, actorDocument): boolean {
+	const token = getActivityPubMigrationOwnershipProofToken(input);
+	if (!token) {
+		return false;
+	}
+	return getActivityPubMigrationOwnershipProofValues(actorDocument).some((value) => value.includes(token));
+}
+
+function getActivityPubMigrationOwnershipProofToken(input: IActivityPubMigrationPreviewInput | IActivityPubMigrationImportQueueInput): string | null {
+	const value = input?.ownershipProofToken;
+	if (typeof value !== 'string') {
+		return null;
+	}
+	const token = value.trim();
+	if (!isValidActivityPubMigrationOwnershipProofToken(token)) {
+		return null;
+	}
+	return token;
+}
+
+function isValidActivityPubMigrationOwnershipProofToken(token: string): boolean {
+	return Boolean(
+		token.length >= activityPubMigrationOwnershipProofTokenMinLength
+		&& token.length <= activityPubMigrationOwnershipProofTokenMaxLength
+		&& !/\s/.test(token)
+	);
+}
+
+function getActivityPubMigrationOwnershipProofValues(actorDocument): string[] {
+	const values: string[] = [];
+	appendActivityPubMigrationOwnershipProofValue(values, actorDocument);
+	return values;
+}
+
+function appendActivityPubMigrationOwnershipProofValue(values: string[], value, depth: number = 0): void {
+	if (values.length >= activityPubMigrationOwnershipProofValueMaxCount) {
+		return;
+	}
+	if (value === null || value === undefined) {
+		return;
+	}
+	if (typeof value === 'string') {
+		appendActivityPubMigrationOwnershipProofString(values, value);
+		return;
+	}
+	if (depth >= activityPubMigrationOwnershipProofMaxDepth) {
+		return;
+	}
+	if (Array.isArray(value)) {
+		appendActivityPubMigrationOwnershipProofArray(values, value, depth);
+		return;
+	}
+	if (typeof value === 'object') {
+		appendActivityPubMigrationOwnershipProofObject(values, value, depth);
+	}
+}
+
+function appendActivityPubMigrationOwnershipProofString(values: string[], value: string): void {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return;
+	}
+	values.push(trimmed.slice(0, activityPubMigrationOwnershipProofValueMaxLength));
+}
+
+function appendActivityPubMigrationOwnershipProofArray(values: string[], list, depth: number): void {
+	for (const item of list) {
+		appendActivityPubMigrationOwnershipProofValue(values, item, depth + 1);
+		if (values.length >= activityPubMigrationOwnershipProofValueMaxCount) {
+			return;
+		}
+	}
+}
+
+function appendActivityPubMigrationOwnershipProofObject(values: string[], value, depth: number): void {
+	for (const key of getActivityPubMigrationOwnershipProofObjectKeys()) {
+		appendActivityPubMigrationOwnershipProofValue(values, value[key], depth + 1);
+		if (values.length >= activityPubMigrationOwnershipProofValueMaxCount) {
+			return;
+		}
+	}
+}
+
+function getActivityPubMigrationOwnershipProofObjectKeys(): string[] {
+	return [
+		'id',
+		'url',
+		'href',
+		'name',
+		'preferredUsername',
+		'summary',
+		'content',
+		'value',
+		'alsoKnownAs',
+		'attachment',
+		'tag'
+	];
 }
 
 function getActivityPubMigrationVisibleImportGroupName(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): string {
@@ -3137,6 +3284,10 @@ function getActivityPubMigrationImportJobImportInput(input: IActivityPubMigratio
 	}
 	if (input?.ownershipApproved !== undefined) {
 		importInput.ownershipApproved = helpers.parseBoolean(input.ownershipApproved, false);
+	}
+	const ownershipProofToken = getActivityPubMigrationOwnershipProofToken(input);
+	if (ownershipProofToken) {
+		importInput.ownershipProofToken = ownershipProofToken;
 	}
 	if (input?.importRemoteAttachments !== undefined) {
 		importInput.importRemoteAttachments = helpers.parseBoolean(input.importRemoteAttachments, false);

@@ -431,6 +431,7 @@ export interface IActivityPubSourceRefreshInput {
 export interface IActivityPubMigrationPreviewInput extends IActivityPubSourceResolveInput, IActivityPubSourceRefreshInput {
 	claimed?: boolean | string;
 	maxPages?: number | string;
+	ownershipProofToken?: string;
 }
 
 export interface IActivityPubMigrationPreviewResult extends IActivityPubMigrationPreview {
