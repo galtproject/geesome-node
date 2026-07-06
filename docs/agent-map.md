@@ -26,6 +26,8 @@ Useful live endpoints:
 
 ## ActivityPub And Bluesky
 
+- Run `npm run todo:sections`, then `npm run todo:context -- <section-id>` for
+  the next ActivityPub/Bluesky implementation slice before editing.
 - Read `app/modules/activityPub/docs/activitypub-research.md`.
 - Read `app/modules/activityPub/docs/activitypub-user-flows.md`.
 - Read `app/modules/activityPub/docs/overview.md` and

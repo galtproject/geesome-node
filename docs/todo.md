@@ -14,6 +14,7 @@ Corrections and added requirements:
 - User post text should not use raw HTML as the canonical storage format for social-network and decentralized interop. Store a small versioned semantic rich-text document as the source of truth, render sanitized HTML only for ActivityPub/Matrix/static/admin adapter outputs, and export plain text plus structured facets/tags/mentions for Bluesky/ATProto, Farcaster, Nostr-like protocols, and similar networks. Status: added to the ActivityPub/Fediverse plan as the content-format backlog.
 - `geesome-node` is not inherently "the server side." It is a larger GeeSome app/node that can run locally, but is preferably run on an always-on server when content should be more available to other GeeSome network members. Status: this plan treats it as a node/app, not only a backend server.
 - Plans saved to Markdown should keep this `Source Of Truth` section current when the user corrects architecture or adds requirements. Status: this plan has been adjusted under that rule.
+- Actionable TODO slices should be wrapped in stable `<!-- todo-section: ... -->` markers and extracted with `npm run todo:sections` / `npm run todo:context -- <section-id>` so future agents can load deterministic implementation context instead of re-reading the whole backlog. Status: added for the ActivityPub/Bluesky finish plan, with the extractor in `check/todoSectionContext.ts`.
 - Add Node.js 22 migration to the TODO. Node 22 should become the supported baseline now, with Node 24 tested separately as the next LTS target. Status: implemented in [#779](https://github.com/galtproject/geesome-node/issues/779), with the Helia wrapper dependency update tracked by `geesome-libs` [#119](https://github.com/galtproject/geesome-libs/issues/119); Node 24 remains follow-up validation.
 - Add security review of API and encryption flows to the TODO. Status: tracked in [#782](https://github.com/galtproject/geesome-node/issues/782) and added as a fast-delivery security gate.
 - API documentation tooling should be handled through microwave-hub submodules for [`apidoc-template`](https://github.com/MicrowaveDev/apidoc-template) and [`apidoc-plugin-ts`](https://github.com/MicrowaveDev/apidoc-plugin-ts). Status: hub submodule tracking is in [Microwave Hub #2](https://github.com/MicrowaveDev/microwave-hub/issues/2), planning was tracked in [#787](https://github.com/galtproject/geesome-node/issues/787), vulnerable `apidoc-core` removal was tracked in [#802](https://github.com/galtproject/geesome-node/issues/802), final git-URL wiring was tracked in [#804](https://github.com/galtproject/geesome-node/issues/804), plugin-master repoint was tracked in [#806](https://github.com/galtproject/geesome-node/issues/806), request-body annotation support was tracked in [#808](https://github.com/galtproject/geesome-node/issues/808), all-module generation for existing annotated specs is tracked in [#810](https://github.com/galtproject/geesome-node/issues/810), practical remaining route coverage is tracked in [#812](https://github.com/galtproject/geesome-node/issues/812), and final examples/errors/render polish is tracked in [#813](https://github.com/galtproject/geesome-node/issues/813).
@@ -353,13 +354,121 @@ Status: native helper/smoke groundwork now fetches public `app.bsky.feed.getAuth
 
 ActivityPub source-feed direction: geesome-ui now has a user-facing ActivityPub Sources section where operators can subscribe to remote ActivityPub actors and read cached posts in a feed-style view. The first preset supports the official Bluesky account through Bridgy Fed (`acct:bsky.app@bsky.brid.gy`) while keeping direct ATProto import/cross-posting on the native Bluesky phase. Backend source-oriented APIs now resolve source handle/actor URL, list/add/update/remove subscriptions, manually or asynchronously refresh public `featured`/`outbox` source objects into the local cache, enqueue stale active subscriptions through an opt-in poller, process queued refresh jobs through the shared async-operation queue/worker, expose subscription read/refresh/error state, optionally request a federation-level outbound Follow from an explicit local group actor to the subscribed source actor, and list sanitized feed items with source actor metadata, `contentText`/canonical rich text, bounded attachment metadata, `embedPolicy`, remote URLs, local review/import state, and optional `(publishedAt, id)` cursor pagination that skips expensive totals. Source follow acceptance remains represented by the existing signed remote `Accept(Follow)` path and group following collection. Frontend implementation detail and the dual-viewport Playwright e2e/screenshot coverage live in `geesome-ui/docs/activitypub-source-feed-plan.md`.
 
-Remaining ActivityPub/Bluesky finish plan, in priority order:
+Remaining ActivityPub/Bluesky finish plan sections are ordered by delivery priority. Agents should run `npm run todo:sections`, then `npm run todo:context -- <section-id>` for the next section before implementing it.
 
-1. Expose publish-time Bluesky cross-post policy controls in the frontend for image upload/link/reject behavior, upload-failure fallback, attachment/link-preview card/link/reject/ignore behavior, and reply/quote omission choices.
-2. Add richer social-migration import controls in the frontend for Bluesky and ActivityPub media/relation policy choices, then add an explicit post-import relation-reconciliation action/status loop so users can see what was linked, skipped, ambiguous, or blocked.
-3. Harden ActivityPub claimed-profile migration with a stronger signed ownership challenge while keeping the existing admin-approved and public profile-token trust paths.
-4. Expand operator-run interop coverage beyond deterministic/local checks: Fedify CLI or ActivityPub.Academy style checks, broader remote-server exchange, and credentialed native Bluesky smoke for seeded `socNetAccount` reads/writes where credentials are required.
-5. Move from helper-level canonical rich-text adapters toward native post storage, editor integration, and direct protocol wiring so remote/social content does not become trusted editable raw HTML.
+<!-- todo-section: activitypub-bluesky-cross-post-policy-ui -->
+#### ActivityPub/Bluesky: Cross-Post Policy UI
+
+Goal: expose publish-time Bluesky cross-post policy controls in the frontend so users can choose image upload/link/reject behavior, upload-failure fallback, attachment/link-preview card/link/reject/ignore behavior, and reply/quote omission choices without weakening backend safety gates.
+
+Current state:
+
+- Backend `mediaPolicy` / `relationPolicy` options exist for cross-post create/update paths.
+- geesome-ui already has account connect/verify, cross-post/update/delete, and reply/quote guidance.
+- Remaining work is policy-control depth in the cross-post UI, not another backend media-policy model pass unless the UI exposes a missing backend contract.
+
+Implementation context:
+
+- Keep cross-posting credential-scoped and idempotent by DID.
+- Do not silently drop images, attachments, link previews, replies, or quotes; the UI should make fallback/reject/omit choices explicit.
+- Keep unsupported, private, encrypted, remote, unpublished, non-public, missing-public-URL, and missing-relation-identity cases rejected or clearly explained.
+
+Verification:
+
+- geesome-ui e2e/screenshot coverage for cross-post controls on desktop and mobile.
+- geesome-node only needs dependency/docs consumption when the UI package pointer changes.
+<!-- /todo-section -->
+
+<!-- todo-section: activitypub-bluesky-migration-policy-reconciliation-ui -->
+#### ActivityPub/Bluesky: Migration Policy And Reconciliation UI
+
+Goal: add richer social-migration import controls in the frontend for Bluesky and ActivityPub media/relation policy choices, then add an explicit post-import relation-reconciliation action/status loop so users can see what was linked, skipped, ambiguous, or blocked.
+
+Current state:
+
+- Bluesky and ActivityPub migration/import routes accept bounded media/relation policy options.
+- The social migration wizard covers preview/import, async import, one-off moderation mode/rules, and desktop/mobile e2e.
+- Backend dry-run/apply reconciliation routes exist for native Bluesky imported posts and ActivityPub-created visible remote posts.
+
+Implementation context:
+
+- Preserve moderation/review filters, canonical rich text, source identity, update/delete/idempotency, and bounded-page async job rules.
+- Reconciliation should show counts and reasons for linked, skipped, ambiguous, missing, permission-blocked, or already-linked relations.
+- Keep third-party replies, reposts, quotes, or group content represented as remote context/placeholders, not rewritten as local-authored content by the migrating user.
+
+Verification:
+
+- geesome-ui e2e/screenshot coverage for migration policy controls and reconciliation status.
+- geesome-node API tests only if the UI reveals missing status fields or requires a backend response-shape adjustment.
+<!-- /todo-section -->
+
+<!-- todo-section: activitypub-signed-ownership-challenge -->
+#### ActivityPub: Signed Ownership Challenge
+
+Goal: harden ActivityPub claimed-profile migration with a stronger signed ownership challenge while keeping the existing admin-approved and public profile-token trust paths.
+
+Current state:
+
+- ActivityPub claimed visible imports can use admin-approved claims or a matching public profile `ownershipProofToken`.
+- The profile token is useful for first non-admin import, but it is weaker than a signed actor-controlled challenge.
+
+Implementation context:
+
+- The challenge should prove control of the ActivityPub actor or actor signing key without requiring GeeSome to trust arbitrary profile text forever.
+- Keep admin-approved claims available as an explicit trust-policy override.
+- Do not create visible GeeSome posts from an unproven claim.
+
+Verification:
+
+- Unit/API tests for challenge creation, verification, expiration/replay behavior, and failed ownership claims.
+- ActivityPub migration tests proving unverified claims remain cached/review-only unless admin policy allows them.
+<!-- /todo-section -->
+
+<!-- todo-section: activitypub-bluesky-live-interop-smoke -->
+#### ActivityPub/Bluesky: Live Interop Smoke
+
+Goal: expand operator-run interop coverage beyond deterministic/local checks: Fedify CLI or ActivityPub.Academy style checks, broader remote-server exchange, and credentialed native Bluesky smoke for seeded `socNetAccount` reads/writes where credentials are required.
+
+Current state:
+
+- Deterministic ActivityPub interop smoke exists.
+- Optional live Fediverse actor smoke exists.
+- Optional Bluesky-through-Bridgy smoke exists.
+- Native public ATProto read smoke exists.
+
+Implementation context:
+
+- Keep live checks operator-run and skip clearly when remote accounts, bridges, or credentials are unavailable.
+- Do not commit secrets or require production credentials in CI.
+- Credentialed Bluesky smoke should validate ownership, credential handling, idempotency, source identity, moderation/signature boundaries, and native ATProto storage semantics.
+
+Verification:
+
+- New smoke command(s) with documented env vars and clear skip/failure output.
+- Existing deterministic tests remain the default reliable gate.
+<!-- /todo-section -->
+
+<!-- todo-section: canonical-rich-text-native-storage -->
+#### Canonical Rich Text: Native Storage And Editor Wiring
+
+Goal: move from helper-level canonical rich-text adapters toward native post storage, editor integration, and direct protocol wiring so remote/social content does not become trusted editable raw HTML.
+
+Current state:
+
+- The design note and helpers cover canonical validation, unsafe HTML import, sanitized HTML rendering, ActivityPub/Matrix HTML output, ATProto facets, Farcaster casts, and Nostr-like tags.
+- Native post storage, editor integration, and direct protocol wiring remain follow-up.
+
+Implementation context:
+
+- Store canonical rich text as the trusted editable source; keep sanitized HTML as adapter/cache output.
+- Do not widen the HTML allowlist to support editor features; add typed nodes/marks with migrations/rendering policy.
+- Make inbound remote HTML sanitize and normalize into canonical rich text before visible/editable native use.
+
+Verification:
+
+- Rich-text helper tests plus focused group/post/editor tests when the native storage shape is introduced.
+- Rendering tests for Vue frontend, generated static sites, ActivityPub, and Bluesky adapters when wiring changes.
+<!-- /todo-section -->
 
 Native Bluesky/ATProto phase:
 
