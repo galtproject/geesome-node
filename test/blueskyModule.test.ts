@@ -3091,6 +3091,13 @@ describe('bluesky module', () => {
 						calls.push({method: 'getLocalGroup', userId, groupId});
 						return {id: groupId};
 					},
+					getGroupByParams: async (params) => {
+						calls.push({method: 'getGroupByParams', params});
+						if (params.name === 'alice-page') {
+							return {id: 100, name: params.name};
+						}
+						return null;
+					},
 					getGroupPostRefs: async (groupId, filters, listParams, options) => {
 						calls.push({method: 'getGroupPostRefs', groupId, filters, listParams, options});
 						assert.equal(groupId, 100);
@@ -3126,7 +3133,7 @@ describe('bluesky module', () => {
 		const module = getBlueskyModule(app, {models});
 
 		const dryRun = await module.reconcileMigrationRelations(7, {
-			groupId: 100,
+			groupName: 'alice-page',
 			sourceChannelId: 'did:plc:alice',
 			limit: 4,
 			dryRun: true
@@ -3160,6 +3167,10 @@ describe('bluesky module', () => {
 			{method: 'updatePost', userId: 7, postId: 12, postData: {repostOfId: 30}}
 		]);
 		assert.deepEqual(calls.filter(call => call.method === 'canReplyToPost').map(call => call.postId), [20, 20]);
+		assert.deepEqual(calls.filter(call => call.method === 'getGroupByParams'), [
+			{method: 'getGroupByParams', params: {name: 'alice-page'}}
+		]);
+		assert.deepEqual(calls.filter(call => call.method === 'getLocalGroup').map(call => call.groupId), [100, 100]);
 		assert.deepEqual(calls.filter(call => call.method === 'checkUserCan').map(call => call.permission), [
 			CorePermissionName.UserGroupManagement,
 			CorePermissionName.UserGroupManagement
@@ -3402,7 +3413,7 @@ describe('bluesky module', () => {
 		});
 		const migrationReconcileResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/migration/reconcile-relations', {
 			user: {id: 7},
-			body: {groupId: 99, dryRun: true}
+			body: {groupName: 'alice-page', dryRun: true}
 		});
 		const crossPostResponse = await callRoute(routes, 'AUTH POST soc-net/bluesky/posts/:postId/cross-post', {
 			user: {id: 7},
@@ -3427,7 +3438,7 @@ describe('bluesky module', () => {
 			{method: 'importMigration', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page'}},
 			{method: 'queueMigrationImport', userId: 7, userApiKeyId: 12, input: {actor: 'alice.bsky.social', claimed: true, accountData: {id: 3}, groupName: 'alice-page', async: true, process: false}},
 			{method: 'checkUserCan', userId: 7, permission: CorePermissionName.UserGroupManagement},
-			{method: 'reconcileMigrationRelations', userId: 7, input: {groupId: 99, dryRun: true}},
+			{method: 'reconcileMigrationRelations', userId: 7, input: {groupName: 'alice-page', dryRun: true}},
 			{method: 'crossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'updateCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}},
 			{method: 'deleteCrossPostPost', userId: 7, postId: '44', input: {accountData: {id: 3}}}

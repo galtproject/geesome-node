@@ -138,7 +138,8 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	 * @apiUse AuthErrors
 	 *
 	 * @apiDescription Bounded post-migration repair for already-imported native Bluesky posts in one GeeSome group. The job reads stored Bluesky source metadata from imported posts, resolves `reply.parentUri` to local `replyToId`, resolves `quote.uri` to local `repostOfId`, and updates only when the matching target post already exists by source identity. Same-group targets are preferred; cross-group targets are used only when unambiguous and `allowCrossGroup` is not false. Use `dryRun=true` to preview changes without writing. Reposts are intentionally not rewritten in this first relation pass because repost authorship policy needs a separate product decision.
-	 * @apiBody {Number} groupId Local GeeSome group id whose imported Bluesky posts should be inspected.
+	 * @apiBody {Number} [groupId] Local GeeSome group id whose imported Bluesky posts should be inspected.
+	 * @apiBody {String} [groupName] Local GeeSome group name used when `groupId` is not supplied.
 	 * @apiBody {String} [sourceChannelId] Optional imported Bluesky source channel/DID filter.
 	 * @apiBody {Number} [limit=20] Maximum imported posts to inspect, capped at 100.
 	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous result.

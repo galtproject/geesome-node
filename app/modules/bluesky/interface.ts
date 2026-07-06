@@ -85,6 +85,7 @@ export interface IBlueskyMigrationImportQueueProcessResult {
 
 export interface IBlueskyMigrationRelationReconcileInput {
 	groupId?: number | string;
+	groupName?: string;
 	sourceChannelId?: string | null;
 	limit?: number | string;
 	cursorPublishedAt?: string | Date;

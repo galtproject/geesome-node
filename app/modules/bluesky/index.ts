@@ -2103,11 +2103,18 @@ function getBlueskyMigrationRelationReconcileListParams(input: IBlueskyMigration
 
 async function getRequiredBlueskyMigrationRelationReconcileGroupId(app: IGeesomeApp, userId: number, input: IBlueskyMigrationRelationReconcileInput): Promise<number> {
 	const groupId = Number(input?.groupId);
-	if (!Number.isFinite(groupId) || groupId <= 0) {
-		throw new Error('bluesky_migration_reconcile_group_required');
+	if (Number.isFinite(groupId) && groupId > 0) {
+		return Number((await app.ms.group.getLocalGroup(userId, Math.floor(groupId))).id);
 	}
-	await app.ms.group.getLocalGroup(userId, Math.floor(groupId));
-	return Math.floor(groupId);
+	const groupName = getOptionalBoundedString(input?.groupName, 200);
+	if (groupName) {
+		const group = await app.ms.group.getGroupByParams({name: groupName});
+		if (group?.id) {
+			await app.ms.group.getLocalGroup(userId, group.id);
+			return Number(group.id);
+		}
+	}
+	throw new Error('bluesky_migration_reconcile_group_required');
 }
 
 function getBlueskyMigrationRelationReconcilePostFilters(input: IBlueskyMigrationRelationReconcileInput) {
