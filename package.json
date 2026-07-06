@@ -33,6 +33,8 @@
     "activitypub:bluesky-bridge-smoke": "node --import tsx --experimental-global-customevent check/activityPubBlueskyBridgeSmoke.ts",
     "activitypub:remote-server-smoke": "node --import tsx --experimental-global-customevent check/activityPubRemoteServerSmoke.ts",
     "bluesky:atproto-smoke": "node --import tsx --experimental-global-customevent check/blueskyAtProtoPublicSmoke.ts",
+    "todo:context": "node --import tsx check/todoSectionContext.ts",
+    "todo:sections": "node --import tsx check/todoSectionContext.ts --list",
     "generate-docs": "./node_modules/.bin/apidoc -i app/modules -o docs -t node_modules/geesome-apidoc-template/template",
     "security:route-inventory": "node --import tsx check/securityRouteInventory.ts --check",
     "security:route-inventory:update": "node --import tsx check/securityRouteInventory.ts --write",

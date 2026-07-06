@@ -12,6 +12,10 @@ API reference output with handwritten architecture, operations, and module notes
 - [Agent docs map](./agent-map.md): task-to-doc routing for agents and maintainers.
 - [TODO and delivery plan](./todo.md): issue-backed implementation backlog.
 
+For implementation slices, list deterministic TODO section ids with
+`npm run todo:sections`, then print the exact context for one slice with
+`npm run todo:context -- <section-id>`.
+
 ## Runtime Discovery
 
 A running node exposes machine-readable docs pointers so users and agents can
