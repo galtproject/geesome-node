@@ -269,6 +269,8 @@ export interface IBlueskySourceSubscriptionInput {
 	importLimit?: number | string | null;
 	moderationMode?: RemoteContentModerationMode | string | null;
 	moderationRules?: IRemoteContentModerationRule[] | any[] | null;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput | null;
+	relationPolicy?: IBlueskyImportRelationPolicyInput | null;
 }
 
 export interface IBlueskySourceSubscriptionUpdateInput {
@@ -280,6 +282,8 @@ export interface IBlueskySourceSubscriptionUpdateInput {
 	importLimit?: number | string | null;
 	moderationMode?: RemoteContentModerationMode | string | null;
 	moderationRules?: IRemoteContentModerationRule[] | any[] | null;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput | null;
+	relationPolicy?: IBlueskyImportRelationPolicyInput | null;
 }
 
 export interface IBlueskySourceSubscriptionFilters {
@@ -299,6 +303,8 @@ export interface IBlueskySourceSubscriptionReport {
 	importLimit?: number | null;
 	moderationMode?: RemoteContentModerationMode;
 	moderationRules?: IRemoteContentModerationRule[];
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 	dbChannelId?: number | null;
 	lastCursor?: string | null;
 	lastRefreshRequestedAt?: Date | null;
