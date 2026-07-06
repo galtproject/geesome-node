@@ -630,6 +630,134 @@ describe('activityPub module', () => {
 		assert.deepEqual(preview.errors, []);
 	});
 
+	it('verifies ActivityPub migration ownership through a signed actor challenge', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const visibleObject = {
+			id: 'https://remote.example/objects/signed-challenge-migration',
+			type: 'Note',
+			attributedTo: remoteActorKey.actorUrl,
+			to: 'https://www.w3.org/ns/activitystreams#Public',
+			content: '<p>Signed challenge migration body</p>',
+			published: '2026-06-02T12:00:00Z'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			[remoteActorKey.actorUrl]: actorDocument,
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				orderedItems: [visibleObject]
+			}
+		};
+		const {module, models, calls} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+
+		const challenge = await module.createMigrationOwnershipChallenge(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			expiresInMs: 60000
+		});
+		const ownershipChallengeProof = getSignedMigrationOwnershipChallengeProof(remoteActorKey, challenge);
+		const verified = await module.verifyMigrationOwnershipChallenge(7, {
+			ownershipChallengeProof
+		});
+		const preview = await module.getMigrationPreview(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			ownershipChallengeProof
+		});
+		const result = await module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			createPosts: true,
+			groupName: 'test-channel',
+			ownershipChallengeProof,
+			includeFeatured: false
+		});
+
+		assert.equal(challenge.actor, remoteActorKey.actorUrl);
+		assert.equal(challenge.sourceActorUrl, remoteActorKey.actorUrl);
+		assert.match(challenge.challengeUrl, /^https:\/\/social\.example\/ap\/migration\/ownership-challenges\//);
+		assert.equal(challenge.verificationUrl, `${challenge.challengeUrl}/verify`);
+		assert.equal(challenge.body.actor, remoteActorKey.actorUrl);
+		assert.equal(challenge.body.geesomePurpose, 'activitypub-migration-ownership');
+		assert.equal(JSON.parse(challenge.bodyJson).geesomeChallengeToken, challenge.challengeToken);
+		assert.equal(verified.verified, true);
+		assert.equal(verified.method, 'signedChallenge');
+		assert.equal(verified.actor, remoteActorKey.actorUrl);
+		assert.equal(verified.keyId, remoteActorKey.keyId);
+		assert.equal(preview.ownership.verified, true);
+		assert.equal(preview.ownership.method, 'signedChallenge');
+		assert.equal(result.ownership.verified, true);
+		assert.equal(result.ownership.method, 'signedChallenge');
+		assert.equal(result.cached, 1);
+		assert.equal(result.created, 1);
+		assert.deepEqual(result.postIds, [88]);
+		assert.equal(models.ActivityPubMigrationOwnershipChallenge.rows.length, 1);
+		assert.equal(models.ActivityPubMigrationOwnershipChallenge.rows[0].consumedAt instanceof Date, true);
+		assert.equal(models.ActivityPubMigrationOwnershipChallenge.rows[0].verifiedPublicKeyId, remoteActorKey.keyId);
+		assert.deepEqual(calls.checkUserCan, [
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement},
+			{userId: 7, permission: CorePermissionName.UserGroupManagement}
+		]);
+	});
+
+	it('rejects expired and replayed ActivityPub migration ownership challenges', async () => {
+		const remoteActorKey = getRemoteActorKey();
+		const actorDocument = {
+			...getRemoteActorDocument(remoteActorKey),
+			outbox: 'https://remote.example/users/alice/outbox'
+		};
+		const sourceJsonByUrl: Record<string, any> = {
+			[remoteActorKey.actorUrl]: actorDocument,
+			'https://remote.example/users/alice/outbox': {
+				type: 'OrderedCollection',
+				orderedItems: []
+			}
+		};
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument,
+			fetchActivityPubSourceJson: async (url) => sourceJsonByUrl[url]
+		});
+		const expiredChallenge = await module.createMigrationOwnershipChallenge(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+		const expiredProof = getSignedMigrationOwnershipChallengeProof(remoteActorKey, expiredChallenge);
+		await models.ActivityPubMigrationOwnershipChallenge.rows[0].update({
+			expiresAt: new Date(Date.now() - 1000)
+		});
+
+		await assert.rejects(() => module.verifyMigrationOwnershipChallenge(7, {
+			ownershipChallengeProof: expiredProof
+		}), /activitypub_migration_ownership_challenge_expired/);
+
+		const replayChallenge = await module.createMigrationOwnershipChallenge(7, {
+			actorUrl: remoteActorKey.actorUrl
+		});
+		const replayProof = getSignedMigrationOwnershipChallengeProof(remoteActorKey, replayChallenge);
+		await module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			createPosts: true,
+			groupName: 'test-channel',
+			ownershipChallengeProof: replayProof,
+			includeFeatured: false
+		});
+
+		await assert.rejects(() => module.importMigration(7, {
+			actorUrl: remoteActorKey.actorUrl,
+			claimed: true,
+			createPosts: true,
+			groupName: 'test-channel',
+			ownershipChallengeProof: replayProof,
+			includeFeatured: false
+		}), /activitypub_migration_ownership_challenge_already_used/);
+	});
+
 	it('keeps ActivityPub migration preview placeholders when referenced objects fail to load', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const missingObjectUrl = 'https://other.example/objects/missing-reblog';
@@ -3615,6 +3743,8 @@ describe('activityPub API', () => {
 		const sourceRefreshCalls: any[] = [];
 		const sourceRefreshQueueCalls: any[] = [];
 		const sourceReadCalls: any[] = [];
+		const migrationOwnershipChallengeCalls: any[] = [];
+		const migrationOwnershipChallengeVerifyCalls: any[] = [];
 		const migrationPreviewCalls: any[] = [];
 		const migrationImportCalls: any[] = [];
 		const migrationImportQueueCalls: any[] = [];
@@ -3646,6 +3776,32 @@ describe('activityPub API', () => {
 					sourceActorUrl: 'https://remote.example/users/alice',
 					bridgeProvider: 'bridgy-bluesky',
 					remoteActor: {id: 1, actorUrl: 'https://remote.example/users/alice'}
+				};
+			},
+			createMigrationOwnershipChallenge: async (userId, input) => {
+				migrationOwnershipChallengeCalls.push({userId, input});
+				return {
+					id: 5,
+					actor: 'https://remote.example/users/alice',
+					sourceActorUrl: 'https://remote.example/users/alice',
+					challengeToken: 'signed-challenge-token',
+					challengeUrl: 'https://social.example/ap/migration/ownership-challenges/signed-challenge-token',
+					verificationUrl: 'https://social.example/ap/migration/ownership-challenges/signed-challenge-token/verify',
+					expiresAt: new Date('2026-06-01T12:15:00Z'),
+					body: {geesomeChallengeToken: 'signed-challenge-token'},
+					bodyJson: '{"geesomeChallengeToken":"signed-challenge-token"}'
+				};
+			},
+			verifyMigrationOwnershipChallenge: async (userId, input) => {
+				migrationOwnershipChallengeVerifyCalls.push({userId, input});
+				return {
+					verified: true,
+					method: 'signedChallenge',
+					actor: 'https://remote.example/users/alice',
+					challengeToken: input.ownershipChallengeProof.challengeToken,
+					verifiedAt: new Date('2026-06-01T12:01:00Z'),
+					expiresAt: new Date('2026-06-01T12:15:00Z'),
+					keyId: 'https://remote.example/users/alice#main-key'
 				};
 			},
 			getMigrationPreview: async (userId, input) => {
@@ -3968,10 +4124,44 @@ describe('activityPub API', () => {
 			total: 1
 		});
 
+		const migrationOwnershipChallenge = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/ownership-challenge', {
+			body: {actorUrl: 'https://remote.example/users/alice'},
+			user: {id: 1}
+		});
+		const migrationOwnershipChallengeVerify = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/ownership-challenge/verify', {
+			body: {
+				ownershipChallengeProof: {
+					challengeToken: 'signed-challenge-token',
+					method: 'POST',
+					url: 'https://social.example/ap/migration/ownership-challenges/signed-challenge-token/verify',
+					headers: {Date: 'Mon, 01 Jun 2026 12:00:00 GMT'},
+					bodyJson: '{"geesomeChallengeToken":"signed-challenge-token"}'
+				}
+			},
+			user: {id: 1}
+		});
 		const migrationPreview = await callRoute(routes, 'AUTH POST soc-net/activity-pub/migration/preview', {
 			body: {actorUrl: 'https://remote.example/users/alice', claimed: true},
 			user: {id: 1}
 		});
+		assert.deepEqual(migrationOwnershipChallengeCalls, [{
+			userId: 1,
+			input: {actorUrl: 'https://remote.example/users/alice'}
+		}]);
+		assert.deepEqual(migrationOwnershipChallengeVerifyCalls, [{
+			userId: 1,
+			input: {
+				ownershipChallengeProof: {
+					challengeToken: 'signed-challenge-token',
+					method: 'POST',
+					url: 'https://social.example/ap/migration/ownership-challenges/signed-challenge-token/verify',
+					headers: {Date: 'Mon, 01 Jun 2026 12:00:00 GMT'},
+					bodyJson: '{"geesomeChallengeToken":"signed-challenge-token"}'
+				}
+			}
+		}]);
+		assert.equal(migrationOwnershipChallenge.body.challengeToken, 'signed-challenge-token');
+		assert.equal(migrationOwnershipChallengeVerify.body.method, 'signedChallenge');
 		assert.deepEqual(migrationPreviewCalls, [{
 			userId: 1,
 			input: {actorUrl: 'https://remote.example/users/alice', claimed: true}
@@ -4027,7 +4217,9 @@ describe('activityPub API', () => {
 			userId: 1,
 			input: {groupId: 3, dryRun: true}
 		}]);
-		assert.deepEqual(permissionChecks.slice(1, 6), [
+		assert.deepEqual(permissionChecks.slice(1, 8), [
+			{userId: 1, permission: CorePermissionName.UserGroupManagement},
+			{userId: 1, permission: CorePermissionName.UserGroupManagement},
 			{userId: 1, permission: CorePermissionName.UserGroupManagement},
 			{userId: 1, permission: CorePermissionName.UserGroupManagement},
 			{userId: 1, permission: CorePermissionName.UserGroupManagement},
@@ -4049,7 +4241,7 @@ describe('activityPub API', () => {
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObjects.body, {
 			list: [{id: 2, objectId: 'https://remote.example/objects/reply-1'}],
 			total: 1
@@ -4059,7 +4251,7 @@ describe('activityPub API', () => {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[6], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObject.body, {
 			id: 2,
 			objectId: 'https://remote.example/objects/reply-1'
@@ -4069,7 +4261,7 @@ describe('activityPub API', () => {
 			params: {groupName: 'test-channel', remoteObjectId: '2'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[8], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(remoteObjectPostDraft.body, {
 			canCreatePost: true,
 			reasons: [],
@@ -4084,7 +4276,7 @@ describe('activityPub API', () => {
 			body: {importRemoteAttachments: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[9], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectPostCreateCalls, [{
 			groupName: 'test-channel',
 			remoteObjectId: '2',
@@ -4102,7 +4294,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[10], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectAttachmentBackupQueueCalls, [{
 			groupName: 'test-channel',
 			remoteObjectId: '2',
@@ -4120,7 +4312,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubObjectReviewState.Rejected},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[11], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(remoteObjectReviewState.body, {
 			id: 2,
 			reviewState: ActivityPubObjectReviewState.Rejected,
@@ -4132,7 +4324,7 @@ describe('activityPub API', () => {
 			body: {state: ActivityPubFlagState.Resolved},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[12], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(flagReportState.body, {
 			id: 1,
 			state: ActivityPubFlagState.Resolved
@@ -4143,7 +4335,7 @@ describe('activityPub API', () => {
 			body: {actorUrl: 'https://remote.example/users/alice'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[13], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(outboundFollow.body, {
 			ok: true,
 			message: 'activitypub_follow_delivery_queued',
@@ -4158,7 +4350,7 @@ describe('activityPub API', () => {
 			body: {handle: 'bsky.app', bridgeProvider: 'bridgy-bluesky'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[14], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceResolveCalls, [{
 			handle: 'bsky.app',
 			bridgeProvider: 'bridgy-bluesky'
@@ -4174,7 +4366,7 @@ describe('activityPub API', () => {
 			query: {status: ActivityPubSourceSubscriptionStatus.Active},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[15], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:read'});
 		assert.equal(sources.body.list[0].id, 4);
 		assert.deepEqual(sources.body.list[0]._filters, {status: ActivityPubSourceSubscriptionStatus.Active});
 
@@ -4182,7 +4374,7 @@ describe('activityPub API', () => {
 			body: {resource: 'acct:bsky.app@bsky.brid.gy', displayName: 'Bluesky'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[16], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceSubscribeCalls, [{
 			userId: 1,
 			input: {
@@ -4197,7 +4389,7 @@ describe('activityPub API', () => {
 			body: {groupName: 'test-channel'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[17], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[19], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceFollowCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4211,7 +4403,7 @@ describe('activityPub API', () => {
 			query: {objectType: 'Note'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[18], {userId: 1, permission: 'admin:read'});
+		assert.deepEqual(permissionChecks[20], {userId: 1, permission: 'admin:read'});
 		assert.deepEqual(sourceFeedCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4225,7 +4417,7 @@ describe('activityPub API', () => {
 			body: {limit: 2, includeFeatured: true},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[19], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[21], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4240,7 +4432,7 @@ describe('activityPub API', () => {
 			user: {id: 1},
 			apiKey: {id: 9}
 		});
-		assert.deepEqual(permissionChecks[20], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[22], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRefreshQueueCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4255,7 +4447,7 @@ describe('activityPub API', () => {
 			body: {readAt: '2026-06-01T12:10:00Z'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[21], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[23], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceReadCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4268,7 +4460,7 @@ describe('activityPub API', () => {
 			body: {status: ActivityPubSourceSubscriptionStatus.Paused, displayName: 'Paused source'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[22], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[24], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceUpdateCalls, [{
 			userId: 1,
 			sourceId: '4',
@@ -4280,7 +4472,7 @@ describe('activityPub API', () => {
 			params: {sourceId: '4'},
 			user: {id: 1}
 		});
-		assert.deepEqual(permissionChecks[23], {userId: 1, permission: 'admin:all'});
+		assert.deepEqual(permissionChecks[25], {userId: 1, permission: 'admin:all'});
 		assert.deepEqual(sourceRemoveCalls, [{
 			userId: 1,
 			sourceId: '4'
@@ -4848,6 +5040,7 @@ function getModelsStub() {
 		ActivityPubObject: getModelStub(),
 		ActivityPubDelivery: getModelStub(),
 		ActivityPubObjectReview: getModelStub(),
+		ActivityPubMigrationOwnershipChallenge: getModelStub(),
 		ActivityPubFlag: getModelStub(),
 		Post: getModelStub()
 	};
@@ -4930,6 +5123,13 @@ function getModelStub() {
 			};
 			rows.push(row);
 			return row;
+		},
+		async update(updateData, {where} = {}) {
+			const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
+			for (const row of matchingRows) {
+				Object.assign(row, updateData);
+			}
+			return [matchingRows.length];
 		},
 		async destroy() {
 			rows.length = 0;
@@ -5177,6 +5377,23 @@ function getSignedInboxRequest(actorKey, path: string, activity: any) {
 		body: activity,
 		rawBody: Buffer.from(body),
 		now: date
+	};
+}
+
+function getSignedMigrationOwnershipChallengeProof(actorKey, challenge) {
+	const signedRequest = signActivityPubRequestWithKey(actorKey, {
+		method: 'POST',
+		url: challenge.verificationUrl,
+		body: challenge.bodyJson,
+		date: new Date()
+	});
+
+	return {
+		challengeToken: challenge.challengeToken,
+		method: 'POST',
+		url: challenge.verificationUrl,
+		headers: signedRequest.headers,
+		bodyJson: challenge.bodyJson
 	};
 }
 
