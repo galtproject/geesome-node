@@ -38,12 +38,26 @@ export interface IBlueskyPublicAuthorFeedImportInput extends IBlueskyPublicAutho
 	force?: boolean;
 	mergeSeconds?: number;
 	moderationPolicy?: IRemoteContentModerationPolicyInput;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 }
 
 export interface IBlueskyPublicAuthorFeedPreview {
 	actor: string;
 	cursor: string | null;
 	list: IBlueskyPostProjection[];
+}
+
+export interface IBlueskyImportMediaPolicyInput {
+	images?: 'preserve' | 'ignore' | 'reject' | string;
+	linkPreviews?: 'preserve' | 'ignore' | 'reject' | string;
+	unsupportedEmbeds?: 'preserve' | 'ignore' | 'reject' | string;
+}
+
+export interface IBlueskyImportRelationPolicyInput {
+	replies?: 'preserve' | 'omit' | 'reject' | string;
+	quotes?: 'preserve' | 'omit' | 'reject' | string;
+	reposts?: 'preserve' | 'omit' | 'reject' | string;
 }
 
 export interface IBlueskyMigrationPreviewInput extends IBlueskyPublicAuthorFeedPreviewInput, IBlueskyAccountVerifyInput {
@@ -314,6 +328,8 @@ export interface IBlueskySourceReviewUpdateInput {
 
 export interface IBlueskySourceReviewImportInput {
 	force?: boolean | string;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 }
 
 export interface IBlueskySourceReviewReport {
@@ -376,6 +392,8 @@ export interface IBlueskySourceRefreshInput {
 	mergeSeconds?: number | string | null;
 	advancedSettings?: any;
 	moderationPolicy?: IRemoteContentModerationPolicyInput;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 }
 
 export interface IBlueskySourceRefreshQueueInput extends IBlueskySourceRefreshInput {

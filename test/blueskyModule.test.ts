@@ -237,6 +237,106 @@ describe('bluesky module', () => {
 		});
 	});
 
+	it('applies Bluesky import media and relation policies before writing posts', async () => {
+		const imports: any[] = [];
+		let closedOperation;
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/'
+				}
+			},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async () => getDbChannel(),
+					openImportAsyncOperation: async () => ({id: 44, channel: 'import-channel', inProcess: true}),
+					importChannelPosts: async (client) => {
+						imports.push({method: 'importChannelPosts', client});
+						await client.onRemotePostProcess(client.messages.list[0], getDbChannel(), {id: 1}, 'post');
+					}
+				},
+				asyncOperation: {
+					handleOperationCancel: async () => {},
+					updateAsyncOperation: async () => {},
+					closeImportAsyncOperation: async (_userId, asyncOperation, error) => {
+						closedOperation = {asyncOperation, error};
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async () => ({
+				ok: true,
+				json: async () => getPolicyAuthorFeedFixture()
+			})
+		});
+
+		const result = await module.importPublicAuthorFeed(7, 12, {
+			actor: '@alice.bsky.social',
+			limit: 2,
+			mediaPolicy: {
+				images: 'ignore',
+				linkPreviews: 'ignore'
+			},
+			relationPolicy: {
+				replies: 'omit',
+				quotes: 'omit',
+				reposts: 'omit'
+			}
+		});
+		await waitForBackgroundTasks();
+
+		const message = imports[0].client.messages.list[0];
+		assert.equal(result.projectedPostsCount, 2);
+		assert.equal(imports[0].client.messages.list.length, 1);
+		assert.equal(message.id, 'at://did:plc:alice/app.bsky.feed.post/policy-normal');
+		assert.equal(message.reply, null);
+		assert.equal(message.quote, null);
+		assert.equal(message.repost, null);
+		assert.deepEqual(message.embed.images, []);
+		assert.deepEqual(message.embed.external, []);
+		assert.deepEqual(closedOperation, {
+			asyncOperation: {id: 44, channel: 'import-channel', inProcess: true},
+			error: null
+		});
+	});
+
+	it('rejects Bluesky imports when explicit import policy forbids projected content', async () => {
+		const imports: any[] = [];
+		const module = getBlueskyModule({
+			config: {},
+			ms: {
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					},
+					openImportAsyncOperation: async () => {
+						imports.push({method: 'openImportAsyncOperation'});
+						return {id: 44};
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async () => ({
+				ok: true,
+				json: async () => getPolicyAuthorFeedFixture()
+			})
+		});
+
+		await assert.rejects(
+			() => module.importPublicAuthorFeed(7, 12, {
+				actor: '@alice.bsky.social',
+				mediaPolicy: {linkPreviews: 'reject'}
+			}),
+			/bluesky_import_link_preview_policy_reject/
+		);
+		assert.deepEqual(imports, []);
+	});
+
 	it('starts a claimed Bluesky migration import through a verified stored account', async () => {
 		const calls: any[] = [];
 		const checks: any[] = [];
@@ -594,6 +694,14 @@ describe('bluesky module', () => {
 			moderationPolicy: {
 				rules: [{name: 'skip', value: 'not-in-feed'}]
 			},
+			mediaPolicy: {
+				images: 'omit',
+				linkPreviews: 'preserve'
+			},
+			relationPolicy: {
+				replies: 'ignore',
+				reposts: 'omit'
+			},
 			maxPages: '2',
 			process: false
 		});
@@ -619,6 +727,14 @@ describe('bluesky module', () => {
 						value: 'not-in-feed',
 						action: 'block'
 					}]
+				},
+				mediaPolicy: {
+					images: 'ignore',
+					linkPreviews: 'preserve'
+				},
+				relationPolicy: {
+					replies: 'omit',
+					reposts: 'omit'
 				},
 				maxPages: 2
 			}
@@ -676,6 +792,83 @@ describe('bluesky module', () => {
 			}),
 			/bluesky_migration_queue_secret_not_supported/
 		);
+	});
+
+	it('reports queued Bluesky migration import policy skips separately from moderation skips', async () => {
+		const calls = getAsyncOperationCalls();
+		const imports: any[] = [];
+		const accounts = getSocNetAccountModule([{
+			userId: 7,
+			socNet: 'bluesky',
+			accountId: 'did:plc:alice',
+			username: 'alice.bsky.social',
+			apiKey: 'app-password'
+		}]);
+		const module = getBlueskyModule({
+			config: {
+				blueskyConfig: {
+					publicApiOrigin: 'https://public.example/',
+					authApiOrigin: 'https://auth.example/'
+				}
+			},
+			ms: {
+				asyncOperation: getAsyncOperationModule(calls),
+				socNetAccount: accounts,
+				socNetImport: {
+					importChannelMetadata: async (...args) => {
+						imports.push({method: 'importChannelMetadata', args});
+						return getDbChannel();
+					}
+				}
+			},
+			checkModules: () => {},
+			checkUserCan: async () => {}
+		} as any, {
+			fetch: async (url) => {
+				if (String(url).includes('getAuthorFeed')) {
+					const fixture = getPolicyAuthorFeedFixture();
+					return {
+						ok: true,
+						json: async () => ({
+							cursor: null,
+							feed: fixture.feed.slice(1)
+						})
+					};
+				}
+				if (String(url).includes('createSession')) {
+					return {
+						ok: true,
+						json: async () => ({
+							did: 'did:plc:alice',
+							handle: 'alice.bsky.social',
+							accessJwt: 'access-token'
+						})
+					};
+				}
+				return {
+					ok: true,
+					json: async () => ({
+						did: 'did:plc:alice',
+						handle: 'alice.bsky.social',
+						displayName: 'Alice'
+					})
+				};
+			}
+		});
+
+		await module.queueMigrationImport(7, 13, {
+			actor: '@alice.bsky.social',
+			claimed: true,
+			accountData: {id: 1},
+			relationPolicy: {reposts: 'omit'},
+			process: false
+		});
+
+		await assert.rejects(
+			() => module.processMigrationImportQueue({limit: 1}),
+			/bluesky_import_policy_no_importable_posts/
+		);
+		assert.deepEqual(imports, []);
 	});
 
 	it('rejects claimed Bluesky migration imports when the stored account does not own the actor', async () => {
@@ -3965,6 +4158,67 @@ function getTwoPostAuthorFeedFixture() {
 			getFeedItem('newer', 'Newer post', '2026-07-04T08:00:00.000Z'),
 			getFeedItem('older', 'Older post', '2026-07-04T07:59:00.000Z')
 		]
+	};
+}
+
+function getPolicyAuthorFeedFixture() {
+	const normal = getFeedItem('policy-normal', 'Policy normal', '2026-07-04T08:00:00.000Z');
+	normal.post.record.reply = {
+		root: {
+			uri: 'at://did:plc:alice/app.bsky.feed.post/root',
+			cid: 'bafyroot'
+		},
+		parent: {
+			uri: 'at://did:plc:bob/app.bsky.feed.post/parent',
+			cid: 'bafyparent'
+		}
+	};
+	normal.post.record.embed = {
+		$type: 'app.bsky.embed.recordWithMedia',
+		record: {
+			record: {
+				uri: 'at://did:plc:bob/app.bsky.feed.post/quote',
+				cid: 'bafyquote',
+				author: {
+					did: 'did:plc:bob',
+					handle: 'bob.bsky.social'
+				}
+			}
+		},
+		media: {
+			$type: 'app.bsky.embed.external',
+			external: {
+				uri: 'https://example.com/link-preview',
+				title: 'Example preview',
+				description: 'Preview description'
+			}
+		}
+	};
+	normal.post.embed = {
+		$type: 'app.bsky.embed.images#view',
+		images: [{
+			thumb: 'https://cdn.example/thumb.jpg',
+			fullsize: 'https://cdn.example/full.jpg',
+			alt: 'Image alt',
+			image: {
+				mimeType: 'image/jpeg',
+				size: 1234
+			}
+		}]
+	};
+	const repost = getFeedItem('policy-repost', 'Policy repost', '2026-07-04T07:59:00.000Z');
+	repost.reason = {
+		$type: 'app.bsky.feed.defs#reasonRepost',
+		indexedAt: '2026-07-04T08:01:00.000Z',
+		by: {
+			did: 'did:plc:alice',
+			handle: 'alice.bsky.social',
+			displayName: 'Alice'
+		}
+	};
+	return {
+		cursor: 'cursor-after',
+		feed: [normal, repost]
 	};
 }
 
