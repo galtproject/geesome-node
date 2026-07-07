@@ -32,6 +32,7 @@
     "activitypub:interop-smoke": "node --import tsx --experimental-global-customevent check/activityPubInteropSmoke.ts",
     "activitypub:bluesky-bridge-smoke": "node --import tsx --experimental-global-customevent check/activityPubBlueskyBridgeSmoke.ts",
     "activitypub:remote-server-smoke": "node --import tsx --experimental-global-customevent check/activityPubRemoteServerSmoke.ts",
+    "activitypub:ownership-challenge-smoke": "node --import tsx --experimental-global-customevent check/activityPubOwnershipChallengeSmoke.ts",
     "bluesky:atproto-smoke": "node --import tsx --experimental-global-customevent check/blueskyAtProtoPublicSmoke.ts",
     "bluesky:credentialed-smoke": "node --import tsx --experimental-global-customevent check/blueskyCredentialedSmoke.ts",
     "todo:context": "node --import tsx check/todoSectionContext.ts",
