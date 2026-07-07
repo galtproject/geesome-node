@@ -35,6 +35,7 @@ import {
 	getProjectedContentText,
 	isProjectedRichTextContent
 } from './contentProjectionHelpers.js';
+import {getPostInputContents, stripPostContentInputFields} from './postContentInputHelpers.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
@@ -1103,8 +1104,9 @@ function getModule(app: IGeesomeApp, models) {
 			postData.groupId = await this.checkGroupId(postData.groupId);
 			log('checkGroupId');
 
-			const contents = await this.getContentsForPost(userId, postData.contents);
-			delete postData.contents;
+			const postInputContents = await getPostInputContents(app, userId, postData);
+			stripPostContentInputFields(postData);
+			const contents = await this.getContentsForPost(userId, postInputContents);
 			const size = sumBy(contents || [], contentSize);
 
 			const [user, group] = await Promise.all([
@@ -1413,8 +1415,9 @@ function getModule(app: IGeesomeApp, models) {
 			}
 			delete postData.groupId;
 
-			const contentsData = await this.getContentsForPost(userId, postData.contents);
-			delete postData.contents;
+			const postInputContents = await getPostInputContents(app, userId, postData);
+			stripPostContentInputFields(postData);
+			const contentsData = await this.getContentsForPost(userId, postInputContents);
 
 			// B4: drafts/deleted rows are DB-only. Only run post manifest/static rebuild when
 			// the merged row is actively published. Rows that leave the public lifecycle still

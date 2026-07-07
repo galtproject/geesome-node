@@ -5,6 +5,7 @@ import {
 	IUser
 } from "../database/interface.js";
 import {IUserListResponse} from "../../interface.js";
+import type {RichTextDocument} from "../../richText.js";
 
 export default interface IGeesomeGroupModule {
 
@@ -418,6 +419,9 @@ export interface IPostInput {
 	groupId: number;
 	contentIds?: number[];
 	contentsIds?: number[];
+	contents?: IContent[];
+	contentRichText?: RichTextDocument;
+	contentRichTextFileName?: string;
 	view?: string;
 	type?: string;
 	size?: string;
@@ -432,6 +436,9 @@ export interface IPostInput {
 export interface IPostUpdateInput {
 	contentIds?: number[];
 	contentsIds?: number[];
+	contents?: IContent[];
+	contentRichText?: RichTextDocument;
+	contentRichTextFileName?: string;
 	view?: string;
 	type?: string;
 	size?: string;
