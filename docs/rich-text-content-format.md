@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, Nostr-like text-note export covered by tests, and remote ActivityPub object previews exposing canonical rich-text content projections for review. Native post storage, editor integration, and broader protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, Nostr-like text-note export covered by tests, remote ActivityPub object previews exposing canonical rich-text content projections for review, and group content projection now exposing canonical rich-text stored payloads as body text plus validated JSON. Editor integration, native write UI, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -271,6 +271,7 @@ Recommended first code PR:
 8. Add Matrix message content export. Status: implemented as `richTextToMatrixMessageContent` with plain fallback and sanitized `org.matrix.custom.html` fixtures.
 9. Add Nostr-like text note export. Status: implemented as `richTextToNostrTextNote` with plain content plus `r`/`p`/`t` protocol tag fixtures.
 10. Add Farcaster cast export. Status: implemented as `richTextToFarcasterCast` with text, safe URL embeds, FID mentions, and byte-position fixtures.
+11. Add shared stored-content projection helpers so canonical rich-text content rows can be read as plain body text plus validated JSON by post APIs and protocol serializers. Status: implemented in `app/modules/group/contentProjectionHelpers.ts` and wired into `group.prepareContentData`.
 
 Do not change the storage format for all posts in the first implementation PR.
 
