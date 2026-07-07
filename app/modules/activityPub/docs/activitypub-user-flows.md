@@ -27,7 +27,8 @@ The goal is to keep protocol machinery out of ordinary publishing. Admins manage
    - deterministic ActivityPub interop smoke;
    - optional live Fediverse actor smoke;
    - optional Bluesky-through-Bridgy smoke;
-   - native Bluesky public XRPC smoke.
+   - native Bluesky public XRPC smoke;
+   - optional credentialed native Bluesky smoke for account verification and opt-in create/update/delete lifecycle checks.
 4. Admin reviews the federation screens for:
    - actor discovery status;
    - delivery failures and retry state;
@@ -153,7 +154,7 @@ Boundary: public native reads do not need credentials. Credentialed account owne
 
 ## User Flow: Credentialed Bluesky Account
 
-This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is separate from public source reads and from future cross-posting.
+This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is separate from public source reads and from cross-posting.
 
 1. User opens the Bluesky account connection screen.
 2. User enters a Bluesky handle, DID, or login identifier plus an app password.
@@ -163,6 +164,8 @@ This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is se
 6. User or the UI can re-run verification later. If the stored account has a DID, DID match is the ownership check; handle changes should not break verification.
 
 Boundary: account verification does not create posts, store short-lived access/refresh JWTs, read private timelines, or bypass moderation/source identity.
+
+Operator smoke: `npm run bluesky:credentialed-smoke` skips without credentials, verifies account login plus stored `socNetAccount` lookup when `BLUESKY_CREDENTIAL_SMOKE_IDENTIFIER` and `BLUESKY_CREDENTIAL_SMOKE_APP_PASSWORD` are set, and only creates a temporary remote post when `BLUESKY_CREDENTIAL_SMOKE_WRITE=1` is also set.
 
 ## User Flow: Migrate A Remote Social Page To GeeSome
 
@@ -279,4 +282,4 @@ The UI should make these states explicit:
 - Credentialed Bluesky account ownership, first-pass text/facet/media/link/reply/quote cross-post idempotency, publish-time frontend policy controls, stored cross-post update, and stored cross-post deletion are covered.
 - Simple remote social-page migration can import a user's public Bluesky or ActivityPub presence into a GeeSome personal group, preserve replies/reposts/quotes, create remote placeholders for referenced groups/accounts, and reconcile those placeholders when they later migrate. Native Bluesky imported-post reply/quote reconciliation is covered for already-imported group posts by `groupId` or `groupName`, and ActivityPub imported-post reply/quote reconciliation is covered for already-created visible remote posts. ActivityPub now supports admin-approved ownership, first-pass public profile-token proof, and stronger short-lived actor-signed challenges for claimed visible imports. The first social migration wizard and e2e path now cover frontend relation/media policy controls plus explicit reconciliation action/status UI.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
-- Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads; deeper conformance tooling and credentialed native Bluesky operator smoke remain follow-up.
+- Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, native ATProto public reads, and optional credentialed native Bluesky account/write lifecycle checks; deeper Fedify/ActivityPub.Academy conformance tooling and live signed-ownership proof compatibility remain follow-up.
