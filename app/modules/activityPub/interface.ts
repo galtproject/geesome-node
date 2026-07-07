@@ -433,6 +433,7 @@ export interface IActivityPubMigrationPreviewInput extends IActivityPubSourceRes
 	maxPages?: number | string;
 	ownershipProofToken?: string;
 	ownershipChallengeProof?: IActivityPubMigrationOwnershipChallengeProofInput;
+	requestIp?: string;
 }
 
 export interface IActivityPubMigrationPreviewResult extends IActivityPubMigrationPreview {
@@ -471,6 +472,7 @@ export interface IActivityPubMigrationImportQueueInput extends IActivityPubMigra
 
 export interface IActivityPubMigrationOwnershipChallengeInput extends IActivityPubSourceResolveInput {
 	expiresInMs?: number | string;
+	requestIp?: string;
 }
 
 export interface IActivityPubMigrationOwnershipChallengeResult {
@@ -498,6 +500,7 @@ export interface IActivityPubMigrationOwnershipChallengeProofInput {
 
 export interface IActivityPubMigrationOwnershipChallengeVerifyInput {
 	ownershipChallengeProof?: IActivityPubMigrationOwnershipChallengeProofInput;
+	requestIp?: string;
 }
 
 export interface IActivityPubMigrationOwnershipChallengeVerifyResult {
@@ -508,6 +511,19 @@ export interface IActivityPubMigrationOwnershipChallengeVerifyResult {
 	verifiedAt: Date;
 	expiresAt: Date;
 	keyId: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeCleanupOptions {
+	retentionMs?: number | string;
+	limit?: number | string;
+	now?: Date | string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeCleanupResult {
+	deleted: number;
+	limit: number;
+	retentionMs: number;
+	cutoff: Date;
 }
 
 export interface IActivityPubMigrationImportQueueProcessOptions {
@@ -869,6 +885,8 @@ export default interface IGeesomeActivityPubModule {
 	createMigrationOwnershipChallenge(userId: number, input?: IActivityPubMigrationOwnershipChallengeInput): Promise<IActivityPubMigrationOwnershipChallengeResult>;
 
 	verifyMigrationOwnershipChallenge(userId: number, input?: IActivityPubMigrationOwnershipChallengeVerifyInput): Promise<IActivityPubMigrationOwnershipChallengeVerifyResult>;
+
+	cleanupMigrationOwnershipChallenges(options?: IActivityPubMigrationOwnershipChallengeCleanupOptions): Promise<IActivityPubMigrationOwnershipChallengeCleanupResult>;
 
 	getMigrationPreview(userId: number, input?: IActivityPubMigrationPreviewInput): Promise<IActivityPubMigrationPreviewResult>;
 
