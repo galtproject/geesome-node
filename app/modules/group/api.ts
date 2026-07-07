@@ -171,7 +171,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {post} /v1/user/group/create-post Create Group post
-     * @apiDescription Create post by content ids and group id.
+     * @apiDescription Create post by content references and/or canonical rich-text body data.
      * @apiName UserGroupCreatePost
      * @apiGroup UserGroup
      *
@@ -187,7 +187,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      *   curl -X POST http://localhost:2052/v1/user/group/create-post \
      *     -H "Authorization: Bearer geesome-api-key" \
      *     -H "Content-Type: application/json" \
-     *     -d '{"groupId":1,"contentIds":[10],"type":"post"}'
+     *     -d '{"groupId":1,"contentRichText":{"type":"geesome.richText","version":1,"blocks":[{"type":"paragraph","children":[{"text":"Hello"}]}]},"contents":[{"id":10,"view":"attachment"}],"type":"post"}'
      */
     app.ms.api.onAuthorizedPost('user/group/create-post', async (req, res) => {
         res.send(await groupModule.createPost(req.user.id, req.body), 200);
