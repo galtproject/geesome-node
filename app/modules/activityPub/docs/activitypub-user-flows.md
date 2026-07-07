@@ -166,7 +166,7 @@ This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is se
 
 Boundary: account verification does not create posts, store short-lived access/refresh JWTs, read private timelines, or bypass moderation/source identity.
 
-Operator smoke: `npm run bluesky:credentialed-smoke` skips without credentials, verifies account login plus stored `socNetAccount` lookup when `BLUESKY_CREDENTIAL_SMOKE_IDENTIFIER` and `BLUESKY_CREDENTIAL_SMOKE_APP_PASSWORD` are set, and only creates a temporary remote post when `BLUESKY_CREDENTIAL_SMOKE_WRITE=1` is also set.
+Operator smoke: `npm run bluesky:credentialed-smoke` skips without credentials, verifies account login plus stored `socNetAccount` lookup when `BLUESKY_CREDENTIAL_SMOKE_IDENTIFIER` and `BLUESKY_CREDENTIAL_SMOKE_APP_PASSWORD` are set, exercises local source import/refresh/sync paths without creating remote Bluesky records, and only creates a temporary remote post when `BLUESKY_CREDENTIAL_SMOKE_WRITE=1` is also set.
 
 ## User Flow: Migrate A Remote Social Page To GeeSome
 
