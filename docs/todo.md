@@ -491,7 +491,7 @@ Goal: move from helper-level canonical rich-text adapters toward native post sto
 
 Current state:
 
-- The design note and helpers cover canonical validation, unsafe HTML import, sanitized HTML rendering, ActivityPub/Matrix HTML output, ATProto facets, Farcaster casts, Nostr-like tags, stored canonical rich-text post-content projection as plain body text plus validated JSON, and backend create/update post input for native canonical rich-text bodies.
+- The design note and helpers cover canonical validation, unsafe HTML import, sanitized HTML rendering, ActivityPub/Matrix HTML output, ATProto facets, Farcaster casts, Nostr-like tags, stored canonical rich-text post-content projection as plain body text plus validated JSON, backend create/update post input for native canonical rich-text bodies, and static-site rendering from canonical rich text through the safe HTML renderer.
 - Editor/native write UI, richer post component rendering, and broader direct protocol wiring remain follow-up.
 
 Implementation context:
