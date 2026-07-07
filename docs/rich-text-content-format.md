@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, Nostr-like text-note export covered by tests, remote ActivityPub object previews exposing canonical rich-text content projections for review, group content projection exposing canonical rich-text stored payloads as body text plus validated JSON, and backend post create/update input accepting canonical rich-text body data. Editor integration, native write UI, and broader protocol wiring remain future work.
+Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, Nostr-like text-note export covered by tests, remote ActivityPub object previews exposing canonical rich-text content projections for review, group content projection exposing canonical rich-text stored payloads as body text plus validated JSON, backend post create/update input accepting canonical rich-text body data, and static-site post metadata rendering canonical rich-text content through the safe HTML renderer. Editor integration, native write UI, and broader protocol wiring remain future work.
 
 ## Decision
 
@@ -210,7 +210,7 @@ Adapters should be pure functions from canonical rich text to target representat
 | ATProto/Bluesky | Plain `text` plus facets for links, mentions, and tags. Unsupported marks become plain text. Status: `richTextToAtProtoTextWithFacets` exports deterministic UTF-8 byte-indexed link, DID mention, and tag facets. |
 | Farcaster | Plain text plus mentions, byte-based mention positions, and embeds. Unsupported marks become plain text. Status: `richTextToFarcasterCast` exports CastAdd-style `text`, `embeds`, empty `embedsDeprecated`, `mentions`, and `mentionsPositions`, removes valid FID mention display text from the cast body, preserves invalid mentions as plain text, and bounds safe link embeds to Farcaster's two-embed shape. |
 | Nostr-like notes | Plain text plus protocol tags for links, mentions, and hashtags where supported. Status: `richTextToNostrTextNote` exports plain content plus `r`, `p`, and `t` tags for safe links, 64-hex pubkey mentions, and hashtags. |
-| Static site | Sanitized HTML generated from canonical rich text, plus escaped title/meta/plain snippets. |
+| Static site | Sanitized HTML generated from canonical rich text, plus escaped title/meta/plain snippets. Status: static-site content sanitization prefers validated canonical rich-text JSON and renders it through `richTextToSafeHtml`, with legacy text HTML still sanitized as a fallback. |
 | Search/snippets | Plain text only, no HTML. |
 
 Every adapter should have fixtures for unsafe input, nested marks, links, mentions, hashtags, attachments, empty docs, and unsupported features.
@@ -273,6 +273,7 @@ Recommended first code PR:
 10. Add Farcaster cast export. Status: implemented as `richTextToFarcasterCast` with text, safe URL embeds, FID mentions, and byte-position fixtures.
 11. Add shared stored-content projection helpers so canonical rich-text content rows can be read as plain body text plus validated JSON by post APIs and protocol serializers. Status: implemented in `app/modules/group/contentProjectionHelpers.ts` and wired into `group.prepareContentData`.
 12. Add backend native write input so post create/update can receive a validated `contentRichText` document and save it as a normal `ContentView.Contents` row. Status: implemented in `app/modules/group/postContentInputHelpers.ts` and wired into `group.createPost` / `group.updatePost`.
+13. Render canonical rich-text post content through the generated static-site safe HTML path instead of downgrading it to plain text first. Status: implemented in `app/modules/staticSiteGenerator/helpers.ts`.
 
 Do not change the storage format for all posts in the first implementation PR.
 
