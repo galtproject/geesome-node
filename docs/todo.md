@@ -491,8 +491,8 @@ Goal: move from helper-level canonical rich-text adapters toward native post sto
 
 Current state:
 
-- The design note and helpers cover canonical validation, unsafe HTML import, sanitized HTML rendering, ActivityPub/Matrix HTML output, ATProto facets, Farcaster casts, and Nostr-like tags.
-- Native post storage, editor integration, and direct protocol wiring remain follow-up.
+- The design note and helpers cover canonical validation, unsafe HTML import, sanitized HTML rendering, ActivityPub/Matrix HTML output, ATProto facets, Farcaster casts, Nostr-like tags, and stored canonical rich-text post-content projection as plain body text plus validated JSON.
+- Editor/native write UI, richer post component rendering, and direct protocol wiring remain follow-up.
 
 Implementation context:
 
@@ -502,7 +502,7 @@ Implementation context:
 
 Verification:
 
-- Rich-text helper tests plus focused group/post/editor tests when the native storage shape is introduced.
+- Rich-text helper tests plus focused group/post/editor tests as the native storage/write shape expands.
 - Rendering tests for Vue frontend, generated static sites, ActivityPub, and Bluesky adapters when wiring changes.
 <!-- /todo-section -->
 

@@ -132,6 +132,42 @@ export function htmlToRichText(html: string, options: any = {}): RichTextDocumen
 	return createRichTextDocument(blocks, options);
 }
 
+export function plainTextToRichText(text: string, options: any = {}): RichTextDocument {
+	return createRichTextDocument(plainTextToRichTextBlocks(text), options);
+}
+
+export function contentTextToRichText(text: string, mimeType: string, options: any = {}): RichTextDocument | null {
+	const normalizedMimeType = String(mimeType || '').toLowerCase();
+	if (normalizedMimeType === RICH_TEXT_MIME_TYPE) {
+		return parseRichTextDocumentJson(text);
+	}
+	if (normalizedMimeType === 'text/html') {
+		return htmlToRichText(text, options);
+	}
+	if (normalizedMimeType.startsWith('text/')) {
+		return plainTextToRichText(text, options);
+	}
+	return null;
+}
+
+export function parseRichTextDocumentJson(value: any): RichTextDocument | null {
+	if (isRichTextDocument(value)) {
+		return value;
+	}
+	if (typeof value !== 'string') {
+		return null;
+	}
+	try {
+		const document = JSON.parse(value);
+		if (!isRichTextDocument(document)) {
+			return null;
+		}
+		return document;
+	} catch {
+		return null;
+	}
+}
+
 export function richTextToPlainText(document: RichTextDocument): string {
 	if (!isRichTextDocument(document)) {
 		return '';
@@ -255,6 +291,15 @@ function htmlNodesToBlocks($, nodes: any[]): RichTextBlock[] {
 	}
 
 	return normalizeBlocks(blocks);
+}
+
+function plainTextToRichTextBlocks(text: string): RichTextBlock[] {
+	return String(text || '')
+		.split(/\r\n|\r|\n/)
+		.map((line) => ({
+			type: 'paragraph',
+			children: line ? [{text: line}] : []
+		}));
 }
 
 function htmlNodeToBlocks($, node: any): RichTextBlock[] | null {

@@ -29,7 +29,12 @@ import {
 	IListParams,
 	IListParamsOptions
 } from "../database/interface.js";
-import {getProjectedContentText} from './contentProjectionHelpers.js';
+import {
+	getProjectedContentRichText,
+	getProjectedContentRichTextPlainText,
+	getProjectedContentText,
+	isProjectedRichTextContent
+} from './contentProjectionHelpers.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
@@ -1288,7 +1293,24 @@ function getModule(app: IGeesomeApp, models) {
 				mimeType: c.mimeType,
 				size: c.size,
 			}
-			if (c.mimeType.startsWith('text/')) {
+			const mimeType = String(c.mimeType || '');
+			if (isProjectedRichTextContent(c)) {
+				const contentData: IContentData = {
+					type: 'text',
+					...baseData
+				};
+				if (options.includeText !== false || options.includeJson !== false) {
+					const richText = await getProjectedContentRichText(app.ms.storage, c, options);
+					if (options.includeText !== false) {
+						contentData.text = getProjectedContentRichTextPlainText(richText);
+					}
+					if (richText && options.includeJson !== false) {
+						contentData.json = richText;
+					}
+				}
+				return contentData;
+			}
+			if (mimeType.startsWith('text/')) {
 				const contentData: IContentData = {
 					type: 'text',
 					...baseData
@@ -1297,17 +1319,17 @@ function getModule(app: IGeesomeApp, models) {
 					contentData.text = await getProjectedContentText(app.ms.storage, c, options);
 				}
 				return contentData;
-			} else if (c.mimeType.includes('image')) {
+			} else if (mimeType.includes('image')) {
 				return {
 					type: 'image',
 					...baseData
 				};
-			} else if (c.mimeType.includes('video')) {
+			} else if (mimeType.includes('video')) {
 				return {
 					type: 'video',
 					...baseData
 				};
-			} else if (c.mimeType.includes('json')) {
+			} else if (mimeType.includes('json')) {
 				const contentData: IContentData = {
 					type: 'json',
 					...baseData
