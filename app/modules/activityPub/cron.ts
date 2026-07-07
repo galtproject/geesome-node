@@ -6,6 +6,7 @@ import ActivityPubDeliveryCronService from './cronService.js';
 const defaultActivityPubDeliveryWorkerIntervalMs = 60 * 1000;
 const defaultActivityPubSourceRefreshWorkerIntervalMs = 60 * 1000;
 const defaultActivityPubSourceRefreshPollerIntervalMs = 5 * 60 * 1000;
+const defaultActivityPubOwnershipChallengeCleanupIntervalMs = 60 * 60 * 1000;
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
 	const deliveryWorkerEnabled = isActivityPubDeliveryWorkerEnabled(app);
@@ -37,6 +38,10 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 		}, getActivityPubSourceRefreshPollerIntervalMs(app));
 		timer.unref?.();
 	}
+	const cleanupTimer = setInterval(async () => {
+		await cronService.cleanupOwnershipChallenges().catch((e) => console.error('cleanupActivityPubOwnershipChallenges error', e));
+	}, getActivityPubOwnershipChallengeCleanupIntervalMs(app));
+	cleanupTimer.unref?.();
 
 	return cronService;
 }
@@ -83,6 +88,13 @@ function getActivityPubSourceRefreshPollerIntervalMs(app: IGeesomeApp): number {
 	return parsePositiveInteger(
 		app.config.activityPubConfig?.sourceRefreshPollerIntervalMs,
 		defaultActivityPubSourceRefreshPollerIntervalMs
+	);
+}
+
+function getActivityPubOwnershipChallengeCleanupIntervalMs(app: IGeesomeApp): number {
+	return parsePositiveInteger(
+		app.config.activityPubConfig?.ownershipChallengeCleanupIntervalMs,
+		defaultActivityPubOwnershipChallengeCleanupIntervalMs
 	);
 }
 

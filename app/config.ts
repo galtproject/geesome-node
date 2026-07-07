@@ -44,7 +44,14 @@ export default {
     sourceRefreshPoller: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER === '1',
     sourceRefreshPollerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_INTERVAL_MS,
     sourceRefreshPollerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_LIMIT,
-    sourceRefreshPollerStaleMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_STALE_MS
+    sourceRefreshPollerStaleMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_STALE_MS,
+    ownershipChallengeCleanupIntervalMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CLEANUP_INTERVAL_MS,
+    ownershipChallengeCleanupLimit: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CLEANUP_LIMIT,
+    ownershipChallengeCleanupRetentionMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CLEANUP_RETENTION_MS,
+    ownershipChallengeCreateRateLimitCount: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CREATE_RATE_LIMIT_COUNT,
+    ownershipChallengeCreateRateLimitWindowMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CREATE_RATE_LIMIT_WINDOW_MS,
+    ownershipChallengeVerifyRateLimitCount: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_VERIFY_RATE_LIMIT_COUNT,
+    ownershipChallengeVerifyRateLimitWindowMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_VERIFY_RATE_LIMIT_WINDOW_MS
   },
   blueskyConfig: {
     publicUrl: process.env.BLUESKY_PUBLIC_URL || process.env.ACTIVITYPUB_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),

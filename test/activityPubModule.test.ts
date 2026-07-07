@@ -758,6 +758,131 @@ describe('activityPub module', () => {
 		}), /activitypub_migration_ownership_challenge_already_used/);
 	});
 
+	it('cleans up expired and consumed ActivityPub migration ownership challenges in bounded batches', async () => {
+		const remoteActorKey = getRemoteActorKey({actorUrl: 'https://cleanup.example/users/alice'});
+		const actorDocument = getRemoteActorDocument(remoteActorKey);
+		const {module, models} = await createActivityPubHarness({
+			fetchRemoteActor: async () => actorDocument
+		});
+		const oldExpired = await models.ActivityPubMigrationOwnershipChallenge.create({
+			userId: 7,
+			remoteActorId: 1,
+			actorUrl: remoteActorKey.actorUrl,
+			challengeToken: 'old-expired-token',
+			challengeUrl: 'https://social.example/ap/migration/ownership-challenges/old-expired-token',
+			verificationUrl: 'https://social.example/ap/migration/ownership-challenges/old-expired-token/verify',
+			challengeJson: '{}',
+			expiresAt: new Date('2026-06-01T00:00:00Z'),
+			consumedAt: null
+		});
+		const oldConsumed = await models.ActivityPubMigrationOwnershipChallenge.create({
+			userId: 7,
+			remoteActorId: 1,
+			actorUrl: remoteActorKey.actorUrl,
+			challengeToken: 'old-consumed-token',
+			challengeUrl: 'https://social.example/ap/migration/ownership-challenges/old-consumed-token',
+			verificationUrl: 'https://social.example/ap/migration/ownership-challenges/old-consumed-token/verify',
+			challengeJson: '{}',
+			expiresAt: new Date('2026-06-03T00:00:00Z'),
+			consumedAt: new Date('2026-06-01T00:00:00Z')
+		});
+		const fresh = await models.ActivityPubMigrationOwnershipChallenge.create({
+			userId: 7,
+			remoteActorId: 1,
+			actorUrl: remoteActorKey.actorUrl,
+			challengeToken: 'fresh-token',
+			challengeUrl: 'https://social.example/ap/migration/ownership-challenges/fresh-token',
+			verificationUrl: 'https://social.example/ap/migration/ownership-challenges/fresh-token/verify',
+			challengeJson: '{}',
+			expiresAt: new Date('2026-06-03T00:00:00Z'),
+			consumedAt: null
+		});
+
+		const first = await module.cleanupMigrationOwnershipChallenges({
+			now: new Date('2026-06-02T12:00:00Z'),
+			retentionMs: 60 * 60 * 1000,
+			limit: 1
+		});
+		const second = await module.cleanupMigrationOwnershipChallenges({
+			now: new Date('2026-06-02T12:00:00Z'),
+			retentionMs: 60 * 60 * 1000,
+			limit: 10
+		});
+
+		assert.equal(first.deleted, 1);
+		assert.equal(second.deleted, 1);
+		assert.equal(first.limit, 1);
+		assert.equal(first.retentionMs, 60 * 60 * 1000);
+		assert.deepEqual(models.ActivityPubMigrationOwnershipChallenge.rows.map(row => row.id), [fresh.id]);
+		assert.equal(models.ActivityPubMigrationOwnershipChallenge.rows.some(row => row.id === oldExpired.id), false);
+		assert.equal(models.ActivityPubMigrationOwnershipChallenge.rows.some(row => row.id === oldConsumed.id), false);
+	});
+
+	it('rate limits ActivityPub migration ownership challenge creation and verification attempts', async () => {
+		const remoteActorKey = getRemoteActorKey({actorUrl: 'https://limited.example/users/alice'});
+		const actorDocument = getRemoteActorDocument(remoteActorKey);
+		const {module} = await createActivityPubHarness({
+			config: {
+				activityPubConfig: {
+					enabled: true,
+					publicUrl: 'https://social.example',
+					domain: 'example.com',
+					deliveryWorker: false,
+					ownershipChallengeCreateRateLimitCount: 1,
+					ownershipChallengeCreateRateLimitWindowMs: 60 * 1000,
+					ownershipChallengeVerifyRateLimitCount: 1,
+					ownershipChallengeVerifyRateLimitWindowMs: 60 * 1000
+				}
+			},
+			fetchRemoteActor: async () => actorDocument
+		});
+
+		const challenge = await module.createMigrationOwnershipChallenge(77, {
+			actorUrl: remoteActorKey.actorUrl,
+			requestIp: '203.0.113.77'
+		});
+		await assert.rejects(() => module.createMigrationOwnershipChallenge(77, {
+			actorUrl: remoteActorKey.actorUrl,
+			requestIp: '203.0.113.77'
+		}), /activitypub_migration_ownership_challenge_rate_limited/);
+
+		const proof = getSignedMigrationOwnershipChallengeProof(remoteActorKey, challenge);
+		const verified = await module.verifyMigrationOwnershipChallenge(77, {
+			requestIp: '203.0.113.77',
+			ownershipChallengeProof: proof
+		});
+		await assert.rejects(() => module.verifyMigrationOwnershipChallenge(77, {
+			requestIp: '203.0.113.77',
+			ownershipChallengeProof: proof
+		}), /activitypub_migration_ownership_challenge_rate_limited/);
+
+		assert.equal(verified.verified, true);
+	});
+
+	it('rate limits ActivityPub migration ownership challenge verification before lookup', async () => {
+		const {module} = await createActivityPubHarness({
+			config: {
+				activityPubConfig: {
+					enabled: true,
+					publicUrl: 'https://social.example',
+					domain: 'example.com',
+					deliveryWorker: false,
+					ownershipChallengeVerifyRateLimitCount: 1,
+					ownershipChallengeVerifyRateLimitWindowMs: 60 * 1000
+				}
+			}
+		});
+
+		await assert.rejects(() => module.verifyMigrationOwnershipChallenge(88, {
+			requestIp: '203.0.113.88',
+			ownershipChallengeProof: {challengeToken: 'missing-token-0001'} as any
+		}), /activitypub_migration_ownership_challenge_not_found/);
+		await assert.rejects(() => module.verifyMigrationOwnershipChallenge(88, {
+			requestIp: '203.0.113.88',
+			ownershipChallengeProof: {challengeToken: 'missing-token-0002'} as any
+		}), /activitypub_migration_ownership_challenge_rate_limited/);
+	});
+
 	it('keeps ActivityPub migration preview placeholders when referenced objects fail to load', async () => {
 		const remoteActorKey = getRemoteActorKey();
 		const missingObjectUrl = 'https://other.example/objects/missing-reblog';
@@ -4146,7 +4271,7 @@ describe('activityPub API', () => {
 		});
 		assert.deepEqual(migrationOwnershipChallengeCalls, [{
 			userId: 1,
-			input: {actorUrl: 'https://remote.example/users/alice'}
+			input: {actorUrl: 'https://remote.example/users/alice', requestIp: 'unknown'}
 		}]);
 		assert.deepEqual(migrationOwnershipChallengeVerifyCalls, [{
 			userId: 1,
@@ -4157,14 +4282,15 @@ describe('activityPub API', () => {
 					url: 'https://social.example/ap/migration/ownership-challenges/signed-challenge-token/verify',
 					headers: {Date: 'Mon, 01 Jun 2026 12:00:00 GMT'},
 					bodyJson: '{"geesomeChallengeToken":"signed-challenge-token"}'
-				}
+				},
+				requestIp: 'unknown'
 			}
 		}]);
 		assert.equal(migrationOwnershipChallenge.body.challengeToken, 'signed-challenge-token');
 		assert.equal(migrationOwnershipChallengeVerify.body.method, 'signedChallenge');
 		assert.deepEqual(migrationPreviewCalls, [{
 			userId: 1,
-			input: {actorUrl: 'https://remote.example/users/alice', claimed: true}
+			input: {actorUrl: 'https://remote.example/users/alice', claimed: true, requestIp: 'unknown'}
 		}]);
 		assert.equal(migrationPreview.body.actor, 'https://remote.example/users/alice');
 		assert.equal(migrationPreview.body.summary.localPosts, 1);
@@ -4195,7 +4321,7 @@ describe('activityPub API', () => {
 		assert.deepEqual(migrationImportCalls, [
 			{
 				userId: 1,
-				input: {actorUrl: 'https://remote.example/users/alice', claimed: true}
+				input: {actorUrl: 'https://remote.example/users/alice', claimed: true, requestIp: 'unknown'}
 			},
 			{
 				userId: 1,
@@ -4204,14 +4330,15 @@ describe('activityPub API', () => {
 					claimed: true,
 					createPosts: true,
 					groupName: 'test-channel',
-					ownershipApproved: true
+					ownershipApproved: true,
+					requestIp: 'unknown'
 				}
 			}
 		]);
 		assert.deepEqual(migrationImportQueueCalls, [{
 			userId: 1,
 			userApiKeyId: 12,
-			input: {actorUrl: 'https://remote.example/users/alice', claimed: true, async: true, process: false}
+			input: {actorUrl: 'https://remote.example/users/alice', claimed: true, async: true, process: false, requestIp: 'unknown'}
 		}]);
 		assert.deepEqual(migrationReconcileCalls, [{
 			userId: 1,
@@ -5131,8 +5258,20 @@ function getModelStub() {
 			}
 			return [matchingRows.length];
 		},
-		async destroy() {
+		async destroy({where} = {}) {
+			if (where && Reflect.ownKeys(where).length > 0) {
+				const matchingRows = rows.filter((row) => rowMatchesWhere(row, where || {}));
+				for (const row of matchingRows) {
+					const index = rows.indexOf(row);
+					if (index >= 0) {
+						rows.splice(index, 1);
+					}
+				}
+				return matchingRows.length;
+			}
+			const deleted = rows.length;
 			rows.length = 0;
+			return deleted;
 		}
 	};
 }
@@ -5331,12 +5470,13 @@ function getActivityPubFollowRow(overrides: any = {}) {
 	};
 }
 
-function getRemoteActorKey() {
+function getRemoteActorKey(overrides: any = {}) {
 	const keyPair = generateActivityPubRsaKeyPair();
+	const actorUrl = overrides.actorUrl || 'https://remote.example/users/alice';
 
 	return {
-		keyId: 'https://remote.example/users/alice#main-key',
-		actorUrl: 'https://remote.example/users/alice',
+		keyId: overrides.keyId || `${actorUrl}#main-key`,
+		actorUrl,
 		publicKeyPem: keyPair.publicKeyPem,
 		privateKeyPem: keyPair.privateKeyPem
 	};

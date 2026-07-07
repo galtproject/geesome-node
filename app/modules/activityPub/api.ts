@@ -150,7 +150,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Resolves a public ActivityPub actor and creates a short-lived one-time ownership challenge for claimed social-page migration. The response includes canonical `bodyJson` plus `verificationUrl`; the remote actor owner must sign a `POST` request to that URL with the actor HTTP-signature key and the exact body JSON. The signed proof can be passed to migration preview/import as `ownershipChallengeProof`. This route does not create posts, cache objects, follow actors, or consume the challenge.
+	 * @apiDescription Resolves a public ActivityPub actor and creates a short-lived one-time ownership challenge for claimed social-page migration. The response includes canonical `bodyJson` plus `verificationUrl`; the remote actor owner must sign a `POST` request to that URL with the actor HTTP-signature key and the exact body JSON. The current path is a detached-proof flow: `verificationUrl` is the signed request target, not a public callback endpoint, and the signed request data must be submitted back as `ownershipChallengeProof`. This route is rate-limited by user/actor/request IP, does not create posts, cache objects, follow actors, or consume the challenge.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
@@ -168,7 +168,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/ownership-challenge', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
-		return res.send(await activityPubModule.createMigrationOwnershipChallenge(req.user.id, req.body || {}));
+		return res.send(await activityPubModule.createMigrationOwnershipChallenge(req.user.id, getActivityPubBodyWithRequestIp(req)));
 	});
 
 	/**
@@ -179,7 +179,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Verifies a signed ActivityPub migration ownership challenge proof without consuming it. The same proof can then be passed to visible migration import, where the challenge is consumed so it cannot be replayed. Verification fails when the challenge is expired, already consumed, signed for a different URL/body, signed by a key not owned by the challenged actor, or belongs to another GeeSome user.
+	 * @apiDescription Verifies a signed ActivityPub migration ownership challenge proof without consuming it. The same proof can then be passed to visible migration import, where the challenge is consumed so it cannot be replayed. Verification is rate-limited by user/actor/token/request IP and fails when the challenge is expired, already consumed, signed for a different URL/body, signed by a key not owned by the challenged actor, or belongs to another GeeSome user.
 	 * @apiBody {Object} ownershipChallengeProof Signed challenge proof.
 	 * @apiBody {String} ownershipChallengeProof.challengeToken Challenge token from the challenge response.
 	 * @apiBody {String="POST"} ownershipChallengeProof.method Signed request method.
@@ -196,7 +196,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/ownership-challenge/verify', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
-		return res.send(await activityPubModule.verifyMigrationOwnershipChallenge(req.user.id, req.body || {}));
+		return res.send(await activityPubModule.verifyMigrationOwnershipChallenge(req.user.id, getActivityPubBodyWithRequestIp(req)));
 	});
 
 	/**
@@ -235,7 +235,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {String[]} errors Bounded fetch/preview errors encountered while building the preview.
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/preview', async (req, res) => {
-		return res.send(await activityPubModule.getMigrationPreview(req.user.id, req.body || {}));
+		return res.send(await activityPubModule.getMigrationPreview(req.user.id, getActivityPubBodyWithRequestIp(req)));
 	});
 
 	/**
@@ -287,7 +287,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess (Queued async response) {Number} [asyncOperationId] Linked async operation id after queue processing starts.
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/import', async (req, res) => {
-		const input = req.body || {};
+		const input = getActivityPubBodyWithRequestIp(req);
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 		if (isActivityPubMigrationVisibleAdminApprovedImport(input)) {
 			await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
@@ -820,6 +820,27 @@ function getInboundRequest(req: IApiModulePotInput): IActivityPubInboundRequest 
 		rawBody: req.rawBody,
 		body: req.body
 	};
+}
+
+function getActivityPubBodyWithRequestIp(req: IApiModulePotInput) {
+	const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+		? req.body
+		: {};
+	return {
+		...body,
+		requestIp: getActivityPubRequestIp(req)
+	};
+}
+
+function getActivityPubRequestIp(req: IApiModulePotInput): string {
+	const forwardedFor = req.headers?.['x-forwarded-for'];
+	if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+		return forwardedFor.split(',')[0].trim();
+	}
+	if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+		return String(forwardedFor[0]).split(',')[0].trim();
+	}
+	return req.stream?.ip || req.stream?.socket?.remoteAddress || 'unknown';
 }
 
 function isExpectedActivityPubInboxError(error): error is Error & {code?: number} {
