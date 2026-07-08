@@ -7,6 +7,7 @@ export interface IStaticSiteRenderArgs {
 	entityIds?: any[];
 }
 export interface IStaticSiteOptions {
+	allowSearchIndexing?: boolean;
 	baseStorageUri?;
 	lang;
 	dateFormat;
@@ -40,7 +41,9 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	isStorageIdAllowed(storageId: string): Promise<boolean>;
 
-	getStaticSiteByStorageId(storageId: string): Promise<boolean>;
+	getStaticSiteByStorageId(storageId: string): Promise<IStaticSite>;
+
+	getStorageResponseHeaders(storageId: string): Promise<Record<string, string>>;
 }
 
 export interface IStaticSite {

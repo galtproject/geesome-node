@@ -20,6 +20,7 @@ const customStylesCssMaxLength = 128 * 1024;
 const generatedGroupPostsLimit = 9999;
 const generatedGroupPostBatchLimit = 100;
 const generatedOutputCacheLimit = helpers.parsePositiveInteger(process.env.GENERATED_OUTPUT_CACHE_LIMIT, 500);
+const staticSiteNoIndexHeaderValue = 'noindex, nofollow';
 const staticSiteListParams: IListParamsOptions = {
     sortBy: 'updatedAt',
     allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'entityType', 'entityId'],
@@ -92,6 +93,7 @@ function normalizeStaticSiteOptions(options: any = {}) {
     normalized.post = normalized.post || {};
     normalized.postList = normalized.postList || {};
     normalized.site = normalized.site || {};
+    normalized.allowSearchIndexing = normalized.allowSearchIndexing === true;
 
     validateStaticSiteName(normalized.name);
     validateStaticSiteName(normalized.site.name);
@@ -122,6 +124,28 @@ function normalizeStaticSiteHtmlOption(html, errorMessage) {
         throw new Error(errorMessage);
     }
     return sanitizeStaticSiteHtml(html);
+}
+
+function parseStoredStaticSiteOptions(staticSite) {
+    if (!staticSite?.options) {
+        return {};
+    }
+    try {
+        return JSON.parse(staticSite.options);
+    } catch (e) {
+        return {};
+    }
+}
+
+function isStaticSiteSearchIndexingAllowed(staticSite) {
+    return parseStoredStaticSiteOptions(staticSite).allowSearchIndexing === true;
+}
+
+function getStaticSiteRobotsHeaders(options) {
+    if (options.allowSearchIndexing === true) {
+        return [];
+    }
+    return [['meta', {name: 'robots', content: staticSiteNoIndexHeaderValue}]];
 }
 
 function prepareStaticSiteUpdateData(updateData) {
@@ -280,8 +304,19 @@ export async function getModule(app: IGeesomeApp, models) {
             return this.getStaticSiteByStorageId(storageId).then(site => !!site);
         }
 
-        async getStaticSiteByStorageId(storageId: string): Promise<boolean> {
+        async getStaticSiteByStorageId(storageId: string): Promise<IStaticSite> {
             return models.StaticSite.findOne({where: {storageId}});
+        }
+
+        async getStorageResponseHeaders(storageId: string): Promise<Record<string, string>> {
+            const staticSite = await this.getStaticSiteByStorageId(storageId);
+            if (!staticSite) {
+                return {};
+            }
+            if (isStaticSiteSearchIndexingAllowed(staticSite)) {
+                return {};
+            }
+            return {'X-Robots-Tag': staticSiteNoIndexHeaderValue};
         }
 
         async getDefaultOptionsByGroupId(userId: number, groupId: number) {
@@ -667,7 +702,8 @@ export async function getModule(app: IGeesomeApp, models) {
             const postImages = type === 'post' && p ? p.contents.filter(c => c.type === 'image') : [];
             const imageUrl = postImages.length ? postImages[0].url : options.site.avatarUrl;
 
-            const headers = getOgHeaders(options.site.title, options.lang, pageTitle, pageDescription, imageUrl);
+            const headers = getOgHeaders(options.site.title, options.lang, pageTitle, pageDescription, imageUrl)
+                .concat(getStaticSiteRobotsHeaders(options));
             const htmlContent = await renderPage(path || '/', headers);
             const {id: storageId} = await app.ms.storage.saveFile(htmlContent);
             if (type !== 'simple') {
