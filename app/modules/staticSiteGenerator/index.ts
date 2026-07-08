@@ -21,7 +21,7 @@ const generatedGroupPostsLimit = 9999;
 const generatedGroupPostBatchLimit = 100;
 const generatedOutputCacheLimit = helpers.parsePositiveInteger(process.env.GENERATED_OUTPUT_CACHE_LIMIT, 500);
 const staticSiteListParams: IListParamsOptions = {
-    sortBy: 'createdAt',
+    sortBy: 'updatedAt',
     allowedSortBy: ['createdAt', 'updatedAt', 'id', 'name', 'entityType', 'entityId'],
     maxLimit: 100
 };
