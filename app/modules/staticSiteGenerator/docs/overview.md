@@ -12,6 +12,7 @@ The `staticSiteGenerator` module renders GeeSome groups and content lists into s
 - Group and content-list render flows, including sanitized text/HTML output and bundled frontend assets.
 - Render option normalization: site names are validated, custom CSS is size-capped, and header/footer HTML is sanitized before generation.
 - Storage ID allow checks for generated site responses.
+- Search indexing policy for generated sites: `allowSearchIndexing` must be explicitly set to boolean `true`; otherwise generated HTML and gateway responses are marked `noindex, nofollow`.
 
 ## Queue Boundaries
 

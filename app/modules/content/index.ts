@@ -180,6 +180,36 @@ function getModule(app: IGeesomeApp) {
 		return app.callHookCheckAllowed('content', 'isStorageIdAllowed', [storageId]);
 	}
 
+	async function getStorageResponseHeadersForApi(storageId) {
+		if (!storageId) {
+			return {};
+		}
+		if (typeof app.callHook !== 'function') {
+			return {};
+		}
+		return mergeStorageResponseHeaders(await app.callHook('content', 'getStorageResponseHeaders', [storageId]));
+	}
+
+	function mergeStorageResponseHeaders(responseList = []) {
+		const headers = {};
+		if (!isArray(responseList)) {
+			return headers;
+		}
+		responseList.forEach((responseHeaders) => {
+			if (!responseHeaders || !isObject(responseHeaders) || isArray(responseHeaders)) {
+				return;
+			}
+			Object.keys(responseHeaders).forEach((name) => {
+				const value = responseHeaders[name];
+				if (isUndefined(value) || value === null) {
+					return;
+				}
+				headers[name] = value;
+			});
+		});
+		return headers;
+	}
+
 	function isPublishedAppStorageId(storageId) {
 		return storageId && (storageId === app.docsStorageId || storageId === app.frontendStorageId);
 	}
@@ -1256,12 +1286,14 @@ function getModule(app: IGeesomeApp) {
 				const storagePathMetadata = await this.getSharedStorageMetadataForPath(dataPath);
 				const {storageId} = storagePathMetadata;
 				let content = storagePathMetadata.content;
+				let storageResponseHeaders = {};
 				helpers.logDebug(log, () => ['content', helpers.toLogValue(content)]);
 				if (!content) {
 					const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 					if (!storageIdAllowed) {
 						return res.send(423);
 					}
+					storageResponseHeaders = await getStorageResponseHeadersForApi(storageId);
 				}
 
 				dataPath = this.prepareContentStoragePathResponse(res, dataPath, content);
@@ -1273,7 +1305,7 @@ function getModule(app: IGeesomeApp) {
 				if (fileStat.cid) {
 					content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
 				}
-				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false);
+				const headers = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, false, storageResponseHeaders);
 				log('headers', headers);
 				res.writeHead(200, headers);
 				return this.getFileStream(dataPath).then((stream) => {
@@ -1284,11 +1316,13 @@ function getModule(app: IGeesomeApp) {
 			const storagePathMetadata = await this.getSharedStorageMetadataForPath(dataPath);
 			const {storageId} = storagePathMetadata;
 			const content = storagePathMetadata.content;
+			let storageResponseHeaders = {};
 			if (!content) {
 				const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 				if (!storageIdAllowed) {
 					return res.send(423);
 				}
+				storageResponseHeaders = await getStorageResponseHeadersForApi(storageId);
 			}
 
 			const contentStoragePath = dataPath;
@@ -1337,6 +1371,7 @@ function getModule(app: IGeesomeApp) {
 					// 'Cache-Control': 'no-cache, no-store, must-revalidate',
 					// 'Pragma': 'no-cache',
 					// 'Expires': 0,
+					...storageResponseHeaders,
 					'Cross-Origin-Resource-Policy': 'cross-origin',
 					'Content-Type': mimeType,
 					'Accept-Ranges': 'bytes',
@@ -1353,12 +1388,14 @@ function getModule(app: IGeesomeApp) {
 			const storagePathMetadata = await this.getSharedStorageMetadataForPath(dataPath);
 			const {storageId} = storagePathMetadata;
 			let content = storagePathMetadata.content;
+			let storageResponseHeaders = {};
 			if (!content) {
 				const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 				if (!storageIdAllowed) {
 					res.writeHead(423, {'Cross-Origin-Resource-Policy': 'cross-origin'});
 					return res.stream.end();
 				}
+				storageResponseHeaders = await getStorageResponseHeadersForApi(storageId);
 			}
 
 			dataPath = this.prepareContentStoragePathResponse(res, dataPath, content);
@@ -1370,12 +1407,12 @@ function getModule(app: IGeesomeApp) {
 			if (fileStat.cid) {
 				content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
 			}
-			const headersObj = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, this.isContentPreviewStoragePath(content, dataPath));
+			const headersObj = await this.getIpfsHashHeadersObj(content, dataPath, fileStat.size, this.isContentPreviewStoragePath(content, dataPath), storageResponseHeaders);
 			res.writeHead(200, headersObj);
 			res.stream.end();
 		}
 
-		async getIpfsHashHeadersObj(content, dataPath, dataSize?, preview?) {
+		async getIpfsHashHeadersObj(content, dataPath, dataSize?, preview?, extraHeaders = {}) {
 			if (!dataSize && dataSize !== 0) {
 				dataSize = await this.getFileSize(dataPath, content);
 			}
@@ -1389,6 +1426,7 @@ function getModule(app: IGeesomeApp) {
 			}
 			return {
 				...contentData,
+				...extraHeaders,
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
 				'cache-control': 'public, max-age=29030400, immutable',
