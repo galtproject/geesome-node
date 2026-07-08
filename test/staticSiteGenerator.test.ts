@@ -146,6 +146,44 @@ describe("staticSiteGenerator", function () {
 		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [directoryStorageId]), true);
 	});
 
+	it('should list recently refreshed static sites first by default', async () => {
+		const StaticSite = app.ms.database.sequelize.model('staticSite') as any;
+		const refreshedSite = await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'refreshed-list',
+			name: 'refreshed_site',
+			title: 'Refreshed site',
+			storageId: 'refreshed-storage'
+		});
+		const newerCreatedSite = await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'newer-created-list',
+			name: 'newer_created_site',
+			title: 'Newer created site',
+			storageId: 'newer-created-storage'
+		});
+
+		await StaticSite.update({
+			createdAt: new Date('2026-07-01T10:00:00.000Z'),
+			updatedAt: new Date('2026-07-08T10:00:00.000Z')
+		}, {where: {id: refreshedSite.id}, silent: true});
+		await StaticSite.update({
+			createdAt: new Date('2026-07-07T10:00:00.000Z'),
+			updatedAt: new Date('2026-07-07T10:00:00.000Z')
+		}, {where: {id: newerCreatedSite.id}, silent: true});
+
+		const response = await staticSiteGenerator.getStaticSiteResponse(testUser.id, 'content-list', {limit: 10});
+		assert.deepEqual(response.list.map(site => site.storageId), [
+			'refreshed-storage',
+			'newer-created-storage'
+		]);
+
+		(app as any).msSupportHookList.isStorageIdAllowed = [];
+		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', ['refreshed-storage']), true);
+	});
+
 	it('should use group avatar as generated site favicon', async () => {
 		const pngImagePath = await resourcesHelper.prepare('input-image.png');
 		const avatarContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
