@@ -1236,9 +1236,9 @@
     "@ethersproject/properties" "^5.7.0"
     "@ethersproject/strings" "^5.7.0"
 
-"@geesome/ui@https://github.com/galtproject/geesome-ui#494f95d":
+"@geesome/ui@https://github.com/galtproject/geesome-ui#1738bb8":
   version "0.1.0"
-  resolved "https://github.com/galtproject/geesome-ui#494f95d50134f65405e0806db981b6d0d88f5799"
+  resolved "https://github.com/galtproject/geesome-ui#1738bb80830c174b22ceb1fc46214754e4b86d19"
 
 "@helia/bitswap@^3.2.3":
   version "3.2.3"

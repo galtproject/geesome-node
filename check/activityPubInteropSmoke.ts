@@ -22,6 +22,7 @@ import {
   buildActivityPubPostCreateActivity,
   buildActivityPubPostNote
 } from '../app/modules/activityPub/serializers.js';
+import {printSmokeReport} from './helpers/smokeReport.js';
 
 const config = {
   enabled: true,
@@ -42,6 +43,7 @@ const createActivity = buildActivityPubPostCreateActivity(config, group, post, {
 const outbox = buildActivityPubOutboxCollection(config, group, [post, getDraftPost()], {
   contentsByPostId: new Map([[post.id, contents]])
 });
+const smokeReportPathEnvName = 'ACTIVITYPUB_INTEROP_SMOKE_REPORT_PATH';
 
 assertActivityPubContentTypes();
 assertWebFingerDiscovery();
@@ -51,7 +53,7 @@ assertPostObject();
 assertCreateActivity();
 assertOutboxCollection();
 
-process.stdout.write(`${JSON.stringify(getSmokeReport(), null, 2)}\n`);
+printSmokeReport(getSmokeReport(), smokeReportPathEnvName);
 
 function assertActivityPubContentTypes(): void {
   assert.equal(activityPubContentType, 'application/activity+json; charset=utf-8');

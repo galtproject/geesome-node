@@ -4,12 +4,14 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {promisify} from 'node:util';
 import {createActivityPubSmokeHarness} from './helpers/activityPubSmokeHarness.js';
+import {getSmokeReportPathEnvDescription, printSmokeReport as writeSmokeReport} from './helpers/smokeReport.js';
 
 const execAsync = promisify(execCallback);
 const defaultTimeoutMs = 15000;
 const defaultCommandTimeoutMs = 30000;
 const defaultUserId = 7;
 const defaultSyntheticActorUrl = 'https://remote.example/users/activitypub-smoke';
+const smokeReportPathEnvName = 'ACTIVITYPUB_OWNERSHIP_CHALLENGE_SMOKE_REPORT_PATH';
 
 async function run(): Promise<void> {
   if (process.argv.includes('-h') || process.argv.includes('--help')) {
@@ -504,7 +506,7 @@ function getPublicUrlDomain(publicUrl: string): string {
 }
 
 function printSmokeReport(report): void {
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  writeSmokeReport(report, smokeReportPathEnvName);
 }
 
 function printUsage(): void {
@@ -528,7 +530,8 @@ Environment:
   ACTIVITYPUB_OWNERSHIP_CHALLENGE_SMOKE_LOCAL_SIGNER    Set to 1 for deterministic local harness signing
   ACTIVITYPUB_OWNERSHIP_CHALLENGE_SMOKE_TIMEOUT_MS      Network timeout, default 15000
   ACTIVITYPUB_OWNERSHIP_CHALLENGE_SMOKE_SIGN_COMMAND_TIMEOUT_MS
-                                                              Sign command timeout, default 30000`);
+                                                              Sign command timeout, default 30000
+  ${getSmokeReportPathEnvDescription(smokeReportPathEnvName)}`);
 }
 
 run().catch((e) => {
