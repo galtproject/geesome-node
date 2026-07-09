@@ -154,6 +154,56 @@ describe("content headers", function () {
 		assert.equal(statRequested, false);
 	});
 
+	it("adds storage hook response headers to allowed unknown HEAD paths", async () => {
+		const writes: any = {};
+		const hookCalls: any[] = [];
+		const content = await contentModule({
+			checkModules: () => null,
+			callHookCheckAllowed: async () => true,
+			callHook: async (callFromModule, name, args) => {
+				hookCalls.push({callFromModule, name, args});
+				return [{"X-Robots-Tag": "noindex, nofollow"}];
+			},
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => null
+				},
+				storage: {
+					getFileStat: async () => ({size: 5})
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getContentHead({} as any, {
+			setHeader: (name, value) => {
+				writes.headers = writes.headers || {};
+				writes.headers[name] = value;
+			},
+			writeHead: (status, responseHeaders) => {
+				writes.status = status;
+				writes.headers = {
+					...writes.headers,
+					...responseHeaders
+				};
+			},
+			stream: {
+				end: () => {
+					writes.ended = true;
+				}
+			}
+		} as any, "site-root");
+
+		assert.equal(writes.status, 200);
+		assert.equal(writes.headers["X-Robots-Tag"], "noindex, nofollow");
+		assert.deepEqual(hookCalls, [{
+			callFromModule: "content",
+			name: "getStorageResponseHeaders",
+			args: ["site-root"]
+		}]);
+		assert.equal(writes.ended, true);
+	});
+
 	it("keeps preview MIME headers on HEAD preview storage paths", async () => {
 		const headers = {};
 		const contentSize = 3;
@@ -507,12 +557,17 @@ describe("content headers", function () {
 		const finished = new Promise((resolve) => responseStream.on("finish", resolve));
 		const writes: any = {};
 		const sends: any[] = [];
+		const hookCalls: any[] = [];
 		let statPath = "";
 		let streamPath = "";
 		responseStream.resume();
 		const content = await contentModule({
 			checkModules: () => null,
 			callHookCheckAllowed: async () => true,
+			callHook: async (callFromModule, name, args) => {
+				hookCalls.push({callFromModule, name, args});
+				return [{"X-Robots-Tag": "noindex, nofollow"}];
+			},
 			ms: {
 				api: getApiStub(),
 				database: {
@@ -553,8 +608,14 @@ describe("content headers", function () {
 		assert.equal(writes.status, 200);
 		assert.equal(writes.headers["Content-Type"], "text/html");
 		assert.equal(writes.headers["Content-Length"], 21620);
+		assert.equal(writes.headers["X-Robots-Tag"], "noindex, nofollow");
 		assert.equal(statPath, "site-root/index.html");
 		assert.equal(streamPath, "site-root/index.html");
+		assert.deepEqual(hookCalls, [{
+			callFromModule: "content",
+			name: "getStorageResponseHeaders",
+			args: ["site-root"]
+		}]);
 		assert.deepEqual(sends, []);
 	});
 
@@ -820,6 +881,9 @@ describe("content headers", function () {
 		const content = await contentModule({
 			checkModules: () => null,
 			callHookCheckAllowed: async () => true,
+			callHook: async () => {
+				return [{"X-Robots-Tag": "noindex, nofollow"}];
+			},
 			ms: {
 				api: getApiStub(),
 				database: {
@@ -863,6 +927,7 @@ describe("content headers", function () {
 		assert.equal(writes.headers["Content-Type"], "text/html");
 		assert.equal(writes.headers["Content-Range"], "bytes 0-1/5");
 		assert.equal(writes.headers["Content-Length"], 2);
+		assert.equal(writes.headers["X-Robots-Tag"], "noindex, nofollow");
 		assert.equal(statPath, "site-root/index.html");
 		assert.equal(streamPath, "site-root/index.html");
 		assert.deepEqual(streamOptions, {offset: 0, length: 2});
