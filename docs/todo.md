@@ -560,6 +560,13 @@ Rich-text content-format design note: [rich-text-content-format.md](./rich-text-
 
 ActivityPub and Bluesky user-flow note: [activitypub-user-flows.md](../app/modules/activityPub/docs/activitypub-user-flows.md). Keep it aligned when adding source-reader, moderation, native Bluesky, credential, or cross-post flows. Current intended moderation direction: admin-configurable review-first or auto-import mode, with keyword/regex/source/group-name filters that can block or quarantine remote content before it becomes a GeeSome post.
 
+Remaining ActivityPub/Bluesky integration plan:
+
+1. Simplify the user-facing ActivityPub/Bluesky UI before calling the phase complete. Default screens should show source subscribe/read, account connect/verify, cross-post, migration preview/start, and visible status/errors first.
+2. Keep flexible controls available through task-named expandable groups: advanced import policy, moderation filters, migration ownership proof, reply/quote repair, source refresh settings, and operator diagnostics.
+3. Run and record live interop evidence against real Fediverse/Bridgy/native ATProto targets, including skipped capabilities, credentialed Bluesky checks when credentials are available, and ActivityPub ownership proof compatibility where a signer/tool exists.
+4. Feed live interop findings back into docs or focused follow-up issues only when they reveal product or protocol gaps. Fedify/ActivityPub.Academy work should stay a targeted conformance spike, not a broad rewrite by default.
+
 Content format direction:
 
 - Do not make raw HTML the canonical user-content format. ActivityStreams/ActivityPub and Matrix need sanitized HTML adapter output, but newer decentralized social protocols such as Bluesky/ATProto, Farcaster, and Nostr-style text notes prefer plain text plus structured facets, mentions, tags, embeds, or protocol tags.
