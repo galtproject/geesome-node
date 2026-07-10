@@ -357,6 +357,44 @@ ActivityPub source-feed direction: geesome-ui now has a user-facing ActivityPub 
 
 Remaining ActivityPub/Bluesky finish plan sections are ordered by delivery priority. Agents should run `npm run todo:sections`, then `npm run todo:context -- <section-id>` for the next section before implementing it.
 
+<!-- todo-section: activitypub-bluesky-simplified-user-ui -->
+#### ActivityPub/Bluesky: Simplified User UI
+
+Goal: simplify the ActivityPub/Bluesky frontend so ordinary users see the main job first, while flexible configuration and migration repair controls remain available in grouped expandable containers.
+
+Current state:
+
+- The backend and frontend expose source feeds, account connection, cross-posting, review/import, migration, reconciliation, and rich media/relation policy controls.
+- Several screens expose powerful policy and troubleshooting inputs that are useful for edge cases but can distract from the common path.
+- Status: planned. This should become the next user-facing UI polish pass before treating the ActivityPub/Bluesky phase as complete.
+
+Implementation context:
+
+- Use progressive disclosure. The first viewport of each screen should prioritize the primary action and current status, not every protocol option.
+- Keep recommended defaults visible and action-oriented:
+  - ActivityPub Sources: source search/subscribe, feed, refresh, read state, and visible error state first.
+  - Native Bluesky Sources: public handle preview/subscribe, feed, refresh, account state, and review/import status first.
+  - Bluesky account: connect/verify account first; credential/storage diagnostics stay in advanced details.
+  - Cross-posting: account selector, post/update/delete actions, remote URL/status, and retry/error state first.
+  - Social migration: source, target group, preview summary, start/resume job, progress, and result summary first.
+- Put flexible configuration under labeled spoiler/disclosure groups with compact inputs/buttons:
+  - import media policy, relation policy, reply/quote behavior, upload fallback, link-preview handling, language/facet details;
+  - moderation mode, keyword/regex filters, group-name filters, review/quarantine overrides;
+  - migration ownership proof token, signed challenge proof, max pages/cursors, force/cross-group reconciliation, relation repair actions;
+  - source default group/channel, import limit, poller/worker hints, actor URL versus handle override, bridge/provider details;
+  - smoke/report/debug details for operators.
+- Make each expanded group task-oriented, for example "Advanced import policy", "Resolve migration ownership", "Repair replies and quotes", "Source refresh settings", and "Operator diagnostics".
+- Do not hide blockers, safety decisions, or destructive actions. If a post cannot cross-post, a source cannot resolve, ownership cannot be proven, or content is quarantined, the primary screen should show the concise reason plus a button/link to expand the relevant repair group.
+- Avoid dense protocol vocabulary in the default view. Show ActivityPub/Bridgy/ATProto labels only where they affect trust, source identity, or user choice.
+- Keep admin/operator-only controls out of ordinary user flows unless the current user has the needed permission.
+
+Verification:
+
+- geesome-ui e2e/screenshot coverage for the default collapsed state and expanded advanced groups on desktop and mobile.
+- Check that main actions remain visible without horizontal overflow, nested card clutter, or long labels overflowing buttons.
+- Keep existing backend route contracts unchanged unless simplification exposes a missing focused endpoint.
+<!-- /todo-section -->
+
 <!-- todo-section: activitypub-bluesky-cross-post-policy-ui -->
 #### ActivityPub/Bluesky: Cross-Post Policy UI
 

@@ -4,6 +4,23 @@ This document describes how ActivityPub, ActivityPub Sources, and native Bluesky
 
 The goal is to keep protocol machinery out of ordinary publishing. Admins manage node health, trust, moderation policy, filters, and credentials. Users manage their groups, feeds, and posts inside normal GeeSome permissions.
 
+## UI Simplification Direction
+
+ActivityPub and Bluesky screens should lead with the common user job, then reveal edge-case controls only when the user needs them.
+
+- Default views should show the primary action, current status, latest useful result, and concise next step.
+- Advanced configuration should live in clearly named expandable groups, not beside the primary action.
+- Each expanded group should solve one kind of problem:
+  - **Advanced import policy** for media, relation, reply/quote, upload fallback, link-preview, language, and source-default choices;
+  - **Moderation filters** for review-first/auto-import mode, keyword rules, regex rules, source/group filters, and quarantine/block overrides;
+  - **Resolve migration ownership** for ActivityPub profile tokens, signed challenge proofs, admin-approved trust, and Bluesky account DID checks;
+  - **Repair replies and quotes** for dry-run/apply reconciliation, cross-group resolution, force options, cursors, and skipped/ambiguous relation reports;
+  - **Source refresh settings** for actor URL overrides, import limits, poller hints, queue status, and bridge/provider details;
+  - **Operator diagnostics** for smoke reports, worker state, raw protocol identifiers, and debug-only details.
+- The primary screen must still expose blockers. If a post cannot cross-post, a source cannot resolve, ownership cannot be proven, or content is quarantined, show the short reason in the main flow and offer a button/link to expand the relevant repair group.
+- Avoid dense protocol terms in the first view unless they affect trust or user choice. For example, say "via Bluesky bridge" or "native Bluesky" where it matters, but keep HTTP signatures, AT URIs, CIDs, and actor-key details in advanced/operator groups.
+- Admin-only settings should not appear in ordinary user flows unless the current user can actually use them.
+
 ## Roles
 
 - **Node admin/operator**: configures federation, workers, moderation mode, filter rules, source refreshes, credentials, and health checks.
