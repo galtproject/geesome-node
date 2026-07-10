@@ -1,6 +1,6 @@
 # GeeSome Rich Text Content Format
 
-Status: design note with the first helper slice implemented in `app/richText.ts`, ActivityPub local post serialization wired to render canonical rich-text payloads plus ActivityStreams mention/hashtag tags, Matrix message-content export covered by tests, ATProto-compatible plain text/facet export helpers covered by tests, Farcaster cast export covered by tests, Nostr-like text-note export covered by tests, remote ActivityPub object previews exposing canonical rich-text content projections for review, group content projection exposing canonical rich-text stored payloads as body text plus validated JSON, backend post create/update input accepting canonical rich-text body data, and static-site post metadata rendering canonical rich-text content through the safe HTML renderer. Editor integration, native write UI, and broader protocol wiring remain future work.
+Status: design note with the v1 helper/storage/editor slice implemented. `app/richText.ts` validates and renders canonical documents; ActivityPub local post serialization renders canonical rich-text payloads plus ActivityStreams mention/hashtag tags; Matrix, ATProto/Bluesky, Farcaster, and Nostr-like exports are covered by tests; remote ActivityPub object previews expose canonical rich-text projections for review; group content projection exposes stored canonical payloads as body text plus validated JSON; backend post create/update input accepts `contentRichText`; static-site post metadata renders canonical rich text through the safe HTML renderer; and geesome-ui renders post cards plus writes native composer text as canonical rich text. Future protocol modules should add typed adapters instead of treating raw HTML as editable source.
 
 ## Decision
 
@@ -253,9 +253,9 @@ Existing `Content` rows do not need a schema migration for the design itself. A 
 
 `geesome-ui`:
 
-- editor model mapping;
-- client-side preview rendering through the same allowlist;
-- e2e coverage for post component rendering and editor round trips.
+- editor model mapping. Status: the composer writes canonical rich text through `contentRichText`;
+- client-side preview rendering through the same allowlist. Status: post cards render canonical rich text instead of trusting raw HTML;
+- e2e coverage for post component rendering and editor round trips. Status: desktop/mobile post-card and composer e2e coverage exists in geesome-ui.
 
 ## First Implementation Slice
 
@@ -274,8 +274,10 @@ Recommended first code PR:
 11. Add shared stored-content projection helpers so canonical rich-text content rows can be read as plain body text plus validated JSON by post APIs and protocol serializers. Status: implemented in `app/modules/group/contentProjectionHelpers.ts` and wired into `group.prepareContentData`.
 12. Add backend native write input so post create/update can receive a validated `contentRichText` document and save it as a normal `ContentView.Contents` row. Status: implemented in `app/modules/group/postContentInputHelpers.ts` and wired into `group.createPost` / `group.updatePost`.
 13. Render canonical rich-text post content through the generated static-site safe HTML path instead of downgrading it to plain text first. Status: implemented in `app/modules/staticSiteGenerator/helpers.ts`.
+14. Render canonical rich text in the Vue post component without trusting raw HTML. Status: implemented in geesome-ui post-card rendering.
+15. Wire the Vue post composer to submit canonical rich-text `contentRichText` bodies. Status: implemented in geesome-ui native composer publishing.
 
-Do not change the storage format for all posts in the first implementation PR.
+Do not change the storage format for all posts in the first implementation PR. The v1 slice keeps canonical rich text as a normal content row and leaves legacy `text/plain` / sanitized `text/html` reads compatible.
 
 ## Open Questions
 

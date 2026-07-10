@@ -7,6 +7,9 @@ import {
 	normalizeBlueskyActor,
 	projectBlueskyAuthorFeed
 } from '../app/modules/bluesky/helpers.js';
+import {getSmokeReportPathEnvDescription, printSmokeReport as writeSmokeReport} from './helpers/smokeReport.js';
+
+const smokeReportPathEnvName = 'BLUESKY_ATPROTO_SMOKE_REPORT_PATH';
 
 async function run(): Promise<void> {
 	if (process.argv.includes('-h') || process.argv.includes('--help')) {
@@ -58,7 +61,7 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
 }
 
 function printSmokeReport(report): void {
-	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+	writeSmokeReport(report, smokeReportPathEnvName);
 }
 
 function printUsage(): void {
@@ -75,7 +78,8 @@ Environment:
   BLUESKY_ATPROTO_SMOKE_HANDLE      Bluesky handle or DID, default bsky.app
   BLUESKY_ATPROTO_SMOKE_ORIGIN      Public ATProto API, default https://public.api.bsky.app
   BLUESKY_ATPROTO_SMOKE_LIMIT       Posts to inspect, default 3, max 100
-  BLUESKY_ATPROTO_SMOKE_TIMEOUT_MS  Fetch timeout, default 15000`);
+  BLUESKY_ATPROTO_SMOKE_TIMEOUT_MS  Fetch timeout, default 15000
+  ${getSmokeReportPathEnvDescription(smokeReportPathEnvName)}`);
 }
 
 run().catch((e) => {

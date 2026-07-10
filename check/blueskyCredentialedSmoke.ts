@@ -13,11 +13,13 @@ import {
 import {BlueskySourceSubscriptionStatus} from '../app/modules/bluesky/interface.js';
 import {ContentView, CorePermissionName} from '../app/modules/database/interface.js';
 import {PostStatus} from '../app/modules/group/interface.js';
+import {getSmokeReportPathEnvDescription, printSmokeReport as writeSmokeReport} from './helpers/smokeReport.js';
 
 const credentialEnvNames = [
 	'BLUESKY_CREDENTIAL_SMOKE_IDENTIFIER',
 	'BLUESKY_CREDENTIAL_SMOKE_APP_PASSWORD'
 ];
+const smokeReportPathEnvName = 'BLUESKY_CREDENTIAL_SMOKE_REPORT_PATH';
 
 async function run(): Promise<void> {
 	if (process.argv.includes('-h') || process.argv.includes('--help')) {
@@ -1047,7 +1049,7 @@ function normalizePublicUrl(value: any): string {
 }
 
 function printSmokeReport(report): void {
-	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+	writeSmokeReport(report, smokeReportPathEnvName);
 }
 
 function printUsage(): void {
@@ -1082,7 +1084,8 @@ Environment:
   BLUESKY_CREDENTIAL_SMOKE_MEDIA_FALLBACK    Set to 1 to exercise image-upload-failure link fallback
   BLUESKY_CREDENTIAL_SMOKE_IMAGE_STORAGE_ID  Storage id used for media fallback link
   BLUESKY_PUBLIC_URL / ACTIVITYPUB_PUBLIC_URL / DOMAIN
-                                             Public GeeSome URL fallback for media links`);
+                                             Public GeeSome URL fallback for media links
+  ${getSmokeReportPathEnvDescription(smokeReportPathEnvName)}`);
 }
 
 run().catch((e) => {
